@@ -174,6 +174,22 @@ switching the page to print media does not make those page fragments observable,
 so capture must not claim paged-table parity until it owns a page-fragment
 transport; `@page` output remains outside the screen-capture contract in doc 01.
 
+Captioned tables preserve a second, independent box boundary. At the pinned
+revision, `TableLayoutAlgorithm` records `TableGridRect` after top captions and
+before bottom captions, and `TablePainter::PaintBoxDecorationBackground` uses
+that caption-excluding rect for the table's own box decoration. Domotion now
+captures the same logical block interval from the laid-out caption fragments
+and adjoining margins while retaining the caption-inclusive wrapper rect for
+layout, descendants, and outline painting. The browser gate in
+`src/capture/table-geometry.e2e.test.ts` derives the expected grid independently
+from the section and table-border geometry, checks that the retired wrapper
+route moves, and verifies SVG background ownership. The same gate transcribes
+`FinalizeTableCellLayout`'s `builder->Children().empty()` decision for
+`empty-cells: hide`: real in-flow text/element/pseudo fragments count, collapsed
+whitespace and display-none/out-of-flow descendants do not, and collapsed-border
+tables ignore the property. This is fragment classification, not a codepoint or
+font table.
+
 The expanded matrix's first negative control exposed a coordinate-space error:
 CSSOM returns border/outline paint lengths divided by Blink's effective zoom,
 while DOMRects are already physical. Capture now restores the internal zoomed

@@ -72,13 +72,132 @@ export const physicalComputedTileSize = (value, effectiveZoom) => {
     `${Math.round(parseFloat(number) * effectiveZoom * 1e6) / 1e6}px`);
 };
 
-export const createBordersBackgroundsHandler = ({ normColor, normGradientColors, resolvePlaceholderShownBg, resolveCornerRadius, effectiveZoomFor = () => 1 }) => {
+/** Reconstruct Blink's caption-excluding TableGridRect from the already-laid-
+ * out caption fragments. `table_layout_algorithm.cc` advances a logical block
+ * offset by each top caption's start margin, fragment size, and end margin,
+ * records the table-box extent, then lays out bottom captions the same way.
+ * DOMRects give us the fragment offsets and sizes; only the adjoining block
+ * margin needs to be restored. */
+export const tableGridRectFromCaptions = (tableRect, writingMode, captions) => {
+  const vertical = /^(?:vertical|sideways)-/.test(writingMode);
+  const blockReverse = writingMode === 'vertical-rl' || writingMode === 'sideways-rl';
+  const blockExtent = vertical ? tableRect.width : tableRect.height;
+  const logicalEdges = (rect) => {
+    if (!vertical) return { start: rect.top - tableRect.top, end: rect.bottom - tableRect.top };
+    if (blockReverse) return { start: tableRect.right - rect.right, end: tableRect.right - rect.left };
+    return { start: rect.left - tableRect.left, end: rect.right - tableRect.left };
+  };
+
+  let blockStart = 0;
+  let blockEnd = blockExtent;
+  let sawBottom = false;
+  for (const caption of captions) {
+    const edges = logicalEdges(caption.rect);
+    if (caption.side === 'bottom') {
+      if (!sawBottom) {
+        blockEnd = edges.start - caption.marginBlockStart;
+        sawBottom = true;
+      }
+    } else {
+      // Top captions are laid out in tree order before the table box. The
+      // LAST one owns the final child block offset; do not max() here because
+      // a negative end margin is allowed to overlap the table grid.
+      blockStart = edges.end + caption.marginBlockEnd;
+    }
+  }
+  if (!vertical) {
+    return {
+      x: tableRect.left,
+      y: tableRect.top + blockStart,
+      width: tableRect.width,
+      height: blockEnd - blockStart,
+    };
+  }
+  return {
+    x: blockReverse ? tableRect.right - blockEnd : tableRect.left + blockStart,
+    y: tableRect.top,
+    width: blockEnd - blockStart,
+    height: tableRect.height,
+  };
+};
+
+export const createBordersBackgroundsHandler = ({ normColor, normGradientColors, resolvePlaceholderShownBg, resolveCornerRadius, effectiveZoomFor = () => 1, vp = { x: 0, y: 0 } }) => {
   const isUaColorBorder = (tag, el, cs, side) =>
     tag === 'input' && el.type === 'color'
     && normColor(cs[side], cs.color).replace(/\s+/g, '') === 'rgb(0,0,0)';
 
   const tintedBorderColor = (tag, el, cs, side) =>
     isUaColorBorder(tag, el, cs, side) ? 'rgb(118,118,118)' : normColor(cs[side], cs.color);
+
+  const pseudoCreatesInflowFragment = (el, pseudo) => {
+    const styleWindow = el.ownerDocument?.defaultView ?? window;
+    const pcs = styleWindow.getComputedStyle(el, pseudo);
+    const content = pcs.content;
+    return content != null && content !== '' && content !== 'none' && content !== 'normal'
+      && pcs.display !== 'none' && pcs.position !== 'absolute' && pcs.position !== 'fixed';
+  };
+
+  const nodeCreatesInflowFragment = (node) => {
+    // Text contributes only when inline layout produced an actual fragment.
+    // This distinguishes NBSP (a fragment) from collapsed ASCII whitespace
+    // without encoding either character class in Domotion.
+    if (node.nodeType === 3) {
+      const range = node.ownerDocument.createRange();
+      range.selectNodeContents(node);
+      const hasFragment = range.getClientRects().length > 0;
+      if (range.detach) range.detach();
+      return hasFragment;
+    }
+    if (node.nodeType !== 1) return false;
+    const styleWindow = node.ownerDocument?.defaultView ?? window;
+    const ncs = styleWindow.getComputedStyle(node);
+    if (ncs.display === 'none' || ncs.position === 'absolute' || ncs.position === 'fixed') return false;
+    if (ncs.display !== 'contents') return true;
+    if (pseudoCreatesInflowFragment(node, '::before')) return true;
+    for (const child of node.childNodes) if (nodeCreatesInflowFragment(child)) return true;
+    return pseudoCreatesInflowFragment(node, '::after');
+  };
+
+  const tableCellHasInflowFragments = (cell) => {
+    if (pseudoCreatesInflowFragment(cell, '::before')) return true;
+    for (const child of cell.childNodes) if (nodeCreatesInflowFragment(child)) return true;
+    return pseudoCreatesInflowFragment(cell, '::after');
+  };
+
+  // `FinalizeTableCellLayout` checks whether the fragment builder has any
+  // in-flow children. `empty-cells` is ignored for collapsed-border tables.
+  const isTableCellHiddenByEmptyCells = (el, cs, tag) =>
+    (tag === 'td' || tag === 'th') && cs.borderCollapse !== 'collapse'
+      && cs.emptyCells === 'hide' && !tableCellHasInflowFragments(el);
+
+  const resolveTableGridRect = (el, cs, tag, rect) => {
+    if (tag !== 'table') return undefined;
+    const captions = [];
+    for (const child of el.children) {
+      const styleWindow = child.ownerDocument?.defaultView ?? window;
+      const ccs = styleWindow.getComputedStyle(child);
+      if (ccs.display !== 'table-caption') continue;
+      const captionRect = child.getBoundingClientRect();
+      const zoom = effectiveZoomFor(child);
+      const vertical = /^(?:vertical|sideways)-/.test(cs.writingMode);
+      const blockReverse = cs.writingMode === 'vertical-rl' || cs.writingMode === 'sideways-rl';
+      const marginBlockStart = parseFloat(vertical
+        ? (blockReverse ? ccs.marginRight : ccs.marginLeft)
+        : ccs.marginTop) * zoom || 0;
+      const marginBlockEnd = parseFloat(vertical
+        ? (blockReverse ? ccs.marginLeft : ccs.marginRight)
+        : ccs.marginBottom) * zoom || 0;
+      captions.push({
+        rect: captionRect,
+        side: ccs.captionSide === 'bottom' ? 'bottom' : 'top',
+        marginBlockStart,
+        marginBlockEnd,
+      });
+    }
+    if (captions.length === 0) return undefined;
+    const grid = tableGridRectFromCaptions(rect, cs.writingMode, captions);
+    return { x: grid.x - vp.x, y: grid.y - vp.y, width: grid.width, height: grid.height };
+  };
 
   const computeFrostedBgFallback = (cs) => {
     const bdf = cs.backdropFilter || cs.webkitBackdropFilter || '';
@@ -436,6 +555,7 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
     && (tag === 'table' || tag === 'tr' || tag === 'thead' || tag === 'tbody' || tag === 'tfoot' || tag === 'colgroup' || tag === 'col');
 
   const captureBordersBackgrounds = (el, cs, tag, rect, isPlaceholderCapture, effectiveZoom = 1) => ({
+    tableGridRect: resolveTableGridRect(el, cs, tag, rect),
     backgroundColor: (function () {
       if (isPlaceholderCapture) {
         const psBg = resolvePlaceholderShownBg(el);
@@ -585,5 +705,5 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
     boxDecorationBreak: cs.boxDecorationBreak || cs.webkitBoxDecorationBreak || 'slice',
   });
 
-  return { captureBordersBackgrounds };
+  return { captureBordersBackgrounds, isTableCellHiddenByEmptyCells };
 };

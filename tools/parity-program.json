@@ -64,12 +64,13 @@
     },
     {
       "id": "borders-outlines",
-      "domotionSources": ["src/render/element-tree-to-svg.ts"],
-      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/paint", "external/skia/src/core"],
+      "domotionSources": ["src/capture/script/walker/borders-backgrounds.ts", "src/render/element-tree-to-svg.ts"],
+      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/layout/table", "external/chromium/third_party/blink/renderer/core/paint", "external/skia/src/core"],
       "oracle": "tools/border-phase-oracle.ts",
+      "browserOracle": "src/capture/table-geometry.e2e.test.ts",
       "sourceAudit": "partial",
       "oracleStatus": "paint-model-gate",
-      "generatedCoverage": "style, width, and quarter-pixel phase matrix for straight top edges; generated transcription of all BorderPainter paint-path decisions; exact round-curvature side clips across square, wide, mixed-width, missing-side, and overlapping-radius inputs with a legacy-path movement control; computed corner-shape keywords/custom parameters, asymmetric physical corners, concave opposite-hull constraints, inset origin alignment, mixed-side hyperellipse quads, and non-renderable four-corner path intersections; collapsed-table logical edge merge, span-interior, four-way joint, writing-direction, capture-contract, and composed visual rows",
+      "generatedCoverage": "style, width, and quarter-pixel phase matrix for straight top edges; generated transcription of all BorderPainter paint-path decisions; exact round-curvature side clips across square, wide, mixed-width, missing-side, and overlapping-radius inputs with a legacy-path movement control; computed corner-shape keywords/custom parameters, asymmetric physical corners, concave opposite-hull constraints, inset origin alignment, mixed-side hyperellipse quads, and non-renderable four-corner path intersections; collapsed-table logical edge merge, span-interior, four-way joint, writing-direction, capture-contract, and composed visual rows; caption-excluding table-grid geometry plus in-flow-fragment empty-cell classification with retired-route controls",
       "platformCoverage": ["darwin", "linux", "win32"],
       "knownGap": "Round and non-round contours, mixed-side hyperellipse/concave partitions, non-renderable inset corner-path intersections, non-fragmented collapsed-table edge/joint painting, and CSS effective-zoom conversion for border/outline paint lengths are transcribed. The phase matrix collects fingerprinted zoom/DSF reports on all three platforms, but expanded scenario envelopes remain diagnostic pending reviewed native artifacts; DSF=1 dotted-outline alpha residuals and table fragmentation remain explicit.",
       "nextAction": "Review native phase-matrix artifacts, ratify per-platform envelopes only where stable, and extend collapsed-border coverage after the fragmentation model lands."

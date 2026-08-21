@@ -89,12 +89,13 @@ const captureDocumentTree =
   const { discoverMasks, discoverClipPaths, discoverFilters, maskDefs: _maskDefs, maskRasters: _maskRasters, clipPathDefs: _clipPathDefs, filterDefs: _filterDefs } = createMasksClipsHandler({ vp, warn });
   const { captureFormControls } = createFormControlsHandler({ normColor, resolvePseudo: _resolvePseudo });
   const { wrapWithFrozenTransform, threadFrozenTransform } = createTransformsHandler();
-  const { captureBordersBackgrounds } = createBordersBackgroundsHandler({
+  const { captureBordersBackgrounds, isTableCellHiddenByEmptyCells } = createBordersBackgroundsHandler({
     normColor,
     normGradientColors,
     resolvePlaceholderShownBg: _resolvePlaceholderShownBg,
     resolveCornerRadius: _resolveCornerRadius,
     effectiveZoomFor: (el) => _effectiveZoomFor(el),
+    vp,
   });
   const { capturePseudoContent } = createPseudoContentHandler({
     vp,
@@ -596,7 +597,7 @@ const captureDocumentTree =
         pointerEvents: cs.pointerEvents === 'none' ? 'none' : undefined,
         order: cs.order,
         flexDirection: cs.flexDirection,
-        emptyCellsHidden: (tag === 'td' || tag === 'th') && cs.emptyCells === 'hide' && (el.textContent || '').trim() === '' && el.children.length === 0,
+        emptyCellsHidden: isTableCellHiddenByEmptyCells(el, cs, tag),
         // Form-control fields — input / progress / meter / select / details
         // + ::-webkit-* pseudos for slider track/thumb, color swatch, number
         // spin button, search cancel, file-selector button. See

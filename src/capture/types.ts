@@ -334,6 +334,15 @@ export interface CapturedStyles {
     style: string;
     color: string;
   }>;
+  /** Caption-excluding physical table box used by Blink's TablePainter for
+   * the table's own background, border, border-image, and shadows. The
+   * element's x/y/width/height remain the caption-inclusive wrapper box. */
+  tableGridRect?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
   overflowX: string;
   overflowY: string;
   /**
@@ -501,7 +510,8 @@ export interface CapturedStyles {
    *  flex-direction — matching what users expect from a visually-reordered
    *  layout. Captured on the parent so the child sorter can read it. */
   flexDirection: string;
-  /** For <td>/<th> with empty-cells: hide — suppress bg + border. */
+  /** For <td>/<th> with empty-cells: hide and no in-flow child fragment —
+   * suppress the cell's own background and border. */
   emptyCellsHidden?: boolean;
   /** Form-control state captured so we can synthesize native chrome. */
   inputType?: string;

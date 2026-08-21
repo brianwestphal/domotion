@@ -4611,6 +4611,19 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   const textColor = parseColor(el.styles.color);
   const borderColor = parseColor(el.styles.borderColor);
   const borderWidth = parseFloat(el.styles.borderWidth) || 0;
+  // Blink's table layout fragment is a wrapper around both captions and the
+  // actual table grid. TablePainter passes the caption-excluding
+  // TableGridRect to box-decoration painting, while layout/children/outline
+  // continue to use the wrapper fragment. Keep those two ownership boxes
+  // distinct instead of shrinking the captured element itself.
+  const tableGridRect = el.styles.tableGridRect;
+  const boxPaintEl: CapturedElement = tableGridRect == null ? el : {
+    ...el,
+    x: tableGridRect.x,
+    y: tableGridRect.y,
+    width: tableGridRect.width,
+    height: tableGridRect.height,
+  };
   // Border-radius resolution (SK-1093 / DM-300): per-corner longhand values
   // come from the capture as "h v" axis-pair strings (e.g. "30px 30px" or
   // "50px 20px" for elliptical corners). Each corner can independently be
@@ -4624,6 +4637,9 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // captures, which is acceptable for now. DM-246 (the half-extent clamp
   // for the uniform fast path) is preserved by `roundedRectSvg`.
   const corners = parseCornerRadii(el.styles, el.width, el.height);
+  const boxPaintCorners = tableGridRect == null
+    ? corners
+    : parseCornerRadii(el.styles, boxPaintEl.width, boxPaintEl.height);
   const _rawBorderRadius = parseFloat(el.styles.borderTopLeftRadius ?? el.styles.borderRadius ?? "0") || 0;
   const borderRadius = Math.min(_rawBorderRadius, el.width / 2, el.height / 2);
   const opacity = parseFloat(el.styles.opacity);
@@ -4761,7 +4777,7 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // first). Blur > 0 routes through an SVG <filter feGaussianBlur> with
   // stdDeviation ≈ blur/2 (matches Chromes blur-to-stdDev mapping).
   if (!useInlineFragments && paintBoxPhase) {
-    paintBoxShadow(paintCtx, el, corners, indent);
+    paintBoxShadow(paintCtx, boxPaintEl, boxPaintCorners, indent);
   }
 
   // Background rect(s). CSS lets backgrounds stack via background-image with
@@ -4770,7 +4786,7 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // CSS layering. The background-color paints *under* all layers.
   const backgroundStackStart = svgParts.length;
   if (paintBoxPhase) {
-    svgParts.push(...paintBackgroundColor(el, corners, indent, bgColor, useInlineFragments, suppressEmptyCell));
+    svgParts.push(...paintBackgroundColor(boxPaintEl, boxPaintCorners, indent, bgColor, useInlineFragments, suppressEmptyCell));
   }
   // DM-462: when the element uses `background-clip: text`, the first
   // text-clipped layer's gradient/image is captured here and used as the
@@ -4788,7 +4804,7 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // in the inline phase, so they are stashed for the second pass to pick up.
   if (paintBoxPhase) {
     const backgroundImageStart = svgParts.length;
-    state.bgClipTextFills.set(el, paintBackgroundImageLayers(paintCtx, el, indent, corners, useInlineFragments, captureViewport));
+    state.bgClipTextFills.set(el, paintBackgroundImageLayers(paintCtx, boxPaintEl, indent, boxPaintCorners, useInlineFragments, captureViewport));
     const blendLayers = splitTopLevelCommas(el.styles.backgroundBlendMode ?? "normal");
     const hasNonNormalBlend = blendLayers.some((mode) => mode.trim() !== "" && mode.trim() !== "normal");
     // Blink's BoxPainterBase opens its separate buffer around PaintFillLayers,
@@ -4819,11 +4835,11 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // the whole thing to the padding box so the outer-margin overflow and
   // the parts of the halo outside the box don't leak.
   if (!useInlineFragments && paintBoxPhase) {
-    paintInsetBoxShadow(paintCtx, el, corners, indent);
+    paintInsetBoxShadow(paintCtx, boxPaintEl, boxPaintCorners, indent);
   }
 
   if (paintBoxPhase) {
-    paintBorder(paintCtx, el, indent, corners, width, height, borderWidth, borderColor, suppressEmptyCell, useInlineFragments, offGridCollapsedCells);
+    paintBorder(paintCtx, boxPaintEl, indent, boxPaintCorners, width, height, borderWidth, borderColor, suppressEmptyCell, useInlineFragments, offGridCollapsedCells);
   }
 
   // Column rules belong to the multicol container's box-paint phase and sit
