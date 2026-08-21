@@ -1389,6 +1389,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt316fr8n9bv2da3",
+          "message": {
+            "text": "Custom resizer shadows reuse the same Blink-derived outer/inset box-shadow stages as ordinary boxes, but over the captured fixed CornerRect and inside one CornerRect clip. Pseudo CSS lengths scale once by effective zoom; DPR never participates, and platform resizers bypass this branch.",
+            "markdown": "Custom resizer shadows reuse the same Blink-derived outer/inset box-shadow stages as ordinary boxes, but over the captured fixed CornerRect and inside one CornerRect clip. Pseudo CSS lengths scale once by effective zoom; DPR never participates, and platform resizers bypass this branch."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 2620,
+                  "endLine": 2680,
+                  "snippet": {
+                    "text": "    const radius = customResizerRadius(custom.borderRadius, Math.min(handle.width, handle.height), zoom);\n    const parsedShadows = parseBoxShadow(custom.boxShadow ?? \"none\");\n    const scaledShadowCss = parsedShadows.map((shadow) => `${shadow.color} ${r(shadow.x * zoom)}px ${r(shadow.y * zoom)}px ${r(shadow.blur * zoom)}px ${r(shadow.spread * zoom)}px${shadow.inset ? \" inset\" : \"\"}`).join(\", \");\n    const border = customResizerBorder(custom.border, zoom);\n    const shadowElement = {\n      ...el,\n      x: handle.x, y: handle.y, width: handle.width, height: handle.height,\n      styles: {\n        ...el.styles,\n        boxShadow: scaledShadowCss,\n        borderRadius: `${radius}px`,\n        borderTopLeftRadius: `${radius}px`, borderTopRightRadius: `${radius}px`,\n        borderBottomRightRadius: `${radius}px`, borderBottomLeftRadius: `${radius}px`,\n        borderLeftWidth: `${border?.width ?? 0}px`, borderRightWidth: `${border?.width ?? 0}px`,\n        borderTopWidth: `${border?.width ?? 0}px`, borderBottomWidth: `${border?.width ?? 0}px`,\n      },\n    } as CapturedElement;\n    const shadowCorners = parseCornerRadii(shadowElement.styles, handle.width, handle.height);\n    const shadowCtx: PaintCtx = { ...ctx, svgParts: [] };\n    paintBoxShadow(shadowCtx, shadowElement, shadowCorners, \"\");\n    const outerShadows = shadowCtx.svgParts.splice(0);\n\n    const color = parseColor(custom.backgroundColor ?? \"transparent\");\n    if (color != null && color.a > 0) {\n      out.push(`${indent}<rect x=\"${r(handle.x)}\" y=\"${r(handle.y)}\" width=\"${r(handle.width)}\" height=\"${r(handle.height)}\"${radius > 0 ? ` rx=\"${r(radius)}\" ry=\"${r(radius)}\"` : \"\"} fill=\"${colorStr(color)}\" />`);\n    }\n    if (custom.backgroundImage != null && custom.backgroundImage !== \"\" && custom.backgroundImage !== \"none\") {\n      const layers = buildPseudoBoxBgLayers(ctx, captureViewport, {\n        x: handle.x,\n        y: handle.y,\n        width: handle.width,\n        height: handle.height,\n        backgroundImage: custom.backgroundImage,\n        borderRadius: radius,\n      });\n      if (layers !== \"\") out.push(`${indent}${layers}`);\n    }\n    const backgroundParts = out.splice(0);\n    paintInsetBoxShadow(shadowCtx, shadowElement, shadowCorners, \"\");\n    const insetShadows = shadowCtx.svgParts.splice(0);\n    if (border != null && border.width > 0 && border.style !== \"none\") {\n      const half = border.width / 2;\n      const dash = dashArrayForStyle(border.style, border.width);\n      const dashAttr = dash !== \"\" ? ` stroke-dasharray=\"${dash}\"` : \"\";\n      out.push(`${indent}<rect x=\"${r(handle.x + half)}\" y=\"${r(handle.y + half)}\" width=\"${r(Math.max(0, handle.width - border.width))}\" height=\"${r(Math.max(0, handle.height - border.width))}\"${radius > 0 ? ` rx=\"${r(Math.max(0, radius - half))}\" ry=\"${r(Math.max(0, radius - half))}\"` : \"\"} fill=\"none\" stroke=\"${esc(border.color)}\" stroke-width=\"${r(border.width)}\"${dashAttr} />`);\n    }\n    if (parsedShadows.length > 0) {\n      const clipId = ctx.nextClipId(\"resizersh\");\n      ctx.defsParts.push(`<clipPath id=\"${clipId}\">${roundedRectSvg(handle.x, handle.y, handle.width, handle.height, shadowCorners, \"\")}</clipPath>`);\n      return [`${indent}<g clip-path=\"url(#${clipId})\">`, ...outerShadows.map((part) => `${indent}  ${part}`), ...backgroundParts.map((part) => `  ${part}`), ...insetShadows.map((part) => `${indent}  ${part}`), ...out.map((part) => `  ${part}`), `${indent}</g>`];\n    }\n    return [...backgroundParts, ...out];\n  }\n\n  const strokes = blinkPlatformResizerStrokes(\n    { x: handle.x, y: handle.y, width: handle.width, height: handle.height },\n    handle.scaleFromDIP,\n    handle.logicalLeft,\n  );\n  const pathData = (points: typeof strokes.dark): string =>\n    `M${r(points[0].x)},${r(points[0].y)} L${r(points[1].x)},${r(points[1].y)} M${r(points[2].x)},${r(points[2].y)} L${r(points[3].x)},${r(points[3].y)}`;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2450"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "253a44f2a63ed8023759b3a3d010e9d7"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "17bb609a1ba878edecfb52787ed79347b7332700",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

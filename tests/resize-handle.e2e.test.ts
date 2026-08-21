@@ -161,7 +161,7 @@ describeBrowser("DM-2418: Blink platform resizer capture and paint", () => {
         position:absolute;box-sizing:border-box;top:20px;width:110px;height:80px;
         resize:both;border:3px solid #222
       }#quiet{left:20px;overflow:hidden}#bars{left:150px;overflow:auto}
-      #custom{left:280px;overflow:hidden}#custom::-webkit-resizer{background:rgb(1,254,2)}</style>
+      #custom{left:280px;overflow:hidden;direction:rtl}#custom::-webkit-resizer{background:rgb(1,254,2);border:2px solid blue;border-radius:4px;box-shadow:rgb(255,0,0) 3px 2px 4px 1px,rgba(0,0,0,.5) -1px 0 2px 2px inset}</style>
       <div id="quiet" class="box" data-domotion-anim="quiet"></div>
       <div id="bars" class="box" data-domotion-anim="bars"><i style="display:block;width:300px;height:220px"></i></div>
       <div id="custom" class="box" data-domotion-anim="custom"></div>`);
@@ -181,6 +181,15 @@ describeBrowser("DM-2418: Blink platform resizer capture and paint", () => {
       expect(barsSvg).toContain("rgb(217,217,217)");
       expect(customSvg).toContain('fill="rgb(1,254,2)"');
       expect(customSvg).not.toContain('stroke-opacity="0.6"');
+      expect(custom.resizeHandle!.custom!.boxShadow).toContain("rgb(255, 0, 0)");
+      expect(custom.resizeHandle!.logicalLeft).toBe(true);
+      expect(customSvg).toContain("resizersh");
+      expect(customSvg).toContain("<feGaussianBlur");
+      expect(customSvg).toContain('fill="rgb(255,0,0)"');
+      expect(customSvg).toContain('fill="rgba(0,0,0,0.5)"');
+      expect(customSvg.indexOf('fill="rgb(255,0,0)"')).toBeLessThan(customSvg.indexOf('fill="rgb(1,254,2)"'));
+      expect(customSvg.indexOf('fill="rgb(1,254,2)"')).toBeLessThan(customSvg.indexOf('fill="rgba(0,0,0,0.5)"'));
+      expect(quietSvg).not.toContain("resizersh");
     } finally {
       await page.close();
     }

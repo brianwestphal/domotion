@@ -2618,6 +2618,27 @@ function paintResizeHandle(
   if (custom != null) {
     const zoom = custom.effectiveZoom > 0 ? custom.effectiveZoom : 1;
     const radius = customResizerRadius(custom.borderRadius, Math.min(handle.width, handle.height), zoom);
+    const parsedShadows = parseBoxShadow(custom.boxShadow ?? "none");
+    const scaledShadowCss = parsedShadows.map((shadow) => `${shadow.color} ${r(shadow.x * zoom)}px ${r(shadow.y * zoom)}px ${r(shadow.blur * zoom)}px ${r(shadow.spread * zoom)}px${shadow.inset ? " inset" : ""}`).join(", ");
+    const border = customResizerBorder(custom.border, zoom);
+    const shadowElement = {
+      ...el,
+      x: handle.x, y: handle.y, width: handle.width, height: handle.height,
+      styles: {
+        ...el.styles,
+        boxShadow: scaledShadowCss,
+        borderRadius: `${radius}px`,
+        borderTopLeftRadius: `${radius}px`, borderTopRightRadius: `${radius}px`,
+        borderBottomRightRadius: `${radius}px`, borderBottomLeftRadius: `${radius}px`,
+        borderLeftWidth: `${border?.width ?? 0}px`, borderRightWidth: `${border?.width ?? 0}px`,
+        borderTopWidth: `${border?.width ?? 0}px`, borderBottomWidth: `${border?.width ?? 0}px`,
+      },
+    } as CapturedElement;
+    const shadowCorners = parseCornerRadii(shadowElement.styles, handle.width, handle.height);
+    const shadowCtx: PaintCtx = { ...ctx, svgParts: [] };
+    paintBoxShadow(shadowCtx, shadowElement, shadowCorners, "");
+    const outerShadows = shadowCtx.svgParts.splice(0);
+
     const color = parseColor(custom.backgroundColor ?? "transparent");
     if (color != null && color.a > 0) {
       out.push(`${indent}<rect x="${r(handle.x)}" y="${r(handle.y)}" width="${r(handle.width)}" height="${r(handle.height)}"${radius > 0 ? ` rx="${r(radius)}" ry="${r(radius)}"` : ""} fill="${colorStr(color)}" />`);
@@ -2633,17 +2654,21 @@ function paintResizeHandle(
       });
       if (layers !== "") out.push(`${indent}${layers}`);
     }
-    const border = customResizerBorder(custom.border, zoom);
+    const backgroundParts = out.splice(0);
+    paintInsetBoxShadow(shadowCtx, shadowElement, shadowCorners, "");
+    const insetShadows = shadowCtx.svgParts.splice(0);
     if (border != null && border.width > 0 && border.style !== "none") {
       const half = border.width / 2;
       const dash = dashArrayForStyle(border.style, border.width);
       const dashAttr = dash !== "" ? ` stroke-dasharray="${dash}"` : "";
       out.push(`${indent}<rect x="${r(handle.x + half)}" y="${r(handle.y + half)}" width="${r(Math.max(0, handle.width - border.width))}" height="${r(Math.max(0, handle.height - border.width))}"${radius > 0 ? ` rx="${r(Math.max(0, radius - half))}" ry="${r(Math.max(0, radius - half))}"` : ""} fill="none" stroke="${esc(border.color)}" stroke-width="${r(border.width)}"${dashAttr} />`);
     }
-    // Blink gives ObjectPainter the fixed CornerRect. Authored width/height
-    // and padding never alter the geometry; complex pseudo box-shadow remains
-    // captured as an explicit fact for a future full box-paint transcription.
-    return out;
+    if (parsedShadows.length > 0) {
+      const clipId = ctx.nextClipId("resizersh");
+      ctx.defsParts.push(`<clipPath id="${clipId}">${roundedRectSvg(handle.x, handle.y, handle.width, handle.height, shadowCorners, "")}</clipPath>`);
+      return [`${indent}<g clip-path="url(#${clipId})">`, ...outerShadows.map((part) => `${indent}  ${part}`), ...backgroundParts.map((part) => `  ${part}`), ...insetShadows.map((part) => `${indent}  ${part}`), ...out.map((part) => `  ${part}`), `${indent}</g>`];
+    }
+    return [...backgroundParts, ...out];
   }
 
   const strokes = blinkPlatformResizerStrokes(

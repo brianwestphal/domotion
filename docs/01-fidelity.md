@@ -30,11 +30,10 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 - [x] CSS resize controls — Blink's exact scroll-container/iframe activation,
   logical-left placement, pixel-snapped corner size, platform dark/light grip,
   scrollbar-only frame, and author `::-webkit-resizer` background/gradient/
-  border paint are retained. Platform corner thickness is measured from the
+  border, and multi-layer inset/outset shadow paint are retained and clipped to
+  the fixed CornerRect. Platform corner thickness is measured from the
   active Chromium `ScrollbarTheme`, so macOS overlay/legacy, Aura, and Windows
   values are not collapsed to a hard-coded constant; DPR is divided out.
-  Complex custom-pseudo box shadows are captured as classified paint facts but
-  are not yet emitted.
 
 ### Visual / paint
 

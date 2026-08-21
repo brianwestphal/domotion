@@ -56,6 +56,10 @@ and light platform paths. The focused browser suite independently checks the
 active platform's measured theme thickness, authored custom-pseudo dimension
 override, custom paint ownership, scrollbar/no-scrollbar frame branch,
 textarea/div/iframe cases, CSS zoom, and DPR 1/2 pixel geometry.
+Custom resizer paint reuses the renderer's Blink-derived normal/inset box-shadow
+stages over the captured fixed CornerRect: shadow lengths scale once by effective
+zoom, first-listed layers remain topmost, and the complete pseudo paint is clipped
+to that corner. Platform resizers and ordinary pseudo boxes do not enter this arm.
 
 The overflow-clip-margin rows transcribe
 `AdjustRoundedClipForOverflowClipMargin`,
