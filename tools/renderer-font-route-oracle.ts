@@ -14,6 +14,8 @@ import {
 } from "../src/render/text-to-path.js";
 import type { FontVariantEmojiOverride } from "../src/render/font-resolution.js";
 import { parityEnvironment } from "./parity-environment.js";
+import { bidiLevelsFor, segmentForShaping } from "../src/render/script-segmentation.js";
+import bidiFactory from "bidi-js";
 
 interface OracleCase {
   id: string;
@@ -45,11 +47,20 @@ const cases: OracleCase[] = [
   // produced by an unconditional/common path.
   { id: "emoji-sequence-text", text: "❤️ ⚡️ VS16 wins", mode: "paths", fontFamily: "Helvetica", fontVariantEmoji: "text" },
   { id: "emoji-sequence-text-disabled", text: "❤️ ⚡️ VS16 wins", mode: "paths", fontFamily: "Helvetica", fontVariantEmoji: "text", clusterFallback: false, gradeFaces: false },
+  { id: "bidi-digits", text: "L אב 123 R", mode: "paths", fontFamily: "Arial" },
+  { id: "bidi-digits-legacy", text: "L אב 123 R", mode: "paths", fontFamily: "Arial", clusterFallback: false },
+  { id: "bidi-pointed-hebrew", text: "L שָׁלוֹם R", mode: "paths", fontFamily: "Arial" },
+  { id: "bidi-pointed-hebrew-legacy", text: "L שָׁלוֹם R", mode: "paths", fontFamily: "Arial", clusterFallback: false },
+  { id: "bidi-adjacent-scripts", text: "L אבمرحبا R", mode: "paths", fontFamily: "Arial" },
+  { id: "bidi-adjacent-scripts-legacy", text: "L אבمرحبا R", mode: "paths", fontFamily: "Arial", clusterFallback: false },
+  { id: "bidi-mirrored-brackets", text: "L אב(12) R", mode: "paths", fontFamily: "Arial" },
+  { id: "bidi-mirrored-brackets-legacy", text: "L אב(12) R", mode: "paths", fontFamily: "Arial", clusterFallback: false },
 ];
 
 const outputAt = process.argv.indexOf("--json");
 const output = outputAt >= 0 ? process.argv[outputAt + 1] : undefined;
 const family = "Helvetica, Arial, sans-serif";
+const bidi = bidiFactory();
 
 function normalizeFace(value: string): string { return value.toLowerCase().replace(/[^a-z0-9]/g, ""); }
 
@@ -124,12 +135,21 @@ async function main(): Promise<number> {
         return result;
       });
       const ours = domotion.find((entry) => entry.id === item.id)!;
+      const levels = bidiLevelsFor(item.text);
+      const segments = segmentForShaping(item.text, levels).map((segment) => ({
+        sourceSpan: [segment.start, segment.end],
+        bidiLevel: levels?.[segment.start] ?? 0,
+        direction: segment.rtl ? "rtl" : "ltr",
+        script: segment.script,
+        capturedXOrigin: origins[segment.start]?.left ?? null,
+        snappedBaseline: origins[segment.start] == null ? null : Math.floor(origins[segment.start].bottom + 0.5),
+      }));
       const chromeNames = fonts.map((font) => font.postScriptName);
       const faceAgreement = ours.runs.map((run) => {
         const name = run.selected.instantiatedPostscriptName ?? run.selected.postscriptName;
         return name == null ? null : chromeNames.some((chrome) => normalizeFace(chrome) === normalizeFace(name));
       });
-      records.push({ input: item, chrome: { fonts, origins }, domotion: ours, comparison: { faceAgreement, graded: item.gradeFaces !== false } });
+      records.push({ input: item, chrome: { fonts, origins }, domotion: ours, logical: { segments }, comparison: { faceAgreement, graded: item.gradeFaces !== false, rasterPhase: "separate-visual-oracle" } });
     }
     const byId = new Map(records.map((record) => [record.input.id, record]));
     const mechanisms = [...new Set(records.flatMap((record) => record.domotion.runs.map((run) => run.mechanism)))];
@@ -150,6 +170,21 @@ async function main(): Promise<number> {
       features: JSON.stringify(byId.get("feature-on")!.domotion.runs.flatMap((run) => run.glyphs.map((glyph) => glyph.id)))
         !== JSON.stringify(byId.get("feature-off")!.domotion.runs.flatMap((run) => run.glyphs.map((glyph) => glyph.id))),
       paintedOrigins: records.every((record) => record.chrome.origins.length > 0),
+      bidiBothFallbackModes: ["digits", "pointed-hebrew", "adjacent-scripts", "mirrored-brackets"].every((name) =>
+        byId.get(`bidi-${name}`)!.domotion.runs.length > 0 && byId.get(`bidi-${name}-legacy`)!.domotion.runs.length > 0),
+      bidiBoundaryMutation: (() => {
+        const record = byId.get("bidi-adjacent-scripts")!;
+        const original = JSON.stringify(record.logical.segments.map((segment) => [segment.sourceSpan, segment.bidiLevel, segment.direction, segment.script]));
+        const coalesced = JSON.stringify([[[0, record.input.text.length], 0, "ltr", "Latin"]]);
+        return original !== coalesced && record.logical.segments.length > 1;
+      })(),
+      pairedBracketMirroringMutation: (() => {
+        const text = byId.get("bidi-mirrored-brackets")!.input.text;
+        const levels = bidi.getEmbeddingLevels(text, "ltr").levels;
+        let mirrored = "";
+        for (let i = 0; i < text.length; i++) mirrored += levels[i] % 2 === 1 ? (bidi.getMirroredCharacter(text[i]) ?? text[i]) : text[i];
+        return mirrored !== text;
+      })(),
     };
     const complete = records.every((record) => record.domotion.runs.length > 0 || record.domotion.transitions.length > 0)
       && records.every((record) => !record.comparison.graded

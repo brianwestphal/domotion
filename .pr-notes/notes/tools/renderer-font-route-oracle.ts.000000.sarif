@@ -76,6 +76,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2lm2cgh47hfqqy",
+          "message": {
+            "text": "The paired enabled/legacy rows exercise identical mixed-bidi content through both cluster-fallback modes. Their report joins resolved segment boundaries and levels to the existing production face/glyph ledger and Chrome Range origins; the two mutations prove boundary and bracket-mirroring sensitivity while raster grading remains separately owned.",
+            "markdown": "The paired enabled/legacy rows exercise identical mixed-bidi content through both cluster-fallback modes. Their report joins resolved segment boundaries and levels to the existing production face/glyph ledger and Chrome Range origins; the two mutations prove boundary and bracket-mirroring sensitivity while raster grading remains separately owned."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/renderer-font-route-oracle.ts"
+                },
+                "region": {
+                  "startLine": 49,
+                  "endLine": 57,
+                  "snippet": {
+                    "text": "  { id: \"emoji-sequence-text-disabled\", text: \"❤️ ⚡️ VS16 wins\", mode: \"paths\", fontFamily: \"Helvetica\", fontVariantEmoji: \"text\", clusterFallback: false, gradeFaces: false },\n  { id: \"bidi-digits\", text: \"L אב 123 R\", mode: \"paths\", fontFamily: \"Arial\" },\n  { id: \"bidi-digits-legacy\", text: \"L אב 123 R\", mode: \"paths\", fontFamily: \"Arial\", clusterFallback: false },\n  { id: \"bidi-pointed-hebrew\", text: \"L שָׁלוֹם R\", mode: \"paths\", fontFamily: \"Arial\" },\n  { id: \"bidi-pointed-hebrew-legacy\", text: \"L שָׁלוֹם R\", mode: \"paths\", fontFamily: \"Arial\", clusterFallback: false },\n  { id: \"bidi-adjacent-scripts\", text: \"L אבمرحبا R\", mode: \"paths\", fontFamily: \"Arial\" },\n  { id: \"bidi-adjacent-scripts-legacy\", text: \"L אבمرحبا R\", mode: \"paths\", fontFamily: \"Arial\", clusterFallback: false },\n  { id: \"bidi-mirrored-brackets\", text: \"L אב(12) R\", mode: \"paths\", fontFamily: \"Arial\" },\n  { id: \"bidi-mirrored-brackets-legacy\", text: \"L אב(12) R\", mode: \"paths\", fontFamily: \"Arial\", clusterFallback: false },"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 85,
+          "workItemUris": [
+            "DM-2428"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "48d15494cd170d11c5d2a0b17816de5d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "743a3b638977f701871fb8be93704c8157baff9a",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

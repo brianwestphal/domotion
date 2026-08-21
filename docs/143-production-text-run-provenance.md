@@ -48,6 +48,16 @@ ungraded negative control: it must report `cluster-disabled-legacy` and a
 different raster-span result. This prevents a passing per-codepoint/common
 branch from masquerading as evidence for the production sequence route.
 
+DM-2428 adds four mixed-bidi lines in both cluster-fallback modes: digits in an
+RTL context, pointed Hebrew, adjacent Hebrew/Arabic, and mirrorable brackets.
+The joined report now carries each shaping segment's UTF-16 boundary, resolved
+bidi level/direction and script beside the selected face/glyph stream, captured
+x origin, and snapped baseline. A coalesced-boundary mutation and a
+paired-bracket-mirroring-disabled mutation must both move their target record.
+Pixel grading remains explicitly separate (`rasterPhase:
+"separate-visual-oracle"`), so a thin outline-only Skia floor cannot be reported
+as a logical placement failure or broaden a tolerance.
+
 The demo-review font-selection card is a composite gate: both the broad unified
 face/shaping report and this production-route report must pass. The raw child
 reports remain embedded in the artifact so a failure retains stage ownership.
