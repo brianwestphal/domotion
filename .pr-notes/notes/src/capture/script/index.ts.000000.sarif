@@ -869,6 +869,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt372sj9cfq78h78",
+          "message": {
+            "text": "The candidate-only neutral host delegates the source IsBox boundary back to Blink without guessing from projected matrices or mutating the source element. CSSOM exposes computed perspective but not LayoutObject::IsBox, so the host carries the candidate computed display and active perspective; its fixed child names the host as offsetParent only for a Blink box layout object. Independent filter/contain state cannot contaminate the result. Replaced/control and SVG owners suppress equivalent probe content, so they deliberately leave the fact undefined and retain the compatible fallback.",
+            "markdown": "The candidate-only neutral host delegates the source IsBox boundary back to Blink without guessing from projected matrices or mutating the source element. CSSOM exposes computed perspective but not LayoutObject::IsBox, so the host carries the candidate computed display and active perspective; its fixed child names the host as offsetParent only for a Blink box layout object. Independent filter/contain state cannot contaminate the result. Replaced/control and SVG owners suppress equivalent probe content, so they deliberately leave the fact undefined and retain the compatible fallback."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/index.ts"
+                },
+                "region": {
+                  "startLine": 1546,
+                  "endLine": 1635,
+                  "snippet": {
+                    "text": "  // DM-2385: a computed transform-related value does not imply that Blink's\n  // LayoutObject can apply it. In particular, a non-replaced `display:inline`\n  // element serializes perspective/transform normally but fails the `IsBox()` arm\n  // in ComputeIsFixedContainer and creates neither a fixed CB nor a perspective\n  // paint node. ComputedStyle's stacking-context predicate remains separate.\n  // CSSOM does not expose IsBox(), but fixed ownership is\n  // observable without matrix inference: give a neutral temporary host the\n  // candidate's computed display and an active perspective; its fixed child's\n  // offsetParent is that host exactly when Blink constructed an IsBox layout\n  // object. Using a neutral host avoids changing the source element or letting\n  // its independent filter/contain state answer the transform question. Probe\n  // only transform-related candidates, remove the zero-size host immediately,\n  // and retain the boolean for perspective activation and fixed ownership.\n  const _transformRelatedBox = new WeakMap();\n  const _transformRelatedWillChange = new Set([\n    'transform', 'transform-style', 'perspective', 'translate', 'rotate',\n    'scale', 'offset-path', 'offset-position',\n  ]);\n  const _hasTransformRelatedSignal = (_cs) => {\n    if ((_cs.transform != null && _cs.transform !== '' && _cs.transform !== 'none')\n        || (_cs.translate != null && _cs.translate !== '' && _cs.translate !== 'none')\n        || (_cs.rotate != null && _cs.rotate !== '' && _cs.rotate !== 'none')\n        || (_cs.scale != null && _cs.scale !== '' && _cs.scale !== 'none')\n        || _cs.transformStyle === 'preserve-3d'\n        || (_cs.perspective != null && _cs.perspective !== '' && _cs.perspective !== 'none')) return true;\n    if (_cs.willChange == null || _cs.willChange === '' || _cs.willChange === 'auto') return false;\n    const _tokens = _cs.willChange.split(/[\\s,]+/);\n    for (let _wi = 0; _wi < _tokens.length; _wi++) {\n      if (_transformRelatedWillChange.has(_tokens[_wi].toLowerCase())) return true;\n    }\n    return false;\n  };\n  const _ownershipEls = [root, ...Array.from(_allEls)];\n  const _probeUnsupportedTags = /^(?:AUDIO|CANVAS|EMBED|IFRAME|IMG|INPUT|METER|OBJECT|PROGRESS|SELECT|TEXTAREA|VIDEO)$/;\n  for (let _oi = 0; _oi < _ownershipEls.length; _oi++) {\n    const _owner = _ownershipEls[_oi];\n    const _ownerStyle = getComputedStyle(_owner);\n    if (!_hasTransformRelatedSignal(_ownerStyle)) continue;\n    // Replaced/control content and SVG suppress an appended HTML child, so a\n    // false result there would describe the probe host rather than IsBox().\n    // Such elements cannot expose an authored fixed descendant through this\n    // tree; leave the fact undefined so their own perspective paint retains\n    // the source-compatible fallback.\n    if (_owner.namespaceURI === 'http://www.w3.org/2000/svg'\n        || _probeUnsupportedTags.test(_owner.tagName)) continue;\n    const _probeHost = document.createElement('span');\n    _probeHost.setAttribute('aria-hidden', 'true');\n    _probeHost.style.setProperty('all', 'initial', 'important');\n    _probeHost.style.setProperty('display', _ownerStyle.display, 'important');\n    _probeHost.style.setProperty('perspective', '1px', 'important');\n    _probeHost.style.setProperty('visibility', 'hidden', 'important');\n    _probeHost.style.setProperty('width', '0', 'important');\n    _probeHost.style.setProperty('height', '0', 'important');\n    _probeHost.style.setProperty('margin', '0', 'important');\n    _probeHost.style.setProperty('padding', '0', 'important');\n    _probeHost.style.setProperty('border', '0', 'important');\n    const _probe = document.createElement('i');\n    _probe.setAttribute('aria-hidden', 'true');\n    _probe.style.setProperty('all', 'initial', 'important');\n    _probe.style.setProperty('position', 'fixed', 'important');\n    _probe.style.setProperty('width', '0', 'important');\n    _probe.style.setProperty('height', '0', 'important');\n    _probeHost.appendChild(_probe);\n    try {\n      (document.body || document.documentElement).appendChild(_probeHost);\n      _transformRelatedBox.set(_owner, _probe.offsetParent === _probeHost);\n    } catch (_e) {\n      // If the neutral host cannot participate in layout, leave the compatible\n      // computed-style fallback undefined rather than guessing.\n    } finally {\n      _probeHost.remove();\n    }\n  }\n\n  // CSS 3D is ultimately a projective mapping of each painted element plane.\n  // Blink does not expose Element.getBoxQuads(), so measure the four border-box\n  // corners with zero-sized positioned descendants while the live transform\n  // tree is still intact. This observes perspective, flattening, origins, and\n  // nested preserve-3d directly, without fitting any fixture-specific matrix.\n  const _projectiveInfluenced = new Set();\n  for (let _pi = 0; _pi < _ownershipEls.length; _pi++) {\n    const _pel = _ownershipEls[_pi];\n    const _pcs = getComputedStyle(_pel);\n    // A CSS matrix3d remains applicable to SVG layout objects, which never own\n    // HTML fixed descendants. Only the box-only perspective/preserve-3d arms\n    // use the fixed-container applicability fact.\n    const _hasMatrix3d = (_pcs.transform || '').startsWith('matrix3d(');\n    const _is3d = _hasMatrix3d || (_transformRelatedBox.get(_pel) !== false\n      && (_pcs.transformStyle === 'preserve-3d'\n        || (_pcs.perspective != null && _pcs.perspective !== '' && _pcs.perspective !== 'none')));"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "alternative-considered"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/stacking.ts"
+                },
+                "region": {
+                  "startLine": 9
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/perspective-ownership.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 168
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2385"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "caabfac5440673688a3e42656b063994"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "fd2bb686fd9041999d51f2e27dadfeddb334d74d",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

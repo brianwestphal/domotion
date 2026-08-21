@@ -7,6 +7,36 @@
 import type { CapturedElement } from "../capture/types.js";
 
 /**
+ * Live captures set this false when Blink declines to make this layout object
+ * a fixed-position containing block for its transform-related computed state
+ * (notably a normal `display:inline` span). This is deliberately narrower than
+ * stacking-context creation: ComputedStyle can still classify a positioned
+ * inline as a stacking context even though LayoutObject::IsBox() rejects it as
+ * a fixed container. Older/synthetic trees omit the fact and retain the
+ * computed-style fallback.
+ */
+function transformRelatedCanOwnFixed(el: CapturedElement): boolean {
+  return el.styles.transformRelatedBox !== false;
+}
+
+/**
+ * A box gets a PaintLayer for its computed transform-related stacking reason.
+ * A non-box LayoutInline does not, unless relative positioning independently
+ * makes LayoutInline::LayerTypeRequired return a layer. Other inline layer
+ * reasons (grouping, animation, containment, sticky) are already independent
+ * SC checks below.
+ */
+function transformRelatedCreatesStackingBoundary(el: CapturedElement): boolean {
+  return transformRelatedCanOwnFixed(el)
+    || (el.styles.display === "inline" && el.styles.position === "relative");
+}
+
+const transformRelatedWillChangeProperties: ReadonlySet<string> = new Set([
+  "transform", "transform-style", "perspective", "translate", "rotate",
+  "scale", "offset-path", "offset-position",
+]);
+
+/**
  * DM-525: parent's `display` decides whether this element is a flex/grid
  * item, which extends the z-index → stacking-context rule even when the
  * item is `position: static` (per CSS Flexbox 1 §5.4 / CSS Grid 1 §17).
@@ -28,14 +58,12 @@ export function isFlexOrGridContainerDisplay(display: string | undefined | null)
  *   - `position: fixed` / `position: sticky` (always create one in modern CSS)
  *   - `opacity` < 1
  *   - `transform` ≠ `none`
+ *   - `perspective` ≠ `none`
  *   - `filter` ≠ `none`
  *   - `mix-blend-mode` ≠ `normal`
  *   - `mask-image` ≠ `none` / `clip-path` ≠ `none` (we already wrap these in
  *     a `<g mask=...>` / `<g clip-path=...>`, which isolates paint)
  *   - `isolation: isolate`
- *
- * Not yet modeled (low real-world frequency):
- *   - `perspective` ≠ `none`
  *
  * Used by the paint-order flattening pass: a positioned descendant whose
  * nearest *real* SC ancestor is the parent SC root must be hoisted into
@@ -43,6 +71,7 @@ export function isFlexOrGridContainerDisplay(display: string | undefined | null)
  */
 export function establishesStackingContext(el: CapturedElement, parentDisplay?: string): boolean {
   const s = el.styles;
+  const transformRelated = transformRelatedCreatesStackingBoundary(el);
   // An element targeted by an intra-frame animation (`animId`) is animating
   // transform / opacity / filter — any of which creates a stacking context in
   // CSS. Mirror that here so the element's whole subtree renders ATOMICALLY,
@@ -63,20 +92,26 @@ export function establishesStackingContext(el: CapturedElement, parentDisplay?: 
   if (s.position === "fixed" || s.position === "sticky") return true;
   const op = parseFloat(s.opacity);
   if (Number.isFinite(op) && op < 1) return true;
-  if (s.transform != null && s.transform !== "" && s.transform !== "none") return true;
+  if (transformRelated && s.transform != null && s.transform !== "" && s.transform !== "none") return true;
   // DM-587: the capture script now records `styles.transform = 'none'` for
   // every element (live rects are baked in, no wrap needed), but tracks the
   // original "was non-none at capture time" bit in `transformCreatesSc` so
   // SC detection still works. Without this, e.g. a `<div style="transform:
   // translate(0)">` with z-indexed descendants would stop trapping their
   // z-index resolution and the descendants would hoist to a higher SC.
-  if (s.transformCreatesSc) return true;
+  if (transformRelated && s.transformCreatesSc) return true;
   // DM-589: CSS Transforms 2 §4 — any `transform-style` value != `flat`
   // (typically `preserve-3d`) creates a stacking context. Real-world hit:
   // stripe.com's speaker-card uses preserve-3d so its z-index:-1 speaker
   // photo can paint at the card's local SC step 2 (above the white bg)
   // instead of hoisting to a higher SC where it'd render behind the card.
-  if (s.transformStyle != null && s.transformStyle !== "" && s.transformStyle !== "flat") return true;
+  if (transformRelated && s.transformStyle != null && s.transformStyle !== "" && s.transformStyle !== "flat") return true;
+  // DM-2385: Blink's ComputedStyle::HasTransformRelatedProperty includes
+  // HasPerspective(), and CalculateIsStackingContextWithoutContainment uses
+  // that predicate directly. Keep this authored/computed signal separate from
+  // transformCreatesSc: perspective belongs to the ancestor and is not
+  // serialized into a descendant's computed transform matrix.
+  if (transformRelated && s.perspective != null && s.perspective !== "" && s.perspective !== "none") return true;
   if (s.filter != null && s.filter !== "" && s.filter !== "none") return true;
   if (s.mixBlendMode != null && s.mixBlendMode !== "" && s.mixBlendMode !== "normal") return true;
   if (s.maskImage != null && s.maskImage !== "" && s.maskImage !== "none") return true;
@@ -92,14 +127,17 @@ export function establishesStackingContext(el: CapturedElement, parentDisplay?: 
   // `scroll-position` (which doesn't create an SC) on the `position` token.
   if (s.willChange != null && s.willChange !== "" && s.willChange !== "auto") {
     const _scWcProps: ReadonlySet<string> = new Set([
-      "transform", "opacity", "filter", "backdrop-filter",
-      "mask", "mask-image", "clip-path", "perspective",
+      "transform", "transform-style", "perspective", "translate", "rotate",
+      "scale", "offset-path", "offset-position", "opacity", "filter", "backdrop-filter",
+      "mask", "mask-image", "clip-path",
       "top", "right", "bottom", "left",
       "position", "z-index", "isolation", "mix-blend-mode", "contain",
     ]);
     const tokens = s.willChange.split(/[\s,]+/);
     for (const t of tokens) {
-      if (_scWcProps.has(t.toLowerCase())) return true;
+      const lt = t.toLowerCase();
+      if (_scWcProps.has(lt)
+          && (transformRelated || !transformRelatedWillChangeProperties.has(lt))) return true;
     }
   }
   // DM-498: `contain: paint | strict | content` creates an SC.
@@ -386,6 +424,7 @@ export function gatherStackingContextChildren(
  */
 export function isOverflowOnlySC(el: CapturedElement): boolean {
   const s = el.styles;
+  const transformRelated = transformRelatedCreatesStackingBoundary(el);
   // An animation target must stay atomic so its descendants render INSIDE its
   // `anim-<id>` wrapper (see establishesStackingContext). Treating it as a
   // pass-through overflow-only scroller would hoist its children out and the
@@ -399,9 +438,10 @@ export function isOverflowOnlySC(el: CapturedElement): boolean {
   // Must have NO other SC-creating property
   const positioned = s.position != null && s.position !== "static";
   if (positioned) return false;
-  if (s.transform != null && s.transform !== "" && s.transform !== "none") return false;
-  if (s.transformCreatesSc) return false;
-  if (s.transformStyle != null && s.transformStyle !== "" && s.transformStyle !== "flat") return false;
+  if (transformRelated && s.transform != null && s.transform !== "" && s.transform !== "none") return false;
+  if (transformRelated && s.transformCreatesSc) return false;
+  if (transformRelated && s.transformStyle != null && s.transformStyle !== "" && s.transformStyle !== "flat") return false;
+  if (transformRelated && s.perspective != null && s.perspective !== "" && s.perspective !== "none") return false;
   const op = parseFloat(s.opacity);
   if (Number.isFinite(op) && op < 1) return false;
   if (s.filter != null && s.filter !== "" && s.filter !== "none") return false;
@@ -414,14 +454,17 @@ export function isOverflowOnlySC(el: CapturedElement): boolean {
   }
   if (s.willChange != null && s.willChange !== "" && s.willChange !== "auto") {
     const _scWcProps: ReadonlySet<string> = new Set([
-      "transform", "opacity", "filter", "backdrop-filter",
-      "mask", "mask-image", "clip-path", "perspective",
+      "transform", "transform-style", "perspective", "translate", "rotate",
+      "scale", "offset-path", "offset-position", "opacity", "filter", "backdrop-filter",
+      "mask", "mask-image", "clip-path",
       "top", "right", "bottom", "left",
       "position", "z-index", "isolation", "mix-blend-mode", "contain",
     ]);
     const tokens = s.willChange.split(/[\s,]+/);
     for (const t of tokens) {
-      if (_scWcProps.has(t.toLowerCase())) return false;
+      const lt = t.toLowerCase();
+      if (_scWcProps.has(lt)
+          && (transformRelated || !transformRelatedWillChangeProperties.has(lt))) return false;
     }
   }
   return true;
@@ -430,29 +473,37 @@ export function isOverflowOnlySC(el: CapturedElement): boolean {
 /**
  * DM-543: returns true when `el` creates a containing block for
  * position:fixed descendants. Per CSS Containment 1 / Transforms 2 / Will
- * Change 1: any non-trivial `transform`, `filter`, `will-change` listing
- * `transform` / `filter` / `perspective`, or `contain` value with `paint` /
- * `strict` / `content` / `layout` traps fixed descendants.
+ * Change 1: any non-trivial `transform`, `perspective`, `filter`,
+ * `will-change` listing `transform` / `filter` / `perspective`, computed
+ * `transform-style: preserve-3d`, or `contain` value with `paint` / `strict` /
+ * `content` / `layout` traps fixed descendants.
  *
- * `perspective` ≠ `none` also creates a fixed CB but `perspective` is not
- * captured today (low real-world frequency — see `establishesStackingContext`
- * comment); add to the captured-styles list when a fixture demands it.
+ * Blink source boundary (rev 7d859f27):
+ * `LayoutObject::ComputeIsFixedContainer` accepts a box when
+ * `HasTransformRelatedProperty()` (which includes perspective and
+ * preserve-3d) OR when the computed transform-style is preserve-3d. The
+ * explicit computed-style arm is load-bearing when an overflow/grouping
+ * property flattens preserve-3d's used value.
  */
 export function isFixedContainingBlock(el: CapturedElement): boolean {
   const s = el.styles;
-  if (s.transform != null && s.transform !== "" && s.transform !== "none") return true;
+  const transformRelated = transformRelatedCanOwnFixed(el);
+  if (transformRelated && s.transform != null && s.transform !== "" && s.transform !== "none") return true;
   // DM-587: see establishesStackingContext — transform info is split between
   // `styles.transform` (always 'none' after the live-rect-capture switch) and
   // `transformCreatesSc` (preserves the original "was non-none" bit). A
   // transformed element creates a containing block for its fixed-positioned
   // descendants regardless of the transform value, so honor the bit here too.
-  if (s.transformCreatesSc) return true;
+  if (transformRelated && s.transformCreatesSc) return true;
+  if (transformRelated && s.perspective != null && s.perspective !== "" && s.perspective !== "none") return true;
+  if (transformRelated && s.transformStyle === "preserve-3d") return true;
   if (s.filter != null && s.filter !== "" && s.filter !== "none") return true;
   if (s.willChange != null && s.willChange !== "" && s.willChange !== "auto") {
     const tokens = s.willChange.split(/[\s,]+/);
     for (const t of tokens) {
       const lt = t.toLowerCase();
-      if (lt === "transform" || lt === "filter" || lt === "perspective") return true;
+      if (lt === "filter") return true;
+      if (transformRelated && transformRelatedWillChangeProperties.has(lt)) return true;
     }
   }
   if (s.contain != null && s.contain !== "" && s.contain !== "none") {

@@ -369,6 +369,18 @@ shortest possible map:
   `takeFallbackResponseAnomalies()` (`src/render/glyph-helper.ts`) reports short
   or out-of-domain system-fallback batch responses, so a sweep reporting none has
   eliminated that failure mode rather than not looked.
+- **Perspective ownership (DM-2385)** — capture records computed `perspective`
+  and resolved `perspectiveOrigin` in `src/capture/script/index.ts`, plus an
+  observed `transformRelatedBox` applicability fact from a neutral Blink layout
+  probe for the `IsBox()` boundary. `src/render/stacking.ts` consumes computed
+  perspective directly for
+  real-SC/overflow classification and combines it with that fact for fixed-CB
+  ownership; it never infers ancestor perspective from `matrix3d()` /
+  `projectiveTransform` symptoms. A static non-box inline has no perspective
+  paint layer; relative positioning makes its computed-style stacking
+  observable while fixed ownership/projective paint remain rejected.
+  Computed preserve-3d is also a fixed CB through grouping-property flattening.
+  `transformSubtreeRaster` separately owns projective paint (doc 06).
 
 ## Upstream source is checked out locally — read it
 

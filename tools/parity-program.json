@@ -95,7 +95,7 @@
       "oracle": "tools/transform-geometry-oracle.ts",
       "sourceAudit": "audited",
       "oracleStatus": "exact-stage-gate",
-      "generatedCoverage": "five affine transform/origin quad comparisons, four reflection direction/offset mappings, projective preserve-3d raster-boundary activation, mutation control, plus curated visual fixtures; these rows do not exercise the separate viewBox-culling decision",
+      "generatedCoverage": "five affine transform/origin quad comparisons, four reflection direction/offset mappings, projective preserve-3d raster-boundary activation, source-derived perspective/perspective-origin stacking and fixed-containing-block positive/negative controls with live Chromium geometry, mutation control, plus curated visual fixtures; these rows do not exercise the separate viewBox-culling decision",
       "platformCoverage": ["darwin", "linux", "win32"],
       "knownGap": "Nested projective contexts are represented by a Chromium subtree snapshot rather than vectors, and animated 3D transforms still require frame-level boundary coverage. DM-2386 also confirmed that the viewBox culler can over-hide visible paint because it substitutes a captured border box for SVG fill-box, keeps only the nearest animation timeline, interpolates composed endpoint matrices, and treats a fixed 50-part grid as a continuous bound.",
       "nextAction": "Implement rendered reference/visual bounds in DM-2460, composed global-timeline swept bounds in DM-2461, and the independent live Chromium culling oracle in DM-2462; separately extend animated 3D frame coverage when stable snapshots exist."
@@ -107,7 +107,7 @@
       "oracle": "tools/paint-order-oracle.ts",
       "sourceAudit": "audited",
       "oracleStatus": "paint-model-gate",
-      "generatedCoverage": "27 generated SC-creator, Appendix-E bucket, atomic-containment, descendant-hoist, and live Chromium hit-stack rows plus curated visual fixtures",
+      "generatedCoverage": "41 generated SC-creator, perspective/preserve-3d fixed-ownership (including static/positioned inline layer controls and the exact transform-related will-change property set), overflow-only, Appendix-E bucket, atomic-containment, descendant-hoist, live Chromium hit-stack, and fixed-geometry rows plus curated visual fixtures",
       "platformCoverage": ["darwin", "linux", "win32"],
       "knownGap": "Blend arithmetic and filter kernels remain pixel-stage concerns; backdrop-filter source-surface selection is tracked at its Chromium raster boundary rather than structurally modeled.",
       "nextAction": "Extend browser rows when new stacking-context creators or backdrop source-surface transitions enter the renderer."

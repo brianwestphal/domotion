@@ -636,6 +636,7 @@
       "productionOwners": [
         "src/capture/script/walker/transforms.ts",
         "src/render/transforms.ts",
+        "src/render/stacking.ts",
         "src/tree-ops/viewbox-culling.ts"
       ],
       "oracles": [
@@ -644,14 +645,17 @@
       ],
       "metamorphicTests": [
         "src/render/projective-transform.test.ts",
+        "src/stacking-context.test.ts",
+        "src/capture/perspective-ownership.e2e.test.ts",
         "src/tree-ops/viewbox-culling.test.ts"
       ],
       "visualFixtures": [
         "tests/features.ts#transform-scale-flex-descendants",
-        "tests/features.ts#preserve-3d-translatez-paint-order"
+        "tests/features.ts#preserve-3d-translatez-paint-order",
+        "tests/features.ts#perspective-fixed-containing-block-ownership"
       ],
       "coverage": "partial",
-      "boundary": "Nested/animated projective contexts, missing perspective capture, and scalar text transforms remain incomplete. DM-2386 proves animated/static-transform viewBox culling is unsafe on its supported path: reference and visual bounds (DM-2460), composed global-timeline swept bounds (DM-2461), and a live activation oracle (DM-2462) remain required.",
+      "boundary": "Computed perspective/origin, the non-box inline stacking/fixed-owner split, and perspective/preserve-3d fixed-containing-block ownership are source-audited and gated. Nested/animated projective contexts and scalar text transforms remain incomplete. DM-2386 proves animated/static-transform viewBox culling is unsafe on its supported path: reference and visual bounds (DM-2460), composed global-timeline swept bounds (DM-2461), and a live activation oracle (DM-2462) remain required.",
       "featureIds": [
         "render.tree-to-svg",
         "render.cull"

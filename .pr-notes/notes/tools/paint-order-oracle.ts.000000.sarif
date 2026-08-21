@@ -79,6 +79,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt36ym1kqflpn7gi",
+          "message": {
+            "text": "The live oracle pins both LayoutInline paint-layer activation and Blink HasWillChangeAnyTransformProperty by observable paint/fixed geometry. Static inline perspective lets z-index escape; relative positioning traps it without owning fixed descendants. Chromium owns fixed descendants for transform, transform-style, perspective, translate, rotate, scale, offset-path, and offset-position; five similarly named controls remain viewport-owned. The complete oracle reports 41/41 with its mutation control moved, matching the shared production predicates.",
+            "markdown": "The live oracle pins both LayoutInline paint-layer activation and Blink HasWillChangeAnyTransformProperty by observable paint/fixed geometry. Static inline perspective lets z-index escape; relative positioning traps it without owning fixed descendants. Chromium owns fixed descendants for transform, transform-style, perspective, translate, rotate, scale, offset-path, and offset-position; five similarly named controls remain viewport-owned. The complete oracle reports 41/41 with its mutation control moved, matching the shared production predicates."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/paint-order-oracle.ts"
+                },
+                "region": {
+                  "startLine": 145,
+                  "endLine": 206,
+                  "snippet": {
+                    "text": "      return [rect.left, rect.top];\n    });\n    rows.push({\n      id: \"browser.inline-perspective-does-not-own-fixed\",\n      expected: [7, 9],\n      actual: inlineFixedPosition,\n      pass: JSON.stringify(inlineFixedPosition) === JSON.stringify([7, 9]),\n      source: \"live Chromium non-box inline perspective control\",\n    });\n    const inlineStackTop = await page.evaluate(() => document.elementsFromPoint(690, 350)\n      .map((node) => node.id)\n      .find((id) => id === \"inlineDeep\" || id === \"inlineCover\"));\n    rows.push({\n      id: \"browser.positioned-inline-perspective-stacks-without-fixed-ownership\",\n      expected: \"inlineCover\",\n      actual: inlineStackTop,\n      pass: inlineStackTop === \"inlineCover\",\n      source: \"live Chromium ComputedStyle stacking + LayoutInline paint-layer control\",\n    });\n    const staticInlineStackTop = await page.evaluate(() => document.elementsFromPoint(690, 400)\n      .map((node) => node.id)\n      .find((id) => id === \"staticInlineDeep\" || id === \"staticInlineCover\"));\n    rows.push({\n      id: \"browser.static-inline-perspective-has-no-paint-layer\",\n      expected: \"staticInlineDeep\",\n      actual: staticInlineStackTop,\n      pass: staticInlineStackTop === \"staticInlineDeep\",\n      source: \"live Chromium LayoutInline::LayerTypeRequired negative control\",\n    });\n    const willChangeOwnership = await page.evaluate(() => {\n      const values = [\n        \"transform\", \"transform-style\", \"perspective\", \"translate\", \"rotate\",\n        \"scale\", \"offset-path\", \"offset-position\", \"offset-distance\",\n        \"offset-rotate\", \"transform-origin\", \"perspective-origin\", \"scroll-position\",\n      ];\n      const owner = document.createElement(\"div\");\n      owner.style.cssText = \"position:absolute;left:50px;top:420px;width:50px;height:50px\";\n      const pin = document.createElement(\"i\");\n      pin.style.cssText = \"position:fixed;left:7px;top:9px;width:5px;height:5px\";\n      owner.append(pin);\n      document.body.append(owner);\n      const result = values.map((value) => {\n        owner.style.willChange = value;\n        const rect = pin.getBoundingClientRect();\n        return [value, rect.left, rect.top];\n      });\n      owner.remove();\n      return result;\n    });\n    const expectedWillChangeOwnership = [\n      ...[\"transform\", \"transform-style\", \"perspective\", \"translate\", \"rotate\", \"scale\", \"offset-path\", \"offset-position\"]\n        .map((value) => [value, 57, 429]),\n      ...[\"offset-distance\", \"offset-rotate\", \"transform-origin\", \"perspective-origin\", \"scroll-position\"]\n        .map((value) => [value, 7, 9]),\n    ];\n    rows.push({\n      id: \"browser.will-change-transform-related-property-set\",\n      expected: expectedWillChangeOwnership,\n      actual: willChangeOwnership,\n      pass: JSON.stringify(willChangeOwnership) === JSON.stringify(expectedWillChangeOwnership),\n      source: \"live Chromium HasWillChangeAnyTransformProperty fixed-position geometry\",\n    });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/stacking.ts"
+                },
+                "region": {
+                  "startLine": 9
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/stacking-context.test.ts"
+                },
+                "region": {
+                  "startLine": 859
+                }
+              }
+            }
+          ],
+          "rank": 93,
+          "workItemUris": [
+            "DM-2385"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "00b38258397d067e5e89de269e163447"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "fd2bb686fd9041999d51f2e27dadfeddb334d74d",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

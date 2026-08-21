@@ -1462,3 +1462,19 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   motion paths, pixel-moving effects, and projective `w`-plane crossings retain
   content. DM-2460 owns reference/visual bounds, DM-2461 owns composed timeline
   bounds, and DM-2462 owns the live Chromium activation oracle.
+
+<!-- DM-2385 -->
+- Computed `perspective` is an ancestor-owned stacking-context and
+  fixed-containing-block signal; `perspective-origin` is captured as a resolved
+  border-box point but is inert when perspective is `none`. Computed
+  `transform-style: preserve-3d` remains a fixed containing block even when an
+  overflow/grouping property flattens its used 3D style. Fixed descendants stop
+  at those owners and remain under their nested clips; origin-only and
+  matrix-symptom-only controls continue to the viewport. Capture must preserve
+  Blink's `IsBox()` activation boundary independently from computed-style
+  stacking: a static non-replaced inline has no perspective paint layer, while
+  relative positioning may make its computed-style z-index isolation
+  observable; both keep fixed children viewport-owned and activate no
+  perspective paint node.
+  Non-representable 3D paint remains the Chromium projective-subtree raster
+  boundary (doc 06).

@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt36ylvnqjb6v9ka",
+          "message": {
+            "text": "The browser control independently isolates computed activation, fixed ownership, stacking, and clip routing. Live Chromium resolves the asymmetric border-box origin; active perspective, preserve-3d, and will-change:perspective own fixed children; none/origin-only and a non-box inline do not. Static and positioned inline capture facts preserve the LayoutInline paint-layer split, and an inline with an independent filter proves that filtering cannot falsely activate perspective raster. The capture/render leg verifies single projective image emission and the expected trapped/escaped descendants.",
+            "markdown": "The browser control independently isolates computed activation, fixed ownership, stacking, and clip routing. Live Chromium resolves the asymmetric border-box origin; active perspective, preserve-3d, and will-change:perspective own fixed children; none/origin-only and a non-box inline do not. Static and positioned inline capture facts preserve the LayoutInline paint-layer split, and an inline with an independent filter proves that filtering cannot falsely activate perspective raster. The capture/render leg verifies single projective image emission and the expected trapped/escaped descendants."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/perspective-ownership.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 111,
+                  "endLine": 217,
+                  "snippet": {
+                    "text": "      expect(facts.active).toMatchObject({\n        owner: [50, 40],\n        pin: [60, 52],\n        perspective: \"420px\",\n        perspectiveOrigin: \"30px 84px\",\n      });\n      expect(facts.inactive).toMatchObject({ pin: [7, 9], perspective: \"none\" });\n      expect(facts.preserve).toMatchObject({\n        pin: [60, 232],\n        transformStyle: \"preserve-3d\",\n      });\n      expect(facts.hinted).toMatchObject({ pin: [310, 232], willChange: \"perspective\" });\n      expect(facts.originOnly).toMatchObject({\n        pin: [7, 9],\n        perspective: \"none\",\n        perspectiveOrigin: \"32px 96px\",\n      });\n      expect(facts.inline).toMatchObject({ pin: [7, 9], perspective: \"420px\" });\n      // LayoutInline::LayerTypeRequired gives a positioned inline a paint\n      // layer. ComputedStyle's active perspective then traps z-index even\n      // though the same non-box inline cannot own the fixed child above.\n      expect(facts.inlineStackTop).toBe(\"inline-cover\");\n    } finally {\n      await page.close();\n    }\n  }, 60_000);\n\n  it(\"threads computed perspective/origin into capture and keeps paint under the owning clip\", async () => {\n    const page = await env!.browser.newPage({\n      viewport: { width: WIDTH, height: HEIGHT },\n      deviceScaleFactor: 1,\n    });\n    try {\n      await page.setContent(HTML, { waitUntil: \"load\" });\n      const tree = await captureElementTree(page, \"body\", {\n        x: 0,\n        y: 0,\n        width: WIDTH,\n        height: HEIGHT,\n      });\n      const nodes = walk(tree);\n      const active = nodes.find((node) => node.styles.perspective === \"420px\");\n      const inactive = nodes.find((node) =>\n        node.x === 300 && node.y === 40 && node.styles.perspective === \"none\");\n      const preserve = nodes.find((node) => node.styles.transformStyle === \"preserve-3d\");\n      const hinted = nodes.find((node) => node.styles.willChange === \"perspective\");\n      const inline = nodes.find((node) =>\n        node.styles.display === \"inline\" && node.styles.perspective === \"420px\");\n      const inlineStack = nodes.find((node) =>\n        node.styles.display === \"inline\"\n        && node.styles.position === \"relative\"\n        && node.styles.perspective === \"420px\");\n      const inlineFiltered = nodes.find((node) =>\n        node.styles.display === \"inline\"\n        && node.styles.filter === \"blur(0px)\"\n        && node.styles.perspective === \"420px\");\n\n      expect(active?.styles.perspectiveOrigin).toBe(\"30px 84px\");\n      expect(active?.transformSubtreeRaster?.dataUri).toMatch(/^data:image\\/png;base64,/);\n      expect(inactive?.styles.perspectiveOrigin).toBe(\"30px 84px\");\n      expect(inactive?.transformSubtreeRaster).toBeUndefined();\n      expect(preserve?.styles.transformStyle).toBe(\"preserve-3d\");\n      expect(hinted?.styles.perspective).toBe(\"none\");\n      expect(inline?.styles.transformRelatedBox).toBe(false);\n      expect(inline?.transformSubtreeRaster).toBeUndefined();\n      expect(establishesStackingContext(inline!)).toBe(false);\n      expect(inlineStack?.styles.transformRelatedBox).toBe(false);\n      expect(inlineStack?.transformSubtreeRaster).toBeUndefined();\n      expect(establishesStackingContext(inlineStack!)).toBe(true);\n      expect(isFixedContainingBlock(inlineStack!)).toBe(false);\n      // The capture probe masks independent fixed-CB reasons while asking the\n      // transform question: filter still owns fixed paint through its own\n      // route, but must not make ignored inline perspective activate raster.\n      expect(inlineFiltered?.styles.transformRelatedBox).toBe(false);\n      expect(inlineFiltered?.transformSubtreeRaster).toBeUndefined();\n      expect(isFixedContainingBlock(inlineFiltered!)).toBe(true);\n      expect(nodes.map((node) => node.styles.backgroundColor)).toEqual(\n        expect.arrayContaining([\"rgb(231, 41, 41)\", \"rgb(41, 41, 231)\"]),\n      );\n\n      const svg = elementTreeToSvgInner(tree, WIDTH, HEIGHT);\n      const pinFills = nodes\n        .filter((node) => node.styles.position === \"fixed\")\n        .map((node) => node.styles.backgroundColor);\n      expect(pinFills).toEqual([\n        \"rgb(201, 31, 31)\",\n        \"rgb(31, 201, 31)\",\n        \"rgb(31, 31, 201)\",\n        \"rgb(201, 121, 31)\",\n        \"rgb(151, 31, 201)\",\n        \"rgb(31, 151, 201)\",\n      ]);\n      // Active perspective owns a Chromium-composited subtree image. Its red\n      // fixed child must not be hoisted and painted a second time as a vector.\n      expect(svg).toContain(\"<image\");\n      expect(clipState(svg, \"rgb(201, 31, 31)\")).toBe(\"missing\");\n      // perspective:none and origin-only controls stay viewport-fixed and\n      // escape the same overflow clip; preserve-3d and will-change:perspective\n      // remain fixed to their owning boxes and therefore under that clip.\n      expect(clipState(svg, \"rgb(31, 201, 31)\")).toBe(\"escaped\");\n      expect(clipState(svg, \"rgb(31, 31, 201)\")).toBe(\"trapped\");\n      expect(clipState(svg, \"rgb(201, 121, 31)\")).toBe(\"trapped\");\n      expect(clipState(svg, \"rgb(151, 31, 201)\")).toBe(\"escaped\");\n      expect(clipState(svg, \"rgb(31, 151, 201)\")).toBe(\"escaped\");\n      expect(svg.indexOf('fill=\"rgb(231,41,41)\"')).toBeLessThan(\n        svg.indexOf('fill=\"rgb(41,41,231)\"'),\n      );"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/stacking.ts"
+                },
+                "region": {
+                  "startLine": 9
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/index.ts"
+                },
+                "region": {
+                  "startLine": 1546
+                }
+              }
+            },
+            {
+              "id": 2,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/features.ts"
+                },
+                "region": {
+                  "startLine": 1530
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2385"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "cb621fd23f9ae311b66755140099b1a7"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "fd2bb686fd9041999d51f2e27dadfeddb334d74d",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

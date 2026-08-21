@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { elementTreeToSvgInner } from "./render/element-tree-to-svg.js";
 import type { CapturedElement } from "./capture/types.js";
+import {
+  establishesStackingContext,
+  isFixedContainingBlock,
+  isOverflowOnlySC,
+} from "./render/stacking.js";
 
 /**
  * DM-473: cross-stacking-context z-index unit tests.
@@ -822,7 +827,135 @@ describe("DM-537 flex/grid `order` property — paint follows order-modified doc
   });
 });
 
-describe("DM-543 position:fixed escapes ancestor overflow clips", () => {
+describe("DM-2385 computed perspective owns stacking and fixed containment", () => {
+  it("uses computed perspective itself, not a descendant/projective matrix symptom", () => {
+    const perspective = makeElement({
+      styles: {
+        ...makeElement().styles,
+        perspective: "420px",
+        perspectiveOrigin: "30px 84px",
+      },
+    });
+    expect(establishesStackingContext(perspective)).toBe(true);
+    expect(isFixedContainingBlock(perspective)).toBe(true);
+
+    const originOnly = makeElement({
+      styles: {
+        ...makeElement().styles,
+        perspective: "none",
+        perspectiveOrigin: "30px 84px",
+      },
+    });
+    expect(establishesStackingContext(originOnly)).toBe(false);
+    expect(isFixedContainingBlock(originOnly)).toBe(false);
+
+    const matrixSymptomOnly = makeElement({
+      projectiveTransform: [1, 0, 0, 0, 1, 0, 0.002, 0, 1],
+      styles: { ...makeElement().styles, perspective: "none" },
+    });
+    expect(establishesStackingContext(matrixSymptomOnly)).toBe(false);
+    expect(isFixedContainingBlock(matrixSymptomOnly)).toBe(false);
+
+    const nonBoxInline = makeElement({
+      styles: {
+        ...makeElement().styles,
+        display: "inline",
+        perspective: "420px",
+        transformRelatedBox: false,
+      },
+    });
+    expect(establishesStackingContext(nonBoxInline)).toBe(false);
+    expect(isFixedContainingBlock(nonBoxInline)).toBe(false);
+
+    // ComputedStyle's stacking predicate is independent of LayoutObject's
+    // IsBox-gated fixed-container predicate. Relative positioning gives
+    // LayoutInline a paint layer, making the style-level SC observable.
+    const positionedNonBoxInline = makeElement({
+      styles: { ...nonBoxInline.styles, position: "relative" },
+    });
+    expect(establishesStackingContext(positionedNonBoxInline)).toBe(true);
+    expect(isFixedContainingBlock(positionedNonBoxInline)).toBe(false);
+
+    const filteredNonBoxInline = makeElement({
+      styles: {
+        ...nonBoxInline.styles,
+        filter: "blur(0px)",
+      },
+    });
+    expect(establishesStackingContext(filteredNonBoxInline)).toBe(true);
+    expect(isFixedContainingBlock(filteredNonBoxInline)).toBe(true);
+  });
+
+  it("keeps perspective+overflow atomic but leaves perspective:none overflow pass-through", () => {
+    const active = makeElement({
+      styles: {
+        ...makeElement().styles,
+        perspective: "360px",
+        overflowX: "hidden",
+        overflowY: "hidden",
+      },
+    });
+    expect(establishesStackingContext(active)).toBe(true);
+    expect(isOverflowOnlySC(active)).toBe(false);
+
+    const inactive = makeElement({
+      styles: {
+        ...makeElement().styles,
+        perspective: "none",
+        perspectiveOrigin: "10px 90px",
+        overflowX: "hidden",
+        overflowY: "hidden",
+      },
+    });
+    expect(establishesStackingContext(inactive)).toBe(true);
+    expect(isOverflowOnlySC(inactive)).toBe(true);
+  });
+
+  it("uses computed preserve-3d for fixed containment even when overflow flattens its used value", () => {
+    const flattened = makeElement({
+      styles: {
+        ...makeElement().styles,
+        transformStyle: "preserve-3d",
+        overflowX: "hidden",
+        overflowY: "hidden",
+      },
+    });
+    expect(establishesStackingContext(flattened)).toBe(true);
+    expect(isOverflowOnlySC(flattened)).toBe(false);
+    expect(isFixedContainingBlock(flattened)).toBe(true);
+
+    const flat = makeElement({
+      styles: { ...makeElement().styles, transformStyle: "flat" },
+    });
+    expect(establishesStackingContext(flat)).toBe(false);
+    expect(isFixedContainingBlock(flat)).toBe(false);
+  });
+
+  it("honors will-change:perspective but not perspective-origin or scroll-position", () => {
+    for (const value of [
+      "transform", "transform-style", "perspective", "translate", "rotate",
+      "scale", "offset-path", "offset-position",
+    ]) {
+      const hinted = makeElement({
+        styles: { ...makeElement().styles, willChange: value },
+      });
+      expect(establishesStackingContext(hinted)).toBe(true);
+      expect(isFixedContainingBlock(hinted)).toBe(true);
+    }
+    for (const value of [
+      "offset-distance", "offset-rotate", "transform-origin",
+      "perspective-origin", "scroll-position",
+    ]) {
+      const control = makeElement({
+        styles: { ...makeElement().styles, willChange: value },
+      });
+      expect(establishesStackingContext(control)).toBe(false);
+      expect(isFixedContainingBlock(control)).toBe(false);
+    }
+  });
+});
+
+describe("DM-543/DM-2385 position:fixed escapes ancestor overflow clips", () => {
   // CSS painting order: position:fixed paints in the viewport stacking
   // context and escapes ALL ancestor overflow clips — UNLESS an ancestor
   // creates a containing block for fixed (transform / filter / will-change:
@@ -941,6 +1074,60 @@ describe("DM-543 position:fixed escapes ancestor overflow clips", () => {
     })];
     const svg = elementTreeToSvgInner(tree, 300, 100);
     expect(clipState(svg, "rgb(220,38,38)")).toBe("trapped");
+  });
+
+  it("traps fixed paint inside nested clips when the inner ancestor has perspective", () => {
+    const tree = [makeElement({
+      x: 0, y: 0, width: 300, height: 100,
+      styles: { ...makeElement().styles, overflowX: "hidden", overflowY: "hidden" },
+      children: [
+        makeElement({
+          x: 20, y: 10, width: 220, height: 70,
+          styles: {
+            ...makeElement().styles,
+            perspective: "420px",
+            perspectiveOrigin: "33px 52px",
+            overflowX: "hidden",
+            overflowY: "hidden",
+          },
+          children: [
+            makeElement({
+              x: 260, y: 82, width: 40, height: 16,
+              styles: { ...makeElement().styles, position: "fixed", backgroundColor: "rgb(220,38,38)" },
+            }),
+          ],
+        }),
+      ],
+    })];
+    const svg = elementTreeToSvgInner(tree, 300, 100);
+    expect(clipState(svg, "rgb(220,38,38)")).toBe("trapped");
+  });
+
+  it("hoists the same fixed paint past nested clips when perspective computes to none", () => {
+    const tree = [makeElement({
+      x: 0, y: 0, width: 300, height: 100,
+      styles: { ...makeElement().styles, overflowX: "hidden", overflowY: "hidden" },
+      children: [
+        makeElement({
+          x: 20, y: 10, width: 220, height: 70,
+          styles: {
+            ...makeElement().styles,
+            perspective: "none",
+            perspectiveOrigin: "33px 52px",
+            overflowX: "hidden",
+            overflowY: "hidden",
+          },
+          children: [
+            makeElement({
+              x: 260, y: 82, width: 40, height: 16,
+              styles: { ...makeElement().styles, position: "fixed", backgroundColor: "rgb(220,38,38)" },
+            }),
+          ],
+        }),
+      ],
+    })];
+    const svg = elementTreeToSvgInner(tree, 300, 100);
+    expect(clipState(svg, "rgb(220,38,38)")).toBe("escaped");
   });
 
   it("hoists position:fixed past nested non-CB SC ancestors (overflow scroller inside overflow scroller)", () => {

@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt36yljw8qtxqwd8",
+          "message": {
+            "text": "Stacking and fixed ownership intentionally use different Blink predicates. At Chromium 7d859f27, ComputedStyle records active perspective as a stacking reason, LayoutInline::LayerTypeRequired decides whether that style reason has a paint layer, and LayoutObject::ComputeIsFixedContainer separately adds an IsBox gate. The captured fact therefore rejects static non-box inlines for both paint/fixed activation, while relative positioning preserves the inline stacking boundary without manufacturing fixed ownership. Computed preserve-3d remains fixed-owning through grouping-property flattening.",
+            "markdown": "Stacking and fixed ownership intentionally use different Blink predicates. At Chromium 7d859f27, ComputedStyle records active perspective as a stacking reason, LayoutInline::LayerTypeRequired decides whether that style reason has a paint layer, and LayoutObject::ComputeIsFixedContainer separately adds an IsBox gate. The captured fact therefore rejects static non-box inlines for both paint/fixed activation, while relative positioning preserves the inline stacking boundary without manufacturing fixed ownership. Computed preserve-3d remains fixed-owning through grouping-property flattening."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/stacking.ts"
+                },
+                "region": {
+                  "startLine": 9,
+                  "endLine": 37,
+                  "snippet": {
+                    "text": "/**\n * Live captures set this false when Blink declines to make this layout object\n * a fixed-position containing block for its transform-related computed state\n * (notably a normal `display:inline` span). This is deliberately narrower than\n * stacking-context creation: ComputedStyle can still classify a positioned\n * inline as a stacking context even though LayoutObject::IsBox() rejects it as\n * a fixed container. Older/synthetic trees omit the fact and retain the\n * computed-style fallback.\n */\nfunction transformRelatedCanOwnFixed(el: CapturedElement): boolean {\n  return el.styles.transformRelatedBox !== false;\n}\n\n/**\n * A box gets a PaintLayer for its computed transform-related stacking reason.\n * A non-box LayoutInline does not, unless relative positioning independently\n * makes LayoutInline::LayerTypeRequired return a layer. Other inline layer\n * reasons (grouping, animation, containment, sticky) are already independent\n * SC checks below.\n */\nfunction transformRelatedCreatesStackingBoundary(el: CapturedElement): boolean {\n  return transformRelatedCanOwnFixed(el)\n    || (el.styles.display === \"inline\" && el.styles.position === \"relative\");\n}\n\nconst transformRelatedWillChangeProperties: ReadonlySet<string> = new Set([\n  \"transform\", \"transform-style\", \"perspective\", \"translate\", \"rotate\",\n  \"scale\", \"offset-path\", \"offset-position\",\n]);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/stacking.ts"
+                },
+                "region": {
+                  "startLine": 473
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/index.ts"
+                },
+                "region": {
+                  "startLine": 1546
+                }
+              }
+            },
+            {
+              "id": 2,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/paint-order-oracle.ts"
+                },
+                "region": {
+                  "startLine": 145
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2385"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "86e4c03c81a661278f180435784c8f25"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "fd2bb686fd9041999d51f2e27dadfeddb334d74d",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

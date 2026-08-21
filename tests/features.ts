@@ -1517,6 +1517,20 @@ export const tests: FeatureTest[] = [
     height: 180,
   },
   {
+    // DM-2385: perspective is an authored/computed ancestor signal, not a
+    // symptom to recover from a descendant matrix. The first panel has an
+    // asymmetric perspective-origin and a projected child; Chromium owns that
+    // projective surface, and its fixed pin remains fixed to (and clipped by)
+    // the panel. The middle panel proves computed preserve-3d remains a fixed
+    // CB even though overflow:hidden is a grouping property that flattens its
+    // used 3D style. The final perspective:none/origin-only panel is the
+    // negative control: its fixed pin escapes to the viewport bottom-right.
+    name: "perspective-fixed-containing-block-ownership",
+    html: `<div style="position:relative;width:720px;height:220px;padding:20px;background:#0d1117;font:12px/1.3 system-ui,sans-serif;color:#e2e8f0;display:flex;gap:28px;"><section style="position:relative;width:200px;height:130px;border:3px solid #f87171;overflow:hidden;background:#3f1d2e;perspective:420px;perspective-origin:20% 75%;"><b style="display:block;padding:8px;">perspective: 420px</b><div style="position:absolute;left:45px;top:38px;width:120px;height:70px;background:#7c3aed;transform:rotateY(28deg);"></div><i style="position:fixed;left:142px;top:90px;width:44px;height:24px;background:#facc15;border:2px solid #111827;"></i></section><section style="position:relative;width:200px;height:130px;border:3px solid #60a5fa;overflow:hidden;background:#172554;transform-style:preserve-3d;"><b style="display:block;padding:8px;">preserve-3d + clip</b><i style="position:fixed;left:142px;top:90px;width:44px;height:24px;background:#38bdf8;border:2px solid #111827;"></i></section><section style="position:relative;width:200px;height:130px;border:3px solid #4ade80;overflow:hidden;background:#052e16;perspective:none;perspective-origin:20% 75%;"><b style="display:block;padding:8px;">perspective: none</b><i style="position:fixed;right:12px;bottom:12px;width:52px;height:28px;background:#4ade80;border:2px solid #f8fafc;"></i></section></div>`,
+    width: 720,
+    height: 220,
+  },
+  {
     // DM-499 regression: plain self-contained inline SVG (paths declared
     // inline) must keep round-tripping via the existing DM-279 path.
     name: "inline-svg-self-contained",

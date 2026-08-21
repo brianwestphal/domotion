@@ -3180,7 +3180,8 @@ function elementTreeToSvgInnerImpl(
   // descendants up to the root SC so they paint at document root.
   // Constraint: stop bubbling at fixed-CB ancestors — when an ancestor
   // creates a containing block for fixed (transform / filter / will-change:
-  // <transform|filter|perspective> / contain: <paint|strict|content|layout>),
+  // <transform|filter|perspective> / computed perspective / computed
+  // transform-style:preserve-3d / contain:<paint|strict|content|layout>),
   // the descendant is effectively absolute-positioned to that ancestor and
   // must respect the ancestor's clipping. See `13-deep-fixed-in-transform`:
   // the reference section's pin should hit the viewport; the pins under

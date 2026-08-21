@@ -755,9 +755,25 @@ export interface CapturedStyles {
    *  correct (e.g. `transform: translate(0)` on a positioned element traps
    *  its descendants' z-indices). */
   transformCreatesSc?: boolean;
+  /**
+   * DM-2385: whether Blink actually lets this layout object own a fixed child
+   * for its transform-related computed state. Non-replaced inline boxes can
+   * carry computed transform/perspective values while `LayoutObject::IsBox()`
+   * keeps those values from creating a fixed containing block or perspective
+   * paint node. This does not negate ComputedStyle's separate stacking-context
+   * predicate. Capture asks Blink with a neutral temporary host carrying the
+   * same computed `display` plus active perspective, then reads its fixed
+   * child's `offsetParent`; replaced/control and SVG owners retain the
+   * compatible computed-style fallback.
+   */
+  transformRelatedBox?: boolean;
   /** CSS transform-style. `preserve-3d` (or anything != `flat`) creates a stacking context per CSS Transforms 2 §4 (DM-589). */
   transformStyle?: string;
-  /** CSS perspective and its resolved origin, retained for vector 3D groups. */
+  /**
+   * DM-2385: computed CSS perspective plus the resolved border-box origin.
+   * These are ancestor-owned source signals for stacking/fixed containment;
+   * projective paint itself may be owned by `transformSubtreeRaster`.
+   */
   perspective?: string;
   perspectiveOrigin?: string;
   /** Whether the element's reverse-facing plane participates in paint. */

@@ -673,11 +673,16 @@ const captureDocumentTree =
         ...captureFormControls(el, cs, tag),
         textShadow: cs.textShadow,
         ...threadFrozenTransform(cs, frozenTransform, frozenTransformOrigin),
+        transformRelatedBox: _transformRelatedBox.get(el),
         // CSS Transforms 2 §4: `transform-style` != `flat` (i.e. `preserve-3d`)
         // creates a stacking context. Captured so the renderer's SC detection
         // sees it; otherwise z-index:-1 descendants hoist past their intended
         // SC and end up behind the wrong background (DM-589).
         transformStyle: cs.transformStyle,
+        // DM-2385: keep perspective as its own computed ancestor signal. It
+        // creates stacking/fixed-CB ownership without appearing in a child's
+        // computed transform matrix; perspective-origin is the resolved
+        // border-box point and is inert when perspective computes to none.
         perspective: cs.perspective,
         perspectiveOrigin: cs.perspectiveOrigin,
         backfaceVisibility: cs.backfaceVisibility,
@@ -1538,18 +1543,96 @@ const captureDocumentTree =
     }
   }
 
+  // DM-2385: a computed transform-related value does not imply that Blink's
+  // LayoutObject can apply it. In particular, a non-replaced `display:inline`
+  // element serializes perspective/transform normally but fails the `IsBox()` arm
+  // in ComputeIsFixedContainer and creates neither a fixed CB nor a perspective
+  // paint node. ComputedStyle's stacking-context predicate remains separate.
+  // CSSOM does not expose IsBox(), but fixed ownership is
+  // observable without matrix inference: give a neutral temporary host the
+  // candidate's computed display and an active perspective; its fixed child's
+  // offsetParent is that host exactly when Blink constructed an IsBox layout
+  // object. Using a neutral host avoids changing the source element or letting
+  // its independent filter/contain state answer the transform question. Probe
+  // only transform-related candidates, remove the zero-size host immediately,
+  // and retain the boolean for perspective activation and fixed ownership.
+  const _transformRelatedBox = new WeakMap();
+  const _transformRelatedWillChange = new Set([
+    'transform', 'transform-style', 'perspective', 'translate', 'rotate',
+    'scale', 'offset-path', 'offset-position',
+  ]);
+  const _hasTransformRelatedSignal = (_cs) => {
+    if ((_cs.transform != null && _cs.transform !== '' && _cs.transform !== 'none')
+        || (_cs.translate != null && _cs.translate !== '' && _cs.translate !== 'none')
+        || (_cs.rotate != null && _cs.rotate !== '' && _cs.rotate !== 'none')
+        || (_cs.scale != null && _cs.scale !== '' && _cs.scale !== 'none')
+        || _cs.transformStyle === 'preserve-3d'
+        || (_cs.perspective != null && _cs.perspective !== '' && _cs.perspective !== 'none')) return true;
+    if (_cs.willChange == null || _cs.willChange === '' || _cs.willChange === 'auto') return false;
+    const _tokens = _cs.willChange.split(/[\s,]+/);
+    for (let _wi = 0; _wi < _tokens.length; _wi++) {
+      if (_transformRelatedWillChange.has(_tokens[_wi].toLowerCase())) return true;
+    }
+    return false;
+  };
+  const _ownershipEls = [root, ...Array.from(_allEls)];
+  const _probeUnsupportedTags = /^(?:AUDIO|CANVAS|EMBED|IFRAME|IMG|INPUT|METER|OBJECT|PROGRESS|SELECT|TEXTAREA|VIDEO)$/;
+  for (let _oi = 0; _oi < _ownershipEls.length; _oi++) {
+    const _owner = _ownershipEls[_oi];
+    const _ownerStyle = getComputedStyle(_owner);
+    if (!_hasTransformRelatedSignal(_ownerStyle)) continue;
+    // Replaced/control content and SVG suppress an appended HTML child, so a
+    // false result there would describe the probe host rather than IsBox().
+    // Such elements cannot expose an authored fixed descendant through this
+    // tree; leave the fact undefined so their own perspective paint retains
+    // the source-compatible fallback.
+    if (_owner.namespaceURI === 'http://www.w3.org/2000/svg'
+        || _probeUnsupportedTags.test(_owner.tagName)) continue;
+    const _probeHost = document.createElement('span');
+    _probeHost.setAttribute('aria-hidden', 'true');
+    _probeHost.style.setProperty('all', 'initial', 'important');
+    _probeHost.style.setProperty('display', _ownerStyle.display, 'important');
+    _probeHost.style.setProperty('perspective', '1px', 'important');
+    _probeHost.style.setProperty('visibility', 'hidden', 'important');
+    _probeHost.style.setProperty('width', '0', 'important');
+    _probeHost.style.setProperty('height', '0', 'important');
+    _probeHost.style.setProperty('margin', '0', 'important');
+    _probeHost.style.setProperty('padding', '0', 'important');
+    _probeHost.style.setProperty('border', '0', 'important');
+    const _probe = document.createElement('i');
+    _probe.setAttribute('aria-hidden', 'true');
+    _probe.style.setProperty('all', 'initial', 'important');
+    _probe.style.setProperty('position', 'fixed', 'important');
+    _probe.style.setProperty('width', '0', 'important');
+    _probe.style.setProperty('height', '0', 'important');
+    _probeHost.appendChild(_probe);
+    try {
+      (document.body || document.documentElement).appendChild(_probeHost);
+      _transformRelatedBox.set(_owner, _probe.offsetParent === _probeHost);
+    } catch (_e) {
+      // If the neutral host cannot participate in layout, leave the compatible
+      // computed-style fallback undefined rather than guessing.
+    } finally {
+      _probeHost.remove();
+    }
+  }
+
   // CSS 3D is ultimately a projective mapping of each painted element plane.
   // Blink does not expose Element.getBoxQuads(), so measure the four border-box
   // corners with zero-sized positioned descendants while the live transform
   // tree is still intact. This observes perspective, flattening, origins, and
   // nested preserve-3d directly, without fitting any fixture-specific matrix.
   const _projectiveInfluenced = new Set();
-  for (let _pi = 0; _pi < _allEls.length; _pi++) {
-    const _pel = _allEls[_pi];
+  for (let _pi = 0; _pi < _ownershipEls.length; _pi++) {
+    const _pel = _ownershipEls[_pi];
     const _pcs = getComputedStyle(_pel);
-    const _is3d = (_pcs.transform || '').startsWith('matrix3d(')
-      || _pcs.transformStyle === 'preserve-3d'
-      || (_pcs.perspective != null && _pcs.perspective !== '' && _pcs.perspective !== 'none');
+    // A CSS matrix3d remains applicable to SVG layout objects, which never own
+    // HTML fixed descendants. Only the box-only perspective/preserve-3d arms
+    // use the fixed-container applicability fact.
+    const _hasMatrix3d = (_pcs.transform || '').startsWith('matrix3d(');
+    const _is3d = _hasMatrix3d || (_transformRelatedBox.get(_pel) !== false
+      && (_pcs.transformStyle === 'preserve-3d'
+        || (_pcs.perspective != null && _pcs.perspective !== '' && _pcs.perspective !== 'none')));
     if (!_is3d) continue;
     _projectiveInfluenced.add(_pel);
     const _pdescs = _pel.getElementsByTagName('*');
