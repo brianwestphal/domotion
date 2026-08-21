@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex-gpt-5-max",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2s7uq8eawg6t40",
+          "message": {
+            "text": "The synchronous browser probe answers activation and shaped fragment facts without fixture dimensions. An inert real-subtree clone distinguishes legacy display:-webkit-box from authored flow-root (both serialize as flow-root), and the root font/style shapes the marker per Blink. The provisional Range edge exists only to seed capture; the post-capture AX refinement replaces it with Chromium's retained-fragment boundary.",
+            "markdown": "The synchronous browser probe answers activation and shaped fragment facts without fixture dimensions. An inert real-subtree clone distinguishes legacy display:-webkit-box from authored flow-root (both serialize as flow-root), and the root font/style shapes the marker per Blink. The provisional Range edge exists only to seed capture; the post-capture AX refinement replaces it with Chromium's retained-fragment boundary."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/line-clamp.ts"
+                },
+                "region": {
+                  "startLine": 256,
+                  "endLine": 355,
+                  "snippet": {
+                    "text": "export const createLineClampHandler = ({ vp, measureFontMetrics, normColor, scaleMag }) => {\n  const contexts = new WeakMap();\n  let probeSequence = 0;\n\n  const analyzeRoot = (el, cs) => {\n    if (contexts.has(el)) return contexts.get(el);\n    const parsed = parseBlinkLineClampCount(cs.webkitLineClamp || '');\n    if (parsed == null || cs.webkitBoxOrient !== 'vertical' || cs.display !== 'flow-root') {\n      contexts.set(el, null);\n      return null;\n    }\n    const writingMode = cs.writingMode || 'horizontal-tb';\n    const vertical = VERTICAL_WRITING_RE.test(writingMode);\n    const chars = collectTextCharacters(el, vertical);\n    const lines = groupLogicalLines(chars, writingMode);\n    // No generated marker and no past-clamp fragments for a short remainder.\n    if (lines.length <= parsed) {\n      contexts.set(el, null);\n      return null;\n    }\n    const activation = blinkLineClampActivation({\n      webkitLineClamp: cs.webkitLineClamp,\n      webkitBoxOrient: cs.webkitBoxOrient,\n      computedDisplay: cs.display,\n      behaviorallyClamps: behaviorallyClampsInClone(el, cs, writingMode),\n    });\n    if (activation == null) {\n      contexts.set(el, null);\n      return null;\n    }\n    const clampLine = lines[activation.clampCount - 1];\n    if (clampLine == null || clampLine.chars.length === 0) {\n      contexts.set(el, null);\n      return null;\n    }\n    const direction = cs.direction === 'rtl' ? 'rtl' : 'ltr';\n    const scale = scaleMag?.(el) || 1;\n    const markerText = blinkLineClampEllipsisText(primaryFontHasEllipsis(el.ownerDocument, cs));\n    const measured = measureMarker(el.ownerDocument, cs, markerText, writingMode, scale);\n    const inlineStarts = clampLine.chars.map((char) => vertical ? char.top : char.left);\n    const inlineEnds = clampLine.chars.map((char) => vertical ? char.bottom : char.right);\n    const adjacentInlineStart = Math.min(...inlineStarts);\n    const adjacentInlineEnd = Math.max(...inlineEnds);\n    const inlineStart = blinkLineClampInlineStart({\n      direction,\n      adjacentInlineStart,\n      adjacentInlineEnd,\n      ellipsisAdvance: measured.inlineAdvance,\n    });\n    const adjacent = direction === 'rtl'\n      ? clampLine.chars.reduce((best, char) => (vertical ? char.top : char.left) < (vertical ? best.top : best.left) ? char : best)\n      : clampLine.chars.reduce((best, char) => (vertical ? char.bottom : char.right) > (vertical ? best.bottom : best.right) ? char : best);\n    const adjacentStyle = getComputedStyle(adjacent.owner);\n    const adjacentAscent = measureFontMetrics(adjacentStyle).ascent * (scaleMag?.(adjacent.owner) || 1);\n    const rootMetrics = measureFontMetrics(cs);\n    const rootAscent = rootMetrics.ascent * scale;\n    const baseline = vertical\n      ? adjacent.left + adjacentAscent\n      : adjacent.top + adjacentAscent;\n    const lineLeft = Math.min(...clampLine.chars.map((char) => char.left));\n    const lineRight = Math.max(...clampLine.chars.map((char) => char.right));\n    const lineTop = Math.min(...clampLine.chars.map((char) => char.top));\n    const lineBottom = Math.max(...clampLine.chars.map((char) => char.bottom));\n    const marker = vertical ? {\n      text: markerText,\n      x: lineLeft - vp.x,\n      y: inlineStart - vp.y,\n      width: lineRight - lineLeft,\n      height: measured.inlineAdvance,\n      yOffsets: [inlineStart - vp.y],\n      verticalWritingMode: writingMode,\n      verticalOrientations: ['rotated'],\n      verticalAdvances: [measured.inlineAdvance],\n      verticalNaturalWidths: [measured.width],\n      fontAscent: rootMetrics.ascent,\n    } : {\n      text: markerText,\n      x: inlineStart - vp.x,\n      y: baseline - rootAscent - vp.y,\n      width: measured.inlineAdvance,\n      height: lineBottom - lineTop,\n      xOffsets: [inlineStart - vp.x],\n      fontAscent: rootMetrics.ascent,\n    };\n    Object.assign(marker, {\n      generatedLineClampEllipsis: true,\n      shapedWidth: measured.inlineAdvance,\n      baseline: baseline - (vertical ? vp.x : vp.y),\n      inlineOffset: inlineStart - (vertical ? vp.y : vp.x),\n      color: normColor(cs.color),\n      fontFamily: cs.fontFamily,\n      fontSize: Number.parseFloat(cs.fontSize) || undefined,\n      fontWeight: cs.fontWeight,\n      fontStyle: cs.fontStyle,\n      fontVariant: cs.fontVariant,\n    });\n    const probeId = `dm2417-${probeSequence++}`;\n    el.setAttribute('data-domotion-line-clamp-probe', probeId);\n    marker.lineClampProbeId = probeId;\n    const context = { root: el, clampCount: activation.clampCount, writingMode, lines, marker };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/line-clamp.ts"
+                },
+                "region": {
+                  "startLine": 132
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2417"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ff1db57aeaee2428a66e117f283e6010"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2cc447073b1017d1726342b40ccb857ea4745c29",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

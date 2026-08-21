@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex-gpt-5-max",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2s7uqfv8r0evuq",
+          "message": {
+            "text": "The isolated paint oracle proves generated-fragment geometry independently of authored text. Each source run is transparent while Blink's generated marker retains a unique root color; Chromium and rendered-SVG ink bounds agree within four device pixels at DPR 2 for LTR long continuation, RTL, mixed-size/fallback/style boundary, and vertical writing. The LTR continuation row specifically failed by 22 pixels before AX refinement, so it guards against regressing to the unpainted DOM Range tail; a separate astral row proves UTF-16 trimming cannot split a scalar.",
+            "markdown": "The isolated paint oracle proves generated-fragment geometry independently of authored text. Each source run is transparent while Blink's generated marker retains a unique root color; Chromium and rendered-SVG ink bounds agree within four device pixels at DPR 2 for LTR long continuation, RTL, mixed-size/fallback/style boundary, and vertical writing. The LTR continuation row specifically failed by 22 pixels before AX refinement, so it guards against regressing to the unpainted DOM Range tail; a separate astral row proves UTF-16 trimming cannot split a scalar."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/line-clamp-ellipsis.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 175,
+                  "endLine": 210,
+                  "snippet": {
+                    "text": "  it('matches Chromium generated-fragment ink bounds in isolated paint oracle rows', async () => {\n    const decode = async (png: Buffer) => sharp(png).removeAlpha().raw()\n      .toBuffer({ resolveWithObject: true });\n    const [expected, actual] = await Promise.all([decode(expectedPng), decode(actualPng)]);\n    const targets: Array<[number, number, number]> = [\n      [224, 32, 32], [21, 153, 71], [36, 94, 232], [179, 42, 204],\n    ];\n    const bounds = (decoded: Awaited<ReturnType<typeof decode>>, target: [number, number, number]) => {\n      let minX = Infinity, minY = Infinity, maxX = -1, maxY = -1, count = 0;\n      const { data, info } = decoded;\n      for (let y = 0; y < info.height; y++) {\n        for (let x = 0; x < info.width; x++) {\n          const i = (y * info.width + x) * info.channels;\n          const distance = Math.abs(data[i] - target[0])\n            + Math.abs(data[i + 1] - target[1])\n            + Math.abs(data[i + 2] - target[2]);\n          if (distance > 90) continue;\n          count++;\n          minX = Math.min(minX, x); maxX = Math.max(maxX, x);\n          minY = Math.min(minY, y); maxY = Math.max(maxY, y);\n        }\n      }\n      return { minX, minY, maxX, maxY, count };\n    };\n    for (const target of targets) {\n      const chrome = bounds(expected, target);\n      const rendered = bounds(actual, target);\n      expect(chrome.count).toBeGreaterThan(4);\n      expect(rendered.count).toBeGreaterThan(4);\n      // DPR=2: tolerate two CSS pixels of independent glyph rasterisation,\n      // while requiring the generated fragment to occupy the same line/side.\n      for (const key of ['minX', 'minY', 'maxX', 'maxY'] as const) {\n        expect(Math.abs(rendered[key] - chrome[key]), `${target.join(',')} ${key} chrome=${JSON.stringify(chrome)} rendered=${JSON.stringify(rendered)}`).toBeLessThanOrEqual(4);\n      }\n    }\n  });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/line-clamp.ts"
+                },
+                "region": {
+                  "startLine": 132
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2417"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "243cd871cd3fe6c899304abc60e67732"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2cc447073b1017d1726342b40ccb857ea4745c29",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

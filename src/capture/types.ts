@@ -24,6 +24,22 @@ export interface TextSegment {
   y: number;
   width: number;
   height: number;
+  /** Blink-generated CSS line-clamp ellipsis fragment (not authored DOM text). */
+  generatedLineClampEllipsis?: true;
+  /** Captured ShapeResult::SnappedWidth / vertical inline advance. */
+  shapedWidth?: number;
+  /** Captured physical baseline coordinate (Y horizontal, X vertical). */
+  baseline?: number;
+  /** Captured physical inline-axis start (X horizontal, Y vertical). */
+  inlineOffset?: number;
+  /** Internal capture→Chromium AX correlation key; removed after refinement. */
+  lineClampProbeId?: string;
+  /** Physical face Chromium selected for the generated marker glyph(s). */
+  resolvedFontFace?: {
+    familyName: string;
+    postScriptName?: string;
+    isCustomFont: boolean;
+  };
   /**
    * Per-character viewport-absolute x offsets (one entry per visible char in
    * `text`). When provided, renderers anchor each glyph at xOffsets[i] instead
@@ -32,6 +48,8 @@ export interface TextSegment {
    * (e.g. input/textarea values).
    */
   xOffsets?: number[];
+  /** Per-code-unit physical Range advances; used to trim clamp-line tails. */
+  xAdvances?: number[];
   /** Override color for this segment (e.g. ::before / ::after pseudos whose
    *  CSS `color` differs from the element's). Renderer uses parent fill when
    *  undefined. */
@@ -1002,6 +1020,8 @@ export interface CapturedElement {
   height: number;
   /** Source-derived platform/custom resizer geometry and paint ownership. */
   resizeHandle?: CapturedResizeHandle;
+  /** Force captured clamp-owned fragments even when only one (or zero) source lines remain. */
+  lineClampTextFragments?: boolean;
   /**
    * If the source DOM had `data-domotion-anim="<id>"` on this element, the id
    * is captured here. The renderer surfaces it as `class="anim-<id>"` on the

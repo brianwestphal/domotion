@@ -222,7 +222,10 @@ export const resolveCharOrientation = (ch, textOrientation) => {
   return isMixedVerticalUpright(ch.codePointAt(0)) ? 'upright' : 'rotated';
 };
 
-const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, normColor, markGetsDottedCircle }) => {
+const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, normColor, markGetsDottedCircle, finalizeLineClampText }) => {
+  const finishLineClamp = (el, cs, result) => finalizeLineClampText == null
+    ? result
+    : finalizeLineClampText(el, cs, result);
   // DM-990: Unicode `Vertical_Orientation` property (UAX #50) for
   // `text-orientation: mixed`. Hardcoded table covering the codepoint
   // ranges that paint upright in vertical text: CJK ideographs, CJK
@@ -660,7 +663,7 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
     // separate "line" — wrong shape entirely for the renderer.
     const wm = cs.writingMode;
     if (wm === 'vertical-rl' || wm === 'vertical-lr' || wm === 'sideways-rl' || wm === 'sideways-lr') {
-      return captureVerticalTextSegments(el, cs);
+      return finishLineClamp(el, cs, captureVerticalTextSegments(el, cs));
     }
     const textSegments = [];
     let text = '';
@@ -1026,6 +1029,11 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
           // anchors. Let HarfBuzz shape that rendered run normally instead of
           // inventing duplicate offsets from the source span.
           xOffsets: line.xOffsets?.map((v) => v - vp.x),
+          // AX exposes the exact retained fragment after this synchronous
+          // walk. Keep Range advances so the refinement can remove laid-out
+          // but unpainted clamp-tail glyphs without estimating their widths.
+          xAdvances: line.xOffsets == null ? undefined : line.chars.flatMap((c) =>
+            Array.from({ length: c.ch.length }, () => c.right - c.left)),
           rasterGlyphs: rasterGlyphs.length > 0 ? rasterGlyphs : undefined,
           dottedCircleMarks: dottedCircleMarks.length > 0 ? dottedCircleMarks : (probeConsulted ? [] : undefined),
         });
@@ -1091,7 +1099,7 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
     text = text.trim();
     if (minLeft < Infinity) {
       const metrics = measureFontMetrics(cs);
-      return {
+      return finishLineClamp(el, cs, {
         applied: true,
         text,
         textSegments,
@@ -1101,9 +1109,9 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
         textHeight: maxBottom - minTop,
         fontAscent: metrics.ascent,
         fontDescent: metrics.descent,
-      };
+      });
     }
-    return { applied: true, text, textSegments };
+    return finishLineClamp(el, cs, { applied: true, text, textSegments });
   };
 
   return { captureTextSegments };

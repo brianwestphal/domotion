@@ -45,6 +45,7 @@ import { createInputValueHandler } from "./walker/input-value.js";
 import { createTextSegmentsHandler, computeElementRaster } from "./walker/text-segments.js";
 import { createPseudoInjectHandler } from "./walker/pseudo-inject.js";
 import { createResizeHandleHandler } from "./walker/resize-handle.js";
+import { createLineClampHandler } from "./line-clamp.js";
 import { resolveElementCursor, extractCssUrl, sideWidths, isOutsideCaptureViewport } from "./utils.js";
 import { parseCrossOriginAllowlist, frameHostAllowed } from "./cross-origin.js";
 
@@ -111,7 +112,20 @@ const captureDocumentTree =
     composeEffectiveTransform,
   });
   const { captureInputValue } = createInputValueHandler({ vp, normColor, measureFontMetrics: _measureFontMetrics });
-  const { captureTextSegments } = createTextSegmentsHandler({ vp, measureFontMetrics: _measureFontMetrics, rasterCandidates, normColor, markGetsDottedCircle });
+  const { finalizeLineClampText } = createLineClampHandler({
+    vp,
+    measureFontMetrics: _measureFontMetrics,
+    normColor,
+    scaleMag: (el) => _scaleMag(el),
+  });
+  const { captureTextSegments } = createTextSegmentsHandler({
+    vp,
+    measureFontMetrics: _measureFontMetrics,
+    rasterCandidates,
+    normColor,
+    markGetsDottedCircle,
+    finalizeLineClampText,
+  });
   const { injectPseudoSegments } = createPseudoInjectHandler();
   const { captureResizeHandle } = createResizeHandleHandler({
     resolvePseudo: _resolvePseudo,
@@ -338,6 +352,7 @@ const captureDocumentTree =
     let placeholderColor;
     let placeholderFontStyle;
     let placeholderFontWeight;
+    let lineClampTextFragments = false;
     const textSegments = [];
     // ::before / ::after generated content — capture each matched pseudo as
     // a TextSegment (or image pseudo) positioned relative to the host's
@@ -397,6 +412,7 @@ const captureDocumentTree =
         // walker/text-segments.ts.
         const _ts = captureTextSegments(el, cs);
         text = _ts.text;
+        lineClampTextFragments = _ts.lineClampTextFragments === true;
         for (const seg of _ts.textSegments) textSegments.push(seg);
         if (_ts.textLeft != null) {
           textLeft = _ts.textLeft;
@@ -795,6 +811,7 @@ const captureDocumentTree =
       // list-item index — see walker/lists-counters.ts.
       ..._listsCounters,
       textSegments: textSegments.length > 0 ? textSegments : undefined,
+      lineClampTextFragments: lineClampTextFragments || undefined,
       textTop, textLeft, textHeight, textWidth,
       // DM-2446: Blink chooses and measures the face at computed size
       // (logical CSS size × effective zoom), then the transform stage scales

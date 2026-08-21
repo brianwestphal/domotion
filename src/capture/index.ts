@@ -17,6 +17,7 @@ import { resetGeneration, registerLocalFontAlias, registerWebfont } from "../ren
 import { CAPTURE_SCRIPT } from "./script.generated.js";
 import { parseCrossOriginAllowlist } from "./script/cross-origin.js";
 import { rasterizeBitmapGlyphs } from "./emoji.js";
+import { refineLineClampEllipsisFragments } from "./line-clamp.js";
 import { ensureSessionGenericFamilyOverrides } from "./generic-font-probe.js";
 import { clipRectForScreenshot } from "./clip-rect.js";
 import { _resetLastCaptureWarnings } from "./warnings.js";
@@ -1212,6 +1213,7 @@ export async function captureElementTreeWithWarnings(
   const typed = result as { tree: CapturedElement[]; warnings: CaptureWarning[] };
   const warnings = typed.warnings ?? [];
   _resetLastCaptureWarnings(warnings);
+  await refineLineClampEllipsisFragments(page, typed.tree, viewport, warnings);
   await rasterizeUrlFilterSurfaces(page, typed.tree, viewport);
   await rasterizeBitmapGlyphs(page, typed.tree, viewport);
   await rasterizeReplacedElements(page, typed.tree, viewport, { sourceImagePath: opts?.rasterizeFromImagePath });

@@ -891,6 +891,14 @@ function renderOneText(
     // and need per-char rotation for text-orientation: mixed / sideways — the
     // horizontal renderers would mis-paint them along the wrong axis.
     if (hasVerticalSegments(opts.el)) return renderVerticalSegments(opts.el, opts.fillColor);
+    // DM-2417: clamp-owned source fragments must stay on their captured
+    // per-line geometry even when filtering leaves exactly one segment.  The
+    // single-line fallback reads the full DOM text and would resurrect hidden
+    // post-clamp content.  The generated marker itself is also a segment when
+    // the clamp root has no direct text of its own.
+    if (opts.el.lineClampTextFragments && opts.el.textSegments != null) {
+      return renderMultiSegmentText(optsWithEmit, opts.el.textSegments);
+    }
     // DM-799: input/textarea dispatch must come BEFORE the multi-line branch. A
     // textarea with newline-bearing value (`\n` in `el.text`) would otherwise
     // hit `renderMultiLineText`, which path-renders each source line without
@@ -1007,7 +1015,9 @@ function paintText(
   captureViewport: { w: number; h: number },
   textBgClipFragmentFills: (string[] | null)[] = [],
 ): void {
-  if (el.text !== "") {
+  const paintsClampFragments = el.lineClampTextFragments === true;
+  const hasCapturedClampFragment = (el.textSegments?.length ?? 0) > 0;
+  if (paintsClampFragments ? hasCapturedClampFragment : el.text !== "") {
     const { fillColor, textIsTransparent } = resolveTextFill(ctx, el, textColor, textBgClipFills, captureViewport);
     const cid = ctx.nextClipId("ct");
     // DM-1266: a form field's value text clips to the element's CONTENT box

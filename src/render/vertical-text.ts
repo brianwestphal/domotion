@@ -211,15 +211,18 @@ function renderVerticalDecoration(
 export function renderVerticalSegments(el: CapturedElement, fillColor: string): string {
   if (el.textSegments == null) return "";
   const fontSize = parseFloat(el.styles.fontSize) || 14;
-  const fontFamily = el.styles.fontFamily;
-  const fontWeight = el.styles.fontWeight;
-  const fontStyle = el.styles.fontStyle;
   const out: string[] = [];
 
   for (const seg of el.textSegments) {
     if (seg.verticalWritingMode == null) continue;
     const segText = seg.text;
     const segFontSize = seg.fontSize ?? fontSize;
+    // Generated line-clamp fragments are styled from the IFC root, while a
+    // retained inline run may carry its own face/weight/style.  Honor the
+    // captured run facts rather than flattening every column to the host.
+    const fontFamily = seg.fontFamily ?? el.styles.fontFamily;
+    const fontWeight = seg.fontWeight ?? el.styles.fontWeight;
+    const fontStyle = seg.fontStyle ?? el.styles.fontStyle;
     // DM-2193: the baseline belongs to the captured vertical run. New captures
     // carry it on every column/combine segment; the element metric supports
     // older captures, and 0.85em remains only for legacy trees with neither.
