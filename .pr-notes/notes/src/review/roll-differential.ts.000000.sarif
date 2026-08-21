@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3hnjo64kwmmts1",
+          "message": {
+            "text": "Roll comparison deliberately removes only revision identity fields. Host, flags, fonts, locale, helper, viewport, corpus, and cache isolation remain in the canonical fingerprint so browser drift cannot be confused with an environment change.",
+            "markdown": "Roll comparison deliberately removes only revision identity fields. Host, flags, fonts, locale, helper, viewport, corpus, and cache isolation remain in the canonical fingerprint so browser drift cannot be confused with an environment change."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/review/roll-differential.ts"
+                },
+                "region": {
+                  "startLine": 8,
+                  "endLine": 18,
+                  "snippet": {
+                    "text": "  const environmentComparable=digest(comparable(oldRun.environmentFingerprint))===digest(comparable(newRun.environmentFingerprint));\n  const areas=[...new Set([...oldRun.reports.map(r=>r.area),...newRun.reports.map(r=>r.area)])].sort();\n  const stageChanges=areas.flatMap(area=>{const a=oldRun.reportPayloads?.[area]??oldRun.reports.find(r=>r.area===area);const b=newRun.reportPayloads?.[area]??newRun.reports.find(r=>r.area===area);return digest(a)===digest(b)?[]:[{area,oldDigest:digest(a),newDigest:digest(b)}]});\n  const ids=[...new Set([...Object.keys(oldRun.visuals??{}),...Object.keys(newRun.visuals??{})])].sort();\n  const visualChanges=ids.filter(id=>oldRun.visuals?.[id]?.digest!==newRun.visuals?.[id]?.digest).map(id=>({id,oldDigest:oldRun.visuals?.[id]?.digest,newDigest:newRun.visuals?.[id]?.digest}));\n  const missingReviews=stageChanges.map(x=>x.area).filter(area=>{const x=review?.reviewedAreas[area];return !x||x.sourceRefs.length===0||(x.classification!==\"no-semantic-change\"&&x.updatedRows.length===0)});\n  return {schemaVersion:1,environmentComparable,stageChanges,visualChanges,missingReviews,pass:environmentComparable&&missingReviews.length===0};\n}\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2378"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4d4a86e68b028292db4ddd33e35cfd4a"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3hnjtnmwetr3td",
+          "message": {
+            "text": "Every changed logical stage requires upstream source citations; semantic changes additionally require named updated rows. This makes visual baseline replacement insufficient to accept a roll.",
+            "markdown": "Every changed logical stage requires upstream source citations; semantic changes additionally require named updated rows. This makes visual baseline replacement insufficient to accept a roll."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/review/roll-differential.ts"
+                },
+                "region": {
+                  "startLine": 24,
+                  "endLine": 25
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2378"
+          ]
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "747c57b0a74135d248fb1e5c0ef266d57333f471",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

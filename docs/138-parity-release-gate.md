@@ -25,3 +25,8 @@ The checked-in evidence file intentionally starts incomplete. It is a release
 attestation, not a baseline to make green by weakening predicates. CI may run
 the report-only form for visibility; the strict command belongs at the release
 boundary after the full evidence sweep and human review.
+
+Dependency rolls additionally run `npm run stage:evidence:compare-roll`; see
+[doc 160](160-chromium-roll-differential-audit.md). A changed stage cannot be
+accepted from visual baselines alone: its review must identify upstream source,
+classify the delta, and name updated logical rows when semantics changed.

@@ -29,7 +29,7 @@ export function parityEnvironment(input: {
     runtimes: {
       node: process.version, icu: process.versions.icu, unicode: process.versions.unicode,
       chromiumSource: revision("external/chromium"), harfbuzzSource: revision("external/harfbuzz"),
-      skiaPinned: revision("external/skia", "62efacd3"),
+      skiaPinned: revision("external/skia", "62efacd3"), icuSource: revision("external/chromium/third_party/icu"),
     },
     viewport: { deviceScaleFactor: input.deviceScaleFactor, zoom: input.zoom, writingMode: input.writingMode, direction: input.direction },
     corpus: { identity: input.corpusIdentity, sample: input.sampleIdentity, cacheIsolation: "new-process/new-document", resources: "inline-or-host-inventory" },
