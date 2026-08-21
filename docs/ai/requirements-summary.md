@@ -1411,3 +1411,7 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   the final font run and are consumed by path emission, embedded emission, and
   provenance shaping; insertion still requires HarfBuzz's broken-syllable
   classification and a nominal U+25CC glyph in that selected face.
+  The pinned Linux Vedic visual row persists and validates all 14 affected
+  FreeSans/FreeSerif glyph streams, plus well-formed, no-U+25CC, and
+  cluster-disabled activation controls; these exact records are oracle data,
+  never production routing exceptions.

@@ -27,8 +27,9 @@ Each `embeddedFontBuilds` entry in `results.json` contains:
 The HTML/unicode harness resets the complete generation state before every
 fixture. Diagnostics are therefore fixture-scoped; `workerSeq` subtraction is
 neither required nor valid. For the pinned 24-row Linux Unicode raster-floor
-corpus, `textRunEvidence` additionally persists the fixture on every production
-run, UTF-16 and code-point spans, selected physical face, glyph id/cluster,
+corpus and its separately adjudicated structural Vedic Extensions row,
+`textRunEvidence` additionally persists the fixture on every production run,
+UTF-16 and code-point spans, selected physical face, glyph id/cluster,
 advance/offset, source-outline digest, and final representation.
 
 `src/review/linux-unicode-evidence.ts` owns the closed acceptance list and the

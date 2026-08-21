@@ -32,10 +32,83 @@ export const LINUX_UNICODE_RASTER_FLOOR_FIXTURES = [
 export type LinuxUnicodeRasterFloorFixture = typeof LINUX_UNICODE_RASTER_FLOOR_FIXTURES[number];
 const FIXTURES = new Set<string>(LINUX_UNICODE_RASTER_FLOOR_FIXTURES);
 
+/** The structural Vedic row is adjudicated separately from the 24 accepted
+ * native-raster-floor rows, but uses the same fixture-scoped production
+ * provenance transport. */
+export const LINUX_VEDIC_DOTTED_CIRCLE_FIXTURE = "1CD0-1CFF-vedic-extensions" as const;
+
+interface LinuxVedicDottedCircleRecord {
+  codepoint: number;
+  postscriptName: "FreeSans" | "FreeSerif";
+  sourcePath: string;
+  script: "Beng" | "Deva";
+  glyphs: Array<{ id: number; cluster: 0; xAdvance: number; yAdvance: 0; xOffset: 0; yOffset: 0 }>;
+}
+
+/** Exact production records from the pinned Playwright Noble image. These are
+ * oracle expectations only: neither the codepoints nor font names participate
+ * in renderer routing. */
+export const LINUX_VEDIC_DOTTED_CIRCLE_RECORDS: readonly LinuxVedicDottedCircleRecord[] = [
+  { codepoint: 0x1CD1, postscriptName: "FreeSerif", sourcePath: "/usr/share/fonts/truetype/freefont/FreeSerif.ttf", script: "Deva", glyphs: [{ id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 3402, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },
+  { codepoint: 0x1CD4, postscriptName: "FreeSans", sourcePath: "/usr/share/fonts/truetype/freefont/FreeSans.ttf", script: "Deva", glyphs: [{ id: 4573, cluster: 0, xAdvance: 800, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 2766, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },
+  { codepoint: 0x1CDB, postscriptName: "FreeSans", sourcePath: "/usr/share/fonts/truetype/freefont/FreeSans.ttf", script: "Deva", glyphs: [{ id: 4573, cluster: 0, xAdvance: 800, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 2771, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },
+  { codepoint: 0x1CDE, postscriptName: "FreeSans", sourcePath: "/usr/share/fonts/truetype/freefont/FreeSans.ttf", script: "Deva", glyphs: [{ id: 4573, cluster: 0, xAdvance: 800, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 2774, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },
+  { codepoint: 0x1CDF, postscriptName: "FreeSans", sourcePath: "/usr/share/fonts/truetype/freefont/FreeSans.ttf", script: "Deva", glyphs: [{ id: 4573, cluster: 0, xAdvance: 800, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 2775, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },
+  { codepoint: 0x1CE1, postscriptName: "FreeSerif", sourcePath: "/usr/share/fonts/truetype/freefont/FreeSerif.ttf", script: "Beng", glyphs: [{ id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 3418, cluster: 0, xAdvance: 488, yAdvance: 0, xOffset: 0, yOffset: 0 }] },
+  { codepoint: 0x1CE2, postscriptName: "FreeSans", sourcePath: "/usr/share/fonts/truetype/freefont/FreeSans.ttf", script: "Deva", glyphs: [{ id: 4573, cluster: 0, xAdvance: 800, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 2776, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },
+  { codepoint: 0x1CE3, postscriptName: "FreeSerif", sourcePath: "/usr/share/fonts/truetype/freefont/FreeSerif.ttf", script: "Deva", glyphs: [{ id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 3420, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },
+  { codepoint: 0x1CE4, postscriptName: "FreeSerif", sourcePath: "/usr/share/fonts/truetype/freefont/FreeSerif.ttf", script: "Deva", glyphs: [{ id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 3421, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },
+  { codepoint: 0x1CE5, postscriptName: "FreeSerif", sourcePath: "/usr/share/fonts/truetype/freefont/FreeSerif.ttf", script: "Deva", glyphs: [{ id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 3422, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },
+  { codepoint: 0x1CE6, postscriptName: "FreeSerif", sourcePath: "/usr/share/fonts/truetype/freefont/FreeSerif.ttf", script: "Deva", glyphs: [{ id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 3423, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },
+  { codepoint: 0x1CE7, postscriptName: "FreeSerif", sourcePath: "/usr/share/fonts/truetype/freefont/FreeSerif.ttf", script: "Deva", glyphs: [{ id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 3424, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },
+  { codepoint: 0x1CE8, postscriptName: "FreeSerif", sourcePath: "/usr/share/fonts/truetype/freefont/FreeSerif.ttf", script: "Deva", glyphs: [{ id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 3425, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },
+  { codepoint: 0x1CF7, postscriptName: "FreeSerif", sourcePath: "/usr/share/fonts/truetype/freefont/FreeSerif.ttf", script: "Beng", glyphs: [{ id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 3440, cluster: 0, xAdvance: 373, yAdvance: 0, xOffset: 0, yOffset: 0 }] },
+] as const;
+
 export const LINUX_UNICODE_THIN_OUTLINE_CONTROLS = [0x0964, 0x0965] as const;
 
 export function isLinuxUnicodeRasterFloorFixture(fixture: string): fixture is LinuxUnicodeRasterFloorFixture {
   return FIXTURES.has(fixture);
+}
+
+export function shouldCollectLinuxUnicodeTextEvidence(fixture: string): boolean {
+  return isLinuxUnicodeRasterFloorFixture(fixture) || fixture === LINUX_VEDIC_DOTTED_CIRCLE_FIXTURE;
+}
+
+function compactGlyphs(run: FixtureTextRunProvenance["runs"][number]): LinuxVedicDottedCircleRecord["glyphs"] {
+  return run.glyphs.map(({ id, cluster, xAdvance, yAdvance, xOffset, yOffset }) =>
+    ({ id, cluster, xAdvance, yAdvance, xOffset, yOffset })) as LinuxVedicDottedCircleRecord["glyphs"];
+}
+
+/** Validate the exact selected-face HarfBuzz stream persisted by the targeted
+ * Linux visual fixture, including the unaffected-cell negative set. */
+export function validateLinuxVedicDottedCircleEvidence(evidence: FixtureTextRunProvenance, chromeFaces: string[]): string[] {
+  const errors: string[] = [];
+  if (evidence.fixture !== LINUX_VEDIC_DOTTED_CIRCLE_FIXTURE) errors.push(`fixture mismatch: ${evidence.fixture}`);
+  for (const census of ["FreeSans:20", "FreeSerif:37"]) {
+    if (!chromeFaces.includes(census)) errors.push(`Chromium face census lacks ${census}`);
+  }
+  const expectedCps = new Set(LINUX_VEDIC_DOTTED_CIRCLE_RECORDS.map((record) => record.codepoint));
+  const vedicRuns = evidence.runs.filter((run) => [...run.sourceText].length === 1
+    && (run.sourceText.codePointAt(0) ?? 0) >= 0x1CD0 && (run.sourceText.codePointAt(0) ?? 0) <= 0x1CFF);
+  for (const expected of LINUX_VEDIC_DOTTED_CIRCLE_RECORDS) {
+    const run = vedicRuns.find((candidate) => candidate.sourceText.codePointAt(0) === expected.codepoint);
+    const label = `U+${expected.codepoint.toString(16).toUpperCase()}`;
+    if (run == null) { errors.push(`${label} has no production row`); continue; }
+    if (run.mechanism !== "dotted-circle-pin") errors.push(`${label} mechanism is ${run.mechanism ?? "missing"}`);
+    if (run.request.script !== expected.script) errors.push(`${label} script is ${run.request.script ?? "missing"}`);
+    if (run.selected.postscriptName !== expected.postscriptName || run.selected.sourcePath !== expected.sourcePath || run.selected.faceIndex !== 0) {
+      errors.push(`${label} selected face differs`);
+    }
+    if (JSON.stringify(compactGlyphs(run)) !== JSON.stringify(expected.glyphs)) errors.push(`${label} glyph stream differs`);
+  }
+  for (const run of vedicRuns) {
+    const cp = run.sourceText.codePointAt(0)!;
+    if (expectedCps.has(cp)) continue;
+    const circleGid = run.selected.postscriptName === "FreeSans" ? 4573 : run.selected.postscriptName === "FreeSerif" ? 5567 : -1;
+    if (run.glyphs.some((glyph) => glyph.id === circleGid)) errors.push(`unrelated U+${cp.toString(16).toUpperCase()} contains U+25CC gid`);
+  }
+  return errors;
 }
 
 function selectedFaceSignature(run: FixtureTextRunProvenance["runs"][number]): string {

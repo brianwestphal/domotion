@@ -88,6 +88,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2jalxx22j0ruu4",
+          "message": {
+            "text": "The pinned Linux records prove the existing generic script handoff fixes this platform without a routing exception. A fresh Noble run selected FreeSans/FreeSerif exactly as Chromium did and emitted the 14 shared-cluster U+25CC streams listed here; the focused production controls in the related test remove the base for a well-formed cluster, a face without nominal U+25CC, and the disabled-cluster mutation.",
+            "markdown": "The pinned Linux records prove the existing generic script handoff fixes this platform without a routing exception. A fresh Noble run selected FreeSans/FreeSerif exactly as Chromium did and emitted the 14 shared-cluster U+25CC streams listed here; the focused production controls in the related test remove the base for a well-formed cluster, a face without nominal U+25CC, and the disabled-cluster mutation."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/review/linux-unicode-evidence.ts"
+                },
+                "region": {
+                  "startLine": 48,
+                  "endLine": 65,
+                  "snippet": {
+                    "text": "/** Exact production records from the pinned Playwright Noble image. These are\n * oracle expectations only: neither the codepoints nor font names participate\n * in renderer routing. */\nexport const LINUX_VEDIC_DOTTED_CIRCLE_RECORDS: readonly LinuxVedicDottedCircleRecord[] = [\n  { codepoint: 0x1CD1, postscriptName: \"FreeSerif\", sourcePath: \"/usr/share/fonts/truetype/freefont/FreeSerif.ttf\", script: \"Deva\", glyphs: [{ id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 3402, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },\n  { codepoint: 0x1CD4, postscriptName: \"FreeSans\", sourcePath: \"/usr/share/fonts/truetype/freefont/FreeSans.ttf\", script: \"Deva\", glyphs: [{ id: 4573, cluster: 0, xAdvance: 800, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 2766, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },\n  { codepoint: 0x1CDB, postscriptName: \"FreeSans\", sourcePath: \"/usr/share/fonts/truetype/freefont/FreeSans.ttf\", script: \"Deva\", glyphs: [{ id: 4573, cluster: 0, xAdvance: 800, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 2771, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },\n  { codepoint: 0x1CDE, postscriptName: \"FreeSans\", sourcePath: \"/usr/share/fonts/truetype/freefont/FreeSans.ttf\", script: \"Deva\", glyphs: [{ id: 4573, cluster: 0, xAdvance: 800, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 2774, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },\n  { codepoint: 0x1CDF, postscriptName: \"FreeSans\", sourcePath: \"/usr/share/fonts/truetype/freefont/FreeSans.ttf\", script: \"Deva\", glyphs: [{ id: 4573, cluster: 0, xAdvance: 800, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 2775, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },\n  { codepoint: 0x1CE1, postscriptName: \"FreeSerif\", sourcePath: \"/usr/share/fonts/truetype/freefont/FreeSerif.ttf\", script: \"Beng\", glyphs: [{ id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 3418, cluster: 0, xAdvance: 488, yAdvance: 0, xOffset: 0, yOffset: 0 }] },\n  { codepoint: 0x1CE2, postscriptName: \"FreeSans\", sourcePath: \"/usr/share/fonts/truetype/freefont/FreeSans.ttf\", script: \"Deva\", glyphs: [{ id: 4573, cluster: 0, xAdvance: 800, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 2776, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },\n  { codepoint: 0x1CE3, postscriptName: \"FreeSerif\", sourcePath: \"/usr/share/fonts/truetype/freefont/FreeSerif.ttf\", script: \"Deva\", glyphs: [{ id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 3420, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },\n  { codepoint: 0x1CE4, postscriptName: \"FreeSerif\", sourcePath: \"/usr/share/fonts/truetype/freefont/FreeSerif.ttf\", script: \"Deva\", glyphs: [{ id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 3421, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },\n  { codepoint: 0x1CE5, postscriptName: \"FreeSerif\", sourcePath: \"/usr/share/fonts/truetype/freefont/FreeSerif.ttf\", script: \"Deva\", glyphs: [{ id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 3422, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },\n  { codepoint: 0x1CE6, postscriptName: \"FreeSerif\", sourcePath: \"/usr/share/fonts/truetype/freefont/FreeSerif.ttf\", script: \"Deva\", glyphs: [{ id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 3423, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },\n  { codepoint: 0x1CE7, postscriptName: \"FreeSerif\", sourcePath: \"/usr/share/fonts/truetype/freefont/FreeSerif.ttf\", script: \"Deva\", glyphs: [{ id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 3424, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },\n  { codepoint: 0x1CE8, postscriptName: \"FreeSerif\", sourcePath: \"/usr/share/fonts/truetype/freefont/FreeSerif.ttf\", script: \"Deva\", glyphs: [{ id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 3425, cluster: 0, xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 }] },\n  { codepoint: 0x1CF7, postscriptName: \"FreeSerif\", sourcePath: \"/usr/share/fonts/truetype/freefont/FreeSerif.ttf\", script: \"Beng\", glyphs: [{ id: 5567, cluster: 0, xAdvance: 791, yAdvance: 0, xOffset: 0, yOffset: 0 }, { id: 3440, cluster: 0, xAdvance: 373, yAdvance: 0, xOffset: 0, yOffset: 0 }] },"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/linux-vedic-dotted-circle.test.ts"
+                },
+                "region": {
+                  "startLine": 69
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/harfbuzz/src/hb-ot-shaper-syllabic.cc"
+                },
+                "region": {
+                  "startLine": 40
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2420"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "2a996850ff3abf209c91356b925c6f18"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8e59a68fc8bbb2a51fb6e69fe3927a3ec13e5d6c",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -53,3 +53,14 @@ embedded Mukta control additionally pins U+25CC-present and U+25CC-absent
 faces, broken and non-broken syllables, U+1CF7 `.notdef`, source clusters,
 advances, offsets, and the selected physical face. The capture bundle is
 regenerated from the reviewed source.
+
+Linux has a separate native-inventory gate for the Vedic Extensions visual
+fixture. On the pinned Playwright Noble image, the 14 Chromium-circled cells
+must select the same FreeSans or FreeSerif face as the renderer and match exact
+glyph ids, shared cluster zero, advances, and offsets. The fixture also pins
+Chromium's `FreeSans:20` / `FreeSerif:37` face census and persists the production
+records in `results.json`. Focused controls shape FreeSerif base+mark without a
+circle, shape a retained-gid subset that lacks nominal U+25CC, and disable shaped
+cluster fallback to prove that the orphan's inserted base disappears. These
+names and codepoints are oracle expectations for that runner image only; they
+are not renderer routing inputs.

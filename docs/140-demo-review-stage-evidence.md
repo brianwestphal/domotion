@@ -33,6 +33,10 @@ Linux Unicode raster-floor rows do not inherit a generic shaping report. The
 `results.json`; `src/review/linux-unicode-evidence.ts` validates its required
 spans/identities and refuses raster-only classification if the controlled
 hinting mutation changes face, glyph, cluster, advance, offset, or outline.
+The structural Vedic Extensions row uses the same fixture-scoped transport but
+is never admitted to that raster-floor set: its dedicated validator requires
+the exact 14 selected-face HarfBuzz streams, Chromium's FreeSans/FreeSerif
+census, and no unexpected U+25CC gid in the remaining Vedic cells.
 
 Related: [Chromium parity verification program](129-chromium-parity-verification-program.md),
 [semantic coverage inventory](136-semantic-coverage-inventory.md), and

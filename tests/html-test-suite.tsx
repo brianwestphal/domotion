@@ -45,7 +45,7 @@ import {
   setTextRunProvenanceEnabled,
   type FixtureTextRunProvenance,
 } from "../src/render/text-run-provenance.js";
-import { isLinuxUnicodeRasterFloorFixture } from "../src/review/linux-unicode-evidence.js";
+import { shouldCollectLinuxUnicodeTextEvidence } from "../src/review/linux-unicode-evidence.js";
 import { raw } from "kerfjs";
 import { comparePngs, MIN_REGION_AREA, REGION_DILATE_PX, SIGNIFICANT_PIXEL_DIST, TILE_PX, type DiffVerdict } from "../src/review/compare-pngs.js";
 import { waitForSettled } from "../src/utils/wait-events.js";
@@ -1212,7 +1212,7 @@ interface TestResult {
   /** Per-entry builder provenance for the embedded fonts in this exact SVG. */
   embeddedFontBuilds?: EmbeddedFontBuildDiagnostic[];
   /** Fixture-scoped production face → glyph → outline evidence for the pinned
-   * Linux Unicode raster-floor corpus. */
+   * Linux Unicode raster-floor corpus and structural Vedic row. */
   textRunEvidence?: FixtureTextRunProvenance;
   /** Worst tile's fraction of pixels with >SIGNIFICANT_PIXEL_DIST distance. */
   worstTileSignificantPct: number;
@@ -1581,7 +1581,7 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     // is worker-cumulative and a workerSeq subtraction is required to guess
     // which subset belonged to this row.
     resetGeneration();
-    const collectTextEvidence = process.platform === "linux" && isLinuxUnicodeRasterFloorFixture(name);
+    const collectTextEvidence = process.platform === "linux" && shouldCollectLinuxUnicodeTextEvidence(name);
     if (collectTextEvidence) {
       resetTextRunProvenance();
       setTextRunProvenanceEnabled(true);

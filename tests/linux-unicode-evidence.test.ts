@@ -4,8 +4,12 @@ import type { FixtureTextRunProvenance } from "../src/render/text-run-provenance
 import {
   LINUX_UNICODE_RASTER_FLOOR_FIXTURES,
   LINUX_UNICODE_THIN_OUTLINE_CONTROLS,
+  LINUX_VEDIC_DOTTED_CIRCLE_FIXTURE,
+  LINUX_VEDIC_DOTTED_CIRCLE_RECORDS,
   compareLinuxUnicodeMutations,
+  shouldCollectLinuxUnicodeTextEvidence,
   validateFixtureTextEvidence,
+  validateLinuxVedicDottedCircleEvidence,
 } from "../src/review/linux-unicode-evidence.js";
 
 const FIXTURE = "0900-097F-devanagari";
@@ -67,6 +71,47 @@ describe("row-scoped Linux Unicode evidence", () => {
       "FB50-FDFF-arabic-presentation-forms-a.2",
     ]));
     expect(LINUX_UNICODE_THIN_OUTLINE_CONTROLS).toEqual([0x0964, 0x0965]);
+  });
+
+  it("keeps structural Vedic evidence separate and pins all exact affected streams", () => {
+    expect(LINUX_VEDIC_DOTTED_CIRCLE_RECORDS).toHaveLength(14);
+    expect(shouldCollectLinuxUnicodeTextEvidence(LINUX_VEDIC_DOTTED_CIRCLE_FIXTURE)).toBe(true);
+    expect(LINUX_UNICODE_RASTER_FLOOR_FIXTURES).not.toContain(LINUX_VEDIC_DOTTED_CIRCLE_FIXTURE);
+    const runs: FixtureTextRunProvenance["runs"] = LINUX_VEDIC_DOTTED_CIRCLE_RECORDS.map((record, row) => ({
+      fixture: LINUX_VEDIC_DOTTED_CIRCLE_FIXTURE,
+      row,
+      emitter: "embedded-font",
+      sourceText: String.fromCodePoint(record.codepoint),
+      sourceSpan: [0, 1],
+      sourceCodepointSpan: [0, 1],
+      emittedText: String.fromCodePoint(record.codepoint),
+      mechanism: "dotted-circle-pin",
+      request: { fontFamily: "fixture", fontWeight: 400, fontStretch: 100, fontSizePx: 32, direction: "ltr", script: record.script },
+      selected: {
+        fontKey: `sysfb:${record.postscriptName}`, postscriptName: record.postscriptName,
+        instantiatedPostscriptName: null, sourcePath: record.sourcePath, faceIndex: 0,
+        variationAxes: null, shapesWithHarfbuzz: true,
+      },
+      glyphs: record.glyphs.map((glyph) => ({ ...glyph, sourceSpan: [0, 1], sourceCodepointSpan: [0, 1], sourceOutline: null })),
+      emittedIdentity: `embedded-font:${record.postscriptName}`,
+      finalRepresentation: "embedded-font",
+    }));
+    runs.push({
+      ...runs[0], row: runs.length, sourceText: "\u1CD0", emittedText: "\u1CD0",
+      request: { ...runs[0].request, script: "Zyyy" },
+      glyphs: [{ id: 3401, cluster: 0, sourceSpan: [0, 1], sourceCodepointSpan: [0, 1], xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0, sourceOutline: null }],
+    });
+    const exact: FixtureTextRunProvenance = {
+      schemaVersion: 1,
+      fixture: LINUX_VEDIC_DOTTED_CIRCLE_FIXTURE,
+      sourceAuthority: evidence().sourceAuthority,
+      runs,
+      transitions: [],
+    };
+    expect(validateLinuxVedicDottedCircleEvidence(exact, ["FreeSans:20", "FreeSerif:37"])).toEqual([]);
+    exact.runs[0].glyphs[0].xAdvance++;
+    expect(validateLinuxVedicDottedCircleEvidence(exact, ["FreeSans:20", "FreeSerif:37"]))
+      .toContain("U+1CD1 glyph stream differs");
   });
 
   it("withholds raster-floor acceptance unless both mutations activate and hinting leaves logic exact", () => {
