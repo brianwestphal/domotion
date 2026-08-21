@@ -108,6 +108,19 @@ itemization now precedes the requeue loop):
 |---|---|---|---|
 | Helvetica `x` + U+0951 (base covered, mark not) | **Helvetica ×2** — the mark is Helvetica's `.notdef` tofu. The cluster's hint char is `x` (U+0951 is Inherited); CoreText answers Helvetica; the iterator refuses the duplicate; the terminal commits `.notdef`. | `x`→Helvetica, mark→Kohinoor Devanagari — paints a mark Chrome never finds | Helvetica ×2 ✓ |
 | Helvetica `ก` + U+0301 (base not covered, mark covered) | **Thonburi ×2** — the covered mark travels with its base and keeps its GPOS anchor | `ก`→Thonburi, U+0301→Helvetica — mid-cluster split, anchor lost | Thonburi ×2 ✓ |
+
+## Post-spacing cluster origins
+
+Path emission preserves two distinct layers of shaped positioning (DM-2444).
+Blink/HarfBuzz owns glyph order, clusters, advances, and intra-cluster GPOS
+offsets. Blink then applies letter/word spacing at grapheme-cluster boundaries
+(`ShapeResult::ApplySpacingOrExpansion`, Chromium `7d859f27`), and capture records
+the resulting Range origins. Each emitted cluster is therefore anchored to its
+captured post-spacing origin while additional glyphs in that cluster retain the
+shaper's advance and offset. This avoids per-character shaping, preserves
+ligatures and cursive/Indic behavior, and prevents native advances from
+accumulating over captured positive or negative spacing. RTL clusters and the
+bidi-override native-direction reversal map back to the same source anchors.
 | Arial `ل` + U+08F0 | **Arial ×2** (mark = `.notdef`) | mark→SF Arabic | Arial ×2 ✓ |
 | Menlo `α` + U+0345 (decomposed input) | **Menlo ×1** — HarfBuzz *composes* to the precomposed ᾳ glyph (`hb-ot-shape-normalize.cc`) | `α`→Menlo, U+0345→**Monaco** | Menlo ×1 ✓ |
 | Geneva `e` + U+0E48 | **Geneva + Thonburi** — U+0E48 is Script=**Thai**, not Inherited, so Blink's `RunSegmenter` splits base and mark into separate script runs *before* shaping | agrees (by accident of per-cp granularity) | ✗ merges them — see §4 itemization note |

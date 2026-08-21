@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach, beforeAll, afterAll } from "vitest";
 import * as fontkit from "fontkit";
-import { glyphIdForCp, __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, cjkTrimShiftFontUnits, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, getFontInstance, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, isTrimmableCjkPunct, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, sourceClusterSpan, resolveFontKeyChain, setRenderTextMode, subBoldWeightCutSuffix, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain, __setWin32FamilyKeyResolverForTest } from "./text-to-path.js";
+import { glyphIdForCp, __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, cjkTrimShiftFontUnits, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, getFontInstance, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, isTrimmableCjkPunct, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, positionShapedClusters, registerWebfont, renderRadicalGlyph, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, sourceClusterSpan, resolveFontKeyChain, setRenderTextMode, subBoldWeightCutSuffix, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain, __setWin32FamilyKeyResolverForTest } from "./text-to-path.js";
 import { isRtlScriptCodepoint } from "./unicode-classification.js";
 import { clearFontResolutionCaches, getGlyphDefs, getSystemFallbackResolution, isNonCharacterCodepoint, isPrivateUseCodepoint, setSystemFallbackResolution, withSystemFallbackResolution, __resolveSystemFallbackKeyForCpForTest } from "./font-resolution.js";
 import { existsSync } from "node:fs";
@@ -3519,6 +3519,44 @@ describe("sourceClusterSpan (shared-Glyph codePoints aliasing)", () => {
     expect(sourceClusterSpan("ab", 2, 1, false)).toBe(1);
     expect(sourceClusterSpan("ab", 0, 1, true)).toBe(1);
     expect(sourceClusterSpan("", 0, 3, false)).toBe(1);
+  });
+});
+
+describe("positionShapedClusters (DM-2444 post-spacing origins)", () => {
+  const glyph = (count = 1) => ({ codePoints: Array.from({ length: count }, () => 0x61) });
+  const pos = (advance: number, offset = 0) => ({ xAdvance: advance, xOffset: offset });
+
+  it.each([
+    ["positive letter spacing", [0, 6.5, 13]],
+    ["negative letter spacing", [0, 5, 10]],
+    ["normal spacing", [0, 6, 12]],
+    ["cursive spacing suppression", [0, 6, 12]],
+  ])("uses captured %s between clusters", (_name, anchors) => {
+    const placed = positionShapedClusters("abc", "abc", [glyph(), glyph(), glyph()],
+      [pos(6), pos(6), pos(6)], [0, 1, 2], anchors, 0, 1, 0, false);
+    expect(placed.map((p) => p.xFontUnits)).toEqual(anchors);
+  });
+
+  it("retains advances and GPOS offsets inside a multi-glyph cluster", () => {
+    const placed = positionShapedClusters("abc", "abc", [glyph(2), glyph(2), glyph()],
+      [pos(3, 0.5), pos(2, -0.25), pos(6)], [0, 0, 2], [10, 17, 25], 0, 1, 10, false);
+    expect(placed.map((p) => p.xFontUnits)).toEqual([0.5, 2.75, 15]);
+  });
+
+  it("anchors a ligature at its first source character and the next cluster independently", () => {
+    const placed = positionShapedClusters("fix", "fix", [glyph(2), glyph()],
+      [pos(9), pos(6)], [0, 2], [4, 9, 15], 0, 1, 4, false);
+    expect(placed.map((p) => p.xFontUnits)).toEqual([0, 11]);
+  });
+
+  it("preserves visual origins for RTL and bidi-native reversal", () => {
+    const rtl = positionShapedClusters("אבג", "אבג", [glyph(), glyph(), glyph()],
+      [pos(6), pos(6), pos(6)], [2, 1, 0], [0, 10, 20], 0, 1, 0, true);
+    expect(rtl.map((p) => p.xFontUnits)).toEqual([20, 10, 0]);
+
+    const reversed = positionShapedClusters("abc", "cba", [glyph(), glyph(), glyph()],
+      [pos(6), pos(6), pos(6)], [0, 1, 2], [0, 10, 20], 0, 1, 0, false, true);
+    expect(reversed.map((p) => p.xFontUnits)).toEqual([20, 10, 0]);
   });
 });
 

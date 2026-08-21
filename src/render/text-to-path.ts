@@ -41,6 +41,13 @@ import { UNICODE_FONT_FILES_WIN32, UNICODE_FONT_RANGES_WIN32 } from "./unicode-f
 // Unicode-classification predicates (mathAlphaToBase, isRtlScriptCodepoint, isStretchyFenceChar, complex-shaper / matra / rtl ranges, …) moved to ./unicode-classification.ts (DM-1305).
 import { bidiLevelsFor, segmentForShaping } from "./script-segmentation.js";
 import { SCRIPT_NAME_TO_ISO15924 } from "./script-iso15924.generated.js";
+
+const BLINK_CURSIVE_SPACING_SCRIPTS = new Set([
+  "Arabic", "Hanifi_Rohingya", "Mandaic", "Mongolian", "Nko", "Phags_Pa", "Syriac",
+]);
+function blinkSuppressesInterLetterSpacing(script: string): boolean {
+  return BLINK_CURSIVE_SPACING_SCRIPTS.has(script);
+}
 import { clusterFallbackEnabled, splitTextIntoFontRunsShaped } from "./cluster-fallback.js";
 import { featureListNeedsHbShaping, fontkitFeatureList } from "./font-features.js";
 import { icuCodepointProperties, isIcuHelperAvailable } from "./icu-helper.js";
@@ -917,24 +924,44 @@ function renderTextPathRuns(
             ? shapeFont.layout(shapeText, fontkitFeatureList(features), scriptTag, lang, shapeDir)
             : shapeFont.layout(shapeText, undefined, scriptTag, lang, shapeDir);
           const uses: string[] = [];
-          let segFontUnits = 0;
+          const shapedClusters = (layout as typeof layout & { clusters?: number[] }).clusters;
+          const placements = blinkSuppressesInterLetterSpacing(seg.script)
+            ? (() => {
+              let cursorFU = 0;
+              return layout.positions.map((pos) => {
+                const xFontUnits = cursorFU + pos.xOffset;
+                cursorFU += pos.xAdvance;
+                return { xFontUnits, rightCss: segMinX + cursorFU * runScale };
+              });
+            })()
+            : positionShapedClusters(
+              segText, shapeText, layout.glyphs, layout.positions, shapedClusters,
+              xOffsets, run.startIdx + seg.start, runScale, segMinX, seg.rtl, flipToNative,
+            );
+          let maxRightCss = segMinX;
           for (let gi = 0; gi < layout.glyphs.length; gi++) {
             const glyph = layout.glyphs[gi];
             const pos = layout.positions[gi];
+            // Blink applies letter/word spacing after shaping, then paints each
+            // shaped cluster at that post-spacing inline origin. Preserve that
+            // captured cluster anchor while retaining HarfBuzz's intra-cluster
+            // advance and GPOS offset. Anchoring only the segment (the previous
+            // behavior) discarded spacing between clusters and accumulated a
+            // visible drift across ordinary shaped Latin runs.
             const glyphCmds = glyphUsesRasterRepresentation(run.font, run.fontKey, glyph, fontSize, weight, slant)
               ? [] : commandsFor(glyph, run.fontKey, weight, fontSize, slant);
             if (glyphCmds.length > 0) {
               const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, glyph.id, glyphCmds, stretch);
-              const tx = segFontUnits + pos.xOffset;
+              const tx = placements[gi].xFontUnits;
               const ty = -pos.yOffset;
               uses.push(`<use href="#${defId}" x="${r2(tx)}" y="${r2(ty)}"/>`);
             }
-            segFontUnits += pos.xAdvance;
+            maxRightCss = Math.max(maxRightCss, placements[gi].rightCss);
           }
           if (uses.length > 0) {
             const cssX = Number(segMinX.toFixed(3));
             groups.push(`<g transform="translate(${cssX},0) scale(${sc},${-sc})"${fauxBoldAttrFor(run.font, sc)}>${uses.join("")}</g>`);
-            const segRight = segMinX + segFontUnits * runScale;
+            const segRight = maxRightCss;
             if (segRight > rightEdge) rightEdge = segRight;
           }
         }
@@ -1104,6 +1131,60 @@ export function sourceClusterSpan(
   }
   // Never return 0: the caller's cursor must advance or the walk never ends.
   return span > 0 ? span : 1;
+}
+
+export interface ShapedClusterPlacement {
+  xFontUnits: number;
+  rightCss: number;
+}
+
+/** Map a shaped glyph stream back onto Blink's captured post-spacing cluster
+ * origins. Glyphs sharing one cluster retain their HarfBuzz advance/offset;
+ * spacing between clusters comes exclusively from capture. */
+export function positionShapedClusters(
+  sourceText: string,
+  shapedText: string,
+  glyphs: Array<{ codePoints?: number[] }>,
+  positions: Array<{ xAdvance: number; xOffset: number }>,
+  clusters: number[] | undefined,
+  xOffsets: number[],
+  sourceStart: number,
+  runScale: number,
+  groupOriginCss: number,
+  rtl: boolean,
+  reversedForNativeDirection = false,
+): ShapedClusterPlacement[] {
+  const out: ShapedClusterPlacement[] = [];
+  let fallbackTextIdx = rtl ? shapedText.length : 0;
+  let previousCluster: number | undefined;
+  let previousSourceCluster = 0;
+  let clusterCursorFU = 0;
+  for (let i = 0; i < glyphs.length; i++) {
+    const glyph = glyphs[i];
+    const pos = positions[i];
+    let shapedCluster = clusters?.[i];
+    if (shapedCluster == null) {
+      const span = sourceClusterSpan(shapedText, rtl ? Math.max(0, fallbackTextIdx - 1) : fallbackTextIdx,
+        glyph.codePoints != null && glyph.codePoints.length > 0 ? glyph.codePoints.length : 1, rtl);
+      if (rtl) fallbackTextIdx -= span;
+      shapedCluster = Math.max(0, fallbackTextIdx);
+      if (!rtl) fallbackTextIdx += span;
+    }
+    if (shapedCluster !== previousCluster) {
+      previousCluster = shapedCluster;
+      clusterCursorFU = 0;
+      const cpCount = glyph.codePoints != null && glyph.codePoints.length > 0 ? glyph.codePoints.length : 1;
+      const span = sourceClusterSpan(shapedText, shapedCluster, cpCount, false);
+      previousSourceCluster = reversedForNativeDirection
+        ? Math.max(0, sourceText.length - shapedCluster - span)
+        : shapedCluster;
+    }
+    const anchorCss = xOffsets[sourceStart + previousSourceCluster] ?? groupOriginCss;
+    const xFontUnits = (anchorCss - groupOriginCss) / runScale + clusterCursorFU + pos.xOffset;
+    clusterCursorFU += pos.xAdvance;
+    out.push({ xFontUnits, rightCss: anchorCss + clusterCursorFU * runScale });
+  }
+  return out;
 }
 
 function singleFontMarkup(

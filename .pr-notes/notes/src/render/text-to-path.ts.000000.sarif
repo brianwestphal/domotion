@@ -984,6 +984,95 @@
           "branch": "ci/dm2339-fresh-sweep"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2mwv9pzeh2modr",
+          "message": {
+            "text": "DM-2444 keeps shaping and spacing ownership separate. Chromium 7d859f27 applies spacing only after HarfBuzz shaping at cluster boundaries (shape_result.cc:992-1045), so path emission now anchors each cluster to the captured post-spacing Range origin while retaining HarfBuzz advances and GPOS offsets inside the cluster. Synthetic controls cover positive, negative, normal and cursive-suppressed spacing, ligatures, multi-glyph clusters, RTL and bidi reversal; the focused text-small visual falls from one 76 px region to zero regions (diffPct=0.0035733).",
+            "markdown": "DM-2444 keeps shaping and spacing ownership separate. Chromium 7d859f27 applies spacing only after HarfBuzz shaping at cluster boundaries (`shape_result.cc:992-1045`), so path emission now anchors each cluster to the captured post-spacing Range origin while retaining HarfBuzz advances and GPOS offsets inside the cluster. Synthetic controls cover positive, negative, normal and cursive-suppressed spacing, ligatures, multi-glyph clusters, RTL and bidi reversal; the focused `text-small` visual falls from one 76 px region to zero regions (`diffPct=0.0035733`)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 1129,
+                  "endLine": 1187,
+                  "snippet": {
+                    "text": "  sourceText: string,\n  shapedText: string,\n  glyphs: Array<{ codePoints?: number[] }>,\n  positions: Array<{ xAdvance: number; xOffset: number }>,\n  clusters: number[] | undefined,\n  xOffsets: number[],\n  sourceStart: number,\n  runScale: number,\n  groupOriginCss: number,\n  rtl: boolean,\n  reversedForNativeDirection = false,\n): ShapedClusterPlacement[] {\n  const out: ShapedClusterPlacement[] = [];\n  let fallbackTextIdx = rtl ? shapedText.length : 0;\n  let previousCluster: number | undefined;\n  let previousSourceCluster = 0;\n  let clusterCursorFU = 0;\n  for (let i = 0; i < glyphs.length; i++) {\n    const glyph = glyphs[i];\n    const pos = positions[i];\n    let shapedCluster = clusters?.[i];\n    if (shapedCluster == null) {\n      const span = sourceClusterSpan(shapedText, rtl ? Math.max(0, fallbackTextIdx - 1) : fallbackTextIdx,\n        glyph.codePoints != null && glyph.codePoints.length > 0 ? glyph.codePoints.length : 1, rtl);\n      if (rtl) fallbackTextIdx -= span;\n      shapedCluster = Math.max(0, fallbackTextIdx);\n      if (!rtl) fallbackTextIdx += span;\n    }\n    if (shapedCluster !== previousCluster) {\n      previousCluster = shapedCluster;\n      clusterCursorFU = 0;\n      const cpCount = glyph.codePoints != null && glyph.codePoints.length > 0 ? glyph.codePoints.length : 1;\n      const span = sourceClusterSpan(shapedText, shapedCluster, cpCount, false);\n      previousSourceCluster = reversedForNativeDirection\n        ? Math.max(0, sourceText.length - shapedCluster - span)\n        : shapedCluster;\n    }\n    const anchorCss = xOffsets[sourceStart + previousSourceCluster] ?? groupOriginCss;\n    const xFontUnits = (anchorCss - groupOriginCss) / runScale + clusterCursorFU + pos.xOffset;\n    clusterCursorFU += pos.xAdvance;\n    out.push({ xFontUnits, rightCss: anchorCss + clusterCursorFU * runScale });\n  }\n  return out;\n}\n\nfunction singleFontMarkup(\n  font: FontInstance,\n  fontKey: string,\n  text: string,\n  weight: number,\n  fontSize: number,\n  slant: number,\n  targetWidth?: number,\n  xOffsets?: number[],\n  features?: string[],\n  /** CSS `font-stretch` percentage — part of the glyph-def identity (see\n   *  `ensureGlyphDef`). */\n  stretch: number = 100,\n  /** DM-1984: builds the synthetic-bold frame attribute for this font at the"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.test.ts"
+                },
+                "region": {
+                  "startLine": 3525
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/113-cluster-granularity-fallback.md"
+                },
+                "region": {
+                  "startLine": 112
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2444"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "a6a1d31a628faa2b325c5625fb3b0d35"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "36a01cf299153278c8267ecec9c56a138c09d1d9",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
