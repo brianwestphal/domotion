@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2nlgq5qf9jbq3t",
+          "message": {
+            "text": "DM-2445 joins live capture origins with the production text-run provenance stream, so every row carries the selected face plus raw HarfBuzz cluster/advance/offset and the emitted origin reconstructed by the shipped DM-2444 rule. The required mutation collapses captured anchors to native advances and must move the last glyph by at least 1 px; on macOS it moves LABEL TEXT by -4.94775390625 px and the snapped baseline remains 30. This is a logical gate, separate from platform raster envelopes.",
+            "markdown": "DM-2445 joins live capture origins with the production text-run provenance stream, so every row carries the selected face plus raw HarfBuzz cluster/advance/offset and the emitted origin reconstructed by the shipped DM-2444 rule. The required mutation collapses captured anchors to native advances and must move the last glyph by at least 1 px; on macOS it moves `LABEL TEXT` by -4.94775390625 px and the snapped baseline remains 30. This is a logical gate, separate from platform raster envelopes."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/shaped-origin-oracle.ts"
+                },
+                "region": {
+                  "startLine": 55,
+                  "endLine": 112,
+                  "snippet": {
+                    "text": "  const scale = run.request.fontSizePx / upem;\n  const origin0 = xOffsets[0];\n  let nativeCursor = 0;\n  let previousCluster = -1;\n  let clusterCursor = 0;\n  const nativeAnchors = new Map<number, number>();\n  for (const glyph of run.glyphs) {\n    if (!nativeAnchors.has(glyph.cluster)) nativeAnchors.set(glyph.cluster, nativeCursor);\n    nativeCursor += glyph.xAdvance * scale;\n  }\n  const rows = run.glyphs.map((glyph) => {\n    if (glyph.cluster !== previousCluster) {\n      previousCluster = glyph.cluster;\n      clusterCursor = 0;\n    }\n    const capturedOrigin = xOffsets[glyph.sourceSpan[0]] - origin0;\n    const emittedOrigin = capturedOrigin + (clusterCursor + glyph.xOffset) * scale;\n    const collapsedOrigin = (nativeAnchors.get(glyph.cluster) ?? 0) + (clusterCursor + glyph.xOffset) * scale;\n    clusterCursor += glyph.xAdvance;\n    return {\n      glyphId: glyph.id,\n      cluster: glyph.cluster,\n      capturedOrigin,\n      rawHarfBuzz: { xAdvance: glyph.xAdvance, xOffset: glyph.xOffset, yOffset: glyph.yOffset },\n      emittedOrigin,\n      collapsedMutationOrigin: collapsedOrigin,\n    };\n  });\n  const last = rows.at(-1)!;\n  const mutationDelta = last.collapsedMutationOrigin - last.emittedOrigin;\n  if (Math.abs(mutationDelta) < 1) throw new Error(`collapsed-anchor mutation was inert (${mutationDelta})`);\n  if (!rows.every((row) => Math.abs(row.emittedOrigin - row.capturedOrigin - row.rawHarfBuzz.xOffset * scale) < 1e-6)) {\n    throw new Error(\"emitted cluster origins do not preserve captured anchors\");\n  }\n\n  const baseline = Math.floor(segment.y + (segment.fontAscent ?? node.fontAscent ?? 0) + 0.5);\n  process.stdout.write(`${JSON.stringify({\n    schemaVersion: 1,\n    platform: process.platform,\n    sourceAuthority: provenance.sourceAuthority,\n    record: {\n      sourceText: SOURCE,\n      selectedFace: run.selected,\n      fontSizePx: run.request.fontSizePx,\n      unitsPerEm: upem,\n      snappedBaseline: baseline,\n      rows,\n      mutation: { kind: \"collapse-captured-cluster-anchors-to-native-advances\", lastGlyphDeltaPx: mutationDelta },\n    },\n  }, null, 2)}\\n`);\n} finally {\n  setTextRunProvenanceEnabled(false);\n  setRenderTextMode(\"embedded-font\");\n  await browser.close();\n}\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-run-provenance.ts"
+                },
+                "region": {
+                  "startLine": 10
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/151-shaped-origin-oracle.md"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2445"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "0ff3b0c52e2fe4405cbcd72e76930b51"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c9407138bdcd633cac58ef9fbb2298725c3ac337",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
