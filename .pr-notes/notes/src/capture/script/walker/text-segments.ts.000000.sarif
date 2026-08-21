@@ -287,6 +287,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2oi2vo8ltnfwvc",
+          "message": {
+            "text": "Computed math-auto is the activation key, not the mi tag alone. Blink's UA rule disables the transform for mathvariant=normal; the browser-backed DM-2441 matrix proves ASCII/Greek/h/direct-supplementary/CSS-italic mappings while preserving that normal control.",
+            "markdown": "Computed math-auto is the activation key, not the mi tag alone. Blink's UA rule disables the transform for mathvariant=normal; the browser-backed DM-2441 matrix proves ASCII/Greek/h/direct-supplementary/CSS-italic mappings while preserving that normal control."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/text-segments.ts"
+                },
+                "region": {
+                  "startLine": 748,
+                  "endLine": 751,
+                  "snippet": {
+                    "text": "    const mathItalicizeMi = elTag === 'mi'\n      && [..._miText].length === 1\n      && cs.textTransform === 'math-auto'\n      && /^[a-zA-ZΑ-ΩΆΈΉΊΌΎΏα-ωϐϑϕϖϗϰϱϵ∂∇]$/u.test(_miText);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2441"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "85a593be566ee005ebae6678a19cb2a7"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "65180fc016815b314db4c8531f5eca45af9adf57",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2oi31whztbubgm",
+          "message": {
+            "text": "The scripted row proves a real nonzero MATH italic correction with Chromium/WPT's purpose-built U+2AFF font. Blink subtracts the correction from the subscript offset but not the superscript; the same script glyph on both sides makes ordinary spacing an exact control.",
+            "markdown": "The scripted row proves a real nonzero MATH italic correction with Chromium/WPT's purpose-built U+2AFF font. Blink subtracts the correction from the subscript offset but not the superscript; the same script glyph on both sides makes ordinary spacing an exact control."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/mathml-italic-token.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 121,
+                  "endLine": 125,
+                  "snippet": {
+                    "text": "      // Blink subtracts the base MATH italic correction from the subscript\n      // offset while the superscript remains at the post-base origin. Equal\n      // script strings make ordinary shaping/spacing a neutral control.\n      const sc = sourceRows[\"script-control\"];\n      expect(sc.sup.left).toBeGreaterThan(sc.sub.left + 0.1);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2441"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f006d09d978721cb24a41eca5a78e9ef"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "65180fc016815b314db4c8531f5eca45af9adf57",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

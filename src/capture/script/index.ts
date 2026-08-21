@@ -649,6 +649,7 @@ const captureDocumentTree =
         resize: cs.resize,
         textOverflow: cs.textOverflow,
         whiteSpace: cs.whiteSpace,
+        textTransform: cs.textTransform,
         color: normColor(cs.color),
         // DM-587: live-rect capture records text bboxes at scaled (live)
         // viewport coords, but `cs.fontSize` and `canvas.measureText` are in

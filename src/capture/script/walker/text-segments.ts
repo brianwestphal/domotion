@@ -747,6 +747,7 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
     const _miText = (el.textContent || '').trim();
     const mathItalicizeMi = elTag === 'mi'
       && [..._miText].length === 1
+      && cs.textTransform === 'math-auto'
       && /^[a-zA-ZΑ-ΩΆΈΉΊΌΎΏα-ωϐϑϕϖϗϰϱϵ∂∇]$/u.test(_miText);
 
     for (const node of el.childNodes) {

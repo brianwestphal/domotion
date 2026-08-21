@@ -767,6 +767,9 @@ export interface CapturedStyles {
   /** Whitespace handling — needed alongside text-overflow to determine if the
    *  truncation marker should paint. */
   whiteSpace?: string;
+  /** Computed CSS text-transform. MathML's UA `math-auto` value is a shaping
+   * input even though it does not appear in the source text. */
+  textTransform?: string;
   color: string;
   fontSize: string;
   /** CSSOM/specified size before effective zoom or transforms. */
