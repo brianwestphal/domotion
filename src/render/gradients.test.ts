@@ -45,6 +45,22 @@ describe("convertLegacyWebkitGradient: legacy -webkit-gradient(linear, ...)", ()
     expect(g).not.toBeNull();
     expect(g!.kind).toBe("linear");
     expect((g as { angleDeg: number }).angleDeg).toBe(135);
+    expect(buildLinearGradientDef(g as any, "legacy", { x: 10, y: 20, w: 200, h: 80 }))
+      .toContain('x1="10" y1="20" x2="210" y2="100"');
+  });
+
+  it("preserves arbitrary percentage and pixel endpoints instead of applying magic-corner geometry", () => {
+    const percent = parseGradient("-webkit-gradient(linear, 10% 25%, 80% 75%, from(red), color-stop(75%, lime), to(blue))")!;
+    expect(buildLinearGradientDef(percent as any, "p", { x: 5, y: 7, w: 300, h: 120 }))
+      .toContain('x1="35" y1="37" x2="245" y2="97"');
+    const pixels = parseGradient("-webkit-gradient(linear, 12px 8px, 112px 48px, from(red), to(blue))")!;
+    expect(buildLinearGradientDef(pixels as any, "q", { x: 20, y: 30, w: 400, h: 200 }))
+      .toContain('x1="32" y1="38" x2="132" y2="78"');
+  });
+
+  it("stable-sorts deprecated stops as Blink does", () => {
+    const g = parseGradient("-webkit-gradient(linear, left top, right bottom, color-stop(.8, blue), from(red), color-stop(.2, green))")!;
+    expect(g.stops.map((stop) => stop.color)).toEqual(["red", "green", "blue"]);
   });
 
   it("bottom-left → top-right diagonal maps to 45deg", () => {

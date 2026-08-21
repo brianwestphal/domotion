@@ -79,6 +79,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt30htv0se8p2lax",
+          "message": {
+            "text": "Legacy WebKit linear gradients retain their authored endpoints because Blink resolves them directly against the paint box; converting only the direction into modern CSS changes diagonal geometry on non-square boxes. The focused unit and Chromium-backed E2E tests pin percentage, pixel, and stable-sorted stop behavior.",
+            "markdown": "Legacy WebKit linear gradients retain their authored endpoints because Blink resolves them directly against the paint box; converting only the direction into modern CSS changes diagonal geometry on non-square boxes. The focused unit and Chromium-backed E2E tests pin percentage, pixel, and stable-sorted stop behavior."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/gradients.ts"
+                },
+                "region": {
+                  "startLine": 107,
+                  "endLine": 136,
+                  "snippet": {
+                    "text": "export function parseLegacyWebkitLinearGradient(text: string | undefined | null): LinearGradient | null {\n  if (text == null) return null;\n  const m = /^-webkit-gradient\\s*\\(\\s*linear\\s*,\\s*([\\s\\S]+)\\)\\s*$/i.exec(text.trim());\n  if (m == null) return null;\n  const parts = splitTopLevelCommas(m[1]).map((part) => part.trim()).filter(Boolean);\n  if (parts.length < 4) return null;\n  const p1 = parseLegacyPoint(parts[0]);\n  const p2 = parseLegacyPoint(parts[1]);\n  if (p1 == null || p2 == null || legacyPointsEqual(p1, p2)) return null;\n  const stops: LinearStop[] = [];\n  for (const part of parts.slice(2)) {\n    const from = /^from\\s*\\(\\s*([\\s\\S]+?)\\s*\\)$/i.exec(part);\n    const to = /^to\\s*\\(\\s*([\\s\\S]+?)\\s*\\)$/i.exec(part);\n    const middle = /^color-stop\\s*\\(\\s*([^,]+)\\s*,\\s*([\\s\\S]+?)\\s*\\)$/i.exec(part);\n    if (from != null) stops.push({ color: from[1].trim(), offset: 0 });\n    else if (to != null) stops.push({ color: to[1].trim(), offset: 1 });\n    else if (middle != null) {\n      const raw = middle[1].trim();\n      const offset = raw.endsWith(\"%\") ? parseFloat(raw) / 100 : Number(raw);\n      if (!Number.isFinite(offset)) return null;\n      stops.push({ color: middle[2].trim(), offset, rawPos: raw });\n    } else return null;\n  }\n  if (stops.length < 2) return null;\n  // Blink stable-sorts deprecated stops before handing them to Skia.\n  stops.sort((a, b) => (a.offset ?? 0) - (b.offset ?? 0));\n  const dx = legacyPointScalar(p2.x) - legacyPointScalar(p1.x);\n  const dy = legacyPointScalar(p2.y) - legacyPointScalar(p1.y);\n  const angleDeg = ((Math.atan2(dx, -dy) * 180 / Math.PI) % 360 + 360) % 360;\n  return { kind: \"linear\", angleDeg, stops, legacyEndpoints: { p1, p2 } };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2389"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "9803bdf8e36c41b71554988aa1f8058d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8dab8f15a35f2dffcd500c62f477900090fe6f46",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

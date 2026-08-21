@@ -45,6 +45,8 @@ export interface LinearGradient {
   stops: LinearStop[];
   /** True when the source was `repeating-linear-gradient(...)`. The stop list spans one tile period; the emitter clones it across the full gradient line (DM-275). */
   repeating?: boolean;
+  /** Explicit legacy -webkit-gradient endpoints, resolved against the paint box. */
+  legacyEndpoints?: { p1: { x: PosValue; y: PosValue }; p2: { x: PosValue; y: PosValue } };
 }
 
 /** Position component along one axis. Resolved against rect at emit time. */
@@ -95,8 +97,69 @@ export type AnyGradient = LinearGradient | RadialGradient | ConicGradient;
 
 /** Try every supported gradient type. Returns the first that parses or null. */
 export function parseGradient(text: string | undefined | null): AnyGradient | null {
+  const legacy = parseLegacyWebkitLinearGradient(text);
+  if (legacy != null) return legacy;
   const normalized = convertLegacyWebkitGradient(text) ?? text;
   return parseLinearGradient(normalized) ?? parseRadialGradient(normalized) ?? parseConicGradient(normalized);
+}
+
+/** Parse Blink's deprecated endpoint-anchored linear gradient without converting it to CSS magic-corner geometry. */
+export function parseLegacyWebkitLinearGradient(text: string | undefined | null): LinearGradient | null {
+  if (text == null) return null;
+  const m = /^-webkit-gradient\s*\(\s*linear\s*,\s*([\s\S]+)\)\s*$/i.exec(text.trim());
+  if (m == null) return null;
+  const parts = splitTopLevelCommas(m[1]).map((part) => part.trim()).filter(Boolean);
+  if (parts.length < 4) return null;
+  const p1 = parseLegacyPoint(parts[0]);
+  const p2 = parseLegacyPoint(parts[1]);
+  if (p1 == null || p2 == null || legacyPointsEqual(p1, p2)) return null;
+  const stops: LinearStop[] = [];
+  for (const part of parts.slice(2)) {
+    const from = /^from\s*\(\s*([\s\S]+?)\s*\)$/i.exec(part);
+    const to = /^to\s*\(\s*([\s\S]+?)\s*\)$/i.exec(part);
+    const middle = /^color-stop\s*\(\s*([^,]+)\s*,\s*([\s\S]+?)\s*\)$/i.exec(part);
+    if (from != null) stops.push({ color: from[1].trim(), offset: 0 });
+    else if (to != null) stops.push({ color: to[1].trim(), offset: 1 });
+    else if (middle != null) {
+      const raw = middle[1].trim();
+      const offset = raw.endsWith("%") ? parseFloat(raw) / 100 : Number(raw);
+      if (!Number.isFinite(offset)) return null;
+      stops.push({ color: middle[2].trim(), offset, rawPos: raw });
+    } else return null;
+  }
+  if (stops.length < 2) return null;
+  // Blink stable-sorts deprecated stops before handing them to Skia.
+  stops.sort((a, b) => (a.offset ?? 0) - (b.offset ?? 0));
+  const dx = legacyPointScalar(p2.x) - legacyPointScalar(p1.x);
+  const dy = legacyPointScalar(p2.y) - legacyPointScalar(p1.y);
+  const angleDeg = ((Math.atan2(dx, -dy) * 180 / Math.PI) % 360 + 360) % 360;
+  return { kind: "linear", angleDeg, stops, legacyEndpoints: { p1, p2 } };
+}
+
+function parseLegacyPoint(text: string): { x: PosValue; y: PosValue } | null {
+  const words = text.toLowerCase().trim().split(/\s+/);
+  let x: PosValue = { kind: "frac", value: 0.5 };
+  let y: PosValue = { kind: "frac", value: 0.5 };
+  if (words.every((word) => /^(left|right|top|bottom|center)$/.test(word))) {
+    for (const word of words) {
+      if (word === "left" || word === "right") x = { kind: "frac", value: word === "left" ? 0 : 1 };
+      else if (word === "top" || word === "bottom") y = { kind: "frac", value: word === "top" ? 0 : 1 };
+    }
+    return { x, y };
+  }
+  if (words.length !== 2) return null;
+  const parse = (word: string): PosValue | null => {
+    const match = /^(-?[\d.]+)(%|px)$/.exec(word);
+    if (match == null) return null;
+    return match[2] === "%" ? { kind: "frac", value: Number(match[1]) / 100 } : { kind: "px", value: Number(match[1]) };
+  };
+  const parsedX = parse(words[0]); const parsedY = parse(words[1]);
+  return parsedX != null && parsedY != null ? { x: parsedX, y: parsedY } : null;
+}
+
+function legacyPointScalar(value: PosValue): number { return value.value; }
+function legacyPointsEqual(a: { x: PosValue; y: PosValue }, b: { x: PosValue; y: PosValue }): boolean {
+  return a.x.kind === b.x.kind && a.y.kind === b.y.kind && a.x.value === b.x.value && a.y.value === b.y.value;
 }
 
 /**
@@ -240,15 +303,23 @@ export function buildLinearGradientDef(
   id: string,
   rect: { x: number; y: number; w: number; h: number },
 ): string {
-  const { x1, y1, x2, y2 } = computeUserSpaceLine(gradient.angleDeg, rect);
+  const { x1, y1, x2, y2 } = gradient.legacyEndpoints != null
+    ? computeLegacyUserSpaceLine(gradient.legacyEndpoints, rect)
+    : computeUserSpaceLine(gradient.angleDeg, rect);
   // Resolve stop positions against this rect. Clone first so two callers
   // sharing the same parsed gradient don't mutate each other's offsets
   // (different rects produce different L → different fractions for px stops).
   const resolved = gradient.stops.map((s) => ({ ...s }));
-  resolveStops(resolved, gradientLineLength(gradient.angleDeg, rect.w, rect.h), { skipFirstLastDefaults: gradient.repeating === true });
+  const lineLength = Math.hypot(x2 - x1, y2 - y1);
+  resolveStops(resolved, lineLength, { skipFirstLastDefaults: gradient.repeating === true });
   const tiled = gradient.repeating === true ? tileRepeatingStops(resolved) : resolved;
   const stops = tiled.map((s) => stopMarkup(s)).join("");
   return `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${num(x1)}" y1="${num(y1)}" x2="${num(x2)}" y2="${num(y2)}">${stops}</linearGradient>`;
+}
+
+function computeLegacyUserSpaceLine(endpoints: NonNullable<LinearGradient["legacyEndpoints"]>, rect: { x: number; y: number; w: number; h: number }) {
+  const axis = (value: PosValue, origin: number, size: number) => origin + (value.kind === "frac" ? value.value * size : value.value);
+  return { x1: axis(endpoints.p1.x, rect.x, rect.w), y1: axis(endpoints.p1.y, rect.y, rect.h), x2: axis(endpoints.p2.x, rect.x, rect.w), y2: axis(endpoints.p2.y, rect.y, rect.h) };
 }
 
 /**
@@ -287,7 +358,10 @@ export function gradientCacheKey(g: AnyGradient, rect: { x: number; y: number; w
   }).join(",");
   const rectKey = `${num(rect.x)},${num(rect.y)},${num(rect.w)},${num(rect.h)}`;
   const rep = g.repeating === true ? "r" : "n";
-  if (g.kind === "linear") return `L|${rep}|${num(g.angleDeg)}|${rectKey}|${stopsKey}`;
+  if (g.kind === "linear") {
+    const legacy = g.legacyEndpoints == null ? "" : `|legacy:${JSON.stringify(g.legacyEndpoints)}`;
+    return `L|${rep}|${num(g.angleDeg)}${legacy}|${rectKey}|${stopsKey}`;
+  }
   if (g.kind === "conic") {
     const posKey = `${posKey1(g.position.x)},${posKey1(g.position.y)}`;
     return `C|${rep}|${num(g.fromAngleDeg)}|${posKey}|${rectKey}|${stopsKey}`;

@@ -114,10 +114,11 @@ path) and the progress-value / meter-value fills (SK-1222).
 
 **Legacy `-webkit-gradient()` syntax.** Chromium's computed-style serializer still
 emits the old `-webkit-gradient(linear, …, from(), color-stop(), to())` form for
-some pages (e.g. legacy mobile headers). `parseGradient` calls
-`convertLegacyWebkitGradient` (`src/render/gradients.ts`) first, normalizing that
-into an equivalent modern `linear-gradient(...)` before the main parse, so the
-rest of the pipeline never sees the legacy form.
+some pages (e.g. legacy mobile headers). The legacy form is kept distinct through
+emission: its two authored points resolve directly against the painted box and
+its stops are stable-sorted, matching Blink's deprecated-gradient branch. It is
+not converted to a modern angle, because modern diagonal gradients use
+magic-corner endpoints and are not equivalent on non-square boxes.
 
 ## Edge cases
 

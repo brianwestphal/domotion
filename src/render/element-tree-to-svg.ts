@@ -59,7 +59,7 @@ import {
 } from "./overflow-clip.js";
 import { cssTransformToSvg } from "./transforms.js";
 import { parseCssUrl, splitTopLevelCommas } from "./css-tokens.js";
-import { convertLegacyWebkitGradient } from "./gradients.js";
+import { buildLinearGradientDef as buildExactLinearGradientDef, parseLegacyWebkitLinearGradient } from "./gradients.js";
 import { blinkSymbolMarkerGeometry, disclosureTriangle, pixelSnapRect, type SymbolMarkerType } from "./list-marker-geometry.js";
 import type { CapturedElement, TextSegment, MaskFragmentDef, MaskRasterRef, ClipPathFragmentDef, CaptureWarning } from "../capture/types.js";
 import {
@@ -5383,12 +5383,6 @@ function buildBackgroundLayerDef(
   attachment: string = "scroll",
   fixedViewport: { w: number; h: number } | null = null,
 ): { def: string } {
-  // Legacy `-webkit-gradient(linear, ...)` is still emitted by Chromium's
-  // computed-style serializer for old CSS that uses it (e.g. the Slashdot
-  // mobile header's black→#202020 titlebar). Normalize to modern
-  // `linear-gradient(...)` text first so the existing parsers can consume it.
-  const normalizedWebkit = convertLegacyWebkitGradient(layer);
-  if (normalizedWebkit != null) layer = normalizedWebkit;
   // DM-717: `image-set(...)` / `-webkit-image-set(...)` resolution. Chrome's
   // computed-style serializer returns the FULL image-set string rather than
   // the single chosen candidate, so we have to pick one ourselves. Strategy:
@@ -5438,6 +5432,10 @@ function buildBackgroundLayerDef(
   const gradY = (attachment === "fixed" && fixedViewport != null) ? 0 : elY;
   const gradW = (attachment === "fixed" && fixedViewport != null) ? fixedViewport.w : w;
   const gradH = (attachment === "fixed" && fixedViewport != null) ? fixedViewport.h : h;
+  const legacyLinear = parseLegacyWebkitLinearGradient(layer);
+  if (legacyLinear != null) {
+    return { def: buildExactLinearGradientDef(legacyLinear, id, { x: gradX, y: gradY, w: gradW, h: gradH }) };
+  }
   if (needsChromiumGradientRaster(layer)) {
     const tile = computeTileSize(sizeCss, gradW, gradH);
     const raster = advancedGradientTile(layer, tile.w, tile.h);
