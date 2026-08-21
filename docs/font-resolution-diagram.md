@@ -62,7 +62,7 @@ flowchart TD
 
   subgraph REN["Render time — src/render/text.ts → text-to-path.ts"]
     B0["renderTextAsPath(text, ...)<br/>(one call per text segment)"] --> B1{"currentRenderTextMode"}
-    B1 -->|"embedded-font (DEFAULT)"| B2["splitTextIntoFontRuns()<br/>→ splitTextIntoFontRunsShaped() (cluster-fallback.ts, DEFAULT)<br/>shape-then-requeue at shaped-cluster granularity (docs/113):<br/>segmentForShaping itemization → per segment, hb-shape the<br/>queued ranges with full-text context and requeue only the<br/>.notdef clusters; resolveFontForCodepoint = kSystemFonts,<br/>asked for the ChooseHintIndex char, once per hint.<br/>Assembly never merges across a shaping item and carries its<br/>resolved direction on FontRun.shapingDirection.<br/>→ harfbuzzShapedRunOverride() per assembled run<br/>(ALL runs when glyph + pinned-ICU companions validate;<br/>outlines stay with the base engine).<br/>DOMOTION_CLUSTER_FALLBACK=0 or helper absence → degraded legacy walk.<br/>→ trackGlyphInEmbedFont()<br/>subset TTF + &lt;text&gt; w/ PUA cps"]
+    B1 -->|"embedded-font (DEFAULT)"| B2["splitTextIntoFontRuns()<br/>→ splitTextIntoFontRunsShaped() (cluster-fallback.ts, DEFAULT)<br/>shape-then-requeue at shaped-cluster granularity (docs/113):<br/>segmentForShaping itemization → per segment, hb-shape the<br/>queued ranges with full-text context and requeue only the<br/>.notdef clusters; resolveFontForCodepoint = kSystemFonts,<br/>asked for the ChooseHintIndex char, once per hint.<br/>Assembly never merges across a shaping item and carries its<br/>resolved direction + ISO script on FontRun.<br/>→ harfbuzzShapedRunOverride() per assembled run<br/>(ALL runs when glyph + pinned-ICU companions validate;<br/>outlines stay with the base engine).<br/>DOMOTION_CLUSTER_FALLBACK=0 or helper absence → degraded legacy walk.<br/>→ layout(run.text, …, run.shapingScript, …)<br/>→ trackGlyphInEmbedFont()<br/>subset TTF + &lt;text&gt; w/ PUA cps"]
     B1 -->|"paths"| B3["textToPathMarkup()<br/>→ splitTextIntoGlyphPathRuns()<br/>→ splitTextIntoFontRunsShaped(…, mode:'paths') (SAME splitter, DEFAULT)<br/>raster emoji follow the ordinary Chromium face/terminal;<br/>the captured image overlay owns paint only<br/>+ per-run decomposed flags (no merge across a flag boundary)<br/>+ shaping-item boundary/direction preserved like embedded mode<br/>+ harfbuzzShapedRunOverride() per assembled run (same as embedded).<br/>DOMOTION_CLUSTER_FALLBACK=0 or a decline → legacy per-cp walk.<br/>→ per-glyph &lt;path&gt;/&lt;use&gt; defs<br/>(ensureGlyphDef registry)"]
     B2 --> C0
     B3 --> C0
@@ -1075,7 +1075,9 @@ Notes:
   the mark's actual fallback face, applies RunSegmenter's script (including the
   single-member `Script_Extensions` preferred-script rule), shapes the lone mark
   with the Chromium-configured HarfBuzz build, and treats the face's U+25CC gid
-  in that result as the insertion decision. Capture positives remain additive;
+  in that result as the insertion decision. The pinned shaping proxy retains
+  that face's source/member/axes metadata, and the assembled `FontRun` retains
+  the resolved ISO script for embedded, path, and provenance shaping. Capture positives remain additive;
   a negative Canvas result no longer vetoes this deterministic shaper answer.
   A Canvas positive requires the bare-mark and explicit-circle pixel masks to
   overlap, not merely to have similar area and bounds; that distinction rejects
@@ -2531,15 +2533,16 @@ reversed string its inference lands on exactly the direction wanted. The
 reversal stays gated on an override being present, because an override is the
 only input that can legitimately contradict the segment's own content.
 
-### The direction handed to the shaper is the run's own shaping item
+### The direction and script handed to the shaper are the run's own shaping item
 
 `bidiLevelsFor` computes one level per code unit of the **whole line** and
 `segmentForShaping` turns those levels plus RunSegmenter script data into the
 items Blink shapes independently. Shaped fallback now retains each item during
 same-face assembly and writes its resolved direction to
-`FontRun.shapingDirection`; the embedded, unanchored-path, provenance, and ink
-metric consumers use that value directly. Legacy per-codepoint runs do not
-carry the field and retain the source lookup fallback.
+`FontRun.shapingDirection` and its ISO 15924 script to
+`FontRun.shapingScript`; the embedded, unanchored-path, provenance, and ink
+metric consumers use those values directly. Legacy per-codepoint runs do not
+carry the fields and retain the source lookup fallback.
 
 The paths branch with per-character anchors still slices the whole-line level
 array to each run (`bidiLevels.subarray(run.startIdx, run.endIdx)`) before its

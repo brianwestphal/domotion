@@ -33,6 +33,12 @@ script run to HarfBuzz; it does not maintain a parallel codepoint-range list.
   remains intact and that emitter inserts/reorders the circle. Synthetic text is
   retained only for the explicitly degraded non-cluster path or a captured
   covered-face result whose layout facade cannot reproduce Chromium's circle.
+- The resolver pin carries two facts into the final `FontRun`: the exact
+  selected face (source path, collection member, and axes on its HarfBuzz
+  proxy) and RunSegmenter's resolved ISO 15924 script. Embedded, path, and
+  provenance shaping all consume that script. This is observable for a lone
+  Vedic mark: dropping `Deva` makes HarfBuzz guess Common and bypass the
+  syllabic shaper even though the correct Mukta face was already selected.
 
 This remains separate from font fallback: fallback selects the concrete face;
 the selected face and its HarfBuzz glyph stream decide dotted-circle behavior.
@@ -43,4 +49,7 @@ Focused tests cover BMP and SMP probe candidates, ordinary letters and
 punctuation, leading ZWJ/ZWNJ versus unrelated Format controls, based marks,
 default-shaper Latin marks, uncovered BMP/SMP Brahmic marks, pre-base and
 post-base matras, RTL marks, and captured negative/positive decisions. The
-capture bundle is regenerated from the reviewed source.
+embedded Mukta control additionally pins U+25CC-present and U+25CC-absent
+faces, broken and non-broken syllables, U+1CF7 `.notdef`, source clusters,
+advances, offsets, and the selected physical face. The capture bundle is
+regenerated from the reviewed source.

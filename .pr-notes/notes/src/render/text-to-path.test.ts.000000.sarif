@@ -196,6 +196,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2gr5qsed1g3m11",
+          "message": {
+            "text": "The production embedded emitter now matches the existing Chromium visual oracle without special-case placement. Before the handoff, the focused Vedic Extensions fixture failed 14 regions at 0.25 percent; afterward it is clean at 0 regions. The focused tests also pin the selected Mukta source, U+25CC present and absent faces, shared cluster zero, exact advances and offsets, based and non-broken controls, and U+1CF7 gid zero.",
+            "markdown": "The production embedded emitter now matches the existing Chromium visual oracle without special-case placement. Before the handoff, the focused Vedic Extensions fixture failed 14 regions at 0.25 percent; afterward it is clean at 0 regions. The focused tests also pin the selected Mukta source, U+25CC present and absent faces, shared cluster zero, exact advances and offsets, based and non-broken controls, and U+1CF7 gid zero."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.test.ts"
+                },
+                "region": {
+                  "startLine": 792,
+                  "endLine": 927,
+                  "snippet": {
+                    "text": "// DM-2423: resolver pinning alone is not enough. Blink resolves the shaping\n// item's script before font fallback, then `HarfBuzzShaper::ShapeRange` writes\n// that exact script to the buffer. A lone Vedic mark is Common/Inherited at the\n// codepoint level; if the embedded emitter drops the itemized `Deva` tag,\n// HarfBuzz guesses Common and never enters the syllabic shaper that inserts\n// U+25CC. These production-emitter assertions intentionally use the same\n// runtime Mukta face as the Unicode visual oracle.\n(HAVE_RUNTIME_MUKTA ? describe : describe.skip)(\"Vedic dotted-circle pin survives embedded emission (DM-2423)\", () => {\n  const FAMILY = '\"Mukta\", sans-serif';\n  let mukta: ReturnType<typeof fontkit.openSync>;\n  let noCircleSubset: Buffer;\n\n  const embeddedGlyphCount = (out: string): number => {\n    let count = 0;\n    for (const match of out.matchAll(/<text[^>]*>([^<]*)<\\/text>/g)) count += [...match[1]].length;\n    return count;\n  };\n\n  const renderWithEvidence = (text: string, fontFamily = FAMILY) => {\n    clearEmbeddedFonts();\n    resetTextRunProvenance();\n    const out = renderTextAsPath(text, 0, 0, {\n      fontSize: 32,\n      fontFamily,\n      fontWeight: \"400\",\n      fill: \"#000\",\n      dottedCircleMarks: [],\n      xOffsets: Array.from({ length: text.length }, (_, i) => i * 20),\n    });\n    expect(out).not.toBeNull();\n    const evidence = getTextRunProvenance();\n    expect(evidence.transitions).toContainEqual({ kind: \"embedded-succeeded\", sourceText: text });\n    expect(evidence.runs).toHaveLength(1);\n    return { out: out!, run: evidence.runs[0] };\n  };\n\n  beforeAll(() => {\n    mukta = fontkit.openSync(MUKTA);\n    const markGid = mukta.glyphForCodePoint(0x1CD1).id;\n    const baseGid = mukta.glyphForCodePoint(0x0915).id;\n    noCircleSubset = hbSubsetRetainGids(fs.readFileSync(MUKTA), [0, baseGid, markGid], 0, true, null);\n  });\n  beforeEach(() => {\n    clearWebfonts();\n    setRenderTextMode(\"embedded-font\");\n    setTextRunProvenanceEnabled(true);\n  });\n  afterEach(() => {\n    setTextRunProvenanceEnabled(false);\n    setRenderTextMode(\"paths\");\n    clearWebfonts();\n  });\n\n  it(\"emits the resolver-selected U+25CC cluster with HarfBuzz advances, clusters, and offsets\", () => {\n    const circle = mukta.glyphForCodePoint(0x25CC);\n    // U+1CE1 is the deliberate non-broken control below: Blink resolves its\n    // {Beng, Deva} Script_Extensions set to Beng, where this buffer is not a\n    // broken syllable. Every member here resolves unambiguously to Deva.\n    const brokenMarks = [\n      0x1CD1, 0x1CD4, 0x1CDB, 0x1CDE, 0x1CDF,\n      0x1CE2, 0x1CE3, 0x1CE4, 0x1CE5, 0x1CE6, 0x1CE7, 0x1CE8,\n    ];\n    expect(circle.id).not.toBe(0);\n    for (const cp of brokenMarks) {\n      const mark = mukta.glyphForCodePoint(cp);\n      const { out, run } = renderWithEvidence(String.fromCodePoint(cp));\n      expect(embeddedGlyphCount(out), `U+${cp.toString(16)}`).toBe(2);\n      expect(run).toMatchObject({\n        mechanism: \"dotted-circle-pin\",\n        request: { script: \"Deva\", direction: \"ltr\" },\n        selected: {\n          postscriptName: \"Mukta-Regular\",\n          sourcePath: MUKTA,\n          faceIndex: 0,\n          shapesWithHarfbuzz: true,\n        },\n      });\n      expect(run.glyphs, `U+${cp.toString(16)}`).toEqual([\n        { id: circle.id, cluster: 0, xAdvance: circle.advanceWidth, yAdvance: 0, xOffset: 0, yOffset: 0 },\n        { id: mark.id, cluster: 0, xAdvance: mark.advanceWidth, yAdvance: 0, xOffset: 0, yOffset: 0 },\n      ]);\n    }\n  });\n\n  it(\"does not insert a circle when the selected face has no nominal U+25CC glyph\", () => {\n    const family = '\"DM2423 No Circle\"';\n    registerWebfont(\"DM2423 No Circle\", 400, \"normal\", noCircleSubset);\n    const mark = mukta.glyphForCodePoint(0x1CD1);\n    const { out, run } = renderWithEvidence(\"\\u1CD1\", family);\n    expect(embeddedGlyphCount(out)).toBe(1);\n    expect(run).toMatchObject({\n      mechanism: \"declared-family\",\n      request: { script: \"Deva\" },\n      selected: { fontKey: \"webfont:dm2423 no circle\", shapesWithHarfbuzz: true },\n    });\n    expect(run.glyphs).toEqual([\n      { id: mark.id, cluster: 0, xAdvance: mark.advanceWidth, yAdvance: 0, xOffset: 0, yOffset: 0 },\n    ]);\n  });\n\n  it(\"keeps based and itemizer-resolved non-broken marks free of synthetic circles\", () => {\n    const circleGid = mukta.glyphForCodePoint(0x25CC).id;\n    const based = renderWithEvidence(\"क\\u1CD1\");\n    expect(embeddedGlyphCount(based.out)).toBe(2);\n    expect(based.run).toMatchObject({ mechanism: \"declared-family\", request: { script: \"Deva\" } });\n    expect(based.run.glyphs.map((glyph) => glyph.id)).not.toContain(circleGid);\n\n    const nonBroken = renderWithEvidence(\"\\u1CE1\");\n    const mark = mukta.glyphForCodePoint(0x1CE1);\n    expect(embeddedGlyphCount(nonBroken.out)).toBe(1);\n    expect(nonBroken.run).toMatchObject({ mechanism: \"dotted-circle-pin\", request: { script: \"Beng\" } });\n    expect(nonBroken.run.glyphs).toEqual([\n      { id: mark.id, cluster: 0, xAdvance: mark.advanceWidth, yAdvance: 0, xOffset: 0, yOffset: 0 },\n    ]);\n  });\n\n  it(\"keeps U+1CF7 as Mukta .notdef instead of manufacturing a dotted-circle verdict\", () => {\n    const { out, run } = renderWithEvidence(\"\\u1CF7\");\n    expect(embeddedGlyphCount(out)).toBe(1);\n    expect(run).toMatchObject({\n      mechanism: \"first-candidate-notdef\",\n      request: { script: \"Beng\" },\n      selected: { postscriptName: \"Mukta-Regular\", sourcePath: MUKTA, faceIndex: 0 },\n    });\n    expect(run.glyphs).toEqual([\n      { id: 0, cluster: 0, xAdvance: mukta.getGlyph(0).advanceWidth, yAdvance: 0, xOffset: 0, yOffset: 0 },\n    ]);\n  });\n});\n\ndescribe(\"insertSyntheticDottedCircles: Hangul tone marks stay bare for HarfBuzz (DM-1229 / DM-2020)\", () => {\n  const AU = \"/System/Library/Fonts/Supplemental/Arial Unicode.ttf\";\n  const HAVE_AU = fs.existsSync(AU);\n  // U+302E–302F are the actual Hangul tone marks (`isHangulTone`,\n  // `hb-ot-shaper-hangul.cc:130`, rev 4de187d) and are covered by Arial\n  // Unicode MS (DM-1174 routes them there). When the capture probe flags one"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 9395
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-run-provenance.ts"
+                },
+                "region": {
+                  "startLine": 78
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2423"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "5ad30e8c6dfa6727740ec774d3c1f2a4"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "e11abc8a4b4973ae186914f88ac4b2a2de222e87",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

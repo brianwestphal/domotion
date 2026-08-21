@@ -164,7 +164,8 @@ capture text
                    split by per-cluster all-glyphs-nonzero verdict,
                    commit shaped cluster runs, requeue notdef cluster runs
   → assemble FontRun[] without crossing a shaping-item boundary;
-    carry each item's resolved direction to every downstream shaper
+    carry each item's resolved direction and ISO 15924 script to every
+    downstream shaper
 ```
 
 - **`resolveFontForCodepoint` becomes "next font for this failing cluster".**
@@ -202,9 +203,11 @@ capture text
   RunSegmenter record (`:470-490`, `:1632-1653`). Domotion therefore merges
   adjacent same-face cluster assignments only within the same
   `segmentForShaping` item and records that item's LTR/RTL direction on the
-  resulting `FontRun`. This matters when a broad face covers both sides of a
-  bidi boundary: font identity alone contains no evidence that two shaping
-  calls are required.
+  resulting `FontRun`. The same run carries the item's resolved ISO 15924
+  script, so final emission cannot discard itemization and ask HarfBuzz to
+  guess from a lone Common/Inherited mark. This matters when a broad face
+  covers both sides of a bidi boundary: font identity alone contains no
+  evidence that two shaping calls are required.
 - **Neutral preferred scripts are preserved.** Blink keeps Common/Inherited
   characters neutral for run merging, but a neutral with exactly one
   `Script_Extensions` member records that member as `common_preferred_` and
@@ -262,7 +265,9 @@ capture text
 ### Calibrated Domotion behaviors deliberately preserved (retirement = own A/B)
 
 - The DM-1215 dotted-circle cluster runs (◌ + mark through real HarfBuzz in the
-  mark's font) are pinned before the requeue loop.
+  mark's font) are pinned before the requeue loop. Their proxy carries the
+  selected face's source/member/axes metadata, and assembly adds the containing
+  item's script before embedded/path emission.
 - Decomposed resolver answers (math-alpha base substitution, cross-font NFD)
   commit the hint character directly with the substituted text.
 - The ◌-insertion and orphaned-ignorable text rewrites still run upstream at

@@ -677,6 +677,106 @@
           "branch": "ci/dm2339-fresh-sweep"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2gr0u71p3by3s3",
+          "message": {
+            "text": "Carry the itemized script with the selected face because HarfBuzz script guessing is not equivalent after fallback. Blink sets the resolved RunSegmenter script explicitly before shaping; for a lone U+1CD1, Deva enters the syllabic shaper and yields a broken-syllable U+25CC cluster, while an omitted script is guessed as Common and yields only the mark. Font identity alone therefore cannot reconstruct the shaping item at emission.",
+            "markdown": "Carry the itemized script with the selected face because HarfBuzz script guessing is not equivalent after fallback. Blink sets the resolved RunSegmenter script explicitly before shaping; for a lone U+1CD1, Deva enters the syllabic shaper and yields a broken-syllable U+25CC cluster, while an omitted script is guessed as Common and yields only the mark. Font identity alone therefore cannot reconstruct the shaping item at emission."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/cluster-fallback.ts"
+                },
+                "region": {
+                  "startLine": 1082,
+                  "endLine": 1098,
+                  "snippet": {
+                    "text": "    const shapingScript = SCRIPT_NAME_TO_ISO15924[segment.script];\n    const aText = a.emitText ?? text.slice(a.start, a.end);\n    const last = runs[runs.length - 1];\n    const aDecomposed = a.decomposed === true;\n    // In \"paths\" mode a run never merges across a `decomposed` boundary — the\n    // glyph-path emitter picks its per-char vs run-text branch PER RUN, so a\n    // merged mixed run would index the source text with substituted characters.\n    // Embedded keeps its shipped merge (it always renders `run.text`).\n    if (last != null && lastRunSegmentIndex === segmentIndex\n        && last.fontKey === a.key && last.font === a.font && last.endIdx === a.start\n        && last.routeMechanism === a.mechanism\n        && (!pathsMode || (last.decomposed === true) === aDecomposed)) {\n      last.endIdx = a.end;\n      last.text += aText;\n      if (aDecomposed) last.decomposed = true;\n    } else {\n      runs.push({ fontKey: a.key, font: a.font, text: aText, startIdx: a.start, endIdx: a.end, isPrimary: a.isPrimary, shapingDirection, shapingScript, routeMechanism: a.mechanism, ...(aDecomposed ? { decomposed: true } : {}) });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 2160
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/platform/fonts/shaping/harfbuzz_shaper.cc"
+                },
+                "region": {
+                  "startLine": 340
+                }
+              }
+            },
+            {
+              "id": 2,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/harfbuzz/src/hb-ot-shaper-syllabic.cc"
+                },
+                "region": {
+                  "startLine": 33
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2423"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ef505e1a748d416a31a8b0e9c704a16a"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "e11abc8a4b4973ae186914f88ac4b2a2de222e87",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

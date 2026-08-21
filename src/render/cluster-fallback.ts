@@ -1078,8 +1078,15 @@ function splitShapedInner(
     // circle spans included). Refuse a split that would erase/cross an item
     // boundary instead of guessing which direction should own it.
     if (segment == null || a.start < segment.start || a.end > segment.end) return null;
-    const shapingDirection = segment.rtl ? "rtl" : "ltr";
     const aText = a.emitText ?? text.slice(a.start, a.end);
+    const shapingDirection = segment.rtl ? "rtl" : "ltr";
+    // A resolver substitution no longer contains the itemized source text
+    // (Math-Alphanumeric is the representative case). Preserve its previous
+    // emitted-text script inference; source-preserving assignments, including
+    // dotted-circle pins, carry RunSegmenter's exact decision.
+    const shapingScript = a.emitText == null
+      ? SCRIPT_NAME_TO_ISO15924[segment.script]
+      : undefined;
     const last = runs[runs.length - 1];
     const aDecomposed = a.decomposed === true;
     // In "paths" mode a run never merges across a `decomposed` boundary — the
@@ -1094,7 +1101,7 @@ function splitShapedInner(
       last.text += aText;
       if (aDecomposed) last.decomposed = true;
     } else {
-      runs.push({ fontKey: a.key, font: a.font, text: aText, startIdx: a.start, endIdx: a.end, isPrimary: a.isPrimary, shapingDirection, routeMechanism: a.mechanism, ...(aDecomposed ? { decomposed: true } : {}) });
+      runs.push({ fontKey: a.key, font: a.font, text: aText, startIdx: a.start, endIdx: a.end, isPrimary: a.isPrimary, shapingDirection, shapingScript, routeMechanism: a.mechanism, ...(aDecomposed ? { decomposed: true } : {}) });
       lastRunSegmentIndex = segmentIndex;
     }
   }

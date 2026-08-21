@@ -8,6 +8,8 @@ import { existsSync } from "node:fs";
 import * as fontkit2 from "fontkit";
 import { _builderInstanceKeys, _builderRegistrySize, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
 import { resolveInstalledFont } from "./glyph-helper.js";
+import { hbSubsetRetainGids } from "./hb-subset.js";
+import { getTextRunProvenance, resetTextRunProvenance, setTextRunProvenanceEnabled } from "./text-run-provenance.js";
 import { UNICODE_FONT_FILES_WIN32, UNICODE_FONT_RANGES_WIN32 } from "./unicode-font-routing.win32.generated.js";
 
 // Tests that exercise glyph emission (renderTextAsPath returning markup,
@@ -784,6 +786,136 @@ const HAVE_RUNTIME_MUKTA = fs.existsSync(MUKTA) && resolveInstalledFont("Mukta")
     });
     expect(out).not.toBeNull();
     expect([...out!.matchAll(/<use\b/g)]).toHaveLength(1);
+  });
+});
+
+// DM-2423: resolver pinning alone is not enough. Blink resolves the shaping
+// item's script before font fallback, then `HarfBuzzShaper::ShapeRange` writes
+// that exact script to the buffer. A lone Vedic mark is Common/Inherited at the
+// codepoint level; if the embedded emitter drops the itemized `Deva` tag,
+// HarfBuzz guesses Common and never enters the syllabic shaper that inserts
+// U+25CC. These production-emitter assertions intentionally use the same
+// runtime Mukta face as the Unicode visual oracle.
+(HAVE_RUNTIME_MUKTA ? describe : describe.skip)("Vedic dotted-circle pin survives embedded emission (DM-2423)", () => {
+  const FAMILY = '"Mukta", sans-serif';
+  let mukta: ReturnType<typeof fontkit.openSync>;
+  let noCircleSubset: Buffer;
+
+  const embeddedGlyphCount = (out: string): number => {
+    let count = 0;
+    for (const match of out.matchAll(/<text[^>]*>([^<]*)<\/text>/g)) count += [...match[1]].length;
+    return count;
+  };
+
+  const renderWithEvidence = (text: string, fontFamily = FAMILY) => {
+    clearEmbeddedFonts();
+    resetTextRunProvenance();
+    const out = renderTextAsPath(text, 0, 0, {
+      fontSize: 32,
+      fontFamily,
+      fontWeight: "400",
+      fill: "#000",
+      dottedCircleMarks: [],
+      xOffsets: Array.from({ length: text.length }, (_, i) => i * 20),
+    });
+    expect(out).not.toBeNull();
+    const evidence = getTextRunProvenance();
+    expect(evidence.transitions).toContainEqual({ kind: "embedded-succeeded", sourceText: text });
+    expect(evidence.runs).toHaveLength(1);
+    return { out: out!, run: evidence.runs[0] };
+  };
+
+  beforeAll(() => {
+    mukta = fontkit.openSync(MUKTA);
+    const markGid = mukta.glyphForCodePoint(0x1CD1).id;
+    const baseGid = mukta.glyphForCodePoint(0x0915).id;
+    noCircleSubset = hbSubsetRetainGids(fs.readFileSync(MUKTA), [0, baseGid, markGid], 0, true, null);
+  });
+  beforeEach(() => {
+    clearWebfonts();
+    setRenderTextMode("embedded-font");
+    setTextRunProvenanceEnabled(true);
+  });
+  afterEach(() => {
+    setTextRunProvenanceEnabled(false);
+    setRenderTextMode("paths");
+    clearWebfonts();
+  });
+
+  it("emits the resolver-selected U+25CC cluster with HarfBuzz advances, clusters, and offsets", () => {
+    const circle = mukta.glyphForCodePoint(0x25CC);
+    // U+1CE1 is the deliberate non-broken control below: Blink resolves its
+    // {Beng, Deva} Script_Extensions set to Beng, where this buffer is not a
+    // broken syllable. Every member here resolves unambiguously to Deva.
+    const brokenMarks = [
+      0x1CD1, 0x1CD4, 0x1CDB, 0x1CDE, 0x1CDF,
+      0x1CE2, 0x1CE3, 0x1CE4, 0x1CE5, 0x1CE6, 0x1CE7, 0x1CE8,
+    ];
+    expect(circle.id).not.toBe(0);
+    for (const cp of brokenMarks) {
+      const mark = mukta.glyphForCodePoint(cp);
+      const { out, run } = renderWithEvidence(String.fromCodePoint(cp));
+      expect(embeddedGlyphCount(out), `U+${cp.toString(16)}`).toBe(2);
+      expect(run).toMatchObject({
+        mechanism: "dotted-circle-pin",
+        request: { script: "Deva", direction: "ltr" },
+        selected: {
+          postscriptName: "Mukta-Regular",
+          sourcePath: MUKTA,
+          faceIndex: 0,
+          shapesWithHarfbuzz: true,
+        },
+      });
+      expect(run.glyphs, `U+${cp.toString(16)}`).toEqual([
+        { id: circle.id, cluster: 0, xAdvance: circle.advanceWidth, yAdvance: 0, xOffset: 0, yOffset: 0 },
+        { id: mark.id, cluster: 0, xAdvance: mark.advanceWidth, yAdvance: 0, xOffset: 0, yOffset: 0 },
+      ]);
+    }
+  });
+
+  it("does not insert a circle when the selected face has no nominal U+25CC glyph", () => {
+    const family = '"DM2423 No Circle"';
+    registerWebfont("DM2423 No Circle", 400, "normal", noCircleSubset);
+    const mark = mukta.glyphForCodePoint(0x1CD1);
+    const { out, run } = renderWithEvidence("\u1CD1", family);
+    expect(embeddedGlyphCount(out)).toBe(1);
+    expect(run).toMatchObject({
+      mechanism: "declared-family",
+      request: { script: "Deva" },
+      selected: { fontKey: "webfont:dm2423 no circle", shapesWithHarfbuzz: true },
+    });
+    expect(run.glyphs).toEqual([
+      { id: mark.id, cluster: 0, xAdvance: mark.advanceWidth, yAdvance: 0, xOffset: 0, yOffset: 0 },
+    ]);
+  });
+
+  it("keeps based and itemizer-resolved non-broken marks free of synthetic circles", () => {
+    const circleGid = mukta.glyphForCodePoint(0x25CC).id;
+    const based = renderWithEvidence("क\u1CD1");
+    expect(embeddedGlyphCount(based.out)).toBe(2);
+    expect(based.run).toMatchObject({ mechanism: "declared-family", request: { script: "Deva" } });
+    expect(based.run.glyphs.map((glyph) => glyph.id)).not.toContain(circleGid);
+
+    const nonBroken = renderWithEvidence("\u1CE1");
+    const mark = mukta.glyphForCodePoint(0x1CE1);
+    expect(embeddedGlyphCount(nonBroken.out)).toBe(1);
+    expect(nonBroken.run).toMatchObject({ mechanism: "dotted-circle-pin", request: { script: "Beng" } });
+    expect(nonBroken.run.glyphs).toEqual([
+      { id: mark.id, cluster: 0, xAdvance: mark.advanceWidth, yAdvance: 0, xOffset: 0, yOffset: 0 },
+    ]);
+  });
+
+  it("keeps U+1CF7 as Mukta .notdef instead of manufacturing a dotted-circle verdict", () => {
+    const { out, run } = renderWithEvidence("\u1CF7");
+    expect(embeddedGlyphCount(out)).toBe(1);
+    expect(run).toMatchObject({
+      mechanism: "first-candidate-notdef",
+      request: { script: "Beng" },
+      selected: { postscriptName: "Mukta-Regular", sourcePath: MUKTA, faceIndex: 0 },
+    });
+    expect(run.glyphs).toEqual([
+      { id: 0, cluster: 0, xAdvance: mukta.getGlyph(0).advanceWidth, yAdvance: 0, xOffset: 0, yOffset: 0 },
+    ]);
   });
 });
 

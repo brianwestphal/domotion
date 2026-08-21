@@ -11,6 +11,8 @@ export interface TextRunRequestDiagnostic {
   language?: string;
   fontVariantEmoji?: FontVariantEmojiOverride;
   direction: "ltr" | "rtl";
+  /** ISO 15924 script resolved before fallback and used for this shape. */
+  script?: string;
 }
 
 export interface TextRunProvenanceDiagnostic {
@@ -73,7 +75,7 @@ export function recordSelectedFontRuns(
     let glyphs: TextRunProvenanceDiagnostic["glyphs"] = [];
     let shapeError: string | undefined;
     try {
-      const shaped = run.font.layout(run.text, request.features, undefined, request.language, request.direction);
+      const shaped = run.font.layout(run.text, request.features, run.shapingScript, request.language, request.direction);
       glyphs = shaped.glyphs.map((glyph, index) => {
         const position = shaped.positions[index] ?? { xAdvance: glyph.advanceWidth, yAdvance: 0, xOffset: 0, yOffset: 0 };
         return { id: glyph.id, cluster: shaped.clusters?.[index] ?? index, ...position };
@@ -88,7 +90,7 @@ export function recordSelectedFontRuns(
       sourceSpan: [run.startIdx, run.endIdx],
       emittedText: run.text,
       mechanism: run.routeMechanism,
-      request: { ...request, variationSettings: request.variationSettings == null ? undefined : { ...request.variationSettings }, features: request.features == null ? undefined : [...request.features] },
+      request: { ...request, script: run.shapingScript, variationSettings: request.variationSettings == null ? undefined : { ...request.variationSettings }, features: request.features == null ? undefined : [...request.features] },
       selected: {
         fontKey: run.fontKey,
         postscriptName: run.font.postscriptName ?? source?.postscriptName

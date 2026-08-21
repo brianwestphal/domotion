@@ -9389,6 +9389,10 @@ export function resolveDottedCircleHbRun(
   if (hbFace == null) return null;
   const hbInst = makeHarfbuzzShapingInstance(markFont, hbFace.path, hbFace.faceIndex, fontSize, hbFace.axes);
   if (hbInst === markFont) return null; // HarfBuzz couldn't open the file
+  // The pin owns one concrete resolver-selected face. Preserve that face's
+  // source/member/axes on the shaping proxy so the embedded emitter subsets
+  // the same instance that supplied HarfBuzz's dotted-circle glyph.
+  carryFontInstanceMetadata(hbInst, markFont);
   return { key: markKey, font: hbInst };
 }
 
@@ -10600,6 +10604,11 @@ export interface FontRun {
    *  not lost when adjacent items select the same font. Legacy callers omit it
    *  and retain the source-text lookup used before the shaped splitter. */
   shapingDirection?: "ltr" | "rtl";
+  /** ISO 15924 script tag resolved by Blink-style itemization before fallback
+   *  (for example `Deva`). This must travel with the selected face: leaving an
+   *  Inherited mark for HarfBuzz to guess as Common changes the selected
+   *  syllabic shaper and can suppress its broken-cluster dotted circle. */
+  shapingScript?: string;
   /** Selection owner recorded by the renderer-facing provenance oracle. */
   routeMechanism?: "declared-family" | "priority-emoji" | "system-resolver" | "last-resort"
     | "first-candidate-notdef" | "dotted-circle-pin" | "decomposed-commit"

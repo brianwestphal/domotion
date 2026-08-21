@@ -1406,4 +1406,8 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
 - Dotted-circle routing is owned by the selected face's HarfBuzz result, with
   Chromium capture ink as the covered-glyph control and pinned ICU properties
   supplying script/category inputs. Unicode block floors, plane gates, and
-  script-specific joiner pairs are not production decisions.
+  script-specific joiner pairs are not production decisions. The resolver's
+  exact face metadata and RunSegmenter's resolved ISO 15924 script survive on
+  the final font run and are consumed by path emission, embedded emission, and
+  provenance shaping; insertion still requires HarfBuzz's broken-syllable
+  classification and a nominal U+25CC glyph in that selected face.

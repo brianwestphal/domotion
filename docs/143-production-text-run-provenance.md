@@ -17,13 +17,21 @@ Each selected run records:
 - the final assignment owner: declared family, priority emoji, system resolver,
   last resort, first-candidate `.notdef`, dotted-circle pin, decomposed commit,
   cluster-disabled legacy, or cluster-decline legacy;
-- the complete CSS request tuple relevant to face/shaping selection;
+- the complete CSS request tuple relevant to face/shaping selection, plus the
+  itemized ISO 15924 script actually passed to the production shaper;
 - logical font key plus concrete PostScript name, source path, collection
   member, variation axes, and HarfBuzz ownership;
 - glyph IDs, clusters, advances, and offsets from the selected production
   shaping instance; and
 - emitter and stable emitted identity, plus embedded-success,
   embedded-decline-to-paths, path-success, or path-decline transitions.
+
+DM-2423 makes that recorded script operational rather than descriptive: the
+ledger shapes with `FontRun.shapingScript`, the same value used by embedded and
+path emission. It also observes source/member metadata copied onto a
+resolver-pinned HarfBuzz proxy, so a dotted-circle record proves both the
+selected face and its final glyph stream instead of silently reshaping the face
+as Common for diagnostics.
 
 The representative browser oracle covers declared, system, emoji-priority,
 dotted-circle, `.notdef`, embedded, and legacy owners. Its mutation controls

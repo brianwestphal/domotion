@@ -64,7 +64,8 @@ shortest possible map:
   splitter for BOTH render modes (`splitTextIntoFontRuns` for the embedded-font
   pipeline; `splitTextIntoGlyphPathRuns` invokes it in "paths" mode for the
   glyph-path emitter, preserving per-run `decomposed` flags plus every
-  bidi/script shaping-item boundary and its resolved direction, while raster
+  bidi/script shaping-item boundary and its resolved direction plus ISO 15924
+  script (`FontRun.shapingDirection` / `FontRun.shapingScript`), while raster
   emoji use the same Chromium terminal as embedded mode; `DOMOTION_CLUSTER_FALLBACK=0` restores the legacy
   per-codepoint walk in both) — see `docs/113-cluster-granularity-fallback.md`.
   Declared-family ordering and segmented `@font-face` capability-group/range
@@ -401,8 +402,9 @@ For orphan dotted circles, start at
 `src/capture/script/dotted-circle-detect.ts` and
 `insertSyntheticDottedCircles` in `src/render/text-to-path.ts`. Candidate
 collection is broad; Chromium paint and the selected-face HarfBuzz glyph stream
-own the decision. Do not reintroduce block, plane, font, or script samples as
-routing gates.
+own the decision. The shaped splitter carries its resolved script and concrete
+face metadata through `FontRun` into both emitters. Do not reintroduce block,
+plane, font, or script samples as routing gates.
 
 ## What this file is NOT
 

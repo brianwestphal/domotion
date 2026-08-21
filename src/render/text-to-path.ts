@@ -909,7 +909,10 @@ function renderTextPathRuns(
           // content implies rather than the paragraph's.
           const shapeDir = flipToNative ? (contentIsRtl ? "rtl" : "ltr") : dir;
           const shapeFont = run.font;
-          const scriptTag = SCRIPT_NAME_TO_ISO15924[seg.script];
+          // Shaped fallback already resolved the item's script before it chose
+          // this face. Keep that authoritative tag through emission; legacy
+          // runs without provenance retain the local segment derivation.
+          const scriptTag = run.shapingScript ?? SCRIPT_NAME_TO_ISO15924[seg.script];
           const layout = features != null && features.length > 0
             ? shapeFont.layout(shapeText, fontkitFeatureList(features), scriptTag, lang, shapeDir)
             : shapeFont.layout(shapeText, undefined, scriptTag, lang, shapeDir);
@@ -951,9 +954,9 @@ function renderTextPathRuns(
     // layout for genuinely mixed segments; the font-run splitter normally
     // separates those, while declining here avoids inventing placement rules.
     const runSegments = segmentForShaping(run.text);
-    const runScript = runSegments.length === 1
+    const runScript = run.shapingScript ?? (runSegments.length === 1
       ? SCRIPT_NAME_TO_ISO15924[runSegments[0].script]
-      : undefined;
+      : undefined);
     const layout = features != null && features.length > 0
       ? run.font.layout(run.text, fontkitFeatureList(features), runScript, lang, runDirection)
       : run.font.layout(run.text, undefined, runScript, lang, runDirection);
@@ -2154,8 +2157,8 @@ function renderEmbeddedGlyphRuns(
     try {
       const runDirection = run.shapingDirection ?? shapingDirectionAt(text, run.startIdx);
       layout = features != null && features.length > 0
-        ? run.font.layout(shapingText, fontkitFeatureList(features), undefined, lang, runDirection)
-        : run.font.layout(shapingText, undefined, undefined, lang, runDirection);
+        ? run.font.layout(shapingText, fontkitFeatureList(features), run.shapingScript, lang, runDirection)
+        : run.font.layout(shapingText, undefined, run.shapingScript, lang, runDirection);
     } catch {
       return null;
     }
