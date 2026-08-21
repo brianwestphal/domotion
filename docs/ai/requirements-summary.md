@@ -115,6 +115,17 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Arbitrary contain/cover mask positions (DM-2379, doc 20) — Shipped.**
+  Chromium-decoded per-layer intrinsic dimensions and effective-zoom-adjusted
+  computed positions feed a Blink LayoutUnit transcription: concrete
+  contain/cover tile first, then physical x/y length-percentage resolution
+  against the remaining space (including negative cover space). SVG receives
+  an exact rectangle with no Min/Mid/Max alignment decision. Wrapped slice
+  masks continue across a clipped synthetic strip; clone/block fragments
+  restart. A DPR/zoom Chromium-vs-SVG oracle covers percentage, length, calc,
+  vertical writing, fragments, and multi-layer ownership and rejects the
+  retired quantized route.
+
 - **Raster activation boundaries (doc 134) — Shipped.** A 24-row gate pairs
   every live raster ownership class with its representable vector control,
   including helper-disabled text, recursive iframes, projective transforms,

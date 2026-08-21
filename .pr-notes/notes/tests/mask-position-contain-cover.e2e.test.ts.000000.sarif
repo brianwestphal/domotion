@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3gstqk8pb9e2bo",
+          "message": {
+            "text": "The independent Chromium-vs-SVG oracle exercises every DM-2379 transition and the retired-route mutation. DPR 1 and DPR 2/zoom 1.25 rows cover percentage, absolute length, calc, physical vertical-writing axes, fractional SVG viewBox aspect, and independently sized multilayers; every row compares colored-ink bounds per case at <=3 device px in addition to a full-raster error bound. A separate raster comparison covers sliced continuous strips versus cloned fragment restarts. An explicit-size negative row proves the decoder facts do not activate outside contain/cover and that all temporary page probes are removed. The focused E2E is 4/4 and the feature fixture reports 0.00% pixel diff.",
+            "markdown": "The independent Chromium-vs-SVG oracle exercises every DM-2379 transition and the retired-route mutation. DPR 1 and DPR 2/zoom 1.25 rows cover percentage, absolute length, calc, physical vertical-writing axes, fractional SVG viewBox aspect, and independently sized multilayers; every row compares colored-ink bounds per case at <=3 device px in addition to a full-raster error bound. A separate raster comparison covers sliced continuous strips versus cloned fragment restarts. An explicit-size negative row proves the decoder facts do not activate outside contain/cover and that all temporary page probes are removed. The focused E2E is 4/4 and the feature fixture reports 0.00% pixel diff."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/mask-position-contain-cover.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 54,
+                  "endLine": 127,
+                  "snippet": {
+                    "text": "const describeBrowser = env ? describe : describe.skip;\n\ndescribeBrowser(\"arbitrary contain/cover mask-position Chromium oracle (DM-2379)\", () => {\n  for (const row of [\n    { dpr: 1, zoom: 1 },\n    { dpr: 2, zoom: 1.25 },\n  ]) {\n    it(`matches independent Chromium pixels at DPR ${row.dpr}, zoom ${row.zoom}`, async () => {\n      const context = await env!.browser.newContext({ viewport: { width: 380, height: 380 }, deviceScaleFactor: row.dpr });\n      const source = await context.newPage();\n      const rendered = await context.newPage();\n      try {\n        await source.setContent(html(row.zoom), { waitUntil: \"load\" });\n        await source.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));\n        const expected = await source.screenshot({ clip: { x: 0, y: 0, width: 380, height: 380 } });\n        const tree = await captureElementTree(source, \"#stage\", { x: 0, y: 0, width: 380, height: 380 });\n        const cases = masked(tree);\n        expect(cases).toHaveLength(6);\n        expect(cases.map((element) => element.styles.maskIntrinsic)).toEqual([\n          [{ w: 200, h: 100 }],\n          [{ w: 200, h: 100 }],\n          [{ w: 100, h: 200 }],\n          [{ w: 200, h: 100 }],\n          [{ w: 200, h: 100 }, { w: 100, h: 200 }],\n          [{ w: 200, h: 100 }],\n        ]);\n        // px terms cross effective zoom once; percentage terms remain deferred.\n        expect(cases[5].styles.maskPosition).toBe(row.zoom === 1\n          ? \"calc(25% + 7px) calc(75% - 3px)\"\n          : \"calc(25% + 8.75px) calc(75% - 3.75px)\");\n\n        const svg = elementTreeToSvg(tree, 380, 380);\n        expect(svg).toContain('preserveAspectRatio=\"none\"');\n        // Retired-quantization control: no contain/cover layer may delegate\n        // arbitrary placement to SVG Min/Mid/Max alignment.\n        expect(svg).not.toMatch(/preserveAspectRatio=\"x(?:Min|Mid|Max)Y(?:Min|Mid|Max) (?:meet|slice)\"/);\n        await rendered.setContent(`<body style=\"margin:0;background:white\">${svg}</body>`, { waitUntil: \"load\" });\n        const actual = await rendered.screenshot({ clip: { x: 0, y: 0, width: 380, height: 380 } });\n        expect(await meanAbsoluteError(expected, actual)).toBeLessThan(2.4);\n      } finally {\n        await context.close();\n      }\n    }, 60_000);\n  }\n\n  it(\"emits a continuous clipped strip for slice and per-fragment tiles for clone\", async () => {\n    const context = await env!.browser.newContext({ viewport: { width: 360, height: 220 }, deviceScaleFactor: 1 });\n    const page = await context.newPage();\n    const rendered = await context.newPage();\n    try {\n      await page.setContent(`<!doctype html><style>\n        body{margin:0;width:150px;font:20px/28px Arial;color:rgb(32,95,210)}\n        span{background:currentColor;mask-image:url(\"${WIDE}\");mask-size:contain;mask-position:23% 73%;mask-repeat:no-repeat;mask-mode:alpha}\n        #clone{box-decoration-break:clone;-webkit-box-decoration-break:clone}\n      </style><div><span id=\"slice\">wrapping inline fragment strip geometry</span></div><div><span id=\"clone\">wrapping inline fragment clone geometry</span></div>`, { waitUntil: \"load\" });\n      const expected = await page.screenshot();\n      const tree = await captureElementTree(page, \"body\", { x: 0, y: 0, width: 360, height: 220 });\n      const cases = masked(tree);\n      expect(cases).toHaveLength(2);\n      expect(cases[0].inlineFragments!.length).toBeGreaterThan(1);\n      expect(cases[1].inlineFragments!.length).toBeGreaterThan(1);\n      const svg = elementTreeToSvg(tree, 360, 220);\n      expect((svg.match(/id=\"[^\" ]*fc\\d+-\\d+\"/g) ?? []).length)\n        .toBe(cases[0].inlineFragments!.length + cases[1].inlineFragments!.length);\n      expect(svg).toContain('clip-path=\"url(#');\n      await rendered.setContent(`<body style=\"margin:0;background:white\">${svg}</body>`, { waitUntil: \"load\" });\n      const actual = await rendered.screenshot();\n      expect(await meanAbsoluteError(expected, actual)).toBeLessThan(2.4);\n    } finally {\n      await context.close();\n    }\n  }, 60_000);\n});\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/mask-position.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/mask.test.ts"
+                },
+                "region": {
+                  "startLine": 283
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2379"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4865578b4ef88322afd46abd44844dc4"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "7b90459ebedba68b321342c23969a3276e1bc8e4",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

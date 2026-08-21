@@ -66,12 +66,14 @@ export const detectInlineFragments = (el, cs, vp, captured) => {
       var _hasBg = _bgC != null && _bgC !== '' && _bgC !== 'transparent' && _bgC !== 'rgba(0, 0, 0, 0)';
       var _hasBgImage = captured.styles.backgroundImage != null
         && captured.styles.backgroundImage !== '' && captured.styles.backgroundImage !== 'none';
+      var _hasMaskImage = captured.styles.maskImage != null
+        && captured.styles.maskImage !== '' && captured.styles.maskImage !== 'none';
       var _btw = parseFloat(captured.styles.borderTopWidth || '0') || 0;
       var _brw = parseFloat(captured.styles.borderRightWidth || '0') || 0;
       var _bbw = parseFloat(captured.styles.borderBottomWidth || '0') || 0;
       var _blw = parseFloat(captured.styles.borderLeftWidth || '0') || 0;
       var _hasBorder = _btw > 0 || _brw > 0 || _bbw > 0 || _blw > 0;
-      var _hasPaint = _hasBg || _hasBgImage || _hasBorder;
+      var _hasPaint = _hasBg || _hasBgImage || _hasBorder || _hasMaskImage;
       var _isInline = cs.display === 'inline';
       var _isBlockLevel = !_isInline && (
         cs.display === 'block' || cs.display === 'list-item' || cs.display === 'flex'

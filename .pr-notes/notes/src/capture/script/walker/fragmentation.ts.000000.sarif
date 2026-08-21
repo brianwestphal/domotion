@@ -66,6 +66,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3h9e2sv8wdl2z1",
+          "message": {
+            "text": "A mask image is itself painted content for fragmentation activation. The previous background-or-border gate skipped getClientRects() for a mask-only wrapping inline, so the renderer could never reconstruct Blink's continuous PaintRectForImageStrip; including maskImage here keeps the capture boundary aligned with the fragment geometry consumed by src/render/mask.ts. The related browser row deliberately has no background or border, and passes Chromium-vs-SVG pixels.",
+            "markdown": "A mask image is itself painted content for fragmentation activation. The previous background-or-border gate skipped getClientRects() for a mask-only wrapping inline, so the renderer could never reconstruct Blink's continuous PaintRectForImageStrip; including maskImage here keeps the capture boundary aligned with the fragment geometry consumed by src/render/mask.ts. The related browser row deliberately has no background or border, and passes Chromium-vs-SVG pixels."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/fragmentation.ts"
+                },
+                "region": {
+                  "startLine": 65,
+                  "endLine": 76,
+                  "snippet": {
+                    "text": "      var _bgC = captured.styles.backgroundColor;\n      var _hasBg = _bgC != null && _bgC !== '' && _bgC !== 'transparent' && _bgC !== 'rgba(0, 0, 0, 0)';\n      var _hasBgImage = captured.styles.backgroundImage != null\n        && captured.styles.backgroundImage !== '' && captured.styles.backgroundImage !== 'none';\n      var _hasMaskImage = captured.styles.maskImage != null\n        && captured.styles.maskImage !== '' && captured.styles.maskImage !== 'none';\n      var _btw = parseFloat(captured.styles.borderTopWidth || '0') || 0;\n      var _brw = parseFloat(captured.styles.borderRightWidth || '0') || 0;\n      var _bbw = parseFloat(captured.styles.borderBottomWidth || '0') || 0;\n      var _blw = parseFloat(captured.styles.borderLeftWidth || '0') || 0;\n      var _hasBorder = _btw > 0 || _brw > 0 || _bbw > 0 || _blw > 0;\n      var _hasPaint = _hasBg || _hasBgImage || _hasBorder || _hasMaskImage;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/mask-position-contain-cover.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 125
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/mask.ts"
+                },
+                "region": {
+                  "startLine": 512
+                }
+              }
+            }
+          ],
+          "rank": 82,
+          "workItemUris": [
+            "DM-2379"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "345ba53682066463305e596740d1dbc1"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "7b90459ebedba68b321342c23969a3276e1bc8e4",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

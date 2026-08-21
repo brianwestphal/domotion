@@ -53,6 +53,9 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 ### SVG
 - [x] **svg-inline**: Inline SVG elements are cloned as self-contained vectors; CSS-only clip/mask effects preserve native fill-box, stroke-box, and view-box resolution (DM-2328)
 
+### Masks
+- [x] **mask-contain-cover-arbitrary-position** (DM-2379, doc 20): URL masks capture Chromium-decoded intrinsic ratios and emit concrete Blink-fitted rectangles for percentage, length, and calc positions; zoom/DPR, physical writing axes, multilayer, and slice/clone fragment controls reject the retired SVG Min/Mid/Max buckets.
+
 ### Text effects
 - [x] **text-bg-clip-gradient** (DM-462): `background-clip: text` + `-webkit-text-fill-color: transparent` — gradient fills the glyph shapes via SVG `<mask>` over the bg-color rect
 

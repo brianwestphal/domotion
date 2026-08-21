@@ -1134,6 +1134,136 @@ export async function captureElementTree(
 }
 
 /**
+ * DM-2379: await Chromium's image decoder for every URL-backed mask layer and
+ * leave the natural dimensions on the live element for CAPTURE_SCRIPT's
+ * synchronous walk. `new Image().naturalWidth` immediately after assigning
+ * src is observably zero even when the same URL already painted as a CSS mask,
+ * so this async ownership boundary is required rather than a timing guess.
+ */
+async function primeMaskImageIntrinsics(page: Page): Promise<{ dispose(): Promise<void> }> {
+  const frames = page.frames();
+  await Promise.all(frames.map(async (frame) => {
+    try {
+      await frame.evaluate(async () => {
+        const host = globalThis as unknown as {
+          __domotionMaskIntrinsicTargets?: Element[];
+        };
+        for (const prior of host.__domotionMaskIntrinsicTargets ?? []) {
+          try { delete (prior as Element & { __domotionMaskIntrinsic?: unknown }).__domotionMaskIntrinsic; } catch {}
+        }
+        const targets: Element[] = [];
+        host.__domotionMaskIntrinsicTargets = targets;
+
+        const splitLayers = (value: string): string[] => {
+          const out: string[] = [];
+          let depth = 0;
+          let start = 0;
+          for (let i = 0; i < value.length; i++) {
+            const ch = value[i];
+            if (ch === "(") depth++;
+            else if (ch === ")") depth--;
+            else if (ch === "," && depth === 0) {
+              out.push(value.slice(start, i));
+              start = i + 1;
+            }
+          }
+          out.push(value.slice(start));
+          return out;
+        };
+        const cssUrl = (layer: string): string | null => {
+          const match = /^\s*url\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^\s)]+))\s*\)\s*$/i.exec(layer);
+          const raw = match?.[1] ?? match?.[2] ?? match?.[3];
+          return raw == null ? null : raw.replace(/\\(.)/g, "$1");
+        };
+        const cache = new Map<string, Promise<{ w: number; h: number; ratio: number } | null>>();
+        const dimensions = (url: string): Promise<{ w: number; h: number; ratio: number } | null> => {
+          const hit = cache.get(url);
+          if (hit != null) return hit;
+          const pending = (async () => {
+            const image = new Image();
+            image.src = url;
+            if (!(image.complete && image.naturalWidth > 0 && image.naturalHeight > 0)) {
+              await Promise.race([
+                image.decode().catch(() => undefined),
+                new Promise<void>((resolve) => setTimeout(resolve, 3000)),
+              ]);
+            }
+            if (image.naturalWidth <= 0 || image.naturalHeight <= 0) return null;
+            let ratio = image.naturalWidth / image.naturalHeight;
+            // HTMLImageElement naturalWidth/Height are integers. That loses a
+            // fractional SVG viewBox ratio (e.g. 3/7 reports 64x150). Ask the
+            // same Chromium image layout for a large-width auto-height box so
+            // the aspect survives at LayoutUnit precision.
+            try {
+              image.style.cssText = "all:initial;position:fixed;left:-100000px;top:0;display:block;width:4096px;height:auto;max-width:none;max-height:none;visibility:hidden;pointer-events:none";
+              (document.body || document.documentElement).appendChild(image);
+              const measured = getComputedStyle(image);
+              const measuredWidth = Number.parseFloat(measured.width);
+              const measuredHeight = Number.parseFloat(measured.height);
+              if (measuredWidth > 0 && measuredHeight > 0
+                  && Number.isFinite(measuredWidth) && Number.isFinite(measuredHeight)) {
+                ratio = measuredWidth / measuredHeight;
+              }
+            } finally {
+              image.remove();
+            }
+            return { w: image.naturalWidth, h: image.naturalHeight, ratio };
+          })();
+          cache.set(url, pending);
+          return pending;
+        };
+
+        const elements = [document.documentElement, ...Array.from(document.getElementsByTagName("*"))];
+        await Promise.all(elements.map(async (element) => {
+          const style = getComputedStyle(element);
+          const maskImage = style.maskImage
+            || (style as CSSStyleDeclaration & { webkitMaskImage?: string }).webkitMaskImage
+            || "";
+          if (maskImage === "" || maskImage === "none") return;
+          const sizes = splitLayers(style.maskSize
+            || (style as CSSStyleDeclaration & { webkitMaskSize?: string }).webkitMaskSize
+            || "auto");
+          const resolved = await Promise.all(splitLayers(maskImage).map(async (layer, index) => {
+            // The DM-2379 route activates only for contain/cover. Explicit and
+            // auto sizing retain their established geometry and must not add a
+            // decoder wait merely because the element happens to have a mask.
+            const size = (sizes[index % sizes.length] ?? "auto").trim().toLowerCase();
+            if (size !== "contain" && size !== "cover") return null;
+            const url = cssUrl(layer);
+            return url == null ? null : dimensions(url);
+          }));
+          Object.defineProperty(element, "__domotionMaskIntrinsic", {
+            configurable: true,
+            value: resolved,
+          });
+          targets.push(element);
+        }));
+      });
+    } catch {
+      // Detached/cross-origin frames are already handled as raster boundaries.
+    }
+  }));
+
+  return {
+    async dispose(): Promise<void> {
+      await Promise.all(frames.map(async (frame) => {
+        try {
+          await frame.evaluate(() => {
+            const host = globalThis as unknown as {
+              __domotionMaskIntrinsicTargets?: Element[];
+            };
+            for (const target of host.__domotionMaskIntrinsicTargets ?? []) {
+              try { delete (target as Element & { __domotionMaskIntrinsic?: unknown }).__domotionMaskIntrinsic; } catch {}
+            }
+            delete host.__domotionMaskIntrinsicTargets;
+          });
+        } catch {}
+      }));
+    },
+  };
+}
+
+/**
  * `captureElementTree` + the remote-image embed pass, in one call. **Prefer this
  * over bare `captureElementTree` for any tree whose render reaches output.**
  *
@@ -1215,10 +1345,12 @@ export async function captureElementTreeWithWarnings(
   // session is the only authority. See `src/capture/generic-font-probe.ts`.
   await ensureSessionGenericFamilyOverrides(page);
 
-  const resizerMetrics = await measureBlinkPlatformResizer(page);
-  const pseudoStyles = await captureResolvedControlPseudoStyles(page);
+  const maskIntrinsicPrime = await primeMaskImageIntrinsics(page);
+  let pseudoStyles: Awaited<ReturnType<typeof captureResolvedControlPseudoStyles>> | undefined;
   let result: unknown;
   try {
+    const resizerMetrics = await measureBlinkPlatformResizer(page);
+    pseudoStyles = await captureResolvedControlPseudoStyles(page);
     const captureArgs = {
       sel: selector,
       vp: viewport,
@@ -1230,7 +1362,8 @@ export async function captureElementTreeWithWarnings(
     };
     result = await page.evaluate(`(${CAPTURE_SCRIPT})(${JSON.stringify(captureArgs)})`);
   } finally {
-    await pseudoStyles.dispose();
+    await pseudoStyles?.dispose();
+    await maskIntrinsicPrime.dispose();
   }
   const typed = result as { tree: CapturedElement[]; warnings: CaptureWarning[] };
   const warnings = typed.warnings ?? [];

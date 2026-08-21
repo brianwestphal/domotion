@@ -101,7 +101,7 @@ const captureDocumentTree =
   const { resolveCounterStyle, resolveCounterValue, isCustomCounterStyle } = createCounterStyleResolver({ counterStyles: _counterStyles });
   const { captureListsCounters } = createListsCountersHandler({ normColor, resolveCounterStyle, isCustomCounterStyle, measureFontMetrics: _measureFontMetrics });
   const { handleReplacedElement } = createReplacedElementsHandler({ vp });
-  const { discoverMasks, discoverClipPaths, discoverFilters, maskDefs: _maskDefs, maskRasters: _maskRasters, clipPathDefs: _clipPathDefs, filterDefs: _filterDefs } = createMasksClipsHandler({ vp, warn });
+  const { discoverMasks, computeMaskIntrinsic, discoverClipPaths, discoverFilters, maskDefs: _maskDefs, maskRasters: _maskRasters, clipPathDefs: _clipPathDefs, filterDefs: _filterDefs } = createMasksClipsHandler({ vp, warn });
   const { captureFormControls } = createFormControlsHandler({ normColor, resolvePseudo: _resolvePseudo });
   const { wrapWithFrozenTransform, threadFrozenTransform } = createTransformsHandler();
   const { captureBordersBackgrounds, isTableCellHiddenByEmptyCells } = createBordersBackgroundsHandler({
@@ -601,10 +601,15 @@ const captureDocumentTree =
         mask: cs.mask || cs.webkitMask || '',
         maskImage: cs.maskImage || cs.webkitMaskImage || '',
         maskMode: cs.maskMode || 'match-source',
-        maskSize: cs.maskSize || cs.webkitMaskSize || 'auto',
-        maskPosition: cs.maskPosition || cs.webkitMaskPosition || '0% 0%',
+        // Computed mask lengths are exposed before effective zoom, while the
+        // captured positioning rect is already in painted coordinates. Cross
+        // that boundary once; percentages stay unresolved until Blink's
+        // contain/cover tile has established the free space (DM-2379).
+        maskSize: physicalComputedCssPixelTerms(cs.maskSize || cs.webkitMaskSize || 'auto', _effectiveZoomFor(el)),
+        maskPosition: physicalComputedCssPixelTerms(cs.maskPosition || cs.webkitMaskPosition || '0% 0%', _effectiveZoomFor(el)),
         maskRepeat: cs.maskRepeat || cs.webkitMaskRepeat || 'repeat',
         maskComposite: cs.maskComposite || cs.webkitMaskComposite || 'add',
+        maskIntrinsic: computeMaskIntrinsic(el, cs),
         maskClip: cs.maskClip || cs.webkitMaskClip || 'border-box',
         // DM-758: `mask-border-source` / legacy `-webkit-mask-box-image`. Chrome
         // exposes only the legacy webkit name; modern `maskBorderSource`

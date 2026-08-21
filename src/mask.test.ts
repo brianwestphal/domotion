@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { buildMaskDef, positionFragmentMaskDef, rewriteFragmentMaskDef } from "./render/element-tree-to-svg.js";
+import { describe, expect, it, vi } from "vitest";
+import { buildMaskDef, maskPaintAreas, positionFragmentMaskDef, rewriteFragmentMaskDef } from "./render/element-tree-to-svg.js";
 
 // Locks the SVG <mask> emission for the cases exercised by the html-test
 // suite's 23-mask.html fixture (DM-395).
@@ -233,22 +233,24 @@ describe("buildMaskDef — element() paint refs (DM-494)", () => {
     expect(r.def).toContain('mask-type="alpha"');
   });
 
-  it("element() with mask-size: contain fits inside the consumer box (preserveAspectRatio meet)", () => {
+  it("element() with mask-size: contain emits Blink's concrete fitted rect", () => {
     // raster intrinsic 200x100; consumer 100x100. contain → fits = 100x50.
     const rasters = makeRaster("src", 200, 100);
     const r = buildMaskDef("m", "element(#src)",
       0, 0, 100, 100, "match-source", "contain", "0% 0%", "no-repeat", "add", rasters);
     expect(r.def).toContain('width="100"');
     expect(r.def).toContain('height="50"');
-    expect(r.def).toContain('preserveAspectRatio="xMidYMid meet"');
+    expect(r.def).toContain('preserveAspectRatio="none"');
   });
 
-  it("element() with mask-size: cover fills the consumer (preserveAspectRatio slice)", () => {
+  it("element() with mask-size: cover emits Blink's concrete fitted rect", () => {
     // raster 100x200; consumer 100x100. cover → 100x200 (height fills).
     const rasters = makeRaster("src", 100, 200);
     const r = buildMaskDef("m", "element(#src)",
       0, 0, 100, 100, "match-source", "cover", "0% 0%", "no-repeat", "add", rasters);
-    expect(r.def).toContain('preserveAspectRatio="xMidYMid slice"');
+    expect(r.def).toContain('width="100"');
+    expect(r.def).toContain('height="200"');
+    expect(r.def).toContain('preserveAspectRatio="none"');
   });
 
   it("element() with no resolved raster (no dataUri) skips emission", () => {
@@ -275,5 +277,117 @@ describe("buildMaskDef — element() paint refs (DM-494)", () => {
     // Both layers contribute content.
     expect(r.def).toContain("<linearGradient");
     expect(r.def).toContain('<image href="data:image/png');
+  });
+});
+
+describe("buildMaskDef — exact contain/cover positioning (DM-2379)", () => {
+  const png = 'url("data:image/png;base64,iVBORw0KGgo=")';
+
+  it("does not bucket an interior percentage into SVG midpoint alignment", () => {
+    const out = buildMaskDef(
+      "m", png, 10, 20, 180, 120,
+      "alpha", "contain", "23% 73%", "no-repeat", "add",
+      undefined, [{ w: 200, h: 100 }],
+    ).def;
+    expect(out).toContain('x="10"');
+    expect(out).toContain('y="41.8906"');
+    expect(out).toContain('width="180"');
+    expect(out).toContain('height="90"');
+    expect(out).toContain('preserveAspectRatio="none"');
+    expect(out).not.toMatch(/preserveAspectRatio="x(?:Min|Mid|Max)Y/);
+  });
+
+  it("keeps length and calc offsets exact on a cover tile", () => {
+    const out = buildMaskDef(
+      "m", png, 10, 20, 180, 120,
+      "alpha", "cover", "17px calc(25% + 7px)", "no-repeat", "add",
+      undefined, [{ w: 100, h: 200 }],
+    ).def;
+    expect(out).toContain('x="27"');
+    expect(out).toContain('y="-33"');
+    expect(out).toContain('width="180"');
+    expect(out).toContain('height="360"');
+  });
+
+  it("cycles per-layer positions without sharing aspect or offset state", () => {
+    const out = buildMaskDef(
+      "m", `${png}, ${png}`, 0, 0, 180, 120,
+      "alpha", "contain, cover", "23% 73%, calc(100% - 11px) 25%",
+      "no-repeat, no-repeat", "add",
+      undefined, [{ w: 200, h: 100 }, { w: 100, h: 200 }],
+    ).def;
+    expect(out).toContain('x="-11" y="-60" width="180" height="360"');
+    expect(out).toContain('x="0" y="21.8906" width="180" height="90"');
+  });
+
+  it("reconstructs sliced horizontal and vertical fragment strips", () => {
+    expect(maskPaintAreas(
+      { x: 10, y: 20, width: 80, height: 40 },
+      {
+        fragments: [
+          { x: 10, y: 20, width: 60, height: 20 },
+          { x: 10, y: 40, width: 20, height: 20 },
+        ],
+        writingMode: "horizontal-tb",
+        direction: "ltr",
+        boxDecorationBreak: "slice",
+        fragmentAxis: "inline",
+      },
+    )).toEqual([
+      { x: 10, y: 20, width: 80, height: 20, clip: { x: 10, y: 20, width: 60, height: 20 } },
+      { x: -50, y: 40, width: 80, height: 20, clip: { x: 10, y: 40, width: 20, height: 20 } },
+    ]);
+    expect(maskPaintAreas(
+      { x: 10, y: 20, width: 40, height: 80 },
+      {
+        fragments: [
+          { x: 30, y: 20, width: 20, height: 55 },
+          { x: 10, y: 20, width: 20, height: 25 },
+        ],
+        writingMode: "vertical-rl",
+        direction: "ltr",
+        boxDecorationBreak: "slice",
+        fragmentAxis: "inline",
+      },
+    )[1]).toEqual({
+      x: 10, y: -35, width: 20, height: 80,
+      clip: { x: 10, y: 20, width: 20, height: 25 },
+    });
+  });
+
+  it("restarts contain geometry for cloned fragments", () => {
+    expect(maskPaintAreas(
+      { x: 0, y: 0, width: 100, height: 40 },
+      {
+        fragments: [
+          { x: 0, y: 0, width: 60, height: 20 },
+          { x: 0, y: 20, width: 40, height: 20 },
+        ],
+        boxDecorationBreak: "clone",
+      },
+    ).map(({ width, height }) => [width, height])).toEqual([[60, 20], [40, 20]]);
+  });
+
+  it("does not activate intrinsic fitting for an explicit mask-size", () => {
+    const out = buildMaskDef(
+      "m", png, 0, 0, 120, 90,
+      "alpha", "40px 30px", "17px 9px", "no-repeat", "add",
+    ).def;
+    expect(out).toContain('x="17" y="9" width="40" height="30"');
+  });
+
+  it("uses a transparent layer instead of the retired alignment guess when intrinsic facts are missing", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const out = buildMaskDef(
+        "m", png, 0, 0, 120, 90,
+        "alpha", "contain", "23% 73%", "no-repeat", "add",
+      ).def;
+      expect(out).toContain('fill="transparent"');
+      expect(out).not.toContain("<image");
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("requires captured mask intrinsic dimensions"));
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

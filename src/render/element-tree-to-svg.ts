@@ -24,8 +24,9 @@ import { computeTileSize } from "./conic-raster.js";
 import { isFlexOrGridContainerDisplay, establishesStackingContext, gatherStackingContextChildren, isOverflowOnlySC, isFixedContainingBlock, paintOrderBuckets, paintsAtomicallyAsInlineBox, type PaintOrderBuckets } from "./stacking.js";
 export { parseGradientStops, buildRadialGradientDef, parseBgPositionPx } from "./gradient-defs.js"; // re-export for existing test importers
 import { buildMaskDef, buildMaskBorder9Slice, positionFragmentMaskDef, positionFragmentClipPathDef, rewriteFragmentMaskDef } from "./mask.js";
-// Re-exported for existing importers (mask.test.ts, mask-contain-align.test.ts) — public entry unchanged.
-export { buildMaskDef, positionFragmentMaskDef, rewriteFragmentMaskDef, maskContainAlign } from "./mask.js";
+// Re-export mask helpers used by focused geometry/emission tests.
+export { buildMaskDef, maskPaintAreas, positionFragmentMaskDef, rewriteFragmentMaskDef } from "./mask.js";
+export { resolveMaskContainCoverRect, resolveMaskPosition, resolveMaskPositionAxis } from "./mask-position.js";
 import { parseColor, colorStr, sameColor, shadeColor, type RGBA } from "./colors.js";
 import {
   parseCornerRadii,
@@ -3456,6 +3457,16 @@ function renderMaskPhase(state: RenderState, el: CapturedElement): string | null
         maskRepeat,
         el.styles.maskComposite ?? "add",
         elementMaskRasters,
+        el.styles.maskIntrinsic,
+        el.inlineFragments != null && el.inlineFragments.length > 1
+          ? {
+              fragments: el.inlineFragments,
+              writingMode: el.styles.writingMode,
+              direction: el.styles.direction,
+              boxDecorationBreak: el.styles.boxDecorationBreak,
+              fragmentAxis: el.fragmentAxis,
+            }
+          : undefined,
       );
       if (maskDef.def !== "") {
         maskUrlId = maskDef.id;
@@ -5574,7 +5585,7 @@ function buildConicGradientDef(
 
 // Gradient-def builders (buildLinearGradientDef / buildRadialGradientDef + stop parsing) moved to ./gradient-defs.ts (DM-1305).
 
-// Mask + fragment-def builders (buildMaskDef, buildMaskBorder9Slice, rewriteFragmentMaskDef, positionFragment*Def, maskContainAlign) moved to ./mask.ts (DM-1305).
+// Mask + fragment-def builders (buildMaskDef, buildMaskBorder9Slice, rewriteFragmentMaskDef, positionFragment*Def) moved to ./mask.ts (DM-1305/DM-2379).
 
 /**
  * Compose an element's CSS 2D transform into the SVG `<g transform>` value,

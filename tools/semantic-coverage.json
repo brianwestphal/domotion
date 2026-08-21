@@ -553,33 +553,38 @@
         "border-box -> fill/stroke/view-box",
         "alpha -> luminance",
         "single -> multiple composed layers",
-        "center position -> arbitrary position"
+        "center position -> arbitrary position",
+        "mask-origin equals mask-clip -> mask-origin differs from mask-clip on HTML URL layers"
       ],
       "exactStates": [
         "none -> image/gradient/reference",
         "objectBoundingBox -> userSpaceOnUse",
         "border-box -> fill/stroke/view-box",
         "alpha -> luminance",
-        "single -> multiple composed layers"
+        "single -> multiple composed layers",
+        "center position -> arbitrary position"
       ],
       "uncoveredStates": [
-        "center position -> arbitrary position"
+        "mask-origin equals mask-clip -> mask-origin differs from mask-clip on HTML URL layers"
       ],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/paint",
         "external/chromium/third_party/blink/renderer/core/layout/svg"
       ],
       "productionOwners": [
+        "src/render/mask-position.ts",
         "src/render/mask.ts",
         "src/render/clip-path.ts",
         "src/capture/script/walker/masks-clips.ts"
       ],
       "oracles": [
         "tools/paint-geometry-oracle.ts",
-        "tools/paint-geometry-browser-oracle.ts"
+        "tools/paint-geometry-browser-oracle.ts",
+        "tests/mask-position-contain-cover.e2e.test.ts"
       ],
       "metamorphicTests": [
-        "src/render/mask-contain-align.test.ts",
+        "src/render/mask-position.test.ts",
+        "src/mask.test.ts",
         "src/render/svg-inline.test.ts"
       ],
       "visualFixtures": [
@@ -587,7 +592,7 @@
         "tests/features.ts#clip-path-userspaceonuse-fragment"
       ],
       "coverage": "partial",
-      "boundary": "Arbitrary contain/cover positions, URL clip origins, and full SVG effect combinations are not exact.",
+      "boundary": "Arbitrary URL contain/cover positions are exact for Chromium-decoded intrinsic ratios, including zoomed computed px terms and fragmented inline strips. Distinct HTML mask-origin/mask-clip geometry and the full future SVG effect combination space remain partial.",
       "featureIds": [
         "render.tree-to-svg"
       ],

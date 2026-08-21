@@ -134,7 +134,12 @@ shortest possible map:
   doc 99), svg2ttf outline rebuild otherwise;
   `synth-test-fonts.ts` synthesizes deterministic hinted/variable test fonts
   for the subset unit tests;
-  `mask.ts` owns mask-def emission; `borders.ts` owns border math;
+  `mask.ts` owns mask-def emission and fragmented mask-strip composition;
+  `mask-position.ts` owns Blink's concrete contain/cover tile fitting plus
+  physical length-percentage/calc position resolution. Capture awaits URL-mask
+  natural dimensions in `primeMaskImageIntrinsics`, physicalizes computed px
+  terms once, and SVG samples the resulting rectangle with
+  `preserveAspectRatio="none"` (DM-2379, doc 20). `borders.ts` owns border math;
   `svg-inline.ts` inlines an `<img src="*.svg">` as a native, id-namespaced
   nested `<svg>` (`prefixSvgIds`/`inlineImgSvg`, DM-1588, doc 96), and namespaces
   captured DOM inline-SVG fragment ids per source document/shadow-root scope — crisp at

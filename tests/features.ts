@@ -775,6 +775,24 @@ export const tests: FeatureTest[] = [
   },
 
   {
+    // DM-2379: contain/cover first become concrete Blink-owned image rects;
+    // arbitrary length-percentage positions are not SVG Min/Mid/Max buckets.
+    // The source images have asymmetric alpha so cover positioning remains
+    // visible after clipping. Vertical writing is a physical-axis control and
+    // the final cell crosses the computed-px/effective-zoom boundary.
+    name: "mask-contain-cover-arbitrary-position",
+    html: `<div style="padding:12px;display:flex;flex-wrap:wrap;align-items:flex-start;gap:12px;background:#fff;width:600px">
+      <div style="width:120px;height:90px;background:#1b7ae0;mask-mode:alpha;mask-repeat:no-repeat;mask-image:url(&quot;data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22100%22 viewBox=%220 0 200 100%22%3E%3Crect width=%2286%22 height=%22100%22 fill=%22black%22/%3E%3C/svg%3E&quot;);mask-size:contain;mask-position:23% 73%"></div>
+      <div style="width:120px;height:90px;background:#16a34a;mask-mode:alpha;mask-repeat:no-repeat;mask-image:url(&quot;data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22100%22 viewBox=%220 0 200 100%22%3E%3Crect width=%2286%22 height=%22100%22 fill=%22black%22/%3E%3C/svg%3E&quot;);mask-size:contain;mask-position:17px 9px"></div>
+      <div style="width:120px;height:90px;background:#dc2626;mask-mode:alpha;mask-repeat:no-repeat;mask-image:url(&quot;data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22200%22 viewBox=%220 0 100 200%22%3E%3Crect width=%22100%22 height=%2276%22 fill=%22black%22/%3E%3C/svg%3E&quot;);mask-size:cover;mask-position:17px calc(25% + 7px)"></div>
+      <div style="width:120px;height:90px;background:#7c3aed;writing-mode:vertical-rl;mask-mode:alpha;mask-repeat:no-repeat;mask-image:url(&quot;data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22100%22 viewBox=%220 0 200 100%22%3E%3Crect width=%2286%22 height=%22100%22 fill=%22black%22/%3E%3C/svg%3E&quot;);mask-size:contain;mask-position:calc(25% + 7px) 73%"></div>
+      <div style="width:120px;height:90px;zoom:1.25;background:#c2410c;mask-mode:alpha;mask-repeat:no-repeat;mask-image:url(&quot;data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22100%22 viewBox=%220 0 200 100%22%3E%3Crect width=%2286%22 height=%22100%22 fill=%22black%22/%3E%3C/svg%3E&quot;);mask-size:contain;mask-position:calc(25% + 7px) calc(75% - 3px)"></div>
+    </div>`,
+    width: 630,
+    height: 230,
+  },
+
+  {
     // DM-2308: SVG natively carries opaque sRGB/linearRGB gradients; spaces
     // and premultiplied-alpha curves SVG cannot express are tiled from the
     // already-running Chromium capture page without sampled-stop fitting.

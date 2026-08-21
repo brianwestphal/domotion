@@ -13,6 +13,16 @@ import { buildImagePatternDef } from "./image-pattern.js";
 import { buildLinearGradientDef, buildRadialGradientDef } from "./gradient-defs.js";
 import { advancedGradientTile, needsChromiumGradientRaster } from "./advanced-gradient-raster.js";
 import type { CapturedElement, MaskRasterRef } from "../capture/types.js";
+import {
+  resolveMaskContainCoverRect,
+  type MaskImageRect,
+  type MaskIntrinsicSize,
+} from "./mask-position.js";
+
+// Mask-position resolves in Blink's 1/64px LayoutUnit space. The renderer's
+// general one-decimal formatter is intentionally compact, but throwing away
+// that precision here can move a high-DPR mask edge by a device pixel.
+const mr = (value: number): string => Number(value.toFixed(4)).toString();
 
 /**
  * Rewrite a captured `<mask>` element's `outerHTML` so it can be safely
@@ -464,36 +474,6 @@ export function buildMaskBorder9Slice(
   return { id: maskId, def, nextClipIdx: clipIdx };
 }
 
-/**
- * DM-1251: map a `mask-position` token list to an SVG `preserveAspectRatio`
- * alignment (`<xAlign><yAlign>`) for the `mask-size: contain|cover` path, where
- * the <image> fills the element box and the fitted image is aligned within it.
- * Keywords (left/right/top/bottom/center) and 0/50/100% map exactly; other
- * percentages / px approximate to the nearest Min/Mid/Max (SVG offers no finer
- * alignment). Keyword order is irrelevant (`top left` == `left top`).
- */
-export function maskContainAlign(posTokens: string[]): string {
-  let x = "xMid", y = "YMid";
-  let xSet = false, ySet = false;
-  const pctAlign = (v: number): string => (v <= 0 ? "Min" : v >= 100 ? "Max" : "Mid");
-  for (const tok of posTokens) {
-    const t = tok.trim().toLowerCase();
-    if (t === "left") { x = "xMin"; xSet = true; }
-    else if (t === "right") { x = "xMax"; xSet = true; }
-    else if (t === "top") { y = "YMin"; ySet = true; }
-    else if (t === "bottom") { y = "YMax"; ySet = true; }
-    else if (t === "center" || t === "") { /* ambiguous axis — leave as Mid */ }
-    else if (/%$/.test(t)) {
-      // Positional: first unset axis is horizontal, then vertical.
-      const a = pctAlign(parseFloat(t));
-      if (!xSet) { x = "x" + a; xSet = true; }
-      else if (!ySet) { y = "Y" + a; ySet = true; }
-    }
-    // px / unrecognized: leave as Mid (approximation).
-  }
-  return x + y;
-}
-
 /** Inputs for one mask-image layer — the per-layer slice of `buildMaskDef`'s
  *  args plus the already-resolved size/position/repeat for that layer index. */
 interface MaskLayerInput {
@@ -509,6 +489,7 @@ interface MaskLayerInput {
   layerPos: string;
   layerRepeat: string;
   elementRasters?: ReadonlyMap<string, MaskRasterRef>;
+  intrinsic?: MaskIntrinsicSize | null;
 }
 
 function maskRepeatAxes(value: string): [string, string] {
@@ -516,6 +497,52 @@ function maskRepeatAxes(value: string): [string, string] {
   if (tokens[0] === "repeat-x") return ["repeat", "no-repeat"];
   if (tokens[0] === "repeat-y") return ["no-repeat", "repeat"];
   return [tokens[0] || "repeat", tokens[1] ?? tokens[0] ?? "repeat"];
+}
+
+export interface MaskFragmentGeometry {
+  fragments: ReadonlyArray<{ x: number; y: number; width: number; height: number }>;
+  writingMode?: string;
+  direction?: string;
+  boxDecorationBreak?: string;
+  fragmentAxis?: string;
+}
+
+interface MaskPaintArea extends MaskImageRect {
+  clip?: MaskImageRect;
+}
+
+/**
+ * Reconstruct InlineBoxFragmentPainter::PaintRectForImageStrip. A sliced
+ * inline paints one continuous image strip, translated for each line and
+ * clipped to that line's physical fragment. Clone/block fragments restart
+ * their own positioning area. Physical x/y remain physical in every writing
+ * mode; writing mode only selects the strip axis. DM-2379.
+ */
+export function maskPaintAreas(
+  fallback: MaskImageRect,
+  context?: MaskFragmentGeometry,
+): MaskPaintArea[] {
+  const fragments = context?.fragments ?? [];
+  if (fragments.length <= 1) return [fallback];
+  const clone = context?.boxDecorationBreak === "clone";
+  const blockFragmented = context?.fragmentAxis === "block";
+  if (clone || blockFragmented) {
+    return fragments.map((fragment) => ({ ...fragment, clip: { ...fragment } }));
+  }
+
+  const vertical = /^(?:vertical|sideways)-/.test(context?.writingMode ?? "horizontal-tb");
+  const rtl = context?.direction === "rtl";
+  const total = fragments.reduce((sum, fragment) => sum + (vertical ? fragment.height : fragment.width), 0);
+  let consumed = 0;
+  return fragments.map((fragment) => {
+    const extent = vertical ? fragment.height : fragment.width;
+    const offset = rtl ? total - consumed - extent : consumed;
+    consumed += extent;
+    const area = vertical
+      ? { x: fragment.x, y: fragment.y - offset, width: fragment.width, height: total }
+      : { x: fragment.x - offset, y: fragment.y, width: total, height: fragment.height };
+    return { ...area, clip: { ...fragment } };
+  });
 }
 
 /**
@@ -528,7 +555,7 @@ function maskRepeatAxes(value: string): [string, string] {
  * emission of an empty `<mask>` in that case.
  */
 function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide: boolean } {
-  const { id, li, elX, elY, w, h, layer, layerSize, layerPos, layerRepeat, elementRasters } = input;
+  const { id, li, elX, elY, w, h, layer, layerSize, layerPos, layerRepeat, elementRasters, intrinsic: capturedIntrinsic } = input;
   const contents: string[] = [];
   const gradient = /^(?:repeating-)?(linear|radial)-gradient\(/i.test(layer);
   if (gradient) {
@@ -645,17 +672,13 @@ function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide:
       if (/%$/.test(tok)) return (parseFloat(tok) / 100) * basis;
       return parseFloat(tok) || intrinsicDim;
     };
-    let par: "meet" | "slice" = "meet";
-    if (layerSize === "contain") {
-      const scale = Math.min(w / intrinsic.w, h / intrinsic.h);
-      imgW = intrinsic.w * scale;
-      imgH = intrinsic.h * scale;
-      par = "meet";
-    } else if (layerSize === "cover") {
-      const scale = Math.max(w / intrinsic.w, h / intrinsic.h);
-      imgW = intrinsic.w * scale;
-      imgH = intrinsic.h * scale;
-      par = "slice";
+    let fitted: MaskImageRect | null = null;
+    if (layerSize === "contain" || layerSize === "cover") {
+      fitted = resolveMaskContainCoverRect(
+        { x: elX, y: elY, width: w, height: h }, intrinsic, layerSize, layerPos,
+      );
+      if (fitted == null) return { contents, forceHide: false };
+      imgW = fitted.width; imgH = fitted.height;
     } else {
       imgW = resolveSize(sizeTok[0], w, intrinsic.w);
       imgH = sizeTok.length > 1 ? resolveSize(sizeTok[1], h, intrinsic.h) : imgW * (intrinsic.h / intrinsic.w);
@@ -675,9 +698,9 @@ function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide:
       if (/%$/.test(t)) return (parseFloat(t) / 100) * (h - imgH);
       return parseFloat(t) || 0;
     };
-    const ix = elX + resolveH(posTok[0] ?? "0%");
-    const iy = elY + resolveV(posTok[1] ?? posTok[0] ?? "0%");
-    contents.push(`<image href="${raster.dataUri}" x="${r(ix)}" y="${r(iy)}" width="${r(imgW)}" height="${r(imgH)}" preserveAspectRatio="xMidYMid ${par}" />`);
+    const ix = fitted?.x ?? (elX + resolveH(posTok[0] ?? "0%"));
+    const iy = fitted?.y ?? (elY + resolveV(posTok[1] ?? posTok[0] ?? "0%"));
+    contents.push(`<image href="${raster.dataUri}" x="${mr(ix)}" y="${mr(iy)}" width="${mr(imgW)}" height="${mr(imgH)}" preserveAspectRatio="none" />`);
     return { contents, forceHide: false };
   }
   // Use parseCssUrl (which handles quoted/unquoted and data: URIs with
@@ -724,16 +747,23 @@ function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide:
         if (/%$/.test(tok)) return (parseFloat(tok) / 100) * basis;
         return parseFloat(tok) || intrinsicDim;
       };
+      let fitted: MaskImageRect | null = null;
       if (layerSize === "contain" || layerSize === "cover") {
-        // DM-1251: contain/cover scale the mask image (preserving its aspect)
-        // to fit-inside / cover the element box. SVG's
-        // `preserveAspectRatio="<align> meet|slice"` on an <image> sized to the
-        // box does exactly that using the image's OWN intrinsic aspect — so no
-        // captured intrinsic dims are needed (verified vs Chrome). mask-position
-        // maps to the align keyword (left/top→Min, center→Mid, right/bottom→Max;
-        // 0/50/100% positional) — computed below; intermediate %/px approximate
-        // to the nearest Min/Mid/Max (preserveAspectRatio offers no finer grain).
-        imgW = w; imgH = h;
+        fitted = capturedIntrinsic == null ? null : resolveMaskContainCoverRect(
+          { x: elX, y: elY, width: w, height: h },
+          capturedIntrinsic,
+          layerSize,
+          layerPos,
+        );
+        if (fitted == null) {
+          console.warn(`[domotion] mask-size:${layerSize} requires captured mask intrinsic dimensions; omitting inexact layer`);
+          // A CSS image mask layer whose source cannot supply natural sizing
+          // contributes transparent black; do not turn a failed exactness
+          // probe into an unmasked (fully visible) element.
+          contents.push(`<rect x="${r(elX)}" y="${r(elY)}" width="${r(w)}" height="${r(h)}" fill="transparent" />`);
+          return { contents, forceHide: false };
+        }
+        imgW = fitted.width; imgH = fitted.height;
       } else {
         imgW = resolveSize(sizeTok[0], w, w);
         imgH = sizeTok.length > 1 ? resolveSize(sizeTok[1], h, h) : imgW;
@@ -753,21 +783,17 @@ function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide:
         if (/%$/.test(t)) return (parseFloat(t) / 100) * (h - imgH);
         return parseFloat(t) || 0;
       };
-      const ix = elX + resolveH(posTok[0] ?? "0%");
-      const iy = elY + resolveV(posTok[1] ?? posTok[0] ?? "0%");
-      // For contain/cover, position is expressed via the preserveAspectRatio
-      // align (the <image> fills the box and the fitted image aligns within it);
-      // for an explicit size the image box is the resolved size at ix/iy.
-      const par = (layerSize === "contain" || layerSize === "cover")
-        ? `${maskContainAlign(posTok)} ${layerSize === "contain" ? "meet" : "slice"}`
-        : "xMidYMid meet";
-      contents.push(`<image href="${esc(embedResizedDataUri(urlHref, imgW, imgH))}" x="${r(ix)}" y="${r(iy)}" width="${r(imgW)}" height="${r(imgH)}" preserveAspectRatio="${par}" />`);
+      const ix = fitted?.x ?? (elX + resolveH(posTok[0] ?? "0%"));
+      const iy = fitted?.y ?? (elY + resolveV(posTok[1] ?? posTok[0] ?? "0%"));
+      // SVG only samples the concrete Blink-owned tile rectangle; it must not
+      // perform a second contain/cover alignment decision (DM-2379).
+      contents.push(`<image href="${esc(embedResizedDataUri(urlHref, imgW, imgH))}" x="${mr(ix)}" y="${mr(iy)}" width="${mr(imgW)}" height="${mr(imgH)}" preserveAspectRatio="none" />`);
     } else {
       // Repeating mask: fall back to pattern. Since mask-type=alpha, the
       // pattern itself needs to be backed by an <image> that's clipped to
       // the tile size so outside-tile pixels are transparent.
       const patId = `${id}p${li}`;
-      const patDef = buildImagePatternDef(patId, urlHref, elX, elY, w, h, layerSize, layerPos, layerRepeat, null);
+      const patDef = buildImagePatternDef(patId, urlHref, elX, elY, w, h, layerSize, layerPos, layerRepeat, capturedIntrinsic ?? null);
       if (patDef === "") return { contents, forceHide: false };
       contents.push(patDef);
       contents.push(`<rect x="${r(elX)}" y="${r(elY)}" width="${r(w)}" height="${r(h)}" fill="url(#${patId})" />`);
@@ -786,6 +812,10 @@ export function buildMaskDef(
    *  threads through `elementMaskRasters` (collected from tree[0].maskRasters);
    *  unit tests can pass undefined to exercise the non-element() branches. */
   elementRasters?: ReadonlyMap<string, MaskRasterRef>,
+  /** Per-mask-image natural dimensions captured from Chromium. */
+  maskIntrinsic?: ReadonlyArray<MaskIntrinsicSize | null>,
+  /** Wrapped-inline / fragmented paint geometry (DM-2379). */
+  fragmentGeometry?: MaskFragmentGeometry,
 ): { id: string; def: string } {
   const layers = splitTopLevelCommas(maskImage);
   const sizeLayers = splitTopLevelCommas(sizeCss);
@@ -825,17 +855,39 @@ export function buildMaskDef(
   // what we want), so force emission of an empty mask when it's set.
   let forceHide = false;
   const cyclic = (values: string[], index: number, fallback: string): string => values.length > 0 ? values[index % values.length] : fallback;
+  const paintAreas = maskPaintAreas(
+    { x: elX, y: elY, width: w, height: h },
+    fragmentGeometry,
+  );
   for (let li = layers.length - 1; li >= 0; li--) {
-    const result = buildMaskLayer({
-      id, li, elX, elY, w, h,
-      layer: layers[li].trim(),
-      layerSize: cyclic(sizeLayers, li, "auto").trim(),
-      layerPos: cyclic(posLayers, li, "0% 0%").trim(),
-      layerRepeat: cyclic(repeatLayers, li, "repeat").trim(),
-      elementRasters,
-    });
-    layerContents[li] = result.contents;
-    if (result.forceHide) forceHide = true;
+    const contents: string[] = [];
+    for (let areaIndex = 0; areaIndex < paintAreas.length; areaIndex++) {
+      const area = paintAreas[areaIndex];
+      const fragmentSuffix = paintAreas.length > 1 ? `f${areaIndex}` : "";
+      const result = buildMaskLayer({
+        id: `${id}${fragmentSuffix}`, li,
+        elX: area.x, elY: area.y, w: area.width, h: area.height,
+        layer: layers[li].trim(),
+        layerSize: cyclic(sizeLayers, li, "auto").trim(),
+        layerPos: cyclic(posLayers, li, "0% 0%").trim(),
+        layerRepeat: cyclic(repeatLayers, li, "repeat").trim(),
+        elementRasters,
+        intrinsic: maskIntrinsic == null || maskIntrinsic.length === 0
+          ? null
+          : maskIntrinsic[li % maskIntrinsic.length],
+      });
+      if (area.clip == null) {
+        contents.push(...result.contents);
+      } else if (result.contents.length > 0) {
+        const clipId = `${id}fc${li}-${areaIndex}`;
+        contents.push(
+          `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><rect x="${r(area.clip.x)}" y="${r(area.clip.y)}" width="${r(area.clip.width)}" height="${r(area.clip.height)}" /></clipPath>`,
+          `<g clip-path="url(#${clipId})">${result.contents.join("")}</g>`,
+        );
+      }
+      if (result.forceHide) forceHide = true;
+    }
+    layerContents[li] = contents;
   }
   // Drop empty layers (e.g. unsupported layer values) to simplify downstream.
   const activeLayers = layerContents.map((contents, index) => ({ contents, index })).filter((layer) => layer.contents.length > 0);
@@ -887,7 +939,10 @@ export function buildMaskDef(
   const gateLastWithMask = (items: string[], maskId: string): string[] => {
     if (items.length === 0) return items;
     const cloned = items.slice();
-    cloned[cloned.length - 1] = cloned[cloned.length - 1].replace(/\/>$/, ` mask="url(#${maskId})"/>`);
+    const last = cloned[cloned.length - 1];
+    cloned[cloned.length - 1] = /\/>$/.test(last)
+      ? last.replace(/\/>$/, ` mask="url(#${maskId})"/>`)
+      : `<g mask="url(#${maskId})">${last}</g>`;
     return cloned;
   };
 

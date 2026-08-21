@@ -77,13 +77,13 @@
     },
     {
       "id": "gradients-masks-clips",
-      "domotionSources": ["src/render/gradients.ts", "src/render/element-tree-to-svg.ts"],
+      "domotionSources": ["src/render/gradients.ts", "src/render/mask-position.ts", "src/render/mask.ts", "src/render/element-tree-to-svg.ts", "src/capture/script/walker/masks-clips.ts"],
       "upstreamSources": ["external/chromium/third_party/blink/renderer/core/paint", "external/skia/src/core"],
       "oracle": "tools/paint-geometry-oracle.ts",
-      "browserOracle": "tools/paint-geometry-browser-oracle.ts",
+      "browserOracle": "tests/mask-position-contain-cover.e2e.test.ts",
       "sourceAudit": "partial",
       "oracleStatus": "partial-stage-gate",
-      "generatedCoverage": "generated linear magic-corner boxes, radial ending shapes plus positive/negative/out-of-range repeating and non-repeating domains, stop fixup and nine-stop hints, explicit interpolation-space/vector-raster routing, conic center/from-angle/stop and repeating-negative domains, effective-zoom tile sizing and Chromium raster ownership, basic clip shapes, HTML geometry reference boxes and rounded insets, SVG object/stroke/local-viewport reference-box classes with an HTML-mapping mutation control, mask size/position/per-axis repeat/round/space/cyclic lists and bottom-up mixed composition, fragment coordinates, plus curated visual fixtures",
+      "generatedCoverage": "generated linear magic-corner boxes, radial ending shapes plus positive/negative/out-of-range repeating and non-repeating domains, stop fixup and nine-stop hints, explicit interpolation-space/vector-raster routing, conic center/from-angle/stop and repeating-negative domains, effective-zoom tile sizing and Chromium raster ownership, basic clip shapes, HTML geometry reference boxes and rounded insets, SVG object/stroke/local-viewport reference-box classes with an HTML-mapping mutation control, mask size/position/per-axis repeat/round/space/cyclic lists and bottom-up mixed composition, exact arbitrary contain/cover percentage/length/calc positions with zoom/DPR/physical-writing axes and sliced/cloned fragments, fragment coordinates, plus curated visual fixtures",
       "platformCoverage": ["darwin", "linux", "win32"],
       "knownGap": "Covered radial, conic, HTML, and SVG geometry-box decisions have structured source and browser evidence. The matrix is not an exhaustive inventory of future SVG effect/property combinations.",
       "nextAction": "Add a source-linked row and discriminator whenever a new gradient, mask, clip, or SVG effect transition enters production."

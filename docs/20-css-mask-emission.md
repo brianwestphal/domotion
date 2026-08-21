@@ -17,7 +17,7 @@ Until DM-470, the capture path warned `mask: captured but not emitted — mask s
 `buildMaskDef()` covers:
 
 - `mask-image: linear-gradient(...)` / `radial-gradient(...)` / `repeating-…-gradient(...)` — emitted as `<linearGradient>` / `<radialGradient>` painted into a sized `<rect>` inside the `<mask>`, with `mask-size` / `mask-position` honored.
-- `mask-image: url("…")` — emitted as `<image>` inside the `<mask>`, sized via `mask-size` (auto / contain / cover / explicit) and offset via `mask-position` (keywords + percentages).
+- `mask-image: url("…")` — emitted as `<image>` inside the `<mask>`, sized via `mask-size` (auto / contain / cover / explicit) and offset via the computed two-axis `mask-position` (percentages, lengths, and linear `calc()` mixtures).
 - Multi-layer `mask-image: a, b, c` — flattened into one `<mask>` for the additive composite (the common default). `mask-composite: intersect` chains nested masks.
 - `mask-mode: alpha | luminance` — translates to SVG `mask-type` on the `<mask>` element. Defaults to `alpha` for gradients / bitmaps (matches Chromium's practical behavior for `mask-mode: match-source`).
 
@@ -33,6 +33,67 @@ These two cases now emit SVG output:
 Still imperfect:
 
 - **CSS-only `-webkit-mask` shorthand** — when the author uses the vendor-prefixed shorthand and Chromium resolves `getComputedStyle().maskImage` to `none` (some browser-version combos), our emission path bails. CAPTURE_SCRIPT already fallbacks to `cs.webkitMaskImage` on lines 2141-2148; verify that's still firing correctly post-DM-470.
+
+## Exact contain/cover position ownership (DM-2379)
+
+The old URL-mask path sized `<image>` to the whole positioning box and asked
+SVG `preserveAspectRatio="xMin|Mid|Max YMin|Mid|Max meet|slice"` to fit and
+align it. That is exact only at 0%, 50%, and 100%. `23% 73%`, `17px 9px`, and
+`calc(25% + 7px)` were all reduced to one of three alignment buckets.
+
+The source-owned path is now:
+
+1. `primeMaskImageIntrinsics()` awaits Chromium's decoder and records each
+   contain/cover URL layer's natural width/height plus a Chromium-laid-out
+   intrinsic aspect. The separate aspect is necessary because integer
+   `naturalWidth`/`naturalHeight` lose fractional SVG viewBox ratios (a 3:7
+   viewBox reports 64x150). The synchronous capture walk consumes those
+   page-owned facts as `styles.maskIntrinsic`; it does not guess from the URL.
+   The probe activates only for contain/cover layers and is removed after the
+   walk.
+2. Computed `mask-position` and `mask-size` px terms cross effective CSS zoom
+   once during capture. Percentage terms remain unresolved.
+3. `resolveMaskContainCoverRect()` (`src/render/mask-position.ts`) reproduces
+   Blink's snapped positioning area, contain dependent-dimension rounding,
+   cover LayoutUnit precision, and resolution of each physical axis against
+   `positioning-area - concrete-tile`. Negative free space is intentional for
+   cover.
+4. SVG receives that concrete `x/y/width/height` with
+   `preserveAspectRatio="none"`. SVG/Skia own sampling that rectangle, but do
+   not make a second fit/alignment decision.
+5. A sliced wrapped inline builds the same continuous strip as Blink and clips
+   it to each physical fragment. `box-decoration-break: clone` and block
+   fragments restart the positioning area per fragment. Vertical writing swaps
+   the strip axis only; `mask-position` x/y remain physical axes.
+
+The source audit is pinned to Chromium
+`7d859f271cbda744098ac69f44978d4edfa62be3`:
+
+- `third_party/blink/renderer/core/paint/background_image_geometry.cc` —
+  `ResolveXPosition` / `ResolveYPosition`, `CalculateFillTileSize`, and
+  `CalculateRepeatAndPosition` own edge-relative length-percentage resolution,
+  contain/cover fitting, snapping, and no-repeat/repeat phase.
+- `third_party/blink/renderer/core/css/resolver/css_to_style_map.cc` —
+  `MapFillPositionX/Y` stores the physical edge origin plus its exact `Length`.
+- `third_party/blink/renderer/core/paint/inline_box_fragment_painter.cc` —
+  `PaintRectForImageStrip` and `PaintFillLayer` own slice-vs-clone fragment
+  continuation and clipping.
+- Chromium DEPS pins Skia
+  `62efacd37737505732dbe3d8daa62abd679626a1`; `include/core/SkCanvas.h`'s
+  `drawImageRect` destination-rectangle API is the downstream sampling seam.
+
+If Chromium cannot decode a contain/cover URL to a positive intrinsic ratio,
+the renderer emits a transparent mask layer with an actionable warning. It
+does not make the element accidentally unmasked, and it does not fall back to
+the retired Min/Mid/Max quantization that would silently reintroduce the known
+wrong geometry.
+
+Focused evidence lives in `src/render/mask-position.test.ts`,
+`src/mask.test.ts`, and
+`tests/mask-position-contain-cover.e2e.test.ts`. The browser oracle covers
+percentage, length, calc, physical vertical-writing axes, CSS zoom, DPR 1/2,
+slice/clone fragments, and independently positioned multi-layer masks, plus a
+mutation assertion that rejects any contain/cover Min/Mid/Max alignment.
 
 ## Requirement (this ticket)
 

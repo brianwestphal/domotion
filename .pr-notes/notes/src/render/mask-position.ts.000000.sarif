@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3gstqkndijykhc",
+          "message": {
+            "text": "Blink, not SVG alignment, owns the final contain/cover rectangle. Chromium 7d859f271c BackgroundImageGeometry first fits against the pixel-snapped positioning area, rounds only contain's dependent dimension, and then resolves each physical length-percentage axis against unsnapped free space; retaining 1/64px LayoutUnit precision here prevents SVG Min/Mid/Max from quantizing arbitrary positions. The concrete rectangle is consumed by src/render/mask.ts with preserveAspectRatio=none.",
+            "markdown": "Blink, not SVG alignment, owns the final contain/cover rectangle. Chromium 7d859f271c BackgroundImageGeometry first fits against the pixel-snapped positioning area, rounds only contain's dependent dimension, and then resolves each physical length-percentage axis against unsnapped free space; retaining 1/64px LayoutUnit precision here prevents SVG Min/Mid/Max from quantizing arbitrary positions. The concrete rectangle is consumed by src/render/mask.ts with preserveAspectRatio=none."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/mask-position.ts"
+                },
+                "region": {
+                  "startLine": 149,
+                  "endLine": 206,
+                  "snippet": {
+                    "text": "\n/**\n * Produce Blink's concrete no-repeat contain/cover tile rectangle.\n *\n * The independent dimension exactly fills the pixel-snapped positioning area.\n * For contain Blink rounds the dependent dimension to an integer CSS pixel to\n * avoid sampling bleed. Cover retains LayoutUnit (1/64 px) precision.\n * Position still resolves against the *unsnapped* positioning extent minus\n * that concrete tile, matching CalculateRepeatAndPosition.\n */\nexport function resolveMaskContainCoverRect(\n  area: MaskImageRect,\n  intrinsic: MaskIntrinsicSize,\n  sizing: \"contain\" | \"cover\",\n  position: string,\n): MaskImageRect | null {\n  if (\n    area.width <= 0 || area.height <= 0\n    || !Number.isFinite(intrinsic.w) || !Number.isFinite(intrinsic.h)\n    || intrinsic.w <= 0 || intrinsic.h <= 0\n  ) return null;\n\n  const snappedWidth = snappedExtent(area.x, area.width);\n  const snappedHeight = snappedExtent(area.y, area.height);\n  if (snappedWidth <= 0 || snappedHeight <= 0) return null;\n\n  const aspectWidth = Math.max(1 / LAYOUT_UNIT_SCALE, toLayoutUnit(intrinsic.w));\n  const aspectHeight = Math.max(1 / LAYOUT_UNIT_SCALE, toLayoutUnit(intrinsic.h));\n  const constrainedHeight = toLayoutUnit(snappedWidth * aspectHeight / aspectWidth);\n  const grow = sizing === \"cover\";\n  let tileWidth: number;\n  let tileHeight: number;\n  if ((grow && constrainedHeight < snappedHeight) || (!grow && constrainedHeight > snappedHeight)) {\n    tileWidth = toLayoutUnit(snappedHeight * aspectWidth / aspectHeight);\n    tileHeight = snappedHeight;\n  } else {\n    tileWidth = snappedWidth;\n    tileHeight = constrainedHeight;\n  }\n\n  if (sizing === \"contain\") {\n    if (tileWidth !== snappedWidth) tileWidth = Math.max(1, roundLayoutUnit(tileWidth));\n    if (tileHeight !== snappedHeight) tileHeight = Math.max(1, roundLayoutUnit(tileHeight));\n  } else {\n    if (tileWidth !== snappedWidth) tileWidth = Math.max(1, tileWidth);\n    if (tileHeight !== snappedHeight) tileHeight = Math.max(1, tileHeight);\n  }\n\n  const offset = resolveMaskPosition(\n    position,\n    toLayoutUnit(area.width - tileWidth),\n    toLayoutUnit(area.height - tileHeight),\n  );\n  return {\n    x: toLayoutUnit(area.x + offset.x),\n    y: toLayoutUnit(area.y + offset.y),\n    width: tileWidth,\n    height: tileHeight,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/mask.ts"
+                },
+                "region": {
+                  "startLine": 760
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2379"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "3e649fb251a6f2d89833b9c333022e6a"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "7b90459ebedba68b321342c23969a3276e1bc8e4",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

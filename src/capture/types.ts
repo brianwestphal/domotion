@@ -404,6 +404,14 @@ export interface CapturedStyles {
   maskRepeat: string;
   maskComposite: string;
   /**
+   * Natural dimensions for each computed `mask-image` layer. URL-backed
+   * entries are measured by Chromium at capture time; gradients and other
+   * non-raster sources are null. Contain/cover only needs the ratio, but both
+   * dimensions are retained so no renderer-side asset sniffing is required.
+   * DM-2379.
+   */
+  maskIntrinsic?: Array<{ w: number; h: number; ratio?: number } | null>;
+  /**
    * CSS `mask-clip` — the box (border-box / padding-box / content-box / etc.)
    * the mask painted area is clipped to. Defaults to `border-box`. Captured
    * separately from `mask-origin` because Chromium retains both verbatim
@@ -1113,8 +1121,8 @@ export interface CapturedElement {
   /**
    * Per-line-fragment rects (viewport-relative px) for inline elements that
    * wrap across multiple line boxes. Populated by capture when the element
-   * is `display: inline` AND has a non-transparent background or non-zero
-   * border AND `el.getClientRects().length > 1`. When present, the renderer
+   * is `display: inline` AND has a non-transparent background, non-zero
+   * border, or mask image AND `el.getClientRects().length > 1`. When present, the renderer
    * paints the background + border per-fragment instead of once across the
    * element's bbox — without this, an inline span like `<span class="hl">…
    * wrapping text …</span>` paints a single rectangle covering the whole

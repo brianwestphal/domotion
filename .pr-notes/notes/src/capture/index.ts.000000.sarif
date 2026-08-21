@@ -319,6 +319,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3gstqk2932paiz",
+          "message": {
+            "text": "The intrinsic-size seam must be awaited and measured in Chromium before the synchronous tree walk. A fresh Image reports naturalWidth=0 immediately even after the same URL painted as a CSS mask, and integer natural dimensions also lose fractional SVG viewBox ratios (3:7 becomes 64x150); this decoder/layout pre-pass deduplicates URLs, activates only for contain/cover, records both natural size and Chromium's auto-height aspect, and removes every temporary property after capture. Renderer-side URL sniffing and the old alignment fallback were rejected because neither owns Chromium's natural sizing decision.",
+            "markdown": "The intrinsic-size seam must be awaited and measured in Chromium before the synchronous tree walk. A fresh Image reports naturalWidth=0 immediately even after the same URL painted as a CSS mask, and integer natural dimensions also lose fractional SVG viewBox ratios (3:7 becomes 64x150); this decoder/layout pre-pass deduplicates URLs, activates only for contain/cover, records both natural size and Chromium's auto-height aspect, and removes every temporary property after capture. Renderer-side URL sniffing and the old alignment fallback were rejected because neither owns Chromium's natural sizing decision."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/index.ts"
+                },
+                "region": {
+                  "startLine": 1135,
+                  "endLine": 1247,
+                  "snippet": {
+                    "text": "\n/**\n * DM-2379: await Chromium's image decoder for every URL-backed mask layer and\n * leave the natural dimensions on the live element for CAPTURE_SCRIPT's\n * synchronous walk. `new Image().naturalWidth` immediately after assigning\n * src is observably zero even when the same URL already painted as a CSS mask,\n * so this async ownership boundary is required rather than a timing guess.\n */\nasync function primeMaskImageIntrinsics(page: Page): Promise<{ dispose(): Promise<void> }> {\n  const frames = page.frames();\n  await Promise.all(frames.map(async (frame) => {\n    try {\n      await frame.evaluate(async () => {\n        const host = globalThis as unknown as {\n          __domotionMaskIntrinsicTargets?: Element[];\n        };\n        for (const prior of host.__domotionMaskIntrinsicTargets ?? []) {\n          try { delete (prior as Element & { __domotionMaskIntrinsic?: unknown }).__domotionMaskIntrinsic; } catch {}\n        }\n        const targets: Element[] = [];\n        host.__domotionMaskIntrinsicTargets = targets;\n\n        const splitLayers = (value: string): string[] => {\n          const out: string[] = [];\n          let depth = 0;\n          let start = 0;\n          for (let i = 0; i < value.length; i++) {\n            const ch = value[i];\n            if (ch === \"(\") depth++;\n            else if (ch === \")\") depth--;\n            else if (ch === \",\" && depth === 0) {\n              out.push(value.slice(start, i));\n              start = i + 1;\n            }\n          }\n          out.push(value.slice(start));\n          return out;\n        };\n        const cssUrl = (layer: string): string | null => {\n          const match = /^\\s*url\\(\\s*(?:\"((?:\\\\.|[^\"\\\\])*)\"|'((?:\\\\.|[^'\\\\])*)'|([^\\s)]+))\\s*\\)\\s*$/i.exec(layer);\n          const raw = match?.[1] ?? match?.[2] ?? match?.[3];\n          return raw == null ? null : raw.replace(/\\\\(.)/g, \"$1\");\n        };\n        const cache = new Map<string, Promise<{ w: number; h: number } | null>>();\n        const dimensions = (url: string): Promise<{ w: number; h: number } | null> => {\n          const hit = cache.get(url);\n          if (hit != null) return hit;\n          const pending = (async () => {\n            const image = new Image();\n            image.src = url;\n            if (!(image.complete && image.naturalWidth > 0 && image.naturalHeight > 0)) {\n              await Promise.race([\n                image.decode().catch(() => undefined),\n                new Promise<void>((resolve) => setTimeout(resolve, 3000)),\n              ]);\n            }\n            return image.naturalWidth > 0 && image.naturalHeight > 0\n              ? { w: image.naturalWidth, h: image.naturalHeight }\n              : null;\n          })();\n          cache.set(url, pending);\n          return pending;\n        };\n\n        const elements = [document.documentElement, ...Array.from(document.getElementsByTagName(\"*\"))];\n        await Promise.all(elements.map(async (element) => {\n          const style = getComputedStyle(element);\n          const maskImage = style.maskImage\n            || (style as CSSStyleDeclaration & { webkitMaskImage?: string }).webkitMaskImage\n            || \"\";\n          if (maskImage === \"\" || maskImage === \"none\") return;\n          const sizes = splitLayers(style.maskSize\n            || (style as CSSStyleDeclaration & { webkitMaskSize?: string }).webkitMaskSize\n            || \"auto\");\n          const resolved = await Promise.all(splitLayers(maskImage).map(async (layer, index) => {\n            // The DM-2379 route activates only for contain/cover. Explicit and\n            // auto sizing retain their established geometry and must not add a\n            // decoder wait merely because the element happens to have a mask.\n            const size = (sizes[index % sizes.length] ?? \"auto\").trim().toLowerCase();\n            if (size !== \"contain\" && size !== \"cover\") return null;\n            const url = cssUrl(layer);\n            return url == null ? null : dimensions(url);\n          }));\n          Object.defineProperty(element, \"__domotionMaskIntrinsic\", {\n            configurable: true,\n            value: resolved,\n          });\n          targets.push(element);\n        }));\n      });\n    } catch {\n      // Detached/cross-origin frames are already handled as raster boundaries.\n    }\n  }));\n\n  return {\n    async dispose(): Promise<void> {\n      await Promise.all(frames.map(async (frame) => {\n        try {\n          await frame.evaluate(() => {\n            const host = globalThis as unknown as {\n              __domotionMaskIntrinsicTargets?: Element[];\n            };\n            for (const target of host.__domotionMaskIntrinsicTargets ?? []) {\n              try { delete (target as Element & { __domotionMaskIntrinsic?: unknown }).__domotionMaskIntrinsic; } catch {}\n            }\n            delete host.__domotionMaskIntrinsicTargets;\n          });\n        } catch {}\n      }));\n    },\n  };\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "alternative-considered"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/masks-clips.ts"
+                },
+                "region": {
+                  "startLine": 56
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/mask.ts"
+                },
+                "region": {
+                  "startLine": 760
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2379"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "1e7a59b2f7b50cb1b701060debc82ccb"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "7b90459ebedba68b321342c23969a3276e1bc8e4",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

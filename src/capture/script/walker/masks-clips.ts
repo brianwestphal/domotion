@@ -40,11 +40,46 @@
 // captureScript orchestration tail reads `maskDefs` / `maskRasters` after
 // the walk completes and stamps them onto the root captured element.
 
+import { extractCssUrl } from "../utils.js";
+
 export const createMasksClipsHandler = ({ vp, warn }) => {
   const maskDefs = new Map();
   const maskRasters = new Map();
   const clipPathDefs = new Map();
   let maskRasterIdx = 0;
+
+  // DM-2379: Blink's contain/cover sizing consumes StyleImage natural sizing
+  // before resolving mask-position against the remaining space. Capture the
+  // same per-layer aspect facts while the page-owned resources are loaded.
+  // This mirrors backgroundIntrinsic and deliberately leaves gradient /
+  // element() layers null (element() dimensions come from maskRasters).
+  const computeMaskIntrinsic = (el, cs) => {
+    const primed = el && el.__domotionMaskIntrinsic;
+    if (Array.isArray(primed)) return primed;
+    const maskImage = cs.maskImage || cs.webkitMaskImage || '';
+    if (maskImage === '' || maskImage === 'none') return [];
+    const layers = [];
+    let depth = 0, start = 0;
+    for (let i = 0; i < maskImage.length; i++) {
+      const ch = maskImage[i];
+      if (ch === '(') depth++;
+      else if (ch === ')') depth--;
+      else if (ch === ',' && depth === 0) {
+        layers.push(maskImage.slice(start, i));
+        start = i + 1;
+      }
+    }
+    layers.push(maskImage.slice(start));
+    return layers.map((layer) => {
+      const url = extractCssUrl(layer);
+      if (url == null) return null;
+      const image = new Image();
+      image.src = url;
+      const w = image.naturalWidth || 0;
+      const h = image.naturalHeight || 0;
+      return w > 0 && h > 0 ? { w, h, ratio: w / h } : null;
+    });
+  };
 
   const discoverMasks = (el, cs, sel) => {
     if (!cs.mask || cs.mask === 'none' || cs.mask === '') return;
@@ -273,5 +308,5 @@ export const createMasksClipsHandler = ({ vp, warn }) => {
     return token;
   };
 
-  return { discoverMasks, discoverClipPaths, discoverFilters, maskDefs, maskRasters, clipPathDefs, filterDefs };
+  return { discoverMasks, computeMaskIntrinsic, discoverClipPaths, discoverFilters, maskDefs, maskRasters, clipPathDefs, filterDefs };
 };
