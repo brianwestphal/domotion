@@ -1734,17 +1734,35 @@ function emitBorderSide(
     );
     return;
   }
+  const thinDotted = side.style === "dotted" && Math.round(side.w) <= 3;
+  const thickDotted = side.style === "dotted" && !thinDotted;
+  const vertical = x1 === x2;
+  // Blink computes the dash effect from the full side length. Only after that
+  // does DrawLineWithStyle move thick-dotted endpoints inward by width / 2 so
+  // the round endpoint dots remain inside the side path. The miter clip, not a
+  // shortened centerline, owns mixed-side corner partitioning.
+  const endpointInset = thickDotted ? side.w / 2 : 0;
+  const drawX1 = vertical ? x1 : x1 + endpointInset;
+  const drawY1 = vertical ? y1 + endpointInset : y1;
+  const drawX2 = vertical ? x2 : x2 - endpointInset;
+  const drawY2 = vertical ? y2 - endpointInset : y2;
   const { array: dash, offset } = adjustedDashAttrs(side.style, side.w, len);
   // Dotted uses `0.01 period` dasharray that needs round linecaps to
-  // render as circles (DM-399). Chromium'\\'s BoxBorderPainter draws
+  // render as circles (DM-399). Chromium's BoxBorderPainter draws
   // dotted as "0 length dash strokes and round endcaps, producing
   // circles" (verified via Chromium source). Dashed keeps default
   // butt caps so the dash:gap ratio paints flat-ended rectangles.
   const linecap = side.style === "dotted" ? ` stroke-linecap="round"` : "";
-  const dashAttrs = dash !== "" ? ` stroke-dasharray="${dash}"${offset !== 0 ? ` stroke-dashoffset="${r(offset)}"` : ""}` : "";
   const clipAttr = sideClipForStyle(i, side);
+  if (thinDotted) {
+    ctx.svgParts.push(...paintThinDottedLine(x1, y1, x2, y2, side.w, colorStr(side.color), indent)
+      .map(markup => markup.replace(" />", `${clipAttr} />`)));
+    return;
+  }
+  const phaseOffset = endpointInset > 0 ? offset + endpointInset : offset;
+  const dashAttrs = dash !== "" ? ` stroke-dasharray="${dash}"${phaseOffset !== 0 ? ` stroke-dashoffset="${r(phaseOffset)}"` : ""}` : "";
   ctx.svgParts.push(
-    `${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${colorStr(side.color)}" stroke-width="${r(side.w)}"${dashAttrs}${linecap}${clipAttr} />`,
+    `${indent}<line x1="${r(drawX1)}" y1="${r(drawY1)}" x2="${r(drawX2)}" y2="${r(drawY2)}" stroke="${colorStr(side.color)}" stroke-width="${r(side.w)}"${dashAttrs}${linecap}${clipAttr} />`,
   );
 }
 
@@ -1780,19 +1798,11 @@ function paintPerSideBorder(
     // Per-side border: emit 4 separate lines along the element edges. Lines
     // are drawn at the centerline of each border so stroke spills equally
     // inward/outward — visually close enough for typical 1-10px borders.
-    // Mitered-corner trim (DM-329): Chrome's BoxBorderPainter paints each
-    // side as a trapezoid; the corner pixels belong to whichever adjacent
-    // side has the WIDER border (the wider trapezoid extends further into
-    // the corner past the narrower one's miter line). To approximate that
-    // with center-stroked lines, each side is trimmed at each end by the
-    // adjacent side's WIDTH if that adjacent is wider — the wider side
-    // then "owns" the corner unobstructed. When self ≥ adjacent we don't
-    // trim, so this side wins the corner. Without this rule the painting
-    // order alone (top → right → bottom → left) determined corner
-    // ownership, painting the TR / BL corners with the wrong side when
-    // top/bottom were thicker than right/left (e.g. box 3 of the
-    // border-styles-variants fixture: top=4, right=2 — Chrome paints TR
-    // red because top is thicker, but our right line covered it yellow).
+    // Blink constructs every straight side path across the full outer side
+    // rectangle, then assigns corner ownership with the miter clip polygon.
+    // Do not shorten a side because an adjacent width is larger: that retired
+    // approximation changes the path length (and therefore dash phase) before
+    // clipping, which is especially visible on mixed dashed/dotted joints.
     // border-collapse:collapse → paint each side ON the cell edge (not
     // inset by half-width), so two adjacent cells' shared sides overlap
     // exactly and produce a single line instead of a doubled one.
@@ -1802,7 +1812,6 @@ function paintPerSideBorder(
     const rw = br?.w ?? 0;
     const bw = bb?.w ?? 0;
     const lw = bl?.w ?? 0;
-    const trimAdj = (self: number, adj: number) => collapse ? 0 : (adj > self ? adj : 0);
     // Round box edges to integer device pixels so each per-side stroke
     // lands on Chrome's pixel grid. Only when border-collapse !== collapse:
     // collapsed table cells share their borders with neighbors and rounding
@@ -1813,10 +1822,10 @@ function paintPerSideBorder(
     const bxR = roundEdges ? Math.round(el.x + el.width) : el.x + el.width;
     const bxB = roundEdges ? Math.round(el.y + el.height) : el.y + el.height;
     const sides: Array<[typeof bt, number, number, number, number, number]> = [
-      [bt, bxL + trimAdj(tw, lw), bxT + inset(tw), bxR - trimAdj(tw, rw), bxT + inset(tw), Math.max(0, bxR - bxL - trimAdj(tw, lw) - trimAdj(tw, rw))],
-      [br, bxR - inset(rw), bxT + trimAdj(rw, tw), bxR - inset(rw), bxB - trimAdj(rw, bw), Math.max(0, bxB - bxT - trimAdj(rw, tw) - trimAdj(rw, bw))],
-      [bb, bxL + trimAdj(bw, lw), bxB - inset(bw), bxR - trimAdj(bw, rw), bxB - inset(bw), Math.max(0, bxR - bxL - trimAdj(bw, lw) - trimAdj(bw, rw))],
-      [bl, bxL + inset(lw), bxT + trimAdj(lw, tw), bxL + inset(lw), bxB - trimAdj(lw, bw), Math.max(0, bxB - bxT - trimAdj(lw, tw) - trimAdj(lw, bw))],
+      [bt, bxL, bxT + inset(tw), bxR, bxT + inset(tw), Math.max(0, bxR - bxL)],
+      [br, bxR - inset(rw), bxT, bxR - inset(rw), bxB, Math.max(0, bxB - bxT)],
+      [bb, bxL, bxB - inset(bw), bxR, bxB - inset(bw), Math.max(0, bxR - bxL)],
+      [bl, bxL + inset(lw), bxT, bxL + inset(lw), bxB, Math.max(0, bxB - bxT)],
     ];
     // For SOLID sides (and only when not collapsed), emit each side as a
     // `<polygon>` trapezoid that meets adjacent sides at a miter — this

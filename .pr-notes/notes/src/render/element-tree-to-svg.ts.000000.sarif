@@ -1068,6 +1068,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2dqwda9bldhrl0",
+          "message": {
+            "text": "Square mixed dashed/dotted sides preserve Blink’s full side path and delegate corner ownership to the miter clip. The thick-dot endpoint inset is applied only after dash fitting, and the phase is translated by the same inset; this mirrors pinned Chromium 7d859f271c BoxBorderPainter / DrawLineWithStyle instead of fitting offsets to screenshots. The focused matrix in src/render/mixed-dashed-dotted-border.test.ts proves adjacent-width, missing-side, orientation, thick-dot, thin-dot, and retired-shortening behavior.",
+            "markdown": "Square mixed dashed/dotted sides preserve Blink’s full side path and delegate corner ownership to the miter clip. The thick-dot endpoint inset is applied only after dash fitting, and the phase is translated by the same inset; this mirrors pinned Chromium 7d859f271c BoxBorderPainter / DrawLineWithStyle instead of fitting offsets to screenshots. The focused matrix in src/render/mixed-dashed-dotted-border.test.ts proves adjacent-width, missing-side, orientation, thick-dot, thin-dot, and retired-shortening behavior."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 1737,
+                  "endLine": 1765,
+                  "snippet": {
+                    "text": "  const thinDotted = side.style === \"dotted\" && Math.round(side.w) <= 3;\n  const thickDotted = side.style === \"dotted\" && !thinDotted;\n  const vertical = x1 === x2;\n  // Blink computes the dash effect from the full side length. Only after that\n  // does DrawLineWithStyle move thick-dotted endpoints inward by width / 2 so\n  // the round endpoint dots remain inside the side path. The miter clip, not a\n  // shortened centerline, owns mixed-side corner partitioning.\n  const endpointInset = thickDotted ? side.w / 2 : 0;\n  const drawX1 = vertical ? x1 : x1 + endpointInset;\n  const drawY1 = vertical ? y1 + endpointInset : y1;\n  const drawX2 = vertical ? x2 : x2 - endpointInset;\n  const drawY2 = vertical ? y2 - endpointInset : y2;\n  const { array: dash, offset } = adjustedDashAttrs(side.style, side.w, len);\n  // Dotted uses `0.01 period` dasharray that needs round linecaps to\n  // render as circles (DM-399). Chromium'\\\\'s BoxBorderPainter draws\n  // dotted as \"0 length dash strokes and round endcaps, producing\n  // circles\" (verified via Chromium source). Dashed keeps default\n  // butt caps so the dash:gap ratio paints flat-ended rectangles.\n  const linecap = side.style === \"dotted\" ? ` stroke-linecap=\"round\"` : \"\";\n  const clipAttr = sideClipForStyle(i, side);\n  if (thinDotted) {\n    ctx.svgParts.push(...paintThinDottedLine(x1, y1, x2, y2, side.w, colorStr(side.color), indent)\n      .map(markup => markup.replace(\" />\", `${clipAttr} />`)));\n    return;\n  }\n  const phaseOffset = endpointInset > 0 ? offset + endpointInset : offset;\n  const dashAttrs = dash !== \"\" ? ` stroke-dasharray=\"${dash}\"${phaseOffset !== 0 ? ` stroke-dashoffset=\"${r(phaseOffset)}\"` : \"\"}` : \"\";\n  ctx.svgParts.push(\n    `${indent}<line x1=\"${r(drawX1)}\" y1=\"${r(drawY1)}\" x2=\"${r(drawX2)}\" y2=\"${r(drawY2)}\" stroke=\"${colorStr(side.color)}\" stroke-width=\"${r(side.w)}\"${dashAttrs}${linecap}${clipAttr} />`,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/mixed-dashed-dotted-border.test.ts"
+                },
+                "region": {
+                  "startLine": 44
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2429"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "3cfe55c0f32bf6c7cd0b0574abb25849"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "1645f73c62b641ff4eb47c9a0ccc2ce1a89a1212",
+          "branch": "ci/dm2339-fresh-sweep"
+        }
+      ]
     }
   ]
 }
