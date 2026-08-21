@@ -1497,6 +1497,19 @@ export function parseFontVariationSettings(css: string | undefined): Record<stri
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
+/** Preserve `font-optical-sizing:none` beside author axes without inventing an
+ * OpenType coordinate. The non-enumerable marker is ignored by axis loops and
+ * cache serialization; font resolution consumes it only to skip automatic
+ * size-derived `opsz`. Explicit `"opsz"` remains an ordinary enumerable axis
+ * and therefore keeps CSS Fonts' precedence. */
+function opticalVariationSettings(el: Pick<CapturedElement, "styles">): Record<string, number> | undefined {
+  const axes = parseFontVariationSettings(el.styles.fontVariationSettings);
+  if (el.styles.fontOpticalSizing !== "none") return axes;
+  const marked = axes ?? {};
+  Object.defineProperty(marked, "__dmOpticalSizingNone", { value: true, enumerable: false });
+  return marked;
+}
+
 // Exported for the shaping conformance oracle (DM-1983), which must combine the
 // run's feature sources through the SHIPPED merge rather than a second one that
 // could drift from it — the same reason it calls `parseFontFeatureSettings` and
@@ -1635,7 +1648,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
     ),
     resolveChwsFeature(ffsFeatures),
   );
-  const variationSettings = parseFontVariationSettings(el.styles.fontVariationSettings);
+  const variationSettings = opticalVariationSettings(el);
   // DM-495: when the only segment is a pseudo with its own typography
   // overrides (color / fontSize / fontWeight / fontAscent), prefer those
   // over the host element's values. The capture layer carries pseudo-
@@ -1861,7 +1874,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
   const _segBidiNeeded = dir === "rtl" || _RTL_RE.test(el.text);
   const _segFullLevels = _segBidiNeeded ? _bidi.getEmbeddingLevels(el.text, dir).levels : null;
   let _segBidiOffset = 0;
-  const elVariationSettings = parseFontVariationSettings(el.styles.fontVariationSettings);
+  const elVariationSettings = opticalVariationSettings(el);
   // Per-fragment counter feeding each segment's decoration clip-path id base
   // (patterned decoration styles mint `<clipPath>`s; ids must stay unique
   // across the element's fragments).
@@ -2063,7 +2076,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
   // (those land here with a single segment and a \n-bearing el.text — splitting
   // on `\n` would emit a phantom second line below the captured one).
   const ffsFeatures = elementFontFeatures(el, fontFamily);
-  const fvsAxes = parseFontVariationSettings(el.styles.fontVariationSettings);
+  const fvsAxes = opticalVariationSettings(el);
   if (el.textSegments != null && el.textSegments.length > 0) {
     const dir = el.styles.direction === "rtl" ? "rtl" : "ltr";
     for (const seg of el.textSegments) {
@@ -2145,7 +2158,7 @@ export function renderInputText(opts: RenderTextOpts): string {
   const xOffsetsRel = el.inputXOffsets != null
     ? el.inputXOffsets.map((v) => v - textX) : undefined;
   const inputFeatures = elementFontFeatures(el, fontFamily);
-  const inputAxes = parseFontVariationSettings(el.styles.fontVariationSettings);
+  const inputAxes = opticalVariationSettings(el);
   // DM-991: textareas carry per-LINE textSegments captured via the wrap
   // probe in `walker/input-value.ts`. Iterate them so each visual line
   // becomes its own `<text>` element at its own y, matching Chrome's

@@ -7324,6 +7324,11 @@ export function shapingFaceFor(
  *  cascade order. macOS is untouched: the darwin helper reports no axes and
  *  CoreText genuinely applies automatic optical sizing (the opsz=fontSize pin
  *  there is validated pixel-exact by the full macOS sweeps). */
+function opticalSizingDisabled(settings: Record<string, number> | undefined): boolean {
+  return (settings as (Record<string, number> & { __dmOpticalSizingNone?: boolean }) | undefined)?.__dmOpticalSizingNone === true
+    && settings?.opsz == null;
+}
+
 export function resolveAxisLocationForFile( // exported for unit testing (not in the package barrel)
   fileAxes: Record<string, unknown>, weight: number, fontSize: number, slant: number,
   variationSettings?: Record<string, number>,
@@ -7332,7 +7337,7 @@ export function resolveAxisLocationForFile( // exported for unit testing (not in
 ): Record<string, number> {
   const axes: Record<string, number> = {};
   if (fileAxes.wght != null) axes.wght = weight;
-  if (fileAxes.opsz != null) axes.opsz = fontSize;
+  if (fileAxes.opsz != null && !opticalSizingDisabled(variationSettings)) axes.opsz = fontSize;
   if (slant !== 0 && fileAxes.slnt != null) axes.slnt = slant;
   // When the requested PostScript name is an fvar NAMED INSTANCE rather than a
   // physical member, the instance's coordinates ARE the face — that is what the
@@ -7440,7 +7445,7 @@ export function resolveDarwinAxisLocation( // exported for unit testing (not in 
   // at zoom 1 and the tree carries no pre-zoom size), so no current input can
   // distinguish them. If zoom ever becomes a capture input, the pre-zoom
   // specified size must be plumbed to here.
-  if (fileAxes.opsz != null) axes.opsz = fontSize;
+  if (fileAxes.opsz != null && !opticalSizingDisabled(variationSettings)) axes.opsz = fontSize;
   if (variationSettings != null) {
     for (const tag of Object.keys(variationSettings)) {
       if (fileAxes[tag] != null) axes[tag] = variationSettings[tag];
@@ -7584,7 +7589,7 @@ export function darwinCloneInstanceName(
     // (allowed to override the opsz just set). Both gates compare the CLAMPED
     // target against the handle's ORIGINAL current position.
     let v = a.value;
-    if (a.tag === "opsz" && fixed(clampTo(fontSize, a)) !== fixed(a.value)) {
+    if (a.tag === "opsz" && !opticalSizingDisabled(variationSettings) && fixed(clampTo(fontSize, a)) !== fixed(a.value)) {
       v = fontSize;
       reconfigured = true;
     }
@@ -7829,7 +7834,7 @@ function applyVariationAxes(font: any, weight: number, fontSize: number, slant: 
       ? Math.min(Math.max(q(weight), q(font.variationAxes.wght.min ?? weight)), q(font.variationAxes.wght.max ?? weight))
       : weight;
   }
-  if (font.variationAxes.opsz != null) axes.opsz = fontSize;
+  if (font.variationAxes.opsz != null && !opticalSizingDisabled(variationSettings)) axes.opsz = fontSize;
   if (font.variationAxes.wdth != null) {
     const caps = opts?.wdthCapabilities;
     if (caps != null) {

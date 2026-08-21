@@ -663,6 +663,7 @@ const captureDocumentTree =
         fontKerning: cs.fontKerning,
         fontStretch: cs.fontStretch,
         fontVariationSettings: cs.fontVariationSettings,
+        fontOpticalSizing: cs.fontOpticalSizing,
         fontFeatureSettings: cs.fontFeatureSettings,
         fontVariantAlternates: cs.fontVariantAlternates,
         // The alias table is document-global but only alternate-bearing nodes

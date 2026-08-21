@@ -2021,6 +2021,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2mcqukfpw4xjj7",
+          "message": {
+            "text": "font-optical-sizing:none is represented as a non-enumerable request marker, not a fabricated opsz coordinate. Axis enumeration and cache keys therefore remain unchanged, while every automatic-opsz site can suppress only its size-derived pin; an explicit author opsz remains enumerable and wins in the existing CSS order.",
+            "markdown": "font-optical-sizing:none is represented as a non-enumerable request marker, not a fabricated opsz coordinate. Axis enumeration and cache keys therefore remain unchanged, while every automatic-opsz site can suppress only its size-derived pin; an explicit author opsz remains enumerable and wins in the existing CSS order."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 7327,
+                  "endLine": 7339,
+                  "snippet": {
+                    "text": "function opticalSizingDisabled(settings: Record<string, number> | undefined): boolean {\n  return (settings as (Record<string, number> & { __dmOpticalSizingNone?: boolean }) | undefined)?.__dmOpticalSizingNone === true\n    && settings?.opsz == null;\n}\n\nexport function resolveAxisLocationForFile( // exported for unit testing (not in the package barrel)\n  fileAxes: Record<string, unknown>, weight: number, fontSize: number, slant: number,\n  variationSettings?: Record<string, number>,\n  resolvedAxes?: Record<string, number>,\n  instanceAxes?: Record<string, number> | null,\n): Record<string, number> {\n  const axes: Record<string, number> = {};\n  if (fileAxes.wght != null) axes.wght = weight;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 88,
+          "workItemUris": [
+            "DM-2447"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "7e08db6690142a921d414488d53568f9"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "ea92aaec9fd1e5c6735e3d0d1ed8e27ddf21c45d",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

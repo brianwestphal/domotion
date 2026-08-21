@@ -781,6 +781,8 @@ export interface CapturedStyles {
   fontKerning: string;
   fontStretch: string;
   fontVariationSettings: string;
+  /** Computed CSS font-optical-sizing. Optional for backward-compatible trees. */
+  fontOpticalSizing?: string;
   fontFeatureSettings: string;
   /** Computed font-variant-alternates syntax. */
   fontVariantAlternates?: string;

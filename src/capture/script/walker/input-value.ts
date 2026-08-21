@@ -185,6 +185,7 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics }) =
       probe.style.letterSpacing = cs.letterSpacing;
       probe.style.fontKerning = cs.fontKerning;
       probe.style.fontVariationSettings = cs.fontVariationSettings;
+      probe.style.fontOpticalSizing = cs.fontOpticalSizing;
       probe.style.fontFeatureSettings = cs.fontFeatureSettings;
       probe.textContent = text;
       document.body.appendChild(probe);
@@ -258,6 +259,7 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics }) =
       probe.style.fontWeight = cs.fontWeight;
       probe.style.fontStyle = cs.fontStyle;
       probe.style.fontVariationSettings = cs.fontVariationSettings;
+      probe.style.fontOpticalSizing = cs.fontOpticalSizing;
       probe.style.fontFeatureSettings = cs.fontFeatureSettings;
       probe.style.fontKerning = cs.fontKerning;
       probe.style.letterSpacing = cs.letterSpacing;
