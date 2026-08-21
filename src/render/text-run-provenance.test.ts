@@ -41,7 +41,15 @@ describe("production text-run provenance", () => {
       emittedText: "AV",
       mechanism: "declared-family",
       request: { fontFamily: options.fontFamily, fontWeight: 400, fontSizePx: 24 },
-      selected: { sourcePath: expect.any(String), faceIndex: expect.any(Number), shapesWithHarfbuzz: true },
+      selected: {
+        sourcePath: expect.any(String), faceIndex: expect.any(Number), shapesWithHarfbuzz: true,
+        descriptorAxes: expect.toSatisfy((value) => value === null || Array.isArray(value)),
+        sourceFile: expect.objectContaining({
+          sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+          byteLength: expect.any(Number),
+          mtimeMs: expect.any(Number),
+        }),
+      },
       emittedIdentity: expect.stringMatching(/^paths:/),
       finalRepresentation: "svg-paths",
     });

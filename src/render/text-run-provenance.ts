@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { readFileSync, statSync } from "node:fs";
 import { getFontSourceInfo, type FontRun, type FontVariantEmojiOverride } from "./font-resolution.js";
 
 export interface TextRunRequestDiagnostic {
@@ -33,6 +34,8 @@ export interface TextRunProvenanceDiagnostic {
     sourcePath: string | null;
     faceIndex: number | null;
     variationAxes: Record<string, number> | null;
+    descriptorAxes?: Array<{ tag: string; value: number; min?: number; max?: number; def?: number }> | null;
+    sourceFile?: { sha256: string; byteLength: number; mtimeMs: number } | null;
     shapesWithHarfbuzz: boolean;
   };
   glyphs: Array<{
@@ -74,6 +77,23 @@ export interface FixtureTextRunProvenance {
 let enabled = false;
 let runs: TextRunProvenanceDiagnostic[] = [];
 let transitions: TextEmitterTransitionDiagnostic[] = [];
+const sourceFileEvidence = new Map<string, TextRunProvenanceDiagnostic["selected"]["sourceFile"]>();
+
+function fileEvidence(path: string | null): TextRunProvenanceDiagnostic["selected"]["sourceFile"] {
+  if (path == null) return null;
+  const cached = sourceFileEvidence.get(path);
+  if (cached !== undefined) return cached;
+  try {
+    const bytes = readFileSync(path);
+    const stat = statSync(path);
+    const value = { sha256: createHash("sha256").update(bytes).digest("hex"), byteLength: bytes.length, mtimeMs: stat.mtimeMs };
+    sourceFileEvidence.set(path, value);
+    return value;
+  } catch {
+    sourceFileEvidence.set(path, null);
+    return null;
+  }
+}
 
 function codepointIndexAtUtf16(text: string, utf16Index: number): number {
   return [...text.slice(0, Math.max(0, Math.min(text.length, utf16Index)))].length;
@@ -168,6 +188,8 @@ export function recordSelectedFontRuns(
         sourcePath: source?.path ?? null,
         faceIndex: source?.faceIndex ?? null,
         variationAxes: source?.variationAxes == null ? null : { ...source.variationAxes },
+        descriptorAxes: source?.descriptorAxes == null ? null : source.descriptorAxes.map((axis) => ({ ...axis })),
+        sourceFile: fileEvidence(source?.path ?? null),
         shapesWithHarfbuzz: run.font.shapesWithHarfbuzz === true,
       },
       glyphs,

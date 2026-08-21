@@ -6464,6 +6464,7 @@ function instantiateResolvedFont(
         const { faceIndex, nameMatched, fileAxes, instanceAxes } = helperFaceInfo;
         fontSourceMap.set(instance as unknown as object, {
           path: spec.path, postscriptName: spec.postscriptName, faceIndex, nameMatched,
+          descriptorAxes: spec.ctAxes == null ? null : spec.ctAxes.map((axis) => ({ ...axis })),
           // DM-1721: `spec.resolvedAxes` (DirectWrite's resolved axis values
           // for live-resolver / family-lookup picks) overrides the CSS-derived
           // opsz pin — named optical subfamilies don't re-vary opsz per size.
@@ -6795,6 +6796,7 @@ function instantiateResolvedFont(
   fontSourceMap.set(instance as unknown as object, {
     path: spec.path, postscriptName: spec.postscriptName, faceIndex, nameMatched,
     variationAxes: fileIsVariable ? (appliedAxes ?? {}) : null,
+    descriptorAxes: spec.ctAxes == null ? null : spec.ctAxes.map((axis) => ({ ...axis })),
   });
   fontInstanceCache.set(cacheKey, instance);
   return instance;
@@ -6850,6 +6852,9 @@ export interface FontSourceInfo {
    *  these tags, all others to default); null/absent ⇒ static file, or an
    *  unidentifiable member whose axes we decline to guess. */
   variationAxes?: Record<string, number> | null;
+  /** Full axis dictionary observed on the live CoreText handle before any
+   * physical-member reopening. */
+  descriptorAxes?: DarwinHandleAxis[] | null;
 }
 
 // Does fontkit have a glyph-outline table it can render from? A font's outlines

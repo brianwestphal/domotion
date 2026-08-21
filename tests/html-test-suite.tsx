@@ -1214,6 +1214,19 @@ interface TestResult {
   /** Fixture-scoped production face → glyph → outline evidence for the pinned
    * Linux Unicode raster-floor corpus and structural Vedic row. */
   textRunEvidence?: FixtureTextRunProvenance;
+  /** Bounded source-browser and emitted-target facts for Unicode cells whose
+   * descriptor identity cannot be reconstructed after a hosted runner expires. */
+  unicodeDiagnosticEvidence?: {
+    sourceCells: Array<{
+      probe: number;
+      text: string;
+      computedFont: string;
+      computedFontSize: string;
+      ranges: Array<{ codepoint: number; utf16: [number, number]; x: number; y: number; width: number; height: number }>;
+      platformFonts: Array<{ familyName: string; postScriptName?: string; isCustomFont: boolean; glyphCount: number }>;
+    }>;
+    emittedSvg: { sha256: string; byteLength: number; textTargets: string[]; pathTransforms: string[] };
+  };
   /** Worst tile's fraction of pixels with >SIGNIFICANT_PIXEL_DIST distance. */
   worstTileSignificantPct: number;
   /** Rect of the worst tile (x, y, w, h) in the image. */
@@ -1343,6 +1356,8 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
   let chromeFacesTruncated: boolean | undefined;
   let embeddedFontBuilds: EmbeddedFontBuildDiagnostic[] | undefined;
   let textRunEvidence: FixtureTextRunProvenance | undefined;
+  let sourceDiagnosticCells: NonNullable<TestResult["unicodeDiagnosticEvidence"]>["sourceCells"] | undefined;
+  let unicodeDiagnosticEvidence: TestResult["unicodeDiagnosticEvidence"] | undefined;
   // Claim the worker-sequence slot up front so even error/skip results record
   // where in the worker's order they ran.
   const workerSeq = w.seq++;
@@ -1439,7 +1454,10 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     const cachedPng = expectedCachePngPath(cacheKey);
     const cachedMeta = expectedCacheMetaPath(cacheKey);
     let cap: { tree: unknown[]; warnings: Array<{ selector: string; feature: string; detail: string }> } | null = null;
-    if (existsSync(cachedPng) && existsSync(cachedMeta)) {
+    // Targeted descriptor evidence must come from this run's live browser;
+    // cached trees have neither per-cell Range geometry nor CDP face records.
+    const requiresLiveUnicodeEvidence = name === "20000-2A6DF-cjk-unified-ideographs-extension-b.111";
+    if (!requiresLiveUnicodeEvidence && existsSync(cachedPng) && existsSync(cachedMeta)) {
       try {
         const meta = JSON.parse(readFileSync(cachedMeta, "utf-8")) as ExpectedCacheMeta;
         if (meta.tree != null) {
@@ -1517,12 +1535,36 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
         await session.send("CSS.enable");
         const { root } = await session.send("DOM.getDocument", { depth: 1 });
         const merged = new Map<string, number>();
+        const collectCellEvidence = name === "20000-2A6DF-cjk-unified-ideographs-extension-b.111";
+        if (collectCellEvidence) sourceDiagnosticCells = [];
         for (let i = 0; i < Math.min(leafCount, PROBE_CAP); i++) {
           const { nodeId } = await session.send("DOM.querySelector", {
             nodeId: root.nodeId, selector: `[data-dm-faces-probe="${i}"]`,
           });
           if (nodeId === 0) continue;
           const { fonts } = await session.send("CSS.getPlatformFontsForNode", { nodeId });
+          if (collectCellEvidence) {
+            const cell = await w.page.locator(`[data-dm-faces-probe="${i}"]`).evaluate((element) => {
+              const textNode = [...element.childNodes].find((child) => child.nodeType === Node.TEXT_NODE && /\S/.test(child.textContent ?? ""));
+              const text = textNode?.textContent ?? "";
+              const ranges: Array<{ codepoint: number; utf16: [number, number]; x: number; y: number; width: number; height: number }> = [];
+              let offset = 0;
+              for (const character of text) {
+                const end = offset + character.length;
+                const range = document.createRange();
+                range.setStart(textNode!, offset);
+                range.setEnd(textNode!, end);
+                const rect = range.getBoundingClientRect();
+                ranges.push({ codepoint: character.codePointAt(0)!, utf16: [offset, end], x: rect.x, y: rect.y, width: rect.width, height: rect.height });
+                offset = end;
+              }
+              const style = getComputedStyle(element);
+              return { text, computedFont: style.font, computedFontSize: style.fontSize, ranges };
+            });
+            if (cell.ranges.some((range) => range.codepoint >= 0x270EF && range.codepoint <= 0x270F4)) {
+              sourceDiagnosticCells!.push({ probe: i, ...cell, platformFonts: fonts });
+            }
+          }
           for (const f of fonts) {
             const key = f.postScriptName ?? f.familyName;
             merged.set(key, (merged.get(key) ?? 0) + f.glyphCount);
@@ -1581,7 +1623,8 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     // is worker-cumulative and a workerSeq subtraction is required to guess
     // which subset belonged to this row.
     resetGeneration();
-    const collectTextEvidence = process.platform === "linux" && shouldCollectLinuxUnicodeTextEvidence(name);
+    const collectTextEvidence = (process.platform === "linux" && shouldCollectLinuxUnicodeTextEvidence(name))
+      || name === "20000-2A6DF-cjk-unified-ideographs-extension-b.111";
     if (collectTextEvidence) {
       resetTextRunProvenance();
       setTextRunProvenanceEnabled(true);
@@ -1589,7 +1632,17 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     let svgContent: string;
     try {
       svgContent = elementTreeToSvgInner(cap.tree, WIDTH, fixtureHeight);
-      if (collectTextEvidence) textRunEvidence = getFixtureTextRunProvenance(name);
+      if (collectTextEvidence) {
+        textRunEvidence = getFixtureTextRunProvenance(name);
+        if (name === "20000-2A6DF-cjk-unified-ideographs-extension-b.111") {
+          textRunEvidence.runs = textRunEvidence.runs.filter((run) =>
+            [...run.sourceText].some((character) => {
+              const cp = character.codePointAt(0)!;
+              return cp >= 0x270EF && cp <= 0x270F4;
+            }));
+          textRunEvidence.runs.forEach((run, row) => { run.row = row; });
+        }
+      }
     } finally {
       if (collectTextEvidence) setTextRunProvenanceEnabled(false);
     }
@@ -1598,6 +1651,17 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     const xlinkAttr = svgContent.includes("xlink:") ? ` xmlns:xlink="http://www.w3.org/1999/xlink"` : "";
     const svgDoc = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg"${xlinkAttr} viewBox="0 0 ${WIDTH} ${fixtureHeight}" width="${WIDTH}" height="${fixtureHeight}"><rect width="${WIDTH}" height="${fixtureHeight}" fill="${bodyBg}" />${svgContent}</svg>`;
     writeFileSync(svgPath, svgDoc);
+    if (sourceDiagnosticCells != null) {
+      unicodeDiagnosticEvidence = {
+        sourceCells: sourceDiagnosticCells,
+        emittedSvg: {
+          sha256: createHash("sha256").update(svgDoc).digest("hex"),
+          byteLength: Buffer.byteLength(svgDoc),
+          textTargets: [...svgContent.matchAll(/<text\b[^>]*>/g)].map((match) => match[0]),
+          pathTransforms: [...svgContent.matchAll(/<g transform="([^"]+)"[^>]* role="img"/g)].map((match) => match[1]),
+        },
+      };
+    }
     timer.mark("render-svg");
 
     // Load the SVG directly as the top-level document. Wrapping it in <img>
@@ -1685,6 +1749,7 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     chromeFacesTruncated,
     embeddedFontBuilds,
     textRunEvidence,
+    unicodeDiagnosticEvidence,
     worker: w.id,
     workerSeq,
     worstTileSignificantPct,

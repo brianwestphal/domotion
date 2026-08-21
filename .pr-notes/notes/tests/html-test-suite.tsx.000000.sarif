@@ -164,6 +164,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2kpu1e3ch96s21",
+          "message": {
+            "text": "The PingFang diagnostic fixture deliberately bypasses the expected cache and retains only U+270EF..U+270F4 source cells. That makes every Range/CDP record contemporaneous with the PNG while bounding the descriptor payload to six cells; the final SVG hash and serialized text target tags preserve emitted placement even when CI prunes the full SVG.",
+            "markdown": "The PingFang diagnostic fixture deliberately bypasses the expected cache and retains only U+270EF..U+270F4 source cells. That makes every Range/CDP record contemporaneous with the PNG while bounding the descriptor payload to six cells; the final SVG hash and serialized text target tags preserve emitted placement even when CI prunes the full SVG."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/html-test-suite.tsx"
+                },
+                "region": {
+                  "startLine": 1445,
+                  "endLine": 1645,
+                  "snippet": {
+                    "text": "    // hash, so any of those changing invalidates the entry. Full cache\n    // hit (PNG + meta with `tree` field) lets us skip the source goto +\n    // screenshot + bodyBg evaluate + webfont discovery + captureTree\n    // entirely — the per-fixture bottleneck. The tree is restored from\n    // JSON; embedRemoteImages and rasterizeConicGradients run as\n    // normal against it. The actual-render half still needs the SVG\n    // navigation (no way around that — it's how we render the SVG).\n    const srcBytes = readFileSync(srcPath);\n    const cacheKey = expectedCacheKey(srcBytes, fixtureHeight);\n    const cachedPng = expectedCachePngPath(cacheKey);\n    const cachedMeta = expectedCacheMetaPath(cacheKey);\n    let cap: { tree: unknown[]; warnings: Array<{ selector: string; feature: string; detail: string }> } | null = null;\n    // Targeted descriptor evidence must come from this run's live browser;\n    // cached trees have neither per-cell Range geometry nor CDP face records.\n    const requiresLiveUnicodeEvidence = name === \"20000-2A6DF-cjk-unified-ideographs-extension-b.111\";\n    if (!requiresLiveUnicodeEvidence && existsSync(cachedPng) && existsSync(cachedMeta)) {\n      try {\n        const meta = JSON.parse(readFileSync(cachedMeta, \"utf-8\")) as ExpectedCacheMeta;\n        if (meta.tree != null) {\n          copyFileSync(cachedPng, expectedPath);\n          bodyBg = meta.bodyBg;\n          cap = { tree: meta.tree as unknown[], warnings: meta.warnings ?? [] };\n          capWarnings = cap.warnings;\n          expectedFromCache = true;\n          _expectedCacheHits++;\n        } else {\n          // Old DM-1002 cache entry without tree — treat as miss so we\n          // re-capture and overwrite with the tree-bearing version.\n          _expectedCacheMisses++;\n        }\n      } catch {\n        _expectedCacheMisses++;\n      }\n    } else {\n      _expectedCacheMisses++;\n    }\n\n    timer.mark(\"cache-check\");\n    if (cap == null) {\n      // Cache miss — do the full source-side work.\n      await w.page.goto(`file://${srcPath}`);\n      timer.mark(\"goto-source\");\n      // DM-1009: replaced waitForTimeout(150) — the 150 ms was a buffer for\n      // `@font-face` loads to finish (per DM-303 comment below). waitForSettled\n      // resolves on the actual `document.fonts.ready` + images-complete +\n      // next-paint events, so fast fixtures stop paying for the slow ones.\n      await waitForSettled(w.page);\n      timer.mark(\"settle-source\");\n\n      bodyBg = await w.page.evaluate(() => {\n        const cs = getComputedStyle(document.body);\n        const bg = cs.backgroundColor;\n        if (bg === \"rgba(0, 0, 0, 0)\" || bg === \"transparent\") return \"#ffffff\";\n        return bg;\n      });\n      timer.mark(\"read-bodyBg\");\n\n      await w.page.screenshot({ path: expectedPath, clip: { x: 0, y: 0, width: WIDTH, height: fixtureHeight } });\n      timer.mark(\"screenshot-expected\");\n\n      // Ask Chrome which faces it just painted with. Per text-bearing LEAF\n      // element, merged as a per-face glyph-count sum — NOT one call on\n      // <body>: that shallow form was measured returning only the heading +\n      // intro-paragraph faces on a unicode grid fixture (~131 glyphs, none of\n      // the grid cells or their Menlo labels), so it was blind to the exact\n      // cells whose face flips this field exists to catch. (Blink's\n      // aggregation rule for the body-level call lives in\n      // core/inspector/inspector_css_agent.cc, absent from the local sparse\n      // checkout — the shallowness is measured, not transcribed.)\n      // Best-effort: this is diagnostic, and must never fail a sweep. Runs\n      // after the screenshot; the probe attributes are removed before the\n      // tree capture below.\n      try {\n        const leafCount: number = await w.page.evaluate(() => {\n          let i = 0;\n          for (const el of document.querySelectorAll(\"body, body *\")) {\n            for (const child of el.childNodes) {\n              if (child.nodeType === Node.TEXT_NODE && /\\S/.test(child.textContent ?? \"\")) {\n                el.setAttribute(\"data-dm-faces-probe\", String(i++));\n                break;\n              }\n            }\n          }\n          return i;\n        });\n        // Cap the per-fixture CDP cost on dense real-world documents; the\n        // unicode grids sit far below this (≈90 leaves).\n        const PROBE_CAP = 400;\n        const session = await w.page.context().newCDPSession(w.page);\n        await session.send(\"DOM.enable\");\n        await session.send(\"CSS.enable\");\n        const { root } = await session.send(\"DOM.getDocument\", { depth: 1 });\n        const merged = new Map<string, number>();\n        const collectCellEvidence = name === \"20000-2A6DF-cjk-unified-ideographs-extension-b.111\";\n        if (collectCellEvidence) sourceDiagnosticCells = [];\n        for (let i = 0; i < Math.min(leafCount, PROBE_CAP); i++) {\n          const { nodeId } = await session.send(\"DOM.querySelector\", {\n            nodeId: root.nodeId, selector: `[data-dm-faces-probe=\"${i}\"]`,\n          });\n          if (nodeId === 0) continue;\n          const { fonts } = await session.send(\"CSS.getPlatformFontsForNode\", { nodeId });\n          if (collectCellEvidence) {\n            const cell = await w.page.locator(`[data-dm-faces-probe=\"${i}\"]`).evaluate((element) => {\n              const textNode = [...element.childNodes].find((child) => child.nodeType === Node.TEXT_NODE && /\\S/.test(child.textContent ?? \"\"));\n              const text = textNode?.textContent ?? \"\";\n              const ranges: Array<{ codepoint: number; utf16: [number, number]; x: number; y: number; width: number; height: number }> = [];\n              let offset = 0;\n              for (const character of text) {\n                const end = offset + character.length;\n                const range = document.createRange();\n                range.setStart(textNode!, offset);\n                range.setEnd(textNode!, end);\n                const rect = range.getBoundingClientRect();\n                ranges.push({ codepoint: character.codePointAt(0)!, utf16: [offset, end], x: rect.x, y: rect.y, width: rect.width, height: rect.height });\n                offset = end;\n              }\n              const style = getComputedStyle(element);\n              return { text, computedFont: style.font, computedFontSize: style.fontSize, ranges };\n            });\n            if (cell.ranges.some((range) => range.codepoint >= 0x270EF && range.codepoint <= 0x270F4)) {\n              sourceDiagnosticCells!.push({ probe: i, ...cell, platformFonts: fonts });\n            }\n          }\n          for (const f of fonts) {\n            const key = f.postScriptName ?? f.familyName;\n            merged.set(key, (merged.get(key) ?? 0) + f.glyphCount);\n          }\n        }\n        chromeFaces = [...merged.entries()]\n          .map(([face, count]) => `${face}:${count}`)\n          .sort((a, b) => a.localeCompare(b));\n        if (leafCount > PROBE_CAP) chromeFacesTruncated = true;\n        await session.detach().catch(() => {});\n        await w.page.evaluate(() => {\n          for (const el of document.querySelectorAll(\"[data-dm-faces-probe]\")) el.removeAttribute(\"data-dm-faces-probe\");\n        });\n      } catch { /* diagnostic only */ }\n      timer.mark(\"chrome-faces\");\n\n      // Pick up any @font-face rules — covers both url(...) downloads and\n      // local(...) aliases (DM-303). Without this, fixtures using\n      // `font-family: \"MyFamily\"` declared via @font-face render in the\n      // chain-fallback face (`serif` → Times) instead of the local() target.\n      try { await discoverAndRegisterWebfonts(w.page); } catch { /* best-effort */ }\n      timer.mark(\"discover-webfonts\");\n\n      // captureElementTreeWithWarnings returns warnings inline so concurrent\n      // workers don't race on the lastCaptureWarnings module global (DM-456).\n      cap = await captureElementTreeWithWarnings(w.page, \"body\", { x: 0, y: 0, width: WIDTH, height: fixtureHeight });\n      capWarnings = cap.warnings;\n      timer.mark(\"capture-tree\");\n\n      // Populate the cache for next time (DM-1002 + DM-1013). Best-effort\n      // — a cache write failure doesn't fail the test, the next run just\n      // re-renders. Write happens BEFORE embedRemoteImages /\n      // rasterizeConicGradients so the serialised tree stays small (those\n      // passes mutate cap.tree in place with Buffer / dataURI data).\n      try {\n        mkdirSync(EXPECTED_CACHE_DIR, { recursive: true });\n        copyFileSync(expectedPath, cachedPng);\n        writeFileSync(cachedMeta, JSON.stringify({ bodyBg, tree: cap.tree, warnings: cap.warnings }));\n      } catch { /* ignore */ }\n      timer.mark(\"cache-write\");\n    }\n    // DM-512: demos always emit self-contained SVGs.\n    // DM-527: thread the per-suite warnings array so concurrent workers\n    // don't race on the lastCaptureWarnings module global.\n    await embedRemoteImages(cap.tree, { warnings: capWarnings });\n    timer.mark(\"embed-remote-images\");\n    // DM-549: rasterize conic-gradient layers (no-op when tree has none).\n    await rasterizeConicGradients(cap.tree);\n    timer.mark(\"rasterize-conic\");\n    // DM-1029: bracket the synchronous render with the render-profiler so we\n    // can split render-svg into [helper subprocess] / [text in-process] /\n    // [box + markup]. Safe because elementTreeToSvgInner never awaits — no\n    // other worker interleaves between reset and snapshot.\n    if (DEMO_TIMING) profReset();\n    // Every fixture owns one generation. Without this reset the builder report\n    // is worker-cumulative and a workerSeq subtraction is required to guess\n    // which subset belonged to this row.\n    resetGeneration();\n    const collectTextEvidence = (process.platform === \"linux\" && shouldCollectLinuxUnicodeTextEvidence(name))\n      || name === \"20000-2A6DF-cjk-unified-ideographs-extension-b.111\";\n    if (collectTextEvidence) {\n      resetTextRunProvenance();\n      setTextRunProvenanceEnabled(true);\n    }\n    let svgContent: string;\n    try {\n      svgContent = elementTreeToSvgInner(cap.tree, WIDTH, fixtureHeight);\n      if (collectTextEvidence) {\n        textRunEvidence = getFixtureTextRunProvenance(name);\n        if (name === \"20000-2A6DF-cjk-unified-ideographs-extension-b.111\") {\n          textRunEvidence.runs = textRunEvidence.runs.filter((run) =>\n            [...run.sourceText].some((character) => {\n              const cp = character.codePointAt(0)!;\n              return cp >= 0x270EF && cp <= 0x270F4;\n            }));\n          textRunEvidence.runs.forEach((run, row) => { run.row = row; });\n        }\n      }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2436"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "90b57680a58ce9cde5140e33fbf70c54"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "092dc6f25d24618e606a4c944ada1e0cfc2159fa",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

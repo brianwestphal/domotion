@@ -189,6 +189,8 @@ export interface EmbeddedFontBuildDiagnostic {
   sourcePath: string | null;
   faceIndex: number | null;
   variationAxes: Record<string, number> | null;
+  /** Design scale used by the builder before any emitted font conversion. */
+  inputUnitsPerEm?: number;
   selectedBuilder: "hb-subset" | "svg2ttf";
   hintedSourceDisqualifiedReasons: HintedSourceDisqualificationReason[];
   retainedTableTags: string[];
@@ -674,6 +676,7 @@ function diagnosticFor(
     sourcePath: entry.hintedSource?.path ?? null,
     faceIndex: entry.hintedSource?.faceIndex ?? null,
     variationAxes: entry.hintedSource?.variationAxes ?? null,
+    inputUnitsPerEm: entry.unitsPerEm,
     selectedBuilder,
     hintedSourceDisqualifiedReasons: [...entry.hintedSourceDisqualificationReasons].sort(),
     retainedTableTags,

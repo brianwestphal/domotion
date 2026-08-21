@@ -66,6 +66,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2kpu7ek9aojsdg",
+          "message": {
+            "text": "Selected-font provenance now binds logical glyph records to exact source bytes and the live platform descriptor axis dictionary. A focused macOS run recorded PingFangUI.tcc SHA-256 13b201d6…, WDTH=500/wght=400/HGHT=500, source gid 40500/advance 1009, while the same artifact's browser cell records PingFangSC-Regular and Range width 32.296875px.",
+            "markdown": "Selected-font provenance now binds logical glyph records to exact source bytes and the live platform descriptor axis dictionary. A focused macOS run recorded PingFangUI.tcc SHA-256 13b201d6…, WDTH=500/wght=400/HGHT=500, source gid 40500/advance 1009, while the same artifact's browser cell records PingFangSC-Regular and Range width 32.296875px."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-run-provenance.ts"
+                },
+                "region": {
+                  "startLine": 55,
+                  "endLine": 150,
+                  "snippet": {
+                    "text": "  emittedIdentity: string;\n  finalRepresentation: \"svg-paths\" | \"embedded-font\";\n  shapeError?: string;\n}\n\nexport interface TextEmitterTransitionDiagnostic {\n  kind: \"embedded-succeeded\" | \"embedded-declined-to-paths\" | \"paths-succeeded\" | \"paths-declined\";\n  sourceText: string;\n}\n\nexport interface FixtureTextRunProvenance {\n  schemaVersion: 1;\n  fixture: string;\n  sourceAuthority: {\n    chromium: \"7d859f271cbda744098ac69f44978d4edfa62be3\";\n    harfbuzz: \"4de187dd0a915d13c976fa8bd474c084229f3aab\";\n    skia: \"62efacd3\";\n  };\n  runs: Array<TextRunProvenanceDiagnostic & { fixture: string; row: number }>;\n  transitions: TextEmitterTransitionDiagnostic[];\n}\n\nlet enabled = false;\nlet runs: TextRunProvenanceDiagnostic[] = [];\nlet transitions: TextEmitterTransitionDiagnostic[] = [];\nconst sourceFileEvidence = new Map<string, TextRunProvenanceDiagnostic[\"selected\"][\"sourceFile\"]>();\n\nfunction fileEvidence(path: string | null): TextRunProvenanceDiagnostic[\"selected\"][\"sourceFile\"] {\n  if (path == null) return null;\n  const cached = sourceFileEvidence.get(path);\n  if (cached !== undefined) return cached;\n  try {\n    const bytes = readFileSync(path);\n    const stat = statSync(path);\n    const value = { sha256: createHash(\"sha256\").update(bytes).digest(\"hex\"), byteLength: bytes.length, mtimeMs: stat.mtimeMs };\n    sourceFileEvidence.set(path, value);\n    return value;\n  } catch {\n    sourceFileEvidence.set(path, null);\n    return null;\n  }\n}\n\nfunction codepointIndexAtUtf16(text: string, utf16Index: number): number {\n  return [...text.slice(0, Math.max(0, Math.min(text.length, utf16Index)))].length;\n}\n\nfunction clusterEnd(text: string, cluster: number, clusters: number[]): number {\n  const later = clusters.filter((candidate) => candidate > cluster);\n  return later.length === 0 ? text.length : Math.min(...later);\n}\n\nfunction outlineIdentity(commands: Array<{ command: string; args: number[] }>): { sha256: string; commandCount: number } | null {\n  if (commands.length === 0) return null;\n  return {\n    sha256: createHash(\"sha256\").update(JSON.stringify(commands)).digest(\"hex\"),\n    commandCount: commands.length,\n  };\n}\n\nexport function setTextRunProvenanceEnabled(value: boolean): void { enabled = value; }\nexport function textRunProvenanceEnabled(): boolean { return enabled; }\nexport function resetTextRunProvenance(): void { runs = []; transitions = []; }\nexport function getTextRunProvenance(): { runs: TextRunProvenanceDiagnostic[]; transitions: TextEmitterTransitionDiagnostic[] } {\n  return { runs: structuredClone(runs), transitions: structuredClone(transitions) };\n}\n\n/** Persist production evidence with fixture identity on every row. */\nexport function getFixtureTextRunProvenance(fixture: string): FixtureTextRunProvenance {\n  const snapshot = getTextRunProvenance();\n  return {\n    schemaVersion: 1,\n    fixture,\n    sourceAuthority: {\n      chromium: \"7d859f271cbda744098ac69f44978d4edfa62be3\",\n      harfbuzz: \"4de187dd0a915d13c976fa8bd474c084229f3aab\",\n      skia: \"62efacd3\",\n    },\n    runs: snapshot.runs.map((run, row) => ({ ...run, fixture, row })),\n    transitions: snapshot.transitions,\n  };\n}\n\nexport function recordTextEmitterTransition(value: TextEmitterTransitionDiagnostic): void {\n  if (enabled) transitions.push(value);\n}\n\nexport function recordSelectedFontRuns(\n  emitter: TextRunProvenanceDiagnostic[\"emitter\"],\n  sourceText: string,\n  request: TextRunRequestDiagnostic,\n  selectedRuns: FontRun[],\n): void {\n  if (!enabled) return;\n  for (const run of selectedRuns) {\n    const source = getFontSourceInfo(run.font);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2436"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c6554fe9f78dfd076aba8038c991d81c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "092dc6f25d24618e606a4c944ada1e0cfc2159fa",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

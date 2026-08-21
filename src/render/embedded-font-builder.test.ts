@@ -191,6 +191,7 @@ describe("embedded-font-builder hinted hb-subset branch (DM-1714/DM-1716)", () =
     expect(g.bbox.maxY).toBe(700);
     expect(getEmbeddedFontBuildDiagnostics()).toEqual([expect.objectContaining({
       sourcePath: staticPath, faceIndex: 0, variationAxes: null,
+      inputUnitsPerEm: 1000,
       selectedBuilder: "hb-subset", hintedSourceDisqualifiedReasons: [],
       affectedGlyphCount: 1, affectedGlyphOccurrenceCount: 1,
       retainedTableTags: expect.arrayContaining(["cvt ", "fpgm", "glyf", "prep"]),

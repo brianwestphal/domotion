@@ -14,7 +14,7 @@ Each `embeddedFontBuilds` entry in `results.json` contains:
 
 - the exact renderer instance key and generated CSS family;
 - the generated CSS family plus source `path`, TTC `faceIndex`, and resolved
-  variation-axis location;
+  variation-axis location, plus the builder's input UPEM;
 - the selected builder (`hb-subset` or `svg2ttf`);
 - all exact hinted-source disqualification reasons: synthetic outline, missing
   source, missing physical face index, source/axis disagreement, CFF or subset
@@ -31,6 +31,16 @@ corpus and its separately adjudicated structural Vedic Extensions row,
 `textRunEvidence` additionally persists the fixture on every production run,
 UTF-16 and code-point spans, selected physical face, glyph id/cluster,
 advance/offset, source-outline digest, and final representation.
+
+The targeted PingFang Extension-B diagnostic row goes further because a hosted
+CoreText handle cannot be reconstructed after its runner image expires. Its
+run evidence retains the source file SHA-256/size/mtime and the live descriptor
+axis dictionary; the result also carries per-codepoint source `Range` geometry,
+per-leaf CDP platform-font records, and the emitted SVG SHA/byte length/text
+transforms. This fixture bypasses the expected cache so every browser record is
+from the run that produced the artifact. The complete SVG remains the geometry
+payload; the compact transform list makes placement comparisons possible even
+when artifact pruning removes `.svg` files.
 
 `src/review/linux-unicode-evidence.ts` owns the closed acceptance list and the
 two-arm adjudicator. Disabling the fontconfig-backed resolver must move selected
