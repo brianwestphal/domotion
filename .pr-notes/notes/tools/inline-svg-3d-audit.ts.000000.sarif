@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3is9cti0u3l6xy",
+          "message": {
+            "text": "This observational gate distinguishes exact clone matrices from effective, missed, spurious, and clone-suppressed raster owners. The fresh Chromium run passed all 19 expected controls/current gaps: true SVG-child 3D became affine live but identity in the clone, a projective root had no effective owner, and foreignObject had one owner hidden below svgContent. It deliberately exits green on those documented current gaps; DM-2475 converts it to a parity gate after DM-2473 and DM-2474.",
+            "markdown": "This observational gate distinguishes exact clone matrices from effective, missed, spurious, and clone-suppressed raster owners. The fresh Chromium run passed all 19 expected controls/current gaps: true SVG-child 3D became affine live but identity in the clone, a projective root had no effective owner, and foreignObject had one owner hidden below svgContent. It deliberately exits green on those documented current gaps; DM-2475 converts it to a parity gate after DM-2473 and DM-2474."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/inline-svg-3d-audit.ts"
+                },
+                "region": {
+                  "startLine": 332,
+                  "endLine": 419,
+                  "snippet": {
+                    "text": "    for (const test of CASES) {\n      await page.setContent(htmlFor(test), { waitUntil: \"load\" });\n      const source = await readFacts(page);\n      const { tree, warnings } = await captureElementTreeWithWarnings(\n        page,\n        \"#scene\",\n        { x: 0, y: 0, ...VIEWPORT },\n      );\n      const inlineSvg = findInlineSvg(tree);\n      const raster = rasterFacts(tree);\n      const cloneResult = inlineSvg?.svgContent == null\n        ? null\n        : await readClone(clonePage, inlineSvg.svgContent);\n      const delta = cloneResult == null\n        ? Number.POSITIVE_INFINITY\n        : matrixDelta(source.localCtm, cloneResult.facts.localCtm);\n      const transformRaster = raster.count > 0;\n      const pass = test.expectedRoute === \"outer-raster\"\n        ? raster.effective === 1\n        : test.expectedRoute === \"spurious-raster\"\n          ? raster.effective === 1 && quadAffineResidual(source.quad) <= MATRIX_EPSILON\n          : test.expectedRoute === \"hidden-spurious-raster-owner\"\n            ? raster.count === 1 && raster.effective === 0 && quadAffineResidual(source.quad) <= MATRIX_EPSILON\n            : test.expectedRoute === \"hidden-raster-owner\"\n              ? raster.count === 1 && raster.effective === 0 && quadAffineResidual(source.quad) > MATRIX_EPSILON\n              : test.expectedRoute === \"missed-outer-raster\"\n                ? raster.effective === 0 && quadAffineResidual(source.quad) > MATRIX_EPSILON\n            : test.expectedRoute === \"clone-equivalent\"\n              ? raster.count === 0 && delta <= MATRIX_EPSILON\n              : raster.count === 0 && delta > MATRIX_EPSILON;\n      rows.push({\n        id: test.id,\n        expectedRoute: test.expectedRoute,\n        source,\n        clone: cloneResult?.facts ?? null,\n        clonedTransformAttribute: cloneResult?.transformAttribute ?? null,\n        matrixDelta: delta,\n        quadAffineResidual: quadAffineResidual(source.quad),\n        transformRaster,\n        rasterOwnerCount: raster.count,\n        effectiveRasterOwnerCount: raster.effective,\n        rasterOwnerPaths: raster.paths,\n        capturedInlineSvg: inlineSvg == null ? null : {\n          storedTransform: inlineSvg.styles.transform ?? null,\n          projectiveTransform: inlineSvg.projectiveTransform ?? null,\n          ownsTransformRaster: inlineSvg.transformSubtreeRaster?.dataUri != null,\n        },\n        warnings: warnings.map((warning) => `${warning.feature}: ${warning.message}`),\n        pass,\n      });\n    }\n\n    const byId = new Map(rows.map((row) => [row.id, row]));\n    const referenceMatrices = [\n      byId.get(\"css-matrix-fill-box\")?.source.localCtm,\n      byId.get(\"css-matrix-stroke-box\")?.source.localCtm,\n      byId.get(\"css-matrix-view-box\")?.source.localCtm,\n    ];\n    const referenceBoxesDistinct = referenceMatrices.every((matrix) => matrix != null)\n      && matrixDelta(referenceMatrices[0]!, referenceMatrices[1]!) > 1\n      && matrixDelta(referenceMatrices[1]!, referenceMatrices[2]!) > 1;\n    const controls = {\n      staticAttributeRoundTrips: (byId.get(\"native-transform-attribute-negative\")?.matrixDelta ?? Infinity) <= MATRIX_EPSILON,\n      referenceBoxesDistinct,\n      nonScalingStrokeUsesFillBox: matricesEqual(\n        byId.get(\"css-matrix-non-scaling-stroke\"),\n        byId.get(\"css-matrix-fill-box\"),\n      ),\n      svgPerspectivePropertyIgnored: matricesEqual(\n        byId.get(\"svg-layer-perspective-ignored\"),\n        byId.get(\"svg-layer-flat-control\"),\n      ),\n      svgChildPreserve3dFlattens: matricesEqual(\n        byId.get(\"svg-layer-preserve3d-flattens\"),\n        byId.get(\"svg-layer-grouping-opacity-flattens\"),\n      ),\n      zOriginMovesCloneAnswer: (byId.get(\"css-rotate-y-z-origin\")?.matrixDelta ?? 0) > MATRIX_EPSILON,\n      everyOuterProjectiveRowHasOneOwner: rows\n        .filter((row) => row.expectedRoute === \"outer-raster\")\n        .every((row) => row.effectiveRasterOwnerCount === 1),\n      nestedForeignObjectOwnerIsSuppressed: rows\n        .filter((row) => row.expectedRoute === \"hidden-raster-owner\")\n        .every((row) => row.rasterOwnerCount === 1 && row.effectiveRasterOwnerCount === 0),\n      inlineSvgProjectiveRootIsMissed: rows\n        .filter((row) => row.expectedRoute === \"missed-outer-raster\")\n        .every((row) => row.quadAffineResidual > MATRIX_EPSILON && row.effectiveRasterOwnerCount === 0),\n    };\n    const pass = rows.every((row) => row.pass) && Object.values(controls).every(Boolean);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/162-inline-svg-3d-transform-audit.md"
+                },
+                "region": {
+                  "startLine": 175
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2371"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "49e81595cb4895734618ebebfab2a6bf"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "dfbc01b02dd461f2002dc88db7fe0bf685355db1",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -394,6 +394,17 @@ shortest possible map:
   observable while fixed ownership/projective paint remain rejected.
   Computed preserve-3d is also a fixed CB through grouping-property flattening.
   `transformSubtreeRaster` separately owns projective paint (doc 06).
+- **Cloned inline-SVG 3D audit (DM-2371, design-only)** —
+  `tools/inline-svg-3d-audit.ts`
+  (`npm run transform:inline-svg-3d-audit`) compares Blink's live
+  parent-relative SVG-child CTM with the actual `captureInlineSvg` clone and
+  inventories effective versus clone-suppressed projective owners. Pinned
+  source proves SVG graphics children are deliberately flattened to an affine
+  `LocalToSVGParentTransform`; current capture instead loses true matrix3d,
+  z-origin and non-scaling-stroke cases, misses a projective inline-SVG root,
+  and hides a nested `<foreignObject>` raster below `svgContent`. Doc 162 owns
+  the exact freeze/promote boundary; DM-2473/2474 implement it and DM-2475
+  promotes the observational probe to an all-platform logical/raster gate.
 
 ## Upstream source is checked out locally — read it
 

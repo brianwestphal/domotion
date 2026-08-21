@@ -88,6 +88,16 @@ outer projective context; the Node raster pass fills its PNG and
 otherwise double-painted subtree. The affine/non-affine boundary is gated by
 `npm run transform:geometry-oracle` and `npm run raster:boundary-oracle`.
 
+**Audited gap for captured DOM inline SVG (DM-2371):** this trigger is not yet
+reliable across an opaque `svgContent` clone. A projective transform on the SVG
+root can evade the HTML marker probe, while a projective HTML context under
+`<foreignObject>` can receive raster bytes on a descendant that
+`paintInlineSvg` never visits. Conversely, property-only perspective on
+source-flattened SVG graphics can raster unnecessarily. The design in
+[doc 162](../162-inline-svg-3d-transform-audit.md) requires promotion to one
+effective outer owner (DM-2474); do not treat a nested serialized owner as a
+live fallback until that ships.
+
 ---
 
 ## CSS-feature fallbacks

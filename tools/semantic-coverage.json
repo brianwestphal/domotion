@@ -1141,6 +1141,65 @@
       ]
     },
     {
+      "id": "svg.inline-3d-transform-ownership",
+      "parityAreas": [
+        "transforms-projection-reflection",
+        "raster-fallback-boundary"
+      ],
+      "subjects": [
+        "matrix3d",
+        "transform-box",
+        "transform-origin",
+        "perspective",
+        "transform-style",
+        "foreignObject"
+      ],
+      "states": [
+        "planar matrix3d -> affine vector clone",
+        "SVG-child true 3D -> source-flattened affine vector clone",
+        "root/HTML non-affine plane -> outer Chromium raster",
+        "SVG property presence without used 3D -> no raster",
+        "nested foreignObject raster -> promoted above svgContent"
+      ],
+      "exactStates": [
+        "planar matrix3d -> affine vector clone"
+      ],
+      "uncoveredStates": [
+        "SVG-child true 3D -> source-flattened affine vector clone",
+        "root/HTML non-affine plane -> outer Chromium raster",
+        "SVG property presence without used 3D -> no raster",
+        "nested foreignObject raster -> promoted above svgContent"
+      ],
+      "upstreamSources": [
+        "external/chromium/third_party/blink/renderer/core/layout/svg",
+        "external/chromium/third_party/blink/renderer/core/style",
+        "external/chromium/third_party/blink/renderer/core/paint",
+        "external/skia/include/core",
+        "external/skia/src/core"
+      ],
+      "productionOwners": [
+        "src/capture/script/walker/inline-svg.ts",
+        "src/capture/script/index.ts",
+        "src/render/transforms.ts",
+        "src/render/element-tree-to-svg.ts"
+      ],
+      "oracles": [
+        "tools/inline-svg-3d-audit.ts",
+        "tools/transform-geometry-oracle.ts",
+        "tools/raster-boundary-oracle.ts"
+      ],
+      "metamorphicTests": [],
+      "visualFixtures": [],
+      "coverage": "partial",
+      "boundary": "DM-2371 proves the source boundary and current defects observationally: true SVG-child 3D is affine but literal matrix3d is rejected in the clone; projective roots can be missed; foreignObject owners can be suppressed; inert SVG perspective can over-raster. DM-2473/2474 implement the boundary and DM-2475 adds the hard all-platform gate.",
+      "featureIds": [
+        "render.tree-to-svg"
+      ],
+      "verifiedPlatforms": [
+        "darwin"
+      ]
+    },
+    {
       "id": "raster.boundary-activation",
       "parityAreas": [
         "raster-fallback-boundary"

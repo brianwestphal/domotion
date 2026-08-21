@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3is970akuhua1s",
+          "message": {
+            "text": "The boundary follows Blink layout ownership, not CSS syntax: SVG graphics children are already source-flattened affine, while root and HTML boxes can remain projective; opaque svgContent requires any nested raster to move above the clone. This prevents both the literal-matrix3d identity failure and a dead raster owner below paintInlineSvg.",
+            "markdown": "The boundary follows Blink layout ownership, not CSS syntax: SVG graphics children are already source-flattened affine, while root and HTML boxes can remain projective; opaque svgContent requires any nested raster to move above the clone. This prevents both the literal-matrix3d identity failure and a dead raster owner below paintInlineSvg."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/162-inline-svg-3d-transform-audit.md"
+                },
+                "region": {
+                  "startLine": 29,
+                  "endLine": 54,
+                  "snippet": {
+                    "text": "1. **SVG graphics children freeze to an exact used affine matrix.** This covers\n   CSS `matrix3d()`, `rotateX/Y`, `translateZ`, and `perspective()` functions on\n   `<g>`, `<rect>`, `<path>`, and other SVG children. Blink has already flattened\n   these transforms before paint. Capture must serialize Blink's used\n   parent-relative affine transform as `matrix(a b c d e f)`; it must not copy\n   the 4x4 computed string or independently reconstruct the reference box.\n2. **CSS layout boxes may remain projective.** The outer `<svg>` root is a box,\n   as are HTML boxes above it and HTML descendants inside `<foreignObject>`.\n   If their final paint plane has a non-affine fourth corner, or participates in\n   depth/backface composition that cannot be represented by one affine SVG\n   matrix, Chromium owns one raster surface.\n3. **An opaque clone moves the ownership boundary outward.** A raster attached\n   to a descendant of a captured inline SVG is dead data because\n   `paintInlineSvg` never renders that descendant. Any non-affine\n   `<foreignObject>`/HTML surface must be promoted to the inline SVG root or an\n   already-owning outer 3D context.\n4. **Computed property presence is not paint activation.** `perspective` and\n   `transform-style` on an SVG child do not put that child on Blink's general\n   3D box path. SVG-child transforms terminate the rendering context and\n   flatten. A perspective-bearing SVG root whose only descendants have already\n   lost z can also remain affine. Capture should classify the resulting paint,\n   not raster merely because a computed token is non-default.\n5. **Unknown means an explicit Chromium surface.** Missing/non-invertible\n   local CTMs, a failed source/clone correlation, animation drift, or an\n   ambiguous owner must warn and cross the declared outer boundary. It must\n   never fall back to the 2D submatrix in `cssTransformToSvg`."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/layout/svg/transform_helper.cc"
+                },
+                "region": {
+                  "startLine": 123
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/paint/paint_property_tree_builder.cc"
+                },
+                "region": {
+                  "startLine": 1205
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2371"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "da2549c1e79a4b39bfe16d47337319af"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "dfbc01b02dd461f2002dc88db7fe0bf685355db1",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
