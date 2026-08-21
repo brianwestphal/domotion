@@ -79,6 +79,11 @@ describe("computeRunEnv", () => {
 });
 
 describe("envComparability", () => {
+  it("rejects different pinned corpus identities", () => {
+    const a = computeRunEnv({ corpusIdentity: "pack:a" });
+    const b = computeRunEnv({ corpusIdentity: "pack:b" });
+    expect(envComparability(a, b)).toEqual(["corpus identity: run `pack:a`, baseline `pack:b`"]);
+  });
   it("DETECTS the real rotation that meta.image could not see", () => {
     // The regression pin. `image` is identical on both sides — that is exactly
     // why the existing check passed while Chrome painted different glyphs.

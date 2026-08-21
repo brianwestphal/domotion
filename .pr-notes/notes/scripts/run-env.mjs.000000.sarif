@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3hvhgfc021b5pw",
+          "message": {
+            "text": "The injected corpus id and SHA participate in the same environment comparability and shard-consistency checks as Chromium and font inventory. A moving external clone therefore cannot silently reuse evidence from different fixture bytes.",
+            "markdown": "The injected corpus id and SHA participate in the same environment comparability and shard-consistency checks as Chromium and font inventory. A moving external clone therefore cannot silently reuse evidence from different fixture bytes."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "scripts/run-env.mjs"
+                },
+                "region": {
+                  "startLine": 120,
+                  "endLine": 137,
+                  "snippet": {
+                    "text": "];\n\n/**\n * Do two environment records describe the same machine?\n *\n * Returns human-readable reasons they differ; empty means they agree as far as\n * the recorded fields can tell. Mirrors `comparability()` in\n * `scripts/diff-font-conformance-baseline.mjs`, which does the same job for the\n * font-conformance oracle — the visual sweep simply never had one.\n *\n * A field absent on EITHER side is skipped rather than counted as a difference:\n * an older baseline predates this record entirely, and reporting \"everything\n * changed\" for it would train readers to ignore the warning.\n */\n/**\n * @param {RunEnv|null} runEnv\n * @param {RunEnv|null} baseEnv\n * @returns {string[]}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 88,
+          "workItemUris": [
+            "DM-2372"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4c5229c52a9deff2270bc9f0b25159f0"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "49fc10363e072a4833b4b81466b51ef85a9883c0",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

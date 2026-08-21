@@ -65,6 +65,7 @@ import { inventoryDocument } from "../tools/font-inventory.mjs";
  * @property {string|null} platform
  * @property {string|null} arch
  * @property {string|null} node
+ * @property {string|null} corpusIdentity
  * @property {{digest: string|null, count: number|null, entries: string[]|null}|null} fontInventory
  */
 
@@ -77,7 +78,7 @@ import { inventoryDocument } from "../tools/font-inventory.mjs";
  * false sameness this record exists to detect.
  *
  * @param {{image?: string|null, imageVersion?: string|null, osRelease?: string|null,
- *          chromium?: string|null, platform?: string|null, arch?: string|null, node?: string|null,
+ *          chromium?: string|null, platform?: string|null, arch?: string|null, node?: string|null, corpusIdentity?: string|null,
  *          fontInventory?: {digest?: string|null, count?: number|null, entries?: string[]|null}|null}} [inputs]
  * @returns {RunEnv}
  */
@@ -95,6 +96,7 @@ export function computeRunEnv(inputs = {}) {
     platform: str(inputs.platform),
     arch: str(inputs.arch),
     node: str(inputs.node),
+    corpusIdentity: str(inputs.corpusIdentity),
     fontInventory: inv == null ? null : {
       digest: str(inv.digest),
       count: typeof inv.count === "number" ? inv.count : null,
@@ -114,6 +116,7 @@ const ENV_FIELDS = [
   ["platform", (e) => e?.platform],
   ["arch", (e) => e?.arch],
   ["font inventory digest", (e) => e?.fontInventory?.digest],
+  ["corpus identity", (e) => e?.corpusIdentity],
 ];
 
 /**
@@ -195,6 +198,7 @@ export function mergeShardEnvs(entries) {
   assign("platform", (e) => e?.platform, (v) => { combined.platform = v; });
   assign("arch", (e) => e?.arch, (v) => { combined.arch = v; });
   assign("node", (e) => e?.node, (v) => { combined.node = v; });
+  assign("corpus identity", (e) => e?.corpusIdentity, (v) => { combined.corpusIdentity = v; });
   assign("font inventory digest", (e) => e?.fontInventory?.digest, (v) => {
     const counts = present.map((e) => e.env?.fontInventory?.count).filter((c) => typeof c === "number");
     // Shards that agree on the digest agree on the list by construction, so the
@@ -278,6 +282,7 @@ export async function captureRunEnv({ withInventory = true } = {}) {
     platform: osPlatform(),
     arch: osArch(),
     node: process.version,
+    corpusIdentity: process.env.HTML_TEST_CORPUS_IDENTITY,
     fontInventory,
   });
 }

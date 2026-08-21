@@ -164,6 +164,8 @@ jobs:
         continue-on-error: true
       - name: Clone html-test fixtures
         run: git clone --depth 1 https://github.com/brianwestphal/html-test.git external/html-test
+      - name: Inject pinned parity blind-spot corpus
+        run: cp tests/fixtures/html-test/35-parity-blind-spots.html external/html-test/
       - name: Record runner image before diagnostics and rendering
         shell: bash
         run: |
@@ -172,6 +174,8 @@ jobs:
       - name: Record run environment before diagnostics and rendering
         shell: bash
         run: node scripts/run-env.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/run-env.json
+        env:
+          HTML_TEST_CORPUS_IDENTITY: parity-blind-spots-v1:af76f45b9b460dc09334291d072fc2dc3d51f908c7e5b85de6fb7438203fcf2a
       - name: Verify raster fallback pixel content
         if: matrix.shard == 1
         continue-on-error: true
@@ -255,6 +259,8 @@ jobs:
         run: bash tools/linux-glyph-extractor/build.sh
       - name: Clone html-test fixtures
         run: git clone --depth 1 https://github.com/brianwestphal/html-test.git external/html-test
+      - name: Inject pinned parity blind-spot corpus
+        run: cp tests/fixtures/html-test/35-parity-blind-spots.html external/html-test/
       - name: Add deterministic CFF Unicode fixture
         if: inputs.hinted_subset == '1'
         run: |
@@ -268,6 +274,8 @@ jobs:
       - name: Record run environment before diagnostics and rendering
         shell: bash
         run: node scripts/run-env.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/run-env.json
+        env:
+          HTML_TEST_CORPUS_IDENTITY: parity-blind-spots-v1:af76f45b9b460dc09334291d072fc2dc3d51f908c7e5b85de6fb7438203fcf2a
       - name: Verify raster fallback pixel content
         if: matrix.shard == 1
         continue-on-error: true
@@ -331,6 +339,8 @@ jobs:
         run: ./tools/win32-glyph-extractor/build.ps1
       - name: Clone html-test fixtures
         run: git clone --depth 1 https://github.com/brianwestphal/html-test.git external/html-test
+      - name: Inject pinned parity blind-spot corpus
+        run: cp tests/fixtures/html-test/35-parity-blind-spots.html external/html-test/
       - name: Record runner image before diagnostics and rendering
         shell: bash
         run: |
@@ -339,6 +349,8 @@ jobs:
       - name: Record run environment before diagnostics and rendering
         shell: bash
         run: node scripts/run-env.mjs tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/run-env.json
+        env:
+          HTML_TEST_CORPUS_IDENTITY: parity-blind-spots-v1:af76f45b9b460dc09334291d072fc2dc3d51f908c7e5b85de6fb7438203fcf2a
       - name: Verify raster fallback pixel content
         if: matrix.shard == 1
         continue-on-error: true

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "fixtures": [{
+    "id": "parity-blind-spots-v1",
+    "file": "tests/fixtures/html-test/35-parity-blind-spots.html",
+    "sha256": "af76f45b9b460dc09334291d072fc2dc3d51f908c7e5b85de6fb7438203fcf2a",
+    "categories": ["svg-effect-boxes", "css-mask-clip", "cross-origin-scroll-iframe", "fragmented-background-table", "bidi-emoji", "mathml", "native-controls", "projective", "filters-blends", "zoom", "interacting-fallbacks"]
+  }]
+}

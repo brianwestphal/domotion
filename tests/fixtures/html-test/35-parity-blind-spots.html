@@ -1,0 +1,16 @@
+<!doctype html><meta charset="utf-8"><title>Parity blind spots</title>
+<style>
+*{box-sizing:border-box}body{margin:16px;font:16px/1.35 Arial;color:#182230;background:#fff}.grid{display:grid;grid-template-columns:repeat(3,220px);gap:14px}.case{min-height:120px;padding:10px;border:2px solid #456;border-radius:8px;background:#eef4ff}h2{font-size:13px;margin:0 0 8px}.mask{height:70px;background:linear-gradient(90deg,#e44,#46e);mask:linear-gradient(90deg,#000 10%,transparent 85%);clip-path:polygon(0 0,95% 8%,82% 100%,4% 88%)}
+.fragment{columns:2;column-gap:10px;height:92px;background-image:linear-gradient(135deg,#ffd 25%,#cdf 25% 50%,#fdc 50% 75%,#dcf 75%);background-size:26px 26px}.fragment table{border-collapse:collapse}.fragment td{border:1px solid #345;padding:3px}.bidi{direction:rtl;unicode-bidi:isolate}.emoji{font-size:24px}.projective{perspective:350px;overflow:hidden}.projective>div{transform:rotateY(32deg) rotateZ(5deg);transform-origin:20% 70%;padding:15px;background:#9ee}.fx{filter:drop-shadow(5px 4px 2px #2468) saturate(1.4);mix-blend-mode:multiply;background:#fc8}.zoom{zoom:1.25}.scrollframe{width:190px;height:75px;border:0}.controls{color-scheme:dark;accent-color:#f75}.controls>*{margin:3px}svg{width:190px;height:80px;overflow:visible}
+</style>
+<div class="grid">
+ <section class="case"><h2>SVG effect boxes + CSS mask/clip</h2><svg viewBox="0 0 100 40"><defs><filter id="f" x="-30%" y="-50%" width="170%" height="200%"><feGaussianBlur stdDeviation="2"/></filter></defs><rect x="8" y="7" width="70" height="24" rx="8" fill="#35c" filter="url(#f)"/></svg><div class="mask"></div></section>
+ <section class="case"><h2>Opaque-origin scrolling iframe</h2><iframe class="scrollframe" sandbox srcdoc="<style>body{margin:0;width:360px;height:220px;background:linear-gradient(45deg,#acf,#fca)}b{position:fixed;left:8px;top:8px}</style><b>frame</b>"></iframe></section>
+ <section class="case"><h2>Fragmented background + table</h2><div class="fragment">alpha beta gamma delta epsilon<table><tr><td>A</td><td>B</td></tr><tr><td>C</td><td>D</td></tr></table>zeta eta theta iota</div></section>
+ <section class="case"><h2>Bidi + emoji overrides</h2><div class="bidi">עברית <b dir="ltr">abc 123</b> العربية</div><div class="emoji">A 👩🏽‍🚀 🏳️‍🌈 <span style="unicode-bidi:bidi-override;direction:rtl">xyz</span></div></section>
+ <section class="case"><h2>MathML + fallbacks</h2><math><mrow><mo>(</mo><mfrac><mi>𝑥</mi><mrow><mi>y</mi><mo>+</mo><mn>1</mn></mrow></mfrac><mo>)</mo></mrow></math><div style="font-family:'Definitely Missing',serif">fallback Ω क्</div></section>
+ <section class="case controls"><h2>Native controls</h2><button>Button</button><input type="checkbox" checked><input type="radio" checked><input type="range" value="65"><progress max="100" value="55"></progress><meter min="0" max="10" value="7"></meter></section>
+ <section class="case projective"><h2>Nested projective context</h2><div><span style="transform:translateZ(18px);display:inline-block">projective text</span></div></section>
+ <section class="case"><h2>Filters + blend</h2><div class="fx" style="height:70px;padding:20px">filtered blend</div></section>
+ <section class="case zoom"><h2>Zoom + interacting fallbacks</h2><div style="mask:linear-gradient(90deg,#000,transparent);filter:blur(.4px);writing-mode:vertical-rl;height:65px">縦書き 👋🏽</div></section>
+</div>
