@@ -644,6 +644,12 @@ const captureDocumentTree =
           if (_s === 1) return cs.fontSize;
           return (_fs * _s).toFixed(4) + 'px';
         })(),
+        fontLogicalSize: cs.fontSize,
+        fontComputedSize: (function() {
+          var _fs = parseFloat(cs.fontSize);
+          if (!isFinite(_fs)) return cs.fontSize;
+          return (_fs * _effectiveZoomFor(el)).toFixed(4) + 'px';
+        })(),
         // DM-2051: an element with NO author-declared font-family is a Blink
         // kStandardFamily description, which resolves to the SCRIPT-KEYED
         // `settings.Standard(script)` — so `lang=ja` with no declared family
@@ -752,13 +758,32 @@ const captureDocumentTree =
       ..._listsCounters,
       textSegments: textSegments.length > 0 ? textSegments : undefined,
       textTop, textLeft, textHeight, textWidth,
-      // DM-587: fontAscent + fontDescent come from `canvas.measureText` using
-      // the unscaled `cs.fontSize`, so scale them to match the also-scaled
-      // captured fontSize. Otherwise the renderer's baseline math reads
-      // unscaled ascent values, and glyphs sit too far below their captured
-      // bbox top inside a `transform: scale(<1)` container.
-      fontAscent: fontAscent != null ? fontAscent * _scaleMag(el) : fontAscent,
-      fontDescent: fontDescent != null ? fontDescent * _scaleMag(el) : fontDescent,
+      // DM-2446: Blink chooses and measures the face at computed size
+      // (logical CSS size × effective zoom), then the transform stage scales
+      // those metrics into paint space. Re-measure at computed size instead of
+      // multiplying logical-size metrics by zoom: variable-font metrics can
+      // change non-linearly when the computed size selects another instance.
+      fontAscent: (function() {
+        if (fontAscent == null) return fontAscent;
+        var _logical = parseFloat(cs.fontSize);
+        var _zoom = _effectiveZoomFor(el);
+        var _computed = _logical * _zoom;
+        if (!isFinite(_computed) || _zoom === 0) return fontAscent * _scaleMag(el);
+        // Pseudo/input walkers may have supplied metrics for a style other
+        // than this host element. Preserve that source and only apply the
+        // established paint scale when it does not match the host metric.
+        if (fontAscent !== _measureFontMetrics(cs).ascent) return fontAscent * _scaleMag(el);
+        return _measureFontMetrics(cs, _computed.toFixed(4) + 'px').ascent * (_scaleMag(el) / _zoom);
+      })(),
+      fontDescent: (function() {
+        if (fontDescent == null) return fontDescent;
+        var _logical = parseFloat(cs.fontSize);
+        var _zoom = _effectiveZoomFor(el);
+        var _computed = _logical * _zoom;
+        if (!isFinite(_computed) || _zoom === 0) return fontDescent * _scaleMag(el);
+        if (fontDescent !== _measureFontMetrics(cs).descent) return fontDescent * _scaleMag(el);
+        return _measureFontMetrics(cs, _computed.toFixed(4) + 'px').descent * (_scaleMag(el) / _zoom);
+      })(),
       inputXOffsets,
       textImageUri, textImageScale,
       // Placeholder metadata (SK-1097 / SK-1100 / SK-1099): captured in

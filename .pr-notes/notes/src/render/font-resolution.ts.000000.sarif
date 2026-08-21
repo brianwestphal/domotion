@@ -2086,6 +2086,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt2mmwlz368o6jb6",
+          "message": {
+            "text": "DM-2446 separates font-size responsibilities at the resolver boundary: platform matching and metrics receive Blink’s effective-zoomed computed size, while the non-enumerable size metadata continues to drive logical-size automatic opsz and HarfBuzz ptem. The cache key also records logical size and optical-sizing mode, preventing equal computed-size requests from sharing incompatible optical instances. Focused axis/cache tests pass 47/47 and the Chromium capture contract passes 1/1.",
+            "markdown": "DM-2446 separates font-size responsibilities at the resolver boundary: platform matching and metrics receive Blink’s effective-zoomed computed size, while the non-enumerable size metadata continues to drive logical-size automatic opsz and HarfBuzz ptem. The cache key also records logical size and optical-sizing mode, preventing equal computed-size requests from sharing incompatible optical instances. Focused axis/cache tests pass 47/47 and the Chromium capture contract passes 1/1."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 9050,
+                  "endLine": 9068,
+                  "snippet": {
+                    "text": "   *  via Playwright's per-script tables (see `resolveFontKey`). */\n  lang?: string,\n): FontInstance | null {\n  const matchSize = computedFontSize(variationSettings, fontSize);\n  // A generated family-name table can recognize a face that is absent from\n  // this particular host inventory. Blink's kFontFamily stage keeps walking\n  // the authored CSS stack when matching/loading that face fails; do the same\n  // here rather than returning null from the first recognized snapshot entry.\n  for (const entry of splitFontFamilyNames(fontFamily)) {\n    const key = matchFamilyNameToKey(\n      entry.name, entry.generic, lang, entry.canonicalSystemUiName, entry.lookupName,\n    );\n    if (key == null) continue;\n    const cutOpsz = OPTICAL_CUT_OPSZ[entry.name];\n    const settings = cutOpsz != null && (variationSettings == null || variationSettings.opsz == null)\n      ? { ...(variationSettings ?? {}), opsz: cutOpsz }\n      : variationSettings;\n    const instance = getFontInstance(\n      key, fontWeight, matchSize, slant, settings, stretch,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text.ts"
+                },
+                "region": {
+                  "startLine": 1500
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/font-size-spaces.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 22
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2446"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "a43bf20ebcb2e79121f03fe004eaa041"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "93ca5dd2f42dcafcbb24b7037ddb314d0091259d",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

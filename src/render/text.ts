@@ -1504,9 +1504,15 @@ export function parseFontVariationSettings(css: string | undefined): Record<stri
  * and therefore keeps CSS Fonts' precedence. */
 function opticalVariationSettings(el: Pick<CapturedElement, "styles">): Record<string, number> | undefined {
   const axes = parseFontVariationSettings(el.styles.fontVariationSettings);
-  if (el.styles.fontOpticalSizing !== "none") return axes;
+  const logical = parseFloat(el.styles.fontLogicalSize ?? el.styles.fontSize);
+  const computed = parseFloat(el.styles.fontComputedSize ?? el.styles.fontSize);
+  const needsSizeSpaces = Number.isFinite(logical) && Number.isFinite(computed)
+    && (logical !== parseFloat(el.styles.fontSize) || computed !== parseFloat(el.styles.fontSize));
+  if (el.styles.fontOpticalSizing !== "none" && !needsSizeSpaces) return axes;
   const marked = axes ?? {};
-  Object.defineProperty(marked, "__dmOpticalSizingNone", { value: true, enumerable: false });
+  if (el.styles.fontOpticalSizing === "none") Object.defineProperty(marked, "__dmOpticalSizingNone", { value: true, enumerable: false });
+  if (Number.isFinite(logical)) Object.defineProperty(marked, "__dmLogicalFontSize", { value: logical, enumerable: false });
+  if (Number.isFinite(computed)) Object.defineProperty(marked, "__dmComputedFontSize", { value: computed, enumerable: false });
   return marked;
 }
 

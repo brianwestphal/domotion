@@ -109,10 +109,10 @@ export const createFontMetrics = () => {
     return changed ? out.join(', ') : ff;
   };
 
-  const measureFontMetrics = (cs) => {
+  const measureFontMetrics = (cs, fontSizeOverride) => {
     const fs = cs.fontStyle || 'normal';
     const fw = cs.fontWeight || '400';
-    const fz = cs.fontSize || '14px';
+    const fz = fontSizeOverride || cs.fontSize || '14px';
     const ff = substituteAliasedFamilies(cs.fontFamily || 'sans-serif');
     const key = fs + '|' + fw + '|' + fz + '|' + ff;
     let v = metricsCache.get(key);

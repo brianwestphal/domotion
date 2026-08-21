@@ -18,6 +18,16 @@ describe("fontInstanceCacheKey", () => {
     const condensed = fontInstanceCacheKey("sf-pro", 400, 16, 0, undefined, true, undefined, 75);
     expect(new Set([declared, system, condensed])).toHaveLength(3);
   });
+
+  it("keeps logical optical-size requests distinct at the same computed size", () => {
+    const request = (logical: number) => {
+      const axes = {};
+      Object.defineProperty(axes, "__dmLogicalFontSize", { value: logical, enumerable: false });
+      Object.defineProperty(axes, "__dmComputedFontSize", { value: 26, enumerable: false });
+      return fontInstanceCacheKey("sf-pro", 400, 26, 0, axes, true, undefined, 100);
+    };
+    expect(request(13)).not.toBe(request(26));
+  });
 });
 
 describe("genericSettingsFamilyName", () => {

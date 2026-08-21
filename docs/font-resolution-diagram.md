@@ -2261,11 +2261,12 @@ still fall back to svg2ttf when the source cannot be subset safely.
    (`mac/font_platform_data_mac.mm:169-185` + `:74-79`, Chromium `7d859f27`;
    clamped again independently by Skia at
    `src/ports/SkTypeface_mac_ct.cpp:1147`, Skia `ebf5052`). Recorded
-   divergence, inert at every current input: we pass the captured COMPUTED
-   size where Blink passes the specified (pre-zoom) one — the two differ only
-   under CSS zoom, which the capture neither runs nor models, so no current
-   input distinguishes them; if zoom becomes a capture input the pre-zoom size
-   must be plumbed through. The macOS resolver
+   size where Blink passes the specified (pre-zoom) one. DM-2446 now preserves
+   that logical size separately from Blink's effective-zoomed matching size and
+   the final transform-scaled paint size. The macOS resolver consumes logical
+   size for automatic `opsz`; platform face selection and metrics consume
+   computed size, while SVG outline/stroke scaling alone consumes paint size.
+   HarfBuzz likewise receives logical size as `ptem`. The macOS resolver
    therefore sets **`opsz` plus any explicit `font-variation-settings` axis, and
    deliberately NOT `wght`** — on macOS the weight is already baked in by the
    CoreText trait/weight re-selection that runs first

@@ -16,6 +16,12 @@ const opticalNone = (axes: Record<string, number> = {}): Record<string, number> 
   Object.defineProperty(axes, "__dmOpticalSizingNone", { value: true, enumerable: false });
   return axes;
 };
+const sizeSpaces = (logical: number, computed: number): Record<string, number> => {
+  const axes = {};
+  Object.defineProperty(axes, "__dmLogicalFontSize", { value: logical, enumerable: false });
+  Object.defineProperty(axes, "__dmComputedFontSize", { value: computed, enumerable: false });
+  return axes;
+};
 
 describe("resolveAxisLocationForFile: CSS-derived pins (DM-1716)", () => {
   it("pins wght from CSS weight and opsz from font size", () => {
@@ -38,6 +44,11 @@ describe("resolveAxisLocationForFile: CSS-derived pins (DM-1716)", () => {
   it("font-optical-sizing:none suppresses automatic opsz but not explicit opsz", () => {
     expect(resolveAxisLocationForFile(SEGOE_AXES, 400, 24, 0, opticalNone())).toEqual({ wght: 400 });
     expect(resolveAxisLocationForFile(SEGOE_AXES, 400, 24, 0, opticalNone({ opsz: 30 }))).toEqual({ wght: 400, opsz: 30 });
+  });
+
+  it("uses logical size for opsz when computed matching size differs", () => {
+    expect(resolveAxisLocationForFile(SEGOE_AXES, 400, 26, 0, sizeSpaces(13, 26)))
+      .toEqual({ wght: 400, opsz: 13 });
   });
 });
 
@@ -218,6 +229,10 @@ describe("resolveDarwinAxisLocation (DM-1885)", () => {
   it("font-optical-sizing:none keeps the CoreText handle unless opsz is explicit", () => {
     expect(resolveDarwinAxisLocation(SF_INDIC, 13, opticalNone())).toBeUndefined();
     expect(resolveDarwinAxisLocation(SF_INDIC, 13, opticalNone({ opsz: 24 }))).toEqual({ opsz: 24 });
+  });
+
+  it("uses logical rather than computed size for Darwin automatic opsz", () => {
+    expect(resolveDarwinAxisLocation(SF_INDIC, 26, sizeSpaces(13, 26))).toEqual({ opsz: 17 });
   });
 
   it("ignores a variation setting for an axis the face does not have", () => {

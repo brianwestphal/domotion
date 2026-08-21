@@ -769,6 +769,10 @@ export interface CapturedStyles {
   whiteSpace?: string;
   color: string;
   fontSize: string;
+  /** CSSOM/specified size before effective zoom or transforms. */
+  fontLogicalSize?: string;
+  /** Blink platform matching/metrics size after effective zoom, before transforms. */
+  fontComputedSize?: string;
   fontFamily: string;
   fontWeight: string;
   /** 'italic' | 'oblique' | 'normal' — drives the SF Pro slnt axis in

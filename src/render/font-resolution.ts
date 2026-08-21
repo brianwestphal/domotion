@@ -6189,9 +6189,11 @@ export function fontInstanceCacheKey(
   const fvsKey = variationSettings != null
     ? Object.keys(variationSettings).sort().map((tag) => `${tag}=${variationSettings[tag]}`).join(",")
     : "";
+  const sizeSpaceKey = variationSettings == null ? ""
+    : `-logical${logicalFontSize(variationSettings, fontSize)}-optical${opticalSizingDisabled(variationSettings) ? "none" : "auto"}`;
   const familyRoute = systemUiPrimary ? "system-ui" : `declared:${declaredFamily ?? ""}`;
   const widthRoute = wdthStretch !== 100 ? `-wdth${wdthStretch}` : "";
-  return `${effectiveKey}-${weight}-${fontSize}-${slant}-${fvsKey}-${familyRoute}${widthRoute}`;
+  return `${effectiveKey}-${weight}-${fontSize}-${slant}-${fvsKey}${sizeSpaceKey}-${familyRoute}${widthRoute}`;
 }
 
 type RegisteredFontResolution =
@@ -6377,7 +6379,7 @@ function instantiateResolvedFont(
     // for PingFang Regular shapes with the Medium master it is an instance of.
     const hbShapeFace = _trakHbShapingEnabled && helperFaceInfo != null && faceHasTrakAndStat(spec.path, helperFaceInfo.faceIndex)
       ? makeHarfbuzzShapeFallback(
-        spec.path, helperFaceInfo.faceIndex, fontSize,
+        spec.path, helperFaceInfo.faceIndex, logicalFontSize(variationSettings, fontSize),
         helperFaceInfo.fileAxes != null
           ? (hostPlatform() === "darwin"
             // The SAME darwin derivation as `helperAxes` — HarfBuzz opens by
@@ -7329,6 +7331,17 @@ function opticalSizingDisabled(settings: Record<string, number> | undefined): bo
     && settings?.opsz == null;
 }
 
+type FontSizeSpaceSettings = Record<string, number> & {
+  __dmLogicalFontSize?: number;
+  __dmComputedFontSize?: number;
+};
+function logicalFontSize(settings: Record<string, number> | undefined, fallback: number): number {
+  return (settings as FontSizeSpaceSettings | undefined)?.__dmLogicalFontSize ?? fallback;
+}
+function computedFontSize(settings: Record<string, number> | undefined, fallback: number): number {
+  return (settings as FontSizeSpaceSettings | undefined)?.__dmComputedFontSize ?? fallback;
+}
+
 export function resolveAxisLocationForFile( // exported for unit testing (not in the package barrel)
   fileAxes: Record<string, unknown>, weight: number, fontSize: number, slant: number,
   variationSettings?: Record<string, number>,
@@ -7337,7 +7350,7 @@ export function resolveAxisLocationForFile( // exported for unit testing (not in
 ): Record<string, number> {
   const axes: Record<string, number> = {};
   if (fileAxes.wght != null) axes.wght = weight;
-  if (fileAxes.opsz != null && !opticalSizingDisabled(variationSettings)) axes.opsz = fontSize;
+  if (fileAxes.opsz != null && !opticalSizingDisabled(variationSettings)) axes.opsz = logicalFontSize(variationSettings, fontSize);
   if (slant !== 0 && fileAxes.slnt != null) axes.slnt = slant;
   // When the requested PostScript name is an fvar NAMED INSTANCE rather than a
   // physical member, the instance's coordinates ARE the face — that is what the
@@ -7445,7 +7458,7 @@ export function resolveDarwinAxisLocation( // exported for unit testing (not in 
   // at zoom 1 and the tree carries no pre-zoom size), so no current input can
   // distinguish them. If zoom ever becomes a capture input, the pre-zoom
   // specified size must be plumbed to here.
-  if (fileAxes.opsz != null && !opticalSizingDisabled(variationSettings)) axes.opsz = fontSize;
+  if (fileAxes.opsz != null && !opticalSizingDisabled(variationSettings)) axes.opsz = logicalFontSize(variationSettings, fontSize);
   if (variationSettings != null) {
     for (const tag of Object.keys(variationSettings)) {
       if (fileAxes[tag] != null) axes[tag] = variationSettings[tag];
@@ -7589,8 +7602,9 @@ export function darwinCloneInstanceName(
     // (allowed to override the opsz just set). Both gates compare the CLAMPED
     // target against the handle's ORIGINAL current position.
     let v = a.value;
-    if (a.tag === "opsz" && !opticalSizingDisabled(variationSettings) && fixed(clampTo(fontSize, a)) !== fixed(a.value)) {
-      v = fontSize;
+    const opticalSize = logicalFontSize(variationSettings, fontSize);
+    if (a.tag === "opsz" && !opticalSizingDisabled(variationSettings) && fixed(clampTo(opticalSize, a)) !== fixed(a.value)) {
+      v = opticalSize;
       reconfigured = true;
     }
     const fvs = variationSettings?.[a.tag];
@@ -7834,7 +7848,7 @@ function applyVariationAxes(font: any, weight: number, fontSize: number, slant: 
       ? Math.min(Math.max(q(weight), q(font.variationAxes.wght.min ?? weight)), q(font.variationAxes.wght.max ?? weight))
       : weight;
   }
-  if (font.variationAxes.opsz != null && !opticalSizingDisabled(variationSettings)) axes.opsz = fontSize;
+  if (font.variationAxes.opsz != null && !opticalSizingDisabled(variationSettings)) axes.opsz = logicalFontSize(variationSettings, fontSize);
   if (font.variationAxes.wdth != null) {
     const caps = opts?.wdthCapabilities;
     if (caps != null) {
@@ -9036,6 +9050,7 @@ export function resolveFont(
    *  via Playwright's per-script tables (see `resolveFontKey`). */
   lang?: string,
 ): FontInstance | null {
+  const matchSize = computedFontSize(variationSettings, fontSize);
   // A generated family-name table can recognize a face that is absent from
   // this particular host inventory. Blink's kFontFamily stage keeps walking
   // the authored CSS stack when matching/loading that face fails; do the same
@@ -9050,14 +9065,14 @@ export function resolveFont(
       ? { ...(variationSettings ?? {}), opsz: cutOpsz }
       : variationSettings;
     const instance = getFontInstance(
-      key, fontWeight, fontSize, slant, settings, stretch,
+      key, fontWeight, matchSize, slant, settings, stretch,
       stackPrimaryIsSystemUi(entry.name),
     );
     if (instance != null) return instance;
   }
 
   const standardKey = matchFamilyNameToKey("-webkit-standard", true, lang) ?? "times";
-  return getFontInstance(standardKey, fontWeight, fontSize, slant, variationSettings, stretch);
+  return getFontInstance(standardKey, fontWeight, matchSize, slant, variationSettings, stretch);
 }
 
 // ── Glyph Registry (for <defs>/<use> deduplication) ──
@@ -9437,7 +9452,7 @@ export function resolveDottedCircleHbRun(
     ? { path: src.path, faceIndex: src.faceIndex, axes: src.variationAxes ?? null }
     : shapingFaceFor(markKey, weight, fontSize, slant, variationSettings);
   if (hbFace == null) return null;
-  const hbInst = makeHarfbuzzShapingInstance(markFont, hbFace.path, hbFace.faceIndex, fontSize, hbFace.axes);
+  const hbInst = makeHarfbuzzShapingInstance(markFont, hbFace.path, hbFace.faceIndex, logicalFontSize(variationSettings, fontSize), hbFace.axes);
   if (hbInst === markFont) return null; // HarfBuzz couldn't open the file
   // The pin owns one concrete resolver-selected face. Preserve that face's
   // source/member/axes on the shaping proxy so the embedded emitter subsets
@@ -9751,7 +9766,7 @@ function harfbuzzShapedScriptOverride(
   if (base.shapesWithHarfbuzz === true) return res;
   const hbFace = shapingFaceFor(res.key, weight, fontSize, slant, fvs);
   if (hbFace == null) return res;
-  const hbInst = makeHarfbuzzShapingInstance(base, hbFace.path, hbFace.faceIndex, fontSize, hbFace.axes, { outlinesFromBase: true });
+  const hbInst = makeHarfbuzzShapingInstance(base, hbFace.path, hbFace.faceIndex, logicalFontSize(variationSettings, fontSize), hbFace.axes, { outlinesFromBase: true });
   if (hbInst === base) return res; // HarfBuzz declined the file
   carryFontInstanceMetadata(hbInst, base);
   return { ...res, fontOverride: hbInst };
@@ -9824,7 +9839,7 @@ export function harfbuzzShapedRunOverride(
     ? { path: src.path, faceIndex: src.faceIndex, axes: src.variationAxes ?? null }
     : shapingFaceFor(fontKey, weight, fontSize, slant, variationSettings) ?? webfontShapingFace(base);
   if (hbFace == null || hbFace.faceIndex == null) return base;
-  const hbInst = makeHarfbuzzShapingInstance(base, hbFace.path, hbFace.faceIndex, fontSize, hbFace.axes, { outlinesFromBase: true, features });
+  const hbInst = makeHarfbuzzShapingInstance(base, hbFace.path, hbFace.faceIndex, logicalFontSize(variationSettings, fontSize), hbFace.axes, { outlinesFromBase: true, features });
   if (hbInst === base) return base; // HarfBuzz declined the file
   carryFontInstanceMetadata(hbInst, base);
   return hbInst;
@@ -9929,7 +9944,7 @@ export function fontFeatureValueShapingOverride(
     // to express. The bytes are the same thing a path would have been read into.
     ?? webfontShapingFace(base);
   if (hbFace == null) return base;
-  const hbInst = makeHarfbuzzShapingInstance(base, hbFace.path, hbFace.faceIndex, fontSize, hbFace.axes, { outlinesFromBase: true, features });
+  const hbInst = makeHarfbuzzShapingInstance(base, hbFace.path, hbFace.faceIndex, logicalFontSize(variationSettings, fontSize), hbFace.axes, { outlinesFromBase: true, features });
   if (hbInst === base) return base; // HarfBuzz declined the file
   carryFontInstanceMetadata(hbInst, base);
   return hbInst;
@@ -10073,7 +10088,7 @@ function walkFontFallbackStages(
     if (dcps.every((d) => glyphIdForCp(primaryFont, d) !== 0)) {
       const hbFace = shapingFaceFor(primaryFontKey, weight, fontSize, slant, variationSettings);
       if (hbFace != null) {
-        const hbInst = makeHarfbuzzShapingInstance(primaryFont, hbFace.path, hbFace.faceIndex, fontSize, hbFace.axes);
+        const hbInst = makeHarfbuzzShapingInstance(primaryFont, hbFace.path, hbFace.faceIndex, logicalFontSize(variationSettings, fontSize), hbFace.axes);
         if (hbInst !== primaryFont) return cover(primaryFontKey, hbInst, ch, true);
       }
     }
@@ -10253,7 +10268,7 @@ function walkFontFallbackStages(
     if (decompositionCandidates.some((candidate) => candidate.every((d) => glyphIdForCp(primaryFont, d) !== 0))) {
       const hbFace = shapingFaceFor(primaryFontKey, weight, fontSize, slant, variationSettings);
       if (hbFace != null) {
-        const hbInst = makeHarfbuzzShapingInstance(primaryFont, hbFace.path, hbFace.faceIndex, fontSize, hbFace.axes);
+        const hbInst = makeHarfbuzzShapingInstance(primaryFont, hbFace.path, hbFace.faceIndex, logicalFontSize(variationSettings, fontSize), hbFace.axes);
         if (hbInst !== primaryFont) return cover(primaryFontKey, hbInst, ch, true);
       }
     }
@@ -10283,7 +10298,7 @@ function walkFontFallbackStages(
     if (decompositionCandidates.some((candidate) => candidate.every((d) => glyphIdForCp(inst, d) !== 0))) {
       const hbFace = shapingFaceFor(key, weight, fontSize, slant, variationSettings);
       if (hbFace != null) {
-        const hbInst = makeHarfbuzzShapingInstance(inst, hbFace.path, hbFace.faceIndex, fontSize, hbFace.axes);
+        const hbInst = makeHarfbuzzShapingInstance(inst, hbFace.path, hbFace.faceIndex, logicalFontSize(variationSettings, fontSize), hbFace.axes);
         if (hbInst !== inst) return cover(key, hbInst, ch, true);
       }
     }
