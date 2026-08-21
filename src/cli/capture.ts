@@ -327,6 +327,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
         viewportH: clip[3],
         defaultSpeed: speed,
         prescroll: values["no-prescroll"] !== true,
+        crossOriginFrames: flags.crossOriginFrames,
         log,
       });
       // Cull each segment's tree (DM-603) before composition so off-viewBox

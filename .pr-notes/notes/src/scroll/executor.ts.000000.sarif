@@ -66,6 +66,71 @@
           "branch": "ci/dm2339-fresh-sweep"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3kxqr6aqlg1rw0",
+          "message": {
+            "text": "Scroll segments use the same cross-origin allowlist as static capture. This is intentionally an option on the executor rather than ambient state so every recapture preserves the per-host gate and callers must pair it with the launch-time web-security opt-in.",
+            "markdown": "Scroll segments use the same cross-origin allowlist as static capture. This is intentionally an option on the executor rather than ambient state so every recapture preserves the per-host gate and callers must pair it with the launch-time web-security opt-in."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/scroll/executor.ts"
+                },
+                "region": {
+                  "startLine": 50,
+                  "endLine": 62,
+                  "snippet": {
+                    "text": "  /**\n   * Inline remote image bytes into every captured segment tree. Default true —\n   * the composed scroll SVG is a published artifact, so a segment that keeps a\n   * literal `https://…` href renders as blank space wherever that origin is\n   * unreachable.\n   *\n   * Pass `false` only when the caller runs `embedRemoteImages` on the segments\n   * itself — `domotion capture --scroll` does, after its cull pass, so it can\n   * honor `--no-embed-images` and time the step in its log.\n   */\n  embedImages?: boolean;\n  /** Same opt-in host allowlist used by static capture. The browser must also\n   * have been launched with crossOriginFramesLaunchArgs(value). */"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2369"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "40b5eff87c4180e442c5210eaa3ed8b8"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "bf68d1f780b56ee23f3c5e75b622769ebd9fdea9",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

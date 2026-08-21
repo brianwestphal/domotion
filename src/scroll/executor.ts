@@ -58,6 +58,9 @@ export interface ScrollExecutorOptions {
    * honor `--no-embed-images` and time the step in its log.
    */
   embedImages?: boolean;
+  /** Same opt-in host allowlist used by static capture. The browser must also
+   * have been launched with crossOriginFramesLaunchArgs(value). */
+  crossOriginFrames?: string;
   /**
    * Optional progress callback — called with one-line status messages at
    * each milestone (pre-scroll start/end, every per-chunk capture, etc.).
@@ -333,7 +336,9 @@ export async function executeScrollPattern(
     x: 0, y: 0, width: opts.viewportW, height: opts.viewportH,
   };
   const captureCurrentTree = (): Promise<CapturedElement[]> =>
-    capture(page, captureSelector, captureViewport);
+    capture(page, captureSelector, captureViewport, {
+      ...(opts.crossOriginFrames != null ? { crossOriginFrames: opts.crossOriginFrames } : {}),
+    });
 
   if (prescroll) {
     log("  pre-scrolling page to wake lazy-loaded content...");

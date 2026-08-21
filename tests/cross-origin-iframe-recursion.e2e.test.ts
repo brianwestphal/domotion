@@ -4,6 +4,8 @@ import type { AddressInfo } from "node:net";
 import { launchChromium, captureElementTreeWithWarnings, crossOriginFramesLaunchArgs } from "../src/capture/index.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import type { CapturedElement } from "../src/capture/types.js";
+import { executeScrollPattern } from "../src/scroll/executor.js";
+import { parseScrollPattern } from "../src/scroll/pattern.js";
 
 /**
  * DM-1442 — opt-in cross-origin `<iframe>` recursion via the
@@ -55,7 +57,7 @@ const innerSrv = await startServer(
   `<!doctype html><html><body style="margin:0;background:#0b1b34;color:#fff;font:18px sans-serif;"><div style="padding:14px;">${INNER_TEXT}</div></body></html>`,
 );
 const outerSrv = await startServer(
-  `<!doctype html><html><body style="margin:0;"><div style="padding:20px;"><iframe src="http://127.0.0.1:${innerSrv.port}/" width="240" height="100" style="display:block;border:0;"></iframe></div></body></html>`,
+  `<!doctype html><html><body style="margin:0;height:500px;"><div style="padding:20px;"><iframe src="http://127.0.0.1:${innerSrv.port}/" width="240" height="100" style="display:block;border:0;"></iframe><div style="height:350px"></div></div></body></html>`,
 );
 const outerUrl = `http://127.0.0.1:${outerSrv.port}/`;
 
@@ -96,6 +98,26 @@ async function captureIframe(crossOriginFrames: string): Promise<CapturedElement
 }
 
 describeBrowser("cross-origin iframe recursion (DM-1442)", () => {
+  it("preserves allowlisted native recursion through every scroll segment", async () => {
+    const ctx = await env!.browserSecOff.newContext({ viewport: { width: 280, height: 140 } });
+    const page = await ctx.newPage();
+    try {
+      await page.goto(outerUrl, { waitUntil: "networkidle" });
+      const segments = await executeScrollPattern(page, parseScrollPattern("down:40px"), { viewportW: 280, viewportH: 140, prescroll: false, embedImages: false, crossOriginFrames: `127.0.0.1:${innerSrv.port}` });
+      expect(segments.length).toBe(2);
+      const iframeYs: number[] = [];
+      for (const segment of segments) {
+        const iframe = findByTag(segment.tree, "iframe"); expect(iframe?.replacedSnapshot).toBeUndefined(); expect(iframe && subtreeHasText(iframe, INNER_TEXT)).toBe(true); iframeYs.push(iframe!.y);
+        const ids:string[]=[]; const walk=(nodes:CapturedElement[])=>{for(const node of nodes){if(node.id) ids.push(node.id);walk(node.children??[])}}; walk(segment.tree); expect(new Set(ids).size).toBe(ids.length);
+      }
+      expect(iframeYs[0]! - iframeYs[1]!).toBeCloseTo(40, 1);
+    } finally { await ctx.close(); }
+  });
+
+  it("keeps non-allowlisted frames raster across scroll segments", async () => {
+    const ctx = await env!.browserSecOff.newContext({ viewport: { width: 280, height: 140 } }); const page = await ctx.newPage();
+    try { await page.goto(outerUrl,{waitUntil:"networkidle"}); const segments=await executeScrollPattern(page,parseScrollPattern("down:40px"),{viewportW:280,viewportH:140,prescroll:false,embedImages:false,crossOriginFrames:`127.0.0.1:${innerSrv.port+1}`}); expect(segments).toHaveLength(2); for(const segment of segments){const iframe=findByTag(segment.tree,"iframe");expect(iframe?.replacedSnapshot).toBeDefined();expect(iframe&&subtreeHasText(iframe,INNER_TEXT)).toBe(false)}} finally {await ctx.close()}
+  });
   it("recurses a cross-origin frame whose host:port is on the allowlist", async () => {
     const iframe = await captureIframe(`127.0.0.1:${innerSrv.port}`);
     expect(iframe.replacedSnapshot, "matched frame should NOT be rastered").toBeUndefined();
