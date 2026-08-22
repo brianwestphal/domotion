@@ -1518,17 +1518,19 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   boxes; they never fall back to a primary-face ascent merely because the
   selected physical face is helper-backed.
 
-<!-- DM-2386 -->
-- Animated viewBox culling (doc 155) is not yet safe for its nominally supported
-  transform path. Fresh browser controls prove over-hide from the SVG
-  fill-box/border-box proxy, nearest-only nested timing, endpoint-matrix
-  interpolation, fixed 2% sampling, and ignored frozen static transforms.
-  Continuous SVG output requires conservative swept **visual** bounds over
-  source-derived global-time intervals; exact per-frame quads are an oracle and
-  finite-raster mechanism, not proof between frames. Unknown transform lists,
-  motion paths, pixel-moving effects, and projective `w`-plane crossings retain
-  content. DM-2460 owns reference/visual bounds, DM-2461 owns composed timeline
-  bounds, and DM-2462 owns the live Chromium activation oracle.
+<!-- DM-2386 / DM-2461 -->
+- Animated viewBox culling's composed-timeline path is implemented (doc 155):
+  matching translate/scale/2D-rotate functions interpolate before composition
+  (with exact rotation-arc extrema); nested
+  and own-timing fused wrappers share the global scene clock; delay, hold,
+  steps, repeat/alternate, and cubic-bezier overshoot partition/bound the
+  continuous sweep; and no fixed sample is used to prove exclusion. Unknown
+  transform lists/timing, decomposition-only matrices, projective/non-finite
+  states, and excessive/unbounded partitions retain content. Full safety still
+  depends on DM-2460's emitted-SVG reference and visual/ink bounds (including
+  frozen static transforms/effects); DM-2462 owns the independent live
+  Chromium activation oracle. Exact per-frame quads remain oracle/finite-raster
+  evidence, never proof between continuous SVG frames.
 
 <!-- DM-2385 -->
 - Computed `perspective` is an ancestor-owned stacking-context and

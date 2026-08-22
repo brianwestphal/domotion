@@ -30,12 +30,49 @@ Domotion marks hidden. The unsafe assumptions are independent:
 - the static path tests the untransformed captured box even when capture has
   frozen a rotate/skew/3D transform for the renderer to reapply.
 
-The existing rejection of an unmodelled transform track, and of a fused track
-with its own timing, is in the safe direction: those branches retain the
-element. They should remain conservative until their full emitted semantics can
-be bounded. They do not compensate for the supported-path failures above.
+At audit time, rejection of an unmodelled transform track or an independently
+timed fused track was in the safe direction: those branches retained the
+element. It did not compensate for the supported-path failures above. DM-2461
+now models own-timing fused tracks while preserving the same fail-closed rule
+for genuinely unsupported paths.
 
-## Current implementation boundary
+## DM-2461 implementation update
+
+The timeline/operation half of this verdict is now implemented in
+`src/tree-ops/swept-transform-bounds.ts` and wired by
+`src/tree-ops/viewbox-culling.ts`:
+
+- the endpoint-affine lerp and fixed `N=50` proof path are deleted;
+- matching translate/scale/2D-rotate functions interpolate before reverse-order
+  composition, including negative scale, both list orders, and all per-corner
+  rotation-arc extrema;
+- a tree walk carries the complete root-to-leaf animation wrapper stack rather
+  than replacing it at the nearest `animId`, and unions each ancestor's
+  visibility window with the full descendant hull before attaching a class;
+- primary and independently timed fused tracks map to the global scene clock,
+  partitioning delay/active/fill, every finite/infinite iteration, alternate
+  direction, and step discontinuity;
+- cubic-bezier y extrema (including overshoot) are included over each continuous
+  progress interval; and
+- mismatched/decomposition-only lists, matrix/skew/3D/projective values,
+  unsupported timing syntax, excessive/unbounded partitions, and non-finite
+  results return unknown, which means retain paint.
+
+The implementation deliberately expands each nested operation/wrapper in
+sequence. Lost correlation can enlarge the result but cannot over-cull. Focused
+production tests reproduce all three audit failures: the function-first
+negative-scale entry, the 50.5% interval between old sample points, and the
+outer/inner cancellation visible at 700 ms. Repeat/alternate, positive and
+negative delay, holds, steps, easing overshoot, operation order, own-timing
+fuses, and unsupported controls are independently covered.
+
+This does **not** close the full doc-155 boundary. DM-2460 still owns the emitted
+SVG reference/visual bounds (the present carrier-box origin proxy remains),
+static frozen transforms/effects, and unknown visual ink. DM-2462 still owns the
+independent live Chromium activation oracle. Those unknown geometry paths must
+continue to retain content.
+
+## Pre-DM-2461 implementation boundary (audit baseline)
 
 | Stage | Current decision | Audit result |
 | --- | --- | --- |
@@ -104,6 +141,9 @@ not safely bounded by its endpoint rectangles. Until Domotion transcribes that
 behavior for its actual paint surface, it must retain the subtree.
 
 ## Fresh adversarial evidence
+
+The “current production decision” column below records the DM-2386 audit
+baseline before the DM-2461 implementation update above.
 
 The audit ran a local Playwright probe at DPR 1 with an 800 by 600 viewport.
 The fingerprint was Headless Chrome `147.0.7727.15`, macOS arm64, Node
@@ -193,9 +233,9 @@ nearest-only timing, endpoint-matrix interpolation, or fixed sample grid.
   culling.** Owns exact fill/stroke/view reference boxes, separate visual
   bounds, static frozen transforms/effects, and unknown-state retention.
 - **DM-2461 — Use composed global-timeline swept bounds for animated viewBox
-  culling.** Owns function-first interpolation, nested/own timing, global
-  interval partitioning, conservative operation bounds, and removal of fixed
-  sampling as a proof mechanism.
+  culling (implemented).** Owns function-first interpolation, nested/own
+  timing, global interval partitioning, conservative operation bounds, and
+  removal of fixed sampling as a proof mechanism.
 - **DM-2462 — Add a live Chromium animated-culling geometry oracle.** Owns the
   generated adversarial matrix, mutation controls, environment fingerprints,
   and parity/semantic registry wiring.
@@ -228,4 +268,3 @@ checkout's pinned revision rather than at the submodule worktree HEAD.
 - `external/skia/src/core/SkM44.cpp:164-224` at
   `62efacd37737505732dbe3d8daa62abd679626a1` — perspective rectangle edge
   clipping and infinite bounds.
-

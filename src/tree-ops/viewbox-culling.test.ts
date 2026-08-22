@@ -244,6 +244,29 @@ describe("decideCull — translate+scale affine", () => {
     });
   });
 
+  describe("continuous function-first sweep regressions (DM-2461)", () => {
+    it("keeps a negative-scale list that enters between its offscreen endpoints", () => {
+      const d = decideCull({ x: 0, y: 10, w: 20, h: 20 }, 50, VH, {
+        ...win,
+        anim: anim({
+          from: "scale(-1) translateX(-100px)",
+          to: "scale(1) translateX(100px)",
+        }),
+      });
+      // Function-first interpolation reaches x=-1..1 near p=.45. Blending
+      // already-composed endpoint affine components leaves x=98..100 instead.
+      expect(d).toEqual({ alwaysHidden: false, visStartPct: 25, visEndPct: 50 });
+    });
+
+    it("keeps a 50.5% crossing narrower than the retired two-percent grid", () => {
+      const d = decideCull({ x: 0, y: 10, w: 10, h: 10 }, 50, VH, {
+        ...win,
+        anim: anim({ property: "translateX", from: "-101000px", to: "99000px" }),
+      });
+      expect(d).toEqual({ alwaysHidden: false, visStartPct: 25, visEndPct: 50 });
+    });
+  });
+
   describe("transform-origin variants", () => {
     it("px origin: lengths offset from the animated element's top-left", () => {
       // Carrier (100,50,400,300), transformOrigin "40px 30px" → origin
@@ -300,16 +323,17 @@ describe("decideCull — translate+scale affine", () => {
     });
   });
 
-  describe("rotate / matrix / unmodelable transforms: conservative (always visible, no window)", () => {
-    it("rotate: off-viewBox element is NOT hidden", () => {
+  describe("rotation bounds and fail-closed transforms", () => {
+    it("rotate: retains the exact active arc between off-viewBox endpoints", () => {
       // Old behavior parsed rotate to {tx:0, ty:0} and applied the static
       // check → alwaysHidden. A rotation can sweep the element into view;
-      // never hide.
+      // retain the full continuously bounded active interval.
       const d = decideCull({ x: 900, y: 100, w: 100, h: 100 }, VW, VH, {
         ...win, anim: anim({ from: "rotate(0deg)", to: "rotate(180deg)" }),
       });
       expect(d.alwaysHidden).toBe(false);
-      expect(d.visStartPct).toBeUndefined();
+      expect(d.visStartPct).toBe(25);
+      expect(d.visEndPct).toBe(50);
     });
 
     it("matrix: no window emitted even when endpoints suggest an exit", () => {
@@ -350,10 +374,9 @@ describe("decideCull — translate+scale affine", () => {
       expect(d.visEndPct).toBe(100);    // at `to` y' = 450 → visible after
     });
 
-    it("fused transform track with its own timing: conservative (separate timeline)", () => {
-      // A fused transform track with an overridden duration runs on its own
-      // window — the composed position isn't a single from→to lerp, so no
-      // window may be emitted even though the endpoints suggest an exit.
+    it("fused transform track with its own timing: sweeps its own global window", () => {
+      // Primary duration is 1000 ms = 25 scene points. The fused translate has
+      // its own 500 ms = 12.5-point active interval, then fills at `to`.
       const d = decideCull({ x: 100, y: 100, w: 100, h: 100 }, VW, VH, {
         ...win,
         anim: anim({
@@ -362,7 +385,8 @@ describe("decideCull — translate+scale affine", () => {
         }),
       });
       expect(d.alwaysHidden).toBe(false);
-      expect(d.visStartPct).toBeUndefined();
+      expect(d.visStartPct).toBe(0);
+      expect(d.visEndPct).toBe(37.5);
     });
   });
 
@@ -562,29 +586,34 @@ describe("cullElementsOutsideViewBox — tree walk", () => {
     expect(tree.children![1].displayNone).toBe(true);
   });
 
-  it("respects child's own animId over inherited animation", () => {
-    // Parent has a scroll animation; child has its OWN slide-in animation.
-    // Child's culling should use its OWN animation, not the parent's.
+  it("composes a child's own clock with every animated ancestor", () => {
+    // DM-2386 discriminator. At global 700 ms the outer wrapper contributes
+    // +280 and the completed inner wrapper contributes -400, so the child at
+    // x=200 paints at x=80..100. Nearest-animation replacement emitted a
+    // 40..60% window and hid that valid 70% state.
     const parentAnim: IntraFrameAnimation = {
-      animId: "scroll", property: "translateY", from: "0px", to: "-1000px",
+      animId: "outer", property: "translateX", from: "0px", to: "400px",
       duration: 1000, easing: "linear",
     };
     const childAnim: IntraFrameAnimation = {
-      animId: "toast", property: "translateX", from: "-1000px", to: "0px",  // slides in from left
-      duration: 500, easing: "linear", delay: 200,  // hold at `from` (off-screen) for 200 ms first
+      animId: "inner", property: "translateX", from: "0px", to: "-400px",
+      duration: 200, easing: "linear", delay: 400,
     };
     const tree: CapturedElement = el({
-      x: 0, y: 0, width: 800, height: 600, tag: "body", animId: "scroll",
+      x: 200, y: 0, width: 20, height: 20, tag: "div", animId: "outer",
       children: [
-        el({ x: 100, y: 100, width: 100, height: 100, tag: "div", animId: "toast" }),
+        el({ x: 200, y: 10, width: 20, height: 20, tag: "div", animId: "inner" }),
       ],
     });
-    const { css } = cullElementsOutsideViewBox(tree, VW, VH, [parentAnim, childAnim], 0, 2000);
-    // Child should be hidden BEFORE its own toast animation (it starts off-left).
-    // The child's `cullClass` should be set; not `displayNone`.
+    const { css } = cullElementsOutsideViewBox(tree, 100, VH, [parentAnim, childAnim], 0, 1000);
     expect(tree.children![0].displayNone).toBeFalsy();
-    expect(tree.children![0].cullClass).toMatch(/^cull-[\d_]+-[\d_]+$/);
+    expect(tree.children![0].cullClass).toBe("cull-40_000-100_000");
+    // The ancestor's own bbox never enters, but its visibility governs the
+    // subtree; it must inherit the child's broader safe hull rather than hide
+    // the valid 70% child state.
+    expect(tree.cullClass).toBe("cull-40_000-100_000");
     expect(css).toContain(`@keyframes ${tree.children![0].cullClass}`);
+    expect(css).not.toContain("60.001% { visibility: hidden; }");
   });
 });
 

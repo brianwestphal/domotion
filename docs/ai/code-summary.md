@@ -245,11 +245,17 @@ shortest possible map:
   Templates are front-ends onto the animate/capture pipeline; the verb lives in
   `src/cli/template.ts`.
 - **`src/tree-ops/`** — element-tree transforms (`tree-diff.ts`,
-  `viewbox-culling.ts`, `resize-embedded-images.ts`, `prune-tree.ts`,
+  `viewbox-culling.ts`, `swept-transform-bounds.ts`,
+  `resize-embedded-images.ts`, `prune-tree.ts`,
   `for-each-element.ts`, `annotate-animated-properties.ts` — marks which CSS
   properties intra-frame animations animate on each target element so the
   renderer hands those channels to the animation, e.g. no baked wrapper
-  opacity). (The old `frame-merge.ts` fast path was removed — see doc 08.)
+  opacity). `swept-transform-bounds.ts` is the fail-closed Chromium-derived
+  continuous-time culling model: matching translate/scale/2D-rotate operations
+  (including rotation-arc extrema),
+  independently timed/fused and nested global clocks, easing extrema,
+  repeat/alternate/hold partitions, and unknown-on-decomposition/projective
+  paths. (The old `frame-merge.ts` fast path was removed — see doc 08.)
 - **`src/post-processing/`** — the optional svgo `optimize.ts` + `gzip.ts`, plus
   `hoist-image-payloads.ts` (always-on: shares a raster payload repeated across
   frames / elements as one `<defs>` `<image>` + `<use>` refs — see `docs/26`).

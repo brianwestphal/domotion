@@ -100,6 +100,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex Max subagent",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3rkqhdie5rkogl",
+          "message": {
+            "text": "Permanent suppression now requires every global-time partition to be known and disjoint. A null sweep mirrors Chromium’s false return and emits neither displayNone nor a visibility window; known intersections are reduced only to their conservative hull. The bottom-up walk unions that hull with every descendant before attaching an ancestor class, so ancestor visibility cannot suppress broader overflow/nested child paint. Focused tests reproduce the function-first negative-scale entry, the 50.5% crossing missed by N=50, and nested cancellation visible at 700 ms.",
+            "markdown": "Permanent suppression now requires every global-time partition to be known and disjoint. A null sweep mirrors Chromium’s false return and emits neither displayNone nor a visibility window; known intersections are reduced only to their conservative hull. The bottom-up walk unions that hull with every descendant before attaching an ancestor class, so ancestor visibility cannot suppress broader overflow/nested child paint. Focused tests reproduce the function-first negative-scale entry, the 50.5% crossing missed by N=50, and nested cancellation visible at 700 ms."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/tree-ops/viewbox-culling.ts"
+                },
+                "region": {
+                  "startLine": 59,
+                  "endLine": 76,
+                  "snippet": {
+                    "text": "  const contexts = Array.isArray(ctx) ? ctx : [ctx];\n  const swept = conservativeSweptBoxes(staticBbox, contexts);\n  if (swept == null) {\n    // Mirrors Chromium's false-return contract: uncertainty keeps paint.\n    return { alwaysHidden: false };\n  }\n  const possiblyVisible = swept.filter((interval) =>\n    bboxIntersectsViewport(interval.bounds, vw, vh));\n  if (possiblyVisible.length === 0) return { alwaysHidden: true };\n\n  // One visibility class can express only one interval. Use the hull of all\n  // possibly-visible partitions; gaps remain visible (safe over-retention).\n  const visStart = possiblyVisible[0].startPct;\n  const visEnd = possiblyVisible[possiblyVisible.length - 1].endPct;\n  if (visStart <= 0 && visEnd >= 100) {\n    return { alwaysHidden: false };\n  }\n  return { alwaysHidden: false, visStartPct: visStart, visEndPct: visEnd };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/tree-ops/swept-transform-bounds.test.ts"
+                },
+                "region": {
+                  "startLine": 24
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/tree-ops/viewbox-culling.test.ts"
+                },
+                "region": {
+                  "startLine": 579
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2461"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e65dd02abeacf9500f402971a6dbd5b6"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "19a6bd60c9fdea2be5bf8bb52ae4ccb93dfe6670",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

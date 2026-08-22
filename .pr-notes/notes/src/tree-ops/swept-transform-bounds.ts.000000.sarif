@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex Max subagent",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3vnrqk8t386mrm",
+          "message": {
+            "text": "Continuous exclusion follows Chromium’s failure-bearing operation contract, not sampled evidence. Matching translate/scale parameters and exact 2D rotation-arc extrema are bounded before reverse-order composition; any path that would require decomposition, projective mapping, or an unknown timing grammar returns null so the caller retains paint. This is intentionally a smaller supported set than Chromium, with the same safe failure direction.",
+            "markdown": "Continuous exclusion follows Chromium’s failure-bearing operation contract, not sampled evidence. Matching translate/scale parameters and exact 2D rotation-arc extrema are bounded before reverse-order composition; any path that would require decomposition, projective mapping, or an unknown timing grammar returns null so the caller retains paint. This is intentionally a smaller supported set than Chromium, with the same safe failure direction."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/tree-ops/swept-transform-bounds.ts"
+                },
+                "region": {
+                  "startLine": 1,
+                  "endLine": 16,
+                  "snippet": {
+                    "text": "/**\n * Conservative continuous-time bounds for the transform wrappers emitted by\n * the intra-frame animator (DM-2461).\n *\n * This is deliberately a small, fail-closed transcription of Chromium's\n * `TransformOperations::BlendedBoundsForBox` contract. Matching translate,\n * scale, and 2D rotation functions interpolate their parameters before\n * composition; rotation includes every per-corner arc extremum; bounds are\n * propagated in reverse operation order. Anything requiring matrix\n * decomposition, projective mapping, or an unrecognised timing function\n * returns `null`. Callers must interpret `null` as \"retain paint\".\n *\n * Source (Chromium revision pinned by the repository):\n * - ui/gfx/geometry/transform_operations.cc:58-95,339-372\n * - ui/gfx/geometry/transform_operation.cc:177-510\n */"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/tree-ops/viewbox-culling.ts"
+                },
+                "region": {
+                  "startLine": 60
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2461"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b48db1a2d546e825ce550a6ccd6279f5"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "warning",
+          "guid": "mt3vnrvqt4kkkabe",
+          "message": {
+            "text": "Independently timed fused tracks are deliberately over-bounded across each active partition. The animator currently bakes all fused tracks to piecewise linear stops when any track owns timing; an exact continuous easing subrange can exclude a chord emitted from neighboring stops. Using the whole active progress range loses correlation and culling opportunities, but contains every emitted chord until the renderer exposes its piecewise timeline directly.",
+            "markdown": "Independently timed fused tracks are deliberately over-bounded across each active partition. The animator currently bakes all fused tracks to piecewise linear stops when any track owns timing; an exact continuous easing subrange can exclude a chord emitted from neighboring stops. Using the whole active progress range loses correlation and culling opportunities, but contains every emitted chord until the renderer exposes its piecewise timeline directly."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/tree-ops/swept-transform-bounds.ts"
+                },
+                "region": {
+                  "startLine": 62,
+                  "endLine": 68,
+                  "snippet": {
+                    "text": "  /**\n   * The animator bakes independently timed fused tracks to linear keyframe\n   * stops. Until that emitted piecewise curve is represented directly, use\n   * the track's whole active progress range in each overlapping partition.\n   * This loses correlation but contains every baked chord.\n   */\n  wholeActiveRange: boolean;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "risk"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/animation/animator.ts"
+                },
+                "region": {
+                  "startLine": 2991
+                }
+              }
+            }
+          ],
+          "rank": 88,
+          "workItemUris": [
+            "DM-2461"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "8c97a52ff723f3bcfa42a2df42a6cd47"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "19a6bd60c9fdea2be5bf8bb52ae4ccb93dfe6670",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
