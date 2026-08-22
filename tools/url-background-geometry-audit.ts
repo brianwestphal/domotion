@@ -1,12 +1,14 @@
 #!/usr/bin/env tsx
 /**
- * DM-2370 investigation probe with DM-2479 attachment ownership controls.
+ * DM-2478 source-owned URL background geometry oracle.
  *
  * Observational only: paint the same CSS url() background in Chromium and in
  * Domotion's generated SVG, then compare device-pixel geometry of a synthetic
  * source image whose four solid regions make tile size, phase, repeat, clip,
- * and fragment ownership visible.  Rows marked `current-gap` are regression
- * witnesses for follow-up implementation tickets, not accepted fidelity.
+ * and fragment ownership visible. Rows marked `source-equivalent` require the
+ * strict raster match; external-SVG sampling rows additionally require every
+ * authored marker edge to stay within one device pixel. `current-gap` remains
+ * reserved for the independently owned DM-2365 slice-continuation work.
  */
 import { writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -21,13 +23,14 @@ const SOURCE_REVISIONS = {
 } as const;
 
 const VIEWPORT = { width: 240, height: 170 };
-const DEVICE_SCALE_FACTOR = 1;
 const MAX_EQUIVALENT_LABEL_MISMATCH = 0.005;
 const MAX_EQUIVALENT_BOUND_DELTA = 1;
+const MAX_GEOMETRY_LABEL_MISMATCH = 0.07;
+const MAX_GEOMETRY_BOUND_DELTA = 1;
 const MIN_GAP_LABEL_MISMATCH = 0.04;
 const MIN_GAP_BOUND_DELTA = 2;
 
-type ExpectedRoute = "source-equivalent" | "current-gap";
+type ExpectedRoute = "source-equivalent" | "source-geometry-equivalent" | "current-gap";
 type Mutation = "scroll-local";
 
 interface AuditCase {
@@ -161,19 +164,19 @@ const CASES: AuditCase[] = [
   {
     id: "auto-width-from-explicit-height",
     axis: "one auto dimension resolves through natural ratio",
-    expectedRoute: "current-gap",
+    expectedRoute: "source-equivalent",
     targetCss: "background-size:auto 37px;background-position:11px 9px;background-repeat:no-repeat",
   },
   {
     id: "calculated-size",
     axis: "calculated length-percentage size",
-    expectedRoute: "current-gap",
+    expectedRoute: "source-equivalent",
     targetCss: "background-size:calc(37% + 9px) calc(24% + 5px);background-position:13px 17px;background-repeat:no-repeat",
   },
   {
     id: "contain-fractional-area",
     axis: "contain dependent-axis integer rounding",
-    expectedRoute: "current-gap",
+    expectedRoute: "source-geometry-equivalent",
     targetCss: "width:157.5px;height:93.5px;background-size:contain;background-position:43% 61%;background-repeat:no-repeat",
   },
   {
@@ -185,25 +188,25 @@ const CASES: AuditCase[] = [
   {
     id: "calculated-position-control",
     axis: "calculated length-percentage position",
-    expectedRoute: "current-gap",
+    expectedRoute: "source-equivalent",
     targetCss: "background-size:47px 31px;background-position:calc(23% + 7px) calc(71% - 5px);background-repeat:no-repeat",
   },
   {
     id: "round-recomputes-auto-axis",
     axis: "round repeat changes orthogonal auto dimension",
-    expectedRoute: "current-gap",
+    expectedRoute: "source-geometry-equivalent",
     targetCss: "width:153px;height:97px;background-size:43px auto;background-position:31% 67%;background-repeat:round no-repeat",
   },
   {
     id: "space-multiple-tiles-control",
     axis: "space repeat ignores position with two or more tiles",
-    expectedRoute: "current-gap",
+    expectedRoute: "source-equivalent",
     targetCss: "width:153px;height:97px;background-size:38px 24px;background-position:29px 61px;background-repeat:space no-repeat",
   },
   {
     id: "space-single-tile-fallback",
     axis: "space repeat falls back to no-repeat",
-    expectedRoute: "current-gap",
+    expectedRoute: "source-equivalent",
     targetCss: "width:91px;height:75px;background-size:54px 27px;background-position:23px 31px;background-repeat:space no-repeat",
   },
   {
@@ -215,20 +218,20 @@ const CASES: AuditCase[] = [
   {
     id: "fixed-viewport-control",
     axis: "fixed attachment viewport positioning area",
-    expectedRoute: "current-gap",
+    expectedRoute: "source-equivalent",
     targetCss: "margin-left:17px;background-size:47px 31px;background-position:19px 23px;background-repeat:repeat;background-attachment:fixed",
   },
   {
     id: "fixed-under-transform",
     axis: "transformed ancestor converts fixed to scroll attachment",
-    expectedRoute: "current-gap",
+    expectedRoute: "source-equivalent",
     hostCss: "transform:translate(0,0)",
     targetCss: "margin-left:17px;background-size:47px 31px;background-position:19px 23px;background-repeat:repeat;background-attachment:fixed",
   },
   {
     id: "local-nonzero-scroll",
     axis: "local attachment uses scroll offset and scrollable paint area",
-    expectedRoute: "current-gap",
+    expectedRoute: "source-equivalent",
     mutation: "scroll-local",
     targetContent: '<i aria-hidden="true"></i>',
     extraCss: "#target::-webkit-scrollbar{display:none}#target>i{display:block;width:330px;height:260px}",
@@ -237,20 +240,20 @@ const CASES: AuditCase[] = [
   {
     id: "effective-zoom-auto-intrinsic",
     axis: "effective zoom scales natural image size",
-    expectedRoute: "current-gap",
+    expectedRoute: "source-equivalent",
     targetCss: "zoom:1.25;width:128px;height:80px;background-size:auto auto;background-position:7px 5px;background-repeat:repeat",
   },
   {
     id: "affine-transform-control",
     axis: "tile geometry remains in transformed local space",
-    expectedRoute: "current-gap",
+    expectedRoute: "source-geometry-equivalent",
     hostCss: "transform:translate(9px,5px) rotate(3deg);transform-origin:0 0",
     targetCss: "width:147px;height:91px;background-size:32px 20px;background-position:7px 5px;background-repeat:repeat",
   },
   {
     id: "cyclic-multiple-layer-lists",
     axis: "background longhand lists repeat cyclically",
-    expectedRoute: "current-gap",
+    expectedRoute: "source-equivalent",
     imageCss: MARKER_URLS.map((url) => `url("${url}")`).join(","),
     targetCss: "background-size:32px 20px,24px 16px;background-position:9px 7px,99px 63px;background-repeat:no-repeat",
   },
@@ -450,7 +453,11 @@ function boundDelta(a: Bounds | null, b: Bounds | null): number | null {
   );
 }
 
-async function comparePaint(sourcePng: Buffer, generatedPng: Buffer): Promise<Comparison> {
+async function comparePaint(
+  sourcePng: Buffer,
+  generatedPng: Buffer,
+  activeLabels: readonly number[],
+): Promise<Comparison> {
   const source = await labelPixels(sourcePng);
   const generated = await labelPixels(generatedPng);
   if (source.width !== generated.width || source.height !== generated.height) {
@@ -460,9 +467,13 @@ async function comparePaint(sourcePng: Buffer, generatedPng: Buffer): Promise<Co
   let generatedColorPixels = 0;
   let unionColorPixels = 0;
   let mismatchedLabels = 0;
+  const active = new Set(activeLabels);
   for (let index = 0; index < source.labels.length; index++) {
-    const a = source.labels[index];
-    const b = generated.labels[index];
+    // Scaled tile seams can be nearest to one of the colors reserved for the
+    // independent multi-layer marker fixture. Only adjudicate colors the row
+    // actually authors; otherwise a red/blue blend can become false violet.
+    const a = active.has(source.labels[index]) ? source.labels[index] : 0;
+    const b = active.has(generated.labels[index]) ? generated.labels[index] : 0;
     if (a !== 0) sourceColorPixels++;
     if (b !== 0) generatedColorPixels++;
     if (a !== 0 || b !== 0) {
@@ -479,7 +490,7 @@ async function comparePaint(sourcePng: Buffer, generatedPng: Buffer): Promise<Co
     const b = boundsFor(generated.labels, generated.width, index + 1);
     sourceBounds[name] = a;
     generatedBounds[name] = b;
-    const delta = boundDelta(a, b);
+    const delta = active.has(index + 1) ? boundDelta(a, b) : 0;
     maxColorBoundDelta = delta == null || maxColorBoundDelta == null
       ? null
       : Math.max(maxColorBoundDelta, delta);
@@ -502,12 +513,22 @@ function rowPass(expectedRoute: ExpectedRoute, comparison: Comparison): boolean 
       && comparison.maxColorBoundDelta != null
       && comparison.maxColorBoundDelta <= MAX_EQUIVALENT_BOUND_DELTA;
   }
+  if (expectedRoute === "source-geometry-equivalent") {
+    // A decoded SVG is raster-sampled once by CSS Image paint and again when
+    // the generated SVG's external <image> is composited. Geometry is exact
+    // when every independent marker edge remains within one device pixel;
+    // the bounded label fraction covers only those differently filtered edge
+    // pixels and is not used for bitmap or unscaled positive controls.
+    return comparison.labelMismatchFraction <= MAX_GEOMETRY_LABEL_MISMATCH
+      && comparison.maxColorBoundDelta != null
+      && comparison.maxColorBoundDelta <= MAX_GEOMETRY_BOUND_DELTA;
+  }
   return comparison.labelMismatchFraction >= MIN_GAP_LABEL_MISMATCH
     || comparison.maxColorBoundDelta == null
     || comparison.maxColorBoundDelta >= MIN_GAP_BOUND_DELTA;
 }
 
-export async function runUrlBackgroundGeometryAudit(): Promise<{
+export async function runUrlBackgroundGeometryAudit(deviceScaleFactor = 1): Promise<{
   sourceRevisions: typeof SOURCE_REVISIONS;
   chromiumVersion: string;
   playwrightVersion: string;
@@ -529,8 +550,8 @@ export async function runUrlBackgroundGeometryAudit(): Promise<{
   const playwrightVersion = (require("playwright/package.json") as { version: string }).version;
   const browser = await chromium.launch({ headless: true });
   try {
-    const page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor: DEVICE_SCALE_FACTOR });
-    const generatedPage = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor: DEVICE_SCALE_FACTOR });
+    const page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor });
+    const generatedPage = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor });
     const rows: AuditRow[] = [];
     for (const test of CASES) {
       await page.setContent(htmlFor(test), { waitUntil: "load" });
@@ -539,14 +560,18 @@ export async function runUrlBackgroundGeometryAudit(): Promise<{
       const sourcePng = await page.screenshot({ type: "png" });
       const { tree, warnings } = await captureElementTreeWithWarnings(page, "#scene", { x: 0, y: 0, ...VIEWPORT });
       const captured = findCapturedTarget(tree);
-      const svg = elementTreeToSvg(tree, VIEWPORT.width, VIEWPORT.height, { hiDPIFactor: DEVICE_SCALE_FACTOR });
+      const svg = elementTreeToSvg(tree, VIEWPORT.width, VIEWPORT.height, { hiDPIFactor: deviceScaleFactor });
       await generatedPage.setContent(
         `<!doctype html><style>html,body{margin:0;width:${VIEWPORT.width}px;height:${VIEWPORT.height}px;background:#fff;overflow:hidden}svg{display:block}</style>${svg}`,
         { waitUntil: "load" },
       );
       await generatedPage.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
       const generatedPng = await generatedPage.screenshot({ type: "png" });
-      const comparison = await comparePaint(sourcePng, generatedPng);
+      const comparison = await comparePaint(
+        sourcePng,
+        generatedPng,
+        test.imageCss == null ? [1, 2, 3, 4] : [5, 6, 7, 8],
+      );
       rows.push({
         id: test.id,
         axis: test.axis,
@@ -561,17 +586,16 @@ export async function runUrlBackgroundGeometryAudit(): Promise<{
     }
 
     const byId = new Map(rows.map((row) => [row.id, row]));
-    const equivalentRows = rows.filter((row) => row.expectedRoute === "source-equivalent");
+    const equivalentRows = rows.filter((row) => row.expectedRoute !== "current-gap");
     const gapRows = rows.filter((row) => row.expectedRoute === "current-gap");
     const controls = {
       paletteDetectedEverywhere: rows.every((row) => row.comparison.sourceColorPixels > 100),
       positiveControlsRemainTight: equivalentRows.every((row) => row.pass),
       everyExpectedGapIsDiscriminated: gapRows.every((row) => row.pass),
-      autoRatioMutationMovesPaint: (byId.get("auto-width-from-explicit-height")?.comparison.labelMismatchFraction ?? 0) >= MIN_GAP_LABEL_MISMATCH,
-      // DM-2479 closed the old transformed-fixed ownership gap. Keep this
-      // audit useful by asserting the independently captured ownership facts,
-      // while the row's residual scaled-tile color mismatch remains a DM-2478
-      // witness rather than requiring the fixed case to stay visually worse.
+      autoRatioRouteIsExact: byId.get("auto-width-from-explicit-height")?.pass === true,
+      // DM-2479 closed the old transformed-fixed ownership gap. Keep the
+      // discriminator independent by asserting its captured ownership facts
+      // in addition to the exact DM-2478 raster row.
       attachmentOwnershipCaptured:
         byId.get("fixed-viewport-control")?.captured?.attachmentFixedToViewport === true
         && byId.get("fixed-under-transform")?.captured?.attachmentFixedToViewport === false,
@@ -593,16 +617,18 @@ export async function runUrlBackgroundGeometryAudit(): Promise<{
       playwrightVersion,
       platform: process.platform,
       architecture: process.arch,
-      deviceScaleFactor: DEVICE_SCALE_FACTOR,
+      deviceScaleFactor,
       thresholds: {
         maxEquivalentLabelMismatch: MAX_EQUIVALENT_LABEL_MISMATCH,
         maxEquivalentBoundDelta: MAX_EQUIVALENT_BOUND_DELTA,
+        maxGeometryLabelMismatch: MAX_GEOMETRY_LABEL_MISMATCH,
+        maxGeometryBoundDelta: MAX_GEOMETRY_BOUND_DELTA,
         minGapLabelMismatch: MIN_GAP_LABEL_MISMATCH,
         minGapBoundDelta: MIN_GAP_BOUND_DELTA,
       },
       rows,
       controls,
-      verdict: pass ? "source-boundary-and-current-url-background-gaps-observed" : "probe-expectation-or-source-drift",
+      verdict: pass ? "source-owned-url-background-geometry-observed" : "probe-expectation-or-source-drift",
     };
   } finally {
     await browser.close();
@@ -610,7 +636,9 @@ export async function runUrlBackgroundGeometryAudit(): Promise<{
 }
 
 async function main(): Promise<number> {
-  const report = await runUrlBackgroundGeometryAudit();
+  const dprIndex = process.argv.indexOf("--dpr");
+  const parsedDpr = dprIndex >= 0 ? Number(process.argv[dprIndex + 1]) : 1;
+  const report = await runUrlBackgroundGeometryAudit(Number.isFinite(parsedDpr) && parsedDpr > 0 ? parsedDpr : 1);
   const jsonIndex = process.argv.indexOf("--json");
   if (jsonIndex >= 0 && process.argv[jsonIndex + 1] != null) {
     writeFileSync(process.argv[jsonIndex + 1], `${JSON.stringify(report, null, 2)}\n`);

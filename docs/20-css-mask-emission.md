@@ -95,6 +95,24 @@ percentage, length, calc, physical vertical-writing axes, CSS zoom, DPR 1/2,
 slice/clone fragments, and independently positioned multi-layer masks, plus a
 mutation assertion that rejects any contain/cover Min/Mid/Max alignment.
 
+## Independent HTML origin and clip geometry (DM-2472)
+
+URL mask layers no longer size themselves from `mask-clip`. Capture retains
+the complete computed `mask-origin` and `mask-clip` lists separately plus
+zoom-crossed physical border/padding edges. The source-derived
+`mask-origin-clip.ts` resolver cycles both lists independently: mask size,
+position, and repeat phase use Blink's origin positioning box, while emitted
+pixels are intersected with the clip painting box. `no-clip` deliberately
+skips that intersection and receives a viewport-sized SVG mask region so
+overflow ink is not cropped by SVG's default mask bounds.
+
+The route covers border/padding/content HTML boxes and their fill/stroke/view
+aliases, contain/cover and explicit URL sizes, repetition, multilayer
+composition, CSS zoom, physical writing axes, and sliced/cloned inline
+fragments. Source and test details are in
+[doc 174](174-html-mask-origin-clip-geometry.md); run the strict DPR-1/2 browser
+gate with `npm run mask:origin-clip-oracle`.
+
 ## Requirement (this ticket)
 
 1. **Update the warning text** at `src/capture/script/walker/masks-clips.ts`. The current text claims masks aren't emitted; the truth is emission works for the common url + gradient cases. Replace with: `"non-trivial mask source — emission may differ from Chromium's actual blur/composite for masks composed of element() references or unresolved url() fragments"`.

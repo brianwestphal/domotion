@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt47qa72bw6t7ok7",
+          "message": {
+            "text": "Each supported OS runs both logical ownership and independent final-SVG pixels at DPR 1/2 in one native Chromium job. Reports fingerprint OS/release/architecture, Chromium, Playwright, Node, revisions, thresholds, rows, and mutations; artifacts upload even on failure and no platform-specific tolerance baseline is consumed.",
+            "markdown": "Each supported OS runs both logical ownership and independent final-SVG pixels at DPR 1/2 in one native Chromium job. Reports fingerprint OS/release/architecture, Chromium, Playwright, Node, revisions, thresholds, rows, and mutations; artifacts upload even on failure and no platform-specific tolerance baseline is consumed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/inline-svg-3d-parity.yml"
+                },
+                "region": {
+                  "startLine": 45,
+                  "endLine": 79,
+                  "snippet": {
+                    "text": "jobs:\n  parity:\n    name: ${{ matrix.label }} inline SVG 3D\n    strategy:\n      fail-fast: false\n      matrix:\n        include:\n          - os: macos-latest\n            label: macOS\n          - os: ubuntu-latest\n            label: Linux\n          - os: windows-latest\n            label: Windows\n    runs-on: ${{ matrix.os }}\n    timeout-minutes: 20\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with:\n          node-version: ${{ env.NODE_VERSION }}\n          cache: npm\n      - run: npm ci\n      - run: npx playwright install chromium\n      - name: Run exact matrix/ownership and final-SVG pixel legs\n        run: npm run transform:inline-svg-3d-audit -- --dpr 1,2 --json tests/output/inline-svg-3d-gate.json\n      - name: Run focused production boundary regressions\n        run: npx vitest run --config vitest.e2e.config.ts tests/inline-svg-affine-freeze.e2e.test.ts tests/inline-svg-projective-ownership.e2e.test.ts\n      - name: Upload fingerprinted gate report\n        if: always()\n        uses: actions/upload-artifact@v4\n        with:\n          name: inline-svg-3d-${{ runner.os }}\n          path: tests/output/inline-svg-3d-gate.json\n          if-no-files-found: error\n          retention-days: 30"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/inline-svg-3d-workflow.test.ts"
+                },
+                "region": {
+                  "startLine": 5
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2475"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "2fe17fe3831a2d680054aa021b1f8e56"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "aea26632f3fa9c18b3c2999fac8fd0b7da64781c",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

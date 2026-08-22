@@ -90,6 +90,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex dm2419_max",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt47z9xue32tnsa1",
+          "message": {
+            "text": "DM-2478 keeps tile math in Blink's 1/64 CSS-pixel LayoutUnit domain because phase, dependent-axis rounding, and negative no-repeat offsets diverge after decimal approximation. The helper transcribes pinned BackgroundImageGeometry size/position/repeat ordering and returns null when required natural facts are unknown, so the emitter warns instead of fixture-fitting guessed geometry.",
+            "markdown": "DM-2478 keeps tile math in Blink's 1/64 CSS-pixel LayoutUnit domain because phase, dependent-axis rounding, and negative no-repeat offsets diverge after decimal approximation. The helper transcribes pinned BackgroundImageGeometry size/position/repeat ordering and returns null when required natural facts are unknown, so the emitter warns instead of fixture-fitting guessed geometry."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/image-pattern.ts"
+                },
+                "region": {
+                  "startLine": 419,
+                  "endLine": 611,
+                  "snippet": {
+                    "text": "export function resolveBlinkBackgroundImageGeometry(\n  input: BlinkBackgroundImageGeometryInput,\n): BlinkBackgroundImageGeometry | null {\n  const parsedRepeat = parseRepeat(input.repeat);\n  const position = parsePosition(input.position);\n  if (parsedRepeat == null || position == null) return null;\n\n  const unsnappedPositioning: RawRect = {\n    x: raw(input.positioningArea.x),\n    y: raw(input.positioningArea.y),\n    width: Math.max(0, raw(input.positioningArea.width)),\n    height: Math.max(0, raw(input.positioningArea.height)),\n  };\n  const unsnappedPainting: RawRect = {\n    x: raw(input.paintingArea.x),\n    y: raw(input.paintingArea.y),\n    width: Math.max(0, raw(input.paintingArea.width)),\n    height: Math.max(0, raw(input.paintingArea.height)),\n  };\n  const snappedPositioning = snapRect(unsnappedPositioning);\n  const snappedPainting = snapRect(unsnappedPainting);\n  let unsnappedDestination = { ...unsnappedPainting };\n  let snappedDestination = { ...snappedPainting };\n  const unsnappedBoxOffset = {\n    x: unsnappedPositioning.x - unsnappedPainting.x,\n    y: unsnappedPositioning.y - unsnappedPainting.y,\n  };\n  const snappedBoxOffset = {\n    x: snappedPositioning.x - snappedPainting.x,\n    y: snappedPositioning.y - snappedPainting.y,\n  };\n  const tile = resolveTileSize(\n    input.size,\n    input.natural,\n    unsnappedPositioning.width,\n    unsnappedPositioning.height,\n    snappedPositioning.width,\n    snappedPositioning.height,\n  );\n  if (tile == null) return null;\n  let tileWidth = tile.width;\n  let tileHeight = tile.height;\n  const offsetX = raw(input.offsetInBackground?.x ?? 0);\n  const offsetY = raw(input.offsetInBackground?.y ?? 0);\n  let repeatX = parsedRepeat.x;\n  let repeatY = parsedRepeat.y;\n  let phaseX = 0;\n  let phaseY = 0;\n  let spacingWidth = 0;\n  let spacingHeight = 0;\n  const unsnappedAvailableWidth = unsnappedPositioning.width - tileWidth;\n  const unsnappedAvailableHeight = unsnappedPositioning.height - tileHeight;\n  const snappedAvailableWidth = snappedPositioning.width - tileWidth;\n  const snappedAvailableHeight = snappedPositioning.height - tileHeight;\n\n  if (repeatX === \"round\" && snappedPositioning.width > 0 && tileWidth > 0) {\n    const ratioValue = Math.trunc(LAYOUT_UNIT_SCALE * snappedPositioning.width / tileWidth);\n    const count = Math.max(1, roundRaw(ratioValue));\n    const roundedWidth = divideRaw(snappedPositioning.width, count);\n    if (tile.autoY && repeatY !== \"round\" && tileWidth > 0) {\n      tileHeight = mulDivRaw(roundedWidth, tileHeight, tileWidth);\n      if (tileHeight < LAYOUT_UNIT_SCALE && tile.height >= LAYOUT_UNIT_SCALE) tileHeight = LAYOUT_UNIT_SCALE;\n    }\n    tileWidth = roundedWidth;\n    const xOffset = resolvePosition(position.x, snappedAvailableWidth, offsetX);\n    phaseX = computeTilePhase(xOffset + unsnappedBoxOffset.x, tileWidth);\n    spacingWidth = 0;\n    spacingHeight = 0;\n  }\n\n  if (repeatY === \"round\" && snappedPositioning.height > 0 && tileHeight > 0) {\n    const ratioValue = Math.trunc(LAYOUT_UNIT_SCALE * snappedPositioning.height / tileHeight);\n    const count = Math.max(1, roundRaw(ratioValue));\n    const roundedHeight = divideRaw(snappedPositioning.height, count);\n    if (tile.autoX && repeatX !== \"round\" && tileHeight > 0) {\n      tileWidth = mulDivRaw(roundedHeight, tileWidth, tileHeight);\n      if (tileWidth < LAYOUT_UNIT_SCALE && tile.width >= LAYOUT_UNIT_SCALE) tileWidth = LAYOUT_UNIT_SCALE;\n    }\n    tileHeight = roundedHeight;\n    const yOffset = resolvePosition(position.y, snappedAvailableHeight, offsetY);\n    phaseY = computeTilePhase(yOffset + unsnappedBoxOffset.y, tileHeight);\n    spacingWidth = 0;\n    spacingHeight = 0;\n  }\n\n  if (repeatX === \"repeat\") {\n    const xOffset = resolvePosition(position.x, unsnappedAvailableWidth, offsetX);\n    phaseX = computeTilePhase(unsnappedBoxOffset.x + xOffset, tileWidth);\n    spacingWidth = 0;\n  } else if (repeatX === \"space\" && tileWidth > 0) {\n    const count = Math.trunc(snappedPositioning.width / tileWidth);\n    if (count > 1) {\n      spacingWidth = divideRaw(snappedPositioning.width - count * tileWidth, count - 1);\n      phaseX = computeTilePhase(snappedBoxOffset.x, tileWidth + spacingWidth);\n    } else {\n      repeatX = \"no-repeat\";\n    }\n  }\n  if (repeatX === \"no-repeat\") {\n    const xOffset = unsnappedBoxOffset.x\n      + resolvePosition(position.x, unsnappedAvailableWidth, offsetX);\n    const snappedXOffset = snappedBoxOffset.x\n      + resolvePosition(position.x, snappedAvailableWidth, offsetX);\n    if (xOffset > 0) {\n      unsnappedDestination.x += xOffset;\n      snappedDestination.x = roundRaw(unsnappedDestination.x) * LAYOUT_UNIT_SCALE;\n      unsnappedDestination.width = tileWidth;\n      snappedDestination.width = tileWidth;\n      phaseX = 0;\n    } else {\n      phaseX = -xOffset;\n      unsnappedDestination.width = Math.max(0, tileWidth + xOffset);\n      snappedDestination.width = Math.max(0, tileWidth + snappedXOffset);\n    }\n    spacingWidth = 0;\n  }\n\n  if (repeatY === \"repeat\") {\n    const yOffset = resolvePosition(position.y, unsnappedAvailableHeight, offsetY);\n    phaseY = computeTilePhase(unsnappedBoxOffset.y + yOffset, tileHeight);\n    spacingHeight = 0;\n  } else if (repeatY === \"space\" && tileHeight > 0) {\n    const count = Math.trunc(snappedPositioning.height / tileHeight);\n    if (count > 1) {\n      spacingHeight = divideRaw(snappedPositioning.height - count * tileHeight, count - 1);\n      phaseY = computeTilePhase(snappedBoxOffset.y, tileHeight + spacingHeight);\n    } else {\n      repeatY = \"no-repeat\";\n    }\n  }\n  if (repeatY === \"no-repeat\") {\n    const yOffset = unsnappedBoxOffset.y\n      + resolvePosition(position.y, unsnappedAvailableHeight, offsetY);\n    const snappedYOffset = snappedBoxOffset.y\n      + resolvePosition(position.y, snappedAvailableHeight, offsetY);\n    if (yOffset > 0) {\n      unsnappedDestination.y += yOffset;\n      snappedDestination.y = roundRaw(unsnappedDestination.y) * LAYOUT_UNIT_SCALE;\n      unsnappedDestination.height = tileHeight;\n      snappedDestination.height = tileHeight;\n      phaseY = 0;\n    } else {\n      phaseY = -yOffset;\n      unsnappedDestination.height = Math.max(0, tileHeight + yOffset);\n      snappedDestination.height = Math.max(0, tileHeight + snappedYOffset);\n    }\n    spacingHeight = 0;\n  }\n\n  unsnappedDestination = intersectRect(unsnappedDestination, unsnappedPainting);\n  snappedDestination = snapRect(intersectRect(snappedDestination, unsnappedPainting));\n  const finalPhaseX = computedPhase(phaseX, tileWidth + spacingWidth);\n  const finalPhaseY = computedPhase(phaseY, tileHeight + spacingHeight);\n  return {\n    source: \"blink-background-image-geometry-v1\",\n    unsnappedPositioningArea: publicRect(unsnappedPositioning),\n    snappedPositioningArea: publicRect(snappedPositioning),\n    unsnappedDestination: publicRect(unsnappedDestination),\n    snappedDestination: publicRect(snappedDestination),\n    tileSize: { width: cssPx(tileWidth), height: cssPx(tileHeight) },\n    phase: { x: cssPx(finalPhaseX), y: cssPx(finalPhaseY) },\n    spacing: { width: cssPx(spacingWidth), height: cssPx(spacingHeight) },\n    repeat: { x: repeatX, y: repeatY },\n  };\n}\n\nexport function capturedBackgroundNaturalSizing(\n  selected: CapturedBackgroundImage | null,\n  legacyIntrinsic: { w: number; h: number } | null,\n): BackgroundNaturalSizing {\n  if (selected != null) {\n    return {\n      known: selected.naturalSizingState === \"resolved\",\n      hasWidth: selected.hasNaturalWidth === true,\n      hasHeight: selected.hasNaturalHeight === true,\n      width: selected.naturalWidth,\n      height: selected.naturalHeight,\n      ratio: selected.naturalAspectRatio,\n    };\n  }\n  return legacyIntrinsic == null\n    ? { known: true, hasWidth: false, hasHeight: false, width: null, height: null, ratio: null }\n    : {\n        known: true,\n        hasWidth: true,\n        hasHeight: true,\n        width: legacyIntrinsic.w,\n        height: legacyIntrinsic.h,\n        ratio: { width: legacyIntrinsic.w, height: legacyIntrinsic.h },\n      };\n}\n\n/** Blink FillLayer repeats shorter longhand lists from their first entry. */"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/url-background-geometry-audit.ts"
+                },
+                "region": {
+                  "startLine": 513
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2478"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c82da14428a0d79e45042ba0efd33008"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "aea26632f3fa9c18b3c2999fac8fd0b7da64781c",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

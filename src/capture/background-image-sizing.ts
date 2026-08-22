@@ -503,6 +503,7 @@ async function hydrateBackgroundTargets(
           return {
             layerIndex,
             ...selection,
+            decodedImageKind: "unknown",
             decodedNaturalWidth: null,
             decodedNaturalHeight: null,
             naturalWidth: null,
@@ -525,6 +526,7 @@ async function hydrateBackgroundTargets(
         return {
           layerIndex,
           ...selection,
+          decodedImageKind: raw.kind,
           decodedNaturalWidth: raw.hasWidth === true ? raw.width : null,
           decodedNaturalHeight: raw.hasHeight === true ? raw.height : null,
           naturalWidth: raw.hasWidth === true && raw.width != null ? raw.width * scale : null,

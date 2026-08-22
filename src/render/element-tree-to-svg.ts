@@ -17,7 +17,7 @@ import { renderFileSelectorOutsetShadow, renderFormControl } from "./form-contro
 import { CAPTURE_SCRIPT } from "../capture/script.generated.js";
 import { r, esc, stopFmt, rootSvgA11y } from "./format.js";
 import { clipPathShapeForElement, translateClipPath } from "./clip-path.js";
-import { buildImagePatternDef } from "./image-pattern.js";
+import { buildImagePatternDef, cyclicBackgroundLayer } from "./image-pattern.js";
 import { buildLinearGradientDef, buildRadialGradientDef, parseBgPositionPx, type GradientStop } from "./gradient-defs.js";
 import { advancedGradientTile, needsChromiumGradientRaster } from "./advanced-gradient-raster.js";
 import { computeTileSize } from "./conic-raster.js";
@@ -2149,14 +2149,14 @@ function paintBackgroundImageLayers(
     // so later SVG elements (= on top) correspond to first CSS layer.
     for (let li = layers.length - 1; li >= 0; li--) {
       const layer = layers[li].trim();
-      const layerSize = (sizeLayers[li] ?? sizeLayers[0] ?? "auto").trim();
-      const layerPos = (posLayers[li] ?? posLayers[0] ?? "0% 0%").trim();
-      const layerRepeat = (repeatLayers[li] ?? repeatLayers[0] ?? "repeat").trim();
-      const layerClip = (clipLayers[li] ?? clipLayers[0] ?? "border-box").trim();
-      const layerOrigin = (originLayers[li] ?? originLayers[0] ?? "padding-box").trim();
+      const layerSize = cyclicBackgroundLayer(sizeLayers, li, "auto").trim();
+      const layerPos = cyclicBackgroundLayer(posLayers, li, "0% 0%").trim();
+      const layerRepeat = cyclicBackgroundLayer(repeatLayers, li, "repeat").trim();
+      const layerClip = cyclicBackgroundLayer(clipLayers, li, "border-box").trim();
+      const layerOrigin = cyclicBackgroundLayer(originLayers, li, "padding-box").trim();
       const layerIntrinsic = intrinsicLayers[li] ?? null;
       const selectedImage = selectedImageLayers[li] ?? null;
-      const layerAttachment = (attachmentLayers[li] ?? attachmentLayers[0] ?? "scroll").trim();
+      const layerAttachment = cyclicBackgroundLayer(attachmentLayers, li, "scroll").trim();
       const originBox = boxFor(layerOrigin);
       const clipBox = boxFor(layerClip);
       const isUrlBacked = /^\s*(?:url\(|(?:-webkit-)?image-set\()/i.test(layer);
@@ -2190,6 +2190,7 @@ function paintBackgroundImageLayers(
         attachmentGeometry == null ? layerAttachment : "scroll",
         attachmentGeometry == null ? captureViewport : null,
         selectedImage,
+        paintingBox,
       );
       if (out.def === "") continue;
       ctx.defsParts.push(out.def);
@@ -2215,7 +2216,7 @@ function paintBackgroundImageLayers(
       // CSS Compositing §6.1: every image layer uses its corresponding
       // background-blend-mode, including the bottom image layer as it blends
       // with the background color painted beneath it.
-      const layerBlend = blendLayers[li] ?? blendLayers[0] ?? "normal";
+      const layerBlend = cyclicBackgroundLayer(blendLayers, li, "normal");
       const blendAttr = (layerBlend !== "normal" && layerBlend !== "")
         ? ` style="mix-blend-mode:${layerBlend}"` : "";
       ctx.svgParts.push(
@@ -2246,13 +2247,13 @@ function paintBackgroundImageLayers(
     const selectedImageLayers = el.styles.backgroundImages ?? [];
     const intrinsicLayers = el.styles.backgroundIntrinsic ?? [];
     for (let li = layers.length - 1; li >= 0; li--) {
-      const layerClip = (clipLayers[li] ?? clipLayers[0] ?? "border-box").trim();
+      const layerClip = cyclicBackgroundLayer(clipLayers, li, "border-box").trim();
       if (layerClip !== "text") continue;
       const layer = layers[li].trim();
-      const layerSize = (sizeLayers[li] ?? sizeLayers[0] ?? "auto").trim();
-      const layerPos = (posLayers[li] ?? posLayers[0] ?? "0% 0%").trim();
-      const layerRepeat = (repeatLayers[li] ?? repeatLayers[0] ?? "repeat").trim();
-      const layerAttachment = (attachmentLayers[li] ?? attachmentLayers[0] ?? "scroll").trim();
+      const layerSize = cyclicBackgroundLayer(sizeLayers, li, "auto").trim();
+      const layerPos = cyclicBackgroundLayer(posLayers, li, "0% 0%").trim();
+      const layerRepeat = cyclicBackgroundLayer(repeatLayers, li, "repeat").trim();
+      const layerAttachment = cyclicBackgroundLayer(attachmentLayers, li, "scroll").trim();
       const layerIntrinsic = intrinsicLayers[li] ?? null;
       const selectedImage = selectedImageLayers[li] ?? null;
       const defId = ctx.nextClipId("bg");
@@ -3593,35 +3594,26 @@ function renderMaskPhase(state: RenderState, el: CapturedElement): string | null
       const maskSize = usingMaskBorderGradient ? "100% 100%" : (el.styles.maskSize ?? "auto");
       const maskPosition = usingMaskBorderGradient ? "0% 0%" : (el.styles.maskPosition ?? "0% 0%");
       const maskRepeat = usingMaskBorderGradient ? "no-repeat" : (el.styles.maskRepeat ?? "repeat");
-      // DM-820: honor `mask-clip` by insetting the mask paint region.
-      // `border-box` (default) leaves the border-box rect; `padding-box`
-      // insets by border widths; `content-box` insets by border + padding.
-      // For uniform masks (e.g. `linear-gradient(black, black)`) this
-      // matches Chrome's "mask is transparent outside the clip box" rule
-      // exactly. For position-sensitive gradients the layer is still
-      // sized to the clip box rather than the origin box (mask-origin
-      // not yet captured), which is a visible diff only when both differ
-      // — no fixtures exercise that combination today.
-      const maskClip = el.styles.maskClip ?? "border-box";
-      let maskX = el.x, maskY = el.y, maskW = el.width, maskH = el.height;
-      if (maskClip === "padding-box" || maskClip === "content-box") {
-        const bt = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
-        const br = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
-        const bb = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
-        const bl = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
-        maskX += bl; maskY += bt; maskW -= bl + br; maskH -= bt + bb;
-        if (maskClip === "content-box") {
-          const pt = parseFloat(el.styles.paddingTop ?? "0") || 0;
-          const pr = parseFloat(el.styles.paddingRight ?? "0") || 0;
-          const pb = parseFloat(el.styles.paddingBottom ?? "0") || 0;
-          const pl = parseFloat(el.styles.paddingLeft ?? "0") || 0;
-          maskX += pl; maskY += pt; maskW -= pl + pr; maskH -= pt + pb;
-        }
-      }
+      // DM-2472: Blink resolves mask-origin (positioning) independently from
+      // mask-clip (painting intersection). Keep the border box intact here;
+      // buildMaskDef cycles each list and threads both rectangles through its
+      // URL/gradient/fragment/composite paths. Older captures fall back to the
+      // legacy physical fields (exact at zoom:1).
+      const side = (value: string | undefined): number => parseFloat(value ?? "0") || 0;
+      const maskInsets = el.styles.maskBoxInsets ?? {
+        border: {
+          top: side(el.styles.borderTopWidth), right: side(el.styles.borderRightWidth),
+          bottom: side(el.styles.borderBottomWidth), left: side(el.styles.borderLeftWidth),
+        },
+        padding: {
+          top: side(el.styles.paddingTop), right: side(el.styles.paddingRight),
+          bottom: side(el.styles.paddingBottom), left: side(el.styles.paddingLeft),
+        },
+      };
       const maskDef = buildMaskDef(
         paintCtx.nextClipId("mk"),
         maskImage,
-        maskX, maskY, Math.max(0, maskW), Math.max(0, maskH),
+        el.x, el.y, el.width, el.height,
         el.styles.maskMode ?? "match-source",
         maskSize,
         maskPosition,
@@ -3638,6 +3630,13 @@ function renderMaskPhase(state: RenderState, el: CapturedElement): string | null
               fragmentAxis: el.fragmentAxis,
             }
           : undefined,
+        {
+          originCss: el.styles.maskOrigin ?? "border-box",
+          clipCss: el.styles.maskClip ?? "border-box",
+          border: maskInsets.border,
+          padding: maskInsets.padding,
+          noClipPaintingArea: { x: 0, y: 0, width: state.width, height: state.height },
+        },
       );
       if (maskDef.def !== "") {
         maskUrlId = maskDef.id;
@@ -3804,13 +3803,13 @@ function paintInlineFragment(
     if (clone && hasBgImage) {
       for (let li = bgImageLayers.length - 1; li >= 0; li--) {
         const layer = bgImageLayers[li].trim();
-        const layerSize = (bgSizeLayers[li] ?? bgSizeLayers[0] ?? "auto").trim();
-        const layerPos = (bgPosLayers[li] ?? bgPosLayers[0] ?? "0% 0%").trim();
-        const layerRepeat = (bgRepeatLayers[li] ?? bgRepeatLayers[0] ?? "repeat").trim();
-        const layerClip = (bgClipLayers[li] ?? bgClipLayers[0] ?? "border-box").trim();
+        const layerSize = cyclicBackgroundLayer(bgSizeLayers, li, "auto").trim();
+        const layerPos = cyclicBackgroundLayer(bgPosLayers, li, "0% 0%").trim();
+        const layerRepeat = cyclicBackgroundLayer(bgRepeatLayers, li, "repeat").trim();
+        const layerClip = cyclicBackgroundLayer(bgClipLayers, li, "border-box").trim();
         const selectedImage = bgSelectedImageLayers[li] ?? null;
         const layerIntrinsic = bgIntrinsicLayers[li] ?? null;
-        const layerAttachment = (bgAttachmentLayers[li] ?? bgAttachmentLayers[0] ?? "scroll").trim();
+        const layerAttachment = cyclicBackgroundLayer(bgAttachmentLayers, li, "scroll").trim();
         if (layerClip === "text") continue;
         const defId = paintCtx.nextClipId("bgf");
         const out = buildBackgroundLayerDef(
@@ -5574,6 +5573,7 @@ function buildBackgroundLayerDef(
   attachment: string = "scroll",
   fixedViewport: { w: number; h: number } | null = null,
   selectedImage: CapturedBackgroundImage | null = null,
+  paintingArea: { x: number; y: number; width: number; height: number } | null = null,
 ): { def: string } {
   // Computed style deliberately serializes the complete image-set. The live
   // capture record—not this renderer—owns Blink's DPR/type candidate choice.
@@ -5640,7 +5640,14 @@ function buildBackgroundLayerDef(
   }
   const urlContent = selectedImage?.selectedUrl ?? parseCssUrl(layer);
   if (urlContent != null) {
-    return { def: buildImagePatternDef(id, urlContent, elX, elY, w, h, sizeCss, posCss, repeatCss, intrinsic, attachment, fixedViewport) };
+    const def = buildImagePatternDef(
+      id, urlContent, elX, elY, w, h, sizeCss, posCss, repeatCss,
+      intrinsic, attachment, fixedViewport, selectedImage, paintingArea,
+    );
+    if (def === "") {
+      console.warn("[domotion] URL background omitted: exact Blink tile geometry was unavailable");
+    }
+    return { def };
   }
   return { def: "" };
 }

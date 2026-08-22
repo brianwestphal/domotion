@@ -272,6 +272,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt47qa6wpfbtm6h0",
+          "message": {
+            "text": "The hard final-SVG leg exposed an atomic-clone clipping defect that the exact CTM leg could not see. A re-embedded SVG defaults to clipped overflow, so transformed stroke/off-bounds ink shifted by large device-space bounds until the live root overflow was baked; preserving child filter/non-visible overflow at the same ownership boundary also makes grouping-paint rows pass.",
+            "markdown": "The hard final-SVG leg exposed an atomic-clone clipping defect that the exact CTM leg could not see. A re-embedded SVG defaults to clipped overflow, so transformed stroke/off-bounds ink shifted by large device-space bounds until the live root overflow was baked; preserving child filter/non-visible overflow at the same ownership boundary also makes grouping-paint rows pass."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/inline-svg.ts"
+                },
+                "region": {
+                  "startLine": 171,
+                  "endLine": 177,
+                  "snippet": {
+                    "text": "      // An outer SVG viewport defaults to overflow:hidden when re-embedded,\n      // while authored CSS commonly switches the live root to visible. The\n      // renderer treats svgContent as atomic and therefore cannot reconstruct\n      // this clip outside the clone; bake the live used value onto the cloned\n      // root so transformed stroke/off-bounds ink keeps Chromium's boundary.\n      const svgOverflow = cs.getPropertyValue('overflow').trim();\n      if (svgOverflow !== '') clone.style.setProperty('overflow', svgOverflow);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/inline-svg-3d-audit.ts"
+                },
+                "region": {
+                  "startLine": 483
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2475"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4f8a939c8b2c04050dfba805c5c1520f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "aea26632f3fa9c18b3c2999fac8fd0b7da64781c",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt47p6djag63mnbo",
+          "message": {
+            "text": "Origin and clip stay separate because pinned Blink contracts NormalPositioningArea from FillLayer::Origin while EffectiveClip independently selects the destination. For no-clip, the capture viewport is a safe SVG superset of Blink visual overflow: the masked group has no ink outside its own overflow, and an explicit region avoids SVG default-mask cropping. Fragment threading is linked below.",
+            "markdown": "Origin and clip stay separate because pinned Blink contracts NormalPositioningArea from FillLayer::Origin while EffectiveClip independently selects the destination. For no-clip, the capture viewport is a safe SVG superset of Blink visual overflow: the masked group has no ink outside its own overflow, and an explicit region avoids SVG default-mask cropping. Fragment threading is linked below."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/mask-origin-clip.ts"
+                },
+                "region": {
+                  "startLine": 21,
+                  "endLine": 36,
+                  "snippet": {
+                    "text": "export interface MaskOriginClipContext {\n  /** Computed, comma-separated `mask-origin` layer list. */\n  originCss: string;\n  /** Computed, comma-separated `mask-clip` layer list. */\n  clipCss: string;\n  /** Physical border widths, after effective CSS zoom. */\n  border: MaskPhysicalEdges;\n  /** Physical padding widths, after effective CSS zoom. */\n  padding: MaskPhysicalEdges;\n  /**\n   * A safe output-space superset of Blink's visual-overflow painting area.\n   * The masked SVG group cannot contribute ink outside its own visual\n   * overflow, so using the capture viewport is pixel-equivalent while keeping\n   * `mask-clip:no-clip` free from an artificial border-box intersection.\n   */\n  noClipPaintingArea?: MaskImageRect;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/mask.ts"
+                },
+                "region": {
+                  "startLine": 591
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/paint/background_image_geometry.cc"
+                },
+                "region": {
+                  "startLine": 230
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2472"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "027bd4ea5c7e5f547c550a1bbaf0ccf4"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "aea26632f3fa9c18b3c2999fac8fd0b7da64781c",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -882,7 +882,31 @@ const captureDocumentTree =
         maskRepeat: cs.maskRepeat || cs.webkitMaskRepeat || 'repeat',
         maskComposite: cs.maskComposite || cs.webkitMaskComposite || 'add',
         maskIntrinsic: computeMaskIntrinsic(el, cs),
+        maskOrigin: cs.maskOrigin || cs.webkitMaskOrigin || 'border-box',
         maskClip: cs.maskClip || cs.webkitMaskClip || 'border-box',
+        // DM-2472: BackgroundImageGeometry contracts the HTML border box by
+        // mask-origin independently from mask-clip. Computed padding/borders
+        // are pre-zoom CSS px while `rect` is already physical, so cross the
+        // effective-zoom boundary once at capture time.
+        maskBoxInsets: (function () {
+          var _maskImage = cs.maskImage || cs.webkitMaskImage || '';
+          if (_maskImage === '' || _maskImage === 'none') return undefined;
+          var _zoom = _effectiveZoomFor(el);
+          var _physical = function (value) {
+            var _number = parseFloat(value || '0');
+            return Number.isFinite(_number) ? _number * _zoom : 0;
+          };
+          return {
+            border: {
+              top: _physical(cs.borderTopWidth), right: _physical(cs.borderRightWidth),
+              bottom: _physical(cs.borderBottomWidth), left: _physical(cs.borderLeftWidth),
+            },
+            padding: {
+              top: _physical(cs.paddingTop), right: _physical(cs.paddingRight),
+              bottom: _physical(cs.paddingBottom), left: _physical(cs.paddingLeft),
+            },
+          };
+        })(),
         // DM-758: `mask-border-source` / legacy `-webkit-mask-box-image`. Chrome
         // exposes only the legacy webkit name; modern `maskBorderSource`
         // returns undefined. Capture source + slice / width / outset so the

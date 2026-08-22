@@ -1,0 +1,79 @@
+name: Inline SVG 3D parity
+
+# The matrix/ownership and final-SVG pixel legs run in the same native
+# Chromium session. Each platform uploads its fingerprinted row/mutation report;
+# no cross-platform tolerance envelope or downloaded baseline participates.
+on:
+  pull_request:
+    paths:
+      - "src/capture/index.ts"
+      - "src/capture/projective-owner.ts"
+      - "src/capture/svg-affine-freeze.ts"
+      - "src/capture/script/walker/inline-svg.ts"
+      - "src/render/element-tree-to-svg.ts"
+      - "src/render/transforms.ts"
+      - "tools/inline-svg-3d-audit.ts"
+      - "tests/inline-svg-3d-gate.test.ts"
+      - "tests/inline-svg-affine-freeze.e2e.test.ts"
+      - "tests/inline-svg-projective-ownership.e2e.test.ts"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/inline-svg-3d-parity.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/capture/index.ts"
+      - "src/capture/projective-owner.ts"
+      - "src/capture/svg-affine-freeze.ts"
+      - "src/capture/script/walker/inline-svg.ts"
+      - "src/render/element-tree-to-svg.ts"
+      - "src/render/transforms.ts"
+      - "tools/inline-svg-3d-audit.ts"
+      - "tests/inline-svg-3d-gate.test.ts"
+      - "tests/inline-svg-affine-freeze.e2e.test.ts"
+      - "tests/inline-svg-projective-ownership.e2e.test.ts"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/inline-svg-3d-parity.yml"
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "22.21.0"
+
+jobs:
+  parity:
+    name: ${{ matrix.label }} inline SVG 3D
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            label: macOS
+          - os: ubuntu-latest
+            label: Linux
+          - os: windows-latest
+            label: Windows
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium
+      - name: Run exact matrix/ownership and final-SVG pixel legs
+        run: npm run transform:inline-svg-3d-audit -- --dpr 1,2 --json tests/output/inline-svg-3d-gate.json
+      - name: Run focused production boundary regressions
+        run: npx vitest run --config vitest.e2e.config.ts tests/inline-svg-affine-freeze.e2e.test.ts tests/inline-svg-projective-ownership.e2e.test.ts
+      - name: Upload fingerprinted gate report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: inline-svg-3d-${{ runner.os }}
+          path: tests/output/inline-svg-3d-gate.json
+          if-no-files-found: error
+          retention-days: 30

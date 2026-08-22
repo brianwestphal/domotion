@@ -172,10 +172,13 @@ shortest possible map:
   for the subset unit tests;
   `mask.ts` owns mask-def emission and fragmented mask-strip composition;
   `mask-position.ts` owns Blink's concrete contain/cover tile fitting plus
-  physical length-percentage/calc position resolution. Capture awaits URL-mask
-  natural dimensions in `primeMaskImageIntrinsics`, physicalizes computed px
-  terms once, and SVG samples the resulting rectangle with
-  `preserveAspectRatio="none"` (DM-2379, doc 20). `borders.ts` owns border math;
+  physical length-percentage/calc position resolution; and
+  `mask-origin-clip.ts` independently resolves each HTML layer's origin
+  positioning box and clip painting box (including no-clip). Capture awaits
+  URL-mask natural dimensions, retains cyclic origin/clip lists, and
+  physicalizes computed px terms plus border/padding edges once. SVG samples
+  the resulting rectangle with `preserveAspectRatio="none"` and applies the
+  independent paint intersection (DM-2379/2472, docs 20/174). `borders.ts` owns border math;
   `svg-inline.ts` inlines an `<img src="*.svg">` as a native, id-namespaced
   nested `<svg>` (`prefixSvgIds`/`inlineImgSvg`, DM-1588, doc 96), and namespaces
   captured DOM inline-SVG fragment ids per source document/shadow-root scope — crisp at
@@ -443,8 +446,8 @@ shortest possible map:
   observable while fixed ownership/projective paint remain rejected.
   Computed preserve-3d is also a fixed CB through grouping-property flattening.
   `transformSubtreeRaster` separately owns projective paint (doc 06).
-- **Cloned inline-SVG 3D boundary (doc 162; affine freeze and projective
-  ownership shipped)** —
+- **Cloned inline-SVG 3D boundary (doc 162; affine freeze, projective ownership,
+  and all-platform two-leg gate shipped)** —
   `tools/inline-svg-3d-audit.ts`
   (`npm run transform:inline-svg-3d-audit`) compares Blink's live
   parent-relative SVG-child CTM with the actual `captureInlineSvg` clone and
@@ -461,24 +464,37 @@ shortest possible map:
   opaque inline-SVG clones, and the isolated alpha-trimmed post-pass emits that
   surface once. The focused DPR-2 route/pixel oracle covers nested
   `<foreignObject>`, zoom/scroll, ancestor rotation/opacity/filter, clipping,
-  off-bounds paint, and a vector-sibling isolation control. The logical audit
-  is 26/26; DM-2475 adds the all-platform independent raster leg.
-- **URL background geometry audit + authoritative capture (DM-2370/2477/2479)** —
+  off-bounds paint, and a vector-sibling isolation control.
+  `tools/inline-svg-3d-audit.ts` now hard-gates 31 static cases at DPR 1/2:
+  exact parent-relative matrices and reachable raster ownership form leg one;
+  untouched live-Chromium versus complete generated-SVG alpha/ink forms leg
+  two, with fixed two-device-pixel/5%-alpha/3%-RGBA limits. Six mutations cover
+  literal matrix3d syntax, the apparent 2D submatrix, non-scaling-stroke box
+  ownership, HTML root markers, a raster below `svgContent`, and property-only
+  routing. `.github/workflows/inline-svg-3d-parity.yml` enforces the gate on
+  macOS/Linux/Windows and always uploads a fingerprinted native report.
+- **Source-owned URL background geometry (DM-2370/2477/2478/2479)** —
   `tools/url-background-geometry-audit.ts`
   (`npm run background:url-geometry-audit`) paints a deterministic decoded
   color tile in live Chromium and through the actual capture→generated-SVG
   path, then compares classified marker pixels and per-color device-pixel
-  bounds. Its 21 rows retain zero-delta inline and multicol controls while exposing natural-ratio,
-  calc, contain, round/space, fixed/local, zoom, transformed-phase, cyclic-list,
-  and slice-fragment gaps. Pinned Blink proves natural sizing plus
+  bounds. Its 21 rows now pass at DPR 1 and DPR 2 for natural-ratio,
+  calc, contain/cover, round/space, fixed/local, zoom, transformed phase,
+  cyclic lists, and clone fragments; only the explicitly discriminated
+  DM-2365 slice-fragment rows remain gaps. Pinned Blink proves natural sizing plus
   snapped/unsnapped destination/phase/spacing are owned by
   `BackgroundImageGeometry` before Skia consumes the image matrix; ordinary
   URL backgrounds remain vector-composable. The async
   `src/capture/background-image-sizing.ts` prepass now mirrors pinned Blink
   MIME/density selection at the live DPR, awaits decode, and records candidate,
   independent natural dimensions/ratio, orientation, zoom, and explicit load
-  state per aligned layer. The walker serializes it and the renderer consumes
-  the selected URL instead of guessing DPR 1.
+  state and decoded bitmap/SVG/unknown kind per aligned layer. The walker
+  serializes it and the renderer consumes the selected URL instead of guessing
+  DPR 1. `src/render/image-pattern.ts` resolves Blink's geometry in the 1/64
+  CSS-pixel LayoutUnit domain, including auto ratio, calc, contain/cover,
+  positive/negative no-repeat, repeat phase, round, both space branches,
+  independent origin/clip, and fail-closed unknown facts. Background longhands
+  now expand cyclically across main, inline, and fragment routes.
   `src/capture/script/walker/background-attachment.ts` independently captures
   fixed applicability, the scrollbar-excluding layout viewport, snapped local
   scroll/overflow geometry, and the stitched root canvas;
@@ -487,8 +503,8 @@ shortest possible map:
   live Chromium oracle are exact at DPR 1/2 and cover mutation, zoom, affine,
   borders/padding, both axes, inert/perspective controls, and root stitching.
   [Doc 163](../163-url-background-image-geometry-audit.md) owns the exact
-  boundary. DM-2478 plus existing DM-2365 finish tile/fragment geometry;
-  DM-2480 promotes the observational probe to an all-platform DPR gate.
+  boundary. Existing DM-2365 finishes slice-fragment continuation; DM-2480
+  then promotes the fingerprinted DPR oracle to all platforms.
 - **Native scrollbar ownership and capture (DM-2368 / DM-2481)** —
   `tools/native-scrollbar-ownership-audit.ts`
   (`npm run scrollbars:ownership-audit`) disables Playwright's normally

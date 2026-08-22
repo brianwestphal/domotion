@@ -79,6 +79,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt47qa6wzg42yov1",
+          "message": {
+            "text": "The pixel leg uses fixed device-space limits, never per-platform image envelopes. DPR1 and DPR2 both pass all 31 static cases: exact matrices/owners, alpha-bound deltas at most two physical pixels, and all six unsafe mutations moving. Animation is deliberately excluded because DM-2359 owns synchronized frame-state sampling.",
+            "markdown": "The pixel leg uses fixed device-space limits, never per-platform image envelopes. DPR1 and DPR2 both pass all 31 static cases: exact matrices/owners, alpha-bound deltas at most two physical pixels, and all six unsafe mutations moving. Animation is deliberately excluded because DM-2359 owns synchronized frame-state sampling."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/inline-svg-3d-audit.ts"
+                },
+                "region": {
+                  "startLine": 26,
+                  "endLine": 35,
+                  "snippet": {
+                    "text": "const MATRIX_EPSILON = 1 / 256;\nconst MAX_ALPHA_BOUND_DELTA_PX = 2;\nconst MAX_ALPHA_MISMATCH_FRACTION = 0.05;\nconst MAX_RGBA_MEAN_ERROR = 0.03;\n\nexport const INLINE_SVG_3D_GATE_THRESHOLDS = {\n  matrixEpsilon: MATRIX_EPSILON,\n  maxAlphaBoundDeltaPx: MAX_ALPHA_BOUND_DELTA_PX,\n  maxAlphaMismatchFraction: MAX_ALPHA_MISMATCH_FRACTION,\n  maxRgbaMeanError: MAX_RGBA_MEAN_ERROR,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/inline-svg-3d-parity.yml"
+                },
+                "region": {
+                  "startLine": 45
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2475"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "bf153727707d45c2abaa67760cded670"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "aea26632f3fa9c18b3c2999fac8fd0b7da64781c",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

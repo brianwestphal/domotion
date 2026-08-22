@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt47pbmpai330k62",
+          "message": {
+            "text": "The independent browser gate passes all three rows: DPR 1 and 2 cover distinct border/padding/content/no-clip boxes, contain/cover/explicit/repeat, zoom, vertical RTL, cyclic layers, and the same-box control; the DPR-2 fragment row covers slice and clone. The collapsed-origin-to-clip mutation is required to raise source-vs-SVG error by more than 0.8 MAE. Focused result: 3/3 browser tests; source/unit result: 43/43.",
+            "markdown": "The independent browser gate passes all three rows: DPR 1 and 2 cover distinct border/padding/content/no-clip boxes, contain/cover/explicit/repeat, zoom, vertical RTL, cyclic layers, and the same-box control; the DPR-2 fragment row covers slice and clone. The collapsed-origin-to-clip mutation is required to raise source-vs-SVG error by more than 0.8 MAE. Focused result: 3/3 browser tests; source/unit result: 43/43."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/mask-origin-clip.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 109,
+                  "endLine": 165,
+                  "snippet": {
+                    "text": "describeBrowser(\"HTML URL mask-origin/mask-clip Chromium oracle (DM-2472)\", () => {\n  for (const dpr of [1, 2]) {\n    it(`matches distinct boxes, same-box control, layers, no-clip, zoom and writing mode at DPR ${dpr}`, async () => {\n      const context = await env!.browser.newContext({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: dpr });\n      const source = await context.newPage();\n      const rendered = await context.newPage();\n      const mutated = await context.newPage();\n      try {\n        await source.setContent(matrixHtml(), { waitUntil: \"load\" });\n        await source.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));\n        const rects = await source.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>(\".case\")).map((element) => {\n          const rect = element.getBoundingClientRect();\n          return { id: element.id, x: rect.x, y: rect.y, width: rect.width, height: rect.height };\n        }));\n        const expected = await source.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } });\n        const tree = await captureElementTree(source, \"#stage\", { x: 0, y: 0, width: WIDTH, height: HEIGHT });\n        const cases = masked(tree);\n        expect(cases).toHaveLength(9);\n        expect(cases.map((element) => element.styles.maskOrigin)).toEqual([\n          \"content-box\", \"border-box\", \"padding-box\", \"content-box\", \"padding-box\",\n          \"content-box\", \"content-box, border-box\", \"content-box\", \"padding-box\",\n        ]);\n        expect(cases.map((element) => element.styles.maskClip)).toEqual([\n          \"border-box\", \"content-box\", \"content-box\", \"padding-box\", \"padding-box\",\n          \"border-box\", \"border-box, content-box\", \"padding-box\", \"no-clip\",\n        ]);\n        expect(cases[7].styles.maskBoxInsets).toEqual({\n          border: { top: 5, right: 8, bottom: 11, left: 13 },\n          padding: { top: 10, right: 16.25, bottom: 18.75, left: 21.25 },\n        });\n\n        const svg = elementTreeToSvg(tree, WIDTH, HEIGHT);\n        expect(svg).toContain('clipPathUnits=\"userSpaceOnUse\"');\n        expect(svg).toMatch(/<mask[^>]+ x=\"0\" y=\"0\" width=\"640\" height=\"430\"[^>]+mask-type=\"alpha\"/);\n        await rendered.setContent(`<body style=\"margin:0;background:white\">${svg}</body>`, { waitUntil: \"load\" });\n        const actual = await rendered.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } });\n        expect(await meanAbsoluteError(expected, actual)).toBeLessThan(3.2);\n\n        const [expectedRgb, actualRgb] = await Promise.all([rgb(expected), rgb(actual)]);\n        for (const { id, ...rect } of rects) {\n          const expectedBounds = inkBounds(expectedRgb, rect, dpr);\n          const actualBounds = inkBounds(actualRgb, rect, dpr);\n          expect(expectedBounds, `${id}: Chromium emitted no mask ink`).not.toBeNull();\n          expect(actualBounds, `${id}: generated SVG emitted no mask ink`).not.toBeNull();\n          const edgeError = Math.max(...actualBounds!.map((value, index) => Math.abs(value - expectedBounds![index])));\n          expect(edgeError, `${id}: device-pixel ink bounds diverged ${expectedBounds} vs ${actualBounds}`).toBeLessThanOrEqual(4);\n        }\n\n        // Required mutation: collapse every origin to its clip. The same-box\n        // negative control remains unchanged, while the distinct-box matrix\n        // must become materially worse than the production route.\n        const mutantTree = structuredClone(tree);\n        for (const element of masked(mutantTree)) element.styles.maskOrigin = element.styles.maskClip;\n        const mutantSvg = elementTreeToSvg(mutantTree, WIDTH, HEIGHT);\n        await mutated.setContent(`<body style=\"margin:0;background:white\">${mutantSvg}</body>`, { waitUntil: \"load\" });\n        const mutantPng = await mutated.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } });\n        expect(await meanAbsoluteError(expected, mutantPng)).toBeGreaterThan((await meanAbsoluteError(expected, actual)) + 0.8);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/mask-origin-clip.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/mask-origin-clip.ts"
+                },
+                "region": {
+                  "startLine": 107
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2472"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "8d89bf6ab7e04831887ecb0e99f7fd58"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "aea26632f3fa9c18b3c2999fac8fd0b7da64781c",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

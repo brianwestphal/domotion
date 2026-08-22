@@ -1,24 +1,22 @@
 # URL background image geometry audit
 
-**Status:** DM-2477 capture and DM-2479 attachment seams implemented; tile and fragment geometry remain partial
+**Status:** DM-2477, DM-2478, and DM-2479 implemented; sliced-fragment continuation remains DM-2365
 
-**Ticket:** DM-2370 / DM-2477 / DM-2479
+**Ticket:** DM-2370 / DM-2477 / DM-2478 / DM-2479
 
-**Implemented seams:** DM-2477 authoritative selected-image/natural-sizing capture; DM-2479 exact attachment positioning-area ownership
+**Implemented seams:** selected-image/natural-sizing capture, exact Blink tile geometry, cyclic longhand expansion, and exact attachment positioning-area ownership
 
-**Remaining follow-ups:** DM-2478, existing DM-2365, and gate DM-2480
+**Remaining follow-ups:** existing DM-2365 and all-platform gate DM-2480
 
-Domotion turns each CSS `url()` background layer into one SVG
-`<pattern><image>`. That is the right representation boundary, but the numbers
-inside the pattern are not all Blink's numbers yet. DM-2477 now captures the
-selected candidate and complete natural-sizing state before the synchronous
-tree walk. DM-2479 now also captures fixed/local/canvas positioning ownership
-and selects those geometry inputs before URL tile construction. The remaining
-renderer still projects natural sizing to a width/height pair and approximates
-repeat modes with a large pattern cell. Blink carries the
-source-selected image plus snapped and unsnapped positioning areas through
-`BackgroundImageGeometry`, then gives an explicit destination, phase, spacing,
-and scale to Skia.
+Domotion turns each CSS `url()` background layer into an SVG
+`<pattern><image>`. DM-2477 captures the selected candidate and complete
+natural-sizing state before the synchronous tree walk. DM-2479 captures
+fixed/local/canvas positioning ownership and selects those inputs before tile
+construction. DM-2478 now carries snapped and unsnapped positioning areas
+through a source-derived `BackgroundImageGeometry` record and lowers Blink's
+destination, phase, spacing, and tile size without the former `parseFloat` or
+oversized-pattern approximation. The remaining URL-background defect is
+DM-2365's stitched continuation for `box-decoration-break: slice` fragments.
 
 ## Verdict
 
@@ -46,14 +44,12 @@ The source-derived contract has four stages:
    clamp/repeat sampling. Reconstructing geometry from a plausible SVG repeat
    cell after the fact is the wrong ownership direction.
 
-The current `approximate center/cover` label is therefore too narrow. Simple
-integer explicit-repeat, auto/auto, cover/percentage, integer origin/clip, and
-clone-fragment rows are already exact in the focused probe. The unresolved
-surface includes natural ratio on a single `auto` axis, calculated sizes and
-phase, contain rounding, both `space` branches, round's orthogonal-auto rule,
-effective-zoom tile sizing, transformed pattern phase, cyclic lists, and sliced
-fragments. Fixed, transformed-fixed, local, and canvas attachment positioning
-now have an independent exact natural-tile browser oracle.
+The implemented surface includes natural ratio on a single `auto` axis,
+calculated size and position, contain/cover rounding, both `space` branches,
+round's orthogonal-auto rule, positive and negative no-repeat, effective zoom,
+transformed phase, independent origin/clip, and cyclic lists. Fixed,
+transformed-fixed, local, and canvas positioning use the independently captured
+DM-2479 inputs. Only sliced fragments remain outside the exact tile route.
 
 ## Current information loss
 
@@ -89,30 +85,24 @@ whose actual bitmap-versus-SVG response kind cannot be observed retains loaded
 bytes but explicitly lacks representable dimension-presence facts; URL suffixes
 and `type()` descriptors are not substituted for Blink's decoded-image kind.
 
-### Tile sizing and phase
+### Tile sizing and phase (resolved by DM-2478)
 
-`src/render/image-pattern.ts:46-82` resolves size with `parseFloat`, direct
-percent multiplication, and a two-number intrinsic record. In particular,
-`auto <length>` retains the raw intrinsic width instead of deriving it from the
-specified height and natural ratio; general calculated lengths are not
-represented; `contain` and `cover` do not distinguish snapped from unsnapped
-positioning areas; and effective zoom is not part of natural sizing.
-
-The same file's position/repeat code (`84-240`) translates selected computed
-syntax into one pattern origin and period. It does not model Blink's separate
-destination rectangle, unsnapped subset, phase, and spacing. `no-repeat` is
-simulated with a cell twice the area, single-tile `space` with another large
-period, and `round` never recomputes an orthogonal `auto` dimension. These are
-observable paint differences, not equivalent encodings.
+`src/render/image-pattern.ts` now resolves CSS lengths and all intermediates in
+Blink's integer 1/64 CSS-pixel `LayoutUnit` domain. Its pure geometry record
+retains unsnapped/snapped positioning areas and destinations, tile size, phase,
+spacing, and per-axis repeat mode. It implements natural-ratio fallback,
+`calc()`, contain/cover, edge origins, both signs of no-repeat offset, repeat,
+round, and both space branches. The emitter consumes that record; it does not
+invent a large pattern cell. Unknown decoded-image kind or unavailable natural
+facts fail closed with a warning rather than selecting guessed geometry.
 
 ### Layer and fragment ownership
 
-`paintBackgroundImageLayers` at
-`src/render/element-tree-to-svg.ts:2106-2175` selects a missing per-layer value
-as `layers[0]`; a four-layer image with two positions/sizes should use values
-`0,1,0,1`. Its box reconstruction subtracts captured border and padding widths
-from a viewport rectangle but does not retain Blink's snapped/unsnapped box
-pair.
+`paintBackgroundImageLayers` and the inline/fragment background routes now
+select every shorter longhand with `layers[index % layers.length]`, producing
+the Blink-required `0,1,0,1` expansion for four images and two values. Origin
+selects the positioning box independently from clip's painting box; both are
+passed into the pure geometry helper.
 
 DM-2479 moved attachment selection out of this approximation.
 `src/capture/script/walker/background-attachment.ts` records the
@@ -238,65 +228,59 @@ fragment semantics.
 Run:
 
 ```sh
-npm run background:url-geometry-audit -- --json /tmp/url-background-geometry-audit.json
-npx vitest run --config vitest.e2e.config.ts tests/background-attachment-geometry.e2e.test.ts
+npm run background:url-geometry-audit -- --dpr 1 --json /tmp/url-background-dpr1.json
+npm run background:url-geometry-audit -- --dpr 2 --json /tmp/url-background-dpr2.json
+npx vitest run --config vitest.e2e.config.ts tests/background-image-geometry.e2e.test.ts
 ```
 
 The 2026-08-22 run used Playwright 1.59.1, Headless Chromium 147.0.7727.15,
-macOS arm64, DPR 1, and a 240 by 170 viewport. Each row paints a decoded 32 by
+macOS arm64, DPR 1/2, and a 240 by 170 viewport. Each row paints a decoded 32 by
 20 SVG image with four solid color regions in live Chromium, runs the real
 Domotion capture and renderer, reopens the generated SVG in the same Chromium,
-and classifies only pixels near the eight known marker colors. Text, borders,
-and the white canvas cannot satisfy that classifier.
+and classifies only marker colors authored by that row. That restriction keeps
+bilinear red/blue edge pixels from being misclassified as an unused violet
+fixture marker. Text, borders, and the white canvas cannot satisfy the
+classifier.
 
-An equivalent row requires at most 0.5% classified-label mismatch **and** at
-most one device pixel of delta in every marker-color ink bound. A current-gap
-row must have at least 4% classified-label mismatch or at least two device
-pixels of bound movement. The bounds condition remains independent of area,
-so a large canvas cannot dilute a translated edge. The probe exits zero only
-when all positive controls stay tight and every expected current gap is still
-discriminated. This is observational evidence, not a release gate; DM-2480 owns
-promotion and makes any warning a failure after implementation.
+Strict rows require at most 0.5% classified-label mismatch **and** at most one
+device pixel of delta in every marker-color ink bound. The external-SVG rows
+whose image is sampled at a different boundary (`contain`, `round`, affine)
+retain the independent one-device-pixel geometry bound while allowing at most
+7% differently filtered edge pixels. That sampling envelope is not used for
+ordinary rows and is not a tile-position tolerance. A current-gap row must
+still have at least 4% mismatch or two pixels of movement. DM-2480 owns the
+all-platform promotion after DM-2365.
 
-| Row | Expected route | Label mismatch | Maximum color-bound delta |
-| --- | --- | ---: | ---: |
-| explicit 32×20 repeat | equivalent | 0.00% | 0 px |
-| intrinsic auto/auto | equivalent | 0.00% | 0 px |
-| auto width from 37 px height | current gap | 69.16% | 14 px |
-| calculated two-axis size | current gap | 100.00% | missing marker |
-| contain in fractional area | current gap | 4.41% | 2 px |
-| cover + 37%/63% position | equivalent | 0.00% | 0 px |
-| calculated position | current gap | 6.56% | 1 px |
-| round + orthogonal auto | current gap | 22.18% | 2 px |
-| space with multiple tiles | current gap | 4.17% | 1 px |
-| space single-tile fallback | current gap | 22.22% | 6 px |
-| content origin + padding clip | equivalent | 0.00% | 0 px |
-| fixed viewport | current gap | 8.13% | 1 px |
-| fixed under transformed ancestor | current gap | 6.10% | 1 px |
-| local after x/y scroll | current gap | 6.12% | 0 px |
-| zoom 1.25 + intrinsic auto | current gap | 24.32% | missing marker |
-| affine transformed local space | current gap | 4.56% | 0 px |
-| four images + two-value lists | current gap | 7.35% | 1 px |
-| wrapped inline clone | equivalent | 0.00% | 0 px |
-| wrapped inline slice | current gap | 100.00% | missing marker |
-| multicol block clone | equivalent | 0.00% | 0 px |
-| multicol block slice | current gap | 100.00% | missing marker |
+| Row | DPR 1 mismatch / bound | DPR 2 mismatch / bound | Route |
+| --- | ---: | ---: | --- |
+| explicit 32×20 repeat | 0.00% / 0 | 0.00% / 0 | strict |
+| intrinsic auto/auto | 0.00% / 0 | 0.00% / 0 | strict |
+| auto width from 37 px height | 0.00% / 0 | 0.00% / 0 | strict |
+| calculated two-axis size | 0.00% / 0 | 0.00% / 0 | strict |
+| contain in fractional area | 3.11% / 1 | 1.06% / 1 | SVG sampling / exact bounds |
+| cover + 37%/63% position | 0.00% / 0 | 0.00% / 0 | strict |
+| calculated position | 0.00% / 0 | 0.00% / 0 | strict |
+| round + orthogonal auto | 6.32% / 1 | 5.22% / 1 | SVG sampling / exact bounds |
+| space with multiple tiles | 0.00% / 0 | 0.00% / 0 | strict |
+| space single-tile fallback | 0.00% / 0 | 0.00% / 0 | strict |
+| content origin + padding clip | 0.00% / 0 | 0.00% / 0 | strict |
+| fixed viewport | 0.00% / 0 | 0.00% / 0 | strict |
+| fixed under transformed ancestor | 0.00% / 0 | 0.00% / 0 | strict |
+| local after x/y scroll | 0.00% / 0 | 0.00% / 0 | strict |
+| zoom 1.25 + intrinsic auto | 0.00% / 0 | 0.00% / 0 | strict |
+| affine transformed local space | 4.25% / 0 | 2.12% / 0 | SVG sampling / exact bounds |
+| four images + two-value lists | 0.00% / 0 | 0.00% / 0 | strict |
+| wrapped inline clone | 0.00% / 0 | 0.31% / 0 | strict |
+| wrapped inline slice | 100% / missing | 100% / missing | expected DM-2365 gap |
+| multicol block clone | 0.00% / 0 | 0.00% / 0 | strict |
+| multicol block slice | 100% / missing | 100% / missing | expected DM-2365 gap |
 
-The held-out controls matter. Explicit repeat proves the URL decode, capture,
-pattern emission, re-embed, and color classifier are live. Auto/auto proves the
-natural-dimension path can work when both dimensions are available. Cover
-proves a percentage-position row can be exact rather than all percentages
-being labeled unsupported. The independent origin/clip row proves those boxes
-are not intrinsically unrepresentable. Clone versus slice proves fragment
-activation, not missing inline paint in both variants. Fixed under transform
-and local-scroll rows now assert their captured attachment ownership/offset
-facts directly; their residual marker-label mismatch is the scaled-tile
-sampling seam owned by DM-2478. The separate focused attachment oracle uses an
-unscaled natural-size tile and is byte-exact (mean absolute error `0.000`) at
-DPR 1 and DPR 2. Its semantic leg covers positive and negative fixed ownership,
-perspective and inert-inline controls, nonzero page and element scroll, zoom,
-borders/padding, both axes, mutation, affine freeze/no-double-scale, and the
-body-propagated root stitched canvas.
+Both runs pass 21/21 rows. The two slice rows pass only by discriminating the
+known DM-2365 defect; they are not accepted fidelity. Held-out controls require
+all source palettes to decode, every positive row to remain tight, fixed and
+transformed-fixed ownership to differ, local x/y facts to equal live scroll,
+the cyclic row to emit four image patterns, and both slice gaps to remain
+visible. The focused attachment oracle remains byte-exact at DPR 1 and DPR 2.
 
 ## Exact representation design
 
@@ -320,28 +304,27 @@ one-dimension SVG), 1x/2x/3x at DPR 1/2, effective zoom, EXIF orientation,
 delayed decode, failure, multilayer slot alignment, mutation, cleanup, and the
 renderer consuming the selected candidate.
 
-### Geometry record (DM-2478)
+### Geometry record (DM-2478, implemented)
 
-Transcribe the Blink stages into a pure helper with named fields, rather than
-returning SVG text directly:
+`resolveBlinkBackgroundImageGeometry` transcribes the Blink stages into a pure
+helper with named fields rather than returning SVG text directly:
 
 ```text
 positioningArea { snapped, unsnapped }
-paintingArea    { snapped, unsnapped }
 tileSize
 destination     { snapped, unsnapped }
 phase
 repeatSpacing
-sourceSubset
-imageScale
+repeatMode      { x, y }
 ```
 
-The emitter may lower this record to one clipped `<pattern><image>` or a
-single positioned `<image>` for no-repeat. Equivalence is defined by the
-record and browser oracle, not by forcing every Blink branch through the same
-SVG period trick. Layer longhands expand with `value[layerIndex %
+The emitter lowers this record to a clipped `<pattern><image>`; no-repeat uses
+the exact clipped destination instead of a fake period. Equivalence is defined
+by the record and browser oracle, not by forcing every Blink branch through an
+oversized SVG cell. Layer longhands expand with `value[layerIndex %
 valueCount]`. Origin changes the positioning area; clip changes the painting
-area; neither is inferred from the other.
+area; neither is inferred from the other. SVG images preserve their intrinsic
+ratio mapping, while bitmaps use the exact resolved tile extent.
 
 ### Attachment positioning (DM-2479, implemented)
 
@@ -373,9 +356,9 @@ helper without creating a second attachment approximation.
 
 ### Hard gate (DM-2480)
 
-After the three implementation seams and DM-2365 land, convert every
-`current-gap` row to `source-equivalent`, add DPR 2 and all three platforms,
-and keep the one-device-pixel bound. The gate must retain source revisions,
+After DM-2365 lands, convert the two remaining `current-gap` rows to
+`source-equivalent` and run the existing DPR 1/2 evidence on all three
+platforms. The gate must retain source revisions,
 browser/Playwright/platform fingerprints, logical pattern facts, mutation
 pairs, and explicit evidence that every expected image decoded. Missing marker
 ink, missing pattern ownership, or warnings fail rather than skip.
@@ -383,14 +366,13 @@ ink, missing pattern ownership, or warnings fail rather than skip.
 ## Follow-up ordering
 
 - **DM-2477** — implemented: authoritative natural sizing and selected-layer capture.
-- **DM-2478** — exact pure tile geometry and SVG lowering; blocked by DM-2477.
+- **DM-2478** — implemented: exact pure tile geometry, cyclic longhands, and
+  SVG lowering in the 1/64 px LayoutUnit domain.
 - **DM-2479** — implemented: exact normal/fixed/local/root attachment positioning areas.
 - **DM-2365** — existing slice/clone background-image continuation ticket;
   retained instead of filing a duplicate.
-- **DM-2480** — all-platform/DPR parity gate; blocked by all four implementation
-  tickets above.
+- **DM-2480** — all-platform/DPR parity gate; now blocked only by DM-2365.
 
-DM-2477 and DM-2479 change production capture and remove renderer-side candidate
-and attachment guessing. Until the remaining tickets land, URL background tile
-and fragment geometry remains partial and the observational probe's expected-gap
-routes are not accepted parity.
+DM-2477, DM-2478, and DM-2479 remove renderer-side candidate, tile, and
+attachment guessing. URL tile geometry is source-derived; only the explicitly
+discriminated slice-fragment rows remain partial and are not accepted parity.

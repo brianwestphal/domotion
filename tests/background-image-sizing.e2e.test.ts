@@ -75,6 +75,7 @@ describeBrowser("authoritative URL background image sizing capture", () => {
           selectedUrl: row.selectedUrl,
           selectedResolution: row.resolution,
           selectedType: "image/png",
+          decodedImageKind: "bitmap",
           decodedNaturalWidth: row.decodedWidth,
           naturalWidth: row.naturalWidth,
           effectiveZoom: 1.25,
@@ -107,22 +108,26 @@ describeBrowser("authoritative URL background image sizing capture", () => {
       expect(layers[1]).toBeNull();
       expect(layers.map((entry) => entry?.layerIndex ?? null)).toEqual([0, null, 2, 3, 4]);
       expect(layers[0]).toMatchObject({
+        decodedImageKind: "bitmap",
         decodedNaturalWidth: 30, decodedNaturalHeight: 20,
         naturalWidth: 37.5, naturalHeight: 25,
         hasNaturalWidth: true, hasNaturalHeight: true,
         imageOrientation: "none", effectiveZoom: 1.25,
       });
       expect(layers[2]).toMatchObject({
+        decodedImageKind: "bitmap",
         decodedNaturalWidth: 44, decodedNaturalHeight: 22,
         naturalWidth: 55, naturalHeight: 27.5,
       });
       expect(layers[3]).toMatchObject({
+        decodedImageKind: "svg",
         decodedNaturalWidth: null, decodedNaturalHeight: null,
         naturalWidth: null, naturalHeight: null,
         hasNaturalWidth: false, hasNaturalHeight: false,
         naturalAspectRatio: { width: 3, height: 7 },
       });
       expect(layers[4]).toMatchObject({
+        decodedImageKind: "svg",
         decodedNaturalWidth: 80, decodedNaturalHeight: null,
         naturalWidth: 100, naturalHeight: null,
         hasNaturalWidth: true, hasNaturalHeight: false,
@@ -170,9 +175,9 @@ describeBrowser("authoritative URL background image sizing capture", () => {
       });
       const result = await captureElementTreeWithWarnings(page, "#target", { x: 0, y: 0, width: 220, height: 140 });
       expect(result.tree[0].styles.backgroundImages).toMatchObject([
-        { loadState: "loaded", naturalSizingState: "resolved", decodedNaturalWidth: 30, decodedNaturalHeight: 20 },
-        { loadState: "failed", naturalSizingState: "unavailable", naturalWidth: null, naturalHeight: null },
-        { loadState: "loaded", naturalSizingState: "unavailable", naturalWidth: null, naturalHeight: null },
+        { decodedImageKind: "bitmap", loadState: "loaded", naturalSizingState: "resolved", decodedNaturalWidth: 30, decodedNaturalHeight: 20 },
+        { decodedImageKind: "unknown", loadState: "failed", naturalSizingState: "unavailable", naturalWidth: null, naturalHeight: null },
+        { decodedImageKind: "unknown", loadState: "loaded", naturalSizingState: "unavailable", naturalWidth: null, naturalHeight: null },
       ]);
       const warning = result.warnings.find((entry) => entry.feature === "background-image");
       expect(warning?.detail).toContain("failed");
@@ -188,6 +193,7 @@ describeBrowser("authoritative URL background image sizing capture", () => {
       await page.setContent(`<section style="zoom:1.2"><div id="target" style="width:120px;height:80px;zoom:1.25;image-orientation:from-image;background-image:url('${ORIENTED_JPEG}')"></div></section>`);
       const oriented = await captureElementTreeWithWarnings(page, "#target", { x: 0, y: 0, width: 220, height: 140 });
       expect(selected(oriented)[0]).toMatchObject({
+        decodedImageKind: "bitmap",
         imageOrientation: "from-image",
         effectiveZoom: 1.5,
         decodedNaturalWidth: 20,
@@ -201,6 +207,7 @@ describeBrowser("authoritative URL background image sizing capture", () => {
       });
       const unoriented = await captureElementTreeWithWarnings(page, "#target", { x: 0, y: 0, width: 220, height: 140 });
       expect(selected(unoriented)[0]).toMatchObject({
+        decodedImageKind: "bitmap",
         imageOrientation: "none",
         effectiveZoom: 1.5,
         decodedNaturalWidth: 40,
@@ -226,7 +233,12 @@ describeBrowser("authoritative URL background image sizing capture", () => {
         (element as HTMLElement).style.backgroundImage = `url("${url}")`;
       }, JPEG_DIRECT);
       const second = await captureElementTreeWithWarnings(page, "#target", { x: 0, y: 0, width: 220, height: 140 });
-      expect(selected(second)[0]).toMatchObject({ source: "url", selectedUrl: JPEG_DIRECT, selectedResolution: 1 });
+      expect(selected(second)[0]).toMatchObject({
+        source: "url",
+        selectedUrl: JPEG_DIRECT,
+        selectedResolution: 1,
+        decodedImageKind: "bitmap",
+      });
       expect(await page.evaluate(() => ({
         host: "__domotionBackgroundImageTargets" in globalThis,
         key: "__domotionBackgroundImageKey" in document.querySelector("#target")!,

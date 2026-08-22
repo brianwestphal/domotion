@@ -15,9 +15,16 @@ import { advancedGradientTile, needsChromiumGradientRaster } from "./advanced-gr
 import type { CapturedElement, MaskRasterRef } from "../capture/types.js";
 import {
   resolveMaskContainCoverRect,
+  resolveMaskPosition,
   type MaskImageRect,
   type MaskIntrinsicSize,
 } from "./mask-position.js";
+import {
+  resolveMaskOriginClipLayer,
+  resolveHtmlMaskReferenceBox,
+  type MaskOriginClipContext,
+  type MaskPhysicalEdges,
+} from "./mask-origin-clip.js";
 
 // Mask-position resolves in Blink's 1/64px LayoutUnit space. The renderer's
 // general one-decimal formatter is intentionally compact, but throwing away
@@ -483,6 +490,11 @@ interface MaskLayerInput {
   elY: number;
   w: number;
   h: number;
+  /** Painting/destination area. Size and position still use elX/Y/w/h. */
+  paintX: number;
+  paintY: number;
+  paintW: number;
+  paintH: number;
   /** The trimmed layer value (a gradient / `element(#id)` / `url(...)`). */
   layer: string;
   layerSize: string;
@@ -508,6 +520,13 @@ export interface MaskFragmentGeometry {
 }
 
 interface MaskPaintArea extends MaskImageRect {
+  clip?: MaskImageRect;
+}
+
+interface ResolvedMaskPaintArea {
+  positioningArea: MaskImageRect;
+  paintingArea: MaskImageRect;
+  /** Finite CSS/fragment intersection; absent for mask-clip:no-clip. */
   clip?: MaskImageRect;
 }
 
@@ -545,6 +564,69 @@ export function maskPaintAreas(
   });
 }
 
+function fragmentPhysicalEdges(
+  edges: MaskPhysicalEdges,
+  index: number,
+  count: number,
+  context?: MaskFragmentGeometry,
+): MaskPhysicalEdges {
+  if (context?.boxDecorationBreak === "clone" || context?.fragmentAxis === "block") return edges;
+  const vertical = /^(?:vertical|sideways)-/.test(context?.writingMode ?? "horizontal-tb");
+  const rtl = context?.direction === "rtl";
+  if (vertical) {
+    const ownsTop = rtl ? index === count - 1 : index === 0;
+    const ownsBottom = rtl ? index === 0 : index === count - 1;
+    return { ...edges, top: ownsTop ? edges.top : 0, bottom: ownsBottom ? edges.bottom : 0 };
+  }
+  const ownsLeft = rtl ? index === count - 1 : index === 0;
+  const ownsRight = rtl ? index === 0 : index === count - 1;
+  return { ...edges, left: ownsLeft ? edges.left : 0, right: ownsRight ? edges.right : 0 };
+}
+
+/**
+ * Thread Blink's independent positioning and painting rectangles through the
+ * existing slice/clone strip reconstruction. The stitched strip owns origin
+ * geometry; each physical fragment owns the final clip intersection.
+ */
+function resolvedMaskPaintAreas(
+  fallback: MaskImageRect,
+  layerIndex: number,
+  fragmentGeometry?: MaskFragmentGeometry,
+  originClip?: MaskOriginClipContext,
+): ResolvedMaskPaintArea[] {
+  const areas = maskPaintAreas(fallback, fragmentGeometry);
+  if (originClip == null) {
+    return areas.map((area) => ({
+      positioningArea: area,
+      paintingArea: area.clip ?? area,
+      clip: area.clip,
+    }));
+  }
+  return areas.map((area, areaIndex) => {
+    const layer = resolveMaskOriginClipLayer(area, layerIndex, originClip);
+    if (area.clip == null) {
+      return {
+        positioningArea: layer.positioningArea,
+        paintingArea: layer.paintingArea ?? originClip.noClipPaintingArea ?? area,
+        clip: layer.paintingArea ?? undefined,
+      };
+    }
+    // Inline slice fragments omit the inline-start/end border and padding on
+    // interior fragments. Contract only the physical sides that Blink's
+    // fragment owns; clone/block fragments own all four sides.
+    const border = fragmentPhysicalEdges(originClip.border, areaIndex, areas.length, fragmentGeometry);
+    const padding = fragmentPhysicalEdges(originClip.padding, areaIndex, areas.length, fragmentGeometry);
+    const fragmentClip = layer.clip === "no-clip"
+      ? area.clip
+      : resolveHtmlMaskReferenceBox(area.clip, layer.clip, border, padding);
+    return {
+      positioningArea: layer.positioningArea,
+      paintingArea: fragmentClip,
+      clip: fragmentClip,
+    };
+  });
+}
+
 /**
  * Build the SVG content (gradient/pattern defs + the painting rect/image) for a
  * SINGLE mask-image layer. Extracted from `buildMaskDef`'s per-layer loop
@@ -555,7 +637,10 @@ export function maskPaintAreas(
  * emission of an empty `<mask>` in that case.
  */
 function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide: boolean } {
-  const { id, li, elX, elY, w, h, layer, layerSize, layerPos, layerRepeat, elementRasters, intrinsic: capturedIntrinsic } = input;
+  const {
+    id, li, elX, elY, w, h, paintX, paintY, paintW, paintH,
+    layer, layerSize, layerPos, layerRepeat, elementRasters, intrinsic: capturedIntrinsic,
+  } = input;
   const contents: string[] = [];
   const gradient = /^(?:repeating-)?(linear|radial)-gradient\(/i.test(layer);
   if (gradient) {
@@ -585,23 +670,9 @@ function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide:
       gradH = sizeTok.length > 1 ? resolveSize(sizeTok[1], h, h) : h;
     }
     if (gradW <= 0 || gradH <= 0) return { contents, forceHide: false };
-    const posTok = layerPos.trim().split(/\s+/);
-    const resolveH = (t: string): number => {
-      if (t === "left") return 0;
-      if (t === "right") return w - gradW;
-      if (t === "center") return (w - gradW) / 2;
-      if (/%$/.test(t)) return (parseFloat(t) / 100) * (w - gradW);
-      return parseFloat(t) || 0;
-    };
-    const resolveV = (t: string): number => {
-      if (t === "top") return 0;
-      if (t === "bottom") return h - gradH;
-      if (t === "center") return (h - gradH) / 2;
-      if (/%$/.test(t)) return (parseFloat(t) / 100) * (h - gradH);
-      return parseFloat(t) || 0;
-    };
-    let gx = elX + resolveH(posTok[0] ?? "0%");
-    let gy = elY + resolveV(posTok[1] ?? posTok[0] ?? "0%");
+    const gradientOffset = resolveMaskPosition(layerPos, w - gradW, h - gradH);
+    let gx = elX + gradientOffset.x;
+    let gy = elY + gradientOffset.y;
     const linear = /^(?:repeating-)?linear-gradient\((.+)\)$/i.exec(layer);
     const radial = /^(?:repeating-)?radial-gradient\((.+)\)$/i.exec(layer);
     if (needsChromiumGradientRaster(layer)) {
@@ -609,7 +680,7 @@ function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide:
       if (raster != null) {
         const patId = `${id}p${li}`;
         const patDef = buildImagePatternDef(patId, raster, elX, elY, w, h, layerSize, layerPos, layerRepeat, { w: gradW, h: gradH });
-        contents.push(patDef, `<rect x="${r(elX)}" y="${r(elY)}" width="${r(w)}" height="${r(h)}" fill="url(#${patId})" />`);
+        contents.push(patDef, `<rect x="${r(paintX)}" y="${r(paintY)}" width="${r(paintW)}" height="${r(paintH)}" fill="url(#${patId})" />`);
         return { contents, forceHide: false };
       }
       console.warn(`[domotion] Chromium raster tile unavailable for advanced mask gradient; using best-effort SVG interpolation: ${layer}`);
@@ -640,8 +711,8 @@ function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide:
       for (let value = first; value < areaStart + areaSize; value += tileSize) starts.push(value);
       return { starts };
     };
-    const xs = axis(repeatX, elX, w, gx, gradW).starts;
-    const ys = axis(repeatY, elY, h, gy, gradH).starts;
+    const xs = axis(repeatX, paintX, paintW, gx, gradW).starts;
+    const ys = axis(repeatY, paintY, paintH, gy, gradH).starts;
     let tileIndex = 0;
     for (const tileY of ys) for (const tileX of xs) {
       const gradId = `${id}g${li}${xs.length * ys.length > 1 ? `t${tileIndex++}` : ""}`;
@@ -683,23 +754,9 @@ function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide:
       imgW = resolveSize(sizeTok[0], w, intrinsic.w);
       imgH = sizeTok.length > 1 ? resolveSize(sizeTok[1], h, intrinsic.h) : imgW * (intrinsic.h / intrinsic.w);
     }
-    const posTok = layerPos.trim().split(/\s+/);
-    const resolveH = (t: string): number => {
-      if (t === "left") return 0;
-      if (t === "right") return w - imgW;
-      if (t === "center") return (w - imgW) / 2;
-      if (/%$/.test(t)) return (parseFloat(t) / 100) * (w - imgW);
-      return parseFloat(t) || 0;
-    };
-    const resolveV = (t: string): number => {
-      if (t === "top") return 0;
-      if (t === "bottom") return h - imgH;
-      if (t === "center") return (h - imgH) / 2;
-      if (/%$/.test(t)) return (parseFloat(t) / 100) * (h - imgH);
-      return parseFloat(t) || 0;
-    };
-    const ix = fitted?.x ?? (elX + resolveH(posTok[0] ?? "0%"));
-    const iy = fitted?.y ?? (elY + resolveV(posTok[1] ?? posTok[0] ?? "0%"));
+    const imageOffset = resolveMaskPosition(layerPos, w - imgW, h - imgH);
+    const ix = fitted?.x ?? (elX + imageOffset.x);
+    const iy = fitted?.y ?? (elY + imageOffset.y);
     contents.push(`<image href="${raster.dataUri}" x="${mr(ix)}" y="${mr(iy)}" width="${mr(imgW)}" height="${mr(imgH)}" preserveAspectRatio="none" />`);
     return { contents, forceHide: false };
   }
@@ -760,7 +817,7 @@ function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide:
           // A CSS image mask layer whose source cannot supply natural sizing
           // contributes transparent black; do not turn a failed exactness
           // probe into an unmasked (fully visible) element.
-          contents.push(`<rect x="${r(elX)}" y="${r(elY)}" width="${r(w)}" height="${r(h)}" fill="transparent" />`);
+          contents.push(`<rect x="${r(paintX)}" y="${r(paintY)}" width="${r(paintW)}" height="${r(paintH)}" fill="transparent" />`);
           return { contents, forceHide: false };
         }
         imgW = fitted.width; imgH = fitted.height;
@@ -768,23 +825,9 @@ function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide:
         imgW = resolveSize(sizeTok[0], w, w);
         imgH = sizeTok.length > 1 ? resolveSize(sizeTok[1], h, h) : imgW;
       }
-      const posTok = layerPos.trim().split(/\s+/);
-      const resolveH = (t: string): number => {
-        if (t === "left") return 0;
-        if (t === "right") return w - imgW;
-        if (t === "center") return (w - imgW) / 2;
-        if (/%$/.test(t)) return (parseFloat(t) / 100) * (w - imgW);
-        return parseFloat(t) || 0;
-      };
-      const resolveV = (t: string): number => {
-        if (t === "top") return 0;
-        if (t === "bottom") return h - imgH;
-        if (t === "center") return (h - imgH) / 2;
-        if (/%$/.test(t)) return (parseFloat(t) / 100) * (h - imgH);
-        return parseFloat(t) || 0;
-      };
-      const ix = fitted?.x ?? (elX + resolveH(posTok[0] ?? "0%"));
-      const iy = fitted?.y ?? (elY + resolveV(posTok[1] ?? posTok[0] ?? "0%"));
+      const imageOffset = resolveMaskPosition(layerPos, w - imgW, h - imgH);
+      const ix = fitted?.x ?? (elX + imageOffset.x);
+      const iy = fitted?.y ?? (elY + imageOffset.y);
       // SVG only samples the concrete Blink-owned tile rectangle; it must not
       // perform a second contain/cover alignment decision (DM-2379).
       contents.push(`<image href="${esc(embedResizedDataUri(urlHref, imgW, imgH))}" x="${mr(ix)}" y="${mr(iy)}" width="${mr(imgW)}" height="${mr(imgH)}" preserveAspectRatio="none" />`);
@@ -796,7 +839,7 @@ function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide:
       const patDef = buildImagePatternDef(patId, urlHref, elX, elY, w, h, layerSize, layerPos, layerRepeat, capturedIntrinsic ?? null);
       if (patDef === "") return { contents, forceHide: false };
       contents.push(patDef);
-      contents.push(`<rect x="${r(elX)}" y="${r(elY)}" width="${r(w)}" height="${r(h)}" fill="url(#${patId})" />`);
+      contents.push(`<rect x="${r(paintX)}" y="${r(paintY)}" width="${r(paintW)}" height="${r(paintH)}" fill="url(#${patId})" />`);
     }
   }
   return { contents, forceHide: false };
@@ -816,6 +859,8 @@ export function buildMaskDef(
   maskIntrinsic?: ReadonlyArray<MaskIntrinsicSize | null>,
   /** Wrapped-inline / fragmented paint geometry (DM-2379). */
   fragmentGeometry?: MaskFragmentGeometry,
+  /** Independent per-layer HTML mask-origin/mask-clip geometry (DM-2472). */
+  originClip?: MaskOriginClipContext,
 ): { id: string; def: string } {
   const layers = splitTopLevelCommas(maskImage);
   const sizeLayers = splitTopLevelCommas(sizeCss);
@@ -839,6 +884,16 @@ export function buildMaskDef(
   else if (maskMode === "alpha") maskType = "alpha";
   else maskType = hasElementLayer ? "luminance" : "alpha";
 
+  const borderBox = { x: elX, y: elY, width: w, height: h };
+  const hasNoClipLayer = originClip != null && layers.some((_, layerIndex) =>
+    resolveMaskOriginClipLayer(borderBox, layerIndex, originClip).clip === "no-clip");
+  const maskRegion = hasNoClipLayer
+    ? originClip?.noClipPaintingArea ?? borderBox
+    : borderBox;
+  const explicitMaskRegion = hasNoClipLayer
+    ? ` x="${r(maskRegion.x)}" y="${r(maskRegion.y)}" width="${r(maskRegion.width)}" height="${r(maskRegion.height)}"`
+    : "";
+
   // Per-layer contents. contents[li] = array of SVG strings (gradient defs
   // + painted rect/image) for layer li. We keep each layer separate so
   // mask-composite: intersect can emit one <mask> per layer and chain them
@@ -855,18 +910,23 @@ export function buildMaskDef(
   // what we want), so force emission of an empty mask when it's set.
   let forceHide = false;
   const cyclic = (values: string[], index: number, fallback: string): string => values.length > 0 ? values[index % values.length] : fallback;
-  const paintAreas = maskPaintAreas(
-    { x: elX, y: elY, width: w, height: h },
-    fragmentGeometry,
-  );
   for (let li = layers.length - 1; li >= 0; li--) {
     const contents: string[] = [];
+    const paintAreas = resolvedMaskPaintAreas(
+      { x: elX, y: elY, width: w, height: h },
+      li,
+      fragmentGeometry,
+      originClip,
+    );
     for (let areaIndex = 0; areaIndex < paintAreas.length; areaIndex++) {
       const area = paintAreas[areaIndex];
       const fragmentSuffix = paintAreas.length > 1 ? `f${areaIndex}` : "";
+      const positioning = area.positioningArea;
+      const painting = area.paintingArea;
       const result = buildMaskLayer({
         id: `${id}${fragmentSuffix}`, li,
-        elX: area.x, elY: area.y, w: area.width, h: area.height,
+        elX: positioning.x, elY: positioning.y, w: positioning.width, h: positioning.height,
+        paintX: painting.x, paintY: painting.y, paintW: painting.width, paintH: painting.height,
         layer: layers[li].trim(),
         layerSize: cyclic(sizeLayers, li, "auto").trim(),
         layerPos: cyclic(posLayers, li, "0% 0%").trim(),
@@ -896,7 +956,7 @@ export function buildMaskDef(
     if (forceHide) {
       // Empty <mask> hides the referenced element — matches Chrome's empty
       // rendering for SVG url() mask sources.
-      return { id, def: `<mask id="${id}" maskUnits="userSpaceOnUse" mask-type="${maskType}"></mask>` };
+      return { id, def: `<mask id="${id}" maskUnits="userSpaceOnUse"${explicitMaskRegion} mask-type="${maskType}"></mask>` };
     }
     return { id, def: "" };
   }
@@ -962,18 +1022,18 @@ export function buildMaskDef(
   const needsSequentialComposition = activeLayers.length > 2 || new Set(topOperators).size > 1;
   if (needsSequentialComposition) {
     const defs: string[] = [];
-    const fullRect = (maskId: string): string => `<rect x="${r(elX)}" y="${r(elY)}" width="${r(w)}" height="${r(h)}" fill="#fff" mask="url(#${maskId})" />`;
+    const fullRect = (maskId: string): string => `<rect x="${r(maskRegion.x)}" y="${r(maskRegion.y)}" width="${r(maskRegion.width)}" height="${r(maskRegion.height)}" fill="#fff" mask="url(#${maskId})" />`;
     const rawIds = new Map<number, string>();
     for (const layer of activeLayers) {
       const rawId = `${id}raw${layer.index}`;
       rawIds.set(layer.index, rawId);
-      defs.push(`<mask id="${rawId}" maskUnits="userSpaceOnUse" x="${r(elX)}" y="${r(elY)}" width="${r(w)}" height="${r(h)}" mask-type="${maskType}">${layer.contents.join("")}</mask>`);
+      defs.push(`<mask id="${rawId}" maskUnits="userSpaceOnUse" x="${r(maskRegion.x)}" y="${r(maskRegion.y)}" width="${r(maskRegion.width)}" height="${r(maskRegion.height)}" mask-type="${maskType}">${layer.contents.join("")}</mask>`);
     }
     const invFilterId = `${id}inv`;
-    defs.push(`<filter id="${invFilterId}" filterUnits="userSpaceOnUse" x="${r(elX)}" y="${r(elY)}" width="${r(w)}" height="${r(h)}"><feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -1 1"/></filter>`);
+    defs.push(`<filter id="${invFilterId}" filterUnits="userSpaceOnUse" x="${r(maskRegion.x)}" y="${r(maskRegion.y)}" width="${r(maskRegion.width)}" height="${r(maskRegion.height)}"><feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -1 1"/></filter>`);
     const inverse = (sourceId: string, suffix: string): string => {
       const inverseId = `${id}not${suffix}`;
-      defs.push(`<mask id="${inverseId}" maskUnits="userSpaceOnUse" x="${r(elX)}" y="${r(elY)}" width="${r(w)}" height="${r(h)}" mask-type="alpha"><g filter="url(#${invFilterId})"><rect x="${r(elX)}" y="${r(elY)}" width="${r(w)}" height="${r(h)}" fill="transparent" />${fullRect(sourceId)}</g></mask>`);
+      defs.push(`<mask id="${inverseId}" maskUnits="userSpaceOnUse" x="${r(maskRegion.x)}" y="${r(maskRegion.y)}" width="${r(maskRegion.width)}" height="${r(maskRegion.height)}" mask-type="alpha"><g filter="url(#${invFilterId})"><rect x="${r(maskRegion.x)}" y="${r(maskRegion.y)}" width="${r(maskRegion.width)}" height="${r(maskRegion.height)}" fill="transparent" />${fullRect(sourceId)}</g></mask>`);
       return inverseId;
     };
     let accumulated = rawIds.get(activeLayers[activeLayers.length - 1].index)!;
@@ -994,10 +1054,10 @@ export function buildMaskDef(
       } else {
         body = `${fullRect(accumulated)}${fullRect(source)}`;
       }
-      defs.push(`<mask id="${combined}" maskUnits="userSpaceOnUse" x="${r(elX)}" y="${r(elY)}" width="${r(w)}" height="${r(h)}" mask-type="alpha">${body}</mask>`);
+      defs.push(`<mask id="${combined}" maskUnits="userSpaceOnUse" x="${r(maskRegion.x)}" y="${r(maskRegion.y)}" width="${r(maskRegion.width)}" height="${r(maskRegion.height)}" mask-type="alpha">${body}</mask>`);
       accumulated = combined;
     }
-    defs.push(`<mask id="${id}" maskUnits="userSpaceOnUse" x="${r(elX)}" y="${r(elY)}" width="${r(w)}" height="${r(h)}" mask-type="alpha">${fullRect(accumulated)}</mask>`);
+    defs.push(`<mask id="${id}" maskUnits="userSpaceOnUse" x="${r(maskRegion.x)}" y="${r(maskRegion.y)}" width="${r(maskRegion.width)}" height="${r(maskRegion.height)}" mask-type="alpha">${fullRect(accumulated)}</mask>`);
     return { id, def: defs.join("") };
   }
 
@@ -1006,13 +1066,13 @@ export function buildMaskDef(
   // accumulates where layers overlap.
   if (!isIntersect && !isSubtract && !isExclude) {
     const flat = nonEmpty.flat().join("");
-    const def = `<mask id="${id}" maskUnits="userSpaceOnUse" mask-type="${maskType}">${flat}</mask>`;
+    const def = `<mask id="${id}" maskUnits="userSpaceOnUse"${explicitMaskRegion} mask-type="${maskType}">${flat}</mask>`;
     return { id, def };
   }
   if (nonEmpty.length === 1) {
     // Single-layer composite is just the layer itself regardless of op.
     const flat = nonEmpty[0].join("");
-    const def = `<mask id="${id}" maskUnits="userSpaceOnUse" mask-type="${maskType}">${flat}</mask>`;
+    const def = `<mask id="${id}" maskUnits="userSpaceOnUse"${explicitMaskRegion} mask-type="${maskType}">${flat}</mask>`;
     return { id, def };
   }
 
@@ -1028,7 +1088,7 @@ export function buildMaskDef(
       const isOuter = li === 0;
       const layerMaskId = isOuter ? id : `${id}i${li}`;
       const items = innerId != null ? gateLastWithMask(nonEmpty[li], innerId) : nonEmpty[li];
-      defs.push(`<mask id="${layerMaskId}" maskUnits="userSpaceOnUse" mask-type="${maskType}">${items.join("")}</mask>`);
+      defs.push(`<mask id="${layerMaskId}" maskUnits="userSpaceOnUse"${explicitMaskRegion} mask-type="${maskType}">${items.join("")}</mask>`);
       innerId = layerMaskId;
     }
     return { id, def: defs.join("") };
@@ -1052,12 +1112,12 @@ export function buildMaskDef(
       const items = innerId != null ? gateLastWithMask(nonEmpty[li], innerId) : nonEmpty[li];
       // Wrap the paint inside a filter-applying <g> so the emitted alpha
       // is (1 - layer_alpha).
-      defs.push(`<mask id="${layerMaskId}" maskUnits="userSpaceOnUse" mask-type="${maskType}"><g filter="url(#${invFilterId})">${items.join("")}</g></mask>`);
+      defs.push(`<mask id="${layerMaskId}" maskUnits="userSpaceOnUse"${explicitMaskRegion} mask-type="${maskType}"><g filter="url(#${invFilterId})">${items.join("")}</g></mask>`);
       innerId = layerMaskId;
     }
     // Outer mask: layer 0's paint, gated by the inverted-subsequent-layers chain.
     const outerItems = innerId != null ? gateLastWithMask(nonEmpty[0], innerId) : nonEmpty[0];
-    defs.push(`<mask id="${id}" maskUnits="userSpaceOnUse" mask-type="${maskType}">${outerItems.join("")}</mask>`);
+    defs.push(`<mask id="${id}" maskUnits="userSpaceOnUse"${explicitMaskRegion} mask-type="${maskType}">${outerItems.join("")}</mask>`);
     return { id, def: defs.join("") };
   }
 
@@ -1080,7 +1140,7 @@ export function buildMaskDef(
     const invMaskIds: string[] = [];
     for (let li = 0; li < nonEmpty.length; li++) {
       const invMaskId = `${id}x${li}`;
-      defs.push(`<mask id="${invMaskId}" maskUnits="userSpaceOnUse" mask-type="${maskType}"><g filter="url(#${invFilterId})">${nonEmpty[li].join("")}</g></mask>`);
+      defs.push(`<mask id="${invMaskId}" maskUnits="userSpaceOnUse"${explicitMaskRegion} mask-type="${maskType}"><g filter="url(#${invFilterId})">${nonEmpty[li].join("")}</g></mask>`);
       invMaskIds.push(invMaskId);
     }
     // For N layers, chain the inverted masks of all other layers via
@@ -1099,13 +1159,13 @@ export function buildMaskDef(
         // with the existing chainId by injecting a mask= onto its painted
         // rect inside the filter wrapper. Easier: just inline another
         // <g mask=url(#chainId)> wrapping the filter <g>.
-        defs.push(`<mask id="${subMaskId}" maskUnits="userSpaceOnUse" mask-type="${maskType}"><g mask="url(#${chainId})"><g filter="url(#${invFilterId})">${nonEmpty[lj].join("")}</g></g></mask>`);
+        defs.push(`<mask id="${subMaskId}" maskUnits="userSpaceOnUse"${explicitMaskRegion} mask-type="${maskType}"><g mask="url(#${chainId})"><g filter="url(#${invFilterId})">${nonEmpty[lj].join("")}</g></g></mask>`);
         chainId = subMaskId;
       }
       const items = chainId != null ? gateLastWithMask(nonEmpty[li], chainId) : nonEmpty[li];
       outerContents.push(items.join(""));
     }
-    defs.push(`<mask id="${id}" maskUnits="userSpaceOnUse" mask-type="${maskType}">${outerContents.join("")}</mask>`);
+    defs.push(`<mask id="${id}" maskUnits="userSpaceOnUse"${explicitMaskRegion} mask-type="${maskType}">${outerContents.join("")}</mask>`);
     return { id, def: defs.join("") };
   }
 }

@@ -168,6 +168,13 @@ export const captureInlineSvg = (el, cs, warn, sel) => {
       if (svgFontFamily && svgFontFamily !== '' && !el.hasAttribute('font-family')) {
         clone.setAttribute('font-family', svgFontFamily);
       }
+      // An outer SVG viewport defaults to overflow:hidden when re-embedded,
+      // while authored CSS commonly switches the live root to visible. The
+      // renderer treats svgContent as atomic and therefore cannot reconstruct
+      // this clip outside the clone; bake the live used value onto the cloned
+      // root so transformed stroke/off-bounds ink keeps Chromium's boundary.
+      const svgOverflow = cs.getPropertyValue('overflow').trim();
+      if (svgOverflow !== '') clone.style.setProperty('overflow', svgOverflow);
       // Walk SVG descendants and bake each one's resolved presentation
       // attributes onto the cloned node. Without this, CSS-only styling such
       // as svg|rect { stroke: red } or *|circle { fill: green } (DM-346) is
@@ -283,6 +290,18 @@ export const captureInlineSvg = (el, cs, warn, sel) => {
           const computedClipPath = ocs.getPropertyValue('clip-path').trim();
           if (computedClipPath !== '' && computedClipPath !== 'none') {
             cloneNode.style.setProperty('clip-path', computedClipPath);
+          }
+          // Grouping-property flattening is already represented by Blink's
+          // used affine CTM, but the grouping paint itself still belongs to
+          // the cloned SVG node. Preserve externally cascaded filter/overflow
+          // values after transform owners are neutralized.
+          const computedFilter = ocs.getPropertyValue('filter').trim();
+          if (computedFilter !== '' && computedFilter !== 'none') {
+            cloneNode.style.setProperty('filter', computedFilter);
+          }
+          const computedOverflow = ocs.getPropertyValue('overflow').trim();
+          if (computedOverflow !== '' && computedOverflow !== 'visible') {
+            cloneNode.style.setProperty('overflow', computedOverflow);
           }
           const computedMaskImage = ocs.getPropertyValue('mask-image').trim();
           if (computedMaskImage !== '' && computedMaskImage !== 'none') {

@@ -100,6 +100,7 @@
     "transform:text-geometry-audit": "tsx tools/text-transform-geometry-audit.ts",
     "transform:inline-svg-3d-audit": "tsx tools/inline-svg-3d-audit.ts",
     "background:url-geometry-audit": "tsx tools/url-background-geometry-audit.ts",
+    "mask:origin-clip-oracle": "npm run build:capture-script && vitest run --config vitest.e2e.config.ts tests/mask-origin-clip.e2e.test.ts",
     "scrollbars:ownership-audit": "tsx tools/native-scrollbar-ownership-audit.ts",
     "scrollbars:parity-gate": "tsx tools/check-native-scrollbar-release.ts",
     "paint:order-oracle": "tsx tools/paint-order-oracle.ts",

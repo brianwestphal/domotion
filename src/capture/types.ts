@@ -304,6 +304,8 @@ export interface CapturedBackgroundImage {
   selectedCandidateIndex: number | null;
   selectedResolution: number;
   selectedType: string | null;
+  /** Decoded Blink image class; SVG preserves its own viewport aspect mapping. */
+  decodedImageKind: "bitmap" | "svg" | "unknown";
   decodedNaturalWidth: number | null;
   decodedNaturalHeight: number | null;
   naturalWidth: number | null;
@@ -353,6 +355,16 @@ export interface CapturedBackgroundAttachmentGeometry {
     /** Root box stitched positioning rectangle used by LayoutView paint. */
     positioningRect: CapturedBackgroundRect;
   };
+}
+
+/**
+ * Physical box edges used by Blink's HTML mask positioning/painting model.
+ * Computed padding is normally serialized before CSS `zoom`, so capture owns
+ * the one-time conversion into the same coordinate space as DOMRects.
+ */
+export interface CapturedMaskBoxInsets {
+  border: { top: number; right: number; bottom: number; left: number };
+  padding: { top: number; right: number; bottom: number; left: number };
 }
 
 export interface CapturedStyles {
@@ -479,6 +491,8 @@ export interface CapturedStyles {
    * DM-2379.
    */
   maskIntrinsic?: Array<{ w: number; h: number; ratio?: number } | null>;
+  /** Computed per-layer `mask-origin`, retained independently from mask-clip. */
+  maskOrigin?: string;
   /**
    * CSS `mask-clip` — the box (border-box / padding-box / content-box / etc.)
    * the mask painted area is clipped to. Defaults to `border-box`. Captured
@@ -486,6 +500,8 @@ export interface CapturedStyles {
    * (mask-clip controls visibility, mask-origin controls layer positioning).
    */
   maskClip?: string;
+  /** Zoom-crossed physical border/padding edges for HTML mask geometry. */
+  maskBoxInsets?: CapturedMaskBoxInsets;
   /**
    * CSS `mask-border-source` / legacy `-webkit-mask-box-image` source.
    * Chrome exposes this only via the legacy webkit name (DM-758). The

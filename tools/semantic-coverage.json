@@ -596,6 +596,8 @@
         "mask-position",
         "mask-repeat",
         "mask-composite",
+        "mask-origin",
+        "mask-clip",
         "clip-path",
         "geometry-box"
       ],
@@ -606,7 +608,8 @@
         "alpha -> luminance",
         "single -> multiple composed layers",
         "center position -> arbitrary position",
-        "mask-origin equals mask-clip -> mask-origin differs from mask-clip on HTML URL layers"
+        "mask-origin equals mask-clip -> mask-origin differs from mask-clip on HTML URL layers",
+        "covered SVG effect combinations -> future SVG effect/property combinations"
       ],
       "exactStates": [
         "none -> image/gradient/reference",
@@ -614,28 +617,35 @@
         "border-box -> fill/stroke/view-box",
         "alpha -> luminance",
         "single -> multiple composed layers",
-        "center position -> arbitrary position"
-      ],
-      "uncoveredStates": [
+        "center position -> arbitrary position",
         "mask-origin equals mask-clip -> mask-origin differs from mask-clip on HTML URL layers"
       ],
+      "uncoveredStates": [
+        "covered SVG effect combinations -> future SVG effect/property combinations"
+      ],
       "upstreamSources": [
-        "external/chromium/third_party/blink/renderer/core/paint",
+        "external/chromium/third_party/blink/renderer/core/paint/background_image_geometry.cc",
+        "external/chromium/third_party/blink/renderer/core/paint/box_background_paint_context.cc",
         "external/chromium/third_party/blink/renderer/core/layout/svg"
       ],
       "productionOwners": [
         "src/render/mask-position.ts",
+        "src/render/mask-origin-clip.ts",
         "src/render/mask.ts",
         "src/render/clip-path.ts",
-        "src/capture/script/walker/masks-clips.ts"
+        "src/capture/script/walker/masks-clips.ts",
+        "src/capture/script/index.ts",
+        "src/capture/types.ts"
       ],
       "oracles": [
         "tools/paint-geometry-oracle.ts",
         "tools/paint-geometry-browser-oracle.ts",
-        "tests/mask-position-contain-cover.e2e.test.ts"
+        "tests/mask-position-contain-cover.e2e.test.ts",
+        "tests/mask-origin-clip.e2e.test.ts"
       ],
       "metamorphicTests": [
         "src/render/mask-position.test.ts",
+        "src/render/mask-origin-clip.test.ts",
         "src/mask.test.ts",
         "src/render/svg-inline.test.ts"
       ],
@@ -644,7 +654,7 @@
         "tests/features.ts#clip-path-userspaceonuse-fragment"
       ],
       "coverage": "partial",
-      "boundary": "Arbitrary URL contain/cover positions are exact for Chromium-decoded intrinsic ratios, including zoomed computed px terms and fragmented inline strips. Distinct HTML mask-origin/mask-clip geometry and the full future SVG effect combination space remain partial.",
+      "boundary": "Arbitrary URL mask sizing/positioning is exact for Chromium-decoded intrinsic ratios and distinct per-layer HTML mask-origin/mask-clip border/padding/content/no-clip rectangles, including zoomed computed px terms, physical writing modes, cyclic composition, and sliced/cloned fragments. The open partial boundary is future SVG effect/property combinations, not the HTML URL-mask box model.",
       "featureIds": [
         "render.tree-to-svg"
       ],
@@ -680,22 +690,24 @@
         "single layer -> cyclic multiple layers",
         "direct URL -> DPR/type-selected image-set candidate",
         "loaded dimensions -> delayed/failed/unreadable natural sizing",
+        "bitmap/SVG decoded kind -> explicit unknown fail-closed route",
         "unzoomed/untransformed -> zoomed/transformed",
         "clone fragment -> sliced stitched fragment"
       ],
       "exactStates": [
         "explicit size -> natural auto/ratio",
-        "contain -> cover",
-        "scroll -> fixed/local attachment",
-        "padding origin -> independent content origin/padding clip",
-        "direct URL -> DPR/type-selected image-set candidate",
-        "loaded dimensions -> delayed/failed/unreadable natural sizing"
-      ],
-      "uncoveredStates": [
         "length/percentage -> calculated size/position",
+        "contain -> cover",
         "repeat/no-repeat -> round/space",
         "single layer -> cyclic multiple layers",
         "unzoomed/untransformed -> zoomed/transformed",
+        "scroll -> fixed/local attachment",
+        "padding origin -> independent content origin/padding clip",
+        "direct URL -> DPR/type-selected image-set candidate",
+        "loaded dimensions -> delayed/failed/unreadable natural sizing",
+        "bitmap/SVG decoded kind -> explicit unknown fail-closed route"
+      ],
+      "uncoveredStates": [
         "clone fragment -> sliced stitched fragment"
       ],
       "upstreamSources": [
@@ -720,16 +732,18 @@
       ],
       "oracles": [
         "tools/url-background-geometry-audit.ts",
+        "tests/background-image-geometry.e2e.test.ts",
         "tests/background-image-sizing.e2e.test.ts",
         "tests/background-attachment-geometry.e2e.test.ts"
       ],
       "metamorphicTests": [
         "src/capture/background-image-sizing.test.ts",
+        "src/render/image-pattern.test.ts",
         "src/render/background-attachment.test.ts"
       ],
       "visualFixtures": [],
       "coverage": "partial",
-      "boundary": "DM-2477 source-derives candidate selection and independent natural-sizing/load facts at the live DPR, including zoom/orientation and aligned non-URL layer slots. DM-2479 source-derives the scrollbar-excluding fixed viewport, applicable-transform fallback, pixel-snapped local scroll/overflow geometry, and stitched root canvas, then selects those positioning inputs before tile construction. Ordinary URL backgrounds remain vector-composable; tile/cyclic-longhand and slice-fragment geometry still require DM-2478 and DM-2365, while DM-2480 adds the all-platform DPR gate.",
+      "boundary": "DM-2477 source-derives candidate selection, decoded image kind, and independent natural-sizing/load facts at the live DPR. DM-2478 resolves exact Blink tile size/destination/phase/spacing in the 1/64 px LayoutUnit domain and expands cyclic longhands. DM-2479 source-derives fixed/local/root positioning inputs. Ordinary URL backgrounds remain vector-composable; only DM-2365 slice continuation remains partial, while DM-2480 adds the all-platform DPR gate.",
       "featureIds": [
         "render.tree-to-svg"
       ],
@@ -1358,11 +1372,10 @@
         "SVG-child true 3D -> source-flattened affine vector clone",
         "root/HTML non-affine plane -> outer Chromium raster",
         "SVG property presence without used 3D -> no raster",
-        "nested foreignObject raster -> promoted above svgContent"
-      ],
-      "uncoveredStates": [
+        "nested foreignObject raster -> promoted above svgContent",
         "single-platform logical -> all-platform raster parity"
       ],
+      "uncoveredStates": [],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/layout/svg",
         "external/chromium/third_party/blink/renderer/core/style",
@@ -1380,21 +1393,27 @@
       "oracles": [
         "tools/inline-svg-3d-audit.ts",
         "tools/transform-geometry-oracle.ts",
-        "tools/raster-boundary-oracle.ts"
+        "tools/raster-boundary-oracle.ts",
+        ".github/workflows/inline-svg-3d-parity.yml"
       ],
       "metamorphicTests": [
         "src/capture/svg-affine-freeze.test.ts",
         "tests/inline-svg-affine-freeze.e2e.test.ts",
-        "tests/inline-svg-projective-ownership.e2e.test.ts"
+        "tests/inline-svg-projective-ownership.e2e.test.ts",
+        "tests/inline-svg-3d-gate.test.ts",
+        "tests/inline-svg-3d-workflow.test.ts"
       ],
-      "visualFixtures": [],
-      "coverage": "partial",
-      "boundary": "DM-2473/2474 implement the DM-2371 source boundary: Blink-used SVG-child transforms freeze as verified six-value local affines, while non-affine outer SVG/HTML and foreignObject paint crosses one promoted Chromium raster owner. Missing, singular, or mismatched affine correlation fails closed. DM-2475 adds the hard all-platform independent raster gate.",
+      "visualFixtures": [
+        "tests/features.ts#inline-svg-effect-geometry-boxes"
+      ],
+      "coverage": "exact",
       "featureIds": [
         "render.tree-to-svg"
       ],
       "verifiedPlatforms": [
-        "darwin"
+        "darwin",
+        "linux",
+        "win32"
       ]
     },
     {

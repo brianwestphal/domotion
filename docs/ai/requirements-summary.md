@@ -141,6 +141,16 @@ they describe (see `CLAUDE.md` "Documentation"):
   vertical writing, fragments, and multi-layer ownership and rejects the
   retired quantized route.
 
+- **Independent HTML mask origin/clip boxes (DM-2472, docs 20/174) — Shipped.**
+  Capture retains computed per-layer `mask-origin` separately from
+  `mask-clip` and crosses physical border/padding edges through CSS zoom once.
+  URL contain/cover, explicit sizing, calc positioning, repetition, cyclic
+  composition, writing modes, and slice/clone fragments size and anchor from
+  Blink's origin positioning area, then intersect against the distinct
+  border/padding/content painting area; no-clip remains unbounded by the HTML
+  border box. A DPR-1/2 Chromium-vs-SVG oracle includes same-box controls and
+  rejects the collapsed-origin-to-clip mutation.
+
 - **Raster activation boundaries (doc 134) — Shipped.** A 24-row gate pairs
   every live raster ownership class with its representable vector control,
   including helper-disabled text, recursive iframes, projective transforms,
@@ -1659,8 +1669,9 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   [doc 159](../159-exact-text-transform-geometry-audit.md); exact capture,
   renderer migration, and all-platform gates are tracked in DM-2469/2470/2471.
 
-<!-- DM-2371 / DM-2473 / DM-2474 -->
-- Cloned inline-SVG 3D logical ownership is **implemented**. Blink resolves SVG
+<!-- DM-2371 / DM-2473 / DM-2474 / DM-2475 -->
+- Cloned inline-SVG 3D ownership and its independent static parity gate are
+  **implemented**. Blink resolves SVG
   graphics-child matrix3d, exact fill/stroke/view reference boxes, x/y/z
   origin, zoom, motion, and independent operations, then explicitly flattens
   the used result to a parent-relative affine transform. Capture must freeze
@@ -1670,14 +1681,18 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   CSS/SMIL owners, and fails closed on singular/unavailable/mismatched facts.
   A non-affine outer SVG/HTML box, or HTML 3D inside `<foreignObject>`, crosses
   one Chromium surface promoted above the opaque `svgContent` owner.
-  Property-only SVG perspective/preserve-3d is not activation. Fresh 26-row
-  CTM/quad evidence and the exact boundary are in
-  [doc 162](../162-inline-svg-3d-transform-audit.md); DM-2475 owns the remaining
-  all-platform independent raster gate.
+  Property-only SVG perspective/preserve-3d is not activation. The hard gate
+  crosses 31 static cases with DPR 1/2 and requires exact used matrices/owner
+  routing plus independent live-Chromium versus complete generated-SVG
+  alpha/ink within fixed device tolerances. Six unsafe mutations must move,
+  and native macOS/Linux/Windows jobs upload fingerprinted reports. The exact
+  boundary and evidence are in
+  [doc 162](../162-inline-svg-3d-transform-audit.md). Animated frame-state
+  synchronization remains owned by DM-2359.
 
 <!-- DM-2370 -->
-- URL background image geometry remains **partial** outside the exact focused
-  controls. DM-2477 now captures Blink-equivalent selected CSS image/natural
+- URL background tile geometry is **source-derived**; sliced-fragment
+  continuation remains partial under DM-2365. DM-2477 captures Blink-equivalent selected CSS image/natural
   sizing at effective zoom, including DPR/type/density, independent dimensions
   and ratio, orientation, aligned layer index, and explicit decode/failure
   state; the renderer consumes that selected URL instead of a DPR-1 guess.
@@ -1685,19 +1700,18 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   layout viewport, local pixel-snapped x/y scroll plus overflow/extent, and the
   stitched root canvas, then selects those positioning/painting inputs before
   URL tile construction without double-applying affine transforms.
-  Blink then tracks snapped and unsnapped positioning/painting areas, resolves
-  auto/contain/cover/calc, then owns destination, phase, repeat spacing,
-  attachment, and stitched-fragment offsets before Skia sampling. Capture must
-  preserve the captured candidate/density/dimensions/ratio/orientation/decode
-  state; remaining render work must lower one source-derived geometry record to vector SVG
-  instead of reconstructing it with parseFloat and oversized pattern cells.
-  Unknown sizing fails explicitly. Fixed under a transformed ancestor becomes
+  DM-2478 tracks snapped and unsnapped positioning/destination geometry in
+  Blink's 1/64 px LayoutUnit domain and lowers auto/contain/cover/calc,
+  positive/negative no-repeat, repeat phase, round, both space branches, and
+  independent origin/clip to vector SVG without oversized pattern cells.
+  Capture preserves candidate/density/dimensions/ratio/orientation/decode kind;
+  unknown sizing or kind fails explicitly. Fixed under a transformed ancestor becomes
   scroll; local subtracts the real scroll offset; shorter longhand lists repeat
   cyclically; slice continues through one stitched box while clone restarts.
   The strict 21-row inline-and-multicol evidence and exact contract are in
-  [doc 163](../163-url-background-image-geometry-audit.md). DM-2478 plus
-  existing DM-2365 implement the remaining tile/fragment seams, and DM-2480 owns the
-  all-platform DPR gate.
+  [doc 163](../163-url-background-image-geometry-audit.md). Both DPR 1 and DPR
+  2 runs pass 21/21 rows, with slice rows retained as expected DM-2365
+  discriminators. DM-2480 owns the all-platform DPR gate after DM-2365.
 
 <!-- DM-2368 -->
 - Native scrollbar **capture is source-owned; author-custom paint is vector and

@@ -611,7 +611,11 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
     frostedBgFallback: computeFrostedBgFallback(cs),
     backgroundImage: normGradientColors(cs.backgroundImage, cs.color),
     backgroundSize: physicalComputedTileSize(cs.backgroundSize, effectiveZoom),
-    backgroundPosition: cs.backgroundPosition,
+    // Computed px terms are serialized before effective zoom, while the
+    // captured positioning/painting DOMRects are already physical. Blink's
+    // FillLayer stores zoomed Length values, so cross that boundary once here
+    // for position just as we already do for background-size.
+    backgroundPosition: physicalComputedTileSize(cs.backgroundPosition, effectiveZoom),
     backgroundRepeat: cs.backgroundRepeat,
     backgroundClip: cs.backgroundClip,
     backgroundBlendMode: cs.backgroundBlendMode,

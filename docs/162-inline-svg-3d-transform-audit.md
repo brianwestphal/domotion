@@ -1,11 +1,11 @@
 # Cloned inline-SVG 3D transform audit
 
-**Status:** projective raster promotion and SVG-child affine freezing shipped;
-the all-platform two-leg gate remains a follow-up
+**Status:** projective raster promotion, SVG-child affine freezing, and the
+hard all-platform two-leg parity gate shipped
 
 **Ticket:** DM-2371
 
-**Implementation follow-up:** DM-2475
+**Static parity gate:** DM-2475
 
 An inline DOM `<svg>` is an atomic clone in Domotion's renderer: capture bakes
 selected computed properties into `svgContent`, and `paintInlineSvg` emits that
@@ -78,6 +78,12 @@ the outer inline SVG to `transformSubtreeRaster`; they never reach
 `cssTransformToSvg`'s six-entry matrix3d fallback. Every probe/validation node is
 detached in `finally`, and focused browser controls verify authored transform
 attributes and inline declarations are restored semantically.
+
+The standalone clone also carries the live root `overflow` value and
+externally cascaded child filter/non-visible-overflow grouping paint. The final
+SVG pixel leg caught this atomic-boundary seam: without those declarations,
+logical CTMs were exact while transformed stroke, drop shadow, and off-bounds
+ink were clipped by the re-embedded SVG viewport's default overflow.
 
 The former HTML marker prepass has been removed. `src/capture/index.ts` now
 correlates live DOM objects without attributes, asks Chromium CDP for content
@@ -171,21 +177,28 @@ Run:
 npm run transform:inline-svg-3d-audit -- --json /tmp/inline-svg-3d-audit.json
 ```
 
-The 2026-08-22 run used Playwright 1.59.1, Headless Chromium 147.0.7727.15,
-macOS arm64, DPR 1, and a 420 by 260 viewport. For vector rows the tool reads
+The 2026-08-22 local run used Playwright 1.59.1, Headless Chromium
+147.0.7727.15, macOS arm64, DPR 1/2, and a 420 by 260 CSS-pixel viewport. For
+vector rows the tool reads
 the live target CTM, expresses it in the immediate SVG parent's coordinate
 space, performs the real Domotion capture, re-embeds captured `svgContent` in a
-clean document, and compares the resulting local CTM. For projective rows it
+clean document, and compares the resulting local CTM. The independent second
+leg screenshots both the untouched live Chromium scene and the complete
+generated SVG at the same DPR, then compares physical-device alpha bounds,
+alpha disagreement, and RGBA mean error. For projective rows the report also
 records CDP content quads, their held-out fourth-corner affine residual, every
 serialized raster owner, and whether that owner is reachable before
 `paintInlineSvg` suppresses descendants.
 
-The tool exits zero only when every SVG-child row round-trips the used local
-matrix within 1/256 CSS px, every transform attribute is valid `matrix(...)`
-syntax, and every projective row has exactly one effective owner. The current
-run is **26/26** with verdict
-`used-affine-freeze-and-projective-owner-routing-observed`. It is not yet the
-all-platform production parity gate; DM-2475 adds the independent raster leg.
+The tool exits zero only when all **31 static scenarios at DPR 1 and 2**
+round-trip the used local matrix within 1/256 CSS px, keep the required
+zero/one raster ownership, introduce no HTML marker below SVG, and pass the
+generated-SVG pixel leg. Fixed, platform-independent pixel limits are two
+physical pixels for every alpha-bound edge/extent, 5% alpha disagreement, and
+3% RGBA mean error. Six required mutations must also move. A schema-v1 report
+fingerprints Chromium, Playwright, OS/release/architecture, Node, viewport,
+DPRs, source revisions, thresholds, rows, and mutations. The current local
+run is **62/62** with verdict `hard-two-leg-inline-svg-3d-parity`.
 
 | Control | Live Chromium fact | Current captured/re-embedded fact |
 | --- | --- | --- |
@@ -196,7 +209,7 @@ all-platform production parity gate; DM-2475 adds the independent raster leg.
 | `rotateY(47deg)`, fill/stroke/view boxes | Source-flattened affine; fourth-corner residual 0 | Three exact matrices, delta 0 |
 | `rotateY` with z origin 31 px | Z origin moves the used affine translation | Exact translated affine, delta 0 |
 | `perspective(260px) rotateY(43deg) translateZ(22px)` on rect | Source-flattened affine; residual 0 | Exact valid SVG matrix, delta 0 |
-| Independent 3D properties, motion, CSS winner, paused animation, zoom | Distinct Blink-used local affines | Every clone delta 0 |
+| Independent 3D properties, motion, CSS winner, zoom | Distinct Blink-used local affines | Every clone delta 0 |
 | Perspective on SVG `<g>` vs flat control | Identical source affine CTMs; perspective is inert | Both exact, no raster owner |
 | SVG-child preserve-3d vs opacity grouping | Identical source affine CTMs | Both exact, no raster owner |
 | Perspective on root with only flattened SVG graphics | Final target quad remains affine, residual 0 | Exact vector clone, no raster owner |
@@ -210,6 +223,13 @@ moves Blink's answer, SVG perspective/preserve-3d are source-flat, a normal
 HTML projective owner emits exactly once, and root-SVG plus nested
 `<foreignObject>` paint each has one reachable owner. No fixture-fit constant
 or screenshot tolerance selects these decisions.
+
+`.github/workflows/inline-svg-3d-parity.yml` runs the same hard command on
+`macos-latest`, `ubuntu-latest`, and `windows-latest` for pull requests and
+`main`. Each native job also runs the focused affine/projective browser
+regressions and always uploads its self-fingerprinted JSON as
+`inline-svg-3d-${runner.os}`; there is no checked-in image baseline or
+platform-specific tolerance envelope.
 
 ## Exact capture design
 
@@ -282,7 +302,7 @@ and the raster payload must occur once.
   stroke geometry; percentage, keyword, x/y/z, and asymmetric origins;
 - nested groups, nested viewports, `<use>` expansion, CSS override of a static
   transform attribute, independent transform properties, motion, t=0
-  animation, effective zoom, and singular/unavailable fail-closed controls;
+  static state, effective zoom, and singular/unavailable fail-closed controls;
 - SVG-child perspective and preserve-3d inert negatives; opacity, filter,
   clip/mask, blend/isolation, and overflow used-flattening controls;
 - projective root SVG, projective HTML ancestor, and projective HTML inside
@@ -291,15 +311,18 @@ and the raster payload must occur once.
 - mutations that emit literal `matrix3d()` into an SVG transform attribute;
   one that selects the six apparent 2D entries; one that keeps stroke-box under
   non-scaling stroke; one that measures an SVG root with HTML offset markers;
-  and one that leaves a raster owner below `svgContent`.
+  one that leaves a raster owner below `svgContent`; and one that routes from
+  property presence instead of Blink's used flattening.
 
 The local logical matrix and focused browser controls above are shipped in
 `src/capture/svg-affine-freeze.test.ts` and
 `tests/inline-svg-affine-freeze.e2e.test.ts`; projective controls remain in
 `tests/inline-svg-projective-ownership.e2e.test.ts`. The independent
-Chromium-versus-generated-SVG ink/alpha leg on macOS, Linux, and Windows remains
-DM-2475. Logical matrix/ownership failures are rejected before any platform
-raster envelope is considered.
+Chromium-versus-generated-SVG ink/alpha leg and corpus/mutation contract live
+in `tools/inline-svg-3d-audit.ts` and `tests/inline-svg-3d-gate.test.ts`; the
+three-platform enforcement contract lives in
+`tests/inline-svg-3d-workflow.test.ts`. Logical matrix/ownership failures are
+rejected before the fixed platform-independent pixel limits are considered.
 
 ## Follow-up ownership
 
@@ -310,11 +333,13 @@ raster envelope is considered.
   owner — shipped.** CDP paint quads now own SVG-capable classification,
   root/ancestor promotion, `<foreignObject>` atomicity, used flattening,
   alpha-trimmed bounds, and one-owner emission.
-- **DM-2475 — Gate inline SVG 3D freeze and raster ownership against Chromium.**
-  Depends on DM-2473 and DM-2474; promotes this probe to exact logical plus
-  independent raster gates on all supported platforms.
+- **DM-2475 — Gate inline SVG 3D freeze and raster ownership against Chromium —
+  shipped.** Promotes the probe to exact logical plus independent final-SVG
+  pixel gates at DPR 1/2 on every supported platform, with six mutation
+  controls and fingerprinted native artifacts.
 - **DM-2359** already owns animated 3D frame-state coverage. The new static
-  gate should reuse its frame protocol when available rather than duplicate it.
+  gate intentionally does not compare two independently advancing animation
+  timelines; DM-2359 retains that frame-synchronization contract.
 
 ## Source map
 
