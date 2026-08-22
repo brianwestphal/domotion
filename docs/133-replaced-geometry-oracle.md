@@ -18,6 +18,9 @@ when intrinsic dimensions are available.
 The control leg captures live native and author-owned controls. Chromium's
 native `appearance` surface must activate `nativeControlRaster`, while
 `appearance:none` and an author-painted button must remain on the vector path.
+Activation is distinct from materialization: [doc 167](167-native-control-source-frame-rasters.md)
+owns the coherent source/isolation frames, alpha, clipping, platform state, and
+fail-closed warning contract for the activated native surface.
 The generated-content leg compares the painted pixel bounds of positioned
 `::before` and `::after` boxes with the capture walker's `pseudoBoxes` records.
 It does not prove in-flow generated text origins, line-box baselines,

@@ -54,6 +54,13 @@ shortest possible map:
   serialised function that runs inside the page to walk the DOM). The
   capture-script bundle is pre-built into `src/capture/script.generated
   .ts` by `scripts/build-capture-script.mjs`.
+  `native-control-raster.ts` owns required platform-control pixels after the
+  synchronous walk: one caller-supplied/atomic compositor frame is paired
+  with one transparent all-control isolation frame. Static controls use source
+  RGB only at alpha-proven opaque pixels; time-dependent controls consume one
+  overlap-free source crop atomically or fail closed. Invalid clips/frames add
+  `native-control-raster` warnings; renderer presence is fail-closed and never
+  authorizes sampled form chrome (doc 167).
 - **`src/render/`** — pure node-side renderers that convert a captured
   element tree into SVG markup. `element-tree-to-svg.ts` is the big one;
   `culling-geometry.ts` is its fail-closed geometry preflight: it exposes the

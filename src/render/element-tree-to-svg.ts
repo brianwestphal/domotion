@@ -4812,10 +4812,16 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // host snapshot for native appearance; `appearance:none` controls never
   // receive this field and continue through the vector form-control renderer.
   const nativeControlRaster = el.nativeControlRaster;
-  if (nativeControlRaster?.dataUri != null) {
-    const image = `<image href="${nativeControlRaster.dataUri}" x="${r(nativeControlRaster.x)}" y="${r(nativeControlRaster.y)}" width="${r(nativeControlRaster.width)}" height="${r(nativeControlRaster.height)}" preserveAspectRatio="none"/>`;
-    svgParts.push(`${indent}${wrapAtomicRasterTimeline(el, image)}`);
-    appendBoxReflection(state, el, reflectionFragmentStart, depth);
+  if (nativeControlRaster != null) {
+    if (nativeControlRaster.dataUri != null) {
+      const image = `<image href="${nativeControlRaster.dataUri}" x="${r(nativeControlRaster.x)}" y="${r(nativeControlRaster.y)}" width="${r(nativeControlRaster.width)}" height="${r(nativeControlRaster.height)}" preserveAspectRatio="none"/>`;
+      svgParts.push(`${indent}${wrapAtomicRasterTimeline(el, image)}`);
+      appendBoxReflection(state, el, reflectionFragmentStart, depth);
+    }
+    // Presence is the Chromium paint-ownership decision. A proven empty
+    // isolation or a warned materialization failure both suppress the legacy
+    // sampled form-controls.ts branch; silently substituting macOS-calibrated
+    // chrome here would turn an observable capture failure into wrong pixels.
     return;
   }
   // DM-2171 / DM-2206: Blink evaluates backdrop-filter against a previously

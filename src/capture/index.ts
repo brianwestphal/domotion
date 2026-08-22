@@ -17,6 +17,7 @@ import { resetGeneration, registerLocalFontAlias, registerWebfont } from "../ren
 import { CAPTURE_SCRIPT } from "./script.generated.js";
 import { parseCrossOriginAllowlist } from "./script/cross-origin.js";
 import { rasterizeBitmapGlyphs } from "./emoji.js";
+import { rasterizeNativeControlSurfaces } from "./native-control-raster.js";
 import { refineLineClampEllipsisFragments } from "./line-clamp.js";
 import { captureResolvedControlPseudoStyles } from "./pseudo-style-cdp.js";
 import { ensureSessionGenericFamilyOverrides } from "./generic-font-probe.js";
@@ -1508,11 +1509,13 @@ export async function captureElementTreeWithWarnings(
   selector: string = "body",
   viewport: { x: number; y: number; width: number; height: number },
   opts?: {
-    /** DM-562: when provided, `rasterizeReplacedElements` crops replaced-
-     *  element rects from this PNG instead of taking fresh page.screenshot
-     *  calls. Eliminates timing drift between the expected screenshot and
-     *  rotating cross-origin-iframe content. Caller is responsible for
-     *  ensuring the source covers the same coordinate space as `viewport`. */
+    /** DM-562 / DM-2456: authoritative compositor frame for replaced-element
+     *  crops, alpha-proven static native pixels, and atomic time-dependent
+     *  native-control crops. Native controls additionally use one transparent
+     *  isolation frame for static alpha and overlap ownership.
+     *  Caller is responsible for ensuring the PNG covers the same coordinate
+     *  space as `viewport`; invalid dimensions fail over to one live atomic
+     *  source frame instead of stretching the supplied image. */
     rasterizeFromImagePath?: string;
     /** DM-1442: the raw `--cross-origin-frames` allowlist value (`"*"` or a
      *  comma-separated `host[:port]` list). Passed into the capture script so
@@ -1571,6 +1574,15 @@ export async function captureElementTreeWithWarnings(
   const warnings = typed.warnings ?? [];
   _resetLastCaptureWarnings(warnings);
   try {
+    // DM-2456: materialize native controls first, while their platform state is
+    // nearest to the synchronous DOM capture. One authoritative source frame
+    // plus one atomic alpha-isolation frame replace the old per-control
+    // screenshots; failures append to this capture's own warnings array.
+    await rasterizeNativeControlSurfaces(page, typed.tree, viewport, {
+      warnings,
+      sourceNodeKey: projectiveProbe?.key,
+      sourceImagePath: opts?.rasterizeFromImagePath,
+    });
     await rasterizeProjectiveSurfaces(page, typed.tree, viewport, projectiveProbe?.key);
   } finally {
     await projectiveProbe?.dispose();

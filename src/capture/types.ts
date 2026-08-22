@@ -1273,8 +1273,27 @@ export interface CapturedElement {
     /** Private live-DOM correlation consumed and deleted by the raster post-pass. */
     sourceNodeIndex?: number;
   };
-  /** Chromium-painted snapshot of an OS-native (`appearance` != `none`) form control. */
-  nativeControlRaster?: { x: number; y: number; width: number; height: number; dataUri?: string };
+  /**
+   * Chromium-painted snapshot of an OS-native (`appearance` != `none`) form
+   * control. Presence is an ownership decision: `dataUri` materializes that
+   * required surface, while `empty` records a successfully isolated surface
+   * with no visible pixels. If neither is set the renderer fails closed and
+   * must not re-enter sampled form-control synthesis (DM-2456).
+   */
+  nativeControlRaster?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    dataUri?: string;
+    empty?: boolean;
+    /** Private live-DOM correlation consumed and deleted by the raster post-pass. */
+    sourceNodeIndex?: number;
+    /** Private warning context consumed and deleted by the raster post-pass. */
+    selector?: string;
+    /** Private marker for Blink-owned paint whose pixels advance with time. */
+    frameSensitive?: boolean;
+  };
   /** Chromium-composited snapshot for a backdrop-filter isolation subtree. */
   backdropFilterRaster?: { x: number; y: number; width: number; height: number; token?: string; dataUri?: string };
   /**

@@ -1621,6 +1621,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3z863bsc0zf02g",
+          "message": {
+            "text": "Raster-record presence is paint ownership, not an optional optimization. Returning for both proved-empty and warned-unmaterialized records prevents the pre-DM-2456 failure path from silently substituting a platform-sampled form control, while controls with no raster record remain on the author-owned vector path. See also src/capture/native-control-raster.ts.",
+            "markdown": "Raster-record presence is paint ownership, not an optional optimization. Returning for both proved-empty and warned-unmaterialized records prevents the pre-DM-2456 failure path from silently substituting a platform-sampled form control, while controls with no raster record remain on the author-owned vector path. See also `src/capture/native-control-raster.ts`."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 4814,
+                  "endLine": 4825,
+                  "snippet": {
+                    "text": "  const nativeControlRaster = el.nativeControlRaster;\n  if (nativeControlRaster != null) {\n    if (nativeControlRaster.dataUri != null) {\n      const image = `<image href=\"${nativeControlRaster.dataUri}\" x=\"${r(nativeControlRaster.x)}\" y=\"${r(nativeControlRaster.y)}\" width=\"${r(nativeControlRaster.width)}\" height=\"${r(nativeControlRaster.height)}\" preserveAspectRatio=\"none\"/>`;\n      svgParts.push(`${indent}${wrapAtomicRasterTimeline(el, image)}`);\n      appendBoxReflection(state, el, reflectionFragmentStart, depth);\n    }\n    // Presence is the Chromium paint-ownership decision. A proven empty\n    // isolation or a warned materialization failure both suppress the legacy\n    // sampled form-controls.ts branch; silently substituting macOS-calibrated\n    // chrome here would turn an observable capture failure into wrong pixels.\n    return;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/native-control-raster.ts"
+                },
+                "region": {
+                  "startLine": 207
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2456"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c7daee93d307b53a4103a7d0956df1aa"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c8cdcaba01d510b0ad292f4e90c0fdce749d264e",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

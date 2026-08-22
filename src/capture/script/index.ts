@@ -962,6 +962,15 @@ const captureDocumentTree =
           y: rect.top - vp.y - rasterExpand,
           width: rect.width + rasterExpand * 2,
           height: rect.height + rasterExpand * 2,
+          // Private capture-to-live-DOM correlation. The Node post-pass uses
+          // the pre-existing source registry, so no marker attribute can
+          // activate author CSS before the isolated Chromium screenshot.
+          sourceNodeIndex: _projectiveNodeIndex.get(el),
+          selector: sel,
+          // LayoutProgress::IsDeterminate feeds ThemePainterDefault's native
+          // progress parameters. Only the missing-value state advances its
+          // platform paint independently of author animation timelines.
+          frameSensitive: tag === 'progress' && !el.hasAttribute('value') || undefined,
         };
       })(),
       // DM-2171: backdrop-filter samples already-painted content behind this

@@ -589,15 +589,6 @@ export async function rasterizeBitmapGlyphs(
   const candidates: RasterCandidate[] = [];
   const sbixAligns: SbixAlignJob[] = [];
   forEachElement(tree, (el) => {
-      if (el.nativeControlRaster != null) {
-        const nr = el.nativeControlRaster;
-        candidates.push({
-          rect: nr,
-          key: `native-control|${el.tag}|${el.styles.inputType ?? ''}|${nr.x}|${nr.y}|${nr.width}x${nr.height}`,
-          setDataUri: (uri) => { nr.dataUri = uri; },
-          snapRectToClip: true,
-        });
-      }
       // Element-level raster (SK-1108): textarea content region, too
       // involved to word-wrap in the path pipeline. Key on text+size+color so
       // identical textareas dedupe to one screenshot.

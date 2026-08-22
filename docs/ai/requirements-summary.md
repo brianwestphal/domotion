@@ -146,6 +146,19 @@ they describe (see `CLAUDE.md` "Documentation"):
   including helper-disabled text, recursive iframes, projective transforms,
   advanced gradients, and the retired textarea/vertical-text raster path.
 
+- **Source-frame-coherent native controls (DM-2456, doc 167) — Shipped.**
+  Required native host paint consumes one authoritative compositor frame and
+  one atomic transparent isolation frame for all owners, never per-control
+  screenshots. Static source RGB is used only where isolation proves alpha
+  255; transparent checkbox/radio edges and positioned overlaps remain
+  isolated. Time-dependent paint consumes its complete overlap-free source
+  crop or fails closed, so no later alpha surface can move its edge.
+  Clip/DPR/content validation is fail-closed: a missing required bitmap emits a
+  named capture warning and no sampled `form-controls.ts` chrome. The
+  all-platform E2E matrix covers progress/meter timing, state, alpha, overlap,
+  outline overflow, viewport clipping, scroll, fractional zoom/DPR, and forced
+  screenshot failure.
+
 - **Replaced/control/generated geometry (doc 133) — Shipped.** A live
   11-row Chromium oracle gates every object-fit mode, exact percentage/calc
   object-position, native-vs-author control ownership, and positioned

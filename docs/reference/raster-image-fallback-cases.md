@@ -120,10 +120,19 @@ control chrome that portable SVG geometry cannot reproduce exactly. Author
 button paint does not have that limitation and must remain vector so state
 changes, labels, and CSS surfaces are preserved structurally.
 
-Capture and emit: `src/capture/script/index.ts` records a
-`nativeControlRaster` host rectangle. `src/capture/emoji.ts` screenshots it,
-and `src/render/element-tree-to-svg.ts` emits the Chromium-owned `<image>` in
-place of that control host.
+Capture and emit: `src/capture/script/index.ts` records the host plus outline
+and one-pixel paint overflow, along with private live-node correlation.
+`src/capture/native-control-raster.ts` reads one authoritative compositor frame
+(`rasterizeFromImagePath`, or one atomic live screenshot) and one atomic
+transparent isolation frame for all controls. Static source RGB is accepted
+only where isolated alpha proves full opacity; transparent edges and
+overlapping siblings stay isolation-owned. Time-dependent paint uses its
+complete overlap-free source crop or fails closed. Geometry, frame, and
+screenshot failures append a `native-control-raster` warning.
+`src/render/element-tree-to-svg.ts` treats the
+record as mandatory ownership: it emits the Chromium `<image>` when present,
+or nothing for a proved-empty/warned failure, and never falls through to
+sampled native chrome. See [doc 167](../167-native-control-source-frame-rasters.md).
 
 ### C0. `backdrop-filter`
 

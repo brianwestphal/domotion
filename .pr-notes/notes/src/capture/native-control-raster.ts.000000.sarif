@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3z863bcmfajk0x",
+          "message": {
+            "text": "For static controls, alpha is the discriminator between source-frame RGB and isolation ownership. A composited source PNG cannot reveal foreground RGB at partially transparent checkbox/radio edges, so source RGB is copied only when Chromium's isolated surface proves alpha 255; all other pixels retain isolated RGBA. Time-dependent owners deliberately bypass this merge and take the atomic source crop. See also src/render/element-tree-to-svg.ts.",
+            "markdown": "For static controls, alpha is the discriminator between source-frame RGB and isolation ownership. A composited source PNG cannot reveal foreground RGB at partially transparent checkbox/radio edges, so source RGB is copied only when Chromium's isolated surface proves alpha 255; all other pixels retain isolated RGBA. Time-dependent owners deliberately bypass this merge and take the atomic source crop. See also src/render/element-tree-to-svg.ts."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/native-control-raster.ts"
+                },
+                "region": {
+                  "startLine": 168,
+                  "endLine": 190,
+                  "snippet": {
+                    "text": "/**\n * Merge a same-coordinate source crop with the isolated alpha surface.\n * Source RGB is safe only for pixels whose isolated alpha is 255: no backdrop\n * can contribute there.  Partially transparent pixels retain Chromium's\n * isolated premultiplied result and alpha exactly.\n */\nexport function composeNativeControlFrames(\n  isolated: Uint8Array,\n  source: Uint8Array | null,\n  sourceOccluded: boolean,\n): Uint8Array | null {\n  if (isolated.length === 0 || isolated.length % 4 !== 0) return null;\n  if (source != null && source.length !== isolated.length) return null;\n  const result = new Uint8Array(isolated);\n  if (source == null || sourceOccluded) return result;\n  for (let offset = 0; offset < result.length; offset += 4) {\n    if (isolated[offset + 3] !== 255 || source[offset + 3] !== 255) continue;\n    result[offset] = source[offset];\n    result[offset + 1] = source[offset + 1];\n    result[offset + 2] = source[offset + 2];\n  }\n  return result;\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 4814
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2456"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "5e7b8956b05fdaf3a8e94c237862ec82"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c8cdcaba01d510b0ad292f4e90c0fdce749d264e",
+          "branch": "main"
+        }
+      ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3zpagc9qjbpcnh",
+          "message": {
+            "text": "Time-dependent native paint must use one atomic source crop, not RGB from one frame plus alpha from a later isolation frame. The zero-tolerance browser oracle exposed premultiplication and moving-edge drift at that seam. An overlap-free source crop is safe because the same structural backdrop is emitted underneath; an intersecting painted owner instead forces the named fail-closed route.",
+            "markdown": "Time-dependent native paint must use one atomic source crop, not RGB from one frame plus alpha from a later isolation frame. The zero-tolerance browser oracle exposed premultiplication and moving-edge drift at that seam. An overlap-free source crop is safe because the same structural backdrop is emitted underneath; an intersecting painted owner instead forces the named fail-closed route."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/native-control-raster.ts"
+                },
+                "region": {
+                  "startLine": 488,
+                  "endLine": 506,
+                  "snippet": {
+                    "text": "      if (target.raster.frameSensitive === true) {\n        if (source == null || sourceCrop == null || fact.sourceOccluded) {\n          pushRequiredRasterWarning(options.warnings, target, \"time-dependent paint could not retain one overlap-free source frame\");\n          continue;\n        }\n        // Alpha from the isolation screenshot belongs to a later compositor\n        // frame. Even a byte-exact RGB merge would move antialiased pixels on\n        // an indeterminate progress segment. With no intersecting owner, the\n        // complete source crop is the only coherent atomic stamp; its backdrop\n        // is already the same paint the structural renderer emits underneath.\n        const png = await sharp(Buffer.from(source), {\n          raw: { width: sourceCrop.width, height: sourceCrop.height, channels: 4 },\n        }).png().toBuffer();\n        target.raster.dataUri = `data:image/png;base64,${png.toString(\"base64\")}`;\n        target.raster.x = plan.output.x;\n        target.raster.y = plan.output.y;\n        target.raster.width = plan.output.width;\n        target.raster.height = plan.output.height;\n        continue;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/native-control-source-frame.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 57
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2456"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "5c5c31633a582b7ca1e8e4051114e3d1"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "719af79a3829126d6bb1cbc00785dfaed7eb148c",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
