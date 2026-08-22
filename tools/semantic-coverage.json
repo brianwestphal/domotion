@@ -1259,16 +1259,18 @@
         "SVG-child true 3D -> source-flattened affine vector clone",
         "root/HTML non-affine plane -> outer Chromium raster",
         "SVG property presence without used 3D -> no raster",
-        "nested foreignObject raster -> promoted above svgContent"
+        "nested foreignObject raster -> promoted above svgContent",
+        "single-platform logical -> all-platform raster parity"
       ],
       "exactStates": [
-        "planar matrix3d -> affine vector clone"
-      ],
-      "uncoveredStates": [
+        "planar matrix3d -> affine vector clone",
         "SVG-child true 3D -> source-flattened affine vector clone",
         "root/HTML non-affine plane -> outer Chromium raster",
         "SVG property presence without used 3D -> no raster",
         "nested foreignObject raster -> promoted above svgContent"
+      ],
+      "uncoveredStates": [
+        "single-platform logical -> all-platform raster parity"
       ],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/layout/svg",
@@ -1278,6 +1280,7 @@
         "external/skia/src/core"
       ],
       "productionOwners": [
+        "src/capture/svg-affine-freeze.ts",
         "src/capture/script/walker/inline-svg.ts",
         "src/capture/script/index.ts",
         "src/render/transforms.ts",
@@ -1288,10 +1291,14 @@
         "tools/transform-geometry-oracle.ts",
         "tools/raster-boundary-oracle.ts"
       ],
-      "metamorphicTests": [],
+      "metamorphicTests": [
+        "src/capture/svg-affine-freeze.test.ts",
+        "tests/inline-svg-affine-freeze.e2e.test.ts",
+        "tests/inline-svg-projective-ownership.e2e.test.ts"
+      ],
       "visualFixtures": [],
       "coverage": "partial",
-      "boundary": "DM-2371 proves the source boundary and current defects observationally: true SVG-child 3D is affine but literal matrix3d is rejected in the clone; projective roots can be missed; foreignObject owners can be suppressed; inert SVG perspective can over-raster. DM-2473/2474 implement the boundary and DM-2475 adds the hard all-platform gate.",
+      "boundary": "DM-2473/2474 implement the DM-2371 source boundary: Blink-used SVG-child transforms freeze as verified six-value local affines, while non-affine outer SVG/HTML and foreignObject paint crosses one promoted Chromium raster owner. Missing, singular, or mismatched affine correlation fails closed. DM-2475 adds the hard all-platform independent raster gate.",
       "featureIds": [
         "render.tree-to-svg"
       ],

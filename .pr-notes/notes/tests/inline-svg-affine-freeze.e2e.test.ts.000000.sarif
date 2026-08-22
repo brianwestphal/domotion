@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex Max",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3qqmj35jmzfktr",
+          "message": {
+            "text": "Fresh Chromium evidence is exact across the full focused vector matrix. The browser test covers static and CSS-overridden attrs, retained inline stylesheet cleanup, planar matrix3d, true 3D functions, fill/stroke/view plus content/border aliases, non-scaling stroke, asymmetric z origin, independent transforms, motion, sampled CSS/SMIL animation, nested groups/viewports, use, and zoom; every re-embedded local CTM is within 1/256 CSS px and source transform state is restored. The companion audit reports 26/26 with zero matrix delta in every vector row.",
+            "markdown": "Fresh Chromium evidence is exact across the full focused vector matrix. The browser test covers static and CSS-overridden attrs, retained inline stylesheet cleanup, planar matrix3d, true 3D functions, fill/stroke/view plus content/border aliases, non-scaling stroke, asymmetric z origin, independent transforms, motion, sampled CSS/SMIL animation, nested groups/viewports, use, and zoom; every re-embedded local CTM is within 1/256 CSS px and source transform state is restored. The companion audit reports 26/26 with zero matrix delta in every vector row."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/inline-svg-affine-freeze.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 78,
+                  "endLine": 172,
+                  "snippet": {
+                    "text": "describeBrowser(\"Blink-used affine freeze for cloned inline SVG graphics (DM-2473)\", () => {\n  it(\"round-trips Blink local matrices across 2D/3D, reference boxes, zoom, motion, animation, and nested viewports\", async () => {\n    const context = await env!.browser.newContext({ viewport: { width: 760, height: 520 } });\n    const source = await context.newPage();\n    const rendered = await context.newPage();\n    try {\n      await source.setContent(MATRIX_HTML);\n      await source.locator(\"#matrix-subject\").evaluate((svg) => {\n        const root = svg as SVGSVGElement;\n        root.pauseAnimations();\n        root.setCurrentTime(25);\n      });\n      const ids = await source.locator(\"[data-freeze]\").evaluateAll((nodes) => nodes.map((node) => node.id));\n      const sourceMatrices = await source.locator(\"#matrix-subject\").evaluate((_, targetIds) => {\n        const matrix = (value: DOMMatrix | SVGMatrix) => ({ a: value.a, b: value.b, c: value.c, d: value.d, e: value.e, f: value.f });\n        return Object.fromEntries(targetIds.map((id) => {\n          const node = document.getElementById(id)! as SVGGraphicsElement;\n          const parent = node.parentElement! as SVGGraphicsElement;\n          return [id, matrix(parent.getCTM()!.inverse().multiply(node.getCTM()!))];\n        }));\n      }, ids) as Record<string, Matrix>;\n\n      const before = await source.locator(\"#matrix-subject\").evaluate((svg) => ({\n        childCount: svg.querySelectorAll(\"*\").length,\n        transforms: Array.from(svg.querySelectorAll<SVGElement>(\"[data-freeze]\")).map((node) => ({\n          id: node.id,\n          attr: node.getAttribute(\"transform\"),\n          style: [\"transform\", \"transform-origin\", \"transform-box\", \"translate\", \"rotate\", \"scale\", \"offset-path\"].map((property) => [\n            property,\n            node.style.getPropertyValue(property),\n            node.style.getPropertyPriority(property),\n          ]),\n        })),\n      }));\n      const tree = await captureElementTree(source, \"body\", { x: 0, y: 0, width: 760, height: 520 });\n      const markup = svgMarkup(tree).find((value) => value.includes('id=\"matrix-subject\"'))!;\n      expect(markup).toBeTruthy();\n      expect(markup).not.toContain(\"matrix3d(\");\n      expect(markup).not.toMatch(/(?:transform-origin|transform-box|offset-path|\\btranslate|\\brotate|\\bscale)\\s*:/i);\n      expect(markup).not.toContain(\"<animateTransform\");\n      expect(markup).toContain('attributeName=\"opacity\"');\n      expect(markup).toContain(\".paint-only\");\n\n      await rendered.setContent(markup);\n      const frozenAttrs = await rendered.locator(\"#matrix-subject\").evaluate((_, targetIds) => targetIds.map(\n        (id) => document.getElementById(id)?.getAttribute(\"transform\") ?? null,\n      ), ids);\n      for (let index = 0; index < ids.length; index++) {\n        if (ids[index] === \"use-row\") continue; // replaced by the inlined .use-row wrapper\n        expect(frozenAttrs[index], ids[index]).toMatch(/^matrix\\(/);\n      }\n      expect(await rendered.locator(\"#plain\").evaluate((node) => node.hasAttribute(\"transform\"))).toBe(false);\n\n      const renderedMatrices = await rendered.locator(\"#matrix-subject\").evaluate((_, targetIds) => {\n        const matrix = (value: DOMMatrix | SVGMatrix) => ({ a: value.a, b: value.b, c: value.c, d: value.d, e: value.e, f: value.f });\n        return Object.fromEntries(targetIds.filter((id) => id !== \"use-row\").map((id) => {\n          const node = document.getElementById(id)! as SVGGraphicsElement;\n          const parent = node.parentElement! as SVGGraphicsElement;\n          return [id, matrix(parent.getCTM()!.inverse().multiply(node.getCTM()!))];\n        }));\n      }, ids) as Record<string, Matrix>;\n      for (const [id, matrix] of Object.entries(renderedMatrices)) {\n        expect(maxMatrixDelta(matrix, sourceMatrices[id]), id).toBeLessThan(1 / 256);\n      }\n\n      const useSource = await source.locator(\"#use-row\").evaluate((node) => {\n        const rect = node.getBoundingClientRect();\n        const root = node.ownerSVGElement!.getBoundingClientRect();\n        const scale = root.width / 520;\n        return { x: (rect.x - root.x) / scale, y: (rect.y - root.y) / scale, width: rect.width / scale, height: rect.height / scale };\n      });\n      const useRendered = await rendered.locator(\".use-row\").evaluate((node) => {\n        const rect = node.getBoundingClientRect();\n        const root = (node as SVGGraphicsElement).ownerSVGElement!.getBoundingClientRect();\n        const scale = root.width / 520;\n        return { x: (rect.x - root.x) / scale, y: (rect.y - root.y) / scale, width: rect.width / scale, height: rect.height / scale };\n      });\n      for (const key of [\"x\", \"y\", \"width\", \"height\"] as const) {\n        expect(Math.abs(useRendered[key] - useSource[key]), `use ${key}`).toBeLessThan(1 / 64);\n      }\n\n      // Every neutral sibling probe and isolated validation host was removed;\n      // capture did not mutate authored source markup or child cardinality.\n      expect(await source.locator(\"#matrix-subject\").evaluate((svg) => ({\n        childCount: svg.querySelectorAll(\"*\").length,\n        transforms: Array.from(svg.querySelectorAll<SVGElement>(\"[data-freeze]\")).map((node) => ({\n          id: node.id,\n          attr: node.getAttribute(\"transform\"),\n          style: [\"transform\", \"transform-origin\", \"transform-box\", \"translate\", \"rotate\", \"scale\", \"offset-path\"].map((property) => [\n            property,\n            node.style.getPropertyValue(property),\n            node.style.getPropertyPriority(property),\n          ]),\n        })),\n      }))).toEqual(before);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/inline-svg-3d-audit.ts"
+                },
+                "region": {
+                  "startLine": 85
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/svg-affine-freeze.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2473"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "185ef1958f05736bf3bf7a91bc573160"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d6d24f284643cc58285674758f832f9c63fe03fe",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

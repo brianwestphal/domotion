@@ -1,12 +1,13 @@
 #!/usr/bin/env tsx
 /**
- * DM-2371 investigation probe.
+ * DM-2371 / DM-2473 / DM-2474 logical-stage audit.
  *
  * This is an observational logical-stage probe. It compares Blink's used
  * affine CTM for an SVG graphics element with the CTM obtained after Domotion
  * clones and re-embeds that inline SVG, and separately records whether the
  * production Chromium-surface boundary selects one reachable outer owner. It
- * does not replace the independent all-platform raster gate tracked by doc 162.
+ * DM-2473 makes the SVG-child rows a hard exact-local-matrix gate. It still
+ * does not replace the independent all-platform raster gate tracked by DM-2475.
  */
 import { writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -19,7 +20,7 @@ const SOURCE_REVISIONS = {
   skiaPinnedByChromium: "62efacd37737505732dbe3d8daa62abd679626a1",
 } as const;
 const VIEWPORT = { width: 420, height: 260 };
-const MATRIX_EPSILON = 0.02;
+const MATRIX_EPSILON = 1 / 256;
 
 type Matrix2D = [number, number, number, number, number, number];
 type Point = { x: number; y: number };
@@ -27,7 +28,6 @@ type Quad = [Point, Point, Point, Point];
 
 type ExpectedRoute =
   | "clone-equivalent"
-  | "clone-gap"
   | "outer-raster"
   | "promoted-inline-svg-raster";
 
@@ -41,6 +41,7 @@ interface AuditCase {
   targetAttrs?: string;
   foreignObject?: boolean;
   foreignHostCss?: string;
+  extraCss?: string;
 }
 
 interface DomFacts {
@@ -100,9 +101,19 @@ const CASES: AuditCase[] = [
   },
   {
     id: "css-matrix-non-scaling-stroke",
-    expectedRoute: "clone-gap",
+    expectedRoute: "clone-equivalent",
     targetAttrs: 'vector-effect="non-scaling-stroke"',
     targetCss: `transform-box:stroke-box;transform-origin:23% 81%;transform:${ROTATE_29_MATRIX}`,
+  },
+  {
+    id: "css-matrix-content-box-alias",
+    expectedRoute: "clone-equivalent",
+    targetCss: `transform-box:content-box;transform-origin:23% 81%;transform:${ROTATE_29_MATRIX}`,
+  },
+  {
+    id: "css-matrix-border-box-alias",
+    expectedRoute: "clone-equivalent",
+    targetCss: `transform-box:border-box;transform-origin:23% 81%;transform:${ROTATE_29_MATRIX}`,
   },
   {
     id: "css-matrix-view-box",
@@ -116,56 +127,84 @@ const CASES: AuditCase[] = [
   },
   {
     id: "css-rotate-y-svg-flatten",
-    expectedRoute: "clone-gap",
+    expectedRoute: "clone-equivalent",
     targetCss: "transform-box:fill-box;transform-origin:19% 77%;transform:rotateY(47deg)",
   },
   {
     id: "css-rotate-y-stroke-box",
-    expectedRoute: "clone-gap",
+    expectedRoute: "clone-equivalent",
     targetCss: "transform-box:stroke-box;transform-origin:19% 77%;transform:rotateY(47deg)",
   },
   {
     id: "css-rotate-y-view-box",
-    expectedRoute: "clone-gap",
+    expectedRoute: "clone-equivalent",
     targetCss: "transform-box:view-box;transform-origin:19% 77%;transform:rotateY(47deg)",
   },
   {
     id: "css-rotate-y-z-origin",
-    expectedRoute: "clone-gap",
+    expectedRoute: "clone-equivalent",
     targetCss: "transform-box:fill-box;transform-origin:19% 77% 31px;transform:rotateY(47deg)",
   },
   {
     id: "css-perspective-function-svg-flatten",
-    expectedRoute: "clone-gap",
+    expectedRoute: "clone-equivalent",
     targetCss: "transform-box:fill-box;transform-origin:17% 83%;transform:perspective(260px) rotateY(43deg) translateZ(22px)",
   },
   {
+    id: "css-independent-3d-properties",
+    expectedRoute: "clone-equivalent",
+    targetCss: "transform-box:fill-box;transform-origin:37% 61% 14px;translate:7px 11px 5px;rotate:y 31deg;scale:1.1 .85 1.2",
+  },
+  {
+    id: "css-motion-path-plus-3d-transform",
+    expectedRoute: "clone-equivalent",
+    targetCss: 'transform-box:fill-box;transform-origin:30% 70% 8px;offset-path:path("M 0 0 C 15 30 35 -10 52 18");offset-distance:43%;offset-rotate:27deg;transform:rotateY(22deg)',
+  },
+  {
+    id: "css-overrides-static-transform-attribute",
+    expectedRoute: "clone-equivalent",
+    targetAttrs: 'transform="translate(999 999)"',
+    targetCss: "transform-box:fill-box;transform-origin:23% 71% 29px;transform:perspective(240px) rotateY(39deg) translateZ(17px)",
+  },
+  {
+    id: "css-animation-sampled-frame",
+    expectedRoute: "clone-equivalent",
+    targetCss: "animation:dm2473-spin 100s linear paused;animation-delay:-25s;transform-origin:35% 65% 19px;transform-box:fill-box",
+    extraCss: "@keyframes dm2473-spin{from{transform:rotateY(0deg)}to{transform:rotateY(80deg) translateZ(20px)}}",
+  },
+  {
+    id: "effective-zoom-svg-child",
+    expectedRoute: "clone-equivalent",
+    hostCss: "zoom:1.35",
+    targetCss: "transform-box:stroke-box;transform-origin:29% 68% 17px;transform:rotateY(41deg) translateZ(12px)",
+  },
+  {
     id: "svg-layer-perspective-ignored",
-    expectedRoute: "clone-gap",
+    expectedRoute: "clone-equivalent",
     layerCss: "perspective:180px;perspective-origin:9% 91%;transform-style:preserve-3d",
     targetCss: "transform-box:fill-box;transform-origin:17% 83%;transform:rotateY(43deg) translateZ(22px)",
   },
   {
     id: "svg-layer-flat-control",
-    expectedRoute: "clone-gap",
+    expectedRoute: "clone-equivalent",
     layerCss: "perspective:none;transform-style:flat",
     targetCss: "transform-box:fill-box;transform-origin:17% 83%;transform:rotateY(43deg) translateZ(22px)",
   },
   {
     id: "svg-layer-preserve3d-flattens",
-    expectedRoute: "clone-gap",
+    expectedRoute: "clone-equivalent",
     layerCss: "transform-style:preserve-3d",
     targetCss: "transform-box:fill-box;transform-origin:17% 83%;transform:translateZ(35px) rotateY(31deg)",
   },
   {
     id: "svg-layer-grouping-opacity-flattens",
-    expectedRoute: "clone-gap",
+    expectedRoute: "clone-equivalent",
     layerCss: "transform-style:preserve-3d;opacity:.72",
     targetCss: "transform-box:fill-box;transform-origin:17% 83%;transform:translateZ(35px) rotateY(31deg)",
   },
   {
     id: "root-svg-inert-perspective-vector",
-    expectedRoute: "clone-gap",
+    expectedRoute: "clone-equivalent",
     rootCss: "perspective:310px;perspective-origin:13% 86%;transform-style:preserve-3d",
     targetCss: "transform-box:fill-box;transform-origin:17% 83%;transform:rotateY(48deg) translateZ(27px)",
   },
@@ -246,6 +285,7 @@ function htmlFor(test: AuditCase): string {
     #fohost{width:104px;height:76px;${test.foreignHostCss ?? ""}}
     #fohost #target{width:104px;height:76px;background:rgb(21,82,214)}
     #target{${test.targetCss ?? ""}}
+    ${test.extraCss ?? ""}
   </style><div id="scene"><div id="host"><svg id="art" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 210 138"><g id="layer">${target}</g></svg></div></div>`;
 }
 
@@ -348,9 +388,7 @@ export async function runInlineSvg3dAudit(): Promise<{
         ? raster.effective === 1
         : test.expectedRoute === "promoted-inline-svg-raster"
           ? raster.count === 1 && raster.effective === 1 && inlineSvg?.transformSubtreeRaster?.dataUri != null
-            : test.expectedRoute === "clone-equivalent"
-              ? raster.count === 0 && delta <= MATRIX_EPSILON
-              : raster.count === 0 && delta > MATRIX_EPSILON;
+            : raster.count === 0 && delta <= MATRIX_EPSILON;
       rows.push({
         id: test.id,
         expectedRoute: test.expectedRoute,
@@ -368,7 +406,7 @@ export async function runInlineSvg3dAudit(): Promise<{
           projectiveTransform: inlineSvg.projectiveTransform ?? null,
           ownsTransformRaster: inlineSvg.transformSubtreeRaster?.dataUri != null,
         },
-        warnings: warnings.map((warning) => `${warning.feature}: ${warning.message}`),
+        warnings: warnings.map((warning) => `${warning.feature}: ${warning.detail}`),
         pass,
       });
     }
@@ -389,6 +427,14 @@ export async function runInlineSvg3dAudit(): Promise<{
         byId.get("css-matrix-non-scaling-stroke"),
         byId.get("css-matrix-fill-box"),
       ),
+      contentBoxUsesFillBox: matricesEqual(
+        byId.get("css-matrix-content-box-alias"),
+        byId.get("css-matrix-fill-box"),
+      ),
+      borderBoxUsesStrokeBox: matricesEqual(
+        byId.get("css-matrix-border-box-alias"),
+        byId.get("css-matrix-stroke-box"),
+      ),
       svgPerspectivePropertyIgnored: matricesEqual(
         byId.get("svg-layer-perspective-ignored"),
         byId.get("svg-layer-flat-control"),
@@ -397,7 +443,14 @@ export async function runInlineSvg3dAudit(): Promise<{
         byId.get("svg-layer-preserve3d-flattens"),
         byId.get("svg-layer-grouping-opacity-flattens"),
       ),
-      zOriginMovesCloneAnswer: (byId.get("css-rotate-y-z-origin")?.matrixDelta ?? 0) > MATRIX_EPSILON,
+      zOriginMovesBlinkAnswer: !matricesEqual(
+        byId.get("css-rotate-y-z-origin"),
+        byId.get("css-rotate-y-svg-flatten"),
+      ),
+      everyVectorTransformIsValidSvgMatrix: rows
+        .filter((row) => row.expectedRoute === "clone-equivalent")
+        .every((row) => row.clonedTransformAttribute?.startsWith("matrix(") === true
+          && !row.clonedTransformAttribute.includes("matrix3d")),
       everyOuterProjectiveRowHasOneOwner: rows
         .filter((row) => row.expectedRoute === "outer-raster")
         .every((row) => row.effectiveRasterOwnerCount === 1),
@@ -415,7 +468,7 @@ export async function runInlineSvg3dAudit(): Promise<{
       architecture: process.arch,
       rows,
       controls,
-      verdict: pass ? "source-boundary-and-projective-owner-routing-observed" : "probe-expectation-or-source-drift",
+      verdict: pass ? "used-affine-freeze-and-projective-owner-routing-observed" : "probe-expectation-or-source-drift",
     };
   } finally {
     await browser.close();

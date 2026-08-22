@@ -1,11 +1,11 @@
 # Cloned inline-SVG 3D transform audit
 
-**Status:** projective raster promotion shipped; SVG-child affine freezing and
-the all-platform two-leg gate remain follow-ups
+**Status:** projective raster promotion and SVG-child affine freezing shipped;
+the all-platform two-leg gate remains a follow-up
 
 **Ticket:** DM-2371
 
-**Implementation follow-ups:** DM-2473, DM-2474, DM-2475
+**Implementation follow-up:** DM-2475
 
 An inline DOM `<svg>` is an atomic clone in Domotion's renderer: capture bakes
 selected computed properties into `svgContent`, and `paintInlineSvg` emits that
@@ -14,15 +14,14 @@ sound only if every transform inside the clone is frozen into valid 2D SVG, or
 the complete non-representable paint is promoted to one raster owner that the
 renderer actually visits.
 
-The projective ownership half now satisfies that boundary. A
+Both production ownership paths now satisfy that boundary. A
 true SVG-graphics-child 3D transform is not projective in Blink's SVG layout
 model: Blink deliberately resolves its complete CSS transform, reference box,
 and three-dimensional origin, then flattens the result to an affine
-`LocalToSVGParentTransform`. Domotion instead copies the computed
-`matrix3d()` into an SVG `transform` attribute. Chromium rejects that attribute
-on re-embed, so the element becomes identity. Non-affine root and
-`<foreignObject>` paint, however, now crosses one reachable outer Chromium
-surface instead of entering that invalid vector fallback.
+`LocalToSVGParentTransform`. Domotion now correlates that used result through
+live CTMs, serializes one valid six-value SVG matrix, and verifies the isolated
+clone before accepting vector ownership. Non-affine root and `<foreignObject>`
+paint crosses one reachable outer Chromium surface.
 
 ## Verdict
 
@@ -55,24 +54,30 @@ The source-derived boundary is:
    ambiguous owner must warn and cross the declared outer boundary. It must
    never fall back to the 2D submatrix in `cssTransformToSvg`.
 
-## Remaining information loss
+## Implemented affine freeze
 
-`src/capture/script/walker/inline-svg.ts` reads `getComputedStyle().transform`,
-parses only the first two components of `transform-origin`, approximates
-`stroke-box` as `getBBox() - strokeWidth / 2`, composes two translations, and
-writes the result to the clone's `transform` attribute. This creates four
-independent failures:
+`src/capture/svg-affine-freeze.ts` owns the DOM-free matrix correlation,
+inversion, multiplication, singular checks, mapped-point error, and shortest
+round-trippable six-number serialization. It receives browser facts rather than
+style syntax: `parent^-1 * usedCTM` is Blink's sampled local result. A neutral
+sibling probe supplies the intrinsic local mapping that remains after transform
+contributors are disabled. That mapping is identity for ordinary graphics but
+contains x/y plus viewBox/preserveAspectRatio for a nested `<svg>`; capture
+therefore writes `usedLocal * inverse(neutralLocal)` so viewport geometry is not
+applied twice.
 
-- an actual 3D matrix remains `matrix3d()` and is invalid in the emitted SVG
-  transform attribute;
-- the z component of `transform-origin` is discarded even though Blink
-  composes it around the 4x4 transform;
-- `stroke-box` does not account for Blink's used-value rule that
-  `vector-effect: non-scaling-stroke` maps it to `fill-box`, nor for the exact
-  stroke bounding box; and
-- a retained inline style or CSS-overridden static `transform` attribute can
-  reapply a transform after the baked matrix unless the resolved owner is
-  normalized once.
+`src/capture/script/walker/inline-svg.ts` now uses that seam for static
+presentation transforms, CSS winners, matrix3d/rotateY/perspective functions,
+independent translate/rotate/scale, CSS motion, and sampled animation state. It
+removes retained inline/CSSOM transform, origin, box, independent, motion, and
+SMIL transform owners; `<use>` replacement consumes the frozen matrix instead
+of re-reading authored syntax. An isolated shadow-tree re-embed must reproduce
+the source local mapping at bbox corners within 1/256 CSS px. Missing,
+non-finite, singular, stylesheet-opaque, or mismatched facts warn and promote
+the outer inline SVG to `transformSubtreeRaster`; they never reach
+`cssTransformToSvg`'s six-entry matrix3d fallback. Every probe/validation node is
+detached in `finally`, and focused browser controls verify authored transform
+attributes and inline declarations are restored semantically.
 
 The former HTML marker prepass has been removed. `src/capture/index.ts` now
 correlates live DOM objects without attributes, asks Chromium CDP for content
@@ -175,24 +180,26 @@ records CDP content quads, their held-out fourth-corner affine residual, every
 serialized raster owner, and whether that owner is reachable before
 `paintInlineSvg` suppresses descendants.
 
-The tool exits zero when the complete set of expected source controls,
-remaining SVG-child freeze gaps, and shipped projective-owner routes is
-observed. It is not yet the all-platform production parity gate; DM-2475 turns
-it into the required logical-plus-raster gate after the affine-freeze work
-lands.
+The tool exits zero only when every SVG-child row round-trips the used local
+matrix within 1/256 CSS px, every transform attribute is valid `matrix(...)`
+syntax, and every projective row has exactly one effective owner. The current
+run is **26/26** with verdict
+`used-affine-freeze-and-projective-owner-routing-observed`. It is not yet the
+all-platform production parity gate; DM-2475 adds the independent raster leg.
 
 | Control | Live Chromium fact | Current captured/re-embedded fact |
 | --- | --- | --- |
 | Static SVG `transform="matrix(...)"` | Affine | Exact, delta below 1e-15 |
 | CSS matrix, fill/stroke/view boxes, asymmetric origin | Three distinct affine translations | Each round-trips within 0.000058 local units |
-| `stroke-box` + non-scaling stroke | Used box equals fill-box | Clone uses the authored stroke-box approximation; delta 3.6611 |
+| `stroke-box` + non-scaling stroke | Used box equals fill-box | Exact matrix, delta 0 |
 | Planar `matrix3d` (no z/perspective terms) | Computed down to `matrix()` | Vector, delta 0.000058 |
-| `rotateY(47deg)`, fill/stroke/view boxes | Source-flattened affine; fourth-corner residual 0 | Literal `matrix3d()` attribute is rejected; identity; deltas 18.3678 / 17.1848 / 12.6883 |
-| `rotateY` with z origin 31 px | Z origin moves the used affine translation | Z is discarded and attribute is rejected; delta 4.3042 |
-| `perspective(260px) rotateY(43deg) translateZ(22px)` on rect | Source-flattened affine; residual 0 | Literal `matrix3d()` rejected; identity; delta 19.5627 |
-| Perspective on SVG `<g>` vs flat control | Identical source affine CTMs; perspective is inert | No raster owner; both clones still lose matrix3d |
-| SVG-child preserve-3d vs opacity grouping | Identical source affine CTMs | Both clones lose matrix3d; delta 7.9529 |
-| Perspective on root with only flattened SVG graphics | Final target quad remains affine, residual 0 | No raster owner; vector clone remains active |
+| `rotateY(47deg)`, fill/stroke/view boxes | Source-flattened affine; fourth-corner residual 0 | Three exact matrices, delta 0 |
+| `rotateY` with z origin 31 px | Z origin moves the used affine translation | Exact translated affine, delta 0 |
+| `perspective(260px) rotateY(43deg) translateZ(22px)` on rect | Source-flattened affine; residual 0 | Exact valid SVG matrix, delta 0 |
+| Independent 3D properties, motion, CSS winner, paused animation, zoom | Distinct Blink-used local affines | Every clone delta 0 |
+| Perspective on SVG `<g>` vs flat control | Identical source affine CTMs; perspective is inert | Both exact, no raster owner |
+| SVG-child preserve-3d vs opacity grouping | Identical source affine CTMs | Both exact, no raster owner |
+| Perspective on root with only flattened SVG graphics | Final target quad remains affine, residual 0 | Exact vector clone, no raster owner |
 | Projective transform on inline-SVG root | Non-affine target quad, residual 30.9282 px | One effective raster on the inline-SVG root |
 | HTML ancestor perspective + transformed root SVG | Non-affine target quad, residual 36.4226 px | One effective outer raster (positive control) |
 | HTML perspective context inside `<foreignObject>` | Non-affine target quad, residual 21.9539 px | One effective raster promoted to `/div/svg` before `paintInlineSvg` |
@@ -206,25 +213,27 @@ or screenshot tolerance selects these decisions.
 
 ## Exact capture design
 
-### Vector freeze
+### Vector freeze — implemented
 
-For every SVG graphics descendant that will survive in `svgContent`:
+For every transform-bearing SVG graphics descendant that will survive in
+`svgContent`, capture now:
 
-1. Freeze the page's animation time and record the source SVG viewport/parent
-   chain before mutating the clone.
-2. Read the used local affine transform from Chromium after style, reference
+1. Samples the source CTM and parent CTM synchronously at the capture frame.
+2. Reads the used local affine transform from Chromium after style, reference
    box, origin (including z), zoom, motion, and SVG transform semantics have
    resolved. A parent-relative matrix may be derived from correlated CTMs only
    when the parent mapping is finite and invertible; nested viewport and
-   singular cases need an explicit authoritative protocol or fail closed.
-3. Validate the matrix against independent source points/geometry rather than
-   assuming that a computed `matrix3d()` is affine in the output space.
-4. Write exactly one `transform="matrix(a b c d e f)"` to the clone and remove
+   the parent and neutral mappings are finite and invertible.
+3. Measures a transform-neutral sibling's intrinsic mapping, removes it from
+   the used local matrix, and validates the serialized result against source
+   bbox corners in an isolated shadow clone.
+4. Writes exactly one `transform="matrix(a b c d e f)"` to the clone and removes
    retained CSS `transform`, independent transform properties,
    `transform-origin`, and `transform-box` declarations that could apply it a
    second time. A CSS rule overriding a static transform attribute must freeze
    the used winner, not preserve the losing attribute.
-5. Repeat the same operation for inlined `<use>` targets at the captured frame.
+5. Repeats the same operation for `<use>` and its inlined target at the sampled
+   frame.
    If source/clone node correlation, matrix validity, or timeline stability is
    unavailable, select the outer raster owner and warn.
 
@@ -263,7 +272,7 @@ off-bounds paint, and a vector sibling; all four classified color bounds must
 agree within four device pixels, the sibling must be absent from the owner PNG,
 and the raster payload must occur once.
 
-## Required implementation and gate controls
+## Focused implementation controls — shipped
 
 - static transform attribute, external CSS 2D matrix, and planar matrix3d
   negatives;
@@ -279,19 +288,24 @@ and the raster payload must occur once.
 - projective root SVG, projective HTML ancestor, and projective HTML inside
   `<foreignObject>`, with backface, depth order, transformed out-of-bounds ink,
   vector siblings, clip/effect composition, scroll, zoom, and DPR 1/2;
-- a mutation that emits literal `matrix3d()` into an SVG transform attribute;
+- mutations that emit literal `matrix3d()` into an SVG transform attribute;
   one that selects the six apparent 2D entries; one that keeps stroke-box under
   non-scaling stroke; one that measures an SVG root with HTML offset markers;
-  and one that leaves a raster owner below `svgContent`; and
-- an independent Chromium-versus-generated-SVG ink/alpha leg on macOS, Linux,
-  and Windows. Logical matrix/ownership failures must be rejected before any
-  platform raster envelope is considered.
+  and one that leaves a raster owner below `svgContent`.
+
+The local logical matrix and focused browser controls above are shipped in
+`src/capture/svg-affine-freeze.test.ts` and
+`tests/inline-svg-affine-freeze.e2e.test.ts`; projective controls remain in
+`tests/inline-svg-projective-ownership.e2e.test.ts`. The independent
+Chromium-versus-generated-SVG ink/alpha leg on macOS, Linux, and Windows remains
+DM-2475. Logical matrix/ownership failures are rejected before any platform
+raster envelope is considered.
 
 ## Follow-up ownership
 
 - **DM-2473 — Freeze Blink-used affine transforms in cloned inline SVG
-  graphics.** Owns the exact local matrix, clone normalization, fail-closed
-  vector boundary, and focused capture tests.
+  graphics — shipped.** Owns the exact local matrix, nested-viewport neutral
+  mapping, clone normalization, fail-closed vector boundary, and focused tests.
 - **DM-2474 — Promote projective inline SVG paint to one effective outer raster
   owner — shipped.** CDP paint quads now own SVG-capable classification,
   root/ancestor promotion, `<foreignObject>` atomicity, used flattening,

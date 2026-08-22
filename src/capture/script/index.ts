@@ -180,10 +180,7 @@ const captureDocumentTree =
         projectiveHidden = cs.backfaceVisibility === 'hidden' && _area < 0;
       }
     }
-    // SVG cannot encode a projective fourth corner or preserve-3d flattening.
-    // Snapshot the outermost 3D context once; descendants remain in the tree
-    // for metadata/paint ordering but the renderer returns after this image.
-    if (_nonAffineProjectiveRoots.has(el)) {
+    const _makeTransformSubtreeRaster = () => {
       let _left = rect.left, _top = rect.top, _right = rect.right, _bottom = rect.bottom;
       const _subs = el.getElementsByTagName('*');
       for (let _ri = 0; _ri < _subs.length; _ri++) {
@@ -195,7 +192,7 @@ const captureDocumentTree =
       const _rx = Math.max(vp.x, _left), _ry = Math.max(vp.y, _top);
       const _rright = Math.min(vp.x + vp.width, _right), _rbottom = Math.min(vp.y + vp.height, _bottom);
       if (_rright > _rx && _rbottom > _ry) {
-        transformSubtreeRaster = {
+        return {
           x: _rx - vp.x,
           y: _ry - vp.y,
           width: _rright - _rx,
@@ -203,6 +200,13 @@ const captureDocumentTree =
           sourceNodeIndex: _projectiveNodeIndex.get(el),
         };
       }
+      return { x: 0, y: 0, width: 0, height: 0, sourceNodeIndex: _projectiveNodeIndex.get(el) };
+    };
+    // SVG cannot encode a projective fourth corner or preserve-3d flattening.
+    // Snapshot the outermost 3D context once; descendants remain in the tree
+    // for metadata/paint ordering but the renderer returns after this image.
+    if (_nonAffineProjectiveRoots.has(el)) {
+      transformSubtreeRaster = _makeTransformSubtreeRaster();
     }
     // DM-513: when an element's rect is outside the viewport, normally skip the
     // whole subtree. But position:fixed / position:sticky descendants escape
@@ -507,7 +511,14 @@ const captureDocumentTree =
     const _listsCounters = captureListsCounters(el, cs, tag);
     let svgReferenceScope = undefined;
     if (tag === 'svg') {
-      svgContent = captureInlineSvg(el, cs, warn, sel);
+      const inlineSvgCapture = captureInlineSvg(el, cs, warn, sel);
+      svgContent = inlineSvgCapture.content;
+      // Missing/singular CTMs and failed isolated-clone correlation are an
+      // explicit vector boundary, never a request for cssTransformToSvg's six-
+      // entry matrix3d approximation. Reuse the outer Chromium raster owner.
+      if (inlineSvgCapture.affineFreezeFailed && transformSubtreeRaster == null) {
+        transformSubtreeRaster = _makeTransformSubtreeRaster();
+      }
       svgReferenceScope = _svgReferenceScope(el);
     }
 

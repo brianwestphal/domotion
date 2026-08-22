@@ -1585,18 +1585,21 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   [doc 159](../159-exact-text-transform-geometry-audit.md); exact capture,
   renderer migration, and all-platform gates are tracked in DM-2469/2470/2471.
 
-<!-- DM-2371 -->
-- Cloned inline-SVG 3D parity remains **design-only**. Blink resolves SVG
+<!-- DM-2371 / DM-2473 / DM-2474 -->
+- Cloned inline-SVG 3D logical ownership is **implemented**. Blink resolves SVG
   graphics-child matrix3d, exact fill/stroke/view reference boxes, x/y/z
   origin, zoom, motion, and independent operations, then explicitly flattens
   the used result to a parent-relative affine transform. Capture must freeze
   that matrix as valid SVG rather than emit literal matrix3d or reconstruct the
-  box. A non-affine transform on the outer SVG/HTML box, or HTML 3D inside
-  `<foreignObject>`, instead crosses one Chromium surface promoted above the
-  opaque `svgContent` owner. Property-only SVG perspective/preserve-3d is not
-  sufficient activation. Fresh CTM/quad evidence and the exact boundary are in
-  [doc 162](../162-inline-svg-3d-transform-audit.md); DM-2473/2474 implement
-  vector freeze and raster promotion, and DM-2475 owns the all-platform gate.
+  box. Capture now correlates the used local CTM with a transform-neutral
+  intrinsic mapping, serializes one valid SVG matrix, removes competing
+  CSS/SMIL owners, and fails closed on singular/unavailable/mismatched facts.
+  A non-affine outer SVG/HTML box, or HTML 3D inside `<foreignObject>`, crosses
+  one Chromium surface promoted above the opaque `svgContent` owner.
+  Property-only SVG perspective/preserve-3d is not activation. Fresh 26-row
+  CTM/quad evidence and the exact boundary are in
+  [doc 162](../162-inline-svg-3d-transform-audit.md); DM-2475 owns the remaining
+  all-platform independent raster gate.
 
 <!-- DM-2370 -->
 - URL background image geometry remains **design-only** outside the exact

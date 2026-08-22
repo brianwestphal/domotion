@@ -130,6 +130,148 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex Max",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "warning",
+          "guid": "mt3qqawsd1zn4yjr",
+          "message": {
+            "text": "Vector acceptance is deliberately fail-closed. A private CSSOM copy removes retained transform owners without touching the source stylesheet, then an isolated shadow clone must reproduce Blink local geometry within 1/256 CSS px at bbox corners. Import/parse failure, singularity, or correlation drift sets affineFreezeFailed; the capture orchestrator promotes the outer SVG to one Chromium raster rather than invoking the known-inexact matrix3d submatrix route.",
+            "markdown": "Vector acceptance is deliberately fail-closed. A private CSSOM copy removes retained transform owners without touching the source stylesheet, then an isolated shadow clone must reproduce Blink local geometry within 1/256 CSS px at bbox corners. Import/parse failure, singularity, or correlation drift sets affineFreezeFailed; the capture orchestrator promotes the outer SVG to one Chromium raster rather than invoking the known-inexact matrix3d submatrix route."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/inline-svg.ts"
+                },
+                "region": {
+                  "startLine": 506,
+                  "endLine": 578,
+                  "snippet": {
+                    "text": "      const _sanitizeClonedTransformCss = () => {\n        for (const styleNode of Array.from(clone.querySelectorAll ? clone.querySelectorAll('style') : [])) {\n          const cssText = styleNode.textContent || '';\n          if (!/(?:transform|translate|rotate|scale|offset(?:-|\\s*:))/i.test(cssText)) continue;\n          // Constructable stylesheets give us Chromium's parser without ever\n          // attaching a rule to the live page. Mutate this private CSSOM copy,\n          // then serialize it back to the clone; the source stylesheet and DOM\n          // remain byte-for-byte untouched.\n          if (/@import\\b/i.test(cssText) || typeof CSSStyleSheet !== 'function') {\n            _affineFreezeFailure = _affineFreezeFailure || 'transform-bearing cloned stylesheet could not be inspected';\n            continue;\n          }\n          try {\n            const sheet = new CSSStyleSheet();\n            sheet.replaceSync(cssText);\n            const cleanRules = (rules) => {\n              for (const rule of Array.from(rules || [])) {\n                if (rule.style != null) {\n                  for (const prop of Array.from(rule.style)) {\n                    const normalized = prop.toLowerCase().replace(/^-webkit-/, '');\n                    if (_transformProperties.has(normalized)) rule.style.removeProperty(prop);\n                  }\n                }\n                if (rule.cssRules != null) cleanRules(rule.cssRules);\n              }\n            };\n            cleanRules(sheet.cssRules);\n            styleNode.textContent = Array.from(sheet.cssRules).map((rule) => rule.cssText).join('\\n');\n          } catch (e) {\n            _affineFreezeFailure = _affineFreezeFailure || 'transform-bearing cloned stylesheet failed CSSOM normalization';\n          }\n        }\n      };\n      _sanitizeClonedTransformCss();\n\n      const _validateFrozenAffines = () => {\n        if (_affineFreezeFailure != null || _affineFreezeRecords.length === 0) return;\n        const host = document.createElement('div');\n        host.setAttribute('aria-hidden', 'true');\n        host.style.setProperty('all', 'initial', 'important');\n        host.style.setProperty('position', 'fixed', 'important');\n        host.style.setProperty('left', '-100000px', 'important');\n        host.style.setProperty('top', '-100000px', 'important');\n        host.style.setProperty('visibility', 'hidden', 'important');\n        var shadow = null;\n        try {\n          shadow = host.attachShadow({ mode: 'closed' });\n          shadow.appendChild(clone);\n          (document.body || document.documentElement).appendChild(host);\n          for (const record of _affineFreezeRecords) {\n            if (record.skip || !record.cloneNode.isConnected) continue;\n            const parent = _nearestCtmParent(record.cloneNode);\n            const parentCtm = _matrixFrom(parent && parent.getCTM && parent.getCTM());\n            const cloneCtm = _matrixFrom(record.cloneNode.getCTM && record.cloneNode.getCTM());\n            const parentInverse = parentCtm == null ? null : invertSvgAffine(parentCtm);\n            const actual = parentInverse == null || cloneCtm == null\n              ? null\n              : multiplySvgAffine(parentInverse, cloneCtm);\n            // Blink stores SVG layout transforms in float-backed geometry. A\n            // 1/256 CSS-pixel mapped-point budget is stricter than LayoutUnit\n            // paint quantization while allowing a serialize/parse CTM roundtrip.\n            if (actual == null || svgAffineMaxPointError(actual, record.expected, record.points) > 1 / 256) {\n              _affineFreezeFailure = 'serialized SVG affine did not correlate with Blink-used local geometry';\n              break;\n            }\n          }\n        } catch (e) {\n          _affineFreezeFailure = 'serialized SVG affine could not be validated in an isolated clone';\n        } finally {\n          host.remove();\n        }\n      };\n      _validateFrozenAffines();"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "risk"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/index.ts"
+                },
+                "region": {
+                  "startLine": 514
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/svg-affine-freeze.ts"
+                },
+                "region": {
+                  "startLine": 78
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2473"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "78f9b8e7753bdc7c0cd475ea820ca281"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3qqg1iooq45dd3",
+          "message": {
+            "text": "SVG use x/y is instantiated geometry, not part of the use element CTM. The replacement therefore carries the frozen transform A and composes x/y inside it only for non-symbol targets; treating x/y as part of the correlated transform shifts the inlined paint. The focused browser control compares normalized live-use and inlined-wrapper bounds under zoom.",
+            "markdown": "SVG use x/y is instantiated geometry, not part of the use element CTM. The replacement therefore carries the frozen transform A and composes x/y inside it only for non-symbol targets; treating x/y as part of the correlated transform shifts the inlined paint. The focused browser control compares normalized live-use and inlined-wrapper bounds under zoom."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/inline-svg.ts"
+                },
+                "region": {
+                  "startLine": 454,
+                  "endLine": 490,
+                  "snippet": {
+                    "text": "          // The source <use> CTM deliberately excludes x/y; those geometry\n          // properties position the instantiated shadow content. Preserve the\n          // exact frozen transform on the replacement wrapper, then validate\n          // the wrapper against A (symbol) or A*translate(x,y) (other targets).\n          const useFreeze = _frozenByClone.get(useEl);\n          if (useFreeze != null) {\n            useFreeze.skip = true;\n            var replacementExpected = useFreeze.frozen;\n            if (targetTag !== 'symbol' && (ux !== 0 || uy !== 0)) {\n              replacementExpected = multiplySvgAffine(replacementExpected, {\n                a: 1, b: 0, c: 0, d: 1, e: ux, f: uy,\n              });\n            }\n            const replacementSerialized = serializeSvgAffine(replacementExpected);\n            if (replacementSerialized == null) {\n              _affineFreezeFailure = _affineFreezeFailure || 'inlined use transform could not be serialized';\n            } else {\n              replacement.setAttribute('transform', replacementSerialized);\n            }\n            _affineFreezeRecords.push({\n              cloneNode: replacement,\n              expected: replacementExpected,\n              frozen: replacementExpected,\n              points: useFreeze.points,\n              serialized: replacement.getAttribute('transform') || '',\n              skip: false,\n            });\n          }\n          // Carry over any presentation attrs from the <use> element. CSS\n          // spec: attributes on <use> override the same attribute on the\n          // referenced subtree's root.\n          var _useAttrs = ['fill', 'stroke', 'stroke-width', 'opacity', 'class', 'style'];\n          for (var ai = 0; ai < _useAttrs.length; ai++) {\n            var av = useEl.getAttribute(_useAttrs[ai]);\n            if (av != null && av !== '') replacement.setAttribute(_useAttrs[ai], av);\n          }\n          useEl.parentNode.replaceChild(replacement, useEl);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/inline-svg-affine-freeze.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 143
+                }
+              }
+            }
+          ],
+          "rank": 88,
+          "workItemUris": [
+            "DM-2473"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4be4d49367c632f1c05e1d23d3a739d7"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d6d24f284643cc58285674758f832f9c63fe03fe",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

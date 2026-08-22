@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex Max",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3qkonrtn3h250n",
+          "message": {
+            "text": "Blink already owns transform-box aliases, exact stroke bounds, x/y/z origin, effective zoom, motion, independent properties, and 3D flattening, so this seam only correlates CTMs. The neutral local factor is essential for nested SVG: writing usedLocal directly would apply x/y plus viewBox geometry twice. Pinned Chromium transformhelper.cc:83-149 and computedstyle.cc:1372-1490 establish that boundary; the nested-viewport unit discriminator rejects the double-apply mutation.",
+            "markdown": "Blink already owns transform-box aliases, exact stroke bounds, x/y/z origin, effective zoom, motion, independent properties, and 3D flattening, so this seam only correlates CTMs. The neutral local factor is essential for nested SVG: writing usedLocal directly would apply x/y plus viewBox geometry twice. Pinned Chromium transform_helper.cc:83-149 and computed_style.cc:1372-1490 establish that boundary; the nested-viewport unit discriminator rejects the double-apply mutation."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/svg-affine-freeze.ts"
+                },
+                "region": {
+                  "startLine": 68,
+                  "endLine": 96,
+                  "snippet": {
+                    "text": "/**\n * Correlate two browser-owned CTMs with a shared parent CTM.\n *\n * `usedCtm` is the sampled source mapping. `neutralCtm` is measured from a\n * sibling probe with only the element's transform contributors neutralized.\n * Most graphics have an identity neutral local mapping. A nested `<svg>` does\n * not: x/y plus viewBox/preserveAspectRatio remain intrinsic. SVG applies its\n * transform before that viewport mapping, so the serialized owner is\n * `usedLocal * inverse(neutralLocal)`, not `usedLocal` itself.\n */\nexport function deriveSvgAffineFreeze(\n  usedCtm: SvgAffineMatrix,\n  parentCtm: SvgAffineMatrix,\n  neutralCtm: SvgAffineMatrix,\n): SvgAffineFreeze | null {\n  if (!isFiniteSvgAffine(usedCtm) || !isFiniteSvgAffine(parentCtm) || !isFiniteSvgAffine(neutralCtm)) {\n    return null;\n  }\n  const parentInverse = invertSvgAffine(parentCtm);\n  if (parentInverse == null) return null;\n  const usedLocal = multiplySvgAffine(parentInverse, usedCtm);\n  const neutralLocal = multiplySvgAffine(parentInverse, neutralCtm);\n  const neutralInverse = invertSvgAffine(neutralLocal);\n  if (neutralInverse == null) return null;\n  const frozen = multiplySvgAffine(usedLocal, neutralInverse);\n  // The ticket's singular boundary is explicit: a zero-area used mapping is\n  // not eligible for the vector clone, even if its current paint is empty.\n  if (invertSvgAffine(usedLocal) == null || invertSvgAffine(frozen) == null) return null;\n  return { usedLocal, neutralLocal, frozen };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/inline-svg.ts"
+                },
+                "region": {
+                  "startLine": 98
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/162-inline-svg-3d-transform-audit.md"
+                },
+                "region": {
+                  "startLine": 75
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2473"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "a64cc9c6a5e691e0f5d98a7e7c0c5888"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d6d24f284643cc58285674758f832f9c63fe03fe",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

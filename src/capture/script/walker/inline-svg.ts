@@ -9,6 +9,14 @@
 // passed-in element (el), its computed style (cs), the warn() sink, and the
 // element's short selector (sel) for warnings.
 
+import {
+  deriveSvgAffineFreeze,
+  invertSvgAffine,
+  multiplySvgAffine,
+  serializeSvgAffine,
+  svgAffineMaxPointError,
+} from "../../svg-affine-freeze.js";
+
 export const captureInlineSvg = (el, cs, warn, sel) => {
       // Inline SVG icons styled by external CSS (e.g. '.icon-btn svg { fill:none;
       // stroke: currentColor; stroke-width: 2 }') need their resolved presentation
@@ -20,6 +28,120 @@ export const captureInlineSvg = (el, cs, warn, sel) => {
       const svgStrokeWidth = cs.strokeWidth;
       const svgFontFamily = cs.fontFamily;
       const clone = el.cloneNode(true);
+      // DM-2473: Blink resolves an SVG graphics child's complete transform into
+      // LocalToSVGParentTransform and deliberately flattens it to affine before
+      // paint. CTM correlation observes that used result without reproducing
+      // transform-box, stroke bounds, z-origin, zoom, motion, or 3D math here.
+      // A nested SVG retains intrinsic x/y + viewBox mapping after transforms
+      // are neutralized, so its serialized owner is usedLocal * inverse(base).
+      var _affineFreezeFailure = null;
+      const _affineFreezeRecords = [];
+      const _frozenByClone = new WeakMap();
+      const _transformProperties = new Set([
+        'transform', 'transform-origin', 'transform-box',
+        'translate', 'rotate', 'scale',
+        'offset', 'offset-path', 'offset-distance', 'offset-position',
+        'offset-anchor', 'offset-rotate',
+      ]);
+      const _matrixFrom = (matrix) => matrix == null ? null : ({
+        a: Number(matrix.a), b: Number(matrix.b),
+        c: Number(matrix.c), d: Number(matrix.d),
+        e: Number(matrix.e), f: Number(matrix.f),
+      });
+      const _nearestCtmParent = (node) => {
+        var parent = node.parentElement;
+        while (parent != null && typeof parent.getCTM !== 'function') parent = parent.parentElement;
+        return parent;
+      };
+      const _hasTransformSignal = (node, style) => {
+        if (node.hasAttribute && node.hasAttribute('transform')) return true;
+        for (const prop of ['transform', 'translate', 'rotate', 'scale', 'offset-path']) {
+          const value = style.getPropertyValue(prop).trim();
+          if (value !== '' && value !== 'none') return true;
+        }
+        for (const child of node.children || []) {
+          const name = (child.localName || '').toLowerCase();
+          const attribute = (child.getAttribute && child.getAttribute('attributeName') || '').toLowerCase();
+          if (name === 'animatemotion' || name === 'animatetransform'
+              || (name === 'animate' || name === 'set') && attribute === 'transform') return true;
+        }
+        return false;
+      };
+      const _neutralizeProbeTransform = (probe) => {
+        if (probe.style == null) return;
+        probe.style.setProperty('transform', 'none', 'important');
+        probe.style.setProperty('translate', 'none', 'important');
+        probe.style.setProperty('rotate', 'none', 'important');
+        probe.style.setProperty('scale', 'none', 'important');
+        probe.style.setProperty('offset-path', 'none', 'important');
+        probe.style.setProperty('animation', 'none', 'important');
+        probe.style.setProperty('transition', 'none', 'important');
+        probe.style.setProperty('visibility', 'hidden', 'important');
+        probe.style.setProperty('opacity', '0', 'important');
+        probe.style.setProperty('pointer-events', 'none', 'important');
+      };
+      const _cleanCloneTransformOwner = (node, serialized) => {
+        node.setAttribute('transform', serialized);
+        if (node.style != null) {
+          for (const prop of _transformProperties) node.style.removeProperty(prop);
+        }
+      };
+      const _freezeUsedAffine = (origNode, cloneNode, ocs) => {
+        if (_affineFreezeFailure != null || !_hasTransformSignal(origNode, ocs)) return;
+        if (typeof origNode.getCTM !== 'function') {
+          _affineFreezeFailure = 'transformed SVG node does not expose getCTM()';
+          return;
+        }
+        const parent = _nearestCtmParent(origNode);
+        if (parent == null || typeof parent.getCTM !== 'function') {
+          _affineFreezeFailure = 'transformed SVG node has no correlatable SVG parent CTM';
+          return;
+        }
+        var usedCtm = null;
+        var parentCtm = null;
+        try {
+          usedCtm = _matrixFrom(origNode.getCTM());
+          parentCtm = _matrixFrom(parent.getCTM());
+        } catch (e) {
+          _affineFreezeFailure = 'Blink-used parent-relative affine matrix could not be read';
+          return;
+        }
+        var probe = null;
+        var neutralCtm = null;
+        try {
+          // A sibling probe asks Blink for the intrinsic mapping that remains
+          // with transform contributors disabled. This is identity for normal
+          // graphics and includes x/y + viewBox mapping for nested viewports.
+          probe = cloneNode.cloneNode(false);
+          _neutralizeProbeTransform(probe);
+          if (probe.setAttribute) probe.setAttribute('aria-hidden', 'true');
+          origNode.parentElement.appendChild(probe);
+          neutralCtm = _matrixFrom(probe.getCTM && probe.getCTM());
+        } catch (e) {
+          neutralCtm = null;
+        } finally {
+          if (probe != null && probe.remove) probe.remove();
+        }
+        const freeze = usedCtm != null && parentCtm != null && neutralCtm != null
+          ? deriveSvgAffineFreeze(usedCtm, parentCtm, neutralCtm)
+          : null;
+        const serialized = freeze == null ? null : serializeSvgAffine(freeze.frozen);
+        if (freeze == null || serialized == null) {
+          _affineFreezeFailure = 'Blink-used parent-relative affine matrix was unavailable or singular';
+          return;
+        }
+        _cleanCloneTransformOwner(cloneNode, serialized);
+        var points = [[0, 0], [1, 0], [0, 1]];
+        try {
+          const bbox = origNode.getBBox();
+          if (bbox != null && [bbox.x, bbox.y, bbox.width, bbox.height].every(Number.isFinite)) {
+            points = [[bbox.x, bbox.y], [bbox.x + bbox.width, bbox.y], [bbox.x, bbox.y + bbox.height], [bbox.x + bbox.width, bbox.y + bbox.height]];
+          }
+        } catch (e) { /* Unit-basis validation remains authoritative. */ }
+        const record = { cloneNode, expected: freeze.usedLocal, frozen: freeze.frozen, points, serialized, skip: false };
+        _affineFreezeRecords.push(record);
+        _frozenByClone.set(cloneNode, record);
+      };
       // DM-524: an attribute literal like fill="var(--hds-color-text-solid)"
       // (Stripe's nav rects) parses as a presentation-attribute value that
       // resolves only against the source page's custom-property cascade.
@@ -184,67 +306,11 @@ export const captureInlineSvg = (el, cs, warn, sel) => {
               }
             }
           }
-          // DM-508: bake CSS-animated transforms at t=0. CSS animation /
-          // transition declarations mean the computed transform reflects the
-          // animation's current frame at capture time — getComputedStyle
-          // returns e.g. matrix(0.707, 0.707, -0.707, 0.707, 0, 0) for a 45-
-          // deg rotated rect. The SVG transform attribute applies around
-          // (0,0) by default, so a CSS transform-origin: center has to be
-          // composed into the matrix manually:
-          //   final = translate(ox, oy) * css_transform * translate(-ox, -oy)
-          // For transform-box: fill-box (and the new CSS default for SVG),
-          // origin px values are relative to the element's bounding box. We
-          // read those from getComputedStyle().transformOrigin and compose.
-          var transformVal = ocs.transform;
-          // DM-676: only bake when the SOURCE node has no static `transform=`
-          // attribute. The bake exists to capture CSS-animated transforms at
-          // t=0 (DM-508). When the node already has a literal `transform=`
-          // attribute, the existing attribute IS the source of truth — Chrome
-          // resolves it through transform-origin/transform-box at paint time,
-          // and the consumer browser will apply the same resolution. Baking
-          // a composed origin-anchored matrix on top double-applies the
-          // origin and shifts the rect.
-          var hasStaticTransformAttr = origNode.hasAttribute('transform') && !_isUnresolvedCssExpr(origNode.getAttribute('transform'));
-          if (!hasStaticTransformAttr && transformVal != null && transformVal !== '' && transformVal !== 'none') {
-            var transformOriginVal = ocs.transformOrigin || '0 0';
-            var originParts = transformOriginVal.trim().split(/\s+/);
-            var ox = parseFloat(originParts[0] || '0') || 0;
-            var oy = parseFloat(originParts[1] || '0') || 0;
-            // DM-752: route through `transform-box` to convert origin px values
-            // from the reference box's local coord space into SVG user space.
-            // Chrome's `getComputedStyle().transformOrigin` returns px values
-            // relative to the resolved transform-box:
-            //   - `fill-box` (SVG default): bbox-local → add `bbox.x / bbox.y`.
-            //   - `stroke-box`: stroke-bbox-local. Stroke-bbox is the geometry
-            //     bbox extended by `stroke-width / 2` on each side, so
-            //     stroke-bbox.x = bbox.x - sw/2, stroke-bbox.y = bbox.y - sw/2.
-            //   - `view-box`: already in viewBox / user space coords; no shift.
-            //   - `content-box` / `border-box`: HTML-only; SVG-side bake doesn't
-            //     hit these (the HTML transform path applies them separately).
-            // Without this, `transform-box: view-box` rotated around the wrong
-            // anchor (the rect's bbox top-left instead of the viewBox center)
-            // and `transform-box: stroke-box` was off by `stroke-width / 2`.
-            var transformBoxVal = ocs.transformBox || 'fill-box';
-            try {
-              if (typeof origNode.getBBox === 'function' && transformBoxVal !== 'view-box') {
-                var bbox = origNode.getBBox();
-                ox += bbox.x;
-                oy += bbox.y;
-                if (transformBoxVal === 'stroke-box') {
-                  var swPx = parseFloat(ocs.strokeWidth || '0') || 0;
-                  ox -= swPx / 2;
-                  oy -= swPx / 2;
-                }
-              }
-            } catch (e) { /* element not yet in render tree, fall through */ }
-            var composed;
-            if (ox === 0 && oy === 0) {
-              composed = transformVal;
-            } else {
-              composed = 'translate(' + ox + ',' + oy + ') ' + transformVal + ' translate(' + (-ox) + ',' + (-oy) + ')';
-            }
-            cloneNode.setAttribute('transform', composed);
-          }
+          // DM-2473: freeze Blink's already-resolved, already-flattened local
+          // affine. This supersedes the former computed-string + getBBox ±
+          // strokeWidth/2 reconstruction and applies equally to static attrs,
+          // CSS winners, 3D functions, independent properties, and motion.
+          _freezeUsedAffine(origNode, cloneNode, ocs);
         }
         const oChildren = origNode.children;
         const cChildren = cloneNode.children;
@@ -385,6 +451,34 @@ export const captureInlineSvg = (el, cs, warn, sel) => {
               }
             }
           }
+          // The source <use> CTM deliberately excludes x/y; those geometry
+          // properties position the instantiated shadow content. Preserve the
+          // exact frozen transform on the replacement wrapper, then validate
+          // the wrapper against A (symbol) or A*translate(x,y) (other targets).
+          const useFreeze = _frozenByClone.get(useEl);
+          if (useFreeze != null) {
+            useFreeze.skip = true;
+            var replacementExpected = useFreeze.frozen;
+            if (targetTag !== 'symbol' && (ux !== 0 || uy !== 0)) {
+              replacementExpected = multiplySvgAffine(replacementExpected, {
+                a: 1, b: 0, c: 0, d: 1, e: ux, f: uy,
+              });
+            }
+            const replacementSerialized = serializeSvgAffine(replacementExpected);
+            if (replacementSerialized == null) {
+              _affineFreezeFailure = _affineFreezeFailure || 'inlined use transform could not be serialized';
+            } else {
+              replacement.setAttribute('transform', replacementSerialized);
+            }
+            _affineFreezeRecords.push({
+              cloneNode: replacement,
+              expected: replacementExpected,
+              frozen: replacementExpected,
+              points: useFreeze.points,
+              serialized: replacement.getAttribute('transform') || '',
+              skip: false,
+            });
+          }
           // Carry over any presentation attrs from the <use> element. CSS
           // spec: attributes on <use> override the same attribute on the
           // referenced subtree's root.
@@ -400,6 +494,88 @@ export const captureInlineSvg = (el, cs, warn, sel) => {
         }
       };
       _resolveUseRefs(clone, 0);
+      // SMIL transform/motion is a separate contribution in Blink. Remove it
+      // only after the aligned source/clone walk is complete; deleting a clone
+      // child during _walkBake would shift sibling indexes and corrupt node
+      // correlation. Geometry/paint animations remain untouched.
+      for (const animation of Array.from(clone.querySelectorAll ? clone.querySelectorAll('animateMotion, animateTransform, animate[attributeName], set[attributeName]') : [])) {
+        const name = (animation.localName || '').toLowerCase();
+        const attribute = (animation.getAttribute('attributeName') || '').toLowerCase();
+        if (name === 'animatemotion' || name === 'animatetransform' || attribute === 'transform') animation.remove();
+      }
+      const _sanitizeClonedTransformCss = () => {
+        for (const styleNode of Array.from(clone.querySelectorAll ? clone.querySelectorAll('style') : [])) {
+          const cssText = styleNode.textContent || '';
+          if (!/(?:transform|translate|rotate|scale|offset(?:-|\s*:))/i.test(cssText)) continue;
+          // Constructable stylesheets give us Chromium's parser without ever
+          // attaching a rule to the live page. Mutate this private CSSOM copy,
+          // then serialize it back to the clone; the source stylesheet and DOM
+          // remain byte-for-byte untouched.
+          if (/@import\b/i.test(cssText) || typeof CSSStyleSheet !== 'function') {
+            _affineFreezeFailure = _affineFreezeFailure || 'transform-bearing cloned stylesheet could not be inspected';
+            continue;
+          }
+          try {
+            const sheet = new CSSStyleSheet();
+            sheet.replaceSync(cssText);
+            const cleanRules = (rules) => {
+              for (const rule of Array.from(rules || [])) {
+                if (rule.style != null) {
+                  for (const prop of Array.from(rule.style)) {
+                    const normalized = prop.toLowerCase().replace(/^-webkit-/, '');
+                    if (_transformProperties.has(normalized)) rule.style.removeProperty(prop);
+                  }
+                }
+                if (rule.cssRules != null) cleanRules(rule.cssRules);
+              }
+            };
+            cleanRules(sheet.cssRules);
+            styleNode.textContent = Array.from(sheet.cssRules).map((rule) => rule.cssText).join('\n');
+          } catch (e) {
+            _affineFreezeFailure = _affineFreezeFailure || 'transform-bearing cloned stylesheet failed CSSOM normalization';
+          }
+        }
+      };
+      _sanitizeClonedTransformCss();
+
+      const _validateFrozenAffines = () => {
+        if (_affineFreezeFailure != null || _affineFreezeRecords.length === 0) return;
+        const host = document.createElement('div');
+        host.setAttribute('aria-hidden', 'true');
+        host.style.setProperty('all', 'initial', 'important');
+        host.style.setProperty('position', 'fixed', 'important');
+        host.style.setProperty('left', '-100000px', 'important');
+        host.style.setProperty('top', '-100000px', 'important');
+        host.style.setProperty('visibility', 'hidden', 'important');
+        var shadow = null;
+        try {
+          shadow = host.attachShadow({ mode: 'closed' });
+          shadow.appendChild(clone);
+          (document.body || document.documentElement).appendChild(host);
+          for (const record of _affineFreezeRecords) {
+            if (record.skip || !record.cloneNode.isConnected) continue;
+            const parent = _nearestCtmParent(record.cloneNode);
+            const parentCtm = _matrixFrom(parent && parent.getCTM && parent.getCTM());
+            const cloneCtm = _matrixFrom(record.cloneNode.getCTM && record.cloneNode.getCTM());
+            const parentInverse = parentCtm == null ? null : invertSvgAffine(parentCtm);
+            const actual = parentInverse == null || cloneCtm == null
+              ? null
+              : multiplySvgAffine(parentInverse, cloneCtm);
+            // Blink stores SVG layout transforms in float-backed geometry. A
+            // 1/256 CSS-pixel mapped-point budget is stricter than LayoutUnit
+            // paint quantization while allowing a serialize/parse CTM roundtrip.
+            if (actual == null || svgAffineMaxPointError(actual, record.expected, record.points) > 1 / 256) {
+              _affineFreezeFailure = 'serialized SVG affine did not correlate with Blink-used local geometry';
+              break;
+            }
+          }
+        } catch (e) {
+          _affineFreezeFailure = 'serialized SVG affine could not be validated in an isolated clone';
+        } finally {
+          host.remove();
+        }
+      };
+      _validateFrozenAffines();
       // DM-499: substitute fill="currentColor" / stroke="currentColor" with
       // the consumer's resolved cs.color so the inlined symbol picks up the
       // host's color even when the resolved subtree's own ancestors don't
@@ -417,5 +593,8 @@ export const captureInlineSvg = (el, cs, warn, sel) => {
         for (var ci = 0; ci < node.children.length; ci++) _substCurrentColor(node.children[ci]);
       };
       _substCurrentColor(clone);
-      return clone.outerHTML;
+      if (_affineFreezeFailure != null) {
+        warn(sel, 'inline-svg', _affineFreezeFailure + '; promoted the outer inline SVG to Chromium raster ownership');
+      }
+      return { content: clone.outerHTML, affineFreezeFailed: _affineFreezeFailure != null };
 };

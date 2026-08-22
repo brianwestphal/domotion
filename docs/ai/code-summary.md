@@ -394,22 +394,26 @@ shortest possible map:
   observable while fixed ownership/projective paint remain rejected.
   Computed preserve-3d is also a fixed CB through grouping-property flattening.
   `transformSubtreeRaster` separately owns projective paint (doc 06).
-- **Cloned inline-SVG 3D boundary (doc 162; projective ownership shipped,
-  affine freeze pending)** —
+- **Cloned inline-SVG 3D boundary (doc 162; affine freeze and projective
+  ownership shipped)** —
   `tools/inline-svg-3d-audit.ts`
   (`npm run transform:inline-svg-3d-audit`) compares Blink's live
   parent-relative SVG-child CTM with the actual `captureInlineSvg` clone and
   inventories effective projective owners. Pinned source proves SVG graphics
   children are deliberately flattened to an affine
-  `LocalToSVGParentTransform`; their exact matrix3d/z-origin/non-scaling-stroke
-  freeze remains pending. Projective box paint is now source-owned:
+  `LocalToSVGParentTransform`. `src/capture/svg-affine-freeze.ts` correlates
+  parent/used/neutral CTMs, removes nested viewport intrinsic geometry,
+  rejects singular facts, and serializes one exact six-value matrix;
+  `captureInlineSvg` removes retained CSS/SMIL owners and validates an isolated
+  clone before accepting vector paint. Any mismatch promotes the root through
+  `transformSubtreeRaster`. Projective box paint is likewise source-owned:
   `src/capture/index.ts` gathers CDP quads without marker mutations,
   `src/capture/projective-owner.ts` selects and promotes one owner through
   opaque inline-SVG clones, and the isolated alpha-trimmed post-pass emits that
   surface once. The focused DPR-2 route/pixel oracle covers nested
   `<foreignObject>`, zoom/scroll, ancestor rotation/opacity/filter, clipping,
-  off-bounds paint, and a vector-sibling isolation control. DM-2475 promotes the audit to the all-platform two-leg
-  logical/raster gate after the affine-freeze work lands.
+  off-bounds paint, and a vector-sibling isolation control. The logical audit
+  is 26/26; DM-2475 adds the all-platform independent raster leg.
 - **URL background geometry audit (DM-2370, design-only)** —
   `tools/url-background-geometry-audit.ts`
   (`npm run background:url-geometry-audit`) paints a deterministic decoded
