@@ -103,6 +103,7 @@
     "transform:inline-svg-3d-audit": "tsx tools/inline-svg-3d-audit.ts",
     "pseudo:fragment-geometry-oracle": "node --import tsx tools/pseudo-fragment-geometry-oracle.ts",
     "pseudo:fragment-render-oracle": "node --import tsx tools/pseudo-fragment-render-oracle.ts",
+    "paint:summary-marker-oracle": "npm run build:capture-script && vitest run --config vitest.e2e.config.ts tests/summary-disclosure-marker.e2e.test.ts",
     "background:url-geometry-audit": "tsx tools/url-background-geometry-audit.ts",
     "mask:origin-clip-oracle": "npm run build:capture-script && vitest run --config vitest.e2e.config.ts tests/mask-origin-clip.e2e.test.ts",
     "scrollbars:ownership-audit": "tsx tools/native-scrollbar-ownership-audit.ts",

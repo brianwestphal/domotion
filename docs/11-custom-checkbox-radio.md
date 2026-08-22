@@ -1,6 +1,14 @@
 # Domotion: `appearance: none` checkbox / radio / switch
 
-Requirements for honoring author CSS on `appearance: none` checkboxes, radios, and switch-shaped toggles. Origin: DM-285 (follow-up from DM-247). Doc 26 covers `<input>` shadow-DOM pseudos generally; this doc focuses on the host-element side of the custom-control story.
+Requirements for honoring author CSS on `appearance: none` and
+`appearance: base` checkboxes, radios, and switch-shaped toggles. Origin:
+DM-285 (follow-up from DM-247), completed by DM-2459 through the source-owned
+generated-pseudo pipeline. Doc 26 covers `<input>` shadow-DOM pseudos generally;
+this doc focuses on checkable indicator ownership.
+
+**Source pins:** Chromium `7d859f271cbda744098ac69f44978d4edfa62be3`,
+HarfBuzz `4de187dd0a915d13c976fa8bd474c084229f3aab`, and Chromium-pinned
+Skia `62efacd37737505732dbe3d8daa62abd679626a1`.
 
 ## Why now
 
@@ -21,25 +29,64 @@ Before this work, `renderCheckbox` and `renderRadio` always overlaid the UA-defa
 
 ## Capture
 
-`CapturedElement.styles.inputAppearance` carries the input's resolved `appearance` / `-webkit-appearance` longhand. `'none'` is the only value the renderer reacts to — anything else (`'auto'`, `'checkbox'`, etc.) routes through the existing UA-default chrome path.
+`CapturedElement.styles.inputAppearance` carries Blink's resolved
+`appearance`/`-webkit-appearance` value. Before the synchronous DOM walk,
+`src/capture/pseudo-fragment-cdp.ts` pierces the real pseudo tree and captures
+`::checkmark`, `::before`, and `::after` as ordered
+`CapturedPseudoFragmentSet` records. An empty array is an authoritative modern
+observation that the host has no generated pseudo paint; `undefined` alone
+means an older serialized tree that predates this capture contract.
+
+The source boundary is explicit:
+
+- Blink's UA sheet defines the `appearance:base` checkbox/radio indicator on
+  `::checkmark` and hides its unchecked state
+  (`core/html/resources/html.css:719-786`).
+- `Element::AttachPseudoElement` creates `kPseudoIdCheckMark` only for a base
+  checkable input (or the other enumerated checkmark hosts), while the element
+  attachment order places checkmark before `::before`
+  (`core/dom/element.cc:11328-11352`, `core/dom/element.h:2414-2421`).
+- Checkbox and radio input types opt into `appearance:base` only behind the
+  corresponding Blink feature
+  (`core/html/forms/checkbox_input_type.cc:131-136`,
+  `radio_input_type.cc:379-384`). If the feature is unavailable, `base`
+  computes to a native appearance and never activates the source-pseudo route.
+- CDP names the real node `checkmark`; no author-side selector or synthesized
+  host geometry is used to infer it
+  (`core/inspector/inspector_dom_agent.cc:232-245,336-351`).
 
 ## Render
 
-`renderCheckbox` and `renderRadio` early-out when `inputAppearance === 'none'`:
+`checkablePseudoFactsOwnIndicator` activates only for checkbox/radio hosts whose
+resolved appearance is `none` or `base` and whose `pseudoFragments` field is
+authoritative (including `[]`). `renderCheckbox` and `renderRadio` then emit no
+generic tick, dot, or switch thumb. `src/render/pseudo-fragments.ts` paints the
+captured text, box, gradient/image, transform, radius, and selected-font facts
+in Blink order: `::checkmark`, `::before`, host children, then `::after`, with
+the existing positioned/z-index slots where applicable. A uniform solid
+rounded pseudo border uses the retained outer contour and an inset stroke;
+mixed-edge and slice ownership remain per-side.
 
-- **Switch shape detection** (in `renderCheckbox`): aspect ratio `width / height > 1.5` AND `border-radius >= height / 2 - 1` → render a thumb circle, not a checkmark. Thumb is 2 px inset from the host edges, anchored left when unchecked / right when checked. Thumb fill is white (matches the common `::before { background: white }` pattern).
-- **Custom checkbox** (square-ish, no pill radius): only the checkmark indicator is overlaid. Stroke color = host's captured `border-top-color` (which on the `:checked` rule typically swaps to the accent color). The two-segment tick path is the same geometry as the UA path; only the stroke color differs.
-- **Custom radio**: small filled circle at 0.25× host size, fill = `border-top-color`.
+The host's own background and border remain on the normal element path. Native
+`auto`/`checkbox`/`radio` controls do not activate authored-pseudo ownership and
+continue through Chromium native-control capture.
 
-The host's background and border come from the normal element-rendering path (which already paints them at the captured colors / radius), so the renderer only adds the indicator overlay on top — no double-paint.
+## Compatibility boundary
 
-## Edge cases / out of scope
-
-- The fixture's `:indeterminate` styling on `.cbx` (purple bg + horizontal white dash) is not specifically handled in the appearance-none path; it would inherit the standard `:checked` indicator rather than the dash. No fixture exercises this combination yet.
-- Author CSS that places the indicator via `::before { transform: scale(...); clip-path: polygon(...) }` (the canonical 'animate the checkmark in' pattern) is approximated with a fixed two-segment tick. Animations of `::before` are out of scope.
-- The thumb fill is hard-coded to white because the `::before { background: ... }` capture would require the broader pseudo-element capture story (tracked separately). For the current fixture this matches Chrome's painted output.
-- Heuristic-based switch detection can misfire on a wide-but-square-cornered checkbox. The cutoff (`aspect > 1.5` AND `border-radius >= height / 2 - 1`) requires both pill-radius AND landscape aspect, so a bare wide checkbox still falls into the checkmark branch.
+The former fixed tick/dot/pill heuristic remains only for old serialized trees
+where `pseudoFragments` is `undefined`. It is never selected when modern
+capture explicitly reports records or an empty set. Protocol ambiguity follows
+the generated-pseudo fail-closed raster/warning contract in docs 176 and 178;
+it does not revive generic synthesis.
 
 ## Tests
 
-The `06-forms-style-checkbox-radio` html-test fixture is the regression guard. Diff dropped from 0.71% → 0.57% with the visible improvements: indigo checkmarks (was UA blue), green dots (was UA blue), real pill-shaped switches with thumb position based on `:checked` (was overlaid checkmark on a stretched rectangle).
+`tests/checkable-pseudo-indicators.e2e.test.ts` proves exact none/base capture,
+explicit-empty ownership, synthesis suppression, and the native-auto negative.
+`tools/pseudo-fragment-render-oracle.ts` adds checked, unchecked,
+indeterminate, disabled, before/after text and box content, gradients, affine
+transforms, switch, base checkmark, fractional origin, zoom, and DPR 1/2 to the
+independent Chromium-versus-SVG edge gate. The unchanged acceptance radius is
+four **device** pixels. The existing three-OS workflow runs these rows on
+macOS, Linux, and Windows and uploads each platform's own source and rendered
+surfaces.

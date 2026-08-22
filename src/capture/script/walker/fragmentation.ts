@@ -115,6 +115,68 @@ export const detectInlineFragments = (el, cs, vp, captured) => {
             });
           }
           if (_frags.length > 1) {
+            // DM-2365: Blink paints sliced decorations against one imaginary
+            // unfragmented box, then clips that paint back to the physical
+            // fragment. Preserve that box per fragment so the renderer does
+            // not have to infer logical order from viewport placement (which
+            // fails for RTL and vertical writing modes).
+            //
+            // InlineBoxFragmentPainter::PaintRectForImageStrip stitches the
+            // logical inline sizes. OffsetInStitchedFragments stitches the
+            // logical block sizes and maps the consumed block offset back to
+            // a physical axis. getClientRects() exposes those same physical
+            // LayoutUnit fragment sizes in layout order.
+            if (_hasBgImage) {
+              var _writingMode = String(cs.writingMode || 'horizontal-tb').toLowerCase();
+              var _horizontalWriting = _writingMode === 'horizontal-tb';
+              var _logicalSizes = [];
+              var _stitchedSize = 0;
+              for (var _gsi = 0; _gsi < _frags.length; _gsi++) {
+                var _logicalSize = _isInline
+                  ? (_horizontalWriting ? _frags[_gsi].width : _frags[_gsi].height)
+                  : (_horizontalWriting ? _frags[_gsi].height : _frags[_gsi].width);
+                _logicalSizes.push(_logicalSize);
+                _stitchedSize += _logicalSize;
+              }
+              var _consumed = 0;
+              for (var _gfi = 0; _gfi < _frags.length; _gfi++) {
+                var _gf = _frags[_gfi];
+                var _physicalOffsetX = 0;
+                var _physicalOffsetY = 0;
+                if (_isInline) {
+                  // ComputeFragmentOffsetOnLine swaps the physical before/after
+                  // sums for RTL before PaintRectForImageStrip shifts X/Y.
+                  var _inlineOffset = cs.direction === 'rtl'
+                    ? _stitchedSize - _consumed - _logicalSizes[_gfi]
+                    : _consumed;
+                  if (_horizontalWriting) _physicalOffsetX = _inlineOffset;
+                  else _physicalOffsetY = _inlineOffset;
+                } else if (_horizontalWriting) {
+                  _physicalOffsetY = _consumed;
+                } else if (_writingMode === 'vertical-rl' || _writingMode === 'sideways-rl') {
+                  // WritingModeConverter maps logical block-start to the
+                  // physical right edge for *-rl modes.
+                  _physicalOffsetX = _stitchedSize - _consumed - _logicalSizes[_gfi];
+                } else {
+                  _physicalOffsetX = _consumed;
+                }
+                _gf.backgroundOffsetInStitchedBox = {
+                  x: _physicalOffsetX,
+                  y: _physicalOffsetY,
+                };
+                _gf.backgroundPositioningArea = {
+                  x: _gf.x - _physicalOffsetX,
+                  y: _gf.y - _physicalOffsetY,
+                  width: _horizontalWriting
+                    ? (_isInline ? _stitchedSize : _gf.width)
+                    : (_isInline ? _gf.width : _stitchedSize),
+                  height: _horizontalWriting
+                    ? (_isInline ? _gf.height : _stitchedSize)
+                    : (_isInline ? _stitchedSize : _gf.height),
+                };
+                _consumed += _logicalSizes[_gfi];
+              }
+            }
             captured.inlineFragments = _frags;
             // DM-754: stash the fragmentation axis derived from `display`.
             // Inline-wrap (e.g. `<span>` wrapping across line boxes) slices

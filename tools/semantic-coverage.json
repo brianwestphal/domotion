@@ -692,7 +692,8 @@
         "loaded dimensions -> delayed/failed/unreadable natural sizing",
         "bitmap/SVG decoded kind -> explicit unknown fail-closed route",
         "unzoomed/untransformed -> zoomed/transformed",
-        "clone fragment -> sliced stitched fragment"
+        "clone fragment -> sliced stitched fragment",
+        "darwin DPR evidence -> all-platform release evidence"
       ],
       "exactStates": [
         "explicit size -> natural auto/ratio",
@@ -705,10 +706,11 @@
         "padding origin -> independent content origin/padding clip",
         "direct URL -> DPR/type-selected image-set candidate",
         "loaded dimensions -> delayed/failed/unreadable natural sizing",
-        "bitmap/SVG decoded kind -> explicit unknown fail-closed route"
+        "bitmap/SVG decoded kind -> explicit unknown fail-closed route",
+        "clone fragment -> sliced stitched fragment"
       ],
       "uncoveredStates": [
-        "clone fragment -> sliced stitched fragment"
+        "darwin DPR evidence -> all-platform release evidence"
       ],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/css/css_image_set_value.cc",
@@ -717,6 +719,8 @@
         "external/chromium/third_party/blink/renderer/core/style/fill_layer.cc",
         "external/chromium/third_party/blink/renderer/core/paint/background_image_geometry.cc",
         "external/chromium/third_party/blink/renderer/core/paint/box_background_paint_context.cc",
+        "external/chromium/third_party/blink/renderer/core/paint/inline_box_fragment_painter.cc",
+        "external/chromium/third_party/blink/renderer/core/layout/fragmentation_utils.cc",
         "external/chromium/third_party/blink/renderer/platform/graphics/image.cc",
         "external/skia"
       ],
@@ -725,6 +729,7 @@
         "src/capture/index.ts",
         "src/capture/script/walker/borders-backgrounds.ts",
         "src/capture/script/walker/background-attachment.ts",
+        "src/capture/script/walker/fragmentation.ts",
         "src/capture/types.ts",
         "src/render/background-attachment.ts",
         "src/render/image-pattern.ts",
@@ -738,12 +743,15 @@
       ],
       "metamorphicTests": [
         "src/capture/background-image-sizing.test.ts",
+        "src/capture/script/walker/fragmentation-background.test.ts",
         "src/render/image-pattern.test.ts",
         "src/render/background-attachment.test.ts"
       ],
-      "visualFixtures": [],
+      "visualFixtures": [
+        "tests/features.ts#url-background-fragment-slice-continuation"
+      ],
       "coverage": "partial",
-      "boundary": "DM-2477 source-derives candidate selection, decoded image kind, and independent natural-sizing/load facts at the live DPR. DM-2478 resolves exact Blink tile size/destination/phase/spacing in the 1/64 px LayoutUnit domain and expands cyclic longhands. DM-2479 source-derives fixed/local/root positioning inputs. Ordinary URL backgrounds remain vector-composable; only DM-2365 slice continuation remains partial, while DM-2480 adds the all-platform DPR gate.",
+      "boundary": "DM-2477 source-derives candidate selection, decoded image kind, and independent natural-sizing/load facts at the live DPR. DM-2478 resolves exact Blink tile size/destination/phase/spacing in the 1/64 px LayoutUnit domain and expands cyclic longhands. DM-2479 source-derives fixed/local/root positioning inputs. DM-2365 source-derives stitched slice continuation across LTR/RTL/vertical inline and multicol fragments while clone restarts. Ordinary URL backgrounds remain vector-composable; DM-2480 adds the all-platform DPR gate.",
       "featureIds": [
         "render.tree-to-svg"
       ],
@@ -938,7 +946,9 @@
         "bidi visual order",
         "writing mode",
         "inline box edges",
-        "fragmentation"
+        "fragmentation",
+        "checkable generated indicators",
+        "summary disclosure marker geometry"
       ],
       "states": [
         "content none -> generated string",
@@ -952,7 +962,11 @@
         "host text first -> child-first or child-only host",
         "DOMSnapshot fragmentainer-local -> ordered physical content quads",
         "protocol unavailable -> fail-closed ambiguity",
-        "source-owned capture record -> direct renderer paint on macOS/Linux/Windows"
+        "source-owned capture record -> direct renderer paint on macOS/Linux/Windows",
+        "appearance none/base checkable -> before/after/checkmark source ownership",
+        "authoritative empty checkable facts -> no generic indicator",
+        "native auto checkable -> Chromium native ownership",
+        "details closed/open/suppressed -> source-owned disclosure marker"
       ],
       "exactStates": [
         "content none -> generated string",
@@ -966,13 +980,22 @@
         "host text first -> child-first or child-only host",
         "DOMSnapshot fragmentainer-local -> ordered physical content quads",
         "protocol unavailable -> fail-closed ambiguity",
-        "source-owned capture record -> direct renderer paint on macOS/Linux/Windows"
+        "source-owned capture record -> direct renderer paint on macOS/Linux/Windows",
+        "appearance none/base checkable -> before/after/checkmark source ownership",
+        "authoritative empty checkable facts -> no generic indicator",
+        "native auto checkable -> Chromium native ownership",
+        "details closed/open/suppressed -> source-owned disclosure marker"
       ],
       "uncoveredStates": [],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/dom/pseudo_element.cc",
+        "external/chromium/third_party/blink/renderer/core/dom/element.cc",
+        "external/chromium/third_party/blink/renderer/core/html/forms/checkbox_input_type.cc",
+        "external/chromium/third_party/blink/renderer/core/html/forms/radio_input_type.cc",
+        "external/chromium/third_party/blink/renderer/core/html/resources/html.css",
         "external/chromium/third_party/blink/renderer/core/style/content_data.cc",
         "external/chromium/third_party/blink/renderer/core/layout/inline",
+        "external/chromium/third_party/blink/renderer/core/layout/list/list_marker.cc",
         "external/chromium/third_party/blink/renderer/core/paint/text_fragment_painter.cc",
         "external/harfbuzz/src/hb-shape.cc",
         "external/skia/src/core"
@@ -980,11 +1003,14 @@
       "productionOwners": [
         "src/capture/pseudo-fragment-protocol.ts",
         "src/capture/pseudo-fragment-cdp.ts",
+        "src/capture/summary-marker-cdp.ts",
         "src/capture/script/walker/pseudo-content.ts",
         "src/capture/script/walker/pseudo-inject.ts",
         "src/capture/script/index.ts",
         "src/capture/types.ts",
         "src/render/pseudo-fragments.ts",
+        "src/render/list-marker-geometry.ts",
+        "src/render/form-controls.ts",
         "src/render/element-tree-to-svg.ts"
       ],
       "oracles": [
@@ -995,6 +1021,9 @@
         "tests/pseudo-fragment-capture.e2e.test.ts",
         "tools/pseudo-fragment-render-oracle.ts",
         "tests/pseudo-fragment-render-oracle.e2e.test.ts",
+        "tests/checkable-pseudo-indicators.e2e.test.ts",
+        "tests/summary-disclosure-marker.e2e.test.ts",
+        ".github/workflows/summary-disclosure-marker-parity.yml",
         ".github/workflows/pseudo-fragment-render-parity.yml",
         "tools/replaced-geometry-oracle.ts",
         "tests/generated-pseudo-layout-probe.e2e.test.ts"
@@ -1002,16 +1031,19 @@
       "metamorphicTests": [
         "tests/pseudo-fragment-protocol.test.ts",
         "src/render/pseudo-fragments.test.ts",
+        "src/render/form-controls.test.ts",
         "tests/flex-after-pseudo-position.e2e.test.ts",
-        "tests/pseudo-before-marker.e2e.test.ts"
+        "tests/pseudo-before-marker.e2e.test.ts",
+        "src/render/list-marker-geometry.test.ts"
       ],
       "visualFixtures": [
         "tests/features.ts#pseudo-after-badge",
         "tests/features.ts#pseudo-before-marker-child-first-content",
-        "tests/features.ts#pseudo-after-down-caret-vertical-align"
+        "tests/features.ts#pseudo-after-down-caret-vertical-align",
+        "external/html-test/08-details-summary.html",
+        "external/html-test/08-deep-details-accordion.html"
       ],
       "coverage": "exact",
-      "boundary": "",
       "featureIds": [
         "render.text",
         "render.tree-to-svg"

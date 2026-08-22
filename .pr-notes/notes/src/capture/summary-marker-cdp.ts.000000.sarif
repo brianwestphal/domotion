@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4dt97y570xu4b0",
+          "message": {
+            "text": "The marker paint origin must come from Chromium's anonymous DOMSnapshot text row, not the aggregate pseudo content quad. An outside-marker discriminator exposed a six-CSS-pixel separation between those rows; using the text row reproduces PaintSymbol's physical offset while requiring exactly one row keeps ambiguity fail-closed.",
+            "markdown": "The marker paint origin must come from Chromium's anonymous DOMSnapshot text row, not the aggregate pseudo content quad. An outside-marker discriminator exposed a six-CSS-pixel separation between those rows; using the text row reproduces PaintSymbol's physical offset while requiring exactly one row keeps ambiguity fail-closed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/summary-marker-cdp.ts"
+                },
+                "region": {
+                  "startLine": 76,
+                  "endLine": 103,
+                  "snippet": {
+                    "text": "/**\n * PaintSymbol receives the anonymous marker text fragment's physical offset,\n * not the pseudo's aggregate content quad. They coincide for inside markers;\n * an outside marker with a taller principal line box exposes both distinct\n * rows in DOMSnapshot. Select the single source text row and fail closed when\n * Chromium does not provide an unambiguous first-line paint fragment.\n */\nfunction markerPaintFragmentRect(\n  snapshot: SnapshotResult,\n  backendNodeId: number,\n  viewport: { x: number; y: number },\n): { x: number; y: number; width: number; height: number } | null {\n  for (const document of snapshot.documents) {\n    const nodeIndex = document.nodes.backendNodeId?.indexOf(backendNodeId) ?? -1;\n    if (nodeIndex < 0) continue;\n    const rows: number[][] = [];\n    for (let index = 0; index < document.layout.nodeIndex.length; index++) {\n      if (document.layout.nodeIndex[index] !== nodeIndex || document.layout.text[index] < 0) continue;\n      const bounds = document.layout.bounds[index];\n      if (bounds.length !== 4 || !bounds.every(Number.isFinite) || !(bounds[2] > 0 && bounds[3] > 0)) continue;\n      rows.push(bounds);\n    }\n    if (rows.length !== 1) return null;\n    const [x, y, width, height] = rows[0];\n    return { x: x - viewport.x, y: y - viewport.y, width, height };\n  }\n  return null;\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/list-marker-geometry.ts"
+                },
+                "region": {
+                  "startLine": 51
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/summary-disclosure-marker.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 128
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2457"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "fb9729b17d3c26b2eb4a19774668a498"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "1504b92ef04ae10fb8edce48194fe46a201932f0",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

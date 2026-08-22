@@ -79,6 +79,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex Max",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4deomhzczmx281",
+          "message": {
+            "text": "The inset uniform stroke preserves Blink's rounded outer and inner contours. After replacing four square side lines, the Chromium 147 DPR2 gate moved from 11/31 unmatched source/rendered edges to 0/0 at a 3.606-device-pixel maximum under the unchanged four-pixel limit; mixed, dashed, and sliced edges remain on the per-side route.",
+            "markdown": "The inset uniform stroke preserves Blink's rounded outer and inner contours. After replacing four square side lines, the Chromium 147 DPR2 gate moved from 11/31 unmatched source/rendered edges to 0/0 at a 3.606-device-pixel maximum under the unchanged four-pixel limit; mixed, dashed, and sliced edges remain on the per-side route."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/pseudo-fragments.ts"
+                },
+                "region": {
+                  "startLine": 422,
+                  "endLine": 455,
+                  "snippet": {
+                    "text": "function roundedUniformBorder(\n  record: CapturedPseudoFragmentSet,\n  box: PseudoBoxFragment,\n  rect: Rect,\n  radius: number,\n): string | null {\n  if (!(radius > 0)) return null;\n  const sides = [\"top\", \"right\", \"bottom\", \"left\"] as const;\n  if (!sides.every((side) => ownsSide(record, box, side))) return null;\n\n  const widths = sides.map((side) => record.edges.border[side]);\n  const width = widths[0];\n  if (!(width > 0) || !widths.every((candidate) => Math.abs(candidate - width) <= 1e-6)) return null;\n\n  const paint = record.paint;\n  const colors = [paint.borderTopColor, paint.borderRightColor, paint.borderBottomColor, paint.borderLeftColor];\n  const styles = [paint.borderTopStyle, paint.borderRightStyle, paint.borderBottomStyle, paint.borderLeftStyle];\n  const color = colors[0];\n  // A single inset SVG stroke has the same outer/inner circular contours as\n  // Blink's uniform solid rounded border. Mixed edges and dash phase retain\n  // the explicit per-side path below.\n  if (!opaque(color) || !colors.every((candidate) => candidate === color) || !styles.every((candidate) => candidate === \"solid\")) return null;\n\n  const inset = width / 2;\n  const strokeWidth = Math.max(0, rect.width - width);\n  const strokeHeight = Math.max(0, rect.height - width);\n  if (!(strokeWidth > 0) || !(strokeHeight > 0)) return \"\";\n  return `<rect x=\"${r(rect.x + inset)}\" y=\"${r(rect.y + inset)}\" width=\"${r(strokeWidth)}\" height=\"${r(strokeHeight)}\" rx=\"${r(Math.max(0, radius - inset))}\" ry=\"${r(Math.max(0, radius - inset))}\" fill=\"none\" stroke=\"${esc(color)}\" stroke-width=\"${r(width)}\"/>`;\n}\n\nfunction renderBox(\n  record: CapturedPseudoFragmentSet,\n  box: PseudoBoxFragment,\n  boxMatrix: Affine,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/pseudo-fragment-render-oracle.ts"
+                },
+                "region": {
+                  "startLine": 187
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2459"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "6a54c1769b78b2a34fca9d1cc607a7e9"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "1504b92ef04ae10fb8edce48194fe46a201932f0",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

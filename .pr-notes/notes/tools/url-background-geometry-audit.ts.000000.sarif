@@ -79,6 +79,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4dghd731pwty0h",
+          "message": {
+            "text": "The independent live-Chromium oracle passes 26/26 at DPR 1 and 26/26 at DPR 2 after suppressing unrelated atomic text surfaces. It requires a vector pattern per physical fragment and structured stitched facts; forced physical-fragment restart mutations visibly drift, while viewport-fixed rows correctly bypass the strip.",
+            "markdown": "The independent live-Chromium oracle passes 26/26 at DPR 1 and 26/26 at DPR 2 after suppressing unrelated atomic text surfaces. It requires a vector pattern per physical fragment and structured stitched facts; forced physical-fragment restart mutations visibly drift, while viewport-fixed rows correctly bypass the strip."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/url-background-geometry-audit.ts"
+                },
+                "region": {
+                  "startLine": 610,
+                  "endLine": 705,
+                  "snippet": {
+                    "text": "    // when every independent marker edge remains within one device pixel;\n    // the bounded label fraction covers only those differently filtered edge\n    // pixels and is not used for bitmap or unscaled positive controls.\n    return comparison.labelMismatchFraction <= MAX_GEOMETRY_LABEL_MISMATCH\n      && comparison.maxColorBoundDelta != null\n      && comparison.maxColorBoundDelta <= MAX_GEOMETRY_BOUND_DELTA;\n  }\n  return comparison.labelMismatchFraction >= MIN_GAP_LABEL_MISMATCH\n    || comparison.maxColorBoundDelta == null\n    || comparison.maxColorBoundDelta >= MIN_GAP_BOUND_DELTA;\n}\n\nexport async function runUrlBackgroundGeometryAudit(deviceScaleFactor = 1): Promise<{\n  sourceRevisions: typeof SOURCE_REVISIONS;\n  chromiumVersion: string;\n  playwrightVersion: string;\n  platform: NodeJS.Platform;\n  architecture: string;\n  deviceScaleFactor: number;\n  thresholds: Record<string, number>;\n  rows: AuditRow[];\n  controls: Record<string, boolean>;\n  verdict: string;\n}> {\n  process.env.DOMOTION_HELPER_NO_SERVE = \"1\";\n  process.env.DOMOTION_GENERIC_PROBE = \"0\";\n  const [{ captureElementTreeWithWarnings }, { elementTreeToSvg }] = await Promise.all([\n    import(\"../src/capture/index.js\"),\n    import(\"../src/render/element-tree-to-svg.js\"),\n  ]);\n  const require = createRequire(import.meta.url);\n  const playwrightVersion = (require(\"playwright/package.json\") as { version: string }).version;\n  const browser = await chromium.launch({ headless: true });\n  try {\n    const page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor });\n    const generatedPage = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor });\n    const rows: AuditRow[] = [];\n    for (const test of CASES) {\n      await page.setContent(htmlFor(test), { waitUntil: \"load\" });\n      await mutate(page, test.mutation);\n      const source = await readPaintFacts(page);\n      const sourcePng = await page.screenshot({ type: \"png\" });\n      const { tree, warnings } = await captureElementTreeWithWarnings(page, \"#scene\", { x: 0, y: 0, ...VIEWPORT });\n      const captured = findCapturedTarget(tree);\n      // This oracle adjudicates the vector URL-background route itself. A\n      // source-owned text fallback may atomically raster the same fragmented\n      // element when unrelated protocol text facts are unavailable; suppress\n      // that outer surface here so it cannot make a missing vector pattern\n      // appear pixel-perfect by replaying Chromium's source screenshot.\n      suppressAtomicRasterSurfaces(tree);\n      const svg = elementTreeToSvg(tree, VIEWPORT.width, VIEWPORT.height, { hiDPIFactor: deviceScaleFactor });\n      await generatedPage.setContent(\n        `<!doctype html><style>html,body{margin:0;width:${VIEWPORT.width}px;height:${VIEWPORT.height}px;background:#fff;overflow:hidden}svg{display:block}</style>${svg}`,\n        { waitUntil: \"load\" },\n      );\n      await generatedPage.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));\n      const generatedPng = await generatedPage.screenshot({ type: \"png\" });\n      const comparison = await comparePaint(\n        sourcePng,\n        generatedPng,\n        test.imageCss == null ? [1, 2, 3, 4] : [5, 6, 7, 8],\n      );\n      let restartMutation: AuditRow[\"restartMutation\"];\n      const fixedToViewport = source.backgroundAttachment === \"fixed\"\n        && captured?.styles.backgroundAttachmentGeometry?.fixedToViewport === true;\n      if (source.boxDecorationBreak === \"slice\" && !fixedToViewport\n          && captured?.inlineFragments != null) {\n        const savedGeometry = captured.inlineFragments.map((fragment) => ({\n          area: fragment.backgroundPositioningArea,\n          offset: fragment.backgroundOffsetInStitchedBox,\n        }));\n        for (const fragment of captured.inlineFragments) {\n          // Held-out negative: replace Blink's stitched imaginary box with\n          // the clone route's physical fragment box. A real continuation row\n          // must visibly reject this restart without relying on source labels.\n          fragment.backgroundPositioningArea = {\n            x: fragment.x,\n            y: fragment.y,\n            width: fragment.width,\n            height: fragment.height,\n          };\n          fragment.backgroundOffsetInStitchedBox = { x: 0, y: 0 };\n        }\n        const mutatedSvg = elementTreeToSvg(tree, VIEWPORT.width, VIEWPORT.height, { hiDPIFactor: deviceScaleFactor });\n        await generatedPage.setContent(\n          `<!doctype html><style>html,body{margin:0;width:${VIEWPORT.width}px;height:${VIEWPORT.height}px;background:#fff;overflow:hidden}svg{display:block}</style>${mutatedSvg}`,\n          { waitUntil: \"load\" },\n        );\n        await generatedPage.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));\n        const mutatedPng = await generatedPage.screenshot({ type: \"png\" });\n        const mutatedComparison = await comparePaint(\n          sourcePng,\n          mutatedPng,\n          test.imageCss == null ? [1, 2, 3, 4] : [5, 6, 7, 8],\n        );\n        restartMutation = {"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/background-image-geometry.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 3816
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2365"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "bf9b427529257bb050b82264e6424935"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "1504b92ef04ae10fb8edce48194fe46a201932f0",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

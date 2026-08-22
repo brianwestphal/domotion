@@ -402,9 +402,7 @@ export function renderFormControl(el: CapturedElement, indent: string, defCtx?: 
   if (tag === "select" && el.styles.selectDisplayText != null) return renderSelectChevron(el, indent, defCtx);
   if (tag === "select" && el.styles.selectListboxOptions != null) return renderListbox(el, indent);
   if (tag === "details") {
-    const box = renderDetailsContentBox(el, indent);
-    const marker = renderDetailsMarker(el, indent);
-    return [box, marker].filter((s) => s !== "").join("\n");
+    return renderDetailsContentBox(el, indent);
   }
   return "";
 }
@@ -451,7 +449,22 @@ function renderInputControl(el: CapturedElement, indent: string, defCtx?: DefCtx
   return "";
 }
 
+/**
+ * Modern capture explicitly records the generated-pseudo ownership decision,
+ * including an empty array when no indicator paints.  For structural
+ * appearance:none/base checkables that fact is authoritative: ::before,
+ * ::after, or ::checkmark paints through the pseudo pipeline, and the generic
+ * host-geometry approximation must not be layered on top.  Undefined remains
+ * the old-tree compatibility boundary.
+ */
+export function checkablePseudoFactsOwnIndicator(el: CapturedElement): boolean {
+  const appearance = el.styles.effectiveAppearance ?? el.styles.inputAppearance;
+  return (appearance === "none" || appearance === "base")
+    && Array.isArray(el.pseudoFragments);
+}
+
 function renderCheckbox(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
+  if (checkablePseudoFactsOwnIndicator(el)) return "";
   // appearance: none → author has opted out of UA chrome. The host's normal
   // element-rendering path already painted its bg + border with the captured
   // styles; we just overlay the :checked indicator. Switch-shape (wide,
@@ -524,6 +537,7 @@ function renderCustomCheckboxOrSwitch(el: CapturedElement, indent: string): stri
 }
 
 function renderRadio(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
+  if (checkablePseudoFactsOwnIndicator(el)) return "";
   // appearance: none → host rect already painted with author bg/border;
   // overlay only the :checked dot in the captured border color. DM-285.
   if (el.styles.inputAppearance === "none") {
@@ -1535,83 +1549,4 @@ function renderSelectChevron(el: CapturedElement, indent: string, defCtx?: DefCt
     parts.push(`${indent}<polyline points="${p(-0.35, -0.18)} ${p(0, 0.18)} ${p(0.35, -0.18)}" fill="none" stroke="${palette.trackFg}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />`);
   }
   return parts.join("\n");
-}
-
-function renderDetailsMarker(el: CapturedElement, indent: string): string {
-  // When author CSS hides the UA disclosure marker (::marker { color:
-  // transparent } or ::-webkit-details-marker { color: transparent }),
-  // skip painting — the author has supplied a replacement (typically a
-  // ::before pseudo) and stacking our triangle on top double-paints. DM-448.
-  if (el.styles.summaryMarkerSuppressed === true) return "";
-  // Chrome's UA stylesheet for `<details><summary>` paints a disclosure
-  // triangle to the LEFT of the summary's first text line. Empirical
-  // probe (DM-370): triangle size scales roughly with font-size at
-  // ~0.6em per side, painted in the summary's text color (NOT the
-  // greyed-out TRACK_FG we used previously — that left a barely-visible
-  // ghost where Chrome paints a clean black caret). Closed state uses
-  // the right-pointing triangle ▶ (U+25B6); open state uses the
-  // down-pointing triangle ▼ (U+25BC).
-  const fontSizePx = parseFloat(el.styles.fontSize ?? "") || 14;
-  // Chrome's UA disclosure triangle is rendered via the ▶ / ▼ glyphs in the
-  // summary's font at the summary's font-size. Glyph advance is ~0.7em for
-  // U+25B6 / U+25BC in the system sans fonts (DM-448 follow-up). The
-  // previous 0.6em multiplier produced a triangle that read visibly small
-  // vs Chrome's painted output.
-  // DM-1123: when the author styled the `::marker` font-size
-  // (`summary::marker { font-size: 14px }`), the triangle scales with the
-  // marker's size, not the summary's. Falls back to the summary font-size
-  // (the marker inherits it) for unstyled markers, so plain summaries are
-  // byte-identical to before.
-  const markerPx = el.styles.summaryMarkerFontSize ?? fontSizePx;
-  const size = Math.max(8, markerPx * 0.7);
-  // DM-746: prefer the captured <summary> child's actual y / height when
-  // available — that's the line box Chrome paints the marker into. The
-  // previous fallback computed `cy` from `el.y + paddingT + borderT +
-  // lineH/2` with `lineH = parseFloat(lineHeight) || fontSize*1.5`, which
-  // overshoots by ~3 px when lineHeight is "normal" (Chrome's "normal"
-  // resolves to ~1.15× fontSize via the font's intrinsic ascent+descent
-  // +linegap, not the 1.5× literal). The drift was visible as a downward
-  // shift of the disclosure triangle on `niche-command-invokers`.
-  const summaryChild = el.children?.find((c) => c.tag === "summary");
-  const padL = parseFloat(el.styles.paddingLeft ?? "") || 0;
-  const brL = parseFloat(el.styles.borderLeftWidth ?? "") || 0;
-  const padT = parseFloat(el.styles.paddingTop ?? "") || 0;
-  const brT = parseFloat(el.styles.borderTopWidth ?? "") || 0;
-  // Position: marker sits inside the summary at its content-start, which
-  // is el.x + paddingL + borderL. Offset by half the marker size so the
-  // glyph's center sits ~half-marker-width past the summary's left edge,
-  // matching Chrome's painted offset (DM-448).
-  // DM-1123: for `list-style-position: inside` (the UA default for
-  // `<summary>`) the marker is the first inline box INSIDE the summary's
-  // padding box, so it starts after the summary's own `padding-left`. The
-  // `.with-marker` fixture sets `summary { padding-left: 24px }`, which shifted
-  // Chrome's triangle ~24px right of where the legacy border-box-left placement
-  // painted it. Plain summaries have no padding, so this reduces to the prior
-  // position (no regression).
-  const summaryPadL = el.styles.summaryMarkerInside === true && summaryChild != null
-    ? (parseFloat(summaryChild.styles.paddingLeft ?? "") || 0)
-    : 0;
-  const cx = (summaryChild != null ? summaryChild.x : el.x + padL + brL) + summaryPadL + size / 2;
-  // Vertical center: the summary is the first child of <details>; use its
-  // captured line-box center when available. Fallback computes from the
-  // details' padding/border + a corrected line-height ratio.
-  const cy = summaryChild != null
-    ? summaryChild.y + summaryChild.height / 2
-    : el.y + padT + brT + (parseFloat(el.styles.lineHeight ?? "") || fontSizePx * 1.15) / 2;
-  const open = el.styles.detailsOpen === true;
-  // DM-1123: paint in the computed `::marker` color when captured (Chrome paints
-  // the triangle in the marker color, e.g. `summary::marker { color: #6d28d9 }`
-  // → purple). For an unstyled marker the captured color equals the summary's
-  // text color (the marker inherits it), so this also covers the plain case;
-  // fall back to the summary text color / dark gray for pre-DM-1123 captures.
-  const fill = (el.styles.summaryMarkerColor != null && el.styles.summaryMarkerColor !== "")
-    ? el.styles.summaryMarkerColor
-    : (el.styles.color != null && el.styles.color !== "")
-      ? el.styles.color : "rgb(0,0,0)";
-  const half = size / 2;
-  // Right-pointing (closed): ▶ — apex at right. Down-pointing (open): ▼ — apex at bottom.
-  const p = open
-    ? `${r(cx - half)},${r(cy - half * 0.6)} ${r(cx + half)},${r(cy - half * 0.6)} ${r(cx)},${r(cy + half * 0.7)}`
-    : `${r(cx - half * 0.7)},${r(cy - half)} ${r(cx + half * 0.6)},${r(cy)} ${r(cx - half * 0.7)},${r(cy + half)}`;
-  return `${indent}<polygon points="${p}" fill="${fill}" />`;
 }

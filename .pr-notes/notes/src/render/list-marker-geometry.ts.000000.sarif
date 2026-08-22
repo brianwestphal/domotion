@@ -90,6 +90,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4dt980pub07djj",
+          "message": {
+            "text": "These orientation branches transcribe TextFragmentPainter's physical left/right/up/down disclosure point tables. The live sideways-rl open row specifically requires the left table; treating sideways-rl like horizontal writing moved a DPR-2 edge by four device pixels.",
+            "markdown": "These orientation branches transcribe TextFragmentPainter's physical left/right/up/down disclosure point tables. The live sideways-rl open row specifically requires the left table; treating sideways-rl like horizontal writing moved a DPR-2 edge by four device pixels."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/list-marker-geometry.ts"
+                },
+                "region": {
+                  "startLine": 94,
+                  "endLine": 114,
+                  "snippet": {
+                    "text": "export function disclosureTriangle(\n  rect: { x: number; y: number; width: number; height: number },\n  type: \"disclosure-open\" | \"disclosure-closed\",\n  writingMode: string,\n  direction: string,\n): string {\n  let points: Array<[number, number]>;\n  if (type === \"disclosure-open\") {\n    if (writingMode === \"vertical-rl\" || writingMode === \"sideways-rl\") points = [[1, 0], [0.14, 0.5], [1, 1]];\n    else if (writingMode === \"vertical-lr\" || writingMode === \"sideways-lr\") points = [[0, 0], [0.86, 0.5], [0, 1]];\n    else points = [[0, 0.07], [0.5, 0.93], [1, 0.07]];\n  } else if (writingMode === \"sideways-lr\") {\n    points = [[0, 0.93], [0.5, 0.07], [1, 0.93]];\n  } else if (writingMode.startsWith(\"vertical\") || writingMode === \"sideways-rl\") {\n    points = [[0, 0.07], [0.5, 0.93], [1, 0.07]];\n  } else if (direction === \"rtl\") {\n    points = [[1, 0], [0.14, 0.5], [1, 1]];\n  } else {\n    points = [[0, 0], [0.86, 0.5], [0, 1]];\n  }\n  return points.map(([x, y]) => `${rect.x + x * rect.width},${rect.y + y * rect.height}`).join(\" \");"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/paint/text_fragment_painter.cc"
+                },
+                "region": {
+                  "startLine": 226
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/summary-disclosure-marker.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 164
+                }
+              }
+            }
+          ],
+          "rank": 93,
+          "workItemUris": [
+            "DM-2457"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "9bbfe89c2bdaa1fe285dff10b0fb7ae9"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "1504b92ef04ae10fb8edce48194fe46a201932f0",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

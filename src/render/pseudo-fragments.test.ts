@@ -3,12 +3,13 @@ import { describe, expect, it } from "vitest";
 import type { CapturedElement, CapturedPseudoFragmentSet } from "../capture/types.js";
 import {
   pseudoFragmentPaintSlot,
+  pseudoFragmentIsUnpainted,
   pseudoFragmentRecordErrors,
   renderPseudoFragmentRecord,
   renderPseudoFragmentSlot,
 } from "./pseudo-fragments.js";
 
-function record(pseudo: "::before" | "::after" = "::before"): CapturedPseudoFragmentSet {
+function record(pseudo: "::checkmark" | "::before" | "::after" = "::before"): CapturedPseudoFragmentSet {
   return {
     source: "blink-pseudo-fragment-v1",
     pseudo,
@@ -119,8 +120,10 @@ describe("DM-2468 direct generated-pseudo paint", () => {
   });
 
   it("honors source slots and never merges ::after into host-first paint", () => {
+    const checkmark = record("::checkmark");
     const before = record("::before");
     const after = record("::after");
+    expect(pseudoFragmentPaintSlot(checkmark)).toBe("before");
     expect(pseudoFragmentPaintSlot(before)).toBe("before");
     expect(pseudoFragmentPaintSlot(after)).toBe("after");
     after.paint.position = "absolute";
@@ -163,6 +166,19 @@ describe("DM-2468 direct generated-pseudo paint", () => {
     expect(markup.indexOf('aria-label="Hi"')).toBeLessThan(markup.indexOf("<image"));
   });
 
+  it("preserves Blink's rounded contour for a uniform source-owned border", () => {
+    const source = record();
+    source.edges.border = { top: 2, right: 2, bottom: 2, left: 2 };
+    source.paint.borderTopColor = "rgb(9, 8, 7)";
+    source.paint.borderRightColor = "rgb(9, 8, 7)";
+    source.paint.borderBottomColor = "rgb(9, 8, 7)";
+    source.paint.borderLeftColor = "rgb(9, 8, 7)";
+    source.paint.borderRadius = "10px";
+    const markup = renderPseudoFragmentRecord(source);
+    expect(markup).toContain('<rect x="1" y="1" width="38" height="18" rx="9" ry="9" fill="none" stroke="rgb(9, 8, 7)" stroke-width="2"/>');
+    expect(markup).not.toContain("<line");
+  });
+
   it("does not paint hidden/transparent records and stamps terminal rasters once", () => {
     const hidden = record();
     hidden.paint.visibility = "hidden";
@@ -170,6 +186,15 @@ describe("DM-2468 direct generated-pseudo paint", () => {
     const transparent = record();
     transparent.paint.opacity = 0;
     expect(renderPseudoFragmentRecord(transparent)).toBe("");
+    const scaledOut = record();
+    scaledOut.paint.transform = "matrix(0, 0, 0, 0, 0, 0)";
+    scaledOut.boxFragments[0].physicalQuad = [
+      { x: 100, y: 50 }, { x: 100, y: 50 },
+      { x: 100, y: 50 }, { x: 100, y: 50 },
+    ];
+    expect(pseudoFragmentIsUnpainted(scaledOut)).toBe(true);
+    expect(pseudoFragmentRecordErrors(scaledOut)).toEqual([]);
+    expect(renderPseudoFragmentRecord(scaledOut)).toBe("");
     const terminal = record();
     terminal.status = "terminal-raster";
     terminal.fragments = [];

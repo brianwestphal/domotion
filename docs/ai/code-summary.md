@@ -278,6 +278,11 @@ shortest possible map:
   Chromium and final-SVG edges at a fixed four-device-pixel bound for DPR 1/2,
   while `.github/workflows/pseudo-fragment-render-parity.yml` runs native
   macOS/Linux/Windows reports and uploads both surfaces (doc 178).
+  DM-2459 includes Blink's real `::checkmark` node in that record protocol and
+  routes `appearance:none`/`base` checkbox and radio indicators through it.
+  `src/render/form-controls.ts` suppresses generic tick/dot/switch synthesis
+  whenever the modern record array is present, including authoritative empty;
+  only old trees with an undefined field retain compatibility synthesis.
   Dynamic replaced surfaces have a focused transform-space gate in
   `tests/replaced-snapshot-transform.e2e.test.ts`: Chromium-vs-SVG ink bounds
   for off-page/nested affine + zoom/scroll/DPR, transform-then-scrolled-ancestor-clip
@@ -538,15 +543,28 @@ shortest possible map:
   ownership, HTML root markers, a raster below `svgContent`, and property-only
   routing. `.github/workflows/inline-svg-3d-parity.yml` enforces the gate on
   macOS/Linux/Windows and always uploads a fingerprinted native report.
-- **Source-owned URL background geometry (DM-2370/2477/2478/2479)** —
+- **Source-owned summary disclosure paint (DM-2457, doc 180)** —
+  `src/capture/summary-marker-cdp.ts` joins a pierced Chromium `::marker` node
+  with its single DOMSnapshot marker paint row, then threads an exact
+  `summaryMarkerGeometry` record into the generic marker pipeline.
+  `src/render/list-marker-geometry.ts` owns Blink's `0.66em` square,
+  font-ascent offset, line-writing conversion, and physical point table;
+  `src/render/form-controls.ts` no longer synthesizes a triangle from details
+  child boxes. `tests/summary-disclosure-marker.e2e.test.ts` compares 15 live
+  positive rows plus suppression/replacement controls at DPR 1/2, while
+  `.github/workflows/summary-disclosure-marker-parity.yml` repeats the gate on
+  macOS/Linux/Windows. The `sideways-lr` row documents the legitimate
+  higher-level affine-text raster owner instead of adding a duplicate polygon.
+- **Source-owned URL background geometry (DM-2370/2477/2478/2479/2365)** —
   `tools/url-background-geometry-audit.ts`
   (`npm run background:url-geometry-audit`) paints a deterministic decoded
   color tile in live Chromium and through the actual capture→generated-SVG
   path, then compares classified marker pixels and per-color device-pixel
-  bounds. Its 21 rows now pass at DPR 1 and DPR 2 for natural-ratio,
+  bounds. Its 26 rows now pass at DPR 1 and DPR 2 for natural-ratio,
   calc, contain/cover, round/space, fixed/local, zoom, transformed phase,
-  cyclic lists, and clone fragments; only the explicitly discriminated
-  DM-2365 slice-fragment rows remain gaps. Pinned Blink proves natural sizing plus
+  cyclic lists, clone fragments, and stitched LTR/RTL/vertical inline and
+  multicol slices. Restart mutations prove slice does not collapse to clone.
+  Pinned Blink proves natural sizing plus
   snapped/unsnapped destination/phase/spacing are owned by
   `BackgroundImageGeometry` before Skia consumes the image matrix; ordinary
   URL backgrounds remain vector-composable. The async
@@ -568,8 +586,11 @@ shortest possible map:
   live Chromium oracle are exact at DPR 1/2 and cover mutation, zoom, affine,
   borders/padding, both axes, inert/perspective controls, and root stitching.
   [Doc 163](../163-url-background-image-geometry-audit.md) owns the exact
-  boundary. Existing DM-2365 finishes slice-fragment continuation; DM-2480
-  then promotes the fingerprinted DPR oracle to all platforms.
+  boundary. `fragmentation.ts` serializes each physical fragment's stitched
+  positioning area/offset and `paintInlineFragment` clips that virtual strip
+  after origin/clip/attachment selection; fixed viewport layers use the
+  physical clip and clone always restarts. DM-2480 promotes the fingerprinted
+  DPR oracle to all platforms.
 - **Native scrollbar ownership and capture (DM-2368 / DM-2481)** —
   `tools/native-scrollbar-ownership-audit.ts`
   (`npm run scrollbars:ownership-audit`) disables Playwright's normally

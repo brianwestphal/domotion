@@ -26,6 +26,7 @@ import { finalizeScrollbarResizerOverlap, prepareCapturedScrollbarSets } from ".
 import { ensureSessionGenericFamilyOverrides } from "./generic-font-probe.js";
 import { primeBackgroundImageSizing } from "./background-image-sizing.js";
 import { captureBrokenImageFallbackFacts } from "./broken-image-fallback.js";
+import { captureSummaryMarkerGeometry } from "./summary-marker-cdp.js";
 import { prepareTextPaintGeometry } from "./text-paint-geometry-cdp.js";
 import { preparePseudoFragmentGeometry } from "./pseudo-fragment-cdp.js";
 import { clipRectForScreenshot } from "./clip-rect.js";
@@ -1651,6 +1652,7 @@ export async function captureElementTreeWithWarnings(
       warnings,
       projectiveProbe?.key,
     );
+    await captureSummaryMarkerGeometry(page, typed.tree, viewport, warnings, projectiveProbe?.key);
     await rasterizeProjectiveSurfaces(page, typed.tree, viewport, projectiveProbe?.key);
   } finally {
     await pseudoStyles?.dispose();

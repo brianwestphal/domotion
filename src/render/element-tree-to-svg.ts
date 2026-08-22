@@ -62,7 +62,7 @@ import {
 import { cssTransformToSvg } from "./transforms.js";
 import { parseCssUrl, splitTopLevelCommas } from "./css-tokens.js";
 import { buildLinearGradientDef as buildExactLinearGradientDef, parseLegacyWebkitLinearGradient } from "./gradients.js";
-import { blinkSymbolMarkerGeometry, disclosureTriangle, pixelSnapRect, type SymbolMarkerType } from "./list-marker-geometry.js";
+import { blinkPhysicalSymbolMarkerRect, blinkSymbolMarkerGeometry, disclosureTriangle, pixelSnapRect, type SymbolMarkerType } from "./list-marker-geometry.js";
 import type { CapturedBackgroundImage, CapturedElement, TextSegment, MaskFragmentDef, MaskRasterRef, ClipPathFragmentDef, CaptureWarning } from "../capture/types.js";
 import {
   _dataUriCache,
@@ -82,7 +82,7 @@ import { blinkPlatformResizerStrokes } from "./resize-handle.js";
 import { wrapPseudoPaintEffects } from "./pseudo-filter.js";
 import { paintCustomScrollbars, type CustomScrollbarVectorPart } from "./custom-scrollbar.js";
 import { paintNativeScrollbarRasters } from "./native-scrollbar-raster.js";
-import { resolveBackgroundAttachment } from "./background-attachment.js";
+import { intersectBackgroundRects, resolveBackgroundAttachment } from "./background-attachment.js";
 import { renderBrokenImageFallback } from "./broken-image-fallback.js";
 import {
   buildEmittedTextCtmMap,
@@ -647,7 +647,8 @@ function paintSyntheticListMarker(
   // Author CSS can override the markers color / font-weight / font-size
   // via the ::marker pseudo (SK-1115). Use those when present, falling
   // back to the lis own text color and font-size when not set.
-  const markerStyleColor = el.markerColor != null ? parseColor(el.markerColor) : null;
+  const markerColorSource = el.summaryMarkerGeometry?.color ?? el.markerColor;
+  const markerStyleColor = markerColorSource != null ? parseColor(markerColorSource) : null;
   const markerColor = markerStyleColor != null && markerStyleColor.a > 0.01
     ? colorStr(markerStyleColor)
     : (textColor != null ? colorStr(textColor) : "rgb(0,0,0)");
@@ -754,22 +755,43 @@ function paintSyntheticListMarker(
     const markerBoxX = outside
       ? contentEdge - geometry.outsideEndMargin - geometry.markerInlineSize
       : contentEdge + 1; // InlineMarginsForInside: margin_start = -1.
-    const snapped = pixelSnapRect(
-      markerBoxX + geometry.inlineOffset,
-      firstLineTop + geometry.blockOffset,
-      geometry.inlineSize,
-      geometry.blockSize,
-    );
-    const mx = snapped.x + snapped.width / 2;
-    const markerY = snapped.y + snapped.height / 2;
+    const sourceRect = el.tag === "summary" && el.summaryMarkerGeometry != null
+      ? blinkPhysicalSymbolMarkerRect(
+          el.summaryMarkerGeometry.fragmentRect,
+          el.summaryMarkerGeometry.fontAscent,
+          el.summaryMarkerGeometry.specifiedFontSize,
+          el.summaryMarkerGeometry.effectiveZoom,
+          lsType as SymbolMarkerType,
+          el.summaryMarkerGeometry.writingMode,
+        )
+      : {
+          x: markerBoxX + geometry.inlineOffset,
+          y: firstLineTop + geometry.blockOffset,
+          width: geometry.inlineSize,
+          height: geometry.blockSize,
+        };
+    // TextFragmentPainter computes a snapped rect for disc/circle/square, but
+    // disclosure paths intentionally consume the LayoutUnit marker rect
+    // directly. Keeping the fractional path is observable at DPR 2 and avoids
+    // moving one antialiased edge by a device pixel.
+    const paintRect = lsType === "disclosure-open" || lsType === "disclosure-closed"
+      ? sourceRect
+      : pixelSnapRect(sourceRect.x, sourceRect.y, sourceRect.width, sourceRect.height);
+    const mx = paintRect.x + paintRect.width / 2;
+    const markerY = paintRect.y + paintRect.height / 2;
     if (lsType === "disc") {
-      out.push(`${indent}<ellipse cx="${r(mx)}" cy="${r(markerY)}" rx="${r(snapped.width / 2)}" ry="${r(snapped.height / 2)}" fill="${markerColor}" />`);
+      out.push(`${indent}<ellipse cx="${r(mx)}" cy="${r(markerY)}" rx="${r(paintRect.width / 2)}" ry="${r(paintRect.height / 2)}" fill="${markerColor}" />`);
     } else if (lsType === "circle") {
-      out.push(`${indent}<ellipse cx="${r(mx)}" cy="${r(markerY)}" rx="${r(snapped.width / 2)}" ry="${r(snapped.height / 2)}" fill="none" stroke="${markerColor}" stroke-width="1" />`);
+      out.push(`${indent}<ellipse cx="${r(mx)}" cy="${r(markerY)}" rx="${r(paintRect.width / 2)}" ry="${r(paintRect.height / 2)}" fill="none" stroke="${markerColor}" stroke-width="1" />`);
     } else if (lsType === "square") {
-      out.push(`${indent}<rect x="${r(snapped.x)}" y="${r(snapped.y)}" width="${r(snapped.width)}" height="${r(snapped.height)}" fill="${markerColor}" />`);
+      out.push(`${indent}<rect x="${r(paintRect.x)}" y="${r(paintRect.y)}" width="${r(paintRect.width)}" height="${r(paintRect.height)}" fill="${markerColor}" />`);
     } else {
-      const points = disclosureTriangle(snapped, lsType, el.styles.writingMode ?? "horizontal-tb", el.styles.direction ?? "ltr");
+      const points = disclosureTriangle(
+        paintRect,
+        lsType,
+        el.summaryMarkerGeometry?.writingMode ?? el.styles.writingMode ?? "horizontal-tb",
+        el.summaryMarkerGeometry?.direction ?? el.styles.direction ?? "ltr",
+      );
       out.push(`${indent}<polygon points="${points}" fill="${markerColor}" />`);
     }
   } else {
@@ -801,15 +823,15 @@ function paintListMarker(
   indent: string,
 ): string[] {
   const out: string[] = [];
-    const isListItem = el.tag !== "summary"
-      && el.styles.display != null
-      && el.styles.display.includes("list-item");
+    const isListItem = el.styles.display != null
+      && el.styles.display.includes("list-item")
+      && (el.tag !== "summary" || el.summaryMarkerGeometry?.source === "blink-list-marker-v1");
     if (isListItem) {
       const lsImage = el.styles.listStyleImage;
-      const lsType = el.styles.listStyleType ?? "disc";
+      const lsType = el.summaryMarkerGeometry?.listStyleType ?? el.styles.listStyleType ?? "disc";
       const fontSizePx = parseFloat(el.styles.fontSize) || 14;
       const lineHeightPx = parseFloat(el.styles.lineHeight) || fontSizePx * 1.2;
-      const outside = el.styles.listStylePosition !== "inside";
+      const outside = (el.summaryMarkerGeometry?.listStylePosition ?? el.styles.listStylePosition) !== "inside";
       if (lsImage != null && lsImage !== "none") {
         const urlMatch = /^url\((?:"|')?([^"')]+)(?:"|')?\)$/i.exec(lsImage);
         if (urlMatch != null) {
@@ -3711,6 +3733,7 @@ function deriveFragmentCorners(
 /** Per-element invariants a wrapped-inline / multi-column block needs to paint
  *  each of its fragments (extracted from `renderInlineFragments`, DM-1458). */
 interface InlineFragmentCtx {
+  element: CapturedElement;
   clone: boolean;
   fragsAxisIsBlock: boolean;
   hasBgImage: boolean;
@@ -3725,6 +3748,8 @@ interface InlineFragmentCtx {
   bgPosLayers: string[];
   bgRepeatLayers: string[];
   bgClipLayers: string[];
+  bgOriginLayers: string[];
+  bgBlendLayers: string[];
   bgSelectedImageLayers: Array<CapturedBackgroundImage | null>;
   bgIntrinsicLayers: Array<{ w: number; h: number } | null>;
   bgAttachmentLayers: string[];
@@ -3737,7 +3762,7 @@ interface InlineFragmentCtx {
 function paintInlineFragment(
   state: RenderState,
   indent: string,
-  f: { x: number; y: number; width: number; height: number },
+  f: NonNullable<CapturedElement["inlineFragments"]>[number],
   fragCorners: CornerRadii,
   isFirst: boolean,
   isLast: boolean,
@@ -3745,9 +3770,10 @@ function paintInlineFragment(
 ): void {
   const { paintCtx, defsParts, svgParts, captureViewport } = state;
   const {
-    clone, fragsAxisIsBlock, hasBgImage, shadows, bgColor,
+    element, clone, fragsAxisIsBlock, hasBgImage, shadows, bgColor,
     sbt, sbr, sbb, sbl,
     bgImageLayers, bgSizeLayers, bgPosLayers, bgRepeatLayers, bgClipLayers,
+    bgOriginLayers, bgBlendLayers,
     bgSelectedImageLayers, bgIntrinsicLayers, bgAttachmentLayers,
   } = ctx;
 
@@ -3787,30 +3813,106 @@ function paintInlineFragment(
       );
     }
 
-    // Background image layers (clone only — slice would need cross-
-    // fragment continuation of the gradient/image which is out of scope
-    // here; the bbox path remains the slice-mode gradient owner via the
-    // fallback emit when fragmentation isn't detected).
-    if (clone && hasBgImage) {
+    // DM-2365: clone positions each layer against the physical fragment and
+    // therefore restarts its tile phase. Slice uses Blink's captured imaginary
+    // unfragmented border box, then intersects the layer clip with this
+    // physical fragment. Old captures have no stitched record and retain the
+    // previous fail-closed behavior for slice images.
+    const stitchedBorderBox = clone
+      ? { x: f.x, y: f.y, width: f.width, height: f.height }
+      : f.backgroundPositioningArea;
+    if (hasBgImage && stitchedBorderBox != null) {
+      const bwT = parseFloat(element.styles.borderTopWidth ?? "0") || 0;
+      const bwR = parseFloat(element.styles.borderRightWidth ?? "0") || 0;
+      const bwB = parseFloat(element.styles.borderBottomWidth ?? "0") || 0;
+      const bwL = parseFloat(element.styles.borderLeftWidth ?? "0") || 0;
+      const padT = parseFloat(element.styles.paddingTop ?? "0") || 0;
+      const padR = parseFloat(element.styles.paddingRight ?? "0") || 0;
+      const padB = parseFloat(element.styles.paddingBottom ?? "0") || 0;
+      const padL = parseFloat(element.styles.paddingLeft ?? "0") || 0;
+      const boxFor = (borderBox: { x: number; y: number; width: number; height: number }, key: string) => {
+        const content = key === "content-box";
+        const padding = content || key === "padding-box";
+        const top = padding ? bwT + (content ? padT : 0) : 0;
+        const right = padding ? bwR + (content ? padR : 0) : 0;
+        const bottom = padding ? bwB + (content ? padB : 0) : 0;
+        const left = padding ? bwL + (content ? padL : 0) : 0;
+        return {
+          x: borderBox.x + left,
+          y: borderBox.y + top,
+          width: Math.max(0, borderBox.width - left - right),
+          height: Math.max(0, borderBox.height - top - bottom),
+        };
+      };
+      const physicalFragment = { x: f.x, y: f.y, width: f.width, height: f.height };
       for (let li = bgImageLayers.length - 1; li >= 0; li--) {
         const layer = bgImageLayers[li].trim();
         const layerSize = cyclicBackgroundLayer(bgSizeLayers, li, "auto").trim();
         const layerPos = cyclicBackgroundLayer(bgPosLayers, li, "0% 0%").trim();
         const layerRepeat = cyclicBackgroundLayer(bgRepeatLayers, li, "repeat").trim();
         const layerClip = cyclicBackgroundLayer(bgClipLayers, li, "border-box").trim();
+        const layerOrigin = cyclicBackgroundLayer(bgOriginLayers, li, "padding-box").trim();
+        const layerBlend = cyclicBackgroundLayer(bgBlendLayers, li, "normal").trim();
         const selectedImage = bgSelectedImageLayers[li] ?? null;
         const layerIntrinsic = bgIntrinsicLayers[li] ?? null;
         const layerAttachment = cyclicBackgroundLayer(bgAttachmentLayers, li, "scroll").trim();
         if (layerClip === "text") continue;
+        // A viewport-fixed layer ignores the imaginary decoration strip: Blink
+        // positions it in the layout viewport and clips it to the current
+        // physical fragment. A transformed/inert `fixed` layer resolves to
+        // scroll and therefore continues through the stitched strip.
+        const fixedToViewport = layerAttachment === "fixed"
+          && element.styles.backgroundAttachmentGeometry?.source === "blink-box-background-paint-context-v1"
+          && element.styles.backgroundAttachmentGeometry.fixedToViewport === true;
+        const layerBorderBox = fixedToViewport ? physicalFragment : stitchedBorderBox;
+        const originBox = boxFor(layerBorderBox, layerOrigin);
+        const clipBox = boxFor(layerBorderBox, layerClip);
+        const isUrlBacked = /^\s*(?:url\(|(?:-webkit-)?image-set\()/i.test(layer);
+        const attachmentGeometry = isUrlBacked
+          ? resolveBackgroundAttachment(
+              layerAttachment,
+              layerBorderBox,
+              originBox,
+              clipBox,
+              element.styles.backgroundAttachmentGeometry,
+              captureViewport,
+            )
+          : null;
+        const positioningBox = attachmentGeometry?.positioningBox ?? originBox;
+        const paintingBox = attachmentGeometry?.paintingBox ?? clipBox;
+        const visiblePaintingBox = intersectBackgroundRects(physicalFragment, paintingBox);
+        if (visiblePaintingBox.width <= 0 || visiblePaintingBox.height <= 0) continue;
         const defId = paintCtx.nextClipId("bgf");
         const out = buildBackgroundLayerDef(
-          defId, layer, f.x, f.y, f.width, f.height,
-          layerSize, layerPos, layerRepeat, layerIntrinsic, layerAttachment, captureViewport, selectedImage,
+          defId, layer,
+          positioningBox.x, positioningBox.y, positioningBox.width, positioningBox.height,
+          layerSize, layerPos, layerRepeat, layerIntrinsic,
+          attachmentGeometry == null ? layerAttachment : "scroll",
+          attachmentGeometry == null ? captureViewport : null,
+          selectedImage,
+          paintingBox,
         );
         if (out.def === "") continue;
         defsParts.push(out.def);
+        const clipInsetTop = layerClip === "content-box" ? bwT + padT : layerClip === "padding-box" ? bwT : 0;
+        const clipInsetRight = layerClip === "content-box" ? bwR + padR : layerClip === "padding-box" ? bwR : 0;
+        const clipInsetBottom = layerClip === "content-box" ? bwB + padB : layerClip === "padding-box" ? bwB : 0;
+        const clipInsetLeft = layerClip === "content-box" ? bwL + padL : layerClip === "padding-box" ? bwL : 0;
+        const clipCorners = layerClip === "border-box"
+          ? fragCorners
+          : insetCornerRadii(fragCorners, clipInsetTop, clipInsetRight, clipInsetBottom, clipInsetLeft);
+        const blendAttr = layerBlend !== "" && layerBlend !== "normal"
+          ? ` style="mix-blend-mode:${layerBlend}"`
+          : "";
         svgParts.push(
-          `${indent}${roundedRectSvg(f.x, f.y, f.width, f.height, fragCorners, `fill="url(#${defId})"`)}`,
+          `${indent}${roundedRectSvg(
+            visiblePaintingBox.x,
+            visiblePaintingBox.y,
+            visiblePaintingBox.width,
+            visiblePaintingBox.height,
+            clipCorners,
+            `fill="url(#${defId})"${blendAttr}`,
+          )}`,
         );
       }
     }
@@ -3963,14 +4065,16 @@ function renderInlineFragments(
   const bgRepeatLayers = splitTopLevelCommas(el.styles.backgroundRepeat ?? "repeat");
   const bgClipLayers = splitTopLevelCommas(el.styles.backgroundClip ?? "border-box");
   const bgOriginLayers = splitTopLevelCommas(el.styles.backgroundOrigin ?? "padding-box");
+  const bgBlendLayers = splitTopLevelCommas(el.styles.backgroundBlendMode ?? "normal");
   const bgAttachmentLayers = splitTopLevelCommas(el.styles.backgroundAttachment ?? "scroll");
   const bgSelectedImageLayers = el.styles.backgroundImages ?? [];
   const bgIntrinsicLayers = el.styles.backgroundIntrinsic ?? [];
 
   const fragmentCtx: InlineFragmentCtx = {
-    clone, fragsAxisIsBlock, hasBgImage, shadows, bgColor,
+    element: el, clone, fragsAxisIsBlock, hasBgImage, shadows, bgColor,
     sbt, sbr, sbb, sbl,
     bgImageLayers, bgSizeLayers, bgPosLayers, bgRepeatLayers, bgClipLayers,
+    bgOriginLayers, bgBlendLayers,
     bgSelectedImageLayers, bgIntrinsicLayers, bgAttachmentLayers,
   };
   for (let fi = 0; fi < frags.length; fi++) {

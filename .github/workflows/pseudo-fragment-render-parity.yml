@@ -12,9 +12,12 @@ on:
       - "src/capture/index.ts"
       - "src/capture/script/index.ts"
       - "src/render/pseudo-fragments.ts"
+      - "src/render/form-controls.ts"
       - "src/render/element-tree-to-svg.ts"
       - "tools/pseudo-fragment-render-oracle.ts"
       - "src/render/pseudo-fragments.test.ts"
+      - "src/render/form-controls.test.ts"
+      - "tests/checkable-pseudo-indicators.e2e.test.ts"
       - "tests/pseudo-fragment-capture.e2e.test.ts"
       - "tests/pseudo-fragment-render-oracle.e2e.test.ts"
       - "tools/parity-program.json"
@@ -30,9 +33,12 @@ on:
       - "src/capture/index.ts"
       - "src/capture/script/index.ts"
       - "src/render/pseudo-fragments.ts"
+      - "src/render/form-controls.ts"
       - "src/render/element-tree-to-svg.ts"
       - "tools/pseudo-fragment-render-oracle.ts"
       - "src/render/pseudo-fragments.test.ts"
+      - "src/render/form-controls.test.ts"
+      - "tests/checkable-pseudo-indicators.e2e.test.ts"
       - "tests/pseudo-fragment-capture.e2e.test.ts"
       - "tests/pseudo-fragment-render-oracle.e2e.test.ts"
       - "tools/parity-program.json"
@@ -68,9 +74,9 @@ jobs:
       - run: npm ci
       - run: npx playwright install chromium
       - name: Validate direct-record ownership and fail-closed mutations
-        run: npx vitest run src/render/pseudo-fragments.test.ts
+        run: npx vitest run src/render/pseudo-fragments.test.ts src/render/form-controls.test.ts
       - name: Validate capture bypass and focused browser paint
-        run: npx vitest run --config vitest.e2e.config.ts tests/pseudo-fragment-capture.e2e.test.ts tests/pseudo-fragment-render-oracle.e2e.test.ts
+        run: npx vitest run --config vitest.e2e.config.ts tests/pseudo-fragment-capture.e2e.test.ts tests/pseudo-fragment-render-oracle.e2e.test.ts tests/checkable-pseudo-indicators.e2e.test.ts
       - name: Run DPR-1/2 Chromium-versus-SVG edge gate
         run: npm run pseudo:fragment-render-oracle -- --json tests/output/pseudo-fragment-render-${{ runner.os }}/report.json --artifact-dir tests/output/pseudo-fragment-render-${{ runner.os }}/artifacts
       - name: Upload native source, SVG, rendered pixels, and report

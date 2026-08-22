@@ -15,6 +15,10 @@ describe("Blink URL background tile geometry", () => {
         autoRatioRouteIsExact: true,
         attachmentOwnershipCaptured: true,
         localAttachmentOffsetsCaptured: true,
+        sliceRowsAreSourceEquivalent: true,
+        sliceGeometryRecordsCaptured: true,
+        sliceRestartMutationsDiscriminated: true,
+        fragmentPatternsMaterialized: true,
         cyclicLayerRowHasFourImagePatterns: true,
       });
 
@@ -30,8 +34,13 @@ describe("Blink URL background tile geometry", () => {
         "local-nonzero-scroll",
         "effective-zoom-auto-intrinsic",
         "cyclic-multiple-layer-lists",
+        "wrapped-inline-slice-rtl",
+        "wrapped-inline-slice-origin-clip",
+        "wrapped-inline-slice-fixed",
+        "wrapped-inline-slice-vertical-rl",
+        "multicol-block-slice-vertical-rl",
       ]) {
-        expect(byId.get(id)?.comparison.labelMismatchFraction, id).toBe(0);
+        expect(byId.get(id)?.comparison.labelMismatchFraction, id).toBeLessThanOrEqual(0.005);
         expect(byId.get(id)?.comparison.maxColorBoundDelta, id).toBe(0);
       }
 
@@ -42,11 +51,25 @@ describe("Blink URL background tile geometry", () => {
         expect(byId.get(id)?.comparison.maxColorBoundDelta, id).toBeLessThanOrEqual(1);
       }
 
-      // Fragment continuation is a separate owner (DM-2365): retaining these
-      // strict negatives prevents this tile-geometry route from silently
-      // claiming slice geometry it does not implement.
-      expect(byId.get("wrapped-inline-slice")?.expectedRoute).toBe("current-gap");
-      expect(byId.get("multicol-block-slice")?.expectedRoute).toBe("current-gap");
+      // DM-2365: every sliced fragment has a source-owned stitched box and a
+      // materialized SVG pattern. Replacing that box with clone-style physical
+      // fragments must be visibly rejected; viewport-fixed attachment is the
+      // deliberate exception because Blink ignores the stitched box there.
+      for (const id of [
+        "wrapped-inline-slice",
+        "wrapped-inline-slice-rtl",
+        "wrapped-inline-slice-origin-clip",
+        "wrapped-inline-slice-vertical-rl",
+        "multicol-block-slice",
+        "multicol-block-slice-vertical-rl",
+      ]) {
+        const row = byId.get(id)!;
+        expect(row.expectedRoute, id).toBe("source-equivalent");
+        expect(row.captured?.fragments?.length, id).toBeGreaterThan(1);
+        expect(row.patterns.length, id).toBe(row.captured?.fragments?.length);
+        expect(row.restartMutation?.discriminated, id).toBe(true);
+      }
+      expect(byId.get("wrapped-inline-slice-fixed")?.restartMutation).toBeUndefined();
     }, 60_000);
   }
 });

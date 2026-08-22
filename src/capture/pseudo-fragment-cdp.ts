@@ -1,5 +1,5 @@
 /**
- * Source-owned Chromium ::before/::after fragment capture (DM-2467).
+ * Source-owned Chromium generated-pseudo fragment capture (DM-2467/DM-2459).
  *
  * A private per-frame registry retains candidate hosts without author-visible
  * ids. One DOMSnapshot epoch supplies every anonymous layout/text row; the
@@ -27,7 +27,7 @@ import type {
   CaptureWarning,
 } from "./types.js";
 
-type PseudoName = "before" | "after";
+type PseudoName = "checkmark" | "before" | "after";
 
 interface CandidateStyle {
   writingMode: string;
@@ -162,7 +162,7 @@ async function setupFrame(
       for (let index = 0; index < elements.length; index++) indexByElement.set(elements[index], index);
       const rows: Array<{
         elementIndex: number;
-        pseudo: "before" | "after";
+        pseudo: PseudoName;
         correlationId: string;
         selector: string;
         style: CandidateStyle;
@@ -192,7 +192,10 @@ async function setupFrame(
       }
       for (let elementIndex = 0; elementIndex < elements.length; elementIndex++) {
         const element = elements[elementIndex];
-        for (const pseudo of ["before", "after"] as const) {
+        // Blink attaches kPseudoIdCheckMark before kPseudoIdBefore. Preserve
+        // that order so appearance:base checkbox/radio indicators enter the
+        // same generated-child paint slot ahead of an authored ::before.
+        for (const pseudo of ["checkmark", "before", "after"] as const) {
           const style = getComputedStyle(element, `::${pseudo}`);
           if (style.content === "none" || style.content === "normal" || style.display === "none") continue;
           let zoom = 1;
@@ -437,6 +440,28 @@ function exactRecord(
   decoded: ReturnType<typeof decodePseudoFragmentProtocol>,
 ): CapturedPseudoFragmentSet {
   let imageIndex = 0;
+  const itemIndexes = new Map<number, number>();
+  const contentItems: CapturedPseudoFragmentSet["contentItems"] = [];
+  for (const item of decoded.contentItems) {
+    if (item.kind === "image") {
+      // DOMSnapshot exposes the anonymous box row for `content:""` with no
+      // text, which the generic protocol decoder must conservatively classify
+      // as image-like. The computed content URL list is the independent source
+      // discriminator: without a URL this is the pseudo's own paint box, not a
+      // replaced generated child.
+      const resolvedUrl = candidate.style.contentUrls[imageIndex++];
+      if (resolvedUrl == null) continue;
+      itemIndexes.set(item.index, contentItems.length);
+      contentItems.push({ ...item, index: contentItems.length, resolvedUrl });
+      continue;
+    }
+    itemIndexes.set(item.index, contentItems.length);
+    contentItems.push({ ...item, index: contentItems.length });
+  }
+  const fragments = decoded.fragments.flatMap((fragment) => {
+    const contentItemIndex = itemIndexes.get(fragment.contentItemIndex);
+    return contentItemIndex == null ? [] : [{ ...fragment, contentItemIndex }];
+  }).map((fragment, visualOrder) => ({ ...fragment, visualOrder }));
   return {
     source: "blink-pseudo-fragment-v1",
     pseudo: `::${candidate.pseudo}`,
@@ -446,11 +471,9 @@ function exactRecord(
     direction: decoded.direction,
     boxDecorationBreak: candidate.style.boxDecorationBreak === "clone" ? "clone" : "slice",
     edges: { border: candidate.style.border, padding: candidate.style.padding, margin: candidate.style.margin },
-    contentItems: decoded.contentItems.map((item) => item.kind === "image"
-      ? { ...item, resolvedUrl: candidate.style.contentUrls[imageIndex++] }
-      : item),
+    contentItems,
     boxFragments: decoded.boxFragments,
-    fragments: decoded.fragments,
+    fragments,
     typography: candidate.style.typography,
     paint: candidate.style.paint,
   };

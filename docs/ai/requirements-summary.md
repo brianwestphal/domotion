@@ -227,6 +227,18 @@ they describe (see `CLAUDE.md` "Documentation"):
   follow the marker's writing direction. Ratio-based diameter/baseline guesses
   remain only as old-capture metric fallback.
 
+- **Source-owned `<summary>` disclosure markers (DM-2457, doc 180) —
+  Shipped.** Capture correlates Chromium's real `::marker`, verifies one
+  axis-aligned content quad, and records the anonymous DOMSnapshot paint
+  fragment, primary-font ascent, specified marker size, zoom, color, list
+  position/type, writing mode, and direction. The generic Blink marker route
+  owns exact open/closed polygons; absent, suppressed, transformed, or
+  ambiguous facts never fall back to the deleted details-box triangle.
+  A higher authoritative subtree raster may preempt the vector without
+  double-paint. The DPR-1/2 gate covers the full state/writing/zoom matrix on
+  macOS, Linux, and Windows and retains both details HTML fixtures as composed
+  controls.
+
 - **Vertical text baselines (DM-2193, doc 02) — Shipped.** Vertical column and
   text-combine segments carry the captured run's font ascent; upright glyphs,
   rotated origins, and combined runs use that metric. Element ascent and then
@@ -1557,6 +1569,20 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   DPR-1/2 bound and uploads source/rendered surfaces. See
   [doc 178](../178-direct-pseudo-fragment-rendering.md).
 
+<!-- DM-2459 -->
+- Authored checkbox/radio indicators with resolved `appearance:none`, plus
+  feature-enabled `appearance:base` checkmarks, use the same source-owned
+  generated-pseudo contract. Real `::checkmark`, `::before`, and `::after`
+  nodes retain Blink geometry, text/face/style, gradients, transforms, radii,
+  and paint slots. An authoritative record array, even empty, suppresses the
+  generic tick/dot/switch synthesizer; only a pre-contract undefined field may
+  use that compatibility route. Native auto controls remain Chromium-owned.
+  The macOS/Linux/Windows gate crosses state, content, switch, base, zoom,
+  fractional-origin, and DPR controls at the unchanged four-device-pixel edge
+  bound. See [doc 11](../11-custom-checkbox-radio.md),
+  [176](../176-source-owned-pseudo-fragment-capture.md), and
+  [178](../178-direct-pseudo-fragment-rendering.md).
+
 - Dotted-circle routing is owned by the selected face's HarfBuzz result, with
   Chromium capture ink as the covered-glyph control and pinned ICU properties
   supplying script/category inputs. Unicode block floors, plane gates, and
@@ -1728,8 +1754,8 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   synchronization remains owned by DM-2359.
 
 <!-- DM-2370 -->
-- URL background tile geometry is **source-derived**; sliced-fragment
-  continuation remains partial under DM-2365. DM-2477 captures Blink-equivalent selected CSS image/natural
+- URL background tile geometry, including sliced-fragment continuation, is
+  **source-derived**. DM-2477 captures Blink-equivalent selected CSS image/natural
   sizing at effective zoom, including DPR/type/density, independent dimensions
   and ratio, orientation, aligned layer index, and explicit decode/failure
   state; the renderer consumes that selected URL instead of a DPR-1 guess.
@@ -1745,10 +1771,12 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   unknown sizing or kind fails explicitly. Fixed under a transformed ancestor becomes
   scroll; local subtracts the real scroll offset; shorter longhand lists repeat
   cyclically; slice continues through one stitched box while clone restarts.
-  The strict 21-row inline-and-multicol evidence and exact contract are in
-  [doc 163](../163-url-background-image-geometry-audit.md). Both DPR 1 and DPR
-  2 runs pass 21/21 rows, with slice rows retained as expected DM-2365
-  discriminators. DM-2480 owns the all-platform DPR gate after DM-2365.
+  DM-2365 records Blink's imaginary positioning box and physical stitched
+  offset for LTR/RTL/vertical inline and multicol fragments; slice continues
+  through it, viewport-fixed layers ignore it, and clone restarts. The strict
+  26-row evidence and exact contract are in
+  [doc 163](../163-url-background-image-geometry-audit.md). DPR 1 and DPR 2
+  pass 26/26 with restart mutations. DM-2480 owns the all-platform DPR gate.
 
 <!-- DM-2368 -->
 - Native scrollbar **capture is source-owned; author-custom paint is vector and

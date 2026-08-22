@@ -131,6 +131,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex Max",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4deom5rdndcqsk",
+          "message": {
+            "text": "An explicit pseudoFragments array is the modern ownership bit, including an empty array. Only undefined identifies a pre-contract tree eligible for generic tick/dot/switch compatibility; native auto is excluded by the resolved-appearance guard.",
+            "markdown": "An explicit pseudoFragments array is the modern ownership bit, including an empty array. Only undefined identifies a pre-contract tree eligible for generic tick/dot/switch compatibility; native auto is excluded by the resolved-appearance guard."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/form-controls.ts"
+                },
+                "region": {
+                  "startLine": 460,
+                  "endLine": 467,
+                  "snippet": {
+                    "text": "export function checkablePseudoFactsOwnIndicator(el: CapturedElement): boolean {\n  const appearance = el.styles.effectiveAppearance ?? el.styles.inputAppearance;\n  return (appearance === \"none\" || appearance === \"base\")\n    && Array.isArray(el.pseudoFragments);\n}\n\nfunction renderCheckbox(el: CapturedElement, indent: string, defCtx?: DefCtx): string {\n  if (checkablePseudoFactsOwnIndicator(el)) return \"\";"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/checkable-pseudo-indicators.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 13
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2459"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "0e172bc160537e3ac2c7ded1d090706c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "1504b92ef04ae10fb8edce48194fe46a201932f0",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

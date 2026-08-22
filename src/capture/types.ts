@@ -421,7 +421,8 @@ export interface CapturedPseudoPaintStyle {
 }
 
 /**
- * DM-2467: source-owned Blink layout record for one live ::before/::after.
+ * DM-2467/DM-2459: source-owned Blink layout record for one live generated
+ * pseudo: ::checkmark, ::before, or ::after.
  *
  * The anonymous child boundaries and UTF-16 offsets come from one
  * DOMSnapshot epoch; the ordered physical boxes come from the corresponding
@@ -430,7 +431,7 @@ export interface CapturedPseudoPaintStyle {
  */
 export interface CapturedPseudoFragmentSet {
   source: "blink-pseudo-fragment-v1";
-  pseudo: "::before" | "::after";
+  pseudo: "::checkmark" | "::before" | "::after";
   status: "exact" | "unpainted" | "terminal-raster";
   reason?: string;
   writingMode: string;
@@ -1754,6 +1755,26 @@ export interface CapturedElement {
    */
   cullClass?: string;
   styles: CapturedStyles;
+  /**
+   * Blink's real first-line `::marker` fragment for a shown `<summary>`
+   * disclosure.  Geometry is already capture-viewport-relative and includes
+   * CSS zoom; font facts remain split so the renderer can run the pinned
+   * ListMarker/TextFragmentPainter transcription rather than replaying ink.
+   */
+  summaryMarkerGeometry?: {
+    source: "blink-list-marker-v1";
+    fragmentRect: { x: number; y: number; width: number; height: number };
+    fontAscent: number;
+    specifiedFontSize: number;
+    effectiveZoom: number;
+    color: string;
+    listStyleType: string;
+    listStylePosition: "inside" | "outside";
+    writingMode: string;
+    direction: "ltr" | "rtl";
+  };
+  /** Private live-node correlation consumed and deleted by the CDP post-pass. */
+  _summaryMarkerSourceNodeIndex?: number;
   /** Relative planar homography measured after Blink composes a static CSS 3D transform tree. */
   projectiveTransform?: [number, number, number, number, number, number, number, number, number];
   /** Blink culled this plane because `backface-visibility: hidden` faced away. */
@@ -1770,7 +1791,28 @@ export interface CapturedElement {
    * outside / behind the painted background. Slice vs clone semantics are
    * driven by `styles.boxDecorationBreak`. See `docs/01-fidelity.md`.
    */
-  inlineFragments?: Array<{ x: number; y: number; width: number; height: number }>;
+  inlineFragments?: Array<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    /**
+     * DM-2365: Blink's imaginary unfragmented border box for this physical
+     * fragment. `box-decoration-break:slice` positions a background against
+     * this box and then exposes only the intersection with the physical
+     * fragment. Inline fragmentation stitches logical inline sizes; block
+     * fragmentation stitches logical block sizes. Clone mode deliberately
+     * ignores this record and restarts from the physical fragment box.
+     */
+    backgroundPositioningArea?: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    };
+    /** Physical-axis offset of this fragment inside the stitched box. */
+    backgroundOffsetInStitchedBox?: { x: number; y: number };
+  }>;
   /** DM-754: the fragmentation axis that produced the `inlineFragments`
    *  entries. `"inline"` — the element is `display: inline` and wrapped onto
    *  multiple line boxes (the original DM-721 case); slice mode suppresses
@@ -1842,10 +1884,13 @@ export interface CapturedElement {
   markerFirstLineDy?: number;
   markerFirstLineHeight?: number;
   /**
-   * Source-owned live Chromium geometry for generated ::before/::after
-   * fragments. Legacy pseudoImages/textSegments/pseudoBoxes remain a separate
-   * serialized-tree compatibility projection; they are not geometry authority
-   * for records present here.
+   * Source-owned live Chromium geometry for generated ::checkmark / ::before /
+   * ::after fragments. An empty array is an authoritative modern-capture fact
+   * that none of those pseudos painted; undefined identifies an older capture
+   * that may still require compatibility synthesis. Legacy
+   * pseudoImages/textSegments/pseudoBoxes remain a separate serialized-tree
+   * compatibility projection; they are not geometry authority for records
+   * present here.
    */
   pseudoFragments?: CapturedPseudoFragmentSet[];
   /** ::before / ::after pseudo-element image content (content: url(...)). */

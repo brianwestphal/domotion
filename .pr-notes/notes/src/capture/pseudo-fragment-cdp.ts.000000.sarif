@@ -90,6 +90,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex Max",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4deom5ljg90oaf",
+          "message": {
+            "text": "Checkmark is queried before before/after because Blink attaches kPseudoIdCheckMark ahead of ::before; preserving that source order lets the shared pseudo paint slots reproduce base-control ordering without a control-specific geometry heuristic.",
+            "markdown": "Checkmark is queried before before/after because Blink attaches kPseudoIdCheckMark ahead of ::before; preserving that source order lets the shared pseudo paint slots reproduce base-control ordering without a control-specific geometry heuristic."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/pseudo-fragment-cdp.ts"
+                },
+                "region": {
+                  "startLine": 198,
+                  "endLine": 198,
+                  "snippet": {
+                    "text": "        for (const pseudo of [\"checkmark\", \"before\", \"after\"] as const) {"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/pseudo-fragment-protocol.ts"
+                },
+                "region": {
+                  "startLine": 10
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/pseudo-fragments.ts"
+                },
+                "region": {
+                  "startLine": 487
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2459"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "8032a5eb92e44c72085ce115add27d5c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "1504b92ef04ae10fb8edce48194fe46a201932f0",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

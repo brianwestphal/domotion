@@ -11,10 +11,11 @@ import sharp from "sharp";
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import type { CapturedElement, CapturedPseudoFragmentSet } from "../src/capture/types.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
-import { pseudoFragmentRecordErrors } from "../src/render/pseudo-fragments.js";
+import { checkablePseudoFactsOwnIndicator, renderFormControl } from "../src/render/form-controls.js";
+import { pseudoFragmentIsUnpainted, pseudoFragmentRecordErrors } from "../src/render/pseudo-fragments.js";
 
 const WIDTH = 820;
-const HEIGHT = 1460;
+const HEIGHT = 1700;
 const TARGET = { red: 207, green: 0, blue: 159 };
 
 export const pseudoRenderRequiredStates = [
@@ -26,6 +27,9 @@ export const pseudoRenderRequiredStates = [
   "text-url-text", "asymmetric-edges", "slice", "clone", "multicol", "inline-block", "flex", "grid",
   "absolute", "fixed", "affine-transform", "zoom", "DPR:1", "DPR:2",
   "content:none", "display:none", "visibility:hidden", "opacity:0",
+  "appearance:none-checkbox", "appearance:none-radio", "checked", "unchecked", "indeterminate", "disabled",
+  "checkable-before", "checkable-after", "checkable-text", "checkable-box", "checkable-gradient", "checkable-transform",
+  "switch-pattern", "appearance:base-checkmark", "native-auto-negative", "fractional-checkable", "checkable-zoom",
   "ordinary-text-unaffected", "first-letter-unaffected", "line-clamp-unaffected", "list-marker-unaffected",
 ] as const;
 
@@ -59,6 +63,21 @@ export function pseudoFragmentRenderFixture(): string {
     #zoom{zoom:1.25}#zoom::before{content:"zoom";border:1px solid}
     #none::before{content:none}#display-none::before{content:"display";display:none}#hidden::before{content:"hidden";visibility:hidden}#transparent::after{content:"transparent";opacity:0}
     #negative{position:relative}#negative::before{content:"negative";position:absolute;z-index:-1;background:rgb(${TARGET.red},${TARGET.green},${TARGET.blue});color:white;left:20px;top:2px}
+    #checkables{display:flex;flex-wrap:wrap;align-items:center;gap:14px;width:760px;padding:9.5px;zoom:1.125}
+    .author-check{appearance:none;box-sizing:border-box;margin:0;width:25px;height:25px;border:2px solid rgb(${TARGET.red},${TARGET.green},${TARGET.blue});background:white;display:inline-grid;place-content:center}
+    .author-check::before,.author-check::after{box-sizing:border-box}
+    #check-before{border-radius:50%}#check-before::before{content:"";width:11px;height:11px;border-radius:50%;background:rgb(${TARGET.red},${TARGET.green},${TARGET.blue});transform:rotate(17deg) scale(1)}
+    #check-unchecked::before{content:"";width:11px;height:11px;background:rgb(${TARGET.red},${TARGET.green},${TARGET.blue});transform:scale(0)}
+    #check-after::after{content:"✓";color:rgb(${TARGET.red},${TARGET.green},${TARGET.blue});font:700 15px/15px Arial;transform:rotate(-9deg)}
+    #check-gradient::before{content:"";width:13px;height:9px;border:2px solid rgb(${TARGET.red},${TARGET.green},${TARGET.blue});background:linear-gradient(90deg,rgb(${TARGET.red},${TARGET.green},${TARGET.blue}),rgb(235,20,120));transform:skewX(12deg)}
+    #check-indeterminate::before{content:"";width:13px;height:3px;background:rgb(${TARGET.red},${TARGET.green},${TARGET.blue})}
+    #check-disabled{opacity:.45}#check-disabled::before{content:"";width:10px;height:10px;background:rgb(${TARGET.red},${TARGET.green},${TARGET.blue});transform:rotate(45deg)}
+    #check-switch{width:48px;height:26px;border:0;border-radius:99px;background:rgb(${TARGET.red},${TARGET.green},${TARGET.blue});display:block;position:relative}#check-switch::before{content:"";position:absolute;left:24px;top:3px;width:20px;height:20px;border-radius:50%;background:white;border:2px solid rgb(${TARGET.red},${TARGET.green},${TARGET.blue})}
+    .base-check{appearance:base;color:rgb(${TARGET.red},${TARGET.green},${TARGET.blue});margin:0;font-size:26px}
+    #base-box::checkmark{background:rgb(${TARGET.red},${TARGET.green},${TARGET.blue});border:2px solid rgb(${TARGET.red},${TARGET.green},${TARGET.blue});transform:scale(.72) rotate(8deg)}
+    #base-text::checkmark{content:"◆" / "";color:rgb(${TARGET.red},${TARGET.green},${TARGET.blue});font-size:17px;transform:translate(1px,-1px)}
+    #base-radio::checkmark{background:rgb(${TARGET.red},${TARGET.green},${TARGET.blue});border-radius:35%;transform:scale(.7)}
+    #native-auto{accent-color:rgb(24,95,220)}
     #ordinary::first-letter{font-size:31px;color:#0055aa}#clamp{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;width:80px}li::marker{color:#0055aa}
   </style><main id="stage">
     <div class="probe" id="before">host child-last</div><div class="probe" id="after"><span>child-first</span></div>
@@ -69,6 +88,19 @@ export function pseudoFragmentRenderFixture(): string {
     <span class="probe" id="ib"></span><div class="probe" id="flex"></div><div class="probe" id="grid"></div>
     <div class="probe" id="absolute"></div><div class="probe" id="fixed"></div><div class="probe" id="transform"></div><div class="probe" id="zoom"></div>
     <div class="probe" id="none"></div><div class="probe" id="display-none"></div><div class="probe" id="hidden"></div><div class="probe" id="transparent"></div><div class="probe" id="negative"></div>
+    <div id="checkables">
+      <input data-domotion-anim="check-before" id="check-before" class="author-check" type="radio" checked>
+      <input data-domotion-anim="check-unchecked" id="check-unchecked" class="author-check" type="checkbox">
+      <input data-domotion-anim="check-after" id="check-after" class="author-check" type="checkbox" checked>
+      <input data-domotion-anim="check-gradient" id="check-gradient" class="author-check" type="checkbox" checked>
+      <input data-domotion-anim="check-indeterminate" id="check-indeterminate" class="author-check" type="checkbox">
+      <input data-domotion-anim="check-disabled" id="check-disabled" class="author-check" type="checkbox" checked disabled>
+      <input data-domotion-anim="check-switch" id="check-switch" class="author-check" type="checkbox" checked>
+      <input data-domotion-anim="base-box" id="base-box" class="base-check" type="checkbox" checked>
+      <input data-domotion-anim="base-text" id="base-text" class="base-check" type="checkbox" checked>
+      <input data-domotion-anim="base-radio" id="base-radio" class="base-check" type="radio" checked>
+      <input data-domotion-anim="native-auto" id="native-auto" type="checkbox" checked>
+    </div>
     <p id="ordinary">ordinary first-letter unaffected</p><p id="clamp">ordinary clamped text remains ordinary</p><ul><li>list marker unaffected</li></ul>
   </main>`;
 }
@@ -154,20 +186,41 @@ export async function runPseudoFragmentRenderOracle(
   dprs: number[] = [1, 2],
   artifactDir?: string,
 ): Promise<PseudoRenderOracleReport> {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: true, args: ["--enable-blink-features=AppearanceBase"] });
   const rows: PseudoRenderOracleRow[] = [];
   try {
     for (const dpr of dprs) {
       const context = await browser.newContext({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: dpr });
       const source = await context.newPage();
       await source.setContent(pseudoFragmentRenderFixture(), { waitUntil: "load" });
-      await source.evaluate(async () => { await document.fonts.ready; await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))); });
+      await source.evaluate(async () => {
+        (document.querySelector("#check-indeterminate") as HTMLInputElement).indeterminate = true;
+        await document.fonts.ready;
+        await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      });
       const sourcePng = Buffer.from(await source.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } }));
       const captured = await captureElementTreeWithWarnings(source, "#stage", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
       const records = flatten(captured.tree).flatMap((element) => element.pseudoFragments ?? []);
       const exact = records.filter((record) => record.status === "exact");
       const terminal = records.filter((record) => record.status === "terminal-raster");
       const structuralErrors = exact.flatMap((record, index) => pseudoFragmentRecordErrors(record).map((error) => `${index}:${error}`));
+      const checkables = flatten(captured.tree).filter((element) => element.animId?.startsWith("check-") || element.animId?.startsWith("base-") || element.animId === "native-auto");
+      for (const element of checkables) {
+        const identity = element.animId ?? "unknown";
+        if (identity === "native-auto") {
+          if (element.nativeControlRaster == null) structuralErrors.push(`${identity}: native auto control lost Chromium raster ownership`);
+          if (checkablePseudoFactsOwnIndicator(element)) structuralErrors.push(`${identity}: auto control activated authored pseudo ownership`);
+          continue;
+        }
+        if (!checkablePseudoFactsOwnIndicator(element)) structuralErrors.push(`${identity}: authoritative pseudo facts did not suppress compatibility synthesis`);
+        if (renderFormControl(element, "") !== "") structuralErrors.push(`${identity}: generic indicator synthesis remained active`);
+      }
+      const checkmarkRecords = records.filter((record) => record.pseudo === "::checkmark");
+      if (checkmarkRecords.length !== 3) structuralErrors.push(`expected 3 ::checkmark records, received ${checkmarkRecords.length}`);
+      for (const identity of ["check-before", "check-after", "check-gradient", "check-indeterminate", "check-disabled", "check-switch"]) {
+        const element = checkables.find((candidate) => candidate.animId === identity);
+        if ((element?.pseudoFragments?.length ?? 0) === 0) structuralErrors.push(`${identity}: generated pseudo record missing`);
+      }
       const svg = elementTreeToSvg(captured.tree, WIDTH, HEIGHT);
       if (artifactDir != null) {
         mkdirSync(artifactDir, { recursive: true });
@@ -190,10 +243,7 @@ export async function runPseudoFragmentRenderOracle(
       const radius = 4;
       const forward = directedEdgeDistance(sourceMask, renderedMask, radius);
       const reverse = directedEdgeDistance(renderedMask, sourceMask, radius);
-      const expectedRendered = records.filter((record: CapturedPseudoFragmentSet) =>
-        record.status !== "unpainted"
-        && record.paint.visibility !== "hidden" && record.paint.visibility !== "collapse"
-        && record.paint.opacity !== 0).length;
+      const expectedRendered = records.filter((record: CapturedPseudoFragmentSet) => !pseudoFragmentIsUnpainted(record)).length;
       rows.push({
         dpr,
         exactRecords: exact.length,

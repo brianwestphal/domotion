@@ -1,12 +1,12 @@
 # URL background image geometry audit
 
-**Status:** DM-2477, DM-2478, and DM-2479 implemented; sliced-fragment continuation remains DM-2365
+**Status:** DM-2477, DM-2478, DM-2479, and DM-2365 implemented; the all-platform release gate remains DM-2480
 
-**Ticket:** DM-2370 / DM-2477 / DM-2478 / DM-2479
+**Ticket:** DM-2370 / DM-2477 / DM-2478 / DM-2479 / DM-2365
 
-**Implemented seams:** selected-image/natural-sizing capture, exact Blink tile geometry, cyclic longhand expansion, and exact attachment positioning-area ownership
+**Implemented seams:** selected-image/natural-sizing capture, exact Blink tile geometry, cyclic longhand expansion, attachment positioning-area ownership, and slice-fragment stitched continuation
 
-**Remaining follow-ups:** existing DM-2365 and all-platform gate DM-2480
+**Remaining follow-up:** all-platform gate DM-2480
 
 Domotion turns each CSS `url()` background layer into an SVG
 `<pattern><image>`. DM-2477 captures the selected candidate and complete
@@ -15,8 +15,9 @@ fixed/local/canvas positioning ownership and selects those inputs before tile
 construction. DM-2478 now carries snapped and unsnapped positioning areas
 through a source-derived `BackgroundImageGeometry` record and lowers Blink's
 destination, phase, spacing, and tile size without the former `parseFloat` or
-oversized-pattern approximation. The remaining URL-background defect is
-DM-2365's stitched continuation for `box-decoration-break: slice` fragments.
+oversized-pattern approximation. DM-2365 now carries Blink's stitched
+positioning box through wrapped-inline and multicol block fragments while
+keeping `box-decoration-break: clone` on its per-fragment restart route.
 
 ## Verdict
 
@@ -49,7 +50,8 @@ calculated size and position, contain/cover rounding, both `space` branches,
 round's orthogonal-auto rule, positive and negative no-repeat, effective zoom,
 transformed phase, independent origin/clip, and cyclic lists. Fixed,
 transformed-fixed, local, and canvas positioning use the independently captured
-DM-2479 inputs. Only sliced fragments remain outside the exact tile route.
+DM-2479 inputs. Sliced and cloned fragments now share the exact tile helper;
+only DM-2480's three-platform release promotion remains.
 
 ## Current information loss
 
@@ -113,11 +115,13 @@ selects and maps those captured inputs before the existing tile builder runs,
 so tile geometry is not transformed twice. Old captures without the record
 retain the previous scroll-box fallback.
 
-Finally, `paintInlineFragment` at
-`src/render/element-tree-to-svg.ts:3628-3653` deliberately emits URL background
-images only for `box-decoration-break: clone`. Slice continuation is already
-tracked by DM-2365 and should reuse the exact geometry record rather than gain
-a second approximation.
+Finally, `src/capture/script/walker/fragmentation.ts` records a physical
+fragment, its offset inside Blink's imaginary unfragmented box, and that box's
+viewport-relative positioning rectangle. `paintInlineFragment` consumes the
+record for `slice`, passes its origin/clip/attachment boxes through the same
+tile helper, and intersects the result with the physical fragment. `clone`
+continues to use the physical fragment as its positioning box. Old captures
+without the stitched record fail closed for sliced image paint.
 
 ## Pinned source decision
 
@@ -247,9 +251,9 @@ device pixel of delta in every marker-color ink bound. The external-SVG rows
 whose image is sampled at a different boundary (`contain`, `round`, affine)
 retain the independent one-device-pixel geometry bound while allowing at most
 7% differently filtered edge pixels. That sampling envelope is not used for
-ordinary rows and is not a tile-position tolerance. A current-gap row must
+ordinary rows and is not a tile-position tolerance. Restart mutations must
 still have at least 4% mismatch or two pixels of movement. DM-2480 owns the
-all-platform promotion after DM-2365.
+remaining all-platform promotion.
 
 | Row | DPR 1 mismatch / bound | DPR 2 mismatch / bound | Route |
 | --- | ---: | ---: | --- |
@@ -271,16 +275,24 @@ all-platform promotion after DM-2365.
 | affine transformed local space | 4.25% / 0 | 2.12% / 0 | SVG sampling / exact bounds |
 | four images + two-value lists | 0.00% / 0 | 0.00% / 0 | strict |
 | wrapped inline clone | 0.00% / 0 | 0.31% / 0 | strict |
-| wrapped inline slice | 100% / missing | 100% / missing | expected DM-2365 gap |
+| wrapped inline slice | 0.00% / 0 | 0.22% / 0 | strict |
+| wrapped inline RTL slice | 0.00% / 0 | 0.30% / 0 | strict |
+| wrapped inline origin/clip slice | 0.00% / 0 | 0.26% / 0 | strict |
+| wrapped inline fixed slice | 0.00% / 0 | 0.11% / 0 | strict |
+| wrapped inline vertical-rl slice | 0.00% / 0 | 0.00% / 0 | strict |
 | multicol block clone | 0.00% / 0 | 0.00% / 0 | strict |
-| multicol block slice | 100% / missing | 100% / missing | expected DM-2365 gap |
+| multicol block slice | 0.00% / 0 | 0.00% / 0 | strict |
+| multicol vertical-rl block slice | 0.00% / 0 | 0.00% / 0 | strict |
 
-Both runs pass 21/21 rows. The two slice rows pass only by discriminating the
-known DM-2365 defect; they are not accepted fidelity. Held-out controls require
+Both runs pass 26/26 rows. Held-out controls require
 all source palettes to decode, every positive row to remain tight, fixed and
 transformed-fixed ownership to differ, local x/y facts to equal live scroll,
-the cyclic row to emit four image patterns, and both slice gaps to remain
-visible. The focused attachment oracle remains byte-exact at DPR 1 and DPR 2.
+the cyclic row to emit four image patterns, one vector pattern per physical
+fragment, and a structured positioning/offset record for every slice. A
+restart mutation replaces each stitched box with its physical fragment; the
+ordinary inline and block cases drift by 47.12% and 46.28% respectively at DPR
+1, proving the continuation is observed rather than vacuously aligned. The
+focused attachment oracle remains byte-exact at DPR 1 and DPR 2.
 
 ## Exact representation design
 
@@ -348,16 +360,30 @@ and three live Chromium cases cover fixed/scroll/local/canvas routing, DPR 1/2
 pixels, both scroll axes, scroll/page mutation, borders/padding, zoom,
 applicable and inert ancestors, perspective, affine mapping, and stitching.
 
-### Fragments (DM-2365)
+### Fragments (DM-2365, implemented)
 
-Existing DM-2365 owns the stitched imaginary box and slice/clone offsets for
-wrapped inline and block fragmentation. It should consume the same geometry
-helper without creating a second attachment approximation.
+Pinned Blink has two source paths. Wrapped inline paint calls
+`InlineBoxFragmentPainterBase::PaintRectForImageStrip`: it sums logical inline
+sizes, swaps the physical before/after sums for RTL, and shifts X in horizontal
+writing or Y in vertical writing. Block fragmentation calls
+`OffsetInStitchedFragments`: the previous break token supplies consumed logical
+block size and `WritingModeConverter` maps it back to the physical axis (the
+right edge for `vertical-rl`, the left edge for `vertical-lr`).
+
+Capture stores that result directly on each `inlineFragments` entry as
+`backgroundPositioningArea` plus `backgroundOffsetInStitchedBox`. The renderer
+uses the virtual border box for slice sizing, position, repeat and independent
+origin/clip insets, then exposes only its intersection with the physical
+fragment. Viewport-fixed layers deliberately use the physical fragment clip
+because Blink ignores the stitched offset; transformed fixed layers resolve to
+scroll and therefore continue through the strip. Clone always uses the
+physical fragment and restarts. LTR, RTL, vertical-rl, origin/clip, fixed,
+horizontal multicol and vertical multicol rows are strict at DPR 1/2.
 
 ### Hard gate (DM-2480)
 
-After DM-2365 lands, convert the two remaining `current-gap` rows to
-`source-equivalent` and run the existing DPR 1/2 evidence on all three
+DM-2365 converted every fragment `current-gap` row to `source-equivalent`.
+DM-2480 runs the existing DPR 1/2 evidence on all three
 platforms. The gate must retain source revisions,
 browser/Playwright/platform fingerprints, logical pattern facts, mutation
 pairs, and explicit evidence that every expected image decoded. Missing marker
@@ -369,10 +395,9 @@ ink, missing pattern ownership, or warnings fail rather than skip.
 - **DM-2478** — implemented: exact pure tile geometry, cyclic longhands, and
   SVG lowering in the 1/64 px LayoutUnit domain.
 - **DM-2479** — implemented: exact normal/fixed/local/root attachment positioning areas.
-- **DM-2365** — existing slice/clone background-image continuation ticket;
-  retained instead of filing a duplicate.
-- **DM-2480** — all-platform/DPR parity gate; now blocked only by DM-2365.
+- **DM-2365** — implemented: source-owned slice continuation with clone restart controls.
+- **DM-2480** — remaining all-platform/DPR parity gate.
 
-DM-2477, DM-2478, and DM-2479 remove renderer-side candidate, tile, and
-attachment guessing. URL tile geometry is source-derived; only the explicitly
-discriminated slice-fragment rows remain partial and are not accepted parity.
+DM-2477, DM-2478, DM-2479, and DM-2365 remove renderer-side candidate, tile,
+attachment, and fragment-strip guessing. URL tile geometry is source-derived;
+DM-2480 now owns only the three-platform release promotion.

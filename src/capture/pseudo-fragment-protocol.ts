@@ -7,7 +7,7 @@
  * consulting Domotion's legacy pseudo placement heuristics.
  */
 
-export type PseudoType = "before" | "after";
+export type PseudoType = "checkmark" | "before" | "after";
 export type WritingMode =
   | "horizontal-tb"
   | "vertical-rl"

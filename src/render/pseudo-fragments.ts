@@ -1,5 +1,5 @@
 /**
- * DM-2468: direct paint consumer for Blink-owned ::before/::after fragments.
+ * DM-2468/DM-2459: direct paint consumer for Blink-owned generated pseudos.
  *
  * The capture record already owns anonymous-child boundaries, fragment order,
  * physical baselines/quads, and slice/clone edge ownership.  This module never
@@ -77,6 +77,26 @@ function finiteRect(rect: Rect | null): rect is Rect {
 
 function finitePoint(point: Point): boolean {
   return Number.isFinite(point.x) && Number.isFinite(point.y);
+}
+
+function hasDegenerateCssTransform(transform: string): boolean {
+  const match = /^matrix\(([^)]+)\)$/.exec(transform.trim());
+  if (match == null) return false;
+  const values = match[1].split(",").map(Number);
+  return values.length === 6 && values.every(Number.isFinite)
+    && Math.abs(values[0] * values[3] - values[1] * values[2]) < 1e-12;
+}
+
+/** Source-owned non-paint activation shared by validation and emission. */
+export function pseudoFragmentIsUnpainted(record: CapturedPseudoFragmentSet): boolean {
+  return record.status === "unpainted"
+    || record.paint.visibility === "hidden"
+    || record.paint.visibility === "collapse"
+    || record.paint.opacity === 0
+    // A scale(0) generated indicator still has a real Blink pseudo and an
+    // authoritative empty paint result. Its collapsed quad is not a protocol
+    // failure and must not reopen compatibility indicator synthesis.
+    || hasDegenerateCssTransform(record.paint.transform);
 }
 
 function distance(a: Point, b: Point): number {
@@ -399,6 +419,36 @@ function borderLine(rect: Rect, side: "top" | "right" | "bottom" | "left", width
   return `<line x1="${r(snappedCenter(rect.x + width / 2))}" y1="${r(rect.y)}" x2="${r(snappedCenter(rect.x + width / 2))}" y2="${r(rect.y + rect.height)}" stroke="${esc(color)}" stroke-width="${r(width)}"${dash}/>`;
 }
 
+function roundedUniformBorder(
+  record: CapturedPseudoFragmentSet,
+  box: PseudoBoxFragment,
+  rect: Rect,
+  radius: number,
+): string | null {
+  if (!(radius > 0)) return null;
+  const sides = ["top", "right", "bottom", "left"] as const;
+  if (!sides.every((side) => ownsSide(record, box, side))) return null;
+
+  const widths = sides.map((side) => record.edges.border[side]);
+  const width = widths[0];
+  if (!(width > 0) || !widths.every((candidate) => Math.abs(candidate - width) <= 1e-6)) return null;
+
+  const paint = record.paint;
+  const colors = [paint.borderTopColor, paint.borderRightColor, paint.borderBottomColor, paint.borderLeftColor];
+  const styles = [paint.borderTopStyle, paint.borderRightStyle, paint.borderBottomStyle, paint.borderLeftStyle];
+  const color = colors[0];
+  // A single inset SVG stroke has the same outer/inner circular contours as
+  // Blink's uniform solid rounded border. Mixed edges and dash phase retain
+  // the explicit per-side path below.
+  if (!opaque(color) || !colors.every((candidate) => candidate === color) || !styles.every((candidate) => candidate === "solid")) return null;
+
+  const inset = width / 2;
+  const strokeWidth = Math.max(0, rect.width - width);
+  const strokeHeight = Math.max(0, rect.height - width);
+  if (!(strokeWidth > 0) || !(strokeHeight > 0)) return "";
+  return `<rect x="${r(rect.x + inset)}" y="${r(rect.y + inset)}" width="${r(strokeWidth)}" height="${r(strokeHeight)}" rx="${r(Math.max(0, radius - inset))}" ry="${r(Math.max(0, radius - inset))}" fill="none" stroke="${esc(color)}" stroke-width="${r(width)}"/>`;
+}
+
 function renderBox(
   record: CapturedPseudoFragmentSet,
   box: PseudoBoxFragment,
@@ -419,8 +469,13 @@ function renderBox(
   const edges = record.edges.border;
   const colors = { top: paint.borderTopColor, right: paint.borderRightColor, bottom: paint.borderBottomColor, left: paint.borderLeftColor };
   const styles = { top: paint.borderTopStyle, right: paint.borderRightStyle, bottom: paint.borderBottomStyle, left: paint.borderLeftStyle };
-  for (const side of ["top", "right", "bottom", "left"] as const) {
-    if (ownsSide(record, box, side)) pieces.push(borderLine(rect, side, edges[side], colors[side], styles[side]));
+  const roundedBorder = roundedUniformBorder(record, box, rect, radius);
+  if (roundedBorder != null) {
+    pieces.push(roundedBorder);
+  } else {
+    for (const side of ["top", "right", "bottom", "left"] as const) {
+      if (ownsSide(record, box, side)) pieces.push(borderLine(rect, side, edges[side], colors[side], styles[side]));
+    }
   }
   return pieces.length === 0 ? "" : wrapMatrix(boxMatrix, pieces.join(""));
 }
@@ -428,6 +483,7 @@ function renderBox(
 /** Structural invariants required before an exact record can own paint. */
 export function pseudoFragmentRecordErrors(record: CapturedPseudoFragmentSet): string[] {
   if (record.status !== "exact") return [];
+  if (pseudoFragmentIsUnpainted(record)) return [];
   const errors: string[] = [];
   const matrices = record.boxFragments.map((box, index) => {
     const value = pseudoFragmentAffine(box);
@@ -453,7 +509,10 @@ export function pseudoFragmentPaintSlot(record: CapturedPseudoFragmentSet): Pseu
   if ((record.paint.zIndex ?? 0) < 0) return "negative";
   if ((record.paint.zIndex ?? 0) > 0) return "positive";
   if (record.paint.position === "absolute" || record.paint.position === "fixed" || record.paint.zIndex === 0) return "positioned";
-  return record.pseudo === "::before" ? "before" : "after";
+  // Blink's generated-child order is ::checkmark, ::before, host content,
+  // ::after. Checkmark therefore shares the before slot; capture order keeps
+  // it ahead of a simultaneously authored ::before record.
+  return record.pseudo === "::after" ? "after" : "before";
 }
 
 /** Render exactly one source-owned record, without any host-derived fallback. */
@@ -461,7 +520,7 @@ export function renderPseudoFragmentRecord(
   record: CapturedPseudoFragmentSet,
   options: RenderPseudoFragmentsOptions = {},
 ): string {
-  if (record.status === "unpainted" || record.paint.visibility === "hidden" || record.paint.visibility === "collapse" || record.paint.opacity === 0) return "";
+  if (pseudoFragmentIsUnpainted(record)) return "";
   const label = record.contentItems.filter((item) => item.kind === "text").map((item) => item.text ?? "").join("");
   const attrs = `data-domotion-pseudo-source="${record.source}" data-domotion-pseudo="${record.pseudo}"`;
   if (record.status === "terminal-raster") {

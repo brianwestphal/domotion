@@ -49,6 +49,15 @@ The implementation keeps Blink's decisions separated by owner:
   paint, so transforms are applied exactly once rather than baking host
   geometry into every fragment.
 
+For checkboxes and radios, DM-2459 assigns `::checkmark` to the before slot
+ahead of `::before`, matching Blink's attachment order. Resolved
+`appearance:none`/`base` plus an authoritative pseudo record array (including
+an empty array) suppresses the generic checkbox/radio indicator. Native
+`appearance:auto` remains a negative control, and only pre-contract trees with
+an undefined record field can use the legacy heuristic. Uniform solid rounded
+pseudo borders preserve their circular contour rather than becoming four
+square-corner side strokes.
+
 The main renderer continues to allocate image/background paint servers and
 the existing affine wrappers. The pseudo renderer supplies their authoritative
 fragment geometry; it never reads host `textSegments`, host edges, or host
@@ -72,6 +81,13 @@ fixed placement; negative stacking, affine transform, zoom, and DPR 1/2.
 `content:none`, `display:none`, `visibility:hidden`, and `opacity:0` are
 negative pseudo-paint controls, while ordinary text, first-letter, line-clamp,
 and list-marker routes remain outside the generated-pseudo owner.
+
+The DM-2459 extension adds none/base checkbox and radio indicators across
+checked, unchecked, indeterminate, disabled, generated text/box/gradient,
+affine transform, switch, fractional-origin, zoom, and DPR rows. The focused
+browser test independently asserts `::before`/`::after`/`::checkmark`
+identities, authoritative empty ownership, synthesis suppression, and the
+native-auto raster negative.
 
 The focused unit mutations prove that changing host text coordinates cannot
 move source-owned output and that a collapsed baseline or quad cannot silently

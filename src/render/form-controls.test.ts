@@ -6,8 +6,58 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { renderFileSelectorOutsetShadow, renderFormControl, parseSpreadOnlyShadows, collectFormControlConicTiles } from "./form-controls.js";
+import {
+  checkablePseudoFactsOwnIndicator,
+  renderFileSelectorOutsetShadow,
+  renderFormControl,
+  parseSpreadOnlyShadows,
+  collectFormControlConicTiles,
+} from "./form-controls.js";
 import type { CapturedElement } from "../capture/types.js";
+
+describe("source-owned checkable indicators (DM-2459)", () => {
+  function checkable(
+    type: "checkbox" | "radio",
+    appearance: string,
+    pseudoFragments: CapturedElement["pseudoFragments"] | undefined,
+  ): CapturedElement {
+    return {
+      tag: "input", x: 10, y: 20, width: 24, height: 24, children: [],
+      ...(pseudoFragments === undefined ? {} : { pseudoFragments }),
+      styles: {
+        inputType: type,
+        inputAppearance: appearance,
+        effectiveAppearance: appearance,
+        checked: true,
+        borderRadius: type === "radio" ? "50%" : "4px",
+        borderTopColor: "rgb(12, 34, 56)",
+      },
+    } as unknown as CapturedElement;
+  }
+
+  it("suppresses generic synthesis for authoritative none/base pseudo facts, including an empty set", () => {
+    for (const appearance of ["none", "base"]) {
+      for (const type of ["checkbox", "radio"] as const) {
+        const el = checkable(type, appearance, []);
+        expect(checkablePseudoFactsOwnIndicator(el)).toBe(true);
+        expect(renderFormControl(el, "")).toBe("");
+      }
+    }
+  });
+
+  it("retains generic synthesis only for old captures whose pseudo facts are undefined", () => {
+    expect(renderFormControl(checkable("checkbox", "none", undefined), "")).toContain("<polyline");
+    expect(renderFormControl(checkable("radio", "none", undefined), "")).toContain("<circle");
+    expect(renderFormControl(checkable("checkbox", "base", undefined), "")).toContain("<polyline");
+  });
+
+  it("does not transfer native auto ownership merely because modern pseudo facts exist", () => {
+    const checkbox = checkable("checkbox", "checkbox", []);
+    checkbox.styles.inputAppearance = "auto";
+    expect(checkablePseudoFactsOwnIndicator(checkbox)).toBe(false);
+    expect(renderFormControl(checkbox, "")).toContain("<polyline");
+  });
+});
 
 describe("author-styled listbox option rows (DM-2190)", () => {
   it("uses captured row geometry and :checked paint instead of native constants", () => {
@@ -349,7 +399,7 @@ describe("native vs author-styled <meter> geometry (DM-1156 / DM-1155)", () => {
   });
 });
 
-describe("details disclosure marker suppression (DM-1115 / DM-448)", () => {
+describe("details disclosure paint ownership (DM-2457)", () => {
   function makeDetails(extra: Record<string, unknown>): Parameters<typeof renderFormControl>[0] {
     return {
       tag: "details",
@@ -370,76 +420,18 @@ describe("details disclosure marker suppression (DM-1115 / DM-448)", () => {
     } as unknown as Parameters<typeof renderFormControl>[0];
   }
 
-  it("paints a disclosure triangle when the marker is not suppressed", () => {
-    const svg = renderFormControl(makeDetails({}), "");
-    expect(svg).toContain("<polygon");
-  });
-
-  it("suppresses the triangle when the summary marker is hidden (DM-1115: list-style:none, DM-448: transparent ::marker)", () => {
-    // The capture layer collapses both `list-style: none` and a transparent
-    // `::marker` into `summaryMarkerSuppressed: true`; the renderer must paint
-    // nothing so it doesn't stack a UA triangle over the author's custom marker.
-    const svg = renderFormControl(makeDetails({ summaryMarkerSuppressed: true }), "");
+  it("never synthesizes a marker from legacy details-parent fields", () => {
+    // The marker is a generated child of `<summary>`, not paint owned by the
+    // `<details>` form-control route. Both shown and suppressed old-capture
+    // fields therefore fail closed here; the generic list-marker route owns
+    // only a source-recorded marker fragment.
+    const svg = renderFormControl(makeDetails({
+      summaryMarkerSuppressed: false,
+      summaryMarkerColor: "rgb(109,40,217)",
+      summaryMarkerFontSize: 28,
+      summaryMarkerInside: true,
+    }), "");
     expect(svg).toBe("");
     expect(svg).not.toContain("<polygon");
-  });
-});
-
-describe("details disclosure marker: ::marker color / size / inside (DM-1123)", () => {
-  // A `<details>` whose shown summary marker carries author `::marker` styling
-  // (the `.with-marker` case in 08-deep-details-accordion). `summaryPad` sets
-  // the summary's own padding-left (the inside-position offset driver).
-  function makeDetails(extra: Record<string, unknown>, summaryStyles: Record<string, unknown> = {}): Parameters<typeof renderFormControl>[0] {
-    return {
-      tag: "details",
-      x: 50, y: 0, width: 200, height: 44,
-      styles: { fontSize: "16", color: "rgb(0,0,0)", paddingLeft: "0", borderLeftWidth: "0", paddingTop: "0", borderTopWidth: "0", ...extra },
-      children: [{ tag: "summary", x: 50, y: 0, width: 200, height: 44, styles: summaryStyles }],
-    } as unknown as Parameters<typeof renderFormControl>[0];
-  }
-
-  // Extract the smallest x coordinate from the rendered <polygon points="...">.
-  function minPolygonX(svg: string): number {
-    const m = /<polygon points="([^"]+)"/.exec(svg);
-    if (m == null) throw new Error(`no polygon in: ${svg}`);
-    return Math.min(...m[1].trim().split(/\s+/).map((pt) => parseFloat(pt.split(",")[0])));
-  }
-
-  it("paints the triangle in the computed ::marker color, not the summary text color", () => {
-    const svg = renderFormControl(makeDetails({ summaryMarkerColor: "rgb(109,40,217)" }), "");
-    expect(svg).toContain('fill="rgb(109,40,217)"');
-    expect(svg).not.toContain('fill="rgb(0,0,0)"');
-  });
-
-  it("falls back to the summary text color when no ::marker color was captured (plain summary, pre-DM-1123 captures)", () => {
-    const svg = renderFormControl(makeDetails({ color: "rgb(0,0,0)" }), "");
-    expect(svg).toContain('fill="rgb(0,0,0)"');
-  });
-
-  it("scales the triangle with the ::marker font-size when the author set one", () => {
-    // marker font-size 14 → size max(8, 9.8) = 9.8; summary's own 16 would give
-    // 11.2. A smaller marker font-size yields a vertically shorter triangle.
-    const small = renderFormControl(makeDetails({ summaryMarkerFontSize: 14 }), "");
-    const big = renderFormControl(makeDetails({ summaryMarkerFontSize: 28 }), "");
-    const yExtent = (svg: string): number => {
-      const m = /<polygon points="([^"]+)"/.exec(svg)!;
-      const ys = m[1].trim().split(/\s+/).map((pt) => parseFloat(pt.split(",")[1]));
-      return Math.max(...ys) - Math.min(...ys);
-    };
-    expect(yExtent(big)).toBeGreaterThan(yExtent(small));
-  });
-
-  it("offsets the inside-positioned marker past the summary's own padding-left", () => {
-    // `.with-marker summary { padding-left: 24px }` + list-style-position:inside
-    // → Chrome paints the triangle ~24px right of the border-box-left placement.
-    const inside = renderFormControl(makeDetails({ summaryMarkerInside: true }, { paddingLeft: "24" }), "");
-    const noOffset = renderFormControl(makeDetails({ summaryMarkerInside: false }, { paddingLeft: "24" }), "");
-    expect(minPolygonX(inside) - minPolygonX(noOffset)).toBeCloseTo(24, 1);
-  });
-
-  it("does not shift plain (no-padding) summaries — no regression for the default marker", () => {
-    const withFlag = renderFormControl(makeDetails({ summaryMarkerInside: true }, { paddingLeft: "0" }), "");
-    const withoutFlag = renderFormControl(makeDetails({}, { paddingLeft: "0" }), "");
-    expect(minPolygonX(withFlag)).toBeCloseTo(minPolygonX(withoutFlag), 5);
   });
 });

@@ -1642,6 +1642,28 @@ export const tests: FeatureTest[] = [
     height: 360,
   },
   {
+    // DM-2365: URL-backed backgrounds on `box-decoration-break:slice` use one
+    // logical image strip across physical fragments. The first panel combines
+    // content-box positioning with padding-box clipping, the second is the
+    // clone restart control, and the third crosses a multicol block boundary.
+    name: "url-background-fragment-slice-continuation",
+    html: (() => {
+      const tile = "data:image/svg+xml;base64," + Buffer.from(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="20" viewBox="0 0 32 20">'
+        + '<path fill="#e5212c" d="M0 0h16v10H0z"/><path fill="#12a66a" d="M16 0h16v10H16z"/>'
+        + '<path fill="#1955d1" d="M0 10h16v10H0z"/><path fill="#f2bd1d" d="M16 10h16v10H16z"/></svg>',
+      ).toString("base64");
+      const image = `background-image:url(${tile});background-size:32px 20px;background-position:3px 4px;background-repeat:repeat;`;
+      return `<div style="padding:18px;background:#f8fafc;color:#0f172a;font:16px/26px system-ui;display:grid;grid-template-columns:190px 190px 250px;gap:20px;">
+        <div><strong style="display:block;margin-bottom:8px;">slice strip</strong><div style="width:150px;"><span style="${image}box-decoration-break:slice;-webkit-box-decoration-break:slice;border:3px solid #0f172a;padding:4px 7px;background-origin:content-box;background-clip:padding-box;">A URL background continues through every wrapped inline fragment.</span></div></div>
+        <div><strong style="display:block;margin-bottom:8px;">clone restart</strong><div style="width:150px;"><span style="${image}box-decoration-break:clone;-webkit-box-decoration-break:clone;border:3px solid #0f172a;padding:4px 7px;">The clone control restarts the tile in each wrapped fragment.</span></div></div>
+        <div><strong style="display:block;margin-bottom:8px;">multicol slice</strong><div style="column-count:2;column-gap:18px;column-fill:auto;width:220px;height:180px;font-size:13px;line-height:20px;"><div style="${image}box-decoration-break:slice;-webkit-box-decoration-break:slice;border:3px solid #0f172a;padding:6px;color:transparent;">This block background crosses the first fragmentainer and resumes in the second without restarting its logical block-axis strip. More content keeps both fragments visibly painted.</div></div></div>
+      </div>`;
+    })(),
+    width: 720,
+    height: 300,
+  },
+  {
     // CSS 2.1 Appendix E paint order is CONTEXT-WIDE for floats: a stacking
     // context paints every in-flow block descendant's background + border
     // (step 3), THEN every non-positioned float (step 4), THEN all in-flow

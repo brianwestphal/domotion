@@ -155,6 +155,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4dghd7p13r57fo",
+          "message": {
+            "text": "Slice geometry is captured in logical order because viewport placement cannot recover Blink's strip for RTL or vertical writing. This transcribes PaintRectForImageStrip for inline fragments and OffsetInStitchedFragments/WritingModeConverter for multicol blocks; clone deliberately ignores the record.",
+            "markdown": "Slice geometry is captured in logical order because viewport placement cannot recover Blink's strip for RTL or vertical writing. This transcribes PaintRectForImageStrip for inline fragments and OffsetInStitchedFragments/WritingModeConverter for multicol blocks; clone deliberately ignores the record."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/fragmentation.ts"
+                },
+                "region": {
+                  "startLine": 118,
+                  "endLine": 178,
+                  "snippet": {
+                    "text": "            // DM-2365: Blink paints sliced decorations against one imaginary\n            // unfragmented box, then clips that paint back to the physical\n            // fragment. Preserve that box per fragment so the renderer does\n            // not have to infer logical order from viewport placement (which\n            // fails for RTL and vertical writing modes).\n            //\n            // InlineBoxFragmentPainter::PaintRectForImageStrip stitches the\n            // logical inline sizes. OffsetInStitchedFragments stitches the\n            // logical block sizes and maps the consumed block offset back to\n            // a physical axis. getClientRects() exposes those same physical\n            // LayoutUnit fragment sizes in layout order.\n            if (_hasBgImage) {\n              var _writingMode = String(cs.writingMode || 'horizontal-tb').toLowerCase();\n              var _horizontalWriting = _writingMode === 'horizontal-tb';\n              var _logicalSizes = [];\n              var _stitchedSize = 0;\n              for (var _gsi = 0; _gsi < _frags.length; _gsi++) {\n                var _logicalSize = _isInline\n                  ? (_horizontalWriting ? _frags[_gsi].width : _frags[_gsi].height)\n                  : (_horizontalWriting ? _frags[_gsi].height : _frags[_gsi].width);\n                _logicalSizes.push(_logicalSize);\n                _stitchedSize += _logicalSize;\n              }\n              var _consumed = 0;\n              for (var _gfi = 0; _gfi < _frags.length; _gfi++) {\n                var _gf = _frags[_gfi];\n                var _physicalOffsetX = 0;\n                var _physicalOffsetY = 0;\n                if (_isInline) {\n                  // ComputeFragmentOffsetOnLine swaps the physical before/after\n                  // sums for RTL before PaintRectForImageStrip shifts X/Y.\n                  var _inlineOffset = cs.direction === 'rtl'\n                    ? _stitchedSize - _consumed - _logicalSizes[_gfi]\n                    : _consumed;\n                  if (_horizontalWriting) _physicalOffsetX = _inlineOffset;\n                  else _physicalOffsetY = _inlineOffset;\n                } else if (_horizontalWriting) {\n                  _physicalOffsetY = _consumed;\n                } else if (_writingMode === 'vertical-rl' || _writingMode === 'sideways-rl') {\n                  // WritingModeConverter maps logical block-start to the\n                  // physical right edge for *-rl modes.\n                  _physicalOffsetX = _stitchedSize - _consumed - _logicalSizes[_gfi];\n                } else {\n                  _physicalOffsetX = _consumed;\n                }\n                _gf.backgroundOffsetInStitchedBox = {\n                  x: _physicalOffsetX,\n                  y: _physicalOffsetY,\n                };\n                _gf.backgroundPositioningArea = {\n                  x: _gf.x - _physicalOffsetX,\n                  y: _gf.y - _physicalOffsetY,\n                  width: _horizontalWriting\n                    ? (_isInline ? _stitchedSize : _gf.width)\n                    : (_isInline ? _gf.width : _stitchedSize),\n                  height: _horizontalWriting\n                    ? (_isInline ? _gf.height : _stitchedSize)\n                    : (_isInline ? _stitchedSize : _gf.height),\n                };\n                _consumed += _logicalSizes[_gfi];\n              }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/paint/inline_box_fragment_painter.cc"
+                },
+                "region": {
+                  "startLine": 282
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/layout/fragmentation_utils.cc"
+                },
+                "region": {
+                  "startLine": 1486
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2365"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "44b8672e68fc2d2b83352126deaba94f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "1504b92ef04ae10fb8edce48194fe46a201932f0",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

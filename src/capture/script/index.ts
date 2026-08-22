@@ -920,6 +920,11 @@ const captureDocumentTree =
       })(),
       animId: _animId,
       magicKey: _magicKey,
+      // DM-2457: private correlation only. The Node/CDP post-pass resolves the
+      // real generated ::marker fragment and deletes this index before return.
+      _summaryMarkerSourceNodeIndex: tag === 'summary' && cs.display != null && cs.display.includes('list-item')
+        ? _projectiveNodeIndex.get(el)
+        : undefined,
       svgReferenceScope,
       // DM-1106: effective cursor keyword for the auto cursor-overlay hit-test.
       // Omitted when it resolves to the default arrow (the common case) to keep

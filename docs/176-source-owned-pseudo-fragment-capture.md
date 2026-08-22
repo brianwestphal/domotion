@@ -7,7 +7,7 @@ HarfBuzz `4de187dd0a915d13c976fa8bd474c084229f3aab`, and Chromium-pinned
 Skia `62efacd37737505732dbe3d8daa62abd679626a1`
 ## Outcome
 
-Live `::before` and `::after` capture no longer obtains normal-path geometry
+Live `::before`, `::after`, and checkable `::checkmark` capture no longer obtains normal-path geometry
 from a detached clone, host first/last text anchors, font-size half-leading, or
 the old bottom-gap wrap threshold. `src/capture/pseudo-fragment-cdp.ts` now
 discovers the real Blink pseudo backend nodes and installs immutable
@@ -30,7 +30,12 @@ Each exact record retains:
 
 The serialized record deliberately contains no correlation id or temporary DOM
 attribute. The host identity is the containing `CapturedElement`; the pseudo
-identity is `::before` or `::after` on the record.
+identity is `::checkmark`, `::before`, or `::after` on the record.
+
+DM-2459 extends the same real-node/CDP decoder to Blink's generated checkmark.
+Capture queries it before `::before`, matching Blink's pseudo attachment order.
+An explicit empty `pseudoFragments: []` is retained as authoritative absence;
+only `undefined` denotes a pre-contract serialized tree.
 
 ## Capture boundary
 
@@ -38,7 +43,7 @@ For each accessible frame, capture retains the selected root and descendants
 in a private `globalThis` registry with a `WeakMap<Element, index>`. It reads
 computed pseudo activation and style in that frame, then uses the registry's
 default Runtime context to resolve each host. `DOM.describeNode` supplies the
-real `before`/`after` pseudo identity. One paused-layout
+real `checkmark`/`before`/`after` pseudo identity. One paused-layout
 `DOMSnapshot.captureSnapshot` call covers all frame documents in the epoch;
 there is never one snapshot per pseudo.
 

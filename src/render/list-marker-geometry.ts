@@ -42,6 +42,48 @@ export function blinkSymbolMarkerGeometry(
   };
 }
 
+/**
+ * `ListMarker::RelativeSymbolMarkerRect` mapped through Blink's
+ * `WritingModeConverter`. The marker fragment is the physical first-line box
+ * reported by Chromium; direction is deliberately LTR here because Blink's
+ * helper hard-codes LTR for this relative-rect conversion.
+ */
+export function blinkPhysicalSymbolMarkerRect(
+  fragment: { x: number; y: number; width: number; height: number },
+  ascent: number,
+  specifiedFontSize: number,
+  effectiveZoom: number,
+  type: SymbolMarkerType,
+  writingMode: string,
+): { x: number; y: number; width: number; height: number } {
+  const geometry = blinkSymbolMarkerGeometry(ascent, specifiedFontSize * effectiveZoom, type);
+  let x: number;
+  let y: number;
+  let width: number;
+  let height: number;
+  if (writingMode === "horizontal-tb" || writingMode === "") {
+    x = fragment.x + geometry.inlineOffset;
+    y = fragment.y + geometry.blockOffset;
+    width = geometry.inlineSize;
+    height = geometry.blockSize;
+  } else {
+    // ToLineWritingMode(vertical-lr) is vertical-rl. The outer physical size
+    // passed by ListMarker is (fragment width, logical inline size), not the
+    // full line-box height; this is what keeps sideways-lr's inline offset on
+    // the marker fragment's physical top edge.
+    const lineMode = writingMode === "vertical-lr" ? "vertical-rl" : writingMode;
+    x = lineMode === "vertical-rl" || lineMode === "sideways-rl"
+      ? fragment.x + fragment.width - geometry.blockOffset - geometry.blockSize
+      : fragment.x + geometry.blockOffset;
+    y = lineMode === "sideways-lr"
+      ? fragment.y + geometry.markerInlineSize - geometry.inlineOffset - geometry.inlineSize
+      : fragment.y + geometry.inlineOffset;
+    width = geometry.blockSize;
+    height = geometry.inlineSize;
+  }
+  return { x, y, width, height };
+}
+
 /** Equivalent to Blink's ToPixelSnappedRect: snap both edges, not just size. */
 export function pixelSnapRect(x: number, y: number, width: number, height: number) {
   const left = Math.round(x), top = Math.round(y);
@@ -57,7 +99,7 @@ export function disclosureTriangle(
 ): string {
   let points: Array<[number, number]>;
   if (type === "disclosure-open") {
-    if (writingMode === "vertical-rl") points = [[1, 0], [0.14, 0.5], [1, 1]];
+    if (writingMode === "vertical-rl" || writingMode === "sideways-rl") points = [[1, 0], [0.14, 0.5], [1, 1]];
     else if (writingMode === "vertical-lr" || writingMode === "sideways-lr") points = [[0, 0], [0.86, 0.5], [0, 1]];
     else points = [[0, 0.07], [0.5, 0.93], [1, 0.07]];
   } else if (writingMode === "sideways-lr") {

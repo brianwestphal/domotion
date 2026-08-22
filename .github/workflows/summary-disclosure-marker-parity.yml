@@ -1,0 +1,70 @@
+name: Summary disclosure marker parity
+
+on:
+  pull_request:
+    paths:
+      - "src/capture/summary-marker-cdp.ts"
+      - "src/capture/types.ts"
+      - "src/capture/index.ts"
+      - "src/capture/script/index.ts"
+      - "src/capture/script.generated.ts"
+      - "src/render/list-marker-geometry.ts"
+      - "src/render/list-marker-geometry.test.ts"
+      - "src/render/form-controls.ts"
+      - "src/render/form-controls.test.ts"
+      - "src/render/element-tree-to-svg.ts"
+      - "tests/summary-disclosure-marker.e2e.test.ts"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/summary-disclosure-marker-parity.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/capture/summary-marker-cdp.ts"
+      - "src/capture/types.ts"
+      - "src/capture/index.ts"
+      - "src/capture/script/index.ts"
+      - "src/capture/script.generated.ts"
+      - "src/render/list-marker-geometry.ts"
+      - "src/render/list-marker-geometry.test.ts"
+      - "src/render/form-controls.ts"
+      - "src/render/form-controls.test.ts"
+      - "src/render/element-tree-to-svg.ts"
+      - "tests/summary-disclosure-marker.e2e.test.ts"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/summary-disclosure-marker-parity.yml"
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "22.21.0"
+
+jobs:
+  parity:
+    name: ${{ matrix.label }} summary disclosure markers
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            label: macOS
+          - os: ubuntu-latest
+            label: Linux
+          - os: windows-latest
+            label: Windows
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium
+      - name: Validate source geometry and retired details approximation
+        run: npx vitest run src/render/list-marker-geometry.test.ts src/render/form-controls.test.ts
+      - name: Compare Chromium and generated-SVG marker ink at DPR 1 and 2
+        run: npm run paint:summary-marker-oracle

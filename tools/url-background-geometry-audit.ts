@@ -2,13 +2,13 @@
 /**
  * DM-2478 source-owned URL background geometry oracle.
  *
- * Observational only: paint the same CSS url() background in Chromium and in
+ * Paint the same CSS url() background in Chromium and in
  * Domotion's generated SVG, then compare device-pixel geometry of a synthetic
  * source image whose four solid regions make tile size, phase, repeat, clip,
  * and fragment ownership visible. Rows marked `source-equivalent` require the
  * strict raster match; external-SVG sampling rows additionally require every
- * authored marker edge to stay within one device pixel. `current-gap` remains
- * reserved for the independently owned DM-2365 slice-continuation work.
+ * authored marker edge to stay within one device pixel. DM-2365 additionally
+ * requires sliced fragments to preserve the same source-owned tile geometry.
  */
 import { writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -73,6 +73,11 @@ interface PaintFacts {
   attachmentFixedToViewport?: boolean;
   attachmentLocalOffsetX?: number;
   attachmentLocalOffsetY?: number;
+  fragments?: Array<{
+    rect: Rect;
+    backgroundPositioningArea?: Rect;
+    backgroundOffsetInStitchedBox?: { x: number; y: number };
+  }>;
 }
 
 interface Bounds {
@@ -114,6 +119,11 @@ interface AuditRow {
   captured: PaintFacts | null;
   patterns: PatternFacts[];
   comparison: Comparison;
+  restartMutation?: {
+    patterns: PatternFacts[];
+    comparison: Comparison;
+    discriminated: boolean;
+  };
   warnings: string[];
   pass: boolean;
 }
@@ -269,11 +279,47 @@ const CASES: AuditCase[] = [
   {
     id: "wrapped-inline-slice",
     axis: "slice fragment uses stitched imaginary box",
-    expectedRoute: "current-gap",
+    expectedRoute: "source-equivalent",
     targetTag: "span",
     sceneCss: "width:104px;line-height:31px;font:24px/31px sans-serif",
     targetContent: "wide words wrap here",
     targetCss: "box-decoration-break:slice;-webkit-box-decoration-break:slice;background-size:32px 20px;background-position:3px 4px;background-repeat:repeat;padding:2px 5px",
+  },
+  {
+    id: "wrapped-inline-slice-rtl",
+    axis: "RTL slice uses Blink's physical before/after swap",
+    expectedRoute: "source-equivalent",
+    targetTag: "span",
+    sceneCss: "width:104px;line-height:31px;font:24px/31px sans-serif;direction:rtl",
+    targetContent: "wide words wrap here",
+    targetCss: "direction:rtl;box-decoration-break:slice;-webkit-box-decoration-break:slice;background-size:29px 17px;background-position:7px 3px;background-repeat:repeat;padding:2px 5px",
+  },
+  {
+    id: "wrapped-inline-slice-origin-clip",
+    axis: "slice continuation crosses independent origin and clip boxes",
+    expectedRoute: "source-equivalent",
+    targetTag: "span",
+    sceneCss: "width:104px;line-height:31px;font:24px/31px sans-serif",
+    targetContent: "wide words wrap here",
+    targetCss: "box-decoration-break:slice;-webkit-box-decoration-break:slice;border:3px solid transparent;padding:4px 6px;background-origin:content-box;background-clip:padding-box;background-size:31px 19px;background-position:7px 5px;background-repeat:repeat",
+  },
+  {
+    id: "wrapped-inline-slice-fixed",
+    axis: "fixed attachment remains viewport-owned across sliced fragments",
+    expectedRoute: "source-equivalent",
+    targetTag: "span",
+    sceneCss: "width:104px;line-height:31px;font:24px/31px sans-serif",
+    targetContent: "wide words wrap here",
+    targetCss: "box-decoration-break:slice;-webkit-box-decoration-break:slice;background-attachment:fixed;background-size:31px 19px;background-position:7px 5px;background-repeat:repeat;padding:2px 5px",
+  },
+  {
+    id: "wrapped-inline-slice-vertical-rl",
+    axis: "vertical-rl slice continues on the physical Y axis",
+    expectedRoute: "source-equivalent",
+    targetTag: "span",
+    sceneCss: "width:180px;height:104px;line-height:31px;font:24px/31px sans-serif;writing-mode:vertical-rl",
+    targetContent: "wide words wrap here",
+    targetCss: "writing-mode:vertical-rl;box-decoration-break:slice;-webkit-box-decoration-break:slice;background-size:19px 29px;background-position:3px 7px;background-repeat:repeat;padding:5px 2px",
   },
   {
     id: "multicol-block-clone",
@@ -287,11 +333,20 @@ const CASES: AuditCase[] = [
   {
     id: "multicol-block-slice",
     axis: "slice block fragment uses stitched imaginary box",
-    expectedRoute: "current-gap",
+    expectedRoute: "source-equivalent",
     sceneCss: "padding:10px;width:220px;height:150px;column-count:2;column-gap:16px;column-fill:auto;font:12px/18px sans-serif",
     hostCss: "display:contents",
     targetContent: "A fragmented block crosses the first column and continues through the second column with enough words to preserve a visible background in both physical fragments.",
     targetCss: "width:auto;height:auto;padding:4px;color:transparent;box-decoration-break:slice;-webkit-box-decoration-break:slice;background-size:32px 20px;background-position:3px 4px;background-repeat:repeat",
+  },
+  {
+    id: "multicol-block-slice-vertical-rl",
+    axis: "vertical-rl multicol slice uses stitched logical block geometry",
+    expectedRoute: "source-equivalent",
+    sceneCss: "padding:10px;width:220px;height:150px;column-count:2;column-gap:16px;column-fill:auto;font:12px/18px sans-serif;writing-mode:vertical-rl",
+    hostCss: "display:contents",
+    targetContent: "A fragmented block crosses the first column and continues through the second column with enough words to preserve a visible background in both physical fragments.",
+    targetCss: "width:auto;height:auto;padding:4px;color:transparent;writing-mode:vertical-rl;box-decoration-break:slice;-webkit-box-decoration-break:slice;background-size:23px 32px;background-position:4px 3px;background-repeat:repeat",
   },
 ];
 
@@ -337,6 +392,14 @@ async function readPaintFacts(page: Page): Promise<PaintFacts> {
       scrollTop: target.scrollTop,
       scrollWidth: target.scrollWidth,
       scrollHeight: target.scrollHeight,
+      fragments: Array.from(target.getClientRects(), (fragment) => ({
+        rect: {
+          x: fragment.x,
+          y: fragment.y,
+          width: fragment.width,
+          height: fragment.height,
+        },
+      })),
     };
   });
 }
@@ -350,6 +413,16 @@ function findCapturedTarget(elements: CapturedElement[]): CapturedElement | null
     if (child != null) return child;
   }
   return null;
+}
+
+/** Keep this paint oracle independent from unrelated atomic text/projective
+ * fallbacks. Replaying a Chromium surface would otherwise make a missing SVG
+ * background pattern compare perfectly against its own source screenshot. */
+function suppressAtomicRasterSurfaces(elements: CapturedElement[]): void {
+  for (const element of elements) {
+    element.transformSubtreeRaster = undefined;
+    suppressAtomicRasterSurfaces(element.children ?? []);
+  }
 }
 
 function capturedFacts(element: CapturedElement | null): PaintFacts | null {
@@ -374,6 +447,16 @@ function capturedFacts(element: CapturedElement | null): PaintFacts | null {
     attachmentFixedToViewport: style.backgroundAttachmentGeometry?.fixedToViewport,
     attachmentLocalOffsetX: style.backgroundAttachmentGeometry?.local?.scrollOffsetX,
     attachmentLocalOffsetY: style.backgroundAttachmentGeometry?.local?.scrollOffsetY,
+    fragments: element.inlineFragments?.map((fragment) => ({
+      rect: {
+        x: fragment.x,
+        y: fragment.y,
+        width: fragment.width,
+        height: fragment.height,
+      },
+      backgroundPositioningArea: fragment.backgroundPositioningArea,
+      backgroundOffsetInStitchedBox: fragment.backgroundOffsetInStitchedBox,
+    })),
   };
 }
 
@@ -384,16 +467,24 @@ function numericAttribute(tag: string, name: string): number {
 
 function parsePatternFacts(svg: string): PatternFacts[] {
   const facts: PatternFacts[] = [];
+  const imageDefs = new Map<string, string>();
+  for (const match of svg.matchAll(/<image\b[^>]*\bid="([^"]+)"[^>]*>/g)) {
+    imageDefs.set(match[1], match[0]);
+  }
   for (const match of svg.matchAll(/(<pattern\b[^>]*>)([\s\S]*?)<\/pattern>/g)) {
-    if (!/<image\b/.test(match[2])) continue;
-    const image = /<image\b[^>]*>/.exec(match[2])?.[0] ?? "";
+    const directImage = /<image\b[^>]*>/.exec(match[2])?.[0] ?? null;
+    const use = /<use\b[^>]*>/.exec(match[2])?.[0] ?? null;
+    if (directImage == null && use == null) continue;
+    const referencedId = use == null ? null : /\bhref="#([^"]+)"/.exec(use)?.[1] ?? null;
+    const image = directImage ?? (referencedId == null ? "" : imageDefs.get(referencedId) ?? "");
+    const positioned = directImage ?? use ?? "";
     facts.push({
       x: numericAttribute(match[1], "x"),
       y: numericAttribute(match[1], "y"),
       width: numericAttribute(match[1], "width"),
       height: numericAttribute(match[1], "height"),
-      imageX: numericAttribute(image, "x"),
-      imageY: numericAttribute(image, "y"),
+      imageX: numericAttribute(positioned, "x"),
+      imageY: numericAttribute(positioned, "y"),
       imageWidth: numericAttribute(image, "width"),
       imageHeight: numericAttribute(image, "height"),
     });
@@ -560,6 +651,12 @@ export async function runUrlBackgroundGeometryAudit(deviceScaleFactor = 1): Prom
       const sourcePng = await page.screenshot({ type: "png" });
       const { tree, warnings } = await captureElementTreeWithWarnings(page, "#scene", { x: 0, y: 0, ...VIEWPORT });
       const captured = findCapturedTarget(tree);
+      // This oracle adjudicates the vector URL-background route itself. A
+      // source-owned text fallback may atomically raster the same fragmented
+      // element when unrelated protocol text facts are unavailable; suppress
+      // that outer surface here so it cannot make a missing vector pattern
+      // appear pixel-perfect by replaying Chromium's source screenshot.
+      suppressAtomicRasterSurfaces(tree);
       const svg = elementTreeToSvg(tree, VIEWPORT.width, VIEWPORT.height, { hiDPIFactor: deviceScaleFactor });
       await generatedPage.setContent(
         `<!doctype html><style>html,body{margin:0;width:${VIEWPORT.width}px;height:${VIEWPORT.height}px;background:#fff;overflow:hidden}svg{display:block}</style>${svg}`,
@@ -572,6 +669,49 @@ export async function runUrlBackgroundGeometryAudit(deviceScaleFactor = 1): Prom
         generatedPng,
         test.imageCss == null ? [1, 2, 3, 4] : [5, 6, 7, 8],
       );
+      let restartMutation: AuditRow["restartMutation"];
+      const fixedToViewport = source.backgroundAttachment === "fixed"
+        && captured?.styles.backgroundAttachmentGeometry?.fixedToViewport === true;
+      if (source.boxDecorationBreak === "slice" && !fixedToViewport
+          && captured?.inlineFragments != null) {
+        const savedGeometry = captured.inlineFragments.map((fragment) => ({
+          area: fragment.backgroundPositioningArea,
+          offset: fragment.backgroundOffsetInStitchedBox,
+        }));
+        for (const fragment of captured.inlineFragments) {
+          // Held-out negative: replace Blink's stitched imaginary box with
+          // the clone route's physical fragment box. A real continuation row
+          // must visibly reject this restart without relying on source labels.
+          fragment.backgroundPositioningArea = {
+            x: fragment.x,
+            y: fragment.y,
+            width: fragment.width,
+            height: fragment.height,
+          };
+          fragment.backgroundOffsetInStitchedBox = { x: 0, y: 0 };
+        }
+        const mutatedSvg = elementTreeToSvg(tree, VIEWPORT.width, VIEWPORT.height, { hiDPIFactor: deviceScaleFactor });
+        await generatedPage.setContent(
+          `<!doctype html><style>html,body{margin:0;width:${VIEWPORT.width}px;height:${VIEWPORT.height}px;background:#fff;overflow:hidden}svg{display:block}</style>${mutatedSvg}`,
+          { waitUntil: "load" },
+        );
+        await generatedPage.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+        const mutatedPng = await generatedPage.screenshot({ type: "png" });
+        const mutatedComparison = await comparePaint(
+          sourcePng,
+          mutatedPng,
+          test.imageCss == null ? [1, 2, 3, 4] : [5, 6, 7, 8],
+        );
+        restartMutation = {
+          patterns: parsePatternFacts(mutatedSvg),
+          comparison: mutatedComparison,
+          discriminated: rowPass("current-gap", mutatedComparison),
+        };
+        captured.inlineFragments.forEach((fragment, index) => {
+          fragment.backgroundPositioningArea = savedGeometry[index].area;
+          fragment.backgroundOffsetInStitchedBox = savedGeometry[index].offset;
+        });
+      }
       rows.push({
         id: test.id,
         axis: test.axis,
@@ -580,14 +720,18 @@ export async function runUrlBackgroundGeometryAudit(deviceScaleFactor = 1): Prom
         captured: capturedFacts(captured),
         patterns: parsePatternFacts(svg),
         comparison,
+        restartMutation,
         warnings: warnings.map((warning) => `${warning.feature}: ${warning.detail}`),
-        pass: rowPass(test.expectedRoute, comparison),
+        pass: rowPass(test.expectedRoute, comparison)
+          && (restartMutation?.discriminated ?? true),
       });
     }
 
     const byId = new Map(rows.map((row) => [row.id, row]));
     const equivalentRows = rows.filter((row) => row.expectedRoute !== "current-gap");
     const gapRows = rows.filter((row) => row.expectedRoute === "current-gap");
+    const sliceRows = rows.filter((row) => row.source.boxDecorationBreak === "slice"
+      && (row.captured?.fragments?.length ?? 0) > 1);
     const controls = {
       paletteDetectedEverywhere: rows.every((row) => row.comparison.sourceColorPixels > 100),
       positiveControlsRemainTight: equivalentRows.every((row) => row.pass),
@@ -604,10 +748,18 @@ export async function runUrlBackgroundGeometryAudit(deviceScaleFactor = 1): Prom
           === byId.get("local-nonzero-scroll")?.source.scrollLeft
         && byId.get("local-nonzero-scroll")?.captured?.attachmentLocalOffsetY
           === byId.get("local-nonzero-scroll")?.source.scrollTop,
-      sliceAndCloneTakeDifferentRoutes:
-        byId.get("wrapped-inline-clone")?.pass === true && byId.get("wrapped-inline-slice")?.pass === true,
-      blockSliceAndCloneTakeDifferentRoutes:
-        byId.get("multicol-block-clone")?.pass === true && byId.get("multicol-block-slice")?.pass === true,
+      sliceRowsAreSourceEquivalent:
+        sliceRows.length >= 2 && sliceRows.every((row) => row.expectedRoute === "source-equivalent" && row.pass),
+      sliceGeometryRecordsCaptured:
+        sliceRows.every((row) => (row.captured?.fragments?.length ?? 0) > 1
+          && row.captured!.fragments!.every((fragment) => fragment.backgroundPositioningArea != null
+            && fragment.backgroundOffsetInStitchedBox != null)),
+      sliceRestartMutationsDiscriminated:
+        sliceRows.every((row) => row.captured?.attachmentFixedToViewport === true
+          || row.restartMutation?.discriminated === true),
+      fragmentPatternsMaterialized:
+        rows.filter((row) => (row.captured?.fragments?.length ?? 0) > 1)
+          .every((row) => row.patterns.length === row.captured!.fragments!.length),
       cyclicLayerRowHasFourImagePatterns: byId.get("cyclic-multiple-layer-lists")?.patterns.length === 4,
     };
     const pass = rows.every((row) => row.pass) && Object.values(controls).every(Boolean);
