@@ -6,13 +6,14 @@ local, zoom-adjusted layout space, then the paint-property transform maps that
 paint into its destination space. A single magnitude derived from matrix
 diagonals cannot stand in for that mapping.
 
-DM-2469 now implements the capture half of that model. A Node/CDP prepass
+DM-2469 implements the capture half of that model. A Node/CDP prepass
 retains each live text node, pauses the animation timeline, measures live and
 all-transform-neutral physical quads, captures normal shaped segments while
 CSS zoom remains active, solves one complete signed affine map, validates every
-held-out corner, and restores the source frame. The record is serialized beside
-the legacy scalar fields only until DM-2470 migrates every renderer text branch
-and deletes them. DM-2471 remains the independent all-platform Chromium gate.
+held-out corner, and restores the source frame. DM-2470 consumes the record
+through one complete signed residual matrix across every text branch and
+deletes the legacy scalar fields. DM-2471 supplies the independent all-platform
+Chromium matrix/ink gate described in docs 177 and 179.
 
 ## Implementation status (DM-2469)
 
@@ -29,9 +30,10 @@ and deletes them. DM-2471 remains the independent all-platform Chromium gate.
   surface, ambiguous segment match, or failed exact restoration warns and
   reserves one outer `transformSubtreeRaster`. Projective contexts share that
   existing Chromium-owned terminal rather than acquiring a text-only bitmap.
-- DM-2470 still owns renderer consumption and removal of `_scaleMag`,
-  `cumScaleX/Y`, and anisotropic correction. Until then old-tree compatibility
-  and current output remain intentionally unchanged.
+- `src/render/text-affine.ts` owns renderer consumption; `_scaleMag`,
+  `cumScaleX/Y`, and anisotropic correction are removed. The 25-case native-OS
+  gate independently checks both exact fragment facts and final device-space
+  ink/content.
 
 ## Verdict
 

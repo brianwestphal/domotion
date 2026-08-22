@@ -28,7 +28,6 @@ import { primeBackgroundImageSizing } from "./background-image-sizing.js";
 import { captureBrokenImageFallbackFacts } from "./broken-image-fallback.js";
 import { prepareTextPaintGeometry } from "./text-paint-geometry-cdp.js";
 import { preparePseudoFragmentGeometry } from "./pseudo-fragment-cdp.js";
-import { projectPseudoFragmentCompatibility } from "./pseudo-fragment-compat.js";
 import { clipRectForScreenshot } from "./clip-rect.js";
 import {
   isNonAffineProjectiveQuad,
@@ -1620,7 +1619,6 @@ export async function captureElementTreeWithWarnings(
   warnings.push(...(scrollbarCapture?.warnings ?? []));
   warnings.push(...(pseudoFragmentProbe?.warnings ?? []));
   warnings.push(...(textPaintProbe?.warnings ?? []));
-  projectPseudoFragmentCompatibility(typed.tree);
   finalizeScrollbarResizerOverlap(typed.tree);
   _resetLastCaptureWarnings(warnings);
   try {

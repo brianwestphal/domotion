@@ -1532,12 +1532,10 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   position rather than one element-wide snapshot.
 
 <!-- DM-2191 -->
-- Text-bearing `::before` / `::after` boxes are observed through an isolated
-  real-element layout probe because the DOM exposes pseudo computed styles but
-  no pseudo layout rect. The probe copies the complete resolved style and lets
-  Blink resolve variables, `calc()`, intrinsic content, logical dimensions,
-  writing mode, and pseudo typography; raster fallback remains limited to
-  text that cannot be represented as font outlines.
+- Legacy serialized text-bearing `::before` / `::after` boxes may still carry
+  the former isolated real-element-probe fields. New live capture instead uses
+  the source-owned protocol record below; the probe is not geometry authority
+  for new generated paint.
 
 <!-- DM-2383 -->
 - New live `::before`/`::after` captures use the DM-2467 source-owned fragment
@@ -1549,9 +1547,15 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   faces, shaped advances, and writing-mode-aware physical baselines. Missing
   or ambiguous protocol facts warn and become one isolated Chromium-painted
   pseudo surface; they never select the clone, half-leading, host-first/last,
-  or wrap-threshold heuristics. A separate exact-record projection keeps old
-  renderer fields and serialized trees compatible until DM-2468 consumes the
-  record directly and runs its all-platform pixel gate.
+  or wrap-threshold heuristics. DM-2468 now consumes that record directly:
+  generated text uses the normal resolved-face/path route at captured physical
+  baselines, anonymous images use captured quads, and per-fragment box paint
+  honors slice/clone edges in explicit negative/before/after/positioned/
+  positive slots. The transitional live compatibility projection is deleted;
+  old serialized aggregate trees remain readable. A native macOS/Linux/Windows
+  workflow compares Chromium and final-SVG edges at a fixed four-device-pixel
+  DPR-1/2 bound and uploads source/rendered surfaces. See
+  [doc 178](../178-direct-pseudo-fragment-rendering.md).
 
 - Dotted-circle routing is owned by the selected face's HarfBuzz result, with
   Chromium capture ink as the covered-glyph control and pinned ICU properties
@@ -1633,8 +1637,8 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   boundary (doc 06).
 
 <!-- DM-2384 -->
-- Broken-image fallback parity (doc 156) is **capture- and emit-complete; the
-  independent all-platform gate remains**.
+- Broken-image fallback parity (doc 156) is **capture-, emit-, and independent
+  all-platform-gate complete**.
   Blink replaces a
   failed host with a UA-shadow block-flow/inline fallback state machine; it
   does not ask `ImagePainter` to draw a framed mountain. Source and fresh CDP
@@ -1654,8 +1658,13 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   facts, and exposes captured AX independently. Missing required facts warn
   and select a classified terminal surface; the fixed gray mountain/raw-text
   approximation is removed. A focused DPR-1/2 browser matrix proves local
-  ownership and negatives; DM-2465 adds dependency-ordered macOS/Linux/Windows
-  stage/oracle controls and direct icon-content comparison.
+  ownership and negatives. DM-2465 adds 27 independent cases crossed with DPR
+  1/2 and light/dark on native macOS/Linux/Windows runners, exact pierced-CDP
+  geometry/text/AX versus capture/final-SVG comparisons, browser/OS/font
+  provenance, direct isolated-source versus emitted RGBA, the 100%/200% switch,
+  and fifteen mandatory mutation discriminators. CSS geometry uses a 1/64 px
+  bound, icon alpha bounds a one-device-pixel bound, and no platform consumes
+  another platform's screenshot baseline.
 
 <!-- DM-2382 -->
 - Legacy WebKit control-pseudo cascade is Chromium-owned. A Node-side CDP
@@ -1671,7 +1680,7 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   old source-order fallback is removed and authoritative-surface failure is
   explicit. See [doc 158](../158-authoritative-control-pseudo-cascade.md).
 
-<!-- DM-2381 / DM-2469 / DM-2470 -->
+<!-- DM-2381 / DM-2469 / DM-2470 / DM-2471 -->
 - Exact transformed-text capture and affine renderer consumption are
   **implemented**.
   A same-frame Node/CDP prepass pauses animations, retains real text nodes
@@ -1687,10 +1696,15 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   the former diagonal magnitude, unsigned ancestor axes and anisotropic wrapper
   are deleted. The retained baseline is the normal captured segment baseline
   (or ascent plus physical origin), not an independently decoded private Blink
-  baseline fact. DM-2468 owns direct generated-pseudo record consumption and
-  DM-2471 owns the independent all-platform matrix/ink gate. See
+  baseline fact. The hard all-platform gate now checks direct live/neutral/
+  restored fragment facts plus fixed device-space final ink/content over 25
+  cases at DPR 1/2, with eight scalar/matrix/raster mutations and native
+  macOS/Linux/Windows artifacts. DM-2468 independently owns direct generated-
+  pseudo record consumption and its native final-paint gate. See
   [doc 159](../159-exact-text-transform-geometry-audit.md) and
-  [doc 177](../177-affine-text-paint-consumption.md).
+  [docs 177](../177-affine-text-paint-consumption.md) and
+  [178](../178-direct-pseudo-fragment-rendering.md) and
+  [179](../179-transformed-text-all-platform-gate.md).
 
 <!-- DM-2371 / DM-2473 / DM-2474 / DM-2475 -->
 - Cloned inline-SVG 3D ownership and its independent static parity gate are

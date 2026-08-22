@@ -1,0 +1,83 @@
+name: Generated-pseudo fragment rendering parity
+
+# Each native runner produces its own Chromium and final-SVG surfaces. The
+# four-device-pixel edge bound is evaluated in device space; no platform
+# downloads or reuses another platform's font/raster baseline.
+on:
+  pull_request:
+    paths:
+      - "src/capture/pseudo-fragment-cdp.ts"
+      - "src/capture/pseudo-fragment-protocol.ts"
+      - "src/capture/types.ts"
+      - "src/capture/index.ts"
+      - "src/capture/script/index.ts"
+      - "src/render/pseudo-fragments.ts"
+      - "src/render/element-tree-to-svg.ts"
+      - "tools/pseudo-fragment-render-oracle.ts"
+      - "src/render/pseudo-fragments.test.ts"
+      - "tests/pseudo-fragment-capture.e2e.test.ts"
+      - "tests/pseudo-fragment-render-oracle.e2e.test.ts"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/pseudo-fragment-render-parity.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/capture/pseudo-fragment-cdp.ts"
+      - "src/capture/pseudo-fragment-protocol.ts"
+      - "src/capture/types.ts"
+      - "src/capture/index.ts"
+      - "src/capture/script/index.ts"
+      - "src/render/pseudo-fragments.ts"
+      - "src/render/element-tree-to-svg.ts"
+      - "tools/pseudo-fragment-render-oracle.ts"
+      - "src/render/pseudo-fragments.test.ts"
+      - "tests/pseudo-fragment-capture.e2e.test.ts"
+      - "tests/pseudo-fragment-render-oracle.e2e.test.ts"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/pseudo-fragment-render-parity.yml"
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "22.21.0"
+
+jobs:
+  parity:
+    name: ${{ matrix.label }} generated-pseudo fragments
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            label: macOS
+          - os: ubuntu-latest
+            label: Linux
+          - os: windows-latest
+            label: Windows
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium
+      - name: Validate direct-record ownership and fail-closed mutations
+        run: npx vitest run src/render/pseudo-fragments.test.ts
+      - name: Validate capture bypass and focused browser paint
+        run: npx vitest run --config vitest.e2e.config.ts tests/pseudo-fragment-capture.e2e.test.ts tests/pseudo-fragment-render-oracle.e2e.test.ts
+      - name: Run DPR-1/2 Chromium-versus-SVG edge gate
+        run: npm run pseudo:fragment-render-oracle -- --json tests/output/pseudo-fragment-render-${{ runner.os }}/report.json --artifact-dir tests/output/pseudo-fragment-render-${{ runner.os }}/artifacts
+      - name: Upload native source, SVG, rendered pixels, and report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pseudo-fragment-render-${{ runner.os }}
+          path: tests/output/pseudo-fragment-render-${{ runner.os }}
+          if-no-files-found: error
+          retention-days: 30

@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4b6rvybwz3ul7c",
+          "message": {
+            "text": "Focused static gate passed 3/3 and enforces the 25-case corpus, fixed <=1/64 CSS-px quad, <=1/256 matrix, <=0.05 CSS-px held-out, <=4 device-px ink-bound, <=8% mismatch, <=10% premultiplied-color thresholds, plus all eight named mutations. The initial DPR1 browser execution completed 25/25 rows and proved 23/25 logical geometry rows before identifying gate-only body-margin and owner-order defects; no post-fix long rerun was started after the bounded-stop instruction.",
+            "markdown": "Focused static gate passed 3/3 and enforces the 25-case corpus, fixed <=1/64 CSS-px quad, <=1/256 matrix, <=0.05 CSS-px held-out, <=4 device-px ink-bound, <=8% mismatch, <=10% premultiplied-color thresholds, plus all eight named mutations. The initial DPR1 browser execution completed 25/25 rows and proved 23/25 logical geometry rows before identifying gate-only body-margin and owner-order defects; no post-fix long rerun was started after the bounded-stop instruction."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/text-transform-parity-gate.test.ts"
+                },
+                "region": {
+                  "startLine": 1,
+                  "endLine": 120,
+                  "snippet": {
+                    "text": "import { describe, expect, it } from \"vitest\";\n\nimport {\n  REQUIRED_TEXT_TRANSFORM_MUTATIONS,\n  TEXT_TRANSFORM_CASES,\n  TEXT_TRANSFORM_GATE_THRESHOLDS,\n  validateTextTransformCorpus,\n} from \"../tools/text-transform-geometry-audit.js\";\n\ndescribe(\"transformed-text hard parity gate\", () => {\n  it(\"retains the complete source-owned corpus and both HTML-run controls\", () => {\n    expect(validateTextTransformCorpus()).toEqual([]);\n    expect(TEXT_TRANSFORM_CASES).toHaveLength(25);\n    expect(TEXT_TRANSFORM_CASES.filter((row) => row.sourceFixture != null).map((row) => row.sourceFixture)).toEqual([\n      \"external/html-test/21-deep-anisotropic-scale.html\",\n      \"external/html-test/21-deep-transform-origin.html\",\n    ]);\n    expect(TEXT_TRANSFORM_CASES.map((row) => row.id)).toEqual(expect.arrayContaining([\n      \"identity-negative\",\n      \"translation-negative\",\n      \"uniform-scale-scalar-collision\",\n      \"rotate-scalar-collision\",\n      \"anisotropic-scale\",\n      \"rotate-anisotropic-scale\",\n      \"skew-x\",\n      \"skew-y\",\n      \"reflect-x\",\n      \"reflect-y\",\n      \"nested-asymmetric-origins\",\n      \"border-box-reference\",\n      \"content-box-reference\",\n      \"wrapped-inline-fragments\",\n      \"mixed-face-size\",\n      \"decorations-shadows-stroke\",\n      \"raster-glyph-overlay\",\n      \"rtl-horizontal\",\n      \"vertical-writing\",\n      \"css-zoom-local\",\n      \"same-origin-iframe\",\n      \"affine-matrix3d-negative\",\n      \"projective-positive\",\n    ]));\n  });\n\n  it(\"pins fixed device-space tolerances without platform envelopes\", () => {\n    expect(TEXT_TRANSFORM_GATE_THRESHOLDS).toEqual({\n      quadEpsilonCssPx: 1 / 64,\n      matrixEpsilon: 1 / 256,\n      maxAffineResidualCssPx: 0.05,\n      maxInkEdgeDeltaDevicePx: 4,\n      inkNeighborRadiusDevicePx: 1,\n      maxInkMismatchFraction: 0.08,\n      maxPremultipliedColorError: 0.1,\n    });\n  });\n\n  it(\"requires every unsafe scalar/matrix/raster mutation discriminator\", () => {\n    expect(REQUIRED_TEXT_TRANSFORM_MUTATIONS).toEqual([\n      \"scalar-collision\",\n      \"drop-off-diagonals\",\n      \"drop-reflection-sign\",\n      \"collapse-reference-box-origin\",\n      \"collapse-wrapped-fragments\",\n      \"fold-zoom-into-matrix\",\n      \"double-apply-transform\",\n      \"force-projective-vector\",\n    ]);\n  });\n});\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "workItemUris": [
+            "DM-2471"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "3579b408de36e41dec3d4436bfd0843c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "e078a2a070c317c957232a0108dac3b02b1f20f8",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

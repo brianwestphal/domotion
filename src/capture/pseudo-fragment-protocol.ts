@@ -437,7 +437,18 @@ export function decodePseudoFragmentProtocol(input: PseudoProtocolInput): Decode
     const ownership = edgeOwnership(index, groups.length, input.style.boxDecorationBreak);
     const insets = ownedInsets(input.style, ownership);
     const contentRect = group.length > 0 ? unionRects(group.map((event) => event.localRect)) : null;
-    const localBorderRect = contentRect == null ? aggregate?.bounds ?? null : expand(contentRect, insets);
+    // A single-fragment flex/grid pseudo can be stretched beyond its anonymous
+    // text child. DOM.getContentQuads reports that stretched pseudo border box;
+    // using the text union as its local source rect scales the glyphs to the
+    // whole grid track. The aggregate DOMSnapshot row is Blink's actual box in
+    // this unfragmented case. Fragmented inline/multicol pseudos still require
+    // the per-group content union + owned edge insets because their aggregate
+    // row spans several independently translated fragments.
+    const localBorderRect = contentRect == null
+      ? aggregate?.bounds ?? null
+      : input.contentQuads.length === 1 && aggregate != null
+        ? aggregate.bounds
+        : expand(contentRect, insets);
     if (localBorderRect == null) return ambiguous(input, "box quad has no matching aggregate or content geometry", contentItems);
 
     let translation: Point | null = null;

@@ -1,0 +1,81 @@
+name: Broken-image fallback parity
+
+# Each native runner independently reads Chromium's closed UA shadow tree and
+# compares it with the capture protocol and emitted SVG. Reports are
+# fingerprinted; no cross-platform screenshot baseline is shared or averaged.
+on:
+  pull_request:
+    paths:
+      - "src/capture/broken-image-fallback.ts"
+      - "src/capture/broken-image-icon-raster.ts"
+      - "src/capture/index.ts"
+      - "src/capture/types.ts"
+      - "src/render/broken-image-fallback.ts"
+      - "src/render/element-tree-to-svg.ts"
+      - "tools/broken-image-fallback-oracle.ts"
+      - "tests/broken-image-fallback-parity-gate.test.ts"
+      - "tests/broken-image-fallback-parity-workflow.test.ts"
+      - "tests/broken-image-fallback-render.e2e.test.ts"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/broken-image-fallback-parity.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/capture/broken-image-fallback.ts"
+      - "src/capture/broken-image-icon-raster.ts"
+      - "src/capture/index.ts"
+      - "src/capture/types.ts"
+      - "src/render/broken-image-fallback.ts"
+      - "src/render/element-tree-to-svg.ts"
+      - "tools/broken-image-fallback-oracle.ts"
+      - "tests/broken-image-fallback-parity-gate.test.ts"
+      - "tests/broken-image-fallback-parity-workflow.test.ts"
+      - "tests/broken-image-fallback-render.e2e.test.ts"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/broken-image-fallback-parity.yml"
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "22.21.0"
+
+jobs:
+  parity:
+    name: ${{ matrix.label }} broken-image fallback
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            label: macOS
+          - os: ubuntu-latest
+            label: Linux
+          - os: windows-latest
+            label: Windows
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium
+      - name: Validate hard-gate corpus, mutations, and workflow
+        run: npx vitest run tests/broken-image-fallback-parity-gate.test.ts tests/broken-image-fallback-parity-workflow.test.ts
+      - name: Verify the production capture/render integration
+        run: npm run broken-image:hybrid-e2e
+      - name: Run independent live geometry and icon-content parity
+        run: npm run broken-image:parity-gate -- --dpr 1,2 --scheme light,dark --json tests/output/broken-image-fallback-${{ runner.os }}/report.json --artifacts tests/output/broken-image-fallback-${{ runner.os }}/artifacts
+      - name: Upload fingerprinted report and exact icon crops
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: broken-image-fallback-${{ runner.os }}
+          path: tests/output/broken-image-fallback-${{ runner.os }}
+          if-no-files-found: error
+          retention-days: 30

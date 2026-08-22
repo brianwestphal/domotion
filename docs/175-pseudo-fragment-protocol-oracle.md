@@ -2,7 +2,7 @@
 
 **Ticket:** DM-2466
 
-**Status:** structural decoder/live oracle complete; DM-2467 production capture now shares the decoder (doc 176), direct rendering remains DM-2468
+**Status:** structural decoder/live oracle complete; DM-2467 capture and DM-2468 direct rendering now consume the record (docs 176/178)
 
 **Source pins:** Chromium `7d859f271cbda744098ac69f44978d4edfa62be3`,
 HarfBuzz `4de187dd0a915d13c976fa8bd474c084229f3aab`, and Chromium-pinned
@@ -115,9 +115,7 @@ states, never a silent legacy host anchor.
 
 ## Deliberate production boundary
 
-This ticket establishes the decoder and independent stage gate only. Current
-captures still use `pseudo-content.ts`/`pseudo-inject.ts`; no renderer tolerance
-or legacy pseudo placement behavior changed. DM-2467 may now integrate this
-record into capture with a scoped Chromium-painted fallback. DM-2468 remains
-responsible for consuming it in paint order and for the independent
-all-platform pixel/ink gate.
+This ticket establishes the decoder and independent stage gate. DM-2467 now
+uses it for frame-aware production capture and scoped Chromium-painted failure
+surfaces; DM-2468 consumes exact records directly in paint order and supplies
+the independent native all-platform pixel/ink gate. See docs 176 and 178.

@@ -44,7 +44,8 @@ pixels, a vector sibling negative, and projective single ownership.
 The 11 rows in this document still own replaced layout/object-fit decisions;
 the focused DM-2380 gate owns local-surface raster-to-output mapping.
 
-Broken-image hybrid emission is shipped but remains outside this oracle's rows.
+Broken-image hybrid emission is shipped and now has a dedicated extension to
+this oracle program.
 [Doc 156](156-broken-image-fallback-ownership-audit.md) shows that Blink swaps
 the host to a UA-shadow block-flow/inline fallback with its own 18 px threshold,
 border/padding/clip, and shaped text geometry. DM-2463 now captures that state
@@ -52,6 +53,9 @@ through pierced CDP, including physical boxes/styles, hidden-text/font facts,
 DPR selection, and AX semantics. DM-2464 now emits the captured UA box/clip and
 shaped text as vectors and only the isolated Chromium icon as a fingerprinted
 raster; its focused DPR-1/2 browser matrix covers local render and AX behavior.
-The current 11 rows still do not independently prove those pixels or all three
-platforms. DM-2465 adds those rows, so this oracle alone must not be cited as
-end-to-end broken-image parity.
+DM-2465's `npm run broken-image:parity-gate` adds 27 independent live cases
+crossed with DPR 1/2 and light/dark on each native macOS/Linux/Windows runner.
+It records exact physical host/container/icon/text geometry, font/baseline and
+AX facts, compares the final SVG, and requires fifteen structural mutations.
+The original 11 rows remain the generic replaced-element gate; doc 156 plus the
+dedicated broken-image report is the end-to-end proof for this special state.

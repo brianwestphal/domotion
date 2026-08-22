@@ -1,7 +1,7 @@
 # 157 — Generated pseudo fragment and baseline geometry audit
 
 **Ticket:** DM-2383  
-**Status:** DM-2466 oracle and DM-2467 source-owned production capture complete (docs 175/176); direct record rendering remains DM-2468
+**Status:** DM-2466 structural oracle, DM-2467 source-owned capture, and DM-2468 direct rendering/native paint gate are complete (docs 175/176/178)
 **Source pins:** Chromium `7d859f271cbda744098ac69f44978d4edfa62be3`,
 HarfBuzz `4de187dd0a915d13c976fa8bd474c084229f3aab`, and the
 Chromium-pinned Skia revision `62efacd37737505732dbe3d8daa62abd679626a1`
@@ -38,11 +38,10 @@ DM-2466 supplied the source-transcribed decoder and 80-row live Chromium DPR
 matrix in [doc 175](175-pseudo-fragment-protocol-oracle.md). DM-2467 now uses
 that same decoder for live frame-aware capture, selected-face/typography facts,
 exact physical baselines, and an isolated pseudo-only terminal surface; see
-[doc 176](176-source-owned-pseudo-fragment-capture.md). The aggregate paths
-below remain relevant only to old serialized captures. New live records bypass
-both heuristic walkers, then populate current renderer fields through a
-separate exact-record compatibility projection. DM-2468 still owns native
-record paint ordering and independent all-platform pixel evidence.
+[doc 176](176-source-owned-pseudo-fragment-capture.md). DM-2468 consumes the
+record directly in captured paint slots and deletes the new-capture
+compatibility projection; see [doc 178](178-direct-pseudo-fragment-rendering.md).
+The aggregate paths below remain relevant only to old serialized captures.
 
 ## Pre-DM-2467 behavior retained for legacy serialized trees
 
@@ -93,8 +92,8 @@ Before DM-2467, `src/capture/script/index.ts` captured pseudo content before
 ordinary text and injected it afterward. The live schema now adds
 `CapturedPseudoFragmentSet`, and the synchronous walker skips both heuristic
 steps whenever the CDP prepass installed a record. The aggregate fields remain
-for legacy serialized-tree compatibility and are projected from the exact
-record for a new capture.
+only for legacy serialized-tree compatibility; new captures serialize and
+render the exact record without repopulating them.
 
 Existing coverage does not close this gap. The generated leg in
 `tools/replaced-geometry-oracle.ts` and
@@ -322,9 +321,9 @@ The mandatory mutations are designed to reject the current formulas:
 Each mutation must fail at least one focused row. The control suite must also
 show ordinary host text capture and `text-overflow` ellipses are unchanged.
 
-DM-2468 owns the independent visual gate. It should compare Chromium and SVG
+DM-2468's independent visual gate compares Chromium and SVG
 ink/box bounds at zoom 0.8/1/1.25/2 and DPR 1/2 on darwin, linux, and win32,
-with a maximum four-device-pixel edge residual. It must use colored,
+with a maximum four-device-pixel edge residual. It uses colored,
 non-overlapping pseudo/host/image paint so a wrong owner cannot be hidden by a
 whole-region similarity score. The gate needs the same super/border, wrapped
 middle, RTL, vertical, multicolumn, and text/image/text adversarial rows above,
@@ -339,8 +338,8 @@ plus negative `content:none` and hidden/clipped controls.
   records.** Blocked by DM-2466; add the protocol-backed capture path and
   fail-closed surface boundary.
 - **DM-2468 — Render captured pseudo fragments and retire heuristic in-flow
-  anchoring.** Blocked by DM-2467; consume the new record and add the
-  all-platform independent visual gate.
+  anchoring.** Complete: direct source-record paint, legacy-projection removal,
+  and the all-platform independent visual gate are documented in doc 178.
 
 DM-2382's generated-content cascade/counter work is related but separate: it
 decides which content and style exist. These tickets decide where the resulting

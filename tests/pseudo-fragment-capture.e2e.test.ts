@@ -8,7 +8,7 @@ function flatten(tree: CapturedElement[]): CapturedElement[] {
 }
 
 describe("DM-2467 capture contract", () => {
-  it("serializes source-owned pseudo records and derives the legacy bridge from them", async () => {
+  it("serializes source-owned pseudo records without repopulating legacy heuristic fields", async () => {
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({ viewport: { width: 520, height: 300 } });
     try {
@@ -28,8 +28,9 @@ describe("DM-2467 capture contract", () => {
         ["::before", "exact"], ["::after", "exact"],
       ]);
       expect(host?.pseudoFragments?.[0].fragments.some((fragment) => fragment.kind === "text" && fragment.text.includes("😀"))).toBe(true);
-      expect(host?.textSegments?.[0]).toMatchObject({ text: "prefix😀 ", color: "rgb(9, 80, 140)", fontWeight: "700" });
-      expect(host?.pseudoBoxes?.some((box) => box.pseudo === "::after")).toBe(true);
+      expect(host?.textSegments?.some((segment) => segment.text.includes("prefix😀"))).not.toBe(true);
+      expect(host?.pseudoBoxes?.some((box) => box.pseudo === "::after")).not.toBe(true);
+      expect(host?.pseudoImages ?? []).toHaveLength(0);
       expect(elements.some((element) => element.pseudoFragments?.some((record) =>
         record.status === "exact" && record.contentItems.some((item) => item.text === "frame")))).toBe(true);
       expect(result.warnings.filter((warning) => warning.feature === "generated-pseudo-fragment-geometry")).toEqual([]);

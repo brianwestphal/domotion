@@ -1,0 +1,84 @@
+name: Transformed text parity
+
+# Each native runner independently compares source Chromium with the capture
+# protocol and complete generated SVG. Reports contain browser/OS/font/source
+# fingerprints; no cross-platform screenshot baseline or tolerance envelope is
+# downloaded.
+on:
+  pull_request:
+    paths:
+      - "src/capture/text-paint-geometry-cdp.ts"
+      - "src/capture/text-fragment-geometry.ts"
+      - "src/capture/types.ts"
+      - "src/capture/index.ts"
+      - "src/capture/script/index.ts"
+      - "src/render/text-affine.ts"
+      - "src/render/text.ts"
+      - "src/render/element-tree-to-svg.ts"
+      - "tools/text-transform-geometry-audit.ts"
+      - "tests/text-transform-parity-gate.test.ts"
+      - "tests/text-paint-geometry.e2e.test.ts"
+      - "tests/text-affine-render.e2e.test.ts"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/text-transform-parity.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/capture/text-paint-geometry-cdp.ts"
+      - "src/capture/text-fragment-geometry.ts"
+      - "src/capture/types.ts"
+      - "src/capture/index.ts"
+      - "src/capture/script/index.ts"
+      - "src/render/text-affine.ts"
+      - "src/render/text.ts"
+      - "src/render/element-tree-to-svg.ts"
+      - "tools/text-transform-geometry-audit.ts"
+      - "tests/text-transform-parity-gate.test.ts"
+      - "tests/text-paint-geometry.e2e.test.ts"
+      - "tests/text-affine-render.e2e.test.ts"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/text-transform-parity.yml"
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "22.21.0"
+
+jobs:
+  parity:
+    name: ${{ matrix.label }} transformed text
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            label: macOS
+          - os: ubuntu-latest
+            label: Linux
+          - os: windows-latest
+            label: Windows
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium
+      - name: Validate hard-gate corpus and tolerances
+        run: npx vitest run tests/text-transform-parity-gate.test.ts
+      - name: Run exact fragment and final-ink legs
+        run: npm run transform:text-parity-gate -- --dpr 1,2 --json tests/output/text-transform-parity-${{ runner.os }}.json
+      - name: Upload fingerprinted report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: transformed-text-${{ runner.os }}
+          path: tests/output/text-transform-parity-${{ runner.os }}.json
+          if-no-files-found: error
+          retention-days: 30

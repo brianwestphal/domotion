@@ -83,6 +83,7 @@ transformed clamped owner remains one explicit Chromium surface.
   anisotropic-correction, and offset-predivision vocabulary.
 
 The local 2026-08-22 run passed the affine helper 3/3, the existing live capture
-protocol 5/5, and the complete DPR-1/2 renderer oracle 2/2. DM-2471 remains the
-independent all-platform release evidence rather than being inferred from this
-same-machine focused comparison.
+protocol 5/5, and the complete DPR-1/2 renderer oracle 2/2. The independent
+all-platform release evidence is now the hard two-leg matrix/ink gate in
+[doc 179](179-transformed-text-all-platform-gate.md), rather than an inference
+from this same-machine focused comparison.

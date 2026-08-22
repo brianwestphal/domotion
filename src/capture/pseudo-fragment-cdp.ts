@@ -84,6 +84,30 @@ export interface PseudoFragmentProbe {
 
 const FEATURE = "generated-pseudo-fragment-geometry";
 
+/**
+ * tsx/esbuild's keep-names transform inserts a free `__name` call inside a
+ * function serialized by Playwright. Browser globals do not normally carry
+ * that helper. Install the identity helper only for this prepass and remove it
+ * afterward; Vitest's transform does not need it, while the shipped `tsx`
+ * oracle/CLI route does.
+ */
+async function installEvaluateNameShim(frames: readonly Frame[]): Promise<Frame[]> {
+  const installed: Frame[] = [];
+  for (const frame of frames) {
+    const didInstall = await frame.evaluate(`(() => {
+      if (typeof globalThis.__name === "function") return false;
+      globalThis.__name = function(value) { return value; };
+      return true;
+    })()`).catch(() => false);
+    if (didInstall) installed.push(frame);
+  }
+  return installed;
+}
+
+async function removeEvaluateNameShim(frames: readonly Frame[]): Promise<void> {
+  await Promise.all(frames.map((frame) => frame.evaluate(`delete globalThis.__name`).catch(() => undefined)));
+}
+
 function numeric(value: string): number {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -143,15 +167,15 @@ async function setupFrame(
         selector: string;
         style: CandidateStyle;
       }> = [];
-      const number = (value: string): number => {
+      function number(value: string): number {
         const parsed = Number.parseFloat(value);
         return Number.isFinite(parsed) ? parsed : 0;
-      };
-      const edge = (style: CSSStyleDeclaration, prefix: "border" | "padding" | "margin", side: "Top" | "Right" | "Bottom" | "Left"): number => {
+      }
+      function edge(style: CSSStyleDeclaration, prefix: "border" | "padding" | "margin", side: "Top" | "Right" | "Bottom" | "Left"): number {
         const property = prefix === "border" ? `${prefix}${side}Width` : `${prefix}${side}`;
         return number(style[property as keyof CSSStyleDeclaration] as string);
-      };
-      const cssUrls = (content: string): string[] => {
+      }
+      function cssUrls(content: string): string[] {
         const output: string[] = [];
         const expression = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*?))\s*\)/gi;
         let match: RegExpExecArray | null;
@@ -160,12 +184,12 @@ async function setupFrame(
           try { output.push(new URL(value, document.baseURI).href); } catch { output.push(value); }
         }
         return output;
-      };
-      const shortSelector = (element: Element): string => {
+      }
+      function shortSelector(element: Element): string {
         if (element.id !== "") return `#${CSS.escape(element.id)}`;
         const marker = element.getAttribute("data-testid") ?? element.getAttribute("data-test");
         return marker == null ? element.localName : `${element.localName}[data-test="${marker}"]`;
-      };
+      }
       for (let elementIndex = 0; elementIndex < elements.length; elementIndex++) {
         const element = elements[elementIndex];
         for (const pseudo of ["before", "after"] as const) {
@@ -180,7 +204,21 @@ async function setupFrame(
           const canvas = document.createElement("canvas");
           const context = canvas.getContext("2d");
           if (context == null) continue;
-          context.font = `${style.fontStyle} ${style.fontVariant} ${style.fontWeight} ${style.fontStretch} ${paintFontSize}px ${style.fontFamily}`;
+          // Canvas's `font` parser still rejects the CSS Fonts 4 stretch slot
+          // in Chromium. An invalid shorthand silently leaves the 10px
+          // sans-serif default active, halving advances/ascent and poisoning
+          // every retained baseline. Set the accepted core shorthand first,
+          // then the extended TextDrawingStyles longhands when available.
+          context.font = `${style.fontStyle} ${style.fontWeight} ${paintFontSize}px ${style.fontFamily}`;
+          const drawing = context as unknown as {
+            fontStretch?: string; fontKerning?: string; fontVariantCaps?: string;
+            letterSpacing?: string; wordSpacing?: string;
+          };
+          if ("fontStretch" in drawing) drawing.fontStretch = style.fontStretch;
+          if ("fontKerning" in drawing) drawing.fontKerning = style.fontKerning;
+          if ("fontVariantCaps" in drawing) drawing.fontVariantCaps = style.fontVariantCaps;
+          if ("letterSpacing" in drawing && style.letterSpacing !== "normal") drawing.letterSpacing = `${number(style.letterSpacing) * zoom}px`;
+          if ("wordSpacing" in drawing && style.wordSpacing !== "normal") drawing.wordSpacing = `${number(style.wordSpacing) * zoom}px`;
           context.direction = style.direction === "rtl" ? "rtl" : "ltr";
           const metrics = context.measureText("Hg");
           const lineHeight = style.lineHeight === "normal" ? "normal" as const : number(style.lineHeight) * zoom;
@@ -220,11 +258,15 @@ async function setupFrame(
                 resolvedFonts: [],
               },
               paint: {
+                visibility: style.visibility,
+                position: style.position,
+                unicodeBidi: style.unicodeBidi,
                 color: style.color,
                 backgroundColor: style.backgroundColor,
                 backgroundImage: style.backgroundImage,
                 backgroundPosition: style.backgroundPosition,
                 backgroundSize: style.backgroundSize,
+                backgroundRepeat: style.backgroundRepeat,
                 borderTopColor: style.borderTopColor,
                 borderRightColor: style.borderRightColor,
                 borderBottomColor: style.borderBottomColor,
@@ -258,7 +300,8 @@ async function setupFrame(
       token,
       candidates: raw.map((row) => ({ ...row, frame, token })),
     };
-  } catch {
+  } catch (error) {
+    console.warn("[domotion] pseudo fragment frame setup failed", error);
     return null;
   }
 }
@@ -369,9 +412,15 @@ async function addShapedAdvances(candidate: Candidate, rows: SnapshotLayoutRow[]
     const canvas = document.createElement("canvas");
     const context = canvas.getContext("2d");
     if (context == null) return [];
-    context.font = `${style.fontStyle} ${style.fontVariant} ${style.fontWeight} ${style.fontStretch} ${Number.parseFloat(style.fontSize) * zoom}px ${style.fontFamily}`;
+    context.font = `${style.fontStyle} ${style.fontWeight} ${Number.parseFloat(style.fontSize) * zoom}px ${style.fontFamily}`;
     context.direction = style.direction === "rtl" ? "rtl" : "ltr";
-    const spacing = context as CanvasRenderingContext2D & { letterSpacing?: string; wordSpacing?: string };
+    const spacing = context as unknown as {
+      fontStretch?: string; fontKerning?: string; fontVariantCaps?: string;
+      letterSpacing?: string; wordSpacing?: string;
+    };
+    if ("fontStretch" in spacing) spacing.fontStretch = style.fontStretch;
+    if ("fontKerning" in spacing) spacing.fontKerning = style.fontKerning;
+    if ("fontVariantCaps" in spacing) spacing.fontVariantCaps = style.fontVariant;
     if ("letterSpacing" in spacing && style.letterSpacing !== "normal") spacing.letterSpacing = `${Number.parseFloat(style.letterSpacing) * zoom}px`;
     if ("wordSpacing" in spacing && style.wordSpacing !== "normal") spacing.wordSpacing = `${Number.parseFloat(style.wordSpacing) * zoom}px`;
     return strings.map((text) => context.measureText(text).width);
@@ -504,8 +553,16 @@ async function installFacts(
   facts: ReadonlyMap<string, Record<number, CapturedPseudoFragmentSet[]>>,
 ): Promise<void> {
   await Promise.all(prepared.map(({ frame, token }) => frame.evaluate(({ key, facts }) => {
-    const registry = (globalThis as typeof globalThis & Record<string, unknown>)[key] as { factsByElement?: unknown } | undefined;
-    if (registry != null) registry.factsByElement = facts;
+    const registry = (globalThis as typeof globalThis & Record<string, unknown>)[key] as { elements?: Element[]; factsByElement?: unknown } | undefined;
+    if (registry != null) {
+      // An empty array is an authoritative "no generated pseudo paint" fact.
+      // Seed every walked host so content:none/display:none/absent pseudos do
+      // not fall through to the retired clone/host-edge capture path.
+      const complete: Record<number, CapturedPseudoFragmentSet[]> = Object.create(null) as Record<number, CapturedPseudoFragmentSet[]>;
+      for (let index = 0; index < (registry.elements?.length ?? 0); index++) complete[index] = [];
+      for (const [index, records] of Object.entries(facts)) complete[Number(index)] = records;
+      registry.factsByElement = complete;
+    }
   }, { key, facts: facts.get(token) ?? {} })));
 }
 
@@ -516,7 +573,9 @@ export async function preparePseudoFragmentGeometry(
   viewport: { x: number; y: number; width: number; height: number },
 ): Promise<PseudoFragmentProbe> {
   const key = `__domotionPseudoFragments_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-  const prepared = (await Promise.all(page.frames().map((frame, index) =>
+  const initialFrames = page.frames();
+  const nameShimFrames = await installEvaluateNameShim(initialFrames);
+  const prepared = (await Promise.all(initialFrames.map((frame, index) =>
     setupFrame(frame, selector, key, `f${index}`, frame === page.mainFrame()))))
     .filter((row): row is PreparedFrame => row != null);
   const candidates = prepared.flatMap((row) => row.candidates);
@@ -649,6 +708,7 @@ export async function preparePseudoFragmentGeometry(
     await session?.detach().catch(() => undefined);
   }
   await installFacts(prepared, key, facts);
+  await removeEvaluateNameShim(nameShimFrames);
   return {
     key,
     warnings,

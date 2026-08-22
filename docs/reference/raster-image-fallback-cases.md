@@ -129,8 +129,13 @@ captured container sides/clip and ordinary shaped text separately, and exposes
 the captured AX image/ignored state once. Repeated identical icon payloads may
 subsequently be hoisted into `<defs>` and referenced by `<use>`.
 
+Gate: `npm run broken-image:parity-gate` records 27 cases × DPR 1/2 ×
+light/dark, requires direct live-to-emitted RGBA and fifteen mutation
+discriminators, and runs natively on macOS/Linux/Windows through
+`.github/workflows/broken-image-fallback-parity.yml`.
+
 Doc: [156-broken-image-fallback-ownership-audit.md](../156-broken-image-fallback-ownership-audit.md).
-Ticket: DM-2464; DM-2465 owns the independent all-platform content gate.
+Tickets: DM-2464 (hybrid paint) and DM-2465 (independent all-platform gate).
 
 ---
 

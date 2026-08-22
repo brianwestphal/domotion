@@ -29,10 +29,15 @@ the verdict to move. Add a positive and negative row here whenever a fallback
 is introduced, retired, or changes ownership, and update
 `docs/reference/raster-image-fallback-cases.md` in the same commit.
 
-The broken-image placeholder is not yet one of this oracle's live rows. The
+The broken-image placeholder is represented by a dedicated live extension. The
 [ownership audit](156-broken-image-fallback-ownership-audit.md) requires only
 Chromium's 1×/2× icon pixels to cross the raster boundary; the UA container and
 alternative text stay vector. DM-2463/2464 now capture, fingerprint, and emit
 that isolated icon while successful/loading/hidden controls remain negative in
-a focused DPR-1/2 browser test. DM-2465 promotes those decisions into this
-independent activation program and adds the direct all-platform pixel gate.
+a focused DPR-1/2 browser test. DM-2465's
+`npm run broken-image:parity-gate` promotes those decisions into the independent
+activation program: visible broken icons are positive while loading,
+successful, empty-auto, sub-18, and ordinary author rasters are negative. Its
+separate content leg directly compares Chromium's isolated source crop with
+the emitted RGBA, proves the 100%/200% switch, and kills gray-mountain and 1×
+reuse mutations independently on macOS/Linux/Windows.

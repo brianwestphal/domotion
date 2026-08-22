@@ -91,8 +91,13 @@ shortest possible map:
   residual matrix across normal, wrapped, vertical, bitmap, decoration, shadow,
   stroke, background-clip and input branches. The legacy transform-derived font
   magnitude, unsigned cumulative axes and anisotropic correction are removed
-  (DM-2469/2470, docs 159/177). Direct DM-2467 pseudo-record consumption remains
-  DM-2468; an unavailable generated clamp marker retains the outer raster.
+  (DM-2469/2470, docs 159/177). DM-2468 now consumes DM-2467 pseudo records
+  directly; an unavailable generated clamp marker retains the outer raster.
+  `tools/text-transform-geometry-audit.ts` is the hard two-leg release gate:
+  direct Chromium live/neutral/restored quads versus capture, then final source
+  versus SVG device-space ink/content. The identical 25-case DPR-1/2 corpus runs
+  in `.github/workflows/text-transform-parity.yml` on all three platforms and
+  uploads fingerprinted reports (DM-2471, doc 179).
 - **`src/render/`** — pure node-side renderers that convert a captured
   element tree into SVG markup. `element-tree-to-svg.ts` is the big one;
   `culling-geometry.ts` is its fail-closed geometry preflight: it exposes the
@@ -259,13 +264,20 @@ shortest possible map:
   anonymous text/image item boundaries, UTF-16 visual fragments,
   fragmentainer translations, logical slice/clone edges, shaped advances, and
   TextFragmentPainter's writing-mode baseline transform.
-  `src/capture/pseudo-fragment-cdp.ts` is now the DM-2467 production capture
+  `src/capture/pseudo-fragment-cdp.ts` is the DM-2467 production capture
   route: private per-frame host correlation, selected-face/typography facts,
   exact records on `CapturedElement.pseudoFragments`, and an isolated
   Chromium-painted pseudo surface on unavailable/ambiguous protocol geometry.
-  `src/capture/pseudo-fragment-compat.ts` separately projects that record into
-  legacy renderer fields until DM-2468 consumes it directly; the live path no
-  longer invokes clone/host-anchor pseudo geometry when a record is present.
+  DM-2468 deletes the transitional live compatibility projection.
+  `src/render/pseudo-fragments.ts` validates and directly paints each captured
+  text/image/box fragment through its ordinary path/image/background owner at
+  the retained physical plane and baseline, with explicit negative/before/
+  after/positioned/positive slots. New live capture never repopulates legacy
+  pseudo fields; old serialized trees keep their existing compatibility path.
+  `tools/pseudo-fragment-render-oracle.ts` independently compares colored
+  Chromium and final-SVG edges at a fixed four-device-pixel bound for DPR 1/2,
+  while `.github/workflows/pseudo-fragment-render-parity.yml` runs native
+  macOS/Linux/Windows reports and uploads both surfaces (doc 178).
   Dynamic replaced surfaces have a focused transform-space gate in
   `tests/replaced-snapshot-transform.e2e.test.ts`: Chromium-vs-SVG ink bounds
   for off-page/nested affine + zoom/scroll/DPR, transform-then-scrolled-ancestor-clip
@@ -276,7 +288,7 @@ shortest possible map:
   `replacedSnapshot.rasterToOutput` instead of copying live-AABB clip deltas.
   `tools/raster-boundary-oracle.ts` is the paired activation/vector gate for
   every inventoried raster fallback.
-- **Broken-image hybrid boundary (DM-2463/DM-2464 / doc 156)** —
+- **Broken-image hybrid boundary and hard gate (DM-2463/DM-2464/DM-2465 / doc 156)** —
   `src/capture/script/index.ts` seeds alt/title presence, load facts, effective
   zoom, and private live-node correlation for every `<img>`, including
   zero-sized states. Before that registry is released,
@@ -295,7 +307,13 @@ shortest possible map:
   Capture/unit tests cover the state machine and source facts;
   `tests/broken-image-fallback-render.e2e.test.ts` covers DPR-1/2 hybrid paint,
   LTR/RTL/vertical text, zoom, threshold/hidden/success negatives, fingerprints,
-  and single-node AX exposure. DM-2465 owns the independent all-platform gate.
+  and single-node AX exposure. `tools/broken-image-fallback-oracle.ts` then
+  executes 27 independent live cases at DPR 1/2 and light/dark, second-reads
+  closed-UA-shadow geometry/text/AX through CDP, checks final SVG ownership,
+  directly compares the isolated live icon with emitted RGBA, and requires 15
+  mutation discriminators. `.github/workflows/broken-image-fallback-parity.yml`
+  is a hard PR/main macOS/Linux/Windows matrix and always uploads fingerprinted
+  reports and exact icon crops.
 - **`src/scrubber/`** — the `svg-scrubber` server + kerfjs
   page-side UI (`server.ts`, `client.tsx`, `trim.ts`): video-style
   play/scrub/range-loop/frame-export/trim for an animated SVG (doc 56), plus

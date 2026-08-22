@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4bc7saf2sdue77",
+          "message": {
+            "text": "The gate separates three coordinate contracts so a CSS-pixel screenshot envelope cannot weaken the ticket's one-device-pixel icon-content bound. Live CDP geometry stays at 1/64 CSS px; only CopyFromSurface's outward crop envelope gets one CSS px; decoded source-versus-emitted alpha bounds and RGBA evidence remain device-pixel based.",
+            "markdown": "The gate separates three coordinate contracts so a CSS-pixel screenshot envelope cannot weaken the ticket's one-device-pixel icon-content bound. Live CDP geometry stays at 1/64 CSS px; only CopyFromSurface's outward crop envelope gets one CSS px; decoded source-versus-emitted alpha bounds and RGBA evidence remain device-pixel based."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/broken-image-fallback-oracle.ts"
+                },
+                "region": {
+                  "startLine": 38,
+                  "endLine": 45,
+                  "snippet": {
+                    "text": "export const BROKEN_IMAGE_GATE_THRESHOLDS = {\n  geometryCssPx: 1 / 64,\n  // CopyFromSurface clips are conservatively snapped to whole CSS pixels;\n  // content alpha is checked separately below in device pixels.\n  cropEnvelopeCssPx: 1,\n  iconBoundDevicePx: 1,\n  iconRgbaMeanError: 0.01,\n  iconPixelMismatchFraction: 0.04,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/native-control-raster.ts"
+                },
+                "region": {
+                  "startLine": 81
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2465"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "93a85b8cbe69ab302bdba70a993dcae5"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4bc7sddyii4weo",
+          "message": {
+            "text": "The full local native matrix passes 108/108 live records and 15/15 required mutations. The run crossed 27 cases with DPR 1/2 and light/dark, independently re-read closed UA-shadow geometry/text/AX, verified final SVG ownership, directly compared icon RGBA, and caught both the gray-mountain and illegal 1x-at-2x substitutions; the existing hybrid browser suite also passed 6/6.",
+            "markdown": "The full local native matrix passes 108/108 live records and 15/15 required mutations. The run crossed 27 cases with DPR 1/2 and light/dark, independently re-read closed UA-shadow geometry/text/AX, verified final SVG ownership, directly compared icon RGBA, and caught both the gray-mountain and illegal 1x-at-2x substitutions; the existing hybrid browser suite also passed 6/6."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/broken-image-fallback-oracle.ts"
+                },
+                "region": {
+                  "startLine": 1122,
+                  "endLine": 1180,
+                  "snippet": {
+                    "text": "export async function runBrokenImageFallbackOracle(options: {\n  deviceScaleFactors?: number[];\n  colorSchemes?: Scheme[];\n  artifactRoot?: string;\n} = {}): Promise<BrokenImageGateReport> {\n  const corpusErrors = validateBrokenImageGateCorpus();\n  if (corpusErrors.length > 0) throw new Error(`invalid broken-image corpus:\\n${corpusErrors.join(\"\\n\")}`);\n  const currentPlatform = platform();\n  if (!BROKEN_IMAGE_GATE_PLATFORMS.includes(currentPlatform as Platform)) throw new Error(`unsupported gate platform: ${currentPlatform}`);\n  process.env.DOMOTION_HELPER_NO_SERVE = \"1\";\n  const deviceScaleFactors = [...new Set(options.deviceScaleFactors ?? [...BROKEN_IMAGE_GATE_DPRS])].sort((a, b) => a - b);\n  const colorSchemes = [...new Set(options.colorSchemes ?? [...BROKEN_IMAGE_GATE_SCHEMES])];\n  const artifactRoot = resolve(options.artifactRoot ?? `tests/output/broken-image-fallback-${currentPlatform}/artifacts`);\n  if (deviceScaleFactors.length === 0 || deviceScaleFactors.some((dpr) => !Number.isFinite(dpr) || dpr <= 0)) throw new Error(\"--dpr requires positive finite values\");\n  if (colorSchemes.length === 0) throw new Error(\"at least one color scheme is required\");\n  const browser = await launchChromium();\n  try {\n    const rows: BrokenImageGateRow[] = [];\n    const direct = new Map<string, { sourcePng: Buffer; emittedPng: Buffer }>();\n    const fonts = new Set<string>();\n    let userAgent = \"\";\n    let launchArguments: string[] = [];\n    for (const scheme of colorSchemes) {\n      for (const dpr of deviceScaleFactors) {\n        const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: dpr, colorScheme: scheme });\n        const page = await context.newPage();\n        const generatedPage = await context.newPage();\n        const session = await context.newCDPSession(page);\n        try {\n          await Promise.all([session.send(\"DOM.enable\"), session.send(\"CSS.enable\"), session.send(\"Accessibility.enable\")]);\n          if (userAgent === \"\") userAgent = await page.evaluate(() => navigator.userAgent);\n          if (launchArguments.length === 0) {\n            const command = await session.send(\"Browser.getBrowserCommandLine\").catch(() => ({ arguments: [] as string[] }));\n            launchArguments = command.arguments ?? [];\n          }\n          for (const test of BROKEN_IMAGE_GATE_CASES) {\n            const result = await runCase({ page, generatedPage, session, test, dpr, scheme, artifactRoot });\n            rows.push(result.row);\n            for (const font of result.row.captured.resolvedFonts) fonts.add(font);\n            if (result.direct != null) direct.set(`${scheme}/${dpr}`, result.direct);\n          }\n        } finally {\n          await session.detach().catch(() => undefined);\n          await context.close();\n        }\n      }\n    }\n    const mutations = await buildMutations(rows, direct);\n    const controls = {\n      everyScenarioHasEveryCase: deviceScaleFactors.every((dpr) => colorSchemes.every((scheme) =>\n        rows.filter((row) => row.deviceScaleFactor === dpr && row.colorScheme === scheme).length === BROKEN_IMAGE_GATE_CASES.length)),\n      everyProductionRowPasses: rows.every((row) => row.pass),\n      onlyVisibleBrokenIconsRasterize: rows.every((row) => row.output.iconMarkerCount === (row.expected.icon ? 1 : 0)),\n      alternativeTextAlwaysVector: rows.every((row) => row.output.vectorTextMarkerCount === (row.expected.text ? 1 : 0)),\n      successfulLoadingHiddenStayNegative: rows.filter((row) => [\"src-loading\", \"src-success\", \"alt-empty-auto\", \"threshold-17\", \"ordinary-author-raster\"].includes(row.id)).every((row) => row.output.iconMarkerCount === 0),\n      noLegacyMountainOrRawText: rows.every((row) => row.output.legacyMountainCount === 0 && row.output.rawAlternativeTextCount === 0),\n      directIconContentPasses: rows.filter((row) => row.id === \"icon-content\").every((row) => row.iconComparison?.pass === true),\n      dprResourceSwitchObserved: rowAt(rows, \"icon-content\", 1).captured.resourceScale === 1 && rowAt(rows, \"icon-content\", 2).captured.resourceScale === 2,\n      schemeKeepsSharedIcon: colorSchemes.length < 2 || deviceScaleFactors.every((dpr) => rowAt(rows, \"icon-content\", dpr, \"light\").iconComparison?.sourceRgbaSha256 === rowAt(rows, \"icon-content\", dpr, \"dark\").iconComparison?.sourceRgbaSha256),"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/broken-image-fallback-parity.yml"
+                },
+                "region": {
+                  "startLine": 45
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2465"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e242b387162ca0077a09523e21803427"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "e078a2a070c317c957232a0108dac3b02b1f20f8",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

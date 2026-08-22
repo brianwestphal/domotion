@@ -1,7 +1,7 @@
 # 156 — Chromium broken-image fallback ownership audit
 
-Status: capture foundation and hybrid rendering shipped in DM-2463/DM-2464.
-The independent macOS/Linux/Windows paint gate remains DM-2465.
+Status: capture foundation, hybrid rendering, and the independent native
+macOS/Linux/Windows hard gate shipped in DM-2463/DM-2464/DM-2465.
 
 ## Question and evidence boundary
 
@@ -19,7 +19,7 @@ Fresh browser measurements below used Playwright Chromium 147.0.7727.15 on
 macOS at DPR 1 and 2. The source decision precedes the measurements; the probe
 only verifies that the installed browser still exposes the expected boundary.
 
-## Shipped boundary and remaining gate
+## Shipped boundary and hard gate
 
 Older serialized trees may still carry the compatibility fields:
 
@@ -46,8 +46,26 @@ renderer; and `src/capture/broken-image-icon-raster.ts` supplies only the
 isolated `#alttext-image` compositor pixels with PNG/decoded-RGBA fingerprints.
 The DPR-1/2 browser test pins 16×16/32×32 icon crops, 24×24/48×48 zoomed crops,
 vertical orientation, title/empty/missing states, successful-image and hidden-
-icon negatives, and one independent AX node. DM-2465 still owns the stricter
-direct icon-content comparison and macOS/Linux/Windows reports.
+icon negatives, and one independent AX node.
+
+DM-2465 adds `tools/broken-image-fallback-oracle.ts` and the required
+`broken-image-fallback-parity.yml` PR/main workflow. Each native runner executes
+27 independently specified live cases at DPR 1/2 and light/dark (108 records),
+then compares a second pierced-CDP read of the host/container/icon/text/AX facts
+with production capture and the final SVG. The report retains browser revision,
+OS/runner image, launch arguments, DPR, scheme, viewport, resolved font
+inventory, physical boxes/quads, border/padding/clip, visible text, font
+metrics/baseline, AX role/name/ignored state, PNG/RGBA hashes, and exact icon
+crops. It shares no screenshot baseline between operating systems.
+
+The direct icon leg independently isolates `#alttext-image` from live Chromium
+and compares decoded RGBA with the payload that reached the final SVG. CSS
+geometry is bounded at 1/64 px; the conservative CopyFromSurface crop envelope
+may expand by at most one CSS pixel; decoded icon alpha bounds may move by at
+most one device pixel, with RGBA mean error at most 0.01 and mismatched-pixel
+fraction at most 0.04. The local macOS calibration is 108/108 records and 15/15
+required mutations; Linux and Windows produce their own equally strict reports
+in CI rather than borrowing those local pixels.
 
 ## Blink's decision procedure
 
@@ -297,16 +315,17 @@ The work is split so capture facts cannot be fixture-fit inside the renderer:
    live DPR icon crop. Unit activation tests and a DPR-1/2 browser render/AX
    matrix cover LTR/RTL/vertical, title/empty/missing alt, 17/18 px, zoom,
    author paint, clipping, successful images, and hidden icons.
-3. **DM-2465 — gate geometry and raster ownership on every platform.** Extend
-   the replaced-geometry and raster-boundary oracles, then add focused visual
-   fixtures and macOS/Linux/Windows reports.
-
-The independent controls must include successful and still-loading images;
-collapsed failures; src missing/empty/valueless/broken; alt
-missing/empty/text/title; zero, one, both, aspect-ratio, 17 px, and 18 px
-dimensions; standards/quirks; author borders/padding/background; long clipped
-text; mixed fallback and astral characters; LTR/RTL; horizontal/vertical
-writing; zoom; DPR 1/2; light/dark scheme; and load → error → success plus alt
-mutations. The raster boundary gate must assert that the icon activates an
-image payload while the alternative text still reaches the ordinary text
-emitter.
+3. **DM-2465 — gate geometry and raster ownership on every platform
+   (shipped).** The independent oracle crosses source/load state,
+   missing/empty/text/title alternatives, 17/18 px, LTR/RTL,
+   horizontal/vertical writing, standards/quirks, one/both/aspect sizing,
+   author border/padding, long clipping, mixed/astral text, zoom, affine
+   transform, and raster-negative controls with DPR 1/2 and light/dark. Its
+   final-SVG assertions allow an image payload only for a visible broken icon
+   and require alt/title text to remain on the vector text emitter. Fifteen
+   mandatory mutations include load→error→success, alt-state changes, the
+   threshold, direction/writing/sizing/zoom transitions, scheme invariance,
+   DPR resource switching, a gray-mountain substitution, and illegal reuse of
+   the 1× crop at 2×. `tests/broken-image-fallback-parity-gate.test.ts` pins the
+   corpus/tolerances, while the workflow contract test prevents an OS leg,
+   matrix axis, artifact upload, or hard-gate trigger from being weakened.

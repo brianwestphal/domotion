@@ -9,6 +9,7 @@ import { readFileSync } from "node:fs";
 import * as fontkit from "fontkit";
 import { renderSingleLineText, renderMultiSegmentText, renderMultiLineText, renderInputText } from "./text.js";
 import { renderVerticalSegments, hasVerticalSegments } from "./vertical-text.js";
+import { renderPseudoFragmentSlot, type PseudoFragmentPaintSlot } from "./pseudo-fragments.js";
 import { getEmbeddedFontFaceCss, getGlyphDefs, renderRadicalGlyph, renderSourceOwnedTextBoundary, pushBaselineSnapSuppression, popBaselineSnapSuppression } from "./text-to-path.js";
 import { beginCharacterFallbackDocument, endCharacterFallbackDocument } from "./font-resolution.js";
 import { profAccum, profNow } from "./render-profile.js";
@@ -4471,6 +4472,54 @@ function resolveClipPathOnce(state: RenderState, el: CapturedElement, corners: C
   return id;
 }
 
+/**
+ * Paint one explicit source-owned pseudo slot.  Background paint-server ids
+ * remain allocated by the main renderer, but all geometry comes from the
+ * retained pseudo fragment record rather than the host box/text segments.
+ */
+function paintCapturedPseudoFragments(
+  state: RenderState,
+  el: CapturedElement,
+  indent: string,
+  slot: PseudoFragmentPaintSlot,
+): void {
+  const { paintCtx, defsParts, svgParts, captureViewport } = state;
+  svgParts.push(...renderPseudoFragmentSlot(el, slot, {
+    indent,
+    emittedCtm: paintCtx.emittedTextCtm.get(el),
+    imageHref: (url, width, height) => embedResizedDataUri(url, width, height),
+    emitBackgroundImage: ({ record, rect, borderRadius }) => {
+      const layers = splitTopLevelCommas(record.paint.backgroundImage);
+      const sizes = splitTopLevelCommas(record.paint.backgroundSize);
+      const positions = splitTopLevelCommas(record.paint.backgroundPosition);
+      const repeats = splitTopLevelCommas(record.paint.backgroundRepeat);
+      const markup: string[] = [];
+      for (let layerIndex = layers.length - 1; layerIndex >= 0; layerIndex--) {
+        const id = paintCtx.nextClipId("pfbg");
+        const out = buildBackgroundLayerDef(
+          id,
+          layers[layerIndex].trim(),
+          rect.x,
+          rect.y,
+          rect.width,
+          rect.height,
+          cyclicBackgroundLayer(sizes, layerIndex, "auto").trim(),
+          cyclicBackgroundLayer(positions, layerIndex, "0% 0%").trim(),
+          cyclicBackgroundLayer(repeats, layerIndex, "repeat").trim(),
+          null,
+          "scroll",
+          captureViewport,
+        );
+        if (out.def === "") continue;
+        defsParts.push(out.def);
+        const radius = borderRadius > 0 ? ` rx="${r(borderRadius)}" ry="${r(borderRadius)}"` : "";
+        markup.push(`<rect x="${r(rect.x)}" y="${r(rect.y)}" width="${r(rect.width)}" height="${r(rect.height)}"${radius} fill="url(#${id})"/>`);
+      }
+      return markup.join("");
+    },
+  }));
+}
+
 /** `renderMaskPhase` memoized per element — see `resolveClipPathOnce`. */
 function renderMaskPhaseOnce(state: RenderState, el: CapturedElement): string | null {
   const cached = state.elementMaskIds.get(el);
@@ -5072,6 +5121,17 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   if (animClass !== "") svgParts.push(`${indent}<g class="${animClass}">`);
   const wrapperContentStart = svgParts.length;
 
+  // A negative positioned pseudo on a host that does not itself establish a
+  // stacking context participates in the nearest ancestor context. It paints
+  // below the host's own box (the common `position:relative; z-index:auto`
+  // case), not in the host-local post-background step. A real host stacking
+  // context retains the Appendix E order and paints its negative descendants
+  // immediately after its own background/border below.
+  const pseudoNegativePaintsAboveHostBox = establishesStackingContext(el, parentDisplayForEl);
+  if (paintBoxPhase && !pseudoNegativePaintsAboveHostBox) {
+    paintCapturedPseudoFragments(state, el, indent, "negative");
+  }
+
   // Inline-fragment paint: when the element wraps across multiple line
   // boxes and the bbox-based paint would smear background + border across
   // the whole logical inline (typically the full container width), paint
@@ -5221,9 +5281,12 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
     if (needsFilterOuter) svgParts.push(`${indent}</g>`);
   };
 
-  // ── Step 2: a negative-z pseudo box is a negative stacking context of this
-  // element, so it paints after this element's own background and before any
-  // descendant's.
+  // ── Step 2: a host-local negative stacking context paints after this
+  // element's own background and before any descendant. Non-SC hosts emitted
+  // their ancestor-owned negative pseudo before the host box above.
+  if (paintBoxPhase && pseudoNegativePaintsAboveHostBox) {
+    paintCapturedPseudoFragments(state, el, indent, "negative");
+  }
   if (paintBoxPhase) {
     paintPseudoBoxes(state, el, indent, "behind");
   }
@@ -5335,6 +5398,7 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // text put our SVG circles ON TOP of the paragraph in the 24-generated-content
   // fixture (DM-440 user feedback: 'z-index of svg is wrong'). Move the
   // emit ahead of the text block so text reliably wins z.
+  paintCapturedPseudoFragments(state, el, indent, "before");
   if (el.pseudoImages != null) {
     for (const pi of el.pseudoImages) {
       const image = `<image href="${esc(embedResizedDataUri(pi.url, pi.width, pi.height))}" x="${r(pi.x)}" y="${r(pi.y)}" width="${r(pi.width)}" height="${r(pi.height)}" preserveAspectRatio="xMidYMid meet" />`;
@@ -5390,6 +5454,12 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
     if (childClipId != null) svgParts.push(`${indent}</g>`);
   }
 
+  // A non-positioned ::after is the host's final generated child. Positioned
+  // auto/zero and positive stacking records follow the in-flow child paint;
+  // their exact geometry remains source-owned in all three slots.
+  paintCapturedPseudoFragments(state, el, indent, "after");
+  paintCapturedPseudoFragments(state, el, indent, "positioned");
+
   // Blink's TablePainter paints the collapsed edge graph after cell/row/table
   // backgrounds. Emitting here gives the single table-owned layer the same
   // ownership and prevents descendant backgrounds from covering its edges.
@@ -5402,6 +5472,7 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // so we don't double-emit decorative `::after` boxes (carets / dividers)
   // that the earlier loop already handled in CSS-correct inline position.
   paintDeferredFadeOverlays(state, el, indent);
+  paintCapturedPseudoFragments(state, el, indent, "positive");
 
   // DM-808: MathML `<mfrac>` needs a horizontal fraction bar between its
   // numerator (first child) and denominator (second child). Chrome's

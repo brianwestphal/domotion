@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4cit6za4bzfm5p",
+          "message": {
+            "text": "The final-paint tolerance is fixed at four device pixels after screenshots have already been DPR-scaled. Multiplying this radius by DPR would weaken DPR2 to eight pixels, so the oracle instead performs both directed edge searches with the same disk and separately requires exact rendered-record counts, zero terminal rows, and zero unmatched edges.",
+            "markdown": "The final-paint tolerance is fixed at four device pixels after screenshots have already been DPR-scaled. Multiplying this radius by DPR would weaken DPR2 to eight pixels, so the oracle instead performs both directed edge searches with the same disk and separately requires exact rendered-record counts, zero terminal rows, and zero unmatched edges."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/pseudo-fragment-render-oracle.ts"
+                },
+                "region": {
+                  "startLine": 186,
+                  "endLine": 214,
+                  "snippet": {
+                    "text": "      const [sourceMask, renderedMask] = await Promise.all([targetEdges(sourcePng), targetEdges(renderedPng)]);\n      // Screenshot buffers are already in device-pixel coordinates at every\n      // deviceScaleFactor. Keep the acceptance disk at four DEVICE pixels;\n      // multiplying here would silently weaken DPR2 to an eight-pixel gate.\n      const radius = 4;\n      const forward = directedEdgeDistance(sourceMask, renderedMask, radius);\n      const reverse = directedEdgeDistance(renderedMask, sourceMask, radius);\n      const expectedRendered = records.filter((record: CapturedPseudoFragmentSet) =>\n        record.status !== \"unpainted\"\n        && record.paint.visibility !== \"hidden\" && record.paint.visibility !== \"collapse\"\n        && record.paint.opacity !== 0).length;\n      rows.push({\n        dpr,\n        exactRecords: exact.length,\n        terminalRecords: terminal.length,\n        terminalReasons: terminal.map((record) => `${record.pseudo}:${record.reason ?? \"unknown\"}`),\n        renderedRecords,\n        sourceEdges: sourceMask.count,\n        renderedEdges: renderedMask.count,\n        maxEdgeDistanceDevicePixels: Math.max(forward.max, reverse.max),\n        unmatchedSourceEdges: forward.misses,\n        unmatchedRenderedEdges: reverse.misses,\n        structuralErrors,\n        pass: structuralErrors.length === 0\n          && terminal.length === 0\n          && renderedRecords === expectedRendered\n          && sourceMask.count > 0 && renderedMask.count > 0\n          && forward.misses === 0 && reverse.misses === 0\n          && Math.max(forward.max, reverse.max) <= radius,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/pseudo-fragment-render-parity.yml"
+                },
+                "region": {
+                  "startLine": 47
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2468"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "1c093651c3d305e3dce25497002ee6f1"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4cjx77znvnmv8j",
+          "message": {
+            "text": "The native macOS DPR matrix returned source-exact on Chromium 147.0.7727.15: DPR1 and DPR2 each captured 37 exact records, emitted 35 paint-bearing records, produced zero terminal rows, zero structural errors, and zero unmatched edges. Maximum directed edge distance was 4 device px at DPR1 and 3.606 device px at DPR2, within the unchanged four-pixel contract.",
+            "markdown": "The native macOS DPR matrix returned source-exact on Chromium 147.0.7727.15: DPR1 and DPR2 each captured 37 exact records, emitted 35 paint-bearing records, produced zero terminal rows, zero structural errors, and zero unmatched edges. Maximum directed edge distance was 4 device px at DPR1 and 3.606 device px at DPR2, within the unchanged four-pixel contract."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/pseudo-fragment-render-oracle.ts"
+                },
+                "region": {
+                  "startLine": 153,
+                  "endLine": 230,
+                  "snippet": {
+                    "text": "export async function runPseudoFragmentRenderOracle(\n  dprs: number[] = [1, 2],\n  artifactDir?: string,\n): Promise<PseudoRenderOracleReport> {\n  const browser = await chromium.launch({ headless: true });\n  const rows: PseudoRenderOracleRow[] = [];\n  try {\n    for (const dpr of dprs) {\n      const context = await browser.newContext({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: dpr });\n      const source = await context.newPage();\n      await source.setContent(pseudoFragmentRenderFixture(), { waitUntil: \"load\" });\n      await source.evaluate(async () => { await document.fonts.ready; await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))); });\n      const sourcePng = Buffer.from(await source.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } }));\n      const captured = await captureElementTreeWithWarnings(source, \"#stage\", { x: 0, y: 0, width: WIDTH, height: HEIGHT });\n      const records = flatten(captured.tree).flatMap((element) => element.pseudoFragments ?? []);\n      const exact = records.filter((record) => record.status === \"exact\");\n      const terminal = records.filter((record) => record.status === \"terminal-raster\");\n      const structuralErrors = exact.flatMap((record, index) => pseudoFragmentRecordErrors(record).map((error) => `${index}:${error}`));\n      const svg = elementTreeToSvg(captured.tree, WIDTH, HEIGHT);\n      if (artifactDir != null) {\n        mkdirSync(artifactDir, { recursive: true });\n        writeFileSync(`${artifactDir}/rendered-dpr${dpr}.svg`, svg);\n      }\n      const renderedRecords = (svg.match(/data-domotion-pseudo-source=\"blink-pseudo-fragment-v1\"/g) ?? []).length;\n      const rendered = await context.newPage();\n      await rendered.setContent(`<!doctype html><style>html,body{margin:0;background:white}</style>${svg}`, { waitUntil: \"load\" });\n      await rendered.evaluate(async () => { await document.fonts.ready; await new Promise<void>((resolve) => requestAnimationFrame(() => resolve())); });\n      const renderedPng = Buffer.from(await rendered.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } }));\n      if (artifactDir != null) {\n        mkdirSync(artifactDir, { recursive: true });\n        writeFileSync(`${artifactDir}/source-dpr${dpr}.png`, sourcePng);\n        writeFileSync(`${artifactDir}/rendered-dpr${dpr}.png`, renderedPng);\n      }\n      const [sourceMask, renderedMask] = await Promise.all([targetEdges(sourcePng), targetEdges(renderedPng)]);\n      // Screenshot buffers are already in device-pixel coordinates at every\n      // deviceScaleFactor. Keep the acceptance disk at four DEVICE pixels;\n      // multiplying here would silently weaken DPR2 to an eight-pixel gate.\n      const radius = 4;\n      const forward = directedEdgeDistance(sourceMask, renderedMask, radius);\n      const reverse = directedEdgeDistance(renderedMask, sourceMask, radius);\n      const expectedRendered = records.filter((record: CapturedPseudoFragmentSet) =>\n        record.status !== \"unpainted\"\n        && record.paint.visibility !== \"hidden\" && record.paint.visibility !== \"collapse\"\n        && record.paint.opacity !== 0).length;\n      rows.push({\n        dpr,\n        exactRecords: exact.length,\n        terminalRecords: terminal.length,\n        terminalReasons: terminal.map((record) => `${record.pseudo}:${record.reason ?? \"unknown\"}`),\n        renderedRecords,\n        sourceEdges: sourceMask.count,\n        renderedEdges: renderedMask.count,\n        maxEdgeDistanceDevicePixels: Math.max(forward.max, reverse.max),\n        unmatchedSourceEdges: forward.misses,\n        unmatchedRenderedEdges: reverse.misses,\n        structuralErrors,\n        pass: structuralErrors.length === 0\n          && terminal.length === 0\n          && renderedRecords === expectedRendered\n          && sourceMask.count > 0 && renderedMask.count > 0\n          && forward.misses === 0 && reverse.misses === 0\n          && Math.max(forward.max, reverse.max) <= radius,\n      });\n      await context.close();\n    }\n  } finally {\n    await browser.close();\n  }\n  return {\n    schemaVersion: 1,\n    chromiumVersion: browser.version(),\n    platform: process.platform,\n    architecture: process.arch,\n    toleranceDevicePixels: 4,\n    requiredStates: pseudoRenderRequiredStates,\n    rows,\n    verdict: rows.every((row) => row.pass) ? \"source-exact\" : \"source-drift\",\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/pseudo-fragment-render-parity.yml"
+                },
+                "region": {
+                  "startLine": 47
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2468"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4729090963819b456aecbb3b243a36b3"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "e078a2a070c317c957232a0108dac3b02b1f20f8",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

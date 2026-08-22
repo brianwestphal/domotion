@@ -392,11 +392,18 @@ export interface CapturedPseudoTypography {
 
 /** Paint properties owned by the pseudo box rather than by its host. */
 export interface CapturedPseudoPaintStyle {
+  /** Computed pseudo visibility. Hidden/collapse records retain geometry but own no paint. */
+  visibility: string;
+  /** Computed positioning scheme, used only to select the captured paint slot. */
+  position: string;
+  /** Computed bidi isolation/override value for source-owned shaping. */
+  unicodeBidi: string;
   color: string;
   backgroundColor: string;
   backgroundImage: string;
   backgroundPosition: string;
   backgroundSize: string;
+  backgroundRepeat: string;
   borderTopColor: string;
   borderRightColor: string;
   borderBottomColor: string;

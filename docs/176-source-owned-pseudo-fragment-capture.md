@@ -1,7 +1,7 @@
 # 176 — Source-owned generated-pseudo fragment capture
 
 **Ticket:** DM-2467
-**Status:** production capture complete; native record rendering remains DM-2468
+**Status:** production capture complete; DM-2468 direct record rendering and native gate are complete (doc 178)
 **Source pins:** Chromium `7d859f271cbda744098ac69f44978d4edfa62be3`,
 HarfBuzz `4de187dd0a915d13c976fa8bd474c084229f3aab`, and Chromium-pinned
 Skia `62efacd37737505732dbe3d8daa62abd679626a1`
@@ -88,14 +88,12 @@ attributes survive.
 `capturePseudoContent` or `injectPseudoSegments`. Thus new live captures never
 use the clone/host-anchor result as geometry authority.
 
-`src/capture/pseudo-fragment-compat.ts` is a separate transitional serializer
-bridge for the current renderer. It derives legacy `textSegments`,
-`pseudoImages`, and `pseudoBoxes` only from the protocol record (or emits the
-terminal raster image); it never reads the DOM or runs the old heuristics.
-Older serialized trees that contain only those legacy fields remain readable.
-DM-2468 owns direct native-record paint ordering and the independent
-macOS/Linux/Windows visual gate; this ticket does not promote renderer parity
-ahead of that work.
+DM-2468 removed the transitional `pseudo-fragment-compat.ts` projection. New
+captures leave legacy `textSegments`, `pseudoImages`, and `pseudoBoxes`
+unpopulated and `src/render/pseudo-fragments.ts` consumes the source-owned
+record directly. Older serialized trees that contain only legacy fields remain
+readable through the existing old-tree renderer paths. Direct paint ordering
+and the macOS/Linux/Windows visual gate are documented in doc 178.
 
 ## Evidence
 
@@ -110,7 +108,7 @@ Fresh focused results on macOS/Chromium 147:
 
 ```text
 DM-2466 structural oracle: 80/80 live DPR rows; 10/10 mutations rejected
-protocol + compatibility units: 7/7
+protocol + renderer units: green
 production CDP exact/fail-closed rows: 2/2
 full capture + same-origin-frame route: 1/1
 TypeScript: clean
@@ -119,6 +117,6 @@ TypeScript: clean
 The forced-unavailable row requires a non-empty alpha-bearing isolated raster,
 an empty vector-fragment array, one warning, and no leaked attributes. The
 full-capture row requires two exact host records, an exact nested-frame record,
-selected pseudo style/font facts, and a legacy projection whose coordinates
-match the source-owned record. These are capture-stage proofs. DM-2468 remains
-responsible for direct rendered pixels and cross-platform promotion.
+selected pseudo style/font facts, and source-record-only serialization with no
+legacy fields repopulated. Direct rendered pixels and cross-platform promotion
+are supplied by DM-2468/doc 178.
