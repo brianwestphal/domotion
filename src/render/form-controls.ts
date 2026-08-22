@@ -1,28 +1,20 @@
 /**
- * Native form-control chrome synthesis.
+ * Source-owned structural form-control paint.
  *
- * Emulates the default appearance of Chromium on macOS for controls that
- * don't round-trip through pure DOM capture — radios, checkboxes, progress
- * bars, meters, select chevrons, and details disclosure triangles.
- *
- * These are the visible details that a bare <rect> + text capture misses.
- * For controls that authors have styled (background/border set to non-default
- * via CSS), the capture path already handles them; we only paint on top when
- * the captured element's appearance is essentially the UA default.
+ * Effective native appearances are painted from a captured Chromium surface
+ * before this module is reached. These helpers consume only complete captured
+ * author/UA-CSS pseudo facts; missing native paint fails closed at the route
+ * boundary instead of substituting a platform-calibrated SVG approximation.
  */
 
 import type { CapturedElement } from "../capture/types.js";
+import { isWholeHostNativeAppearance } from "../capture/effective-appearance.js";
 import { buildLinearGradientDef, buildRadialGradientDef, gradientCacheKey, parseGradient } from "./gradients.js";
 import { parseBoxShadow } from "./box-shadow.js";
 import { esc, r } from "./format.js";
 import { renderMultiSegmentText } from "./text.js";
 import { renderTextAsPath } from "./text-to-path.js";
 import { hasVerticalSegments, renderVerticalSegments } from "./vertical-text.js";
-
-/** Chrome's UA-default inset for the colored value bar inside a `<progress>` /
- *  `<meter>` groove: `floor(barHeight / 4)` on each edge (sampled from
- *  Chrome-on-macOS paint). DM-1434 — named so the five call sites agree. */
-const uaBarInset = (barHeight: number): number => Math.floor(barHeight / 4);
 
 /**
  * Per-render context for emitting <defs> entries. Form-controls populate
@@ -49,17 +41,6 @@ export interface DefCtx {
   buildConicTile?: (
     id: string, layer: string, x: number, y: number, w: number, h: number, sizeCss: string, posCss: string,
   ) => string;
-  /**
-   * DM-553: page-level color-scheme propagated from the captured tree's root
-   * (`elements[0].styles.rootColorScheme`). The form-control synthesizers
-   * resolve their stock palette via `stockPalette(defCtx?.colorScheme)` so
-   * unstyled controls under `colorScheme: 'dark'` paint with dark borders /
-   * fills / accent track instead of the light defaults. Author-styled paths
-   * are unchanged — only the no-author-CSS stock path picks scheme-aware
-   * colors. Defaults to `"light"` when missing for back-compat with pre-
-   * DM-552 captures.
-   */
-  colorScheme?: "light" | "dark";
 }
 
 /** Helper: parse a captured gradient text and register a gradient def, returning fill="url(#id)" or null. */
@@ -101,20 +82,18 @@ function gradientFillFor(
 /**
  * Range slider thumb/track metric sizes. Shared by `renderRange` and the conic
  * raster pre-pass (`collectFormControlConicTiles`) so a conic layer is
- * rasterized at exactly the rect the synth fills. Native UA values: Chrome
- * paints a ~6px solid track and a 16px-diameter thumb regardless of bbox height
- * (verified via probe-range-native-track.mjs); styled (`appearance: none`)
- * controls take the author width/height (DM-338).
+ * rasterized at exactly the rect the structural renderer fills. Every metric
+ * comes from the captured track/thumb pseudo styles.
  */
 function rangeMetricSizes(s: CapturedElement["styles"]): {
   styledTrack: boolean; styledThumb: boolean; trackThickness: number; thumbW: number; thumbH: number; thumbRadius: number;
 } {
   const styledTrack = s.rangeTrackBg != null;
   const styledThumb = s.rangeThumbWidth != null;
-  const trackThickness = styledTrack ? (parseFloat(s.rangeTrackHeight ?? "") || 4) : 6;
-  const thumbW = styledThumb ? (parseFloat(s.rangeThumbWidth ?? "") || 14) : 16;
-  const thumbH = styledThumb ? (parseFloat(s.rangeThumbHeight ?? "") || thumbW) : 16;
-  const thumbRadius = styledThumb ? (parseFloat(s.rangeThumbRadius ?? "") || thumbW / 2) : thumbW / 2;
+  const trackThickness = parseFloat(s.rangeTrackHeight ?? "");
+  const thumbW = parseFloat(s.rangeThumbWidth ?? "");
+  const thumbH = parseFloat(s.rangeThumbHeight ?? "");
+  const thumbRadius = parseFloat(s.rangeThumbRadius ?? "");
   return { styledTrack, styledThumb, trackThickness, thumbW, thumbH, thumbRadius };
 }
 
@@ -134,44 +113,21 @@ interface FcRect { x: number; y: number; w: number; h: number }
 /**
  * DM-1254: `<progress>` track + value rects, shared by `renderProgress` and the
  * conic raster collector so the conic tile is rasterized at exactly the rect the
- * synth fills (the `_conicTileCache` is keyed by `${w}x${h}`). Mirrors the inline
- * geometry renderProgress used to compute: UA-default bars inset by floor(h/4),
- * value width = el.width·ratio (determinate) or a clamped band (indeterminate).
+ * renderer fills (the `_conicTileCache` is keyed by `${w}x${h}`).
  */
-function progressBarGeom(el: CapturedElement): {
-  isAuthorStyled: boolean; barY: number; barH: number; isIndeterminate: boolean; ratio: number;
-  trackRect: FcRect; valueRect: FcRect | null;
-} {
-  const s = el.styles;
-  const value = s.progressValue;
-  const max = s.progressMax ?? 1;
-  const isIndeterminate = value == null;
-  const ratio = !isIndeterminate && max > 0 ? Math.max(0, Math.min(1, (value as number) / max)) : 0;
-  const customTrackFill = customPseudoFill(s.progressBarBg, s.progressBarBgImage);
-  const customValueFill = customPseudoFill(s.progressValueBg, s.progressValueBgImage);
-  const isAuthorStyled = customTrackFill != null || customValueFill != null
-    || (s.progressBarRadius != null && s.progressBarRadius !== "0px")
-    || (s.progressValueRadius != null && s.progressValueRadius !== "0px");
-  const inset = uaBarInset(el.height);
-  const barH = isAuthorStyled ? el.height : el.height - 2 * inset;
-  const barY = isAuthorStyled ? el.y : el.y + inset;
-  const trackRect: FcRect = { x: el.x, y: barY, w: el.width, h: barH };
-  let valueRect: FcRect | null = null;
-  if (isIndeterminate) valueRect = { x: el.x + el.width * 0.1, y: barY, w: Math.min(el.width * 0.25, 60), h: barH };
-  else if (ratio > 0) valueRect = { x: el.x, y: barY, w: el.width * ratio, h: barH };
-  return { isAuthorStyled, barY, barH, isIndeterminate, ratio, trackRect, valueRect };
+function progressBarGeom(el: CapturedElement): { trackRect: FcRect; valueRect: FcRect | null } {
+  const trackRect = { x: el.x, y: el.y, w: el.width, h: el.height };
+  const value = el.styles.progressValue;
+  const max = el.styles.progressMax ?? 1;
+  if (value == null || max <= 0) return { trackRect, valueRect: null };
+  const ratio = Math.max(0, Math.min(1, value / max));
+  if (ratio <= 0) return { trackRect, valueRect: null };
+  const width = el.width * ratio;
+  const x = el.styles.direction === "rtl" ? el.x + el.width - width : el.x;
+  return { trackRect, valueRect: { x, y: el.y, w: width, h: el.height } };
 }
 
-/**
- * DM-1254: `<meter>` track + value rects + the region-selected value bg image,
- * shared by `renderMeter` and the conic collector. The `trackRect` matches the
- * rect renderMeter passes to `gradientFillFor` (NOT the pixel-snapped drawn
- * groove rect). The `valueRect` differs between native-groove and author-styled
- * meters (mirrored here); the region (optimum/suboptimum/even-less-good) picks
- * which value-pseudo bg image applies.
- */
 function meterBarGeom(el: CapturedElement): {
-  isAuthorStyled: boolean; barY: number; barH: number; ratio: number;
   trackRect: FcRect; valueRect: FcRect | null; valueBgImage: string | undefined;
 } {
   const s = el.styles;
@@ -182,35 +138,22 @@ function meterBarGeom(el: CapturedElement): {
   const high = s.meterHigh ?? max;
   const optimum = s.meterOptimum ?? (min + max) / 2;
   const ratio = max > min ? Math.max(0, Math.min(1, (value - min) / (max - min))) : 0;
-  const region = (v: number): 0 | 1 | 2 => (v < low ? 0 : v > high ? 2 : 1);
-  const dist = Math.abs(region(value) - region(optimum));
-  const valueBgImage = dist === 0 ? s.meterOptimumBgImage : dist === 1 ? s.meterSuboptimumBgImage : s.meterEvenLessGoodBgImage;
-  const customTrackFill = customPseudoFill(s.meterBarBg, s.meterBarBgImage);
-  const customValueFill = dist === 0 ? customPseudoFill(s.meterOptimumBg, s.meterOptimumBgImage)
-    : dist === 1 ? customPseudoFill(s.meterSuboptimumBg, s.meterSuboptimumBgImage)
-    : customPseudoFill(s.meterEvenLessGoodBg, s.meterEvenLessGoodBgImage);
-  const isAuthorStyled = customTrackFill != null || customValueFill != null
-    || (s.meterBarRadius != null && s.meterBarRadius !== "0px");
-  const inset = uaBarInset(el.height);
-  const barH = isAuthorStyled ? el.height : el.height - 2 * inset;
-  const barY = isAuthorStyled ? el.y : el.y + inset;
-  const trackRect: FcRect = { x: el.x, y: barY, w: el.width, h: barH };
-  let valueRect: FcRect | null = null;
-  if (ratio > 0) {
-    if (isAuthorStyled) {
-      const top = Math.round(el.y);
-      const fullH = Math.round(el.height);
-      const vInset = uaBarInset(fullH);
-      valueRect = { x: el.x, y: top + vInset, w: el.width * ratio, h: fullH - 2 * vInset };
-    } else {
-      const left = Math.floor(el.x);
-      const top = Math.floor(barY);
-      valueRect = { x: left + 1, y: top + 1, w: Math.max(0, Math.round(el.width * ratio) - 1), h: barH - 2 };
-    }
-  }
-  return { isAuthorStyled, barY, barH, ratio, trackRect, valueRect, valueBgImage };
+  const region = (candidate: number): 0 | 1 | 2 => candidate < low ? 0 : candidate > high ? 2 : 1;
+  const distance = Math.abs(region(value) - region(optimum));
+  const valueBgImage = distance === 0 ? s.meterOptimumBgImage
+    : distance === 1 ? s.meterSuboptimumBgImage : s.meterEvenLessGoodBgImage;
+  const trackRect = { x: el.x, y: el.y, w: el.width, h: el.height };
+  if (ratio <= 0) return { trackRect, valueRect: null, valueBgImage };
+  // html.css owns the structural meter's 1fr/2fr/1fr block-axis grid.
+  const inset = Math.floor(el.height / 4);
+  const width = el.width * ratio;
+  const x = s.direction === "rtl" ? el.x + el.width - width : el.x;
+  return {
+    trackRect,
+    valueRect: { x, y: el.y + inset, w: width, h: Math.max(0, el.height - inset * 2) },
+    valueBgImage,
+  };
 }
-
 export function collectFormControlConicTiles(el: CapturedElement): Array<{ layer: string; w: number; h: number }> {
   const s = el.styles;
   const out: Array<{ layer: string; w: number; h: number }> = [];
@@ -219,7 +162,9 @@ export function collectFormControlConicTiles(el: CapturedElement): Array<{ layer
   const tag = el.tag;
   const inputType = s.inputType;
   if (tag === "input" && inputType === "range") {
-    const { styledThumb, trackThickness, thumbW, thumbH, thumbRadius } = rangeMetricSizes(s);
+    const { styledTrack, styledThumb, trackThickness, thumbW, thumbH, thumbRadius } = rangeMetricSizes(s);
+    if (!styledTrack || !styledThumb || ![trackThickness, thumbW, thumbH, thumbRadius].every(Number.isFinite)
+        || trackThickness < 0 || thumbW <= 0 || thumbH <= 0 || thumbRadius < 0) return out;
     const elW = Math.round(el.x + el.width) - Math.round(el.x);
     const elH = Math.round(el.y + el.height) - Math.round(el.y);
     const isVertical = s.writingMode != null && s.writingMode !== "" && s.writingMode !== "horizontal-tb";
@@ -233,14 +178,18 @@ export function collectFormControlConicTiles(el: CapturedElement): Array<{ layer
       out.push({ layer: s.rangeThumbBgImage, w: thumbW, h: ellipse ? thumbH : thumbW });
     }
   } else if (tag === "input" && inputType === "color" && isConic(s.colorSwatchBgImage)) {
-    // Mirror renderColorSwatch's `swatchRect`: the inner swatch is the element
-    // box inset by the ::-webkit-color-swatch-wrapper padding (default 4px).
-    let pad = 4;
-    if (s.colorSwatchWrapperPadding != null && s.colorSwatchWrapperPadding !== "") {
-      const tok = s.colorSwatchWrapperPadding.trim().split(/\s+/).map((p) => parseFloat(p) || 0);
-      if (tok.length >= 1) pad = tok[0];
+    // Mirror renderColorSwatch's `swatchRect`; a missing wrapper padding fact
+    // is not replaced with the former sampled 4px platform value.
+    const tok = s.colorSwatchWrapperPadding?.trim().split(/\s+/).map((p) => parseFloat(p));
+    if (tok != null && tok.length >= 1 && tok.length <= 4 && tok.every(Number.isFinite)) {
+      const top = tok[0];
+      const right = tok.length === 1 ? tok[0] : tok[1];
+      const bottom = tok.length < 3 ? tok[0] : tok[2];
+      const left = tok.length < 2 ? tok[0] : tok.length < 4 ? tok[1] : tok[3];
+      const w = el.width - left - right;
+      const h = el.height - top - bottom;
+      if (w > 0 && h > 0) out.push({ layer: s.colorSwatchBgImage, w, h });
     }
-    out.push({ layer: s.colorSwatchBgImage, w: el.width - pad * 2, h: el.height - pad * 2 });
   } else if (tag === "progress") {
     // DM-1254: progress bar/value rects come from the shared progressBarGeom
     // (also used by renderProgress), so the conic tile size matches what's filled.
@@ -257,149 +206,51 @@ export function collectFormControlConicTiles(el: CapturedElement): Array<{ layer
   return out;
 }
 
-// ── Chromium macOS UA default palette (sampled from Playwright captures) ──
-// Light values re-calibrated in DM-284; dark values added in DM-553.
-// Probe methodology: paint each control with default chrome on a 1x viewport
-// (with the page opted into the right scheme via `<meta name="color-scheme">`
-// or `:root { color-scheme: dark }`), pixel-pick from a known position
-// inside each painted region.
-//
-// Cross-platform (per CLAUDE.md): both palettes are macOS-only literals.
-// Linux + Windows dark palettes are tracked under DM-258+ — Chromium's UA
-// chrome differs slightly per platform (Linux uses Adwaita-ish defaults;
-// Windows uses a cooler-toned dark palette), and each needs its own probe.
-interface StockPalette {
-  /** Border ring on unstyled checkbox / radio / text input. */
-  border: string;
-  /** Fill bg on unchecked checkbox / radio / text input. */
-  fill: string;
-  /** Accent (filled checkbox/radio, range thumb, range filled track, progress filled). */
-  accent: string;
-  /** Range track unfilled, progress unfilled. */
-  trackBg: string;
-  /** Track foreground (rare — used for dashes / overlays on the track). */
-  trackFg: string;
-  /** Meter optimum (green). */
-  meterGreen: string;
-  /** Meter sub-optimum (yellow). */
-  meterYellow: string;
-  /** Meter poor (red). */
-  meterRed: string;
-  /** Disabled-state border (alpha-blended with bg in light mode). */
-  disabledBorder: string;
-}
+export type FormControlRenderRoute =
+  | "not-form-control"
+  | "native-raster"
+  | "missing-native-raster"
+  | "structural";
 
-const STOCK_LIGHT: StockPalette = {
-  border: "rgb(118,118,118)",
-  fill: "rgb(255,255,255)",
-  accent: "rgb(0,117,255)",
-  trackBg: "rgb(239,239,239)",
-  trackFg: "rgb(118,118,118)",
-  meterGreen: "rgb(16,124,16)",
-  meterYellow: "rgb(255,185,0)",
-  meterRed: "rgb(216,59,1)",
-  disabledBorder: "rgba(118,118,118,0.5)",
-};
-
-// DM-553: dark-mode UA defaults sampled from headless Chromium on macOS with
-// `colorScheme: 'dark'` AND `:root { color-scheme: dark }` on the page (just
-// the Playwright option isn't enough — it sets prefers-color-scheme but not
-// the effective UA scheme). Border/fill/track all collapse to a single dark
-// gray (rgb(59,59,59)), the accent shifts to a lighter blue
-// (rgb(153,200,255)) for visibility against the dark canvas, and the meter
-// states are desaturated. Disabled-border alpha increases to 0.7 to stay
-// visible against the darker fill.
-const STOCK_DARK: StockPalette = {
-  border: "rgb(59,59,59)",
-  fill: "rgb(59,59,59)",
-  accent: "rgb(153,200,255)",
-  trackBg: "rgb(59,59,59)",
-  trackFg: "rgb(178,178,178)",
-  meterGreen: "rgb(116,179,116)",
-  meterYellow: "rgb(242,200,18)",
-  meterRed: "rgb(232,107,86)",
-  disabledBorder: "rgba(178,178,178,0.5)",
-};
+const STRUCTURAL_FORM_APPEARANCES = new Set([
+  "none", "base", "base-select", "listbox", "menulist-button",
+]);
 
 /**
- * DM-553: dispatch the per-scheme stock palette. `"light"` (default), missing,
- * or any value other than `"dark"` returns the light palette so today's
- * output stays byte-identical at default settings. `"dark"` returns the
- * dark palette for the form-control synthesizers to consume when rendering
- * an unstyled control on a page captured under `color-scheme: dark`.
+ * Blink's EffectiveAppearance is the paint-ownership boundary. A materialized
+ * native record terminates structural rendering; a native/unknown appearance
+ * without its required record fails closed instead of reviving sampled chrome.
  */
-export function stockPalette(scheme: "light" | "dark" | undefined): StockPalette {
-  return scheme === "dark" ? STOCK_DARK : STOCK_LIGHT;
-}
-
-// Back-compat aliases — the synthesizers below still reference the old
-// constant names. These resolve to the LIGHT palette so any code that
-// hasn't been routed through `stockPalette(defCtx?.colorScheme)` yet
-// continues to behave as today. New synthesizer code should call
-// `stockPalette(defCtx?.colorScheme)` directly and read from the returned
-// object instead of importing these aliases.
-const UA_BORDER = STOCK_LIGHT.border;
-const UA_FILL = STOCK_LIGHT.fill;
-const ACCENT_BLUE = STOCK_LIGHT.accent;
-const TRACK_BG = STOCK_LIGHT.trackBg;
-const TRACK_FG = STOCK_LIGHT.trackFg;
-const METER_GREEN = STOCK_LIGHT.meterGreen;
-const METER_YELLOW = STOCK_LIGHT.meterYellow;
-const METER_RED = STOCK_LIGHT.meterRed;
-const DISABLED_BORDER = STOCK_LIGHT.disabledBorder;
-void UA_BORDER; void UA_FILL; void ACCENT_BLUE; void TRACK_BG; void TRACK_FG;
-void METER_GREEN; void METER_YELLOW; void METER_RED; void DISABLED_BORDER;
-
-
-/** Resolve CSS accent-color to a concrete fill. 'auto' (or missing) falls back
- *  to the Chromium macOS default blue (DM-553: scheme-aware via defCtx).
- *  Author-set values pass through. */
-function resolveAccent(el: CapturedElement, defCtx?: DefCtx): string {
-  const ac = el.styles.accentColor;
-  if (ac == null || ac === "" || ac === "auto" || ac === "currentcolor") return stockPalette(defCtx?.colorScheme).accent;
-  return ac;
-}
-
-/**
- * Pick the native UA color for the *unfilled* portion of a `<input type=range>`
- * track based on `accent-color`. Chrome ensures the unfilled track stays
- * visible against the accent: when the accent has relative luminance above
- * ~0.26 (CIE Y, sRGB → linear), Chrome darkens the unfilled track to
- * `rgb(59, 59, 59)` instead of the default `rgb(239, 239, 239)`. Empirical
- * probe (DM-320) of accents at 24 luminance points confirmed the threshold:
- * #888888 (Y=0.246) → light, #16a34a (Y=0.269) → dark; switch line ≈ Y=0.26.
- *
- * Returns `TRACK_BG` (light) when accent is unset / 'auto' / dark, the dark
- * variant when the accent is bright enough, and the original `TRACK_BG`
- * fallback when the color string can't be parsed.
- */
-function unfilledTrackColor(accentCss: string | undefined, defCtx?: DefCtx): string {
-  // DM-553: scheme-aware default — under dark mode the track is already
-  // dark (rgb(59,59,59)), so the contrast-flip path collapses.
-  const palette = stockPalette(defCtx?.colorScheme);
-  if (accentCss == null || accentCss === "" || accentCss === "auto" || accentCss === "currentcolor") return palette.trackBg;
-  // Extract sRGB triplet from rgb()/rgba() (Chrome canonicalises hex etc.).
-  const m = /rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/.exec(accentCss);
-  if (m == null) return palette.trackBg;
-  const lin = (c: number) => {
-    const s = c / 255;
-    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
-  };
-  const Y = 0.2126 * lin(parseFloat(m[1])) + 0.7152 * lin(parseFloat(m[2])) + 0.0722 * lin(parseFloat(m[3]));
-  return Y > 0.26 ? "rgb(59,59,59)" : palette.trackBg;
+export function formControlRenderRoute(el: CapturedElement): FormControlRenderRoute {
+  const isControl = el.tag === "input" || el.tag === "button" || el.tag === "select"
+    || el.tag === "textarea" || el.tag === "progress" || el.tag === "meter";
+  if (!isControl) return "not-form-control";
+  if (el.nativeControlRaster != null) return "native-raster";
+  const appearance = el.styles.effectiveAppearance;
+  if (appearance == null || isWholeHostNativeAppearance(appearance)) {
+    return "missing-native-raster";
+  }
+  return STRUCTURAL_FORM_APPEARANCES.has(appearance)
+    ? "structural"
+    : "missing-native-raster";
 }
 
 export function renderFormControl(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
+  const route = formControlRenderRoute(el);
+  if (route === "native-raster") return "";
+  if (route === "missing-native-raster") {
+    const type = el.styles.inputType == null ? "" : `[type=${el.styles.inputType}]`;
+    console.warn(`[domotion] required Chromium native-control surface unavailable for ${el.tag}${type}; sampled SVG chrome is disabled`);
+    return "";
+  }
   const tag = el.tag;
   if (tag === "input") return renderInputControl(el, indent, defCtx);
   if (tag === "progress") return renderProgress(el, indent, defCtx);
   if (tag === "meter") return renderMeter(el, indent, defCtx);
-  // Closed-dropdown selects: emit the selected-option text always, but the
-  // native chevron only when the page kept UA chrome (selectChevron). Pages
-  // using `appearance: none` + a CSS background-image arrow get just the
-  // text — the page's CSS chevron paints separately via the background-image
-  // pipeline. (DM-308)
-  if (tag === "select" && el.styles.selectDisplayText != null) return renderSelectChevron(el, indent, defCtx);
+  // Structural closed-dropdown selects retain source-captured value text.
+  // Native menulist paint already terminated at the route boundary; author
+  // background-image arrows paint through the ordinary background pipeline.
+  if (tag === "select" && el.styles.selectDisplayText != null) return renderSelectContent(el, indent);
   if (tag === "select" && el.styles.selectListboxOptions != null) return renderListbox(el, indent);
   if (tag === "details") {
     return renderDetailsContentBox(el, indent);
@@ -435,16 +286,16 @@ function renderDetailsContentBox(el: CapturedElement, indent: string): string {
 
 function renderInputControl(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
   const t = el.styles.inputType ?? "text";
-  if (t === "checkbox") return renderCheckbox(el, indent, defCtx);
-  if (t === "radio") return renderRadio(el, indent, defCtx);
+  // Modern structural checkables paint captured ::before/::after/::checkmark
+  // fragments. Native checkables were terminated by the route guard above.
+  if (t === "checkbox" || t === "radio") return "";
   if (t === "range") return renderRange(el, indent, defCtx);
   if (t === "color") return renderColorSwatch(el, indent, defCtx);
   if (t === "file") return renderFileInput(el, indent, defCtx);
-  if (t === "number") return renderNumberInput(el, indent, defCtx);
-  if (t === "search") return renderSearchInput(el, indent, defCtx);
-  if (t === "date" || t === "time" || t === "datetime-local" || t === "month" || t === "week") {
-    return renderDatePicker(el, indent);
-  }
+  // Search/spin/picker paint belongs to the retained closed-shadow
+  // decoration reservation. The structural host/value path paints elsewhere.
+  if (t === "number" || t === "search" || t === "date" || t === "time"
+      || t === "datetime-local" || t === "month" || t === "week") return "";
   // text-like inputs already render via the normal border+bg path
   return "";
 }
@@ -454,8 +305,7 @@ function renderInputControl(el: CapturedElement, indent: string, defCtx?: DefCtx
  * including an empty array when no indicator paints.  For structural
  * appearance:none/base checkables that fact is authoritative: ::before,
  * ::after, or ::checkmark paints through the pseudo pipeline, and the generic
- * host-geometry approximation must not be layered on top.  Undefined remains
- * the old-tree compatibility boundary.
+ * host-geometry approximation must not be layered on top.
  */
 export function checkablePseudoFactsOwnIndicator(el: CapturedElement): boolean {
   const appearance = el.styles.effectiveAppearance ?? el.styles.inputAppearance;
@@ -463,121 +313,9 @@ export function checkablePseudoFactsOwnIndicator(el: CapturedElement): boolean {
     && Array.isArray(el.pseudoFragments);
 }
 
-function renderCheckbox(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
-  if (checkablePseudoFactsOwnIndicator(el)) return "";
-  // appearance: none → author has opted out of UA chrome. The host's normal
-  // element-rendering path already painted its bg + border with the captured
-  // styles; we just overlay the :checked indicator. Switch-shape (wide,
-  // pill-radius) renders as a toggle thumb instead of a checkmark. DM-285.
-  if (el.styles.inputAppearance === "none") return renderCustomCheckboxOrSwitch(el, indent);
-  // 13x13 square with 2px radius, blue+check when checked, dash when indeterminate.
-  const palette = stockPalette(defCtx?.colorScheme);
-  const size = Math.min(el.width, el.height);
-  const cx = el.x + el.width / 2;
-  const cy = el.y + el.height / 2;
-  const x = cx - size / 2;
-  const y = cy - size / 2;
-  const parts: string[] = [];
-  const stroke = el.styles.disabled ? palette.disabledBorder : palette.border;
-
-  const accent = resolveAccent(el, defCtx);
-  if (el.styles.indeterminate === true) {
-    parts.push(`${indent}<rect x="${r(x)}" y="${r(y)}" width="${r(size)}" height="${r(size)}" rx="2" fill="${accent}" />`);
-    parts.push(`${indent}<rect x="${r(x + size * 0.2)}" y="${r(cy - size * 0.08)}" width="${r(size * 0.6)}" height="${r(size * 0.16)}" fill="#fff" />`);
-  } else if (el.styles.checked === true) {
-    parts.push(`${indent}<rect x="${r(x)}" y="${r(y)}" width="${r(size)}" height="${r(size)}" rx="2" fill="${accent}" />`);
-    // Check mark path (two-segment tick).
-    const p = (dx: number, dy: number): string => `${r(x + dx * size)},${r(y + dy * size)}`;
-    parts.push(`${indent}<polyline points="${p(0.22, 0.55)} ${p(0.42, 0.74)} ${p(0.78, 0.3)}" fill="none" stroke="#fff" stroke-width="${r(size * 0.14)}" stroke-linecap="round" stroke-linejoin="round" />`);
-  } else {
-    parts.push(`${indent}<rect x="${r(x)}" y="${r(y)}" width="${r(size)}" height="${r(size)}" rx="2" fill="${palette.fill}" stroke="${stroke}" stroke-width="1" />`);
-  }
-  return parts.join("\n");
-}
-
-/**
- * Render an `appearance: none` custom checkbox or switch. Distinguishes the
- * switch shape (wide pill: aspect ratio > 1.5 + border-radius >= half-height)
- * from the rectangular checkbox shape (square-ish + border-radius < half).
- *
- * The host rect (background / border) is already painted by the normal
- * element-rendering path, so we only overlay the :checked indicator.
- */
-function renderCustomCheckboxOrSwitch(el: CapturedElement, indent: string): string {
-  const w = el.width;
-  const h = el.height;
-  const aspect = h > 0 ? w / h : 1;
-  const radiusStr = el.styles.borderRadius ?? "0";
-  const radius = parseFloat(radiusStr) || 0;
-  const isSwitch = aspect > 1.5 && radius >= h / 2 - 1;
-  if (isSwitch) {
-    // Pill switch: thumb circle 2px inset from each edge, anchored left when
-    // unchecked, right when checked. Thumb is white per common authoring
-    // (the .sw fixture's ::before { background: white }).
-    const inset = 2;
-    const thumbR = (h - inset * 2) / 2;
-    const cx = el.styles.checked === true
-      ? el.x + el.width - inset - thumbR
-      : el.x + inset + thumbR;
-    const cy = el.y + el.height / 2;
-    return `${indent}<circle cx="${r(cx)}" cy="${r(cy)}" r="${r(thumbR)}" fill="#fff" />`;
-  }
-  // Custom checkbox. Indicator is a checkmark in the host's border color
-  // (the :checked rule typically swaps both bg and border to the same
-  // accent). Falls back to UA accent when the captured border is missing.
-  if (el.styles.checked !== true) return "";
-  const indicatorColor = el.styles.borderTopColor ?? resolveAccent(el);
-  const size = Math.min(w, h);
-  const cx = el.x + w / 2;
-  const cy = el.y + h / 2;
-  const x = cx - size / 2;
-  const y = cy - size / 2;
-  const p = (dx: number, dy: number): string => `${r(x + dx * size)},${r(y + dy * size)}`;
-  return `${indent}<polyline points="${p(0.22, 0.55)} ${p(0.42, 0.74)} ${p(0.78, 0.3)}" fill="none" stroke="${indicatorColor}" stroke-width="${r(Math.max(1.5, size * 0.14))}" stroke-linecap="round" stroke-linejoin="round" />`;
-}
-
-function renderRadio(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
-  if (checkablePseudoFactsOwnIndicator(el)) return "";
-  // appearance: none → host rect already painted with author bg/border;
-  // overlay only the :checked dot in the captured border color. DM-285.
-  if (el.styles.inputAppearance === "none") {
-    if (el.styles.checked !== true) return "";
-    const size = Math.min(el.width, el.height);
-    const cx = el.x + el.width / 2;
-    const cy = el.y + el.height / 2;
-    const dotColor = el.styles.borderTopColor ?? resolveAccent(el, defCtx);
-    return `${indent}<circle cx="${r(cx)}" cy="${r(cy)}" r="${r(size * 0.25)}" fill="${dotColor}" />`;
-  }
-  const palette = stockPalette(defCtx?.colorScheme);
-  const size = Math.min(el.width, el.height);
-  const cx = el.x + el.width / 2;
-  const cy = el.y + el.height / 2;
-  const rr = size / 2;
-  const parts: string[] = [];
-  const stroke = el.styles.disabled ? palette.disabledBorder : palette.border;
-  const accent = resolveAccent(el, defCtx);
-  if (el.styles.checked === true) {
-    // Chrome's checked native radio is a donut: thin accent-colored outer
-    // ring (~1px at 13px diameter), white middle, accent-colored center dot
-    // (~0.5 of the radius). Three concentric circles. (DM-292)
-    parts.push(`${indent}<circle cx="${r(cx)}" cy="${r(cy)}" r="${r(rr)}" fill="${accent}" />`);
-    parts.push(`${indent}<circle cx="${r(cx)}" cy="${r(cy)}" r="${r(rr - 1)}" fill="#fff" />`);
-    parts.push(`${indent}<circle cx="${r(cx)}" cy="${r(cy)}" r="${r(rr * 0.5)}" fill="${accent}" />`);
-  } else {
-    parts.push(`${indent}<circle cx="${r(cx)}" cy="${r(cy)}" r="${r(rr - 0.5)}" fill="${palette.fill}" stroke="${stroke}" stroke-width="1" />`);
-  }
-  return parts.join("\n");
-}
-
 function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
-  // DM-553: scheme-aware UA defaults — rangeUA fill / track inherit dark
-  // palette when the page was captured under color-scheme: dark.
-  const palette = stockPalette(defCtx?.colorScheme);
-  // Horizontal track + circular thumb (UA default), or author-styled track
-  // and thumb when CAPTURE_SCRIPT detected ::-webkit-slider-runnable-track
-  // / ::-webkit-slider-thumb diverging from the unstyled-range reference
-  // baseline (SK-1131 + SK-1137). The detection lives in CAPTURE_SCRIPT —
-  // here we only react to which of rangeTrack* / rangeThumb* are populated.
+  // Structural ranges consume the captured used track/thumb pseudo styles.
+  // Native slider appearances terminate at the route guard above.
   // Gradient backgrounds (SK-1224) on track/thumb resolve through defCtx
   // into a top-level <linearGradient> def referenced via fill="url(#...)".
   //
@@ -590,19 +328,17 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
   // pre-pass (`rangeMetricSizes`) so `collectFormControlConicTiles` rasterizes
   // each conic layer at exactly the rect the synth fills.
   const { styledTrack, styledThumb, trackThickness, thumbW, thumbH, thumbRadius } = rangeMetricSizes(s);
-  const trackR = styledTrack ? (parseFloat(s.rangeTrackRadius ?? "") || 0) : 2;
-  // Unfilled-track color: author-set when the slider is `appearance: none` +
-  // styled track, otherwise the UA default which depends on `accent-color`
-  // (Chrome darkens the unfilled track when the accent is bright — DM-320).
-  const trackBgColor = styledTrack && s.rangeTrackBg !== "rgba(0, 0, 0, 0)" ? s.rangeTrackBg! : unfilledTrackColor(s.accentColor, defCtx);
-  const accent = resolveAccent(el, defCtx);
+  if (!styledTrack || !styledThumb || ![trackThickness, thumbW, thumbH, thumbRadius].every(Number.isFinite)
+      || trackThickness < 0 || thumbW <= 0 || thumbH <= 0 || thumbRadius < 0) return "";
+  const trackR = parseFloat(s.rangeTrackRadius ?? "") || 0;
+  const trackBgColor = s.rangeTrackBg != null && s.rangeTrackBg !== "" ? s.rangeTrackBg : "none";
   const valStr = s.inputValue;
   const minStr = s.inputMin;
   const maxStr = s.inputMax;
   const val = valStr != null && valStr !== "" ? parseFloat(valStr) : NaN;
   const min = minStr != null && minStr !== "" ? parseFloat(minStr) : 0;
   const max = maxStr != null && maxStr !== "" ? parseFloat(maxStr) : 100;
-  const ratio = !isNaN(val) && max > min ? Math.max(0, Math.min(1, (val - min) / (max - min))) : 0.5;
+  const ratio = !isNaN(val) && max > min ? Math.max(0, Math.min(1, (val - min) / (max - min))) : 0;
   const isVertical = s.writingMode != null && s.writingMode !== "" && s.writingMode !== "horizontal-tb";
   const parts: string[] = [];
 
@@ -611,27 +347,22 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
   // thumb moves in y. `direction: rtl` flips the value axis so low is at
   // the visual end of the track (right for horizontal, bottom for vertical).
   // Round box edges to integer device pixels (DM-433) so the track / fill
-  // rects land on Chrome's pixel grid — same alignment Chrome's UA paint
-  // applies. `getBoundingClientRect()` returns fractional coords for inputs
+  // rects land on Chrome's pixel grid. `getBoundingClientRect()` returns
+  // fractional coords for inputs
   // laid out in flex / inline contexts; without rounding, even-thickness
   // tracks render across 3 antialiased rows instead of 2 solid rows.
   const elL = Math.round(el.x);
   const elT = Math.round(el.y);
   const elR = Math.round(el.x + el.width);
-  const elB = Math.round(el.y + el.height);
   const elW = elR - elL;
-  const elH = elB - elT;
+  const elH = Math.round(el.y + el.height) - elT;
   let trackRect: { x: number; y: number; w: number; h: number };
-  let fillRect: { x: number; y: number; w: number; h: number };
   let thumbCx: number;
   let thumbCy: number;
 
-  // Track spans the FULL element width / height in Chrome (verified via
-  // probe-range-track.mjs against painted output for both UA and appearance:
-  // none + custom track). Earlier we shortened the track by ±halfThumb on each
-  // end, leaving it ~22 px narrower than Chrome's painted track for the gradient
-  // sliders in DM-409. The thumb still travels within an inset range so its
-  // center stays inside the track bounds at value=min/max.
+  // The captured structural track spans the host axis. The thumb travels over
+  // that source box minus its own captured size, matching Blink's
+  // SliderThumbElement track-content calculation.
   if (isVertical) {
     const halfThumb = thumbH / 2;
     const trackX = elL + elW / 2 - trackThickness / 2;
@@ -642,11 +373,6 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     thumbCx = elL + elW / 2;
     thumbCy = thumbTravelTop + (thumbTravelBottom - thumbTravelTop) * fromTop;
     trackRect = { x: trackX, y: elT, w: trackThickness, h: elH };
-    if (lowAtBottom) {
-      fillRect = { x: trackX, y: thumbCy, w: trackThickness, h: Math.max(0, elB - thumbCy) };
-    } else {
-      fillRect = { x: trackX, y: elT, w: trackThickness, h: Math.max(0, thumbCy - elT) };
-    }
   } else {
     const halfThumb = thumbW / 2;
     const cy = elT + elH / 2;
@@ -656,7 +382,6 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     thumbCy = cy;
     thumbCx = thumbTravelLeft + (thumbTravelRight - thumbTravelLeft) * ratio;
     trackRect = { x: elL, y: trackY, w: elW, h: trackThickness };
-    fillRect = { x: elL, y: trackY, w: Math.max(0, thumbCx - elL), h: trackThickness };
   }
 
   const trackGradFill = gradientFillFor(s.rangeTrackBgImage, trackRect, defCtx);
@@ -669,27 +394,17 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     parts.push(`${indent}<rect x="${r(trackRect.x)}" y="${r(trackRect.y)}" width="${r(trackRect.w)}" height="${r(trackRect.h)}" rx="${r(trackR)}" fill="${s.rangeTrackBg}" />`);
   }
   const trackFill = trackGradFill ?? trackBgColor;
-  // Native UA range slider paints a 1px gray border around the track.
-  // Empirical Chrome paint at 18px sans-serif: rgb(204,204,204) 1px stroke.
-  // Author-styled tracks (rangeTrackBg set) skip this — the author owns
-  // the visual chrome. DM-409.
-  const trackStroke = !styledTrack ? ` stroke="rgb(204,204,204)" stroke-width="1"` : "";
+  const trackBorder = parseBorderShorthand(s.rangeTrackBorder);
+  const trackStroke = trackBorder == null ? ""
+    : ` stroke="${trackBorder.color}" stroke-width="${trackBorder.width}"`;
   parts.push(`${indent}<rect x="${r(trackRect.x)}" y="${r(trackRect.y)}" width="${r(trackRect.w)}" height="${r(trackRect.h)}" rx="${r(trackR)}" fill="${trackFill}"${trackStroke} />`);
-  // UA default paints an accent-colored fill from the track origin to the
-  // thumb. Author-styled tracks usually replace this with their own
-  // background, so skip the accent fill when the track was overridden.
-  if (!styledTrack) {
-    parts.push(`${indent}<rect x="${r(fillRect.x)}" y="${r(fillRect.y)}" width="${r(fillRect.w)}" height="${r(fillRect.h)}" rx="${r(trackR)}" fill="${accent}" />`);
-  }
-  // Parse author thumb border (e.g. "2px solid white") for styled sliders. When
-  // the pseudo doesn't declare a border, fall through to the UA stroke for
-  // unstyled UA thumbs and to no stroke for styled thumbs (Chrome paints the
-  // styled thumb borderless unless the author asks for one). DM-273.
+  // Parse the captured author thumb border (e.g. "2px solid white"). A missing
+  // border remains missing; native thumbs never reach this branch.
   const thumbBorder = parseBorderShorthand(s.rangeThumbBorder);
-  // Author-styled non-square thumb: render as a rect (matches rectangular
-  // and pill-shaped thumbs). Default UA thumb is a circle.
+  // Captured non-square/small-radius thumbs render as rects; a full-radius
+  // square renders as a circle.
   if (styledThumb && (thumbH !== thumbW || thumbRadius < Math.min(thumbW, thumbH) / 2)) {
-    const thumbBgColor = s.rangeThumbBg != null && s.rangeThumbBg !== "" && s.rangeThumbBg !== "rgba(0, 0, 0, 0)" ? s.rangeThumbBg : palette.fill;
+    const thumbBgColor = s.rangeThumbBg != null && s.rangeThumbBg !== "" ? s.rangeThumbBg : "none";
     const thumbRect = { x: thumbCx - thumbW / 2, y: thumbCy - thumbH / 2, w: thumbW, h: thumbH };
     const thumbGradFill = gradientFillFor(s.rangeThumbBgImage, thumbRect, defCtx);
     const thumbFill = thumbGradFill ?? thumbBgColor;
@@ -697,7 +412,7 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     parts.push(`${indent}<rect x="${r(thumbRect.x)}" y="${r(thumbRect.y)}" width="${r(thumbW)}" height="${r(thumbH)}" rx="${r(thumbRadius)}" fill="${thumbFill}"${strokeAttrs} />`);
   } else if (styledThumb) {
     const halfThumb = thumbW / 2;
-    const thumbBgColor = s.rangeThumbBg != null && s.rangeThumbBg !== "" && s.rangeThumbBg !== "rgba(0, 0, 0, 0)" ? s.rangeThumbBg : palette.fill;
+    const thumbBgColor = s.rangeThumbBg != null && s.rangeThumbBg !== "" ? s.rangeThumbBg : "none";
     const thumbRect = { x: thumbCx - halfThumb, y: thumbCy - halfThumb, w: thumbW, h: thumbW };
     const thumbGradFill = gradientFillFor(s.rangeThumbBgImage, thumbRect, defCtx);
     const thumbFill = thumbGradFill ?? thumbBgColor;
@@ -727,12 +442,6 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     } else {
       parts.push(`${indent}<circle cx="${r(thumbCx)}" cy="${r(thumbCy)}" r="${r(halfThumb)}" fill="${thumbFill}" />`);
     }
-  } else {
-    // Native (UA-default) range thumb. Chrome paints a filled accent-colored
-    // circle, not a hollow white-with-gray-border one. Disabled state mutes
-    // it via the host opacity Chrome already applies. DM-273.
-    const halfThumb = thumbW / 2;
-    parts.push(`${indent}<circle cx="${r(thumbCx)}" cy="${r(thumbCy)}" r="${r(halfThumb)}" fill="${accent}" />`);
   }
   return parts.join("\n");
 }
@@ -791,34 +500,23 @@ function parseBorderShorthand(border: string | undefined): { width: number; colo
 }
 
 function renderColorSwatch(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
-  // Button-like rounded rect with a colored inner swatch. el.value is a
-  // '#rrggbb' string (default #000000). Author CSS on the host or
-  // ::-webkit-color-swatch / ::-webkit-color-swatch-wrapper pseudos
-  // (captured from Blink's resolved UA-shadow ComputedStyle) overrides the default
-  // wrapper border/radius and inner swatch styling when present.
-  // DM-553: scheme-aware UA defaults.
-  const palette = stockPalette(defCtx?.colorScheme);
-  const parts: string[] = [];
   const s = el.styles;
-  const value = s.inputValue && /^#[0-9a-f]{6}$/i.test(s.inputValue) ? s.inputValue : "#000000";
-  // Outer wrapper: host bg/border (already painted by the normal element
-  // path) provides the chrome, plus ::-webkit-color-swatch-wrapper padding
-  // adjusts the inset of the inner swatch.
-  let pad = 4;
-  if (s.colorSwatchWrapperPadding != null && s.colorSwatchWrapperPadding !== "") {
-    const tok = s.colorSwatchWrapperPadding.trim().split(/\s+/).map((p) => parseFloat(p) || 0);
-    if (tok.length >= 1) pad = tok[0];
-  }
-  // Author hasn't styled the wrapper via host CSS — paint UA defaults.
-  const hostHasBg = (s.backgroundColor != null && s.backgroundColor !== "" && s.backgroundColor !== "transparent" && !/^rgba?\(\s*0\s*,\s*0\s*,\s*0\s*,\s*0\s*\)$/.test(s.backgroundColor));
-  if (!hostHasBg) {
-    parts.push(`${indent}<rect x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" rx="3" fill="${palette.fill}" stroke="${palette.border}" stroke-width="1" />`);
-  }
-  // Inner swatch: prefer ::-webkit-color-swatch background-color/image when
-  // authored, otherwise paint the input's value color.
-  const swatchRect = { x: el.x + pad, y: el.y + pad, w: el.width - pad * 2, h: el.height - pad * 2 };
+  const tokens = s.colorSwatchWrapperPadding?.trim().split(/\s+/).map((part) => parseFloat(part));
+  if (tokens == null || tokens.length < 1 || tokens.length > 4
+      || tokens.some((part) => !Number.isFinite(part))) return "";
+  const top = tokens[0];
+  const right = tokens.length === 1 ? tokens[0] : tokens[1];
+  const bottom = tokens.length < 3 ? tokens[0] : tokens[2];
+  const left = tokens.length < 2 ? tokens[0] : tokens.length < 4 ? tokens[1] : tokens[3];
+  const swatchRect = {
+    x: el.x + left, y: el.y + top,
+    w: el.width - left - right, h: el.height - top - bottom,
+  };
+  if (swatchRect.w <= 0 || swatchRect.h <= 0) return "";
   const swatchGrad = gradientFillFor(s.colorSwatchBgImage, swatchRect, defCtx);
+  const value = /^#[0-9a-f]{6}$/i.test(s.inputValue ?? "") ? s.inputValue : undefined;
   const swatchFill = swatchGrad ?? (s.colorSwatchBg != null && s.colorSwatchBg !== "" ? s.colorSwatchBg : value);
+  if (swatchFill == null) return "";
   const radius = s.colorSwatchRadius != null && s.colorSwatchRadius !== "" ? parseFloat(s.colorSwatchRadius) || 0 : 0;
   // Border on the swatch (e.g. authors set ::-webkit-color-swatch { border: 2px solid gray }).
   let borderAttrs = "";
@@ -828,115 +526,10 @@ function renderColorSwatch(el: CapturedElement, indent: string, defCtx?: DefCtx)
       borderAttrs = ` stroke="${m[3]}" stroke-width="${m[1]}"`;
     }
   }
-  parts.push(`${indent}<rect x="${r(swatchRect.x)}" y="${r(swatchRect.y)}" width="${r(swatchRect.w)}" height="${r(swatchRect.h)}" rx="${r(radius)}" fill="${swatchFill}"${borderAttrs} />`);
-  return parts.join("\n");
+  return `${indent}<rect x="${r(swatchRect.x)}" y="${r(swatchRect.y)}" width="${r(swatchRect.w)}" height="${r(swatchRect.h)}" rx="${r(radius)}" fill="${swatchFill}"${borderAttrs} />`;
 }
 
-/**
- * <input type=number>: paint the ::-webkit-inner-spin-button chrome on the
- * right edge — a small box with up/down arrow chevrons. Author rules on
- * ::-webkit-inner-spin-button (captured from Blink's resolved ComputedStyle)
- * override the UA defaults for background / border / radius.
- */
-function renderNumberInput(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
-  // Presence reserves the closed-shadow decoration layer even when Chromium
-  // proved it empty or materialization warned. Never reopen sampled geometry.
-  if (el.nativeControlDecorationRaster != null) return "";
-  const s = el.styles;
-  // Like the search-cancel button, Chrome only paints the spin buttons when
-  // the input is hovered or focused. Static-screenshot captures see no
-  // hover/focus, so by default the spin chrome must be invisible. Only emit
-  // when the author put explicit rules on `::-webkit-inner-spin-button` —
-  // those force the visibility on. (DM-289)
-  const hasAuthorPseudo = (s.numberSpinButtonBg != null && s.numberSpinButtonBg !== "")
-    || (s.numberSpinButtonBorder != null && s.numberSpinButtonBorder !== "")
-    || (s.numberSpinButtonRadius != null && s.numberSpinButtonRadius !== "");
-  if (!hasAuthorPseudo) return "";
-  const parts: string[] = [];
-  // Spin button geometry: ~14px wide, full input height minus 1px inset on
-  // each edge so the box sits inside the input's border.
-  const w = 14;
-  const x = el.x + el.width - w - 1;
-  const y = el.y + 1;
-  const h = Math.max(0, el.height - 2);
-  if (h <= 0) return "";
-  const radius = s.numberSpinButtonRadius != null && s.numberSpinButtonRadius !== ""
-    ? parseFloat(s.numberSpinButtonRadius) || 0 : 0;
-  const bgColor = s.numberSpinButtonBg != null && s.numberSpinButtonBg !== ""
-    ? s.numberSpinButtonBg : "rgb(244, 244, 244)";
-  // Background: gradient (rare but supported via the shared gradient pipeline).
-  const bgGrad = gradientFillFor(undefined, { x, y, w, h }, defCtx);
-  const fill = bgGrad ?? bgColor;
-  // Border parsing: "Wpx <style> <color>". 'none' suppresses the stroke.
-  let strokeAttrs = "";
-  if (s.numberSpinButtonBorder != null && s.numberSpinButtonBorder !== "") {
-    const m = /^([\d.]+)px\s+(\w+)\s+(.+)$/.exec(s.numberSpinButtonBorder);
-    if (m != null && m[2] !== "none") {
-      strokeAttrs = ` stroke="${m[3]}" stroke-width="${m[1]}"`;
-    }
-  }
-  parts.push(`${indent}<rect x="${r(x)}" y="${r(y)}" width="${r(w)}" height="${r(h)}" rx="${r(radius)}" fill="${fill}"${strokeAttrs} />`);
-  // Up + down arrow chevrons centered horizontally within the box, at the
-  // 1/4 and 3/4 vertical positions. Subtle gray strokes.
-  const cx = x + w / 2;
-  const upY = y + h / 4;
-  const downY = y + (h * 3) / 4;
-  const arm = Math.min(3, h / 6);
-  parts.push(`${indent}<polyline points="${r(cx - arm)},${r(upY + arm * 0.5)} ${r(cx)},${r(upY - arm * 0.5)} ${r(cx + arm)},${r(upY + arm * 0.5)}" fill="none" stroke="rgb(110,110,110)" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" />`);
-  parts.push(`${indent}<polyline points="${r(cx - arm)},${r(downY - arm * 0.5)} ${r(cx)},${r(downY + arm * 0.5)} ${r(cx + arm)},${r(downY - arm * 0.5)}" fill="none" stroke="rgb(110,110,110)" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" />`);
-  return parts.join("\n");
-}
-
-/**
- * <input type=search>: paint the ::-webkit-search-cancel-button chrome
- * (the "X" reset button) on the right edge. Chrome only shows the cancel
- * button when the input is hovered or focused — for a static-screenshot
- * capture neither state is in effect, so we only emit the chrome when the
- * page has explicit author rules on the pseudo (those override Chrome's
- * default visibility). Without this guard our default cancel button stamps
- * an "X" on every search input that has a value, while Chrome paints
- * nothing. (DM-289)
- */
-function renderSearchInput(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
-  if (el.nativeControlDecorationRaster != null) return "";
-  const s = el.styles;
-  if (s.inputValue == null || s.inputValue === "") return "";
-  const hasAuthorPseudo = (s.searchCancelButtonBg != null && s.searchCancelButtonBg !== "")
-    || (s.searchCancelButtonBorder != null && s.searchCancelButtonBorder !== "")
-    || (s.searchCancelButtonRadius != null && s.searchCancelButtonRadius !== "");
-  if (!hasAuthorPseudo) return "";
-  const parts: string[] = [];
-  const size = Math.min(14, el.height - 4);
-  if (size <= 0) return "";
-  const x = el.x + el.width - size - 4;
-  const y = el.y + (el.height - size) / 2;
-  const radius = s.searchCancelButtonRadius != null && s.searchCancelButtonRadius !== ""
-    ? parseFloat(s.searchCancelButtonRadius) || size / 2 : size / 2;
-  const bgColor = s.searchCancelButtonBg != null && s.searchCancelButtonBg !== ""
-    ? s.searchCancelButtonBg : "rgb(180, 180, 180)";
-  const bgGrad = gradientFillFor(undefined, { x, y, w: size, h: size }, defCtx);
-  const fill = bgGrad ?? bgColor;
-  let strokeAttrs = "";
-  if (s.searchCancelButtonBorder != null && s.searchCancelButtonBorder !== "") {
-    const m = /^([\d.]+)px\s+(\w+)\s+(.+)$/.exec(s.searchCancelButtonBorder);
-    if (m != null && m[2] !== "none") {
-      strokeAttrs = ` stroke="${m[3]}" stroke-width="${m[1]}"`;
-    }
-  }
-  parts.push(`${indent}<rect x="${r(x)}" y="${r(y)}" width="${r(size)}" height="${r(size)}" rx="${r(radius)}" fill="${fill}"${strokeAttrs} />`);
-  // White "X" centered.
-  const cx = x + size / 2;
-  const cy = y + size / 2;
-  const arm = size * 0.25;
-  parts.push(`${indent}<line x1="${r(cx - arm)}" y1="${r(cy - arm)}" x2="${r(cx + arm)}" y2="${r(cy + arm)}" stroke="white" stroke-width="1.5" stroke-linecap="round" />`);
-  parts.push(`${indent}<line x1="${r(cx + arm)}" y1="${r(cy - arm)}" x2="${r(cx - arm)}" y2="${r(cy + arm)}" stroke="white" stroke-width="1.5" stroke-linecap="round" />`);
-  return parts.join("\n");
-}
-
-/** Paint author `box-shadow` overflow for the real file button. The native
- * crop owns the exact button border-box, including any shadow pixels inside
- * that box. `overflowOnly` therefore subtracts the border-box and emits only
- * the source-owned shadow continuation which Blink clips to the file host. */
+/** Paint captured author `::file-selector-button` outset-shadow overflow. */
 export function renderFileSelectorOutsetShadow(
   el: CapturedElement,
   indent: string,
@@ -1049,260 +642,47 @@ function renderCapturedFileStatus(el: CapturedElement, indent: string, defCtx?: 
 }
 
 /**
- * <input type=file>: emit a 'Choose File' button + filename label. Styling
- * comes from the captured ::file-selector-button pseudo-element so author
- * CSS (background, color, border, padding, border-radius) carries through.
- * Falls back to the Chromium UA defaults when the pseudo isn't customized.
+ * <input type=file>: emit only the captured author-owned button and the
+ * Chromium closed-shadow status text. No localized label, geometry, palette,
+ * or font is invented when either source record is absent.
  */
 function renderFileInput(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
-  // DM-553: scheme-aware UA border default for the 'Choose File' chrome.
-  const palette = stockPalette(defCtx?.colorScheme);
-  const parts: string[] = [];
   const s = el.styles;
-  // Visually-hidden file inputs (label-wrapped pattern: opacity:0 or
-  // width/height clipped to 1px) shouldn't render the synthesized 'Choose
-  // File' chrome — the label is the visible UI and our chrome would stamp
-  // ugly overlapping text on top. DM-271.
-  const isHidden = el.width <= 2 || el.height <= 2 || s.opacity === "0";
-  if (isHidden) return "";
+  if (el.width <= 2 || el.height <= 2 || s.opacity === "0") return "";
   const statusMarkup = renderCapturedFileStatus(el, indent, defCtx);
-  // A reservation is authoritative even when materialization failed: never
-  // fall back to the sampled English/button approximation.
+  // A reservation is authoritative even when its Chromium surface failed.
   if (el.nativeControlDecorationRaster?.kinds.includes("file-selector-button") === true) {
     return statusMarkup;
   }
-  const sourceButton = s.fileSelectorButton;
-  const buttonShadow = renderFileSelectorOutsetShadow(el, indent, defCtx);
-  if (buttonShadow !== "") parts.push(buttonShadow);
-  // Resolve styles from the captured pseudo, with UA defaults as fallback.
-  const bg = s.fileButtonBg != null && s.fileButtonBg !== "" ? s.fileButtonBg : "rgb(239,239,239)";
-  const color = s.fileButtonColor != null && s.fileButtonColor !== ""
-    ? s.fileButtonColor : (sourceButton?.color ?? "rgb(0,0,0)");
-  const rawRadius = s.fileButtonBorderRadius != null
-    ? (parseFloat(s.fileButtonBorderRadius) || 3)
-    : (parseFloat(sourceButton?.borderRadius ?? "") || 3);
-  // Border: parse "Wpx <style> <color>" — only the width matters for our paint.
-  let borderW = 1;
-  let borderColor = palette.border;
-  if (s.fileButtonBorder != null) {
-    const m = /^([\d.]+)px\s+(\w+)\s+(.+)$/.exec(s.fileButtonBorder);
-    if (m != null) {
-      borderW = parseFloat(m[1]) || 0;
-      if (m[2] === "none") borderW = 0;
-      else borderColor = m[3];
-    }
-  }
-  // Padding: parse "Tpx Rpx Bpx Lpx" (or shorthand) for vertical/horizontal.
-  let padV = 4, padH = 8;
-  if (s.fileButtonPadding != null) {
-    const tok = s.fileButtonPadding.trim().split(/\s+/).map((p) => parseFloat(p) || 0);
-    if (tok.length >= 1) { padV = tok[0]; padH = tok[0]; }
-    if (tok.length >= 2) { padH = tok[1]; }
-    if (tok.length >= 4) { padH = (tok[1] + tok[3]) / 2; }
-  }
-  const fontWeight = sourceButton?.fontWeight
-    ?? (s.fileButtonFontWeight != null && s.fileButtonFontWeight !== "" ? s.fileButtonFontWeight : "400");
-  // Chrome's UA default font-size for ::file-selector-button is 13.333px (it
-  // inherits from the input chrome, not from the page). When the author sets
-  // `font: inherit` on the pseudo (the f-primary / f-outline patterns in
-  // 06-forms-style-file), this becomes the body's font-size — typically 16px.
-  // Reading the captured pseudo font-size makes us match either case.
-  const fontSize = sourceButton?.fontSize
-    ?? (s.fileButtonFontSize != null && s.fileButtonFontSize !== ""
-      ? (parseFloat(s.fileButtonFontSize) || 13)
-      : 13);
-  const fontFamily = sourceButton?.fontFamily
-    ?? (s.fileButtonFontFamily != null && s.fileButtonFontFamily !== ""
-      ? s.fileButtonFontFamily
-      : "-apple-system, system-ui, sans-serif");
-  // Chrome's UA ::file-selector-button has `margin-inline-end: 4px` (4px gap
-  // before the trailing "No file chosen" placeholder), but the test fixture
-  // overrides this to `margin-right: 12px`. Read the captured pseudo
-  // marginRight and use it as the gap; default to 4 when unset. DM-288.
-  const marginRight = s.fileButtonMarginRight != null && s.fileButtonMarginRight !== ""
-    ? (parseFloat(s.fileButtonMarginRight) || 4)
-    : 4;
-  // <input type=file multiple> labels as "Choose Files" (Chrome).
-  const labelText = sourceButton?.text ?? (s.inputMultiple === true ? "Choose Files" : "Choose File");
-  // Use the canvas-measureText'\''d label width when the capture provided one
-  // (it'\''s painted at sub-pixel exact width from Chrome'\''s actual font);
-  // fall back to the cheap per-char ratio otherwise (e.g. animated frames
-  // captured before measureText was available).
-  const textW = sourceButton != null && sourceButton.textWidth > 0
-    ? sourceButton.textWidth
-    : s.fileButtonLabelWidth != null && s.fileButtonLabelWidth > 0
-      ? s.fileButtonLabelWidth
-      : labelText.length * fontSize * 0.6;
-  const btnW = sourceButton?.width ?? (textW + padH * 2);
-  const btnH = sourceButton?.height ?? Math.min(fontSize + padV * 2, el.height);
-  const bx = sourceButton?.x ?? (el.x + 2);
-  const by = sourceButton?.y ?? (el.y + (el.height - btnH) / 2);
-  // Clamp the captured border-radius to half-extents so a `border-radius: 999px`
-  // pill doesn't become an ellipse via SVG's per-axis rx/ry default-equality
-  // rule (rx=999 with ry unset → ry=999 → ry clamps to btnH/2 independent of
-  // rx clamping to btnW/2 → ellipse ends, not semicircles). DM-271.
-  const radius = Math.min(rawRadius, btnW / 2, btnH / 2);
-  const strokeAttrs = borderW > 0 ? ` stroke="${borderColor}" stroke-width="${borderW}"` : "";
-  parts.push(`${indent}<rect x="${r(bx)}" y="${r(by)}" width="${r(btnW)}" height="${r(btnH)}" rx="${r(radius)}" fill="${bg}"${strokeAttrs} />`);
-  // Baseline offset inside the button: ~0.35*fontSize below the vertical center
-  // matches Helvetica/sans-serif baseline placement at small sizes.
-  const ascent = sourceButton != null
-    ? (btnH - sourceButton.fontAscent - sourceButton.fontDescent) / 2 + sourceButton.fontAscent
-    : btnH / 2 + fontSize * 0.35;
-  const labelPath = renderTextAsPath(labelText, bx + (btnW - textW) / 2, by, {
-    fontSize, fontWeight, fontFamily, fontStyle: sourceButton?.fontStyle ?? "normal", fill: color,
-    targetWidth: textW, ascentOverride: ascent,
+  const button = s.fileSelectorButton;
+  if (button == null) return statusMarkup;
+  const background = s.fileButtonBg;
+  const border = parseBorderShorthand(s.fileButtonBorder);
+  // Missing source paint is not permission to substitute UA button colors.
+  if ((background == null || background === "") && border == null) return statusMarkup;
+  const parts: string[] = [];
+  const shadow = renderFileSelectorOutsetShadow(el, indent, defCtx);
+  if (shadow !== "") parts.push(shadow);
+  const rawRadius = parseFloat(button.borderRadius);
+  const radius = Number.isFinite(rawRadius)
+    ? Math.max(0, Math.min(rawRadius, button.width / 2, button.height / 2))
+    : 0;
+  const strokeAttrs = border == null
+    ? ""
+    : ` stroke="${border.color}" stroke-width="${r(border.width)}"`;
+  parts.push(`${indent}<rect x="${r(button.x)}" y="${r(button.y)}" width="${r(button.width)}" height="${r(button.height)}" rx="${r(radius)}" fill="${background ?? "none"}"${strokeAttrs} />`);
+  const ascent = (button.height - button.fontAscent - button.fontDescent) / 2 + button.fontAscent;
+  const labelPath = renderTextAsPath(button.text, button.x + (button.width - button.textWidth) / 2, button.y, {
+    fontSize: button.fontSize, fontWeight: button.fontWeight,
+    fontFamily: button.fontFamily, fontStyle: button.fontStyle, fill: button.color,
+    targetWidth: button.textWidth, ascentOverride: ascent,
   });
   parts.push(`${indent}${labelPath}`);
-  if (statusMarkup !== "") {
-    parts.push(statusMarkup);
-  } else {
-    // Backwards-compatible pre-DM-2454 capture fallback only. New captures
-    // carry Chromium's real localized status span and never enter this path.
-    const label = el.styles.inputFileName != null && el.styles.inputFileName !== "" ? el.styles.inputFileName : "No file chosen";
-    const nameX = bx + btnW + marginRight;
-    const namePath = renderTextAsPath(label, nameX, by, {
-      fontSize, fontWeight: "400", fontFamily, fontStyle: "normal", fill: "rgb(0,0,0)", ascentOverride: ascent,
-    });
-    parts.push(`${indent}${namePath}`);
-  }
+  if (statusMarkup !== "") parts.push(statusMarkup);
   return parts.join("\n");
 }
 
-/**
- * Date/time/datetime-local/month/week/color picker chrome: show the captured
- * value as text plus a small picker indicator on the right.
- */
-function renderDatePicker(el: CapturedElement, indent: string): string {
-  const parts: string[] = [];
-  const t = el.styles.inputType ?? "date";
-  const val = el.styles.inputValue ?? "";
-  // DM-723: Chrome's UA stylesheet sets date/time/month/week/datetime-local
-  // inputs to `font-family: monospace; font-size: ~13.333px` (small-control
-  // form-control metric). Read the captured font-size so we match Chrome's
-  // resolved metric instead of an under-scaled 11px literal — the previous
-  // hardcoded size emitted glyphs noticeably narrower than the expected paint.
-  const fontSize = parseFloat(el.styles.fontSize ?? "") || 13.333;
-  const tx = el.x + 6;
-  const ty = el.y + el.height / 2 + fontSize * 0.35;
-  // DM-731: pick up the input's resolved color so the value text matches
-  // the active color-scheme. Hardcoding `rgb(0,0,0)` made dark-mode date
-  // inputs render with invisible black text on a dark background. Falls
-  // back to black when the capture didn't supply a color.
-  const textFill = (el.styles.color != null && el.styles.color !== "")
-    ? el.styles.color
-    : "rgb(0,0,0)";
-  // Chrome renders date inputs with an en-US-formatted display value: dates
-  // as MM/DD/YYYY, times as hh:mm AM/PM, etc. The captured `inputValue` is
-  // the canonical ISO form (`2026-04-21`). DM-263.
-  const display = formatDateInputDisplay(t, val);
-  if (display !== "") {
-    parts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="${r(fontSize)}" font-family="ui-monospace, Menlo, monospace" fill="${textFill}">${display.replace(/[&<>]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]!))}</text>`);
-  }
-  // Picker icon on the right edge: calendar for date / month / week / datetime-local,
-  // clock for time. Chrome paints these monochrome at ~14px in the input's
-  // line-height. DM-263.
-  // DM-731: pass the input's text color through so the icon picks up the
-  // dark-mode color (was hardcoded to TRACK_FG light-mode constant).
-  const cx = el.x + el.width - 12;
-  const cy = el.y + el.height / 2;
-  const iconSize = Math.min(11, el.height - 6);
-  if (el.nativeControlDecorationRaster == null) {
-    if (t === "time") {
-      parts.push(renderClockIcon(indent, cx, cy, iconSize, textFill));
-    } else {
-      parts.push(renderCalendarIcon(indent, cx, cy, iconSize, textFill));
-    }
-  }
-  return parts.join("\n");
-}
-
-/** Format an ISO date-input value into Chrome's en-US display string.
- *  Falls back to the raw value when parsing fails (preserves the original
- *  rendering for unrecognized inputs). DM-263. */
-function formatDateInputDisplay(type: string, val: string): string {
-  if (val === "") return "";
-  if (type === "date") {
-    // YYYY-MM-DD → MM/DD/YYYY
-    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(val);
-    if (m == null) return val;
-    return `${m[2]}/${m[3]}/${m[1]}`;
-  }
-  if (type === "time") {
-    // HH:MM[:SS] (24h) → hh:mm AM/PM (12h)
-    const m = /^(\d{2}):(\d{2})/.exec(val);
-    if (m == null) return val;
-    const h24 = parseInt(m[1], 10);
-    const mm = m[2];
-    const ampm = h24 >= 12 ? "PM" : "AM";
-    let h12 = h24 % 12;
-    if (h12 === 0) h12 = 12;
-    return `${h12.toString().padStart(2, "0")}:${mm} ${ampm}`;
-  }
-  if (type === "datetime-local") {
-    const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(val);
-    if (m == null) return val;
-    const h24 = parseInt(m[4], 10);
-    const ampm = h24 >= 12 ? "PM" : "AM";
-    let h12 = h24 % 12;
-    if (h12 === 0) h12 = 12;
-    return `${m[2]}/${m[3]}/${m[1]}, ${h12.toString().padStart(2, "0")}:${m[5]} ${ampm}`;
-  }
-  if (type === "month") {
-    const m = /^(\d{4})-(\d{2})$/.exec(val);
-    if (m == null) return val;
-    const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-    const idx = parseInt(m[2], 10) - 1;
-    if (idx < 0 || idx > 11) return val;
-    return `${months[idx]} ${m[1]}`;
-  }
-  if (type === "week") {
-    const m = /^(\d{4})-W(\d{2})$/.exec(val);
-    if (m == null) return val;
-    return `Week ${m[2]}, ${m[1]}`;
-  }
-  return val;
-}
-
-function renderCalendarIcon(indent: string, cx: number, cy: number, size: number, strokeOverride?: string): string {
-  // Simple calendar glyph: rounded rect with two top "binders" and a grid line.
-  const w = size;
-  const h = size;
-  const x = cx - w / 2;
-  const y = cy - h / 2;
-  // DM-731: caller supplies the stroke color so the icon picks up the
-  // active color-scheme (was hardcoded to the light-mode `TRACK_FG`).
-  const stroke = strokeOverride ?? TRACK_FG;
-  return `${indent}<g fill="none" stroke="${stroke}" stroke-width="1" stroke-linecap="round"><rect x="${r(x + 0.5)}" y="${r(y + 1.5)}" width="${r(w - 1)}" height="${r(h - 2)}" rx="1" /><line x1="${r(x + 0.5)}" y1="${r(y + 4)}" x2="${r(x + w - 0.5)}" y2="${r(y + 4)}" /><line x1="${r(x + 3)}" y1="${r(y + 0.5)}" x2="${r(x + 3)}" y2="${r(y + 2.5)}" /><line x1="${r(x + w - 3)}" y1="${r(y + 0.5)}" x2="${r(x + w - 3)}" y2="${r(y + 2.5)}" /></g>`;
-}
-
-function renderClockIcon(indent: string, cx: number, cy: number, size: number, strokeOverride?: string): string {
-  // Simple clock glyph: circle with two hands.
-  const r1 = size / 2;
-  const stroke = strokeOverride ?? TRACK_FG;
-  return `${indent}<g fill="none" stroke="${stroke}" stroke-width="1" stroke-linecap="round"><circle cx="${r(cx)}" cy="${r(cy)}" r="${r(r1 - 0.5)}" /><line x1="${r(cx)}" y1="${r(cy)}" x2="${r(cx)}" y2="${r(cy - r1 * 0.55)}" /><line x1="${r(cx)}" y1="${r(cy)}" x2="${r(cx + r1 * 0.4)}" y2="${r(cy)}" /></g>`;
-}
-
-/**
- * If the captured pseudo-element background is something other than the
- * UA default (transparent / Chrome's default fill), return it as a paint
- * value. Solid colors return the rgb string. Gradients return the first
- * gradient color stop as a fallback (full gradient rendering would require
- * emitting an SVG <linearGradient> def, which we approximate here).
- *
- * NOTE: in headless Chromium getComputedStyle on ::-webkit-progress-value
- * etc. often returns transparent regardless of the CSS rule (because the
- * pseudo styles are not always exposed via the API even when they paint
- * correctly). So in practice this returns null for almost everything and
- * the renderer falls back to UA defaults.
- */
-function customPseudoFill(bg: string | undefined, bgImage: string | undefined): string | null {
-  if (bgImage != null && bgImage !== "none" && bgImage !== "") {
-    // Try to extract the dominant color from a gradient string. Best-effort:
-    // pull the first color literal that appears.
-    const m = /(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\)|hsla?\([^)]+\))/i.exec(bgImage);
-    if (m != null) return m[1];
-  }
+function capturedPseudoColor(bg: string | undefined): string | null {
   if (bg == null || bg === "" || bg === "transparent") return null;
   // Detect transparent rgba(...) regardless of inner spacing.
   const transparentRgba = /^rgba?\(\s*0\s*,\s*0\s*,\s*0\s*,\s*0\s*\)$/i;
@@ -1311,242 +691,123 @@ function customPseudoFill(bg: string | undefined, bgImage: string | undefined): 
 }
 
 function renderProgress(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
-  // DM-553: scheme-aware UA default track + accent fill.
-  const palette = stockPalette(defCtx?.colorScheme);
-  // DM-1254: track/value rects come from the shared progressBarGeom (also used
-  // by the conic raster collector). UA-default <progress> on Chrome-macOS is a
-  // centered bar inset by floor(h/4) with a partial pill radius emerging past
-  // barH≈8 (DM-354); author-styled (appearance:none) bars use the pseudo's own
-  // radius (Chrome doesn't propagate the host radius to the pseudos).
-  const { isAuthorStyled, barH, ratio: _ratio, trackRect, valueRect } = progressBarGeom(el);
-  void _ratio;
+  const { trackRect, valueRect } = progressBarGeom(el);
   const parts: string[] = [];
-  const accent = resolveAccent(el, defCtx);
-  // Custom pseudo-element fills override the UA defaults when present (SK-1222).
-  const customTrackFill = customPseudoFill(el.styles.progressBarBg, el.styles.progressBarBgImage);
-  const customValueFill = customPseudoFill(el.styles.progressValueBg, el.styles.progressValueBgImage);
-  const trackFill = customTrackFill ?? palette.trackBg;
-  const valueFill = customValueFill ?? accent;
-  const trackRadius = isAuthorStyled
-    ? (el.styles.progressBarRadius != null && el.styles.progressBarRadius !== "0px"
-        ? parseFloat(el.styles.progressBarRadius) || 0 : 0)
-    : Math.max(0, (barH - 8) / 2);
-  const valueRadius = isAuthorStyled
-    ? (el.styles.progressValueRadius != null && el.styles.progressValueRadius !== "0px"
-        ? parseFloat(el.styles.progressValueRadius) || 0 : 0)
-    : Math.max(0, (barH - 8) / 2);
-  // Gradient fills (SK-1224 / SK-1225 / DM-1254 conic) for progress pseudos:
-  // a gradient bg-image emits a def referenced via fill="url(#...)"; flat fills
-  // are the fallback. The <rect>s use the shared rects so the conic tile (keyed
-  // by rect size) lines up with what's painted.
-  const trackGrad = gradientFillFor(el.styles.progressBarBgImage, trackRect, defCtx);
-  parts.push(`${indent}<rect x="${r(trackRect.x)}" y="${r(trackRect.y)}" width="${r(trackRect.w)}" height="${r(trackRect.h)}" rx="${r(trackRadius)}" fill="${trackGrad ?? trackFill}" />`);
+  const trackColor = capturedPseudoColor(el.styles.progressBarBg);
+  const trackGradient = gradientFillFor(el.styles.progressBarBgImage, trackRect, defCtx);
+  if (trackColor != null || trackGradient != null) {
+    const radius = Math.max(0, parseFloat(el.styles.progressBarRadius ?? "") || 0);
+    parts.push(`${indent}<rect x="${r(trackRect.x)}" y="${r(trackRect.y)}" width="${r(trackRect.w)}" height="${r(trackRect.h)}" rx="${r(radius)}" fill="${trackGradient ?? trackColor!}" />`);
+  }
   if (valueRect != null) {
-    const valueGrad = gradientFillFor(el.styles.progressValueBgImage, valueRect, defCtx);
-    parts.push(`${indent}<rect x="${r(valueRect.x)}" y="${r(valueRect.y)}" width="${r(valueRect.w)}" height="${r(valueRect.h)}" rx="${r(valueRadius)}" fill="${valueGrad ?? valueFill}" />`);
+    const valueColor = capturedPseudoColor(el.styles.progressValueBg);
+    const valueGradient = gradientFillFor(el.styles.progressValueBgImage, valueRect, defCtx);
+    if (valueColor != null || valueGradient != null) {
+      const radius = Math.max(0, parseFloat(el.styles.progressValueRadius ?? "") || 0);
+      parts.push(`${indent}<rect x="${r(valueRect.x)}" y="${r(valueRect.y)}" width="${r(valueRect.w)}" height="${r(valueRect.h)}" rx="${r(radius)}" fill="${valueGradient ?? valueColor!}" />`);
+    }
   }
   return parts.join("\n");
 }
 
 function renderMeter(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
-  // DM-553: scheme-aware UA defaults — meter green/yellow/red palette + track.
-  const palette = stockPalette(defCtx?.colorScheme);
-  const value = el.styles.meterValue ?? 0;
-  const min = el.styles.meterMin ?? 0;
-  const max = el.styles.meterMax ?? 1;
-  // CSS spec: low defaults to min, high defaults to max, optimum defaults to (min+max)/2.
-  const low = el.styles.meterLow ?? min;
-  const high = el.styles.meterHigh ?? max;
-  const optimum = el.styles.meterOptimum ?? (min + max) / 2;
-  const ratio = max > min ? Math.max(0, Math.min(1, (value - min) / (max - min))) : 0;
-
-  // Classify each point into low/medium/high region based on the bar's low/high
-  // bounds. Then: same-region = optimal (green), adjacent = suboptimal (yellow),
-  // opposite ends = worst (red). This matches the HTML <meter> color rules.
-  const region = (v: number): 0 | 1 | 2 =>
-    v < low ? 0 : v > high ? 2 : 1;
-  const valR = region(value);
-  const optR = region(optimum);
-  const dist = Math.abs(valR - optR);
-  // Pick the matching pseudo (optimum/suboptimum/even-less-good) for the
-  // value's region. Author CSS on those pseudos overrides the UA-default
-  // green/yellow/red palette. Capture reads the final Blink UA-shadow
-  // ComputedStyle, including Chromium's complete cascade.
-  const customTrackFill = customPseudoFill(el.styles.meterBarBg, el.styles.meterBarBgImage);
-  // The region-selected value bg image is resolved in meterBarGeom (used for the
-  // gradient lookup); here we only need the matching flat customValueFill.
-  let customValueFill: string | null;
-  if (dist === 0) {
-    customValueFill = customPseudoFill(el.styles.meterOptimumBg, el.styles.meterOptimumBgImage);
-  } else if (dist === 1) {
-    customValueFill = customPseudoFill(el.styles.meterSuboptimumBg, el.styles.meterSuboptimumBgImage);
-  } else {
-    customValueFill = customPseudoFill(el.styles.meterEvenLessGoodBg, el.styles.meterEvenLessGoodBgImage);
-  }
-  const defaultFill = dist === 0 ? palette.meterGreen : dist === 1 ? palette.meterYellow : palette.meterRed;
-  const fill = customValueFill ?? defaultFill;
-  const trackFill = customTrackFill ?? palette.trackBg;
-  // Same UA-default formula as <progress> (DM-354): inset=floor(h/4) top
-  // and bottom, with a partial pill radius that only emerges past barH≈8.
-  // Author-styled <meter> (appearance:none with custom pseudo) uses the
-  // pseudo's own border-radius, defaulting to 0 (Chrome doesn't propagate
-  // the host's border-radius to the pseudos in styled mode).
-  const isAuthorStyled = customTrackFill != null || customValueFill != null
-    || (el.styles.meterBarRadius != null && el.styles.meterBarRadius !== "0px");
-  const inset = uaBarInset(el.height);
-  const barH = isAuthorStyled ? el.height : el.height - 2 * inset;
-  const barY = isAuthorStyled ? el.y : el.y + inset;
-  // Native (non-author-styled) <meter> on macOS Chrome paints a grooved
-  // bar: the track and value sit inside a 1px gray border (rgb(203,203,203))
-  // with small rounded corners (~2px), and the value fill is inset 1px
-  // within that groove so the border shows around it. Sampled from Chromium
-  // paint: 8px bar (inset floor(h/4)), track rgb(239,239,239), green fill
-  // rgb(16,124,16), 1px groove border. Author-styled meters (appearance:none)
-  // get no groove — only the pseudo's own border-radius rounds them.
-  const trackRadius = isAuthorStyled
-    ? (el.styles.meterBarRadius != null && el.styles.meterBarRadius !== "0px"
-        ? parseFloat(el.styles.meterBarRadius) || 0 : 0)
-    : Math.min(2, barH / 2);
-
+  const s = el.styles;
+  const value = s.meterValue ?? 0;
+  const min = s.meterMin ?? 0;
+  const max = s.meterMax ?? 1;
+  const low = s.meterLow ?? min;
+  const high = s.meterHigh ?? max;
+  const optimum = s.meterOptimum ?? (min + max) / 2;
+  const region = (candidate: number): 0 | 1 | 2 => candidate < low ? 0 : candidate > high ? 2 : 1;
+  const distance = Math.abs(region(value) - region(optimum));
+  const valueColor = distance === 0 ? capturedPseudoColor(s.meterOptimumBg)
+    : distance === 1 ? capturedPseudoColor(s.meterSuboptimumBg)
+      : capturedPseudoColor(s.meterEvenLessGoodBg);
+  const geometry = meterBarGeom(el);
   const parts: string[] = [];
-  // Gradient fills (SK-1222 + SK-1224 / SK-1225 / DM-1254 conic) for meter
-  // pseudos. DM-1254: route the gradient lookups through the shared meterBarGeom
-  // so the conic raster collector and these calls compute the SAME consumer rect
-  // (the conic tile cache is keyed by rect size). The drawn <rect>s below keep
-  // their own pixel-snapped groove geometry, which equals the geom rects.
-  const geom = meterBarGeom(el);
-  const trackGrad = gradientFillFor(el.styles.meterBarBgImage, geom.trackRect, defCtx);
-  if (isAuthorStyled) {
-    // The track (`::-webkit-meter-bar`) fills the full element height, but
-    // Chrome insets the VALUE pseudo to the center ~half-height (inset =
-    // floor(h/4), same as the native bar) — sampled: h=16 value spans the
-    // center 8px, h=28 value spans the center 14px. Snap the box top to the
-    // pixel grid (Chrome paints the snapped border box) so the bar edges land
-    // crisply instead of AA'ing across two rows.
-    const top = Math.round(el.y);
-    const fullH = Math.round(el.height);
-    parts.push(`${indent}<rect x="${r(el.x)}" y="${r(top)}" width="${r(el.width)}" height="${r(fullH)}" rx="${r(trackRadius)}" fill="${trackGrad ?? trackFill}" />`);
-    if (ratio > 0) {
-      const vInset = uaBarInset(fullH);
-      const valueH = fullH - 2 * vInset;
-      const valueTop = top + vInset;
-      const valueRadius = Math.min(trackRadius, valueH / 2);
-      const valueW = el.width * ratio;
-      const valueGrad = gradientFillFor(geom.valueBgImage, geom.valueRect!, defCtx);
-      parts.push(`${indent}<rect x="${r(el.x)}" y="${r(valueTop)}" width="${r(valueW)}" height="${r(valueH)}" rx="${r(valueRadius)}" fill="${valueGrad ?? fill}" />`);
-    }
-  } else {
-    // Native groove. Chrome paints a crisp 1px gray border (rgb(203,203,203))
-    // around the bar with the track/value fills inside it. Snap to the pixel
-    // grid so the 1px stroke lands on a single row/column instead of AA'ing
-    // across two (sampled Chrome: border row at floor(barY), 6px fill inside,
-    // border row at the bottom). The value fill is inset 1px so the groove
-    // reads around it.
-    const groove = "rgb(203,203,203)";
-    const left = Math.floor(el.x);
-    const top = Math.floor(barY);
-    const fullW = Math.round(el.width);
-    parts.push(`${indent}<rect x="${r(left + 0.5)}" y="${r(top + 0.5)}" width="${r(fullW - 1)}" height="${r(barH - 1)}" rx="${r(trackRadius)}" fill="${trackGrad ?? trackFill}" stroke="${groove}" stroke-width="1" />`);
-    if (ratio > 0) {
-      const valueW = Math.max(0, Math.round(el.width * ratio) - 1);
-      const valueGrad = gradientFillFor(geom.valueBgImage, geom.valueRect!, defCtx);
-      parts.push(`${indent}<rect x="${r(left + 1)}" y="${r(top + 1)}" width="${r(valueW)}" height="${r(barH - 2)}" rx="${r(Math.max(0, trackRadius - 1))}" fill="${valueGrad ?? fill}" />`);
+  const radius = Math.max(0, parseFloat(s.meterBarRadius ?? "") || 0);
+  const trackColor = capturedPseudoColor(s.meterBarBg);
+  const trackGradient = gradientFillFor(s.meterBarBgImage, geometry.trackRect, defCtx);
+  if (trackColor != null || trackGradient != null) {
+    parts.push(`${indent}<rect x="${r(geometry.trackRect.x)}" y="${r(geometry.trackRect.y)}" width="${r(geometry.trackRect.w)}" height="${r(geometry.trackRect.h)}" rx="${r(radius)}" fill="${trackGradient ?? trackColor!}" />`);
+  }
+  if (geometry.valueRect != null) {
+    const valueGradient = gradientFillFor(geometry.valueBgImage, geometry.valueRect, defCtx);
+    if (valueColor != null || valueGradient != null) {
+      parts.push(`${indent}<rect x="${r(geometry.valueRect.x)}" y="${r(geometry.valueRect.y)}" width="${r(geometry.valueRect.w)}" height="${r(geometry.valueRect.h)}" rx="${r(Math.min(radius, geometry.valueRect.h / 2))}" fill="${valueGradient ?? valueColor!}" />`);
     }
   }
   return parts.join("\n");
 }
 
-/**
- * Render a listbox-mode `<select>` (size > 1 or multiple). The host rect
- * (border + bg) is already painted by the normal element-rendering path;
- * this overlays one text row per option, with `:checked` rows highlighted
- * in the Chrome-on-macOS selection-blue band. Optgroup labels render in
- * italic + bold and are not selectable. DM-282.
- */
+/** Render listbox rows only from browser-resolved option geometry/paint. */
 function renderListbox(el: CapturedElement, indent: string): string {
   const opts = el.styles.selectListboxOptions;
   if (opts == null || opts.length === 0) return "";
-  const fontSize = parseFloat(el.styles.fontSize ?? "13") || 13;
-  const fontFamily = el.styles.fontFamily ?? "-apple-system, system-ui, sans-serif";
-  const color = el.styles.color ?? "rgb(0,0,0)";
-  // Chrome's listbox option row is line-height ≈ fontSize × 1.16. The first
-  // row is offset by 1px (border inset) plus a thin top padding.
-  const rowH = fontSize * 1.16;
-  const innerX = el.x + 5;
-  const innerY = el.y + 1;
-  const innerW = el.width - 6;
   const parts: string[] = [];
-  // Selection-row highlight (Chrome-on-macOS). We overlay an opaque rect
-  // BEHIND the text. Disabled rows aren't highlighted even when selected.
-  const SELECTION_BG = "rgb(180, 215, 255)";
   for (let i = 0; i < opts.length; i++) {
     const o = opts[i];
     const measured = o.x != null && o.y != null && o.width != null && o.height != null
-      && o.width > 0 && o.height > 0;
-    const rx = measured ? el.x + o.x! : innerX - 4;
-    const ry = measured ? el.y + o.y! : innerY + i * rowH;
-    const rw = measured ? o.width! : innerW + 4;
-    const rh = measured ? o.height! : rowH;
-    if (ry >= el.y + el.height - 0.01) break;
-    if (o.selected && !o.disabled && !o.isOptgroupLabel) {
-      const selectedFill = o.backgroundColor != null && o.backgroundColor !== ""
-        && o.backgroundColor !== "transparent" && !/^rgba?\(\s*0\s*,\s*0\s*,\s*0\s*,\s*0\s*\)$/.test(o.backgroundColor)
-        ? o.backgroundColor : SELECTION_BG;
+      && o.fontAscent != null && o.width > 0 && o.height > 0;
+    if (!measured) continue;
+    const rx = el.x + o.x!;
+    const ry = el.y + o.y!;
+    const rw = o.width!;
+    const rh = o.height!;
+    if (ry >= el.y + el.height - 0.01) continue;
+    const selectedFill = capturedPseudoColor(o.backgroundColor);
+    if (selectedFill != null) {
       const visibleHeight = Math.min(rh, el.y + el.height - ry);
       parts.push(`${indent}<rect x="${r(rx)}" y="${r(ry)}" width="${r(rw)}" height="${r(visibleHeight)}" fill="${selectedFill}" />`);
     }
-    const optionFontSize = o.fontSize ?? fontSize;
-    const tx = measured ? rx + (o.paddingLeft ?? 0) : innerX + (o.isOptgroupChild ? 8 : 0);
-    const ty = o.fontAscent != null
-      ? ry + (o.paddingTop ?? 0) + o.fontAscent
-      : ry + (o.paddingTop ?? 0) + (rh - (o.paddingTop ?? 0)) * 0.78;
-    const fontStyle = o.fontStyle ?? (o.isOptgroupLabel ? "italic" : "normal");
-    const fontWeight = o.fontWeight ?? (o.isOptgroupLabel ? "bold" : "normal");
+    const optionFontSize = o.fontSize ?? parseFloat(el.styles.fontSize ?? "");
+    const fontFamily = o.fontFamily ?? el.styles.fontFamily;
+    const color = o.color ?? el.styles.color;
+    if (!Number.isFinite(optionFontSize) || optionFontSize <= 0
+        || fontFamily == null || color == null) continue;
+    const tx = rx + (o.paddingLeft ?? 0);
+    const ty = ry + (o.paddingTop ?? 0) + o.fontAscent!;
+    const fontStyle = o.fontStyle ?? "normal";
+    const fontWeight = o.fontWeight ?? "400";
     const fontStyleAttr = fontStyle !== "normal" ? ` font-style="${fontStyle}"` : "";
     const fontWeightAttr = fontWeight !== "normal" && fontWeight !== "400" ? ` font-weight="${fontWeight}"` : "";
-    const opacityAttr = o.disabled ? ` opacity="0.5"` : "";
     const escaped = o.text.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]!));
-    parts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="${r(optionFontSize)}" font-family="${(o.fontFamily ?? fontFamily).replace(/"/g, "&quot;")}" fill="${o.color ?? color}"${fontStyleAttr}${fontWeightAttr}${opacityAttr}>${escaped}</text>`);
+    parts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="${r(optionFontSize)}" font-family="${fontFamily.replace(/"/g, "&quot;")}" fill="${color}"${fontStyleAttr}${fontWeightAttr}>${escaped}</text>`);
   }
   return parts.join("\n");
 }
 
-function renderSelectChevron(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
-  // DM-553: scheme-aware chevron stroke.
-  const palette = stockPalette(defCtx?.colorScheme);
+function renderSelectContent(el: CapturedElement, indent: string): string {
   const parts: string[] = [];
   // Selected-option text inside the closed dropdown's content rect (DM-246).
   // Chrome paints `selectedOptions[0]?.textContent` here; option/optgroup
   // children are otherwise textIsHiddenFallback and don't reach the renderer.
   const display = el.styles.selectDisplayText;
   if (display != null && display !== "") {
-    const fontSize = parseFloat(el.styles.fontSize ?? "13") || 13;
-    const fontFamily = el.styles.fontFamily ?? "-apple-system, system-ui, sans-serif";
-    const fontWeight = el.styles.fontWeight ?? "400";
-    const color = el.styles.color ?? "rgb(0,0,0)";
+    const fontSize = parseFloat(el.styles.fontSize ?? "");
+    const fontFamily = el.styles.fontFamily;
+    const color = el.styles.color;
+    const ascent = el.fontAscent;
+    const descent = el.fontDescent;
+    if (!Number.isFinite(fontSize) || fontSize <= 0 || fontFamily == null
+        || color == null || ascent == null || descent == null) return "";
     // Anchor the display text at the element's content-box left edge.
     // Pages style selects with `appearance: none; padding: 8px 34px 8px 12px`
     // and similar — the previous hardcoded `el.x + 6` ignored the captured
     // padding, so styled selects rendered the text 6-12px too far left
-    // (DM-341). UA-default selects (where padding is empty) still resolve to
-    // a reasonable position via Chrome's small computed padding.
+    // (DM-341). The route requires the resolved structural metrics; native
+    // menulists never reach this helper.
     const padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
+    const padT = parseFloat(el.styles.paddingTop ?? "0") || 0;
+    const padB = parseFloat(el.styles.paddingBottom ?? "0") || 0;
     const bwL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
+    const bwT = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
+    const bwB = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
     const tx = el.x + bwL + padL;
-    const ty = el.y + el.height / 2 + fontSize * 0.35;
+    const contentH = Math.max(0, el.height - bwT - bwB - padT - padB);
+    const ty = el.y + bwT + padT + Math.max(0, (contentH - ascent - descent) / 2) + ascent;
     const escaped = display.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]!));
-    parts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="${r(fontSize)}" font-family="${fontFamily.replace(/"/g, "&quot;")}" fill="${color}">${escaped}</text>`);
-  }
-  // Chromium macOS default: small down-chevron near the right edge. Skip
-  // when the page set appearance: none — the chevron is the page's
-  // responsibility (drawn via background-image) and stacking ours produces
-  // a double-arrow. DM-308.
-  if (el.styles.selectChevron === true && el.nativeControlDecorationRaster == null) {
-    const size = Math.min(10, el.height * 0.5);
-    const cx = el.x + el.width - 10;
-    const cy = el.y + el.height / 2;
-    const p = (dx: number, dy: number): string => `${r(cx + dx * size)},${r(cy + dy * size)}`;
-    parts.push(`${indent}<polyline points="${p(-0.35, -0.18)} ${p(0, 0.18)} ${p(0.35, -0.18)}" fill="none" stroke="${palette.trackFg}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />`);
+    parts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="${r(fontSize)}" font-family="${fontFamily.replace(/"/g, "&quot;")}" font-weight="${el.styles.fontWeight ?? "400"}" fill="${color}">${escaped}</text>`);
   }
   return parts.join("\n");
 }

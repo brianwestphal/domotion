@@ -310,7 +310,13 @@ interface RenderState {
   bgClipTextFills: Map<CapturedElement, {
     fills: ReturnType<typeof paintBackgroundImageLayers>["fills"];
     fragmentFills: ReturnType<typeof paintBackgroundImageLayers>["fragmentFills"];
+    fragmentRects: ReturnType<typeof paintBackgroundImageLayers>["fragmentRects"];
   }>;
+  /** DOM-tree ownership used to let a text-clipped ancestor's background
+   *  contribute to descendant glyph masks. Blink's kTextClip paint phase
+   *  walks descendants; the renderer paints each captured text owner
+   *  independently, so it resolves the nearest live ancestor stack here. */
+  parentElements: Map<CapturedElement, CapturedElement>;
 }
 
 /**
@@ -436,8 +442,16 @@ function paintImage(
   const contentW = Math.max(0, el.width - _bwL - _bwR - _padL - _padR);
   const contentH = Math.max(0, el.height - _bwT - _bwB - _padT - _padB);
   const intrinsic = el.imageIntrinsic;
-  const objectRect = intrinsic != null && intrinsic.w > 0 && intrinsic.h > 0
-    ? computeObjectFitRect(contentX, contentY, contentW, contentH, intrinsic.w, intrinsic.h, fit, el.styles.objectPosition)
+  const capturedImageZoom = el.imageEffectiveZoom;
+  const effectiveZoom = capturedImageZoom != null && Number.isFinite(capturedImageZoom) && capturedImageZoom > 0
+    ? capturedImageZoom
+    : 1;
+  const paintIntrinsic = intrinsic == null ? null : {
+    w: intrinsic.w * effectiveZoom,
+    h: intrinsic.h * effectiveZoom,
+  };
+  const objectRect = paintIntrinsic != null && paintIntrinsic.w > 0 && paintIntrinsic.h > 0
+    ? computeObjectFitRect(contentX, contentY, contentW, contentH, paintIntrinsic.w, paintIntrinsic.h, fit, el.styles.objectPosition)
     : null;
   // DM-670 / DM-672: if the `<img>` carries a border-radius, the painted
   // image must clip to the rounded content area — otherwise a 40×40
@@ -561,7 +575,8 @@ function paintBackgroundColor(
   const out: string[] = [];
   if (useInlineFragments) {
     // background painted per-fragment in renderInlineFragments above
-  } else if (!suppressEmptyCell && bgColor != null && bgColor.a > 0.01) {
+  } else if (!suppressEmptyCell && bgColor != null && bgColor.a > 0.01
+      && !backgroundColorClipsToText(el)) {
     out.push(
       `${indent}${roundedRectSvg(el.x, el.y, el.width, el.height, corners, `fill="${colorStr(bgColor)}"`)}`,
     );
@@ -576,6 +591,20 @@ function paintBackgroundColor(
     );
   }
   return out;
+}
+
+/** Blink associates background-color with the bottom FillLayer. Therefore the
+ *  color uses that layer's effective background-clip (or the sole clip value
+ *  when background-image is none); it is not an independently border-box
+ *  painted rectangle. See BoxPainterBase::FillLayerInfo::is_bottom_layer and
+ *  PaintFillLayerBackground in the pinned Chromium tree. */
+function backgroundColorClipsToText(el: CapturedElement): boolean {
+  const image = el.styles.backgroundImage;
+  const layerCount = image == null || image === "" || image === "none"
+    ? 0
+    : splitTopLevelCommas(image).length;
+  const clips = splitTopLevelCommas(el.styles.backgroundClip ?? "border-box");
+  return cyclicBackgroundLayer(clips, Math.max(0, layerCount - 1), "border-box").trim() === "text";
 }
 
 // Rasterized-snapshot paint for replaced elements — <canvas> / <video> /
@@ -1043,6 +1072,7 @@ function paintText(
   textBgClipFills: string[],
   captureViewport: { w: number; h: number },
   textBgClipFragmentFills: (string[] | null)[] = [],
+  textBgClipFragmentRects: NonNullable<CapturedElement["inlineFragments"]> | null = null,
 ): void {
   const sourceEl = el;
   const affine = prepareAffineTextPaint(el, ctx.emittedTextCtm.get(el));
@@ -1194,7 +1224,7 @@ function paintText(
     const textOverflowClip = (tox != null && tox !== "visible") || (toy != null && toy !== "visible");
     const renderOpts = { el, idPrefix: ctx.idPrefix, clipId: cid, fillColor, overflowClip: textOverflowClip, affineMatrix };
     const hasTextBgClip = textBgClipFills.some((s) => s != null);
-    if (hasTextBgClip && textIsTransparent) {
+    if (hasTextBgClip) {
       // DM-462: background-clip:text — the bg-image should fill the glyph
       // shapes, not the headline element rect. We render the text glyphs
       // INTO an SVG <mask> (with white fill so the mask reveals the bg
@@ -1208,19 +1238,18 @@ function paintText(
       // scaled glyph group, compressing the gradient to ~6 px wide.
       // The mask-with-rect approach keeps the gradient in document
       // coordinates on a straight rect.
-      // The mask must be the pure FILL silhouette: strip the element's
-      // `-webkit-text-stroke` from the mask copy. Keeping it painted a dark
-      // (luminance-0) stroke ring into the mask, and — worse — no stroke was
-      // ever painted VISIBLY: Chrome paints the text stroke in its own color
-      // around the gradient-filled glyphs (under the fill for `paint-order:
-      // stroke fill`, over it otherwise). The stroke pass is emitted below,
-      // ordered by paint-order, with a transparent fill so only the stroke
-      // paints.
-      const maskFillEl: CapturedElement = { ...el, styles: { ...el.styles, color: "rgb(255,255,255)", webkitTextFillColor: "rgb(255,255,255)", webkitTextStrokeWidth: "0px" } };
+      // Blink's PaintPhase::kTextClip keeps TextStrokeWidth and replaces all
+      // paint colours with an opaque colour because the DstIn operation reads
+      // ALPHA, not luminance. Preserve that geometry here—including author
+      // stroke ink—and opt the SVG mask into alpha semantics. The old
+      // luminance mask made a black stroke disappear and consequently dropped
+      // the stroke from the mask, which diverged for transparent/semitransparent
+      // foreground strokes.
+      const maskFillEl: CapturedElement = { ...el, styles: { ...el.styles, color: "rgb(255,255,255)", webkitTextFillColor: "rgb(255,255,255)", webkitTextStrokeColor: "rgb(255,255,255)" } };
       const maskBody = renderOneText(ctx, { el: maskFillEl, idPrefix: ctx.idPrefix, clipId: cid, fillColor: "rgb(255,255,255)", overflowClip: textOverflowClip, affineMatrix }, emit);
       const mid = ctx.nextClipId("tbgm");
       ctx.defsParts.push(
-        `<mask id="${mid}" maskUnits="userSpaceOnUse" x="${r(sourceEl.x)}" y="${r(sourceEl.y)}" width="${r(sourceEl.width)}" height="${r(sourceEl.height)}">${maskBody}</mask>`,
+        `<mask id="${mid}" maskUnits="userSpaceOnUse" x="${r(sourceEl.x)}" y="${r(sourceEl.y)}" width="${r(sourceEl.width)}" height="${r(sourceEl.height)}" style="mask-type:alpha">${maskBody}</mask>`,
       );
       // Visible `-webkit-text-stroke` pass for gradient-filled (bg-clip:text)
       // glyphs: render the SAME text with a fully transparent fill so only the
@@ -1249,9 +1278,9 @@ function paintText(
         // Chromium restarts an inline's bg-clip:text gradient per fragment).
         // Block elements have no per-fragment fills and keep the single rect.
         const fragFills = textBgClipFragmentFills[li];
-        if (fragFills != null && sourceEl.inlineFragments != null) {
-          for (let fi = 0; fi < sourceEl.inlineFragments.length; fi++) {
-            const fr = sourceEl.inlineFragments[fi];
+        if (fragFills != null && textBgClipFragmentRects != null) {
+          for (let fi = 0; fi < textBgClipFragmentRects.length; fi++) {
+            const fr = textBgClipFragmentRects[fi];
             ctx.svgParts.push(
               `${indent}<rect x="${r(fr.x)}" y="${r(fr.y)}" width="${r(fr.width)}" height="${r(fr.height)}" fill="${fragFills[fi] ?? f}" mask="url(#${mid})" />`,
             );
@@ -1264,6 +1293,13 @@ function paintText(
       }
       if (bgClipStrokeBody !== "") {
         ctx.svgParts.push(`${indent}${bgClipStrokeBody}`);
+      }
+      // background-clip affects the element background, not its foreground.
+      // With an opaque/semitransparent text fill Blink paints the normal text
+      // after the masked background. Transparent fill keeps the dedicated
+      // stroke-only pass above so no invisible duplicate is emitted.
+      if (!textIsTransparent) {
+        ctx.svgParts.push(`${indent}${renderOneText(ctx, renderOpts, emit)}`);
       }
     } else {
       ctx.svgParts.push(`${indent}${renderOneText(ctx, renderOpts, emit)}`);
@@ -2142,15 +2178,22 @@ function paintBackgroundImageLayers(
   corners: ReturnType<typeof parseCornerRadii>,
   useInlineFragments: boolean,
   captureViewport: { w: number; h: number },
-): { fills: string[]; fragmentFills: (string[] | null)[] } {
+): {
+  fills: string[];
+  fragmentFills: (string[] | null)[];
+  fragmentRects: NonNullable<CapturedElement["inlineFragments"]> | null;
+} {
   const textBgClipFills: string[] = [];
   // DM-1420: per-line-fragment fills for a wrapped inline's bg-clip:text layers
   // (parallel to `textBgClipFills`; null for layers/elements painted single-box).
   const textBgClipFragmentFills: (string[] | null)[] = [];
 
   const bgImage = el.styles.backgroundImage;
+  const imageLayers = bgImage != null && bgImage !== "none" && bgImage !== ""
+    ? splitTopLevelCommas(bgImage)
+    : [];
   if (!useInlineFragments && bgImage != null && bgImage !== "none" && bgImage !== "") {
-    const layers = splitTopLevelCommas(bgImage);
+    const layers = imageLayers;
     const sizeLayers = splitTopLevelCommas(el.styles.backgroundSize ?? "auto");
     const posLayers = splitTopLevelCommas(el.styles.backgroundPosition ?? "0% 0%");
     const repeatLayers = splitTopLevelCommas(el.styles.backgroundRepeat ?? "repeat");
@@ -2279,7 +2322,7 @@ function paintBackgroundImageLayers(
   // all fragments correctly). Only the `text`-clipped layers are built here;
   // the box-painted layers stay owned by `renderInlineFragments()`.
   if (useInlineFragments && bgImage != null && bgImage !== "none" && bgImage !== "") {
-    const layers = splitTopLevelCommas(bgImage);
+    const layers = imageLayers;
     const clipLayers = splitTopLevelCommas(el.styles.backgroundClip ?? "border-box");
     const sizeLayers = splitTopLevelCommas(el.styles.backgroundSize ?? "auto");
     const posLayers = splitTopLevelCommas(el.styles.backgroundPosition ?? "0% 0%");
@@ -2313,27 +2356,72 @@ function paintBackgroundImageLayers(
       // `inlineFragments`, so they keep the single union-box def above.)
       const frags = el.inlineFragments;
       if (frags != null && frags.length > 1) {
-        // DM-1420: `box-decoration-break: slice` (the default) treats the wrapped
-        // inline as ONE imaginary un-broken box: the bg image is positioned over
-        // that continuous box and each line fragment shows its slice. So the
-        // gradient must CONTINUE across fragments along inline flow, not restart
-        // per line — confirmed against Chromium-on-Linux paint (line-2 "morning"
-        // begins ~25-30% along the gradient where line-1 "this" left off, not at
-        // 0%). Model each fragment's def over a VIRTUAL box of the concatenated
-        // total inline width, shifted left by the cumulative width of prior
-        // fragments, so fragment fi samples the gradient over [Σw<fi, Σw≤fi].
-        // `clone` instead paints a complete box per fragment → gradient restarts,
-        // so use each fragment's own box there.
+        // DM-2365: use the live stitched imaginary border box captured for
+        // slice fragments. The former sum(width)/shift-x construction only
+        // matched horizontal LTR wrapping; it lost RTL, vertical writing,
+        // nonuniform fragment offsets, background-origin and URL tile phase.
+        // Clone continues to restart against each physical fragment.
         const clone = (el.styles.boxDecorationBreak ?? "slice") === "clone";
-        const totalW = frags.reduce((s, fr) => s + fr.width, 0);
+        const bwT = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
+        const bwR = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
+        const bwB = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
+        const bwL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
+        const padT = parseFloat(el.styles.paddingTop ?? "0") || 0;
+        const padR = parseFloat(el.styles.paddingRight ?? "0") || 0;
+        const padB = parseFloat(el.styles.paddingBottom ?? "0") || 0;
+        const padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
+        const originLayers = splitTopLevelCommas(el.styles.backgroundOrigin ?? "padding-box");
+        const layerOrigin = cyclicBackgroundLayer(originLayers, li, "padding-box").trim();
+        const boxFor = (borderBox: { x: number; y: number; width: number; height: number }, key: string) => {
+          const content = key === "content-box";
+          const padding = content || key === "padding-box";
+          const top = padding ? bwT + (content ? padT : 0) : 0;
+          const right = padding ? bwR + (content ? padR : 0) : 0;
+          const bottom = padding ? bwB + (content ? padB : 0) : 0;
+          const left = padding ? bwL + (content ? padL : 0) : 0;
+          return {
+            x: borderBox.x + left,
+            y: borderBox.y + top,
+            width: Math.max(0, borderBox.width - left - right),
+            height: Math.max(0, borderBox.height - top - bottom),
+          };
+        };
         const perFrag: string[] = [];
-        let cumW = 0;
         for (const fr of frags) {
+          const physicalFragment = { x: fr.x, y: fr.y, width: fr.width, height: fr.height };
+          const stitchedBorderBox = clone ? physicalFragment : fr.backgroundPositioningArea;
+          if (stitchedBorderBox == null) {
+            perFrag.push(textBgClipFills[li]!);
+            continue;
+          }
+          const fixedToViewport = layerAttachment === "fixed"
+            && el.styles.backgroundAttachmentGeometry?.source === "blink-box-background-paint-context-v1"
+            && el.styles.backgroundAttachmentGeometry.fixedToViewport === true;
+          const layerBorderBox = fixedToViewport ? physicalFragment : stitchedBorderBox;
+          const originBox = boxFor(layerBorderBox, layerOrigin);
+          const isUrlBacked = /^\s*(?:url\(|(?:-webkit-)?image-set\()/i.test(layer);
+          const attachmentGeometry = isUrlBacked
+            ? resolveBackgroundAttachment(
+                layerAttachment,
+                layerBorderBox,
+                originBox,
+                physicalFragment,
+                el.styles.backgroundAttachmentGeometry,
+                captureViewport,
+              )
+            : null;
+          const positioningBox = attachmentGeometry?.positioningBox ?? originBox;
+          const paintingBox = attachmentGeometry?.paintingBox ?? physicalFragment;
           const fid = ctx.nextClipId("bg");
-          const gx = clone ? fr.x : fr.x - cumW;
-          const gw = clone ? fr.width : totalW;
-          const fout = buildBackgroundLayerDef(fid, layer, gx, fr.y, gw, fr.height, layerSize, layerPos, layerRepeat, layerIntrinsic, layerAttachment, captureViewport, selectedImage);
-          cumW += fr.width;
+          const fout = buildBackgroundLayerDef(
+            fid, layer,
+            positioningBox.x, positioningBox.y, positioningBox.width, positioningBox.height,
+            layerSize, layerPos, layerRepeat, layerIntrinsic,
+            attachmentGeometry == null ? layerAttachment : "scroll",
+            attachmentGeometry == null ? captureViewport : null,
+            selectedImage,
+            paintingBox,
+          );
           if (fout.def === "") { perFrag.push(textBgClipFills[li]!); continue; } // fall back to union fill
           ctx.defsParts.push(fout.def);
           perFrag.push(`url(#${fid})`);
@@ -2342,7 +2430,26 @@ function paintBackgroundImageLayers(
       }
     }
   }
-  return { fills: textBgClipFills, fragmentFills: textBgClipFragmentFills };
+
+  // Blink paints background-color as part of the bottom FillLayer, before its
+  // image, and applies the same text clip to both. Store a synthetic final
+  // entry so the mask emitter's bottom→top walk paints color first, then the
+  // bottom image and every higher image. This also covers color-only
+  // background-clip:text, where computed background-image is `none`.
+  const bgColor = parseColor(el.styles.backgroundColor);
+  if (bgColor != null && bgColor.a > 0.01 && backgroundColorClipsToText(el)) {
+    const colorIndex = imageLayers.length;
+    const colorFill = colorStr(bgColor);
+    textBgClipFills[colorIndex] = colorFill;
+    if (useInlineFragments && el.inlineFragments != null && el.inlineFragments.length > 0) {
+      textBgClipFragmentFills[colorIndex] = el.inlineFragments.map(() => colorFill);
+    }
+  }
+  return {
+    fills: textBgClipFills,
+    fragmentFills: textBgClipFragmentFills,
+    fragmentRects: useInlineFragments ? (el.inlineFragments ?? null) : null,
+  };
 }
 
 // Inline-SVG content paint, extracted from renderElement (DM-1306, DM-1312).
@@ -3128,7 +3235,6 @@ function buildRenderState(
     // so unstyled checkboxes / radios / progress / meter / range / text
     // inputs use scheme-aware UA defaults. Defaults to "light" (or undefined
     // → light) when the captured tree pre-dates DM-552.
-    colorScheme: elements[0]?.styles?.rootColorScheme,
     // DM-1252: let form-control pseudos paint conic backgrounds via the cached
     // raster tiles (populated by the pre-pass), without form-controls.ts
     // importing this module (avoids an import cycle).
@@ -3136,6 +3242,20 @@ function buildRenderState(
   };
   // Viewport dims for background-attachment: fixed — passed down into layer def building.
   const captureViewport = { w: width, h: height };
+
+  // Blink's PaintPhase::kTextClip descends through the owner's subtree. Keep
+  // the captured parent relation explicit so a descendant text record can
+  // reuse the nearest ancestor's already-built text-clipped background stack
+  // (including URL candidate/natural sizing facts) without a lossy duplicated
+  // capture projection.
+  const parentElements = new Map<CapturedElement, CapturedElement>();
+  const collectParents = (parent: CapturedElement): void => {
+    for (const child of parent.children) {
+      parentElements.set(child, parent);
+      collectParents(child);
+    }
+  };
+  for (const root of elements) collectParents(root);
 
   // DM-473: tracks descendants that have been hoisted into an ancestor
   // stacking context's flat paint list. Their natural-DFS render path is
@@ -3296,6 +3416,7 @@ function buildRenderState(
     elementMaskIds: new Map(),
     childPlans: new Map(),
     bgClipTextFills: new Map(),
+    parentElements,
   };
 
   return { state, fragmentFilterDefs };
@@ -3807,7 +3928,7 @@ function paintInlineFragment(
     }
 
     // Background color.
-    if (bgColor != null && bgColor.a > 0.01) {
+    if (bgColor != null && bgColor.a > 0.01 && !backgroundColorClipsToText(element)) {
       svgParts.push(
         `${indent}${roundedRectSvg(f.x, f.y, f.width, f.height, fragCorners, `fill="${colorStr(bgColor)}"`)}`,
       );
@@ -5295,7 +5416,29 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
       svgParts.push(`${indent}<g style="isolation:isolate">\n${stack}\n${indent}</g>`);
     }
   }
-  const { fills: textBgClipFills, fragmentFills: textBgClipFragmentFills } = state.bgClipTextFills.get(el) ?? { fills: [], fragmentFills: [] };
+  // The element's own stack wins. If it has no text-clipped paint, walk to
+  // the nearest ancestor stack: Blink's kTextClip phase traverses descendants
+  // (including self-painting inline layers) when masking an owner's background.
+  // This replaces the old gradient-only, transparent-text-only capture
+  // projection and therefore preserves URL selection/sizing, color and every
+  // per-layer positioning fact already owned by that captured ancestor.
+  let textBgClipStack = state.bgClipTextFills.get(el);
+  if (textBgClipStack == null || !textBgClipStack.fills.some((fill) => fill != null)) {
+    let ancestor = state.parentElements.get(el);
+    while (ancestor != null) {
+      const candidate = state.bgClipTextFills.get(ancestor);
+      if (candidate != null && candidate.fills.some((fill) => fill != null)) {
+        textBgClipStack = candidate;
+        break;
+      }
+      ancestor = state.parentElements.get(ancestor);
+    }
+  }
+  const {
+    fills: textBgClipFills,
+    fragmentFills: textBgClipFragmentFills,
+    fragmentRects: textBgClipFragmentRects,
+  } = textBgClipStack ?? { fills: [], fragmentFills: [], fragmentRects: null };
   const nativeDecoration = el.nativeControlDecorationRaster;
   const isMenulistButtonDecoration = nativeDecoration?.kinds.includes("menulist-button-arrow") === true;
   if (paintBoxPhase && isMenulistButtonDecoration && nativeDecoration?.dataUri != null) {
@@ -5520,7 +5663,16 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
 
   // Text rendering — delegated to text-renderer.ts based on configured mode
   {
-    paintText(paintCtx, el, textColor, indent, textBgClipFills, captureViewport, textBgClipFragmentFills);
+    paintText(
+      paintCtx,
+      el,
+      textColor,
+      indent,
+      textBgClipFills,
+      captureViewport,
+      textBgClipFragmentFills,
+      textBgClipFragmentRects,
+    );
   }
 
   // text-overflow truncation marker (DM-373). When an element has

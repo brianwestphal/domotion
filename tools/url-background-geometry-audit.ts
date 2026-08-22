@@ -10,8 +10,11 @@
  * authored marker edge to stay within one device pixel. DM-2365 additionally
  * requires sliced fragments to preserve the same source-owned tile geometry.
  */
-import { writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import { release as osRelease } from "node:os";
+import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import sharp from "sharp";
 import { chromium, type Page } from "playwright";
@@ -27,10 +30,10 @@ const MAX_EQUIVALENT_LABEL_MISMATCH = 0.005;
 const MAX_EQUIVALENT_BOUND_DELTA = 1;
 const MAX_GEOMETRY_LABEL_MISMATCH = 0.07;
 const MAX_GEOMETRY_BOUND_DELTA = 1;
-const MIN_GAP_LABEL_MISMATCH = 0.04;
-const MIN_GAP_BOUND_DELTA = 2;
+const MIN_RESTART_MUTATION_LABEL_MISMATCH = 0.04;
+const MIN_RESTART_MUTATION_BOUND_DELTA = 2;
 
-type ExpectedRoute = "source-equivalent" | "source-geometry-equivalent" | "current-gap";
+export type ExpectedRoute = "source-equivalent" | "source-geometry-equivalent";
 type Mutation = "scroll-local";
 
 interface AuditCase {
@@ -88,7 +91,7 @@ interface Bounds {
   pixels: number;
 }
 
-interface PatternFacts {
+export interface PatternFacts {
   x: number;
   y: number;
   width: number;
@@ -99,7 +102,7 @@ interface PatternFacts {
   imageHeight: number;
 }
 
-interface Comparison {
+export interface Comparison {
   sourceColorPixels: number;
   generatedColorPixels: number;
   unionColorPixels: number;
@@ -107,17 +110,29 @@ interface Comparison {
   labelMismatchFraction: number;
   /** null means one side had no pixels for at least one source marker color. */
   maxColorBoundDelta: number | null;
+  sourceInkBounds: Bounds | null;
+  generatedInkBounds: Bounds | null;
+  maxInkBoundDelta: number | null;
   sourceBounds: Record<string, Bounds | null>;
   generatedBounds: Record<string, Bounds | null>;
 }
 
-interface AuditRow {
+export interface EvidenceArtifact {
+  role: "source-png" | "generated-png" | "generated-svg" | "restart-mutation-png" | "restart-mutation-svg";
+  path: string;
+  bytes: number;
+  sha256: string;
+}
+
+export interface AuditRow {
   id: string;
   axis: string;
   expectedRoute: ExpectedRoute;
   source: PaintFacts;
   captured: PaintFacts | null;
   patterns: PatternFacts[];
+  expectedPatternCount: number;
+  activePalette: string[];
   comparison: Comparison;
   restartMutation?: {
     patterns: PatternFacts[];
@@ -125,7 +140,51 @@ interface AuditRow {
     discriminated: boolean;
   };
   warnings: string[];
+  blockers: string[];
+  artifacts: EvidenceArtifact[];
   pass: boolean;
+}
+
+export interface UrlBackgroundAuditReport {
+  schemaVersion: 2;
+  sourceRevisions: typeof SOURCE_REVISIONS;
+  chromiumVersion: string;
+  playwrightVersion: string;
+  platform: NodeJS.Platform;
+  architecture: string;
+  environment: {
+    fingerprint: string;
+    chromiumVersion: string;
+    playwrightVersion: string;
+    platform: NodeJS.Platform;
+    architecture: string;
+    osRelease: string;
+    nodeVersion: string;
+    runnerOS: string | null;
+    runnerImageOS: string | null;
+    runnerImageVersion: string | null;
+    browserType: "chromium";
+    headless: true;
+    viewport: typeof VIEWPORT;
+    deviceScaleFactor: number;
+  };
+  deviceScaleFactor: number;
+  thresholds: Record<string, number>;
+  rows: AuditRow[];
+  controls: Record<string, boolean>;
+  blockers: string[];
+  verdict: "source-equivalent" | "source-drift";
+}
+
+export interface UrlBackgroundGateReport {
+  schemaVersion: 1;
+  gate: "url-background-geometry";
+  requiredPlatforms: readonly ["darwin", "linux", "win32"];
+  requiredDeviceScaleFactors: readonly [1, 2];
+  sourceRevisions: typeof SOURCE_REVISIONS;
+  runs: UrlBackgroundAuditReport[];
+  blockers: string[];
+  verdict: "pass" | "fail";
 }
 
 const PALETTE = [
@@ -327,7 +386,8 @@ const CASES: AuditCase[] = [
     expectedRoute: "source-equivalent",
     sceneCss: "padding:10px;width:220px;height:150px;column-count:2;column-gap:16px;column-fill:auto;font:12px/18px sans-serif",
     hostCss: "display:contents",
-    targetContent: "A fragmented block crosses the first column and continues through the second column with enough words to preserve a visible background in both physical fragments.",
+    targetContent: "<i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>",
+    extraCss: "#target>i{display:block;height:24px}",
     targetCss: "width:auto;height:auto;padding:4px;color:transparent;box-decoration-break:clone;-webkit-box-decoration-break:clone;background-size:32px 20px;background-position:3px 4px;background-repeat:repeat",
   },
   {
@@ -336,7 +396,8 @@ const CASES: AuditCase[] = [
     expectedRoute: "source-equivalent",
     sceneCss: "padding:10px;width:220px;height:150px;column-count:2;column-gap:16px;column-fill:auto;font:12px/18px sans-serif",
     hostCss: "display:contents",
-    targetContent: "A fragmented block crosses the first column and continues through the second column with enough words to preserve a visible background in both physical fragments.",
+    targetContent: "<i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>",
+    extraCss: "#target>i{display:block;height:24px}",
     targetCss: "width:auto;height:auto;padding:4px;color:transparent;box-decoration-break:slice;-webkit-box-decoration-break:slice;background-size:32px 20px;background-position:3px 4px;background-repeat:repeat",
   },
   {
@@ -345,7 +406,8 @@ const CASES: AuditCase[] = [
     expectedRoute: "source-equivalent",
     sceneCss: "padding:10px;width:220px;height:150px;column-count:2;column-gap:16px;column-fill:auto;font:12px/18px sans-serif;writing-mode:vertical-rl",
     hostCss: "display:contents",
-    targetContent: "A fragmented block crosses the first column and continues through the second column with enough words to preserve a visible background in both physical fragments.",
+    targetContent: "<i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>",
+    extraCss: "#target>i{display:block;width:24px}",
     targetCss: "width:auto;height:auto;padding:4px;color:transparent;writing-mode:vertical-rl;box-decoration-break:slice;-webkit-box-decoration-break:slice;background-size:23px 32px;background-position:4px 3px;background-repeat:repeat",
   },
 ];
@@ -533,6 +595,25 @@ function boundsFor(labels: Uint8Array, width: number, label: number): Bounds | n
   return pixels === 0 ? null : { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1, pixels };
 }
 
+function boundsForAny(labels: Uint8Array, width: number, active: ReadonlySet<number>): Bounds | null {
+  let minX = width;
+  let minY = Math.ceil(labels.length / width);
+  let maxX = -1;
+  let maxY = -1;
+  let pixels = 0;
+  for (let index = 0; index < labels.length; index++) {
+    if (!active.has(labels[index])) continue;
+    const x = index % width;
+    const y = Math.floor(index / width);
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+    pixels++;
+  }
+  return pixels === 0 ? null : { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1, pixels };
+}
+
 function boundDelta(a: Bounds | null, b: Bounds | null): number | null {
   if (a == null && b == null) return 0;
   if (a == null || b == null) return null;
@@ -586,6 +667,8 @@ async function comparePaint(
       ? null
       : Math.max(maxColorBoundDelta, delta);
   }
+  const sourceInkBounds = boundsForAny(source.labels, source.width, active);
+  const generatedInkBounds = boundsForAny(generated.labels, generated.width, active);
   return {
     sourceColorPixels,
     generatedColorPixels,
@@ -593,12 +676,15 @@ async function comparePaint(
     mismatchedLabels,
     labelMismatchFraction: unionColorPixels === 0 ? 0 : mismatchedLabels / unionColorPixels,
     maxColorBoundDelta,
+    sourceInkBounds,
+    generatedInkBounds,
+    maxInkBoundDelta: boundDelta(sourceInkBounds, generatedInkBounds),
     sourceBounds,
     generatedBounds,
   };
 }
 
-function rowPass(expectedRoute: ExpectedRoute, comparison: Comparison): boolean {
+function comparisonMatchesRoute(expectedRoute: ExpectedRoute, comparison: Comparison): boolean {
   if (expectedRoute === "source-equivalent") {
     return comparison.labelMismatchFraction <= MAX_EQUIVALENT_LABEL_MISMATCH
       && comparison.maxColorBoundDelta != null
@@ -614,23 +700,83 @@ function rowPass(expectedRoute: ExpectedRoute, comparison: Comparison): boolean 
       && comparison.maxColorBoundDelta != null
       && comparison.maxColorBoundDelta <= MAX_GEOMETRY_BOUND_DELTA;
   }
-  return comparison.labelMismatchFraction >= MIN_GAP_LABEL_MISMATCH
-    || comparison.maxColorBoundDelta == null
-    || comparison.maxColorBoundDelta >= MIN_GAP_BOUND_DELTA;
+  return false;
 }
 
-export async function runUrlBackgroundGeometryAudit(deviceScaleFactor = 1): Promise<{
-  sourceRevisions: typeof SOURCE_REVISIONS;
-  chromiumVersion: string;
-  playwrightVersion: string;
-  platform: NodeJS.Platform;
-  architecture: string;
-  deviceScaleFactor: number;
-  thresholds: Record<string, number>;
-  rows: AuditRow[];
-  controls: Record<string, boolean>;
-  verdict: string;
-}> {
+function restartMutationDiscriminated(comparison: Comparison): boolean {
+  return comparison.labelMismatchFraction >= MIN_RESTART_MUTATION_LABEL_MISMATCH
+    || comparison.maxColorBoundDelta == null
+    || comparison.maxColorBoundDelta >= MIN_RESTART_MUTATION_BOUND_DELTA;
+}
+
+function validPattern(pattern: PatternFacts): boolean {
+  return [pattern.x, pattern.y, pattern.imageX, pattern.imageY].every(Number.isFinite)
+    && [pattern.width, pattern.height, pattern.imageWidth, pattern.imageHeight]
+      .every((value) => Number.isFinite(value) && value > 0);
+}
+
+export function adjudicateUrlBackgroundRow(row: {
+  expectedRoute: string;
+  comparison: Comparison;
+  patterns: PatternFacts[];
+  expectedPatternCount: number;
+  activePalette: string[];
+  warnings: string[];
+  restartMutation?: AuditRow["restartMutation"];
+  requiresRestartMutation: boolean;
+}): string[] {
+  const blockers: string[] = [];
+  if (row.expectedRoute !== "source-equivalent" && row.expectedRoute !== "source-geometry-equivalent") {
+    blockers.push(`unsupported or observational route ${row.expectedRoute}`);
+  } else if (!comparisonMatchesRoute(row.expectedRoute, row.comparison)) {
+    blockers.push(`source comparison exceeds the ${row.expectedRoute} envelope`);
+  }
+  if (row.comparison.sourceInkBounds == null || row.comparison.generatedInkBounds == null) {
+    blockers.push("independent source/generated marker ink is missing");
+  } else if (row.comparison.maxInkBoundDelta == null || row.comparison.maxInkBoundDelta > 1) {
+    blockers.push("independent marker ink bounds differ by more than one device pixel");
+  }
+  for (const name of row.activePalette) {
+    if (row.comparison.sourceBounds[name] == null) blockers.push(`source palette color ${name} is missing`);
+    if (row.comparison.generatedBounds[name] == null) blockers.push(`generated palette color ${name} is missing`);
+  }
+  if (row.patterns.length !== row.expectedPatternCount) {
+    blockers.push(`expected ${row.expectedPatternCount} materialized patterns, received ${row.patterns.length}`);
+  }
+  if (!row.patterns.every(validPattern)) blockers.push("materialized pattern facts are missing or non-finite");
+  if (row.warnings.length > 0) blockers.push(`capture emitted ${row.warnings.length} warning(s)`);
+  if (row.requiresRestartMutation && row.restartMutation?.discriminated !== true) {
+    blockers.push("slice restart mutation was not discriminated");
+  }
+  return blockers;
+}
+
+function sha256(bytes: Buffer | string): string {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+function persistArtifact(
+  root: string | undefined,
+  relativePath: string,
+  role: EvidenceArtifact["role"],
+  contents: Buffer | string,
+): EvidenceArtifact | null {
+  if (root == null) return null;
+  const path = join(root, relativePath);
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, contents);
+  return {
+    role,
+    path: relativePath.replaceAll("\\", "/"),
+    bytes: Buffer.byteLength(contents),
+    sha256: sha256(contents),
+  };
+}
+
+export async function runUrlBackgroundGeometryAudit(
+  deviceScaleFactor = 1,
+  artifactDir?: string,
+): Promise<UrlBackgroundAuditReport> {
   process.env.DOMOTION_HELPER_NO_SERVE = "1";
   process.env.DOMOTION_GENERIC_PROBE = "0";
   const [{ captureElementTreeWithWarnings }, { elementTreeToSvg }] = await Promise.all([
@@ -645,6 +791,10 @@ export async function runUrlBackgroundGeometryAudit(deviceScaleFactor = 1): Prom
     const generatedPage = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor });
     const rows: AuditRow[] = [];
     for (const test of CASES) {
+      const activeLabels = test.imageCss == null ? [1, 2, 3, 4] : [5, 6, 7, 8];
+      const activePalette = activeLabels.map((label) => PALETTE[label - 1].name);
+      const artifactPrefix = `dpr-${deviceScaleFactor}/${test.id}`;
+      const artifacts: EvidenceArtifact[] = [];
       await page.setContent(htmlFor(test), { waitUntil: "load" });
       await mutate(page, test.mutation);
       const source = await readPaintFacts(page);
@@ -664,10 +814,15 @@ export async function runUrlBackgroundGeometryAudit(deviceScaleFactor = 1): Prom
       );
       await generatedPage.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
       const generatedPng = await generatedPage.screenshot({ type: "png" });
+      for (const artifact of [
+        persistArtifact(artifactDir, `${artifactPrefix}/source.png`, "source-png", sourcePng),
+        persistArtifact(artifactDir, `${artifactPrefix}/generated.png`, "generated-png", generatedPng),
+        persistArtifact(artifactDir, `${artifactPrefix}/generated.svg`, "generated-svg", svg),
+      ]) if (artifact != null) artifacts.push(artifact);
       const comparison = await comparePaint(
         sourcePng,
         generatedPng,
-        test.imageCss == null ? [1, 2, 3, 4] : [5, 6, 7, 8],
+        activeLabels,
       );
       let restartMutation: AuditRow["restartMutation"];
       const fixedToViewport = source.backgroundAttachment === "fixed"
@@ -697,45 +852,73 @@ export async function runUrlBackgroundGeometryAudit(deviceScaleFactor = 1): Prom
         );
         await generatedPage.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
         const mutatedPng = await generatedPage.screenshot({ type: "png" });
+        for (const artifact of [
+          persistArtifact(artifactDir, `${artifactPrefix}/restart-mutation.png`, "restart-mutation-png", mutatedPng),
+          persistArtifact(artifactDir, `${artifactPrefix}/restart-mutation.svg`, "restart-mutation-svg", mutatedSvg),
+        ]) if (artifact != null) artifacts.push(artifact);
         const mutatedComparison = await comparePaint(
           sourcePng,
           mutatedPng,
-          test.imageCss == null ? [1, 2, 3, 4] : [5, 6, 7, 8],
+          activeLabels,
         );
         restartMutation = {
           patterns: parsePatternFacts(mutatedSvg),
           comparison: mutatedComparison,
-          discriminated: rowPass("current-gap", mutatedComparison),
+          discriminated: restartMutationDiscriminated(mutatedComparison),
         };
         captured.inlineFragments.forEach((fragment, index) => {
           fragment.backgroundPositioningArea = savedGeometry[index].area;
           fragment.backgroundOffsetInStitchedBox = savedGeometry[index].offset;
         });
       }
+      const patterns = parsePatternFacts(svg);
+      const expectedPatternCount = (test.imageCss == null ? 1 : 4)
+        * Math.max(1, captured?.inlineFragments?.length ?? 1);
+      const warningMessages = warnings.map((warning) => `${warning.feature}: ${warning.detail}`);
+      const requiresRestartMutation = source.boxDecorationBreak === "slice"
+        && !fixedToViewport && (captured?.inlineFragments?.length ?? 0) > 1;
+      const blockers = adjudicateUrlBackgroundRow({
+        expectedRoute: test.expectedRoute,
+        comparison,
+        patterns,
+        expectedPatternCount,
+        activePalette,
+        warnings: warningMessages,
+        restartMutation,
+        requiresRestartMutation,
+      });
       rows.push({
         id: test.id,
         axis: test.axis,
         expectedRoute: test.expectedRoute,
         source,
         captured: capturedFacts(captured),
-        patterns: parsePatternFacts(svg),
+        patterns,
+        expectedPatternCount,
+        activePalette,
         comparison,
         restartMutation,
-        warnings: warnings.map((warning) => `${warning.feature}: ${warning.detail}`),
-        pass: rowPass(test.expectedRoute, comparison)
-          && (restartMutation?.discriminated ?? true),
+        warnings: warningMessages,
+        blockers,
+        artifacts,
+        pass: blockers.length === 0,
       });
     }
 
     const byId = new Map(rows.map((row) => [row.id, row]));
-    const equivalentRows = rows.filter((row) => row.expectedRoute !== "current-gap");
-    const gapRows = rows.filter((row) => row.expectedRoute === "current-gap");
     const sliceRows = rows.filter((row) => row.source.boxDecorationBreak === "slice"
       && (row.captured?.fragments?.length ?? 0) > 1);
     const controls = {
-      paletteDetectedEverywhere: rows.every((row) => row.comparison.sourceColorPixels > 100),
-      positiveControlsRemainTight: equivalentRows.every((row) => row.pass),
-      everyExpectedGapIsDiscriminated: gapRows.every((row) => row.pass),
+      paletteEvidenceComplete: rows.every((row) => row.activePalette.every((name) =>
+        row.comparison.sourceBounds[name] != null && row.comparison.generatedBounds[name] != null)),
+      allRowsSourceEquivalent: rows.every((row) => row.pass),
+      noObservationalRoutes: rows.every((row) => row.expectedRoute === "source-equivalent"
+        || row.expectedRoute === "source-geometry-equivalent"),
+      warningsEmpty: rows.every((row) => row.warnings.length === 0),
+      patternEvidenceComplete: rows.every((row) => row.patterns.length === row.expectedPatternCount
+        && row.patterns.every(validPattern)),
+      independentInkBoundsExact: rows.every((row) => row.comparison.maxInkBoundDelta != null
+        && row.comparison.maxInkBoundDelta <= 1),
       autoRatioRouteIsExact: byId.get("auto-width-from-explicit-height")?.pass === true,
       // DM-2479 closed the old transformed-fixed ownership gap. Keep the
       // discriminator independent by asserting its captured ownership facts
@@ -763,47 +946,123 @@ export async function runUrlBackgroundGeometryAudit(deviceScaleFactor = 1): Prom
       cyclicLayerRowHasFourImagePatterns: byId.get("cyclic-multiple-layer-lists")?.patterns.length === 4,
     };
     const pass = rows.every((row) => row.pass) && Object.values(controls).every(Boolean);
-    return {
-      sourceRevisions: SOURCE_REVISIONS,
-      chromiumVersion: browser.version(),
+    const chromiumVersion = browser.version();
+    const environmentBase = {
+      chromiumVersion,
       playwrightVersion,
       platform: process.platform,
       architecture: process.arch,
+      osRelease: osRelease(),
+      nodeVersion: process.version,
+      runnerOS: process.env.RUNNER_OS ?? null,
+      runnerImageOS: process.env.ImageOS ?? null,
+      runnerImageVersion: process.env.ImageVersion ?? null,
+      browserType: "chromium" as const,
+      headless: true as const,
+      viewport: VIEWPORT,
+      deviceScaleFactor,
+    };
+    const environment = {
+      fingerprint: sha256(JSON.stringify({ sourceRevisions: SOURCE_REVISIONS, ...environmentBase })),
+      ...environmentBase,
+    };
+    const blockers = [
+      ...rows.flatMap((row) => row.blockers.map((blocker) => `${row.id}: ${blocker}`)),
+      ...Object.entries(controls).filter(([, value]) => !value).map(([name]) => `control failed: ${name}`),
+    ];
+    return {
+      schemaVersion: 2,
+      sourceRevisions: SOURCE_REVISIONS,
+      chromiumVersion,
+      playwrightVersion,
+      platform: process.platform,
+      architecture: process.arch,
+      environment,
       deviceScaleFactor,
       thresholds: {
         maxEquivalentLabelMismatch: MAX_EQUIVALENT_LABEL_MISMATCH,
         maxEquivalentBoundDelta: MAX_EQUIVALENT_BOUND_DELTA,
         maxGeometryLabelMismatch: MAX_GEOMETRY_LABEL_MISMATCH,
         maxGeometryBoundDelta: MAX_GEOMETRY_BOUND_DELTA,
-        minGapLabelMismatch: MIN_GAP_LABEL_MISMATCH,
-        minGapBoundDelta: MIN_GAP_BOUND_DELTA,
+        minRestartMutationLabelMismatch: MIN_RESTART_MUTATION_LABEL_MISMATCH,
+        minRestartMutationBoundDelta: MIN_RESTART_MUTATION_BOUND_DELTA,
       },
       rows,
       controls,
-      verdict: pass ? "source-owned-url-background-geometry-observed" : "probe-expectation-or-source-drift",
+      blockers,
+      verdict: pass ? "source-equivalent" : "source-drift",
     };
   } finally {
     await browser.close();
   }
 }
 
+const REQUIRED_DEVICE_SCALE_FACTORS = [1, 2] as const;
+const REQUIRED_PLATFORMS = ["darwin", "linux", "win32"] as const;
+
+export async function runUrlBackgroundGeometryGate(
+  deviceScaleFactors: number[] = [...REQUIRED_DEVICE_SCALE_FACTORS],
+  artifactDir?: string,
+): Promise<UrlBackgroundGateReport> {
+  const uniqueDprs = [...new Set(deviceScaleFactors)].sort((a, b) => a - b);
+  const runs: UrlBackgroundAuditReport[] = [];
+  for (const dpr of uniqueDprs) runs.push(await runUrlBackgroundGeometryAudit(dpr, artifactDir));
+  const blockers: string[] = [];
+  if (JSON.stringify(uniqueDprs) !== JSON.stringify(REQUIRED_DEVICE_SCALE_FACTORS)) {
+    blockers.push(`required DPR Cartesian rows are 1,2; received ${uniqueDprs.join(",") || "none"}`);
+  }
+  if (!(REQUIRED_PLATFORMS as readonly string[]).includes(process.platform)) {
+    blockers.push(`unsupported producer platform ${process.platform}`);
+  }
+  for (const run of runs) {
+    if (run.verdict !== "source-equivalent") blockers.push(`${run.platform}@${run.deviceScaleFactor}x: ${run.verdict}`);
+    if (artifactDir != null) {
+      for (const row of run.rows) {
+        const expectedArtifacts = row.restartMutation == null ? 3 : 5;
+        if (row.artifacts.length !== expectedArtifacts) {
+          blockers.push(`${run.platform}@${run.deviceScaleFactor}x/${row.id}: expected ${expectedArtifacts} artifacts, received ${row.artifacts.length}`);
+        }
+      }
+    }
+  }
+  return {
+    schemaVersion: 1,
+    gate: "url-background-geometry",
+    requiredPlatforms: REQUIRED_PLATFORMS,
+    requiredDeviceScaleFactors: REQUIRED_DEVICE_SCALE_FACTORS,
+    sourceRevisions: SOURCE_REVISIONS,
+    runs,
+    blockers,
+    verdict: blockers.length === 0 ? "pass" : "fail",
+  };
+}
+
 async function main(): Promise<number> {
   const dprIndex = process.argv.indexOf("--dpr");
-  const parsedDpr = dprIndex >= 0 ? Number(process.argv[dprIndex + 1]) : 1;
-  const report = await runUrlBackgroundGeometryAudit(Number.isFinite(parsedDpr) && parsedDpr > 0 ? parsedDpr : 1);
+  const parsedDprs = (dprIndex >= 0 ? process.argv[dprIndex + 1] : "1,2")
+    ?.split(",").map(Number).filter((value) => Number.isFinite(value) && value > 0) ?? [];
+  const artifactsIndex = process.argv.indexOf("--artifacts");
+  const artifactDir = artifactsIndex >= 0 ? process.argv[artifactsIndex + 1] : undefined;
+  const report = await runUrlBackgroundGeometryGate(parsedDprs, artifactDir);
   const jsonIndex = process.argv.indexOf("--json");
   if (jsonIndex >= 0 && process.argv[jsonIndex + 1] != null) {
+    mkdirSync(dirname(process.argv[jsonIndex + 1]), { recursive: true });
     writeFileSync(process.argv[jsonIndex + 1], `${JSON.stringify(report, null, 2)}\n`);
   }
-  const failures = report.rows.filter((row) => !row.pass);
-  console.log(`url background geometry audit: ${report.rows.length - failures.length}/${report.rows.length}; ${report.verdict}`);
-  for (const row of report.rows) {
-    const mismatch = (row.comparison.labelMismatchFraction * 100).toFixed(2);
-    const bound = row.comparison.maxColorBoundDelta ?? "missing";
-    console.log(`${row.pass ? "PASS" : "FAIL"} ${row.id}: route=${row.expectedRoute}, label-mismatch=${mismatch}%, max-bound-delta=${bound}, patterns=${row.patterns.length}`);
+  for (const run of report.runs) {
+    const failures = run.rows.filter((row) => !row.pass);
+    console.log(`url background geometry ${run.platform}@${run.deviceScaleFactor}x: ${run.rows.length - failures.length}/${run.rows.length}; ${run.verdict}`);
+    for (const row of run.rows) {
+      const mismatch = (row.comparison.labelMismatchFraction * 100).toFixed(2);
+      const bound = row.comparison.maxColorBoundDelta ?? "missing";
+      console.log(`${row.pass ? "PASS" : "FAIL"} ${row.id}: route=${row.expectedRoute}, label-mismatch=${mismatch}%, max-bound-delta=${bound}, ink-bound-delta=${row.comparison.maxInkBoundDelta ?? "missing"}, patterns=${row.patterns.length}/${row.expectedPatternCount}`);
+      for (const blocker of row.blockers) console.log(`  BLOCKER ${blocker}`);
+    }
+    console.log(`controls: ${JSON.stringify(run.controls)}`);
   }
-  console.log(`controls: ${JSON.stringify(report.controls)}`);
-  return failures.length === 0 && Object.values(report.controls).every(Boolean) ? 0 : 1;
+  for (const blocker of report.blockers) console.log(`BLOCKER ${blocker}`);
+  console.log(`url background geometry release gate: ${report.verdict}`);
+  return report.verdict === "pass" ? 0 : 1;
 }
 
 if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) {

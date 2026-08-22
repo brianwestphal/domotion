@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4gdeev3jjonlji",
+          "message": {
+            "text": "The composed corpus is live rather than label-only. The focused E2E passed 2/2 against the coordinated generated capture bundle, proving all six metamorphic relations plus native same-origin iframe recursion and current-frame canvas freezing; the seven isolated visual rows then passed 7/7 on darwin arm64 with zero diff regions and zero changed-area coverage, and the workflow structure suite confirms hard macOS, Linux, and Windows producers.",
+            "markdown": "The composed corpus is live rather than label-only. The focused E2E passed 2/2 against the coordinated generated capture bundle, proving all six metamorphic relations plus native same-origin iframe recursion and current-frame canvas freezing; the seven isolated visual rows then passed 7/7 on darwin arm64 with zero diff regions and zero changed-area coverage, and the workflow structure suite confirms hard macOS, Linux, and Windows producers."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/composed-parity-corpus.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 80,
+                  "endLine": 169,
+                  "snippet": {
+                    "text": "          };\n        };\n        const order = (variant: string) => Array.from(\n          specimen(\"gradient-mask-clip-stacking\", variant).querySelectorAll<HTMLElement>(\"[data-layer]\"),\n          (element) => ({ layer: element.dataset.layer!, zIndex: getComputedStyle(element).zIndex }),\n        );\n        const splitTarget = specimen(\"multilingual-flex-grid\", \"node-split\").querySelector(\"[data-probe=message]\")!;\n        return {\n          multilingual: {\n            base: relativeRect(\"multilingual-flex-grid\", \"base\", \"message\"),\n            neutral: relativeRect(\"multilingual-flex-grid\", \"neutral-wrapper\", \"message\"),\n            split: relativeRect(\"multilingual-flex-grid\", \"node-split\", \"message\"),\n            splitChildren: splitTarget.children.length,\n          },\n          controls: { base: controlStyle(\"base\"), equivalent: controlStyle(\"equivalent-syntax\") },\n          translation: {\n            base: relativeRect(\"svg-effects\", \"base\", \"svg-effect\"),\n            variant: relativeRect(\"svg-effects\", \"translation\", \"svg-effect\"),\n          },\n          scale: {\n            base: relativeRect(\"zoom-transforms\", \"base\", \"scale-target\"),\n            variant: relativeRect(\"zoom-transforms\", \"scale\", \"scale-target\"),\n          },\n          iframe: {\n            base: relativeRect(\"same-origin-iframe\", \"base\", \"frame\"),\n            neutral: relativeRect(\"same-origin-iframe\", \"neutral-wrapper\", \"frame\"),\n          },\n          order: { base: order(\"base\"), variant: order(\"dom-order\") },\n        };\n      });\n\n      expect(facts.multilingual.neutral).toEqual(facts.multilingual.base);\n      expect(facts.multilingual.split).toEqual(facts.multilingual.base);\n      expect(facts.multilingual.splitChildren).toBeGreaterThan(3);\n      expect(facts.controls.equivalent).toEqual(facts.controls.base);\n      expect(facts.iframe.neutral).toEqual(facts.iframe.base);\n      expect(facts.order.base.map((row) => row.layer)).toEqual([\"back\", \"front\"]);\n      expect(facts.order.variant.map((row) => row.layer)).toEqual([\"front\", \"back\"]);\n      expect(Object.fromEntries(facts.order.variant.map((row) => [row.layer, row.zIndex]))).toEqual(\n        Object.fromEntries(facts.order.base.map((row) => [row.layer, row.zIndex])),\n      );\n      expect(facts.translation.variant.x - facts.translation.base.x).toBeCloseTo(12, 2);\n      expect(facts.translation.variant.y - facts.translation.base.y).toBeCloseTo(8, 2);\n      expect(facts.translation.variant.width).toBeCloseTo(facts.translation.base.width, 2);\n      expect(facts.translation.variant.height).toBeCloseTo(facts.translation.base.height, 2);\n      expect(facts.scale.variant.width / facts.scale.base.width).toBeCloseTo(1.25, 2);\n      expect(facts.scale.variant.height / facts.scale.base.height).toBeCloseTo(1.25, 2);\n    } finally {\n      await context.close();\n    }\n  }, 60_000);\n\n  it(\"recurses the same-origin frame while freezing the current canvas pixels\", async () => {\n    const context = await env!.browser.newContext({ viewport: { width: 1024, height: 768 } });\n    const page = await context.newPage();\n    try {\n      await page.goto(FIXTURE_URL);\n      await page.evaluate(() => document.fonts.ready);\n      const tree = await captureElementTree(page, \"body\", { x: 0, y: 0, width: 1024, height: 768 });\n      const nodes = walk(tree);\n      const frame = nodes.find((node) => node.tag === \"iframe\");\n      expect(frame?.replacedSnapshot, \"same-origin iframe should remain native SVG\").toBeUndefined();\n      expect(frame?.children.length, \"same-origin iframe should recurse into its document\").toBeGreaterThan(0);\n      expect(walk(frame!.children).some((node) => node.text.includes(\"inner frame\"))).toBe(true);\n\n      const snapshot = nodes.find((node) => node.tag === \"canvas\")?.replacedSnapshot?.dataUri;\n      expect(snapshot).toMatch(/^data:image\\/png;base64,/);\n      const capturedColor = await averageRgb(snapshot!);\n      expect(capturedColor.r).toBeGreaterThan(capturedColor.g + 35);\n\n      const liveBefore = await page.locator(\"canvas[data-probe=dynamic-canvas]\").first().evaluate((canvas) =>\n        (canvas as HTMLCanvasElement).toDataURL(\"image/png\"),\n      );\n      await page.evaluate(() => (window as typeof window & { advanceComposedCanvas(): void }).advanceComposedCanvas());\n      const liveAfter = await page.locator(\"canvas[data-probe=dynamic-canvas]\").first().evaluate((canvas) =>\n        (canvas as HTMLCanvasElement).toDataURL(\"image/png\"),\n      );\n      expect(digest(liveAfter)).not.toBe(digest(liveBefore));\n      expect(digest(snapshot!)).not.toBe(digest(liveAfter));\n      const mutatedColor = await averageRgb(liveAfter);\n      expect(mutatedColor.g + mutatedColor.b).toBeGreaterThan(mutatedColor.r * 2);\n\n      const svg = elementTreeToSvgInner(tree, 1024, 768);\n      expect(svg).toContain(snapshot!);\n      expect(svg).toContain(\"inner frame\");\n      expect(svg).not.toContain(liveAfter);\n    } finally {\n      await context.close();\n    }\n  }, 60_000);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/composed-parity-corpus.yml"
+                },
+                "region": {
+                  "startLine": 40
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2363"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "1f121992f454e0cbcc113ab9352b0d1d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2cee1fe8b0c3e589d11a46a85bb5bdf5e6798080",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

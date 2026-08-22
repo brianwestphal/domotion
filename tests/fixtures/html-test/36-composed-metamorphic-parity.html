@@ -1,0 +1,106 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Composed and metamorphic parity corpus</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:10px;background:#08111f;color:#eaf1fb;font:12px/1.25 Arial,sans-serif}
+  .corpus{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .family{height:174px;overflow:hidden;padding:7px;border:1px solid #38506d;border-radius:7px;background:#111f32}
+  h2{margin:0 0 5px;color:#aecdff;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+  .pair,.triple{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+  .triple{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .stage{position:relative;height:137px;min-width:0;overflow:hidden;padding:6px;border-radius:5px;background:#1a2d45}
+  .variant{position:absolute;right:3px;bottom:2px;z-index:20;color:#aebed1;font:8px/1 Arial,sans-serif}
+  .neutral{display:contents}
+  .message{display:grid;grid-template-columns:17px minmax(0,1fr);gap:4px;align-items:start;margin-bottom:5px;padding:5px;background:#253c59;border-radius:4px}
+  .avatar{width:17px;height:17px;border-radius:50%;background:linear-gradient(135deg,#59e,#b5f)}
+  .copy{min-width:0;font-family:"Definitely Missing",Arial,sans-serif;unicode-bidi:plaintext}
+  .controls{height:112px;columns:2;column-gap:6px;column-rule:1px solid #49607c;color-scheme:dark;accent-color:#ff6c8f}
+  .control{break-inside:avoid;align-items:center;margin:0 0 4px;padding:3px;background:#253c59;border-radius:3px}
+  .control.longhand{display:grid;grid-template-columns:1fr auto;column-gap:3px;row-gap:3px}
+  .control.shorthand{display:grid;grid:auto / 1fr auto;gap:3px}
+  .control input[type=range],.control progress,.control meter{width:62px}
+  .paint-stage .layer{position:absolute;width:112px;height:82px;border-radius:12px}
+  .paint-stage .back{left:18px;top:18px;z-index:1;background:linear-gradient(135deg,#35c,#a5f);clip-path:polygon(0 8%,100% 0,88% 100%,6% 88%)}
+  .paint-stage .front{left:66px;top:42px;z-index:3;background:repeating-linear-gradient(45deg,#ffcf66 0 8px,#ef5b7b 8px 16px);mask-image:linear-gradient(90deg,transparent,#000 22% 78%,transparent)}
+  .paint-stage .ink{position:absolute;left:46px;top:72px;z-index:4;color:#fff;font-weight:700;text-shadow:0 1px 2px #000}
+  .svg-stage{padding:2px}.svg-stage svg{display:block;width:180px;height:110px;overflow:visible}.svg-stage.translated svg{transform:translate(12px,8px)}
+  .zoom-stage{padding:13px}.scale-target{width:102px;height:68px;zoom:1.15;transform-origin:0 0;padding:10px;border:3px solid #d8fff4;border-radius:9px;background:linear-gradient(135deg,#18a999,#61d095);color:#052e2a;font-weight:700}.zoom-stage.base .scale-target{transform:rotate(3deg)}.zoom-stage.scaled .scale-target{transform:scale(1.25) rotate(3deg)}
+  .frame-stage{padding:4px}.frame-stage iframe{display:block;width:100%;height:123px;border:2px solid #637a99;border-radius:4px;background:#182a42}
+  .dynamic-stage{padding:0}.canvas-wrap{position:absolute;left:22px;top:14px;z-index:2;width:150px;height:96px;transform:rotate(-3deg)}.canvas-wrap canvas{display:block;width:150px;height:96px}.overlay{position:absolute;left:75px;top:50px;z-index:4;padding:6px 8px;border:1px solid #fff;border-radius:5px;background:#08111fdd;color:#fff}
+</style>
+<main class="corpus">
+  <section class="family" data-family="multilingual-flex-grid">
+    <h2>Fallback + bidi in flex/grid</h2>
+    <div class="triple">
+      <div class="stage" data-variant="base"><div class="message"><i class="avatar"></i><div class="copy" data-probe="message">Latin 42 · <bdi dir="rtl">עברית العربية</bdi> · 日本語</div></div><div class="message"><i class="avatar"></i><div class="copy">Ω क् 👩🏽‍🚀</div></div><span class="variant">base</span></div>
+      <div class="stage" data-variant="neutral-wrapper"><span class="neutral"><div class="message"><i class="avatar"></i><div class="copy" data-probe="message">Latin 42 · <bdi dir="rtl">עברית العربية</bdi> · 日本語</div></div></span><div class="message"><i class="avatar"></i><div class="copy">Ω क् 👩🏽‍🚀</div></div><span class="variant">neutral wrapper</span></div>
+      <div class="stage" data-variant="node-split"><div class="message"><i class="avatar"></i><div class="copy" data-probe="message"><span>Latin</span><span> 42 · </span><bdi dir="rtl"><span>עברית</span><span> العربية</span></bdi><span> · </span><span>日本語</span></div></div><div class="message"><i class="avatar"></i><div class="copy"><span>Ω </span><span>क् 👩🏽‍🚀</span></div></div><span class="variant">node split</span></div>
+    </div>
+  </section>
+
+  <section class="family" data-family="responsive-fragmented-controls">
+    <h2>Responsive fragmented controls</h2>
+    <div class="pair">
+      <div class="stage" data-variant="base"><div class="controls"><label class="control longhand" data-probe="control-layout">On <input type="checkbox" checked></label><label class="control longhand">Pick <input type="radio" checked></label><label class="control longhand">Level <input type="range" value="64"></label><label class="control longhand">Build <progress max="100" value="58"></progress></label><label class="control longhand">Score <meter min="0" max="10" value="7"></meter></label></div><span class="variant">longhands</span></div>
+      <div class="stage" data-variant="equivalent-syntax"><div class="controls"><label class="control shorthand" data-probe="control-layout">On <input type="checkbox" checked></label><label class="control shorthand">Pick <input type="radio" checked></label><label class="control shorthand">Level <input type="range" value="64"></label><label class="control shorthand">Build <progress max="100" value="58"></progress></label><label class="control shorthand">Score <meter min="0" max="10" value="7"></meter></label></div><span class="variant">shorthand</span></div>
+    </div>
+  </section>
+
+  <section class="family" data-family="gradient-mask-clip-stacking">
+    <h2>Gradient + mask + clip stacking</h2>
+    <div class="pair">
+      <div class="stage paint-stage" data-variant="base"><div class="layer back" data-layer="back"></div><div class="layer front" data-layer="front"></div><div class="ink">STACK</div><span class="variant">back → front</span></div>
+      <div class="stage paint-stage" data-variant="dom-order"><div class="layer front" data-layer="front"></div><div class="ink">STACK</div><div class="layer back" data-layer="back"></div><span class="variant">front → back</span></div>
+    </div>
+  </section>
+
+  <section class="family" data-family="svg-effects">
+    <h2>SVG effects + translation</h2>
+    <div class="pair">
+      <div class="stage svg-stage" data-variant="base"><svg data-probe="svg-effect" viewBox="0 0 180 110"><defs><filter id="shadow-a" x="-30%" y="-40%" width="170%" height="190%"><feGaussianBlur in="SourceAlpha" stdDeviation="2"/><feOffset dx="4" dy="3"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter><clipPath id="cut-a"><path d="M8 9H168L150 100H20Z"/></clipPath><marker id="arrow-a" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0 0L7 3.5L0 7Z" fill="#ffcf66"/></marker></defs><g clip-path="url(#cut-a)" filter="url(#shadow-a)"><rect x="12" y="13" width="145" height="78" rx="13" fill="#315fca"/><path d="M28 72C55 20 106 96 146 35" fill="none" stroke="#ffcf66" stroke-width="6" marker-end="url(#arrow-a)"/></g></svg><span class="variant">base</span></div>
+      <div class="stage svg-stage translated" data-variant="translation"><svg data-probe="svg-effect" viewBox="0 0 180 110"><defs><filter id="shadow-b" x="-30%" y="-40%" width="170%" height="190%"><feGaussianBlur in="SourceAlpha" stdDeviation="2"/><feOffset dx="4" dy="3"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter><clipPath id="cut-b"><path d="M8 9H168L150 100H20Z"/></clipPath><marker id="arrow-b" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0 0L7 3.5L0 7Z" fill="#ffcf66"/></marker></defs><g clip-path="url(#cut-b)" filter="url(#shadow-b)"><rect x="12" y="13" width="145" height="78" rx="13" fill="#315fca"/><path d="M28 72C55 20 106 96 146 35" fill="none" stroke="#ffcf66" stroke-width="6" marker-end="url(#arrow-b)"/></g></svg><span class="variant">translate 12,8</span></div>
+    </div>
+  </section>
+
+  <section class="family" data-family="zoom-transforms">
+    <h2>Zoom + nested transforms</h2>
+    <div class="pair">
+      <div class="stage zoom-stage base" data-variant="base"><div class="scale-target" data-probe="scale-target">zoom 1.15<br>nested</div><span class="variant">base</span></div>
+      <div class="stage zoom-stage scaled" data-variant="scale"><div class="scale-target" data-probe="scale-target">zoom 1.15<br>nested</div><span class="variant">scale 1.25</span></div>
+    </div>
+  </section>
+
+  <section class="family" data-family="same-origin-iframe">
+    <h2>Same-origin iframe recursion</h2>
+    <div class="pair">
+      <div class="stage frame-stage" data-variant="base"><iframe data-probe="frame" srcdoc="<style>*{box-sizing:border-box}body{margin:0;padding:8px;color:white;font:12px Arial,sans-serif;background:linear-gradient(135deg,#16243d,#294e72)}.inner{display:grid;grid-template-columns:1fr auto;gap:5px}.badge{padding:5px;background:#e95;clip-path:polygon(0 0,100% 8%,88% 100%,4% 90%);mask-image:linear-gradient(90deg,#000,transparent)}</style><div class='inner'><bdi dir='rtl'>עברית العربية</bdi><span>日本語 Ω</span><div class='badge'>inner frame</div></div>"></iframe><span class="variant">direct</span></div>
+      <div class="stage frame-stage" data-variant="neutral-wrapper"><span class="neutral"><iframe data-probe="frame" srcdoc="<style>*{box-sizing:border-box}body{margin:0;padding:8px;color:white;font:12px Arial,sans-serif;background:linear-gradient(135deg,#16243d,#294e72)}.inner{display:grid;grid-template-columns:1fr auto;gap:5px}.badge{padding:5px;background:#e95;clip-path:polygon(0 0,100% 8%,88% 100%,4% 90%);mask-image:linear-gradient(90deg,#000,transparent)}</style><div class='inner'><bdi dir='rtl'>עברית العربية</bdi><span>日本語 Ω</span><div class='badge'>inner frame</div></div>"></iframe></span><span class="variant">neutral wrapper</span></div>
+    </div>
+  </section>
+
+  <section class="family" data-family="dynamic-replaced-content">
+    <h2>Dynamic replaced content frozen at capture</h2>
+    <div class="pair">
+      <div class="stage dynamic-stage" data-variant="base"><div class="canvas-wrap"><canvas data-probe="dynamic-canvas" width="150" height="96"></canvas></div><div class="overlay">frozen</div><span class="variant">canvas → overlay</span></div>
+      <div class="stage dynamic-stage" data-variant="dom-order"><div class="overlay">frozen</div><div class="canvas-wrap"><canvas data-probe="dynamic-canvas" width="150" height="96"></canvas></div><span class="variant">overlay → canvas</span></div>
+    </div>
+  </section>
+</main>
+<script>
+  (() => {
+    const draw = (phase) => document.querySelectorAll('canvas[data-probe="dynamic-canvas"]').forEach((canvas) => {
+      const ctx = canvas.getContext('2d');
+      const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+      if (phase === 0) { gradient.addColorStop(0, '#642bd4'); gradient.addColorStop(1, '#ff8a36'); }
+      else { gradient.addColorStop(0, '#20c977'); gradient.addColorStop(1, '#0a5bd3'); }
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#fff';
+      ctx.font = '700 18px Arial';
+      ctx.fillText(phase === 0 ? 'FRAME A' : 'FRAME B', 19, 53);
+    });
+    window.advanceComposedCanvas = () => draw(1);
+    draw(0);
+  })();
+</script>

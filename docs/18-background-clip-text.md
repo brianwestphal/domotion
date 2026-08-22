@@ -1,4 +1,4 @@
-# 18 — `background-clip: text` (text-fill via gradient/image)
+# 18 — `background-clip: text` (vector-masked background stack)
 
 ## Context
 
@@ -36,12 +36,12 @@ In `src/render/element-tree-to-svg.ts` the bg-image layer loop checks each layer
   2. **Skips the rect emission** — the gradient should appear inside the glyph shapes only.
   3. Stashes the def URL in a per-element `textBgClipFill` variable that the text rendering block consults.
 
-In the text-rendering block, when `textBgClipFill != null` AND the rendered text is transparent (`webkit-text-fill-color: transparent` OR `color` alpha < 0.01):
+In the text-rendering block, whenever a text-clipped stack is present:
 
-1. Render the text glyphs as usual via `renderOneText`, but force the glyph fill to white — this is the mask source, not the visible output.
-2. Wrap that markup in an SVG `<mask>` def (`maskUnits="userSpaceOnUse"`, sized to the headline element rect).
-3. Emit a `<rect>` covering the headline element rect with `fill="url(#bg)"` and `mask="url(#textmask)"`. The mask reveals the gradient through the glyph silhouettes.
-4. **Skip** the normal text emission (the masked rect is the visible text).
+1. Render the text glyphs via `renderOneText` with opaque fill/stroke colours — this is the mask source, not visible output. Stroke width is retained because Blink's `PaintPhase::kTextClip` includes author stroke geometry.
+2. Wrap that markup in an SVG `<mask>` def with `maskUnits="userSpaceOnUse"` and `mask-type:alpha`, matching Blink's `SkBlendMode::kDstIn` alpha mask.
+3. Emit the background entries bottom→top through the mask. The bottom entry can be a non-transparent `background-color`; URL images remain capture-selected SVG patterns with exact tile geometry.
+4. Paint foreground text after the background. Transparent fill omits its invisible fill pass while a visible author stroke remains; opaque/semitransparent fill paints normally above the clipped background.
 
 **Multi-layer text-clip (DM-696):** when more than one background layer is
 clipped to text, the renderer emits one masked `<rect fill="url(#bg-N)">` per
@@ -49,15 +49,14 @@ text-clipped layer, walking bottom→top, so stacked gradients/images all paint
 through the shared glyph mask (CSS first-layer-on-top order preserved) — not just
 the first layer.
 
-**Inherited from an ancestor (DM-749 / DM-908):** when an element's text is
-transparent but it has NO bg-image of its own, and an ancestor sets
-`background-clip: text` + a gradient, the gradient paints through the
-descendant's glyphs (Stripe / Resend pattern). Capture walks up to 8 ancestors
-and records the nearest such gradient as
-`CapturedElement.styles.inheritedTextFillGradient`, plus that ancestor's bbox as
-`inheritedTextFillGradientRect` so the gradient resolves against the ancestor's
-coordinates (two sibling children then share one continuous ramp). The renderer
-uses it only when the element has no text-clip layer of its own.
+**Inherited from an ancestor (DM-749 / DM-908 / DM-2366):** Blink's text-clip
+paint phase traverses descendants. The renderer now records the captured parent
+relation and, when an element has no clipped stack of its own, consumes the
+nearest ancestor's already-built stack. This covers gradient, URL, color,
+multiple layers, and opaque/transparent foregrounds while retaining the
+ancestor's exact candidate/sizing/positioning facts. The legacy captured
+`inheritedTextFillGradient` projection remains a read-compatibility fallback for
+older serialized trees.
 
 **Nested child with its own gradient that WRAPS (DM-1053):** a child element can
 have its OWN `background-clip: text` gradient nested inside an ancestor that also
@@ -84,11 +83,22 @@ Two simpler-looking approaches were tried and don't work:
 - **`<clipPath>` containing the rendered text glyphs**: SVG spec allows `<use href="#g0">` inside `<clipPath>`, but Chromium currently does not honor those references — the clipPath ends up empty and the rect is fully clipped out (verified empirically against Chromium 130). Our text glyphs are emitted via `<use>` for dedup (one `<path id="g0">` def, many `<use>` instances), so a clipPath strategy would force inlining every glyph's path data and lose the dedup win.
 - **`<mask>` containing the rendered text glyphs**: works in Chromium with `<use>` references. The mask's luminance becomes the alpha channel for the masked rect. White mask glyphs → fully-visible gradient inside glyph shapes; transparent elsewhere → no gradient outside glyphs.
 
-## What's not yet supported
+## URL, color, stroke, and fragment closure (DM-2366)
 
-- **`url(...)` background-image clipped to text** — the current code path emits the bg layer as a pattern referencing the image, which would work as a mask source; not exhaustively tested.
-- **`text` clip combined with `bg-color` non-transparent** — bg-color paints under all bg-image layers per CSS spec, and CSS doesn't apply bg-clip to bg-color independently. We currently still paint the bg-color rect normally, which is technically wrong if the author wants the bg-color clipped to text too. In practice the bg-clip:text idiom always pairs with `background-color: transparent` (default), so this hasn't surfaced.
-- ~~**`-webkit-text-stroke` over a bg-clipped fill**~~ — now supported. The gradient is the element's BACKGROUND (clipped to the text ink); the stroke is the text's foreground paint, which Chrome always draws on top of it — with `-webkit-text-fill-color: transparent` the `paint-order` property has nothing to reorder (it only sequences the text's own fill vs stroke). `paintText`'s mask path renders the glyph mask WITHOUT the stroke (a stroke in a luminance mask was a useless dark ring) and emits a separate transparent-fill stroke pass after the masked gradient rect(s). On Linux the stroke width picks up the synthetic-bold inflation when the face lacks the requested weight (see `docs/42`, "Skia's stroke-frame fake bold"). Visual gate: the `20-deep-text-stroke` html-test fixture's "GRADIENT INK" row; unit gate: `src/render/text-stroke-synthesis.test.ts`.
+The earlier URL/color gaps are closed. Blink associates `background-color`
+with the bottom FillLayer, paints it before the bottom image, and applies that
+layer's clip to both. Domotion mirrors this by stashing a synthetic bottom color
+entry only when the bottom effective clip is `text`, suppressing the ordinary
+box color rect, then masking color + URL/gradient layers together. URL patterns
+use live selected-candidate/natural-sizing facts and the exact background
+size/position/repeat/origin/attachment lowering.
+
+Wrapped `slice` inlines use the capture-owned stitched imaginary positioning
+box (including RTL/vertical axes); `clone` restarts against each physical
+fragment. The mask uses alpha and keeps text-stroke geometry, matching pinned
+Blink `TextPainter::TextPaintingStyle`, while the visible foreground stroke
+still paints after the background. See doc 181 for source anchors and the
+strict DPR1/2 browser oracle.
 
 ## Test fixture
 
@@ -97,3 +107,9 @@ Two simpler-looking approaches were tried and don't work:
 `tests/features.ts` → `background-clip-text-inherited-from-ancestor`: a `<span>` with the gradient + bg-clip:text wrapping child `<div>`s that hold the text (DM-749 inherited path).
 
 `tests/features.ts` → `background-clip-text-nested-child-wraps`: an H2 (white gradient, bg-clip:text) containing a `<span>` with its OWN gold `... in oklab` gradient, sized so the span wraps to two lines (DM-1053). Verifies the child's own gradient — not the inherited ancestor gradient — fills its glyphs across both line fragments.
+
+`tests/features.ts` → `background-clip-text-url-color-stack` and
+`background-clip-text-url-inherited-stroke`: source-selected URL tile,
+bottom-layer color, multiple layer order, descendant mask ownership, and
+foreground fill/stroke controls. The independent live gate is
+`tests/background-clip-text-oracle.e2e.test.ts`.

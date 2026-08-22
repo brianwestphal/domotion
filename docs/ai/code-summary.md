@@ -73,6 +73,15 @@ shortest possible map:
   quad/value and the following status span's shaped fragments, and render
   composes shadow overflow, native child pixels, then localized status text
   without reopening `Choose File` synthesis (DM-2454, doc 172).
+  `formControlRenderRoute` is the terminal cleanup boundary (DM-2458, doc 182):
+  a whole-host native appearance must have its Chromium surface or warn/emit
+  nothing, while only `none`/`base`/`base-select`/`listbox`/
+  `menulist-button` reach structural helpers with complete captured facts.
+  The former macOS light/dark palettes, accent-luminance cutoff, and sampled
+  checkbox/radio/range/progress/meter/file/date/select/spin/search/details
+  geometry are deleted. `tools/native-control-fallback-gate.ts` plus the
+  three-platform activation workflow reject constants, route fallthrough,
+  platform/fixture switches, and missing producer fingerprints.
   `effective-appearance-cdp.ts` obtains Blink's matched cascade and active
   interpolation facts without CSSOM; `effective-appearance.ts` reconstructs
   author background/border flags after origin, importance, layers, logical
@@ -255,8 +264,14 @@ shortest possible map:
   calibration harness `tools/glyph-compare-calibrate.ts`.
 - **`tools/*-oracle.ts` + `tools/parity-program.json`** — decision-stage
   Chromium parity gates kept separate from whole-image similarity. The
-  replaced-element leg is `tools/replaced-geometry-oracle.ts`: exact concrete
-  object-fit rectangles, control paint ownership, and generated pseudo boxes.
+  replaced-element leg is `tools/replaced-geometry-oracle.ts`, backed by the
+  isolated producer/adjudicator in `tools/replaced-ownership-transition-*`:
+  42 paired source-owned rows per DPR cover exact concrete object-fit and
+  effective-zoomed natural sizes, decode fallbacks, canvas/video frame SHAs,
+  native/author/split control ownership and platform states, plus authoritative
+  generated pseudo fragments. A macOS/Linux/Windows DPR-1/2 workflow rejects
+  partial records, warnings, inert mutations, bad fingerprints, and geometry
+  drift over one device pixel.
   The generated-pseudo structural leg is
   `tools/pseudo-fragment-geometry-oracle.ts` plus the pure
   `src/capture/pseudo-fragment-protocol.ts` decoder (re-exported by the tool): one pierced CDP pseudo identity
@@ -388,7 +403,13 @@ shortest possible map:
   npm tarball (`files` includes `vendor`).
 - **`tests/`** — visual-regression suites (`features.ts`, `showcase.ts`,
   `html-test-suite.tsx`, `real-world.tsx`) + the in-repo review server
-  (`review-server.tsx`). Also the **feature-coverage** axis (DM-1459):
+  (`review-server.tsx`). The composed parity layer lives in
+  `composed-parity-fixtures.ts`: seven cross-decision repository rows backed by
+  `tools/composed-parity-corpus.json`, a pinned html-test sibling, live
+  metamorphic/freeze E2E assertions, and the fresh-process
+  `scripts/run-composed-parity.mjs` aggregator. The hard native three-platform
+  workflow is `.github/workflows/composed-parity-corpus.yml`; see doc 183.
+  Also the **feature-coverage** axis (DM-1459):
   `tests/feature-coverage.ts` (behavior → export/verb → asserting-test index),
   `tests/conventions.test.ts` (dep allow-list + no-shell-exec + manifest
   integrity/drift, in the `npm test` gate), and `tools/check-feature-coverage.ts`
@@ -555,7 +576,7 @@ shortest possible map:
   `.github/workflows/summary-disclosure-marker-parity.yml` repeats the gate on
   macOS/Linux/Windows. The `sideways-lr` row documents the legitimate
   higher-level affine-text raster owner instead of adding a duplicate polygon.
-- **Source-owned URL background geometry (DM-2370/2477/2478/2479/2365)** —
+- **Source-owned URL background geometry (DM-2370/2477/2478/2479/2365/2480)** —
   `tools/url-background-geometry-audit.ts`
   (`npm run background:url-geometry-audit`) paints a deterministic decoded
   color tile in live Chromium and through the actual capture→generated-SVG
@@ -589,8 +610,27 @@ shortest possible map:
   boundary. `fragmentation.ts` serializes each physical fragment's stitched
   positioning area/offset and `paintInlineFragment` clips that virtual strip
   after origin/clip/attachment selection; fixed viewport layers use the
-  physical clip and clone always restarts. DM-2480 promotes the fingerprinted
-  DPR oracle to all platforms.
+  physical clip and clone always restarts.
+  `.github/workflows/url-background-geometry-parity.yml` runs the hard DPR-1/2
+  producer on macOS, Linux, and Windows. It rejects warnings, observational
+  routes, incomplete active palettes, missing/non-finite patterns, ink or
+  per-color bounds above one device pixel, incomplete DPR rows, and inert
+  slice mutations; every row uploads SHA-256-addressed source/rendered PNG and
+  SVG evidence with browser/Playwright/source/runner fingerprints.
+- **Vector `background-clip:text` URL/color stack (DM-2366)** —
+  `src/render/element-tree-to-svg.ts` now mirrors Blink's bottom FillLayer:
+  non-transparent `background-color` paints below its selected URL image and
+  shares that layer's text clip instead of leaking as a box rect. Every clipped
+  layer paints bottom→top through an SVG alpha mask that retains text-stroke
+  geometry; ordinary opaque/transparent foreground fill and stroke paint later.
+  A captured parent map gives descendant text the nearest ancestor's real stack,
+  and wrapped URL text uses DM-2365's stitched slice positioning boxes (clone
+  restarts). `tools/background-clip-text-oracle.ts`
+  (`npm run background:clip-text-oracle`) deletes all text-raster escape data,
+  requires loaded URL/natural-sizing plus alpha-mask/pattern/color evidence,
+  and gates live Chromium versus complete SVG at DPR 1/2 within a fixed
+  four-device-pixel signal-edge disk. Both local rows are source-exact; see
+  [doc 181](../181-background-clip-text-url-color-semantics.md).
 - **Native scrollbar ownership and capture (DM-2368 / DM-2481)** —
   `tools/native-scrollbar-ownership-audit.ts`
   (`npm run scrollbars:ownership-audit`) disables Playwright's normally

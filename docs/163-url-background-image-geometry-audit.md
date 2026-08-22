@@ -1,12 +1,12 @@
 # URL background image geometry audit
 
-**Status:** DM-2477, DM-2478, DM-2479, and DM-2365 implemented; the all-platform release gate remains DM-2480
+**Status:** selected-image capture, exact tile/attachment/fragment geometry, and the hard all-platform release gate are implemented
 
-**Ticket:** DM-2370 / DM-2477 / DM-2478 / DM-2479 / DM-2365
+**Ticket:** DM-2370 / DM-2477 / DM-2478 / DM-2479 / DM-2365 / DM-2480
 
 **Implemented seams:** selected-image/natural-sizing capture, exact Blink tile geometry, cyclic longhand expansion, attachment positioning-area ownership, and slice-fragment stitched continuation
 
-**Remaining follow-up:** all-platform gate DM-2480
+**Release evidence:** `.github/workflows/url-background-geometry-parity.yml`
 
 Domotion turns each CSS `url()` background layer into an SVG
 `<pattern><image>`. DM-2477 captures the selected candidate and complete
@@ -49,9 +49,9 @@ The implemented surface includes natural ratio on a single `auto` axis,
 calculated size and position, contain/cover rounding, both `space` branches,
 round's orthogonal-auto rule, positive and negative no-repeat, effective zoom,
 transformed phase, independent origin/clip, and cyclic lists. Fixed,
-transformed-fixed, local, and canvas positioning use the independently captured
-DM-2479 inputs. Sliced and cloned fragments now share the exact tile helper;
-only DM-2480's three-platform release promotion remains.
+transformed-fixed, local, and canvas positioning use independently captured
+inputs. Sliced and cloned fragments share the exact tile helper. The hard gate
+now runs this contract at DPR 1/2 on macOS, Linux, and Windows.
 
 ## Current information loss
 
@@ -229,11 +229,13 @@ fragment semantics.
 
 ## Fresh browser evidence
 
-Run:
+Run the complete local producer:
 
 ```sh
-npm run background:url-geometry-audit -- --dpr 1 --json /tmp/url-background-dpr1.json
-npm run background:url-geometry-audit -- --dpr 2 --json /tmp/url-background-dpr2.json
+npm run background:url-geometry-audit -- \
+  --dpr 1,2 \
+  --json /tmp/url-background/report.json \
+  --artifacts /tmp/url-background/artifacts
 npx vitest run --config vitest.e2e.config.ts tests/background-image-geometry.e2e.test.ts
 ```
 
@@ -252,8 +254,16 @@ whose image is sampled at a different boundary (`contain`, `round`, affine)
 retain the independent one-device-pixel geometry bound while allowing at most
 7% differently filtered edge pixels. That sampling envelope is not used for
 ordinary rows and is not a tile-position tolerance. Restart mutations must
-still have at least 4% mismatch or two pixels of movement. DM-2480 owns the
-remaining all-platform promotion.
+still have at least 4% mismatch or two pixels of movement.
+
+The release adjudicator additionally requires every active palette color on
+both surfaces, a separate union-ink bound within one device pixel, exact finite
+SVG pattern cardinality, zero capture warnings, and a discriminating restart
+mutation for each non-fixed sliced continuation. `current-gap` is no longer an
+accepted route. Each row stores source/generated PNG, generated SVG, and any
+mutation pair as SHA-256-addressed lossless evidence. Reports fingerprint the
+pinned sources, Chromium, Playwright, Node, OS/architecture, GitHub runner
+image, viewport, and DPR.
 
 | Row | DPR 1 mismatch / bound | DPR 2 mismatch / bound | Route |
 | --- | ---: | ---: | --- |
@@ -380,14 +390,16 @@ scroll and therefore continue through the strip. Clone always uses the
 physical fragment and restarts. LTR, RTL, vertical-rl, origin/clip, fixed,
 horizontal multicol and vertical multicol rows are strict at DPR 1/2.
 
-### Hard gate (DM-2480)
+### Hard gate (DM-2480, implemented)
 
 DM-2365 converted every fragment `current-gap` row to `source-equivalent`.
-DM-2480 runs the existing DPR 1/2 evidence on all three
-platforms. The gate must retain source revisions,
-browser/Playwright/platform fingerprints, logical pattern facts, mutation
-pairs, and explicit evidence that every expected image decoded. Missing marker
-ink, missing pattern ownership, or warnings fail rather than skip.
+`.github/workflows/url-background-geometry-parity.yml` runs the existing DPR
+1/2 evidence natively on macOS, Linux, and Windows. Every job retains source
+revisions, browser/Playwright/platform fingerprints, logical pattern facts,
+mutation pairs, decoded palette evidence, and lossless source/generated
+surfaces. Missing marker ink, missing patterns, route drift, warnings, an
+incomplete DPR Cartesian set, or an ineffective slice mutation fails rather
+than skipping or producing an observational success.
 
 ## Follow-up ordering
 
@@ -396,8 +408,9 @@ ink, missing pattern ownership, or warnings fail rather than skip.
   SVG lowering in the 1/64 px LayoutUnit domain.
 - **DM-2479** — implemented: exact normal/fixed/local/root attachment positioning areas.
 - **DM-2365** — implemented: source-owned slice continuation with clone restart controls.
-- **DM-2480** — remaining all-platform/DPR parity gate.
+- **DM-2480** — implemented: hard all-platform DPR parity gate and immutable
+  release artifacts.
 
 DM-2477, DM-2478, DM-2479, and DM-2365 remove renderer-side candidate, tile,
-attachment, and fragment-strip guessing. URL tile geometry is source-derived;
-DM-2480 now owns only the three-platform release promotion.
+attachment, and fragment-strip guessing. URL tile geometry is source-derived
+and guarded by the native three-platform release workflow.

@@ -51,9 +51,12 @@ describe("synthetic-bold text-stroke paint ordering", () => {
 // `-webkit-text-stroke`. The renderer's mask path used to drop that stroke
 // entirely (it only painted the masked gradient rect; the mask copy even
 // carried the stroke as a useless luminance-0 ring). Lock the fixed shape:
-// a strokeless glyph mask, plus a visible transparent-fill stroke pass painted
-// AFTER the masked rect. The `20-deep-text-stroke` html-test fixture is the
-// visual gate for the same behavior.
+// an alpha glyph mask that preserves Blink's text-clip stroke geometry, plus a
+// visible transparent-fill stroke pass painted AFTER the masked rect. The
+// `20-deep-text-stroke` html-test fixture is the visual gate for the same
+// behavior. Pinned Blink source: TextPainter::TextPaintingStyle keeps
+// TextStrokeWidth during PaintPhase::kTextClip and replaces colours because
+// BoxPainterBase applies the mask with SkBlendMode::kDstIn (alpha).
 
 const BASE_STYLES = {
   backgroundColor: "rgba(0, 0, 0, 0)", backgroundImage: "none", backgroundClip: "border-box",
@@ -92,14 +95,17 @@ function gradientStrokeTree(paintOrder?: string): CapturedElement[] {
 
 describe("background-clip:text emits the -webkit-text-stroke pass", () => {
   for (const [label, po] of [["paint-order: stroke fill", "stroke fill"], ["default paint order", undefined]] as const) {
-    it(`${label}: masked gradient rect first, stroke pass on top, strokeless mask`, () => {
+    it(`${label}: alpha mask retains stroke geometry and foreground stroke paints last`, () => {
       const svg = elementTreeToSvgInner(gradientStrokeTree(po), 500, 250);
 
-      // The glyph mask exists and its body carries NO stroke — the mask is the
-      // pure fill silhouette (the stroke paints visibly, not into the mask).
+      // The glyph mask uses alpha and preserves the author stroke geometry,
+      // matching Blink's kTextClip paint phase rather than SVG's default
+      // luminance-mask semantics.
       const mask = /<mask id="(tbgm[^"]*)"[^>]*>([\s\S]*?)<\/mask>/.exec(svg);
       expect(mask).not.toBeNull();
-      expect(mask![2]).not.toContain("stroke=");
+      expect(mask![0]).toContain("mask-type:alpha");
+      expect(mask![2]).toContain('stroke="rgb(255,255,255)"');
+      expect(mask![2]).toContain('stroke-width="2"');
 
       // A masked gradient rect is painted…
       const rectIdx = svg.indexOf(`mask="url(#${mask![1]})"`);

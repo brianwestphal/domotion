@@ -268,6 +268,15 @@ responsive fieldsets, and clipping/masking/gradients inside stacking contexts.
 They remain discovery inputs: a failure must be reduced to the earliest stage
 that diverges before it can justify a renderer change.
 
+The pinned composed/metamorphic pack adds seven focused repository rows and one
+html-test page spanning those crossings plus SVG effects, zoom/transforms,
+same-origin iframe recursion, and capture-frozen canvas state. Live Chromium
+must first prove six declared relations—neutral wrapper, equivalent syntax,
+node split, translation, scale, and DOM order—are active. Independent
+source-versus-SVG rows then run in fresh processes on native macOS, Linux, and
+Windows so cache history is not an unrecorded fixture-order axis. See
+[doc 183](183-composed-metamorphic-parity-corpus.md).
+
 ### Platform and environment matrix
 
 Every logical report records Chromium, OS image and architecture, font

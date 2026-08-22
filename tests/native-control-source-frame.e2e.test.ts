@@ -75,12 +75,14 @@ describeBrowser("source-frame coherent native-control rasters", () => {
       await page.screenshot({ path: sourcePath });
 
       const originalScreenshot = page.screenshot.bind(page);
-      let screenshots = 0;
+      let controlIsolationScreenshots = 0;
       (page as unknown as { screenshot: typeof page.screenshot }).screenshot = async (options) => {
-        screenshots++;
-        // Force the native indeterminate segment to advance far enough that a
-        // per-control post-capture screenshot would be observably stale.
-        await page.waitForTimeout(180);
+        if (options?.omitBackground === true) {
+          controlIsolationScreenshots++;
+          // Force the native indeterminate segment to advance far enough that
+          // a per-control post-capture screenshot would be observably stale.
+          await page.waitForTimeout(180);
+        }
         return originalScreenshot(options as never) as ReturnType<typeof page.screenshot>;
       };
       let capture: Awaited<ReturnType<typeof captureElementTreeWithWarnings>>;
@@ -92,7 +94,9 @@ describeBrowser("source-frame coherent native-control rasters", () => {
         delete (page as unknown as Record<string, unknown>).screenshot;
       }
 
-      expect(screenshots).toBe(1);
+      // Scrollbar ownership may take its own opaque source-frame readback;
+      // the transparent native-control isolation pass must remain atomic.
+      expect(controlIsolationScreenshots).toBe(1);
       expect(capture.warnings.filter((warning) => warning.feature === "native-control-raster")).toEqual([]);
       const controls = walk(capture.tree).filter((node) => node.nativeControlRaster != null);
       expect(controls.map((node) => node.tag)).toEqual(["progress", "progress", "meter"]);

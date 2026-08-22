@@ -1,61 +1,73 @@
-# 133 — Replaced elements, controls, and generated-content geometry oracle
+# 133 — Replaced elements, controls, and generated-content ownership gate
 
-`npm run replaced:geometry-oracle` is the live-Chromium decision gate for the
-geometry and ownership transitions that do not belong to ordinary CSS box
-painting.
+`npm run replaced:geometry-oracle` is the focused DPR-1 live-Chromium gate.
+`npm run replaced:ownership-gate` is its hard DPR-1/2 release form. DM-2364
+replaces the old 11-row sampler with 42 source-owned rows per DPR and a pure,
+mutation-tested adjudicator.
 
-The object-fit leg paints an 80×40 intrinsic image into a 200×120 content box
-and observes the colored pixel bounds in Chromium. All five sizing modes
-(`fill`, `contain`, `cover`, `none`, and `scale-down`) are compared with
-`computeObjectFitRect()`, including non-min/mid/max percentages and computed
-`calc()` positions. This follows Blink's
-`LayoutReplaced::ComputeObjectFitAndPositionRect`: choose the concrete object
-size, resolve each position axis against the remaining free space, then clip
-paint to the content box. Domotion emits that concrete rectangle directly;
-SVG `preserveAspectRatio` is no longer used as a three-bucket approximation
-when intrinsic dimensions are available.
+## Source decisions
 
-The control leg captures live native and author-owned controls. Chromium's
-native `appearance` surface must activate `nativeControlRaster`, while
-`appearance:none` and an author-painted button must remain on the vector path.
-Activation is distinct from materialization: [doc 167](167-native-control-source-frame-rasters.md)
-owns the coherent source/isolation frames, alpha, clipping, platform state, and
-fail-closed warning contract for the activated native surface.
-The generated-content leg compares the painted pixel bounds of positioned
-`::before` and `::after` boxes with the capture walker's `pseudoBoxes` records.
-It does not prove in-flow generated text origins, line-box baselines,
-`vertical-align`, wrapped/bidi/vertical fragments, mixed text and images, or
-fragmentainer translation. [Doc 157](157-pseudo-generated-fragment-geometry-audit.md)
-audits that separate Blink fragment boundary; DM-2466, DM-2467, and DM-2468
-own its decoder/oracle, capture record, and renderer/visual gate respectively.
+At Chromium revision `7d859f271cbda744098ac69f44978d4edfa62be3`,
+`LayoutReplaced::ComputeObjectFitAndPositionRect` begins with the physical
+content box, chooses the concrete object size for `fill`, `contain`, `cover`,
+`none`, or `scale-down`, then resolves object-position against remaining free
+space. `LayoutImage::UpdateNaturalSizeIfNeeded` passes
+`StyleRef().EffectiveZoom()` to `GetNaturalDimensions`. The latter detail is
+observable: an intrinsic 80×40 image at `zoom:1.25` paints a 100×50 `none`
+object, not an 80×40 object inside a zoomed box.
 
-The 11-row gate has a mutation control that changes object-position and
-requires the concrete rectangle to move. Pixel fixtures remain responsible
-for final compositing, platform theme pixels, generated glyph outlines, and
-the deliberately frozen contents of dynamic replaced surfaces.
+Capture therefore stores unzoomed `imageIntrinsic` plus
+`imageEffectiveZoom`. Rendering multiplies only the concrete object-fit input;
+the source SVG coordinate system remains unzoomed. Serialized trees predating
+this fact default to one. No platform constant or fixture lookup participates.
 
-Dynamic replaced-surface *transform mapping* is no longer left to a broad
-pixel fixture: `tests/replaced-snapshot-transform.e2e.test.ts` independently
-compares Chromium and rendered-SVG colored ink at DPR 2 (three-device-pixel
-bound) across a partially off-page canvas, nested affine transforms, CSS zoom,
-scroll, and a scrolled ancestor overflow clip applied after rotation. It also checks
-actual-PNG source-crop scaling, clipped transformed video/inaccessible-iframe
-pixels, a vector sibling negative, and projective single ownership.
-The 11 rows in this document still own replaced layout/object-fit decisions;
-the focused DM-2380 gate owns local-surface raster-to-output mapping.
+Control ownership follows `LayoutTheme::AdjustAppearanceWithAuthorStyle` and
+`ThemePainter`'s `EffectiveAppearance` dispatch. Whole native hosts reserve a
+Chromium surface, authored structural controls stay vector, authored selects
+split at the menulist-button decoration, and appearance-base checkmarks use
+the source-owned generated-pseudo route. The gate records final raster SHA,
+effective appearance, decoration kind, pseudo status, color scheme, accent,
+writing mode, direction, zoom, and transform facts rather than assuming that
+macOS, Linux, and Windows share pixels.
 
-Broken-image hybrid emission is shipped and now has a dedicated extension to
-this oracle program.
-[Doc 156](156-broken-image-fallback-ownership-audit.md) shows that Blink swaps
-the host to a UA-shadow block-flow/inline fallback with its own 18 px threshold,
-border/padding/clip, and shaped text geometry. DM-2463 now captures that state
-through pierced CDP, including physical boxes/styles, hidden-text/font facts,
-DPR selection, and AX semantics. DM-2464 now emits the captured UA box/clip and
-shaped text as vectors and only the isolated Chromium icon as a fingerprinted
-raster; its focused DPR-1/2 browser matrix covers local render and AX behavior.
-DM-2465's `npm run broken-image:parity-gate` adds 27 independent live cases
-crossed with DPR 1/2 and light/dark on each native macOS/Linux/Windows runner.
-It records exact physical host/container/icon/text geometry, font/baseline and
-AX facts, compares the final SVG, and requires fifteen structural mutations.
-The original 11 rows remain the generic replaced-element gate; doc 156 plus the
-dedicated broken-image report is the end-to-end proof for this special state.
+Generated boxes no longer read the retired `pseudoBoxes` approximation. Their
+geometry is the union of exact `CapturedPseudoFragmentSet.boxFragments`
+created from one DOMSnapshot epoch plus real pseudo content quads. Source ink
+bounds use connected, anti-aliased color coverage; tolerance remains at most
+one device pixel.
+
+## Matrix and fail-closed rules
+
+Every DPR run contains paired evidence for:
+
+- all object-fit modes, arbitrary/calc positions, landscape→portrait intrinsic
+  changes, effective zoom, fractional boxes, RTL, and vertical writing;
+- loaded→loading→failed images and the resulting vector versus Blink
+  broken-fallback ownership;
+- two captured canvas frames and two video poster frames inside zoomed,
+  vertical, nested-affine geometry, requiring the source PNG SHA to change;
+- checkbox, radio, button, select, progress, and meter native→author ownership,
+  plus appearance none/base, accent, color scheme, zoom, DPR, and vertical RTL;
+- positioned before/after, in-flow, vertical RTL, and nested-affine generated
+  boxes through authoritative pseudo fragments.
+
+`tools/replaced-ownership-transition-gate.ts` rejects a missing family or pair,
+duplicate role, wrong owner, partial/inferred capture, source warning, inert
+mutation, absent decision facts, invalid platform fingerprint, or geometry
+error over one device pixel. The producer records Chromium, Playwright, OS,
+architecture, OS release, launch arguments, DPR/media state, exact pinned
+source revisions, and a canonical SHA-256 of that environment.
+
+`.github/workflows/replaced-ownership-transitions.yml` runs the pure mutations
+and live DPR-1/2 matrix independently on macOS, Linux, and Windows, records the
+runner image identity, and uploads each platform-local JSON report. Reports are
+never compared to a cross-platform native-control bitmap baseline.
+
+## Boundaries
+
+The gate proves ownership activation, exact capture records, object geometry,
+and same-run state discrimination. It deliberately freezes canvas/video at the
+capture frame; live playback remains outside SVG. Dedicated gates still own
+final transformed-snapshot pixels (doc 17/DM-2380), generated glyph ink and
+paint slots (docs 157/176/178), broken-image icon/text/AX output (doc 156), and
+native source-frame materialization/isolation (docs 167/170/171/172/182).

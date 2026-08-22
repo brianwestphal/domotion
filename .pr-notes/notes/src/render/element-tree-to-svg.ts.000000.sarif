@@ -1877,6 +1877,158 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4f1bv9gl7x5ivl",
+          "message": {
+            "text": "Blink applies the bottom background layer's color and URL image through the same alpha glyph mask, so wrapped text clips must use the captured stitched positioning area rather than repainting color on the box or restarting URL phase per line. The live DPR1/2 oracle is source-exact within the fixed four-device-pixel edge gate without rasterizing text.",
+            "markdown": "Blink applies the bottom background layer's color and URL image through the same alpha glyph mask, so wrapped text clips must use the captured stitched positioning area rather than repainting color on the box or restarting URL phase per line. The live DPR1/2 oracle is source-exact within the fixed four-device-pixel edge gate without rasterizing text."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 2305,
+                  "endLine": 2360,
+                  "snippet": {
+                    "text": "  // `background-clip: text` gradient. The bg-layer loop above is gated on\n  // `!useInlineFragments`, and `renderInlineFragments()` deliberately skips\n  // text-clip layers (it can't per-fragment-mask glyphs), so a wrapped\n  // gradient-text run would build NO self def and fall through to the\n  // inherited-ancestor gradient (DM-749) — e.g. Resend's gold \"this morning\"\n  // inside its white-gradient H2 painted flat white. Build the element's own\n  // text-clip layer def(s) against its bbox and stash them in\n  // `textBgClipFills` so the text-fill decision below prefers them over the\n  // inherited gradient and routes through the glyph-mask path (which spans\n  // all fragments correctly). Only the `text`-clipped layers are built here;\n  // the box-painted layers stay owned by `renderInlineFragments()`.\n  if (useInlineFragments && bgImage != null && bgImage !== \"none\" && bgImage !== \"\") {\n    const layers = imageLayers;\n    const clipLayers = splitTopLevelCommas(el.styles.backgroundClip ?? \"border-box\");\n    const sizeLayers = splitTopLevelCommas(el.styles.backgroundSize ?? \"auto\");\n    const posLayers = splitTopLevelCommas(el.styles.backgroundPosition ?? \"0% 0%\");\n    const repeatLayers = splitTopLevelCommas(el.styles.backgroundRepeat ?? \"repeat\");\n    const attachmentLayers = splitTopLevelCommas(el.styles.backgroundAttachment ?? \"scroll\");\n    const selectedImageLayers = el.styles.backgroundImages ?? [];\n    const intrinsicLayers = el.styles.backgroundIntrinsic ?? [];\n    for (let li = layers.length - 1; li >= 0; li--) {\n      const layerClip = cyclicBackgroundLayer(clipLayers, li, \"border-box\").trim();\n      if (layerClip !== \"text\") continue;\n      const layer = layers[li].trim();\n      const layerSize = cyclicBackgroundLayer(sizeLayers, li, \"auto\").trim();\n      const layerPos = cyclicBackgroundLayer(posLayers, li, \"0% 0%\").trim();\n      const layerRepeat = cyclicBackgroundLayer(repeatLayers, li, \"repeat\").trim();\n      const layerAttachment = cyclicBackgroundLayer(attachmentLayers, li, \"scroll\").trim();\n      const layerIntrinsic = intrinsicLayers[li] ?? null;\n      const selectedImage = selectedImageLayers[li] ?? null;\n      const defId = ctx.nextClipId(\"bg\");\n      const out = buildBackgroundLayerDef(defId, layer, el.x, el.y, el.width, el.height, layerSize, layerPos, layerRepeat, layerIntrinsic, layerAttachment, captureViewport, selectedImage);\n      if (out.def === \"\") continue;\n      ctx.defsParts.push(out.def);\n      textBgClipFills[li] = `url(#${defId})`;\n      // DM-1420: a wrapped inline's `background-clip:text` background is painted\n      // PER LINE FRAGMENT, not once over the union bbox. Over the union box a\n      // `to right bottom` gradient puts the first-line text (top-right) mid-axis\n      // (e.g. orange instead of yellow) and the second-line text (bottom-left)\n      // too early — verified against Chromium-on-Linux paint (the gradient\n      // restarts each fragment). Build one def per fragment over that fragment's\n      // own box; the caller paints a masked rect per fragment so each line's\n      // glyphs sample their own fragment's gradient. (Block elements have no\n      // `inlineFragments`, so they keep the single union-box def above.)\n      const frags = el.inlineFragments;\n      if (frags != null && frags.length > 1) {\n        // DM-2365: use the live stitched imaginary border box captured for\n        // slice fragments. The former sum(width)/shift-x construction only\n        // matched horizontal LTR wrapping; it lost RTL, vertical writing,\n        // nonuniform fragment offsets, background-origin and URL tile phase.\n        // Clone continues to restart against each physical fragment.\n        const clone = (el.styles.boxDecorationBreak ?? \"slice\") === \"clone\";\n        const bwT = parseFloat(el.styles.borderTopWidth ?? \"0\") || 0;\n        const bwR = parseFloat(el.styles.borderRightWidth ?? \"0\") || 0;\n        const bwB = parseFloat(el.styles.borderBottomWidth ?? \"0\") || 0;\n        const bwL = parseFloat(el.styles.borderLeftWidth ?? \"0\") || 0;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ]
+          },
+          "workItemUris": [
+            "DM-2366"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "86b29e442a99280d718d91c8b2e7c1fe"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2cee1fe8b0c3e589d11a46a85bb5bdf5e6798080",
+          "branch": "main"
+        }
+      ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4fqjudrdbqi503",
+          "message": {
+            "text": "The captured native record terminates emission before structural form-control dispatch. A PNG emits exactly once; authoritative empty or warned absence emits nothing, and the unconditional return prevents either state from reaching the deleted fallback branches. The static mutation gate verifies this source ordering.",
+            "markdown": "The captured native record terminates emission before structural form-control dispatch. A PNG emits exactly once; authoritative empty or warned absence emits nothing, and the unconditional return prevents either state from reaching the deleted fallback branches. The static mutation gate verifies this source ordering."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 5242,
+                  "endLine": 5254,
+                  "snippet": {
+                    "text": "    appendBoxReflection(state, el, reflectionFragmentStart, depth);\n    return;\n  }\n  // DM-2149: native form chrome comes from Blink's per-platform LayoutTheme,\n  // not from CSS boxes that can be reconstructed portably. Stamp Chromium's\n  // host snapshot for native appearance; `appearance:none` controls never\n  // receive this field and continue through the vector form-control renderer.\n  const nativeControlRaster = el.nativeControlRaster;\n  if (nativeControlRaster != null) {\n    if (nativeControlRaster.dataUri != null) {\n      const image = `<image href=\"${nativeControlRaster.dataUri}\" x=\"${r(nativeControlRaster.x)}\" y=\"${r(nativeControlRaster.y)}\" width=\"${r(nativeControlRaster.width)}\" height=\"${r(nativeControlRaster.height)}\" preserveAspectRatio=\"none\"/>`;\n      svgParts.push(`${indent}${wrapAtomicRasterTimeline(el, image)}`);\n      appendBoxReflection(state, el, reflectionFragmentStart, depth);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/form-controls.ts"
+                },
+                "region": {
+                  "startLine": 222
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/native-control-fallback-gate.ts"
+                },
+                "region": {
+                  "startLine": 56
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2458"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "3426f43b8ab600f14f34081c83074d32"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2cee1fe8b0c3e589d11a46a85bb5bdf5e6798080",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

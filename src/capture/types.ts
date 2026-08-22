@@ -1839,8 +1839,16 @@ export interface CapturedElement {
   }>;
   children: CapturedElement[];
   imageSrc?: string;
-  /** Intrinsic pixel dimensions of <img>, used for object-fit: none. */
+  /** Unzoomed intrinsic pixel dimensions of <img>. */
   imageIntrinsic?: { w: number; h: number };
+  /**
+   * Blink `LayoutImage::UpdateNaturalSizeIfNeeded()` passes the element's
+   * effective zoom into `ImageResource::GetNaturalDimensions()`. The renderer
+   * multiplies `imageIntrinsic` by this value only for concrete object-fit
+   * geometry; the source SVG coordinate system remains unzoomed. Older
+   * serialized trees default to 1.
+   */
+  imageEffectiveZoom?: number;
   /** True when the <img> failed to load (`complete && naturalWidth === 0`).
    *  Legacy serialized-tree compatibility only; new live captures use
    *  `brokenImageFallback`. */

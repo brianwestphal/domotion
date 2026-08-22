@@ -1,9 +1,18 @@
 {
-  "schemaVersion": 1,
-  "fixtures": [{
-    "id": "parity-blind-spots-v1",
-    "file": "tests/fixtures/html-test/35-parity-blind-spots.html",
-    "sha256": "af76f45b9b460dc09334291d072fc2dc3d51f908c7e5b85de6fb7438203fcf2a",
-    "categories": ["svg-effect-boxes", "css-mask-clip", "cross-origin-scroll-iframe", "fragmented-background-table", "bidi-emoji", "mathml", "native-controls", "projective", "filters-blends", "zoom", "interacting-fallbacks"]
-  }]
+  "schemaVersion": 2,
+  "fixtures": [
+    {
+      "id": "parity-blind-spots-v1",
+      "file": "tests/fixtures/html-test/35-parity-blind-spots.html",
+      "sha256": "af76f45b9b460dc09334291d072fc2dc3d51f908c7e5b85de6fb7438203fcf2a",
+      "categories": ["svg-effect-boxes", "css-mask-clip", "cross-origin-scroll-iframe", "fragmented-background-table", "bidi-emoji", "mathml", "native-controls", "projective", "filters-blends", "zoom", "interacting-fallbacks"]
+    },
+    {
+      "id": "composed-metamorphic-v1",
+      "file": "tests/fixtures/html-test/36-composed-metamorphic-parity.html",
+      "sha256": "04a61271004db715e7710cff049a57bbda14970680bc24b098e8953106086191",
+      "categories": ["multilingual-flex-grid", "responsive-fragmented-controls", "gradient-mask-clip-stacking", "svg-effects", "zoom-transforms", "same-origin-iframe", "dynamic-replaced-content"],
+      "metamorphicVariants": ["neutral-wrapper", "equivalent-syntax", "node-split", "translation", "scale", "dom-order"]
+    }
+  ]
 }

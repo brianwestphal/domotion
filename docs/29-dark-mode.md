@@ -1,5 +1,12 @@
 # 29 — Dark-mode rendering
 
+> **Current native-control boundary (DM-2458):** the palette calibration below
+> is retained as historical design context, but its `STOCK_LIGHT` /
+> `STOCK_DARK` renderer implementation has been deleted. Effective native
+> appearances now consume captured Chromium pixels for the active platform,
+> scheme, forced-colors mode, accent and state; missing required paint warns
+> and fails closed. See [doc 182](182-native-control-fallback-retirement.md).
+
 ## Context
 
 Domotion's SVG output today renders every captured page in its **light** variant. Both `captureElementTree` and the renderer assume a light color scheme: form-control stock visuals (`src/render/form-controls.ts`) hardcode light borders / fills, the body-bg fallback in `tests/real-world.tsx` is `#ffffff`, and there's no signal in the emitted SVG that the captured page intended a particular scheme.
@@ -156,4 +163,8 @@ This doc fans out into the following sub-tickets:
 - Slice 2 (DM-553 — form-controls dark palette) landed. New `STOCK_LIGHT` + `STOCK_DARK` palette objects in `src/render/form-controls.ts` with empirically-sampled values from Chromium-on-macOS dark mode. New `stockPalette(scheme)` exported dispatcher. `DefCtx.colorScheme` propagates the page scheme from the captured tree's root through `elementTreeToSvg` to every form-control synthesizer. Routed: checkbox, radio, range (track + thumb + accent fill), progress, meter (green/yellow/red palette), color swatch, file input, select chevron, and the `unfilledTrackColor` helper. Author-styled paths unchanged — only the no-author-CSS stock path picks scheme-aware colors. **Cross-platform debt** (per CLAUDE.md): both palettes are macOS-only literals; Linux + Windows dark palettes need their own probes (filed under DM-258+ once that work picks up). 13 new unit tests in `src/dark-mode-form-controls.test.ts`.
 - Slice 4 (DM-555 — real-world suite re-evaluation) landed. Dropped the `colorScheme: 'light'` force from `tests/real-world.tsx`'s runJob context. Playwright's default `colorScheme` is `'light'` on all platforms, so the force was an explicit pin against the runner's macOS system theme — its removal doesn't change the default behavior, just removes the workaround now that the dark-mode pipeline is ready. Real-world re-run shows every fixture within ±1pp of the prior baseline (NYT paywall-race swings remain in their known noise envelope per DM-510/DM-556). 30 unit tests total across `dark-mode-capture.test.ts` and `dark-mode-form-controls.test.ts`.
 
-**DM-455 fully closed.** Dark-mode pipeline is wired end-to-end with zero metric regression at default settings. Future work to actively exercise the dark pipeline against real sites (per-site `colorScheme: 'dark'` runs, a dark-mode visual fixture for the form controls) is a separate scope.
+**DM-455 fully closed.** Dark-mode capture, resolved colors, transparent-root
+paint, and SVG metadata remain wired end-to-end. DM-2458 later retired the
+macOS-only native-control palette and its calibration tests; native controls
+now retain Chromium's source pixels, while author-owned structural controls
+continue to use captured computed CSS.

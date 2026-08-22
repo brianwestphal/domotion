@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4fqt97sxikin47",
+          "message": {
+            "text": "The live Chromium matrix passed locally with every whole-host native row carrying a PNG and every author/split row staying structural. It covers checkbox, radio, range, progress, meter, file, date, select and details across DPR 1/2, light/dark/forced colors, fractional zoom, LTR/RTL, checked/disabled/value state and accent color; the three-OS workflow records the exact producer fingerprint for each run.",
+            "markdown": "The live Chromium matrix passed locally with every whole-host native row carrying a PNG and every author/split row staying structural. It covers checkbox, radio, range, progress, meter, file, date, select and details across DPR 1/2, light/dark/forced colors, fractional zoom, LTR/RTL, checked/disabled/value state and accent color; the three-OS workflow records the exact producer fingerprint for each run."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/native-control-fallback-activation.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 44,
+                  "endLine": 138,
+                  "snippet": {
+                    "text": "describeBrowser(\"DM-2458 native-control fallback activation matrix\", () => {\n  it(\"keeps native, split, and structural ownership source-complete across platform-sensitive media\", async () => {\n    const rows = [\n      { dpr: 1, scheme: \"light\" as const, forced: \"none\" as const, direction: \"ltr\", zoom: \"1\" },\n      { dpr: 2, scheme: \"dark\" as const, forced: \"none\" as const, direction: \"rtl\", zoom: \"1.25\" },\n      { dpr: 1, scheme: \"light\" as const, forced: \"active\" as const, direction: \"rtl\", zoom: \".85\" },\n    ];\n\n    for (const row of rows) {\n      const viewport = { width: 1120, height: 760 };\n      const context = await env!.browser.newContext({\n        viewport,\n        deviceScaleFactor: row.dpr,\n        colorScheme: row.scheme,\n        forcedColors: \"none\",\n      });\n      const page = await context.newPage();\n      try {\n        await page.emulateMedia({ forcedColors: row.forced });\n        await page.setContent(`<!doctype html><style>\n          html,body{margin:0;background:Canvas;color:CanvasText;color-scheme:light dark}\n          main{display:grid;grid-template-columns:repeat(4,240px);gap:18px;padding:22px;\n            direction:${row.direction};zoom:${row.zoom};font:16px Arial}\n          input,select,progress,meter{width:210px;min-height:28px;accent-color:rgb(197,31,102)}\n          .check{width:28px;height:28px;margin:0}\n          .author-check{appearance:none;border:2px solid rgb(29,94,181);background:rgb(228,241,253)}\n          .author-check::before{content:\"\";display:block;width:12px;height:12px;margin:6px;background:rgb(197,31,102)}\n          .author-range{appearance:none;height:32px;background:transparent;border:0}\n          .author-range::-webkit-slider-runnable-track{height:8px;background:rgb(21,101,192);border:1px solid rgb(8,48,107);border-radius:4px}\n          .author-range::-webkit-slider-thumb{appearance:none;width:22px;height:18px;background:rgb(244,114,182);border:2px solid rgb(131,24,67);border-radius:5px;margin-top:-6px}\n          .author-progress,.author-meter{appearance:none;border:3px solid rgb(88,28,135);background:rgb(243,232,255)}\n          .author-progress::-webkit-progress-bar{background:rgb(243,232,255);border-radius:6px}\n          .author-progress::-webkit-progress-value{background:rgb(126,34,206);border-radius:4px}\n          .author-meter::-webkit-meter-bar{background:rgb(243,232,255);border-radius:6px}\n          .author-meter::-webkit-meter-optimum-value{background:rgb(126,34,206)}\n          .author-file::file-selector-button{background:rgb(30,64,175);color:white;border:2px solid rgb(23,37,84);border-radius:7px}\n          .author-date{background:rgb(224,242,254);border:2px solid rgb(3,105,161)}\n          .author-select{background:rgb(236,253,245);border:2px solid rgb(4,120,87)}\n          #hidden-marker summary{list-style:none}\n        </style><main id=\"scene\">\n          <input data-domotion-anim=\"native-checkbox\" class=\"check\" type=\"checkbox\" checked disabled>\n          <input data-domotion-anim=\"native-radio\" class=\"check\" type=\"radio\" checked>\n          <input data-domotion-anim=\"native-range\" type=\"range\" min=\"0\" max=\"100\" value=\"37\">\n          <progress data-domotion-anim=\"native-progress\" max=\"1\" value=\".42\"></progress>\n          <meter data-domotion-anim=\"native-meter\" min=\"0\" max=\"1\" low=\".3\" high=\".7\" optimum=\".5\" value=\".82\"></meter>\n          <input data-domotion-anim=\"native-file\" type=\"file\" multiple>\n          <input data-domotion-anim=\"native-date\" type=\"date\" value=\"2026-08-22\">\n          <select data-domotion-anim=\"native-select\"><option selected>native option</option></select>\n          <input data-domotion-anim=\"author-checkbox\" class=\"check author-check\" type=\"checkbox\" checked>\n          <input data-domotion-anim=\"author-radio\" class=\"check author-check\" type=\"radio\" checked>\n          <input data-domotion-anim=\"author-range\" class=\"author-range\" type=\"range\" min=\"0\" max=\"100\" value=\"63\">\n          <progress data-domotion-anim=\"author-progress\" class=\"author-progress\" max=\"1\" value=\".58\"></progress>\n          <meter data-domotion-anim=\"author-meter\" class=\"author-meter\" min=\"0\" max=\"1\" optimum=\".5\" value=\".52\"></meter>\n          <input data-domotion-anim=\"author-file\" class=\"author-file\" type=\"file\">\n          <input data-domotion-anim=\"author-date\" class=\"author-date\" type=\"date\" value=\"2026-08-22\">\n          <select data-domotion-anim=\"author-select\" class=\"author-select\"><option selected>structural option</option></select>\n          <details open><summary data-domotion-anim=\"source-marker\">source marker</summary><p>content</p></details>\n          <details id=\"hidden-marker\" open><summary data-domotion-anim=\"hidden-marker\">hidden marker</summary><p>content</p></details>\n        </main>`);\n\n        const capture = await captureElementTreeWithWarnings(\n          page, \"#scene\", { x: 0, y: 0, ...viewport },\n        );\n        expect(capture.warnings.filter(({ feature }) =>\n          feature === \"effective-appearance-cascade\"\n          || feature === \"native-control-raster\"\n          || feature === \"native-control-decoration-raster\"\n        )).toEqual([]);\n\n        for (const id of COMPLETE_NATIVE) {\n          const control = byId(capture.tree, id);\n          expect(formControlRenderRoute(control), id).toBe(\"native-raster\");\n          expect(control.nativeControlRaster?.dataUri, id).toMatch(/^data:image\\/png;base64,/);\n        }\n        for (const id of STRUCTURAL) {\n          const control = byId(capture.tree, id);\n          expect(formControlRenderRoute(control), id).toBe(\"structural\");\n          expect(control.nativeControlRaster, id).toBeUndefined();\n        }\n\n        expect(byId(capture.tree, \"native-file\").nativeControlDecorationRaster?.kinds)\n          .toEqual([\"file-selector-button\"]);\n        expect(byId(capture.tree, \"author-file\").nativeControlDecorationRaster).toBeUndefined();\n        expect(byId(capture.tree, \"author-date\").nativeControlDecorationRaster?.kinds)\n          .toEqual([\"calendar-picker-indicator\"]);\n        expect(byId(capture.tree, \"author-select\").nativeControlDecorationRaster?.kinds)\n          .toEqual([\"menulist-button-arrow\"]);\n        expect(byId(capture.tree, \"source-marker\").summaryMarkerGeometry).toBeDefined();\n        expect(byId(capture.tree, \"hidden-marker\").summaryMarkerGeometry).toBeUndefined();\n\n        const svg = elementTreeToSvgInner(capture.tree, viewport.width, viewport.height);\n        expect(svg).not.toContain(\"rgb(0,117,255)\");\n        expect(svg).not.toContain(\"rgb(203,203,203)\");\n        expect(svg).not.toContain(\"Choose File</text>\");\n        expect(svg).toContain(\"data-domotion-pseudo-owner=\\\"source-fragments\\\"\");"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/native-control-fallback-parity.yml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/native-control-platform-fingerprint.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2458"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "47c5e4a2b75d8d6e841c2daf2bf58416"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2cee1fe8b0c3e589d11a46a85bb5bdf5e6798080",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

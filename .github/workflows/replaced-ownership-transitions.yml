@@ -1,0 +1,99 @@
+name: Replaced-element ownership transitions
+
+# Each runner observes its own Chromium source pixels and source-owned capture
+# records. No cross-platform screenshot baseline or fixture-sized geometry is
+# admitted; the report carries the exact browser/runner/launch/DPR fingerprint.
+on:
+  pull_request:
+    paths:
+      - "src/capture/script/index.ts"
+      - "src/capture/types.ts"
+      - "src/capture/script.generated.ts"
+      - "src/capture/replaced-snapshot-geometry.ts"
+      - "src/capture/native-control-raster.ts"
+      - "src/capture/native-control-decoration-raster.ts"
+      - "src/capture/broken-image-fallback.ts"
+      - "src/capture/pseudo-fragment-cdp.ts"
+      - "src/render/element-tree-to-svg.ts"
+      - "src/render/form-controls.ts"
+      - "src/render/object-fit-scale-down.test.ts"
+      - "tools/replaced-geometry-oracle.ts"
+      - "tools/replaced-ownership-transition-oracle.ts"
+      - "tools/replaced-ownership-transition-gate.ts"
+      - "tests/replaced-ownership-transition-gate.test.ts"
+      - "tests/replaced-ownership-transition-workflow.test.ts"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/replaced-ownership-transitions.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/capture/script/index.ts"
+      - "src/capture/types.ts"
+      - "src/capture/script.generated.ts"
+      - "src/capture/replaced-snapshot-geometry.ts"
+      - "src/capture/native-control-raster.ts"
+      - "src/capture/native-control-decoration-raster.ts"
+      - "src/capture/broken-image-fallback.ts"
+      - "src/capture/pseudo-fragment-cdp.ts"
+      - "src/render/element-tree-to-svg.ts"
+      - "src/render/form-controls.ts"
+      - "src/render/object-fit-scale-down.test.ts"
+      - "tools/replaced-geometry-oracle.ts"
+      - "tools/replaced-ownership-transition-oracle.ts"
+      - "tools/replaced-ownership-transition-gate.ts"
+      - "tests/replaced-ownership-transition-gate.test.ts"
+      - "tests/replaced-ownership-transition-workflow.test.ts"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/replaced-ownership-transitions.yml"
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "22.21.0"
+
+jobs:
+  ownership:
+    name: ${{ matrix.label }} replaced ownership
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            label: macOS
+          - os: ubuntu-latest
+            label: Linux
+          - os: windows-latest
+            label: Windows
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium
+      - name: Reject ownership, pair, warning, fingerprint, and geometry mutations
+        run: npx vitest run tests/replaced-ownership-transition-gate.test.ts tests/replaced-ownership-transition-workflow.test.ts src/render/object-fit-scale-down.test.ts
+      - name: Rebuild the in-page capture contract
+        run: npm run build:capture-script
+      - name: Create platform evidence directory
+        run: node -e "require('node:fs').mkdirSync('tests/output/replaced-ownership/${{ runner.os }}',{recursive:true})"
+      - name: Record immutable runner image identity
+        run: node scripts/record-runner-image.mjs tests/output/replaced-ownership/${{ runner.os }}/runner-image.txt
+      - name: Run strict DPR 1/2 live Chromium ownership gate
+        run: >-
+          npm run replaced:ownership-gate --
+          --json tests/output/replaced-ownership/${{ runner.os }}/report.json
+      - name: Upload fingerprinted ownership report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replaced-ownership-${{ runner.os }}
+          path: tests/output/replaced-ownership/${{ runner.os }}/
+          if-no-files-found: error
+          retention-days: 30

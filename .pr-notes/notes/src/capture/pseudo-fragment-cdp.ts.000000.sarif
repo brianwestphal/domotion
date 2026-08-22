@@ -179,6 +179,66 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "unknown-ai-tool",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4g61mvaw1lpbqv",
+          "message": {
+            "text": "The all-page visibility isolation used for an uncorrelatable generated pseudo can make Blink blur an unrelated focused form control. Retaining the original per-frame activeElement in the private registry and restoring it before native decoration/control atlases is required to preserve source-owned :focus paint; the native-control decoration interaction matrix is the regression proof.",
+            "markdown": "The all-page visibility isolation used for an uncorrelatable generated pseudo can make Blink blur an unrelated focused form control. Retaining the original per-frame activeElement in the private registry and restoring it before native decoration/control atlases is required to preserve source-owned :focus paint; the native-control decoration interaction matrix is the regression proof."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/pseudo-fragment-cdp.ts"
+                },
+                "region": {
+                  "startLine": 593,
+                  "endLine": 602,
+                  "snippet": {
+                    "text": "      // A terminal pseudo isolation temporarily hides the rest of the page.\n      // Blink blurs a focused control when that stylesheet makes it hidden;\n      // restore the source-owned interaction state before downstream native\n      // decoration/control atlases snapshot :focus paint.\n      const activeElement = registry.activeElement;\n      if (activeElement instanceof HTMLElement && activeElement.isConnected\n          && document.activeElement !== activeElement) {\n        activeElement.focus({ preventScroll: true });\n      }\n    }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ]
+          },
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "53e319ffe9ace9a6de19fc6cedb3c7c5"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2cee1fe8b0c3e589d11a46a85bb5bdf5e6798080",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

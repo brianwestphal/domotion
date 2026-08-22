@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4ha3ruuv8eggur",
+          "message": {
+            "text": "This workflow keeps native evidence platform-local and hard-gates the same producer on macOS, Linux, and Windows at DPR 1/2. Each job records runner identity and the report's Chromium/Playwright/OS/launch/media fingerprint; no native bitmap hash is shared across operating systems. Local pinned-Chromium evidence is 42/42 at DPR1 and 42/42 at DPR2; the pure/workflow/object-fit tests are 17/17.",
+            "markdown": "This workflow keeps native evidence platform-local and hard-gates the same producer on macOS, Linux, and Windows at DPR 1/2. Each job records runner identity and the report's Chromium/Playwright/OS/launch/media fingerprint; no native bitmap hash is shared across operating systems. Local pinned-Chromium evidence is 42/42 at DPR1 and 42/42 at DPR2; the pure/workflow/object-fit tests are 17/17."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/replaced-ownership-transitions.yml"
+                },
+                "region": {
+                  "startLine": 57,
+                  "endLine": 99,
+                  "snippet": {
+                    "text": "jobs:\n  ownership:\n    name: ${{ matrix.label }} replaced ownership\n    strategy:\n      fail-fast: false\n      matrix:\n        include:\n          - os: macos-latest\n            label: macOS\n          - os: ubuntu-latest\n            label: Linux\n          - os: windows-latest\n            label: Windows\n    runs-on: ${{ matrix.os }}\n    timeout-minutes: 30\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with:\n          node-version: ${{ env.NODE_VERSION }}\n          cache: npm\n      - run: npm ci\n      - run: npx playwright install chromium\n      - name: Reject ownership, pair, warning, fingerprint, and geometry mutations\n        run: npx vitest run tests/replaced-ownership-transition-gate.test.ts tests/replaced-ownership-transition-workflow.test.ts src/render/object-fit-scale-down.test.ts\n      - name: Rebuild the in-page capture contract\n        run: npm run build:capture-script\n      - name: Create platform evidence directory\n        run: node -e \"require('node:fs').mkdirSync('tests/output/replaced-ownership/${{ runner.os }}',{recursive:true})\"\n      - name: Record immutable runner image identity\n        run: node scripts/record-runner-image.mjs tests/output/replaced-ownership/${{ runner.os }}/runner-image.txt\n      - name: Run strict DPR 1/2 live Chromium ownership gate\n        run: >-\n          npm run replaced:ownership-gate --\n          --json tests/output/replaced-ownership/${{ runner.os }}/report.json\n      - name: Upload fingerprinted ownership report\n        if: always()\n        uses: actions/upload-artifact@v4\n        with:\n          name: replaced-ownership-${{ runner.os }}\n          path: tests/output/replaced-ownership/${{ runner.os }}/\n          if-no-files-found: error\n          retention-days: 30"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/replaced-ownership-transition-oracle.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/replaced-ownership-transition-workflow.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2364"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "8ec004f3f927913b0ca489733bffef7f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2cee1fe8b0c3e589d11a46a85bb5bdf5e6798080",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

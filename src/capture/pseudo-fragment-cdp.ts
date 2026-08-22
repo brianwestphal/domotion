@@ -294,6 +294,7 @@ async function setupFrame(
         token,
         elements,
         indexByElement,
+        activeElement: document.activeElement,
         factsByElement: Object.create(null),
       };
       return rows;
@@ -576,7 +577,11 @@ async function installFacts(
   facts: ReadonlyMap<string, Record<number, CapturedPseudoFragmentSet[]>>,
 ): Promise<void> {
   await Promise.all(prepared.map(({ frame, token }) => frame.evaluate(({ key, facts }) => {
-    const registry = (globalThis as typeof globalThis & Record<string, unknown>)[key] as { elements?: Element[]; factsByElement?: unknown } | undefined;
+    const registry = (globalThis as typeof globalThis & Record<string, unknown>)[key] as {
+      elements?: Element[];
+      activeElement?: Element | null;
+      factsByElement?: unknown;
+    } | undefined;
     if (registry != null) {
       // An empty array is an authoritative "no generated pseudo paint" fact.
       // Seed every walked host so content:none/display:none/absent pseudos do
@@ -585,6 +590,15 @@ async function installFacts(
       for (let index = 0; index < (registry.elements?.length ?? 0); index++) complete[index] = [];
       for (const [index, records] of Object.entries(facts)) complete[Number(index)] = records;
       registry.factsByElement = complete;
+      // A terminal pseudo isolation temporarily hides the rest of the page.
+      // Blink blurs a focused control when that stylesheet makes it hidden;
+      // restore the source-owned interaction state before downstream native
+      // decoration/control atlases snapshot :focus paint.
+      const activeElement = registry.activeElement;
+      if (activeElement instanceof HTMLElement && activeElement.isConnected
+          && document.activeElement !== activeElement) {
+        activeElement.focus({ preventScroll: true });
+      }
     }
   }, { key, facts: facts.get(token) ?? {} })));
 }

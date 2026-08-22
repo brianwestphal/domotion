@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4h9xm4jf32swwe",
+          "message": {
+            "text": "Exact-RGB bounds are not a valid oracle for a fractionally transformed Skia box: they discard antialiased boundary coverage and moved one correct pseudo edge inward by 1.5 device pixels. The final extractor compares target-versus-white/peer color distance and selects the largest connected component, which retains the strict one-device-pixel geometry bound while excluding disconnected AA pixels from other colored rows. DPR1 and DPR2 each pass all 42 live rows with this evidence-only correction.",
+            "markdown": "Exact-RGB bounds are not a valid oracle for a fractionally transformed Skia box: they discard antialiased boundary coverage and moved one correct pseudo edge inward by 1.5 device pixels. The final extractor compares target-versus-white/peer color distance and selects the largest connected component, which retains the strict one-device-pixel geometry bound while excluding disconnected AA pixels from other colored rows. DPR1 and DPR2 each pass all 42 live rows with this evidence-only correction."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/replaced-ownership-transition-oracle.ts"
+                },
+                "region": {
+                  "startLine": 133,
+                  "endLine": 205,
+                  "snippet": {
+                    "text": "async function colorRectFromPng(\n  png: Buffer,\n  rgb: readonly [number, number, number],\n  deviceScaleFactor: number,\n  competingColors: readonly (readonly [number, number, number])[] = [],\n): Promise<Rect | null> {\n  const { data, info } = await sharp(png).removeAlpha().raw().toBuffer({ resolveWithObject: true });\n  const mask = new Uint8Array(info.width * info.height);\n  for (let y = 0; y < info.height; y++) {\n    for (let x = 0; x < info.width; x++) {\n      const offset = (y * info.width + x) * 3;\n      // Include edge coverage, not just fully covered source-color pixels.\n      // Skia anti-aliases a fractional/scaled box against the white fixture;\n      // a strict RGB equality scan moves the observed edge inward by a whole\n      // device pixel and makes a correct Blink physical quad look 1.5px late.\n      const targetDistance = (data[offset] - rgb[0]) ** 2\n        + (data[offset + 1] - rgb[1]) ** 2\n        + (data[offset + 2] - rgb[2]) ** 2;\n      const whiteDistance = (data[offset] - 255) ** 2\n        + (data[offset + 1] - 255) ** 2\n        + (data[offset + 2] - 255) ** 2;\n      if (targetDistance > whiteDistance) continue;\n      if (competingColors.some((candidate) => {\n        const candidateDistance = (data[offset] - candidate[0]) ** 2\n          + (data[offset + 1] - candidate[1]) ** 2\n          + (data[offset + 2] - candidate[2]) ** 2;\n        return candidateDistance < targetDistance;\n      })) continue;\n      mask[y * info.width + x] = 1;\n    }\n  }\n  // A low-coverage edge from a differently colored affine box can be closer\n  // to this target than to either white or that box's fully saturated source\n  // color. Select the largest connected target component, not the union of\n  // every qualifying pixel in the whole page.\n  const visited = new Uint8Array(mask.length);\n  let best: { count: number; minX: number; minY: number; maxX: number; maxY: number } | null = null;\n  for (let seed = 0; seed < mask.length; seed++) {\n    if (mask[seed] === 0 || visited[seed] !== 0) continue;\n    const queue = [seed];\n    visited[seed] = 1;\n    let cursor = 0;\n    let count = 0;\n    let minX = info.width;\n    let minY = info.height;\n    let maxX = -1;\n    let maxY = -1;\n    while (cursor < queue.length) {\n      const index = queue[cursor++];\n      const x = index % info.width;\n      const y = Math.floor(index / info.width);\n      count++;\n      minX = Math.min(minX, x);\n      minY = Math.min(minY, y);\n      maxX = Math.max(maxX, x);\n      maxY = Math.max(maxY, y);\n      for (const next of [index - 1, index + 1, index - info.width, index + info.width]) {\n        if (next < 0 || next >= mask.length || mask[next] === 0 || visited[next] !== 0) continue;\n        const nextX = next % info.width;\n        if (Math.abs(nextX - x) > 1) continue;\n        visited[next] = 1;\n        queue.push(next);\n      }\n    }\n    if (best == null || count > best.count) best = { count, minX, minY, maxX, maxY };\n  }\n  if (best == null) return null;\n  return {\n    x: best.minX / deviceScaleFactor,\n    y: best.minY / deviceScaleFactor,\n    width: (best.maxX - best.minX + 1) / deviceScaleFactor,\n    height: (best.maxY - best.minY + 1) / deviceScaleFactor,\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "alternative-considered"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/184-replaced-ownership-transition-matrix.md"
+                },
+                "region": {
+                  "startLine": 39
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2364"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f04c0879909ca2c8fae2226f0d64e4af"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2cee1fe8b0c3e589d11a46a85bb5bdf5e6798080",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

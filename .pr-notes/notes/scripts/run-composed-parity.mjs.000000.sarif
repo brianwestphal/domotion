@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4gde8x0wpibcbi",
+          "message": {
+            "text": "Fresh-process isolation is part of the parity contract. A shared renderer/browser lifecycle stalled when the corpus reached the iframe after earlier composed pages, while one child process per fixture completed all seven rows in 11.3 seconds; tests/composed-parity-corpus.e2e.test.ts keeps the intentional in-page mutation transitions explicit, so isolation removes cross-case state without weakening any comparison. The hard three-platform consumer is .github/workflows/composed-parity-corpus.yml.",
+            "markdown": "Fresh-process isolation is part of the parity contract. A shared renderer/browser lifecycle stalled when the corpus reached the iframe after earlier composed pages, while one child process per fixture completed all seven rows in 11.3 seconds; tests/composed-parity-corpus.e2e.test.ts keeps the intentional in-page mutation transitions explicit, so isolation removes cross-case state without weakening any comparison. The hard three-platform consumer is .github/workflows/composed-parity-corpus.yml."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "scripts/run-composed-parity.mjs"
+                },
+                "region": {
+                  "startLine": 14,
+                  "endLine": 31,
+                  "snippet": {
+                    "text": "  // A fresh process per composed page is intentional. The corpus crosses\n  // global font/image/gradient caches, iframe recursion, and replaced-surface\n  // ownership; sharing one renderer session would turn its order into an\n  // unrecorded eighth axis and has already exposed a post-gradient iframe\n  // stall. The separate live E2E test owns deliberate state transitions.\n  writeFileSync(resultPath, \"\", \"utf8\");\n  const child = spawnSync(\n    process.execPath,\n    [\"--import\", \"tsx\", \"tests/composed-parity.ts\", \"--only\", fixture.name, \"--workers\", \"1\"],\n    { cwd: root, env: process.env, stdio: \"inherit\" },\n  );\n  if (child.error != null) {\n    console.error(`Unable to run ${fixture.name}: ${child.error.message}`);\n    failed = true;\n    continue;\n  }\n  if (child.status !== 0) failed = true;\n  try {"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 88,
+          "workItemUris": [
+            "DM-2363"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "03cd2e522ed8bd6cbee03696e7a0d230"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2cee1fe8b0c3e589d11a46a85bb5bdf5e6798080",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

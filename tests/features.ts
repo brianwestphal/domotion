@@ -880,7 +880,8 @@ export const tests: FeatureTest[] = [
 
   // ── Regression: native form control chrome (SK-467) ──
   // Checkbox/radio with checked + unchecked states, progress, meter.
-  // Chrome's UA-default rendering is synthesized by form-controls.ts.
+  // Chromium-owned UA-default surfaces are captured as terminal rasters;
+  // form-controls.ts only paints source-owned structural appearances.
   {
     name: "form-controls",
     html: `<div style="padding: 16px; background: #fff; display: flex; gap: 12px; align-items: center;">
@@ -1049,6 +1050,24 @@ export const tests: FeatureTest[] = [
     html: `<div style="padding:24px;background:#0d1117;font-family:-apple-system,sans-serif;"><h1 style="font-size:36px;font-weight:800;margin:0;background:linear-gradient(90deg,#22d3ee 0%,#a855f7 50%,#f97316 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;">Gradient Headline</h1></div>`,
     width: 360,
     height: 110,
+  },
+  {
+    // DM-2366: a source-selected URL tile plus a non-transparent bottom-layer
+    // color share the glyph mask. Transparent SVG tile bands expose the color
+    // beneath; size/position/repeat ensure this cannot pass as a flat fill.
+    name: "background-clip-text-url-color-stack",
+    html: `<div style="padding:22px;background:#fff;font-family:Arial,sans-serif;"><h1 style="font-size:38px;line-height:1.1;font-weight:800;margin:0;color:transparent;-webkit-text-fill-color:transparent;background-color:rgb(255,145,0);background-image:linear-gradient(90deg,transparent 48%,rgba(246,42,132,.55)),url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='16'%3E%3Cpath fill='rgb(0,190,255)' d='M0 0h8v16H0z'/%3E%3Cpath fill='rgb(246,42,132)' d='M16 0h8v16h-8z'/%3E%3C/svg%3E&quot;);background-size:100% 100%,24px 16px;background-position:0 0,7px 5px;background-repeat:no-repeat,repeat;background-clip:text,text;-webkit-background-clip:text,text;">URL + COLOR INK</h1></div>`,
+    width: 410,
+    height: 105,
+  },
+  {
+    // DM-2366: Blink's text-clip phase walks descendant glyphs. The parent
+    // owns the URL/color stack while the child owns the actual shaped text;
+    // an opaque foreground and author stroke then paint above that background.
+    name: "background-clip-text-url-inherited-stroke",
+    html: `<div style="padding:22px;background:#fff;font-family:Arial,sans-serif;"><span style="display:inline-block;background-color:rgb(36,204,112);background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='16'%3E%3Cpath fill='rgb(0,190,255)' d='M0 0h8v16H0z'/%3E%3Cpath fill='rgb(246,42,132)' d='M16 0h8v16h-8z'/%3E%3C/svg%3E&quot;);background-size:29px 17px;background-position:5px 3px;background-repeat:repeat;background-clip:text;-webkit-background-clip:text;color:rgba(15,23,42,.42);-webkit-text-fill-color:rgba(15,23,42,.42);-webkit-text-stroke:2px rgba(246,42,132,.72);"><b style="font-size:37px;line-height:1.1;">DESCENDANT INK</b></span></div>`,
+    width: 410,
+    height: 105,
   },
   {
     name: "replaced-iframe-same-origin",

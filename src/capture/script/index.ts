@@ -789,6 +789,7 @@ const captureDocumentTree =
       // Intrinsic <img> dims — used by the renderer for object-fit: none.
       if (el.naturalWidth > 0 && el.naturalHeight > 0) {
         var imageIntrinsic = { w: el.naturalWidth, h: el.naturalHeight };
+        var imageEffectiveZoom = _effectiveZoomFor(el);
       }
       // Broken-image fallback (DM-372): el.complete && naturalWidth===0 means
       // the browser tried to load and failed (or src was empty). Chrome paints
@@ -1218,7 +1219,7 @@ const captureDocumentTree =
       projectiveTransform,
       projectiveHidden,
       transformSubtreeRaster,
-      children, imageSrc, imageIntrinsic, imageBroken, imageAlt, brokenImageFallback, svgContent,
+      children, imageSrc, imageIntrinsic, imageEffectiveZoom, imageBroken, imageAlt, brokenImageFallback, svgContent,
       pseudoFragments: Array.isArray(_pseudoFragmentFacts) ? _pseudoFragmentFacts : undefined,
       pseudoImages,
       pseudoBoxes: pseudoBoxes.length > 0 ? pseudoBoxes : undefined,

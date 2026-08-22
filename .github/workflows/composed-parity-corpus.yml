@@ -1,0 +1,103 @@
+name: Composed parity corpus
+
+# The visual rows intentionally launch one renderer process per fixture so
+# font/image/gradient cache history cannot become a hidden corpus axis. The
+# browser E2E leg separately exercises the deliberate metamorphic relations and
+# the capture-time canvas transition in one live Chromium document.
+on:
+  pull_request:
+    paths:
+      - "src/capture/**"
+      - "src/render/**"
+      - "src/tree-ops/**"
+      - "tests/composed-parity*"
+      - "tests/fixtures/html-test/36-composed-metamorphic-parity.html"
+      - "scripts/run-composed-parity.mjs"
+      - "tools/composed-parity-corpus.json"
+      - "tools/html-test-parity-corpus.json"
+      - "package.json"
+      - ".github/workflows/composed-parity-corpus.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/capture/**"
+      - "src/render/**"
+      - "src/tree-ops/**"
+      - "tests/composed-parity*"
+      - "tests/fixtures/html-test/36-composed-metamorphic-parity.html"
+      - "scripts/run-composed-parity.mjs"
+      - "tools/composed-parity-corpus.json"
+      - "tools/html-test-parity-corpus.json"
+      - "package.json"
+      - ".github/workflows/composed-parity-corpus.yml"
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "22.21.0"
+
+jobs:
+  corpus:
+    name: ${{ matrix.label }} composed parity
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            label: macOS
+          - os: ubuntu-latest
+            label: Linux
+          - os: windows-latest
+            label: Windows
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium and helper dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev libfontconfig-dev
+          npx playwright install --with-deps chromium
+      - name: Install Chromium (macOS/Windows)
+        if: runner.os != 'Linux'
+        run: npx playwright install chromium
+      - name: Build CoreText helper
+        if: runner.os == 'macOS'
+        run: |
+          swift build -c release --arch arm64 --package-path tools/macos-glyph-extractor
+          cp tools/macos-glyph-extractor/.build/arm64-apple-macosx/release/DomotionGlyphPaths tools/macos-glyph-extractor/domotion-glyph-paths
+      - name: Build fontconfig helper
+        if: runner.os == 'Linux'
+        run: bash tools/linux-glyph-extractor/build.sh
+      - name: Build DirectWrite helper
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./tools/win32-glyph-extractor/build.ps1
+      - name: Validate corpus identities, axes, and workflow structure
+        run: npx vitest run tests/composed-parity-corpus.test.ts tests/composed-parity-workflow.test.ts tests/html-test-parity-corpus.test.ts
+      - name: Validate live metamorphic activation and capture-time freezing
+        run: npx vitest run --config vitest.e2e.config.ts tests/composed-parity-corpus.e2e.test.ts
+      - name: Record native producer fingerprint
+        shell: bash
+        env:
+          HTML_TEST_CORPUS_IDENTITY: composed-metamorphic-v1:04a61271004db715e7710cff049a57bbda14970680bc24b098e8953106086191
+        run: |
+          mkdir -p tests/output/composed-parity-ci
+          node scripts/run-env.mjs tests/output/composed-parity-ci/run-env.json
+      - name: Compare every composed repository fixture with live Chromium
+        run: npm run parity:composed-corpus
+      - name: Upload fingerprinted source, SVG, raster, and diff evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: composed-parity-${{ runner.os }}
+          path: |
+            tests/output/composed-*
+            tests/output/composed-parity-ci/run-env.json
+          if-no-files-found: error
+          retention-days: 30

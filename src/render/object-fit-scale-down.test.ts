@@ -27,10 +27,10 @@ const STYLES = {
 // 1×1 transparent PNG — a valid data URI embedResizedDataUri can pass through.
 const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
 
-function img(intrinsic: { w: number; h: number }): CapturedElement {
+function img(intrinsic: { w: number; h: number }, effectiveZoom?: number): CapturedElement {
   return {
     tag: "img", text: "", x: 0, y: 0, width: 200, height: 100, children: [],
-    imageSrc: PNG, imageIntrinsic: intrinsic,
+    imageSrc: PNG, imageIntrinsic: intrinsic, imageEffectiveZoom: effectiveZoom,
     styles: STYLES,
   } as unknown as CapturedElement;
 }
@@ -58,6 +58,26 @@ describe("object-fit: scale-down (DM-1239)", () => {
     delete (el as { imageIntrinsic?: unknown }).imageIntrinsic;
     const tag = imageTag(elementTreeToSvgInner([el], 200, 100));
     expect(tag).toMatch(/preserveAspectRatio="[^"]*meet"/); // contain fallback, not intrinsic
+  });
+
+  it("uses Blink's effective-zoomed natural size for concrete object geometry", () => {
+    const zoomed = img({ w: 80, h: 40 }, 1.25);
+    zoomed.styles = { ...STYLES, objectFit: "none" };
+    const tag = imageTag(elementTreeToSvgInner([zoomed], 200, 100));
+    expect(tag).toContain('x="50"');
+    expect(tag).toContain('y="25"');
+    expect(tag).toContain('width="100"');
+    expect(tag).toContain('height="50"');
+  });
+
+  it("defaults old serialized trees without imageEffectiveZoom to 1", () => {
+    const legacy = img({ w: 80, h: 40 });
+    legacy.styles = { ...STYLES, objectFit: "none" };
+    const tag = imageTag(elementTreeToSvgInner([legacy], 200, 100));
+    expect(tag).toContain('x="60"');
+    expect(tag).toContain('y="30"');
+    expect(tag).toContain('width="80"');
+    expect(tag).toContain('height="40"');
   });
 });
 

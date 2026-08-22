@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4h9ifxmjxhg35y",
+          "message": {
+            "text": "Blink does not feed raw naturalWidth/naturalHeight directly into concrete object-fit geometry under CSS zoom. At the pinned Chromium revision, LayoutImage::UpdateNaturalSizeIfNeeded passes EffectiveZoom to GetNaturalDimensions; the live discriminator painted an intrinsic 80×40 image at zoom 1.25 as 100×50. This split keeps the source SVG coordinate system unzoomed while the renderer applies the captured multiplier exactly once; old serialized trees deliberately default to 1.",
+            "markdown": "Blink does not feed raw naturalWidth/naturalHeight directly into concrete object-fit geometry under CSS zoom. At the pinned Chromium revision, LayoutImage::UpdateNaturalSizeIfNeeded passes EffectiveZoom to GetNaturalDimensions; the live discriminator painted an intrinsic 80×40 image at zoom 1.25 as 100×50. This split keeps the source SVG coordinate system unzoomed while the renderer applies the captured multiplier exactly once; old serialized trees deliberately default to 1."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/types.ts"
+                },
+                "region": {
+                  "startLine": 1842,
+                  "endLine": 1851,
+                  "snippet": {
+                    "text": "  /** Unzoomed intrinsic pixel dimensions of <img>. */\n  imageIntrinsic?: { w: number; h: number };\n  /**\n   * Blink `LayoutImage::UpdateNaturalSizeIfNeeded()` passes the element's\n   * effective zoom into `ImageResource::GetNaturalDimensions()`. The renderer\n   * multiplies `imageIntrinsic` by this value only for concrete object-fit\n   * geometry; the source SVG coordinate system remains unzoomed. Older\n   * serialized trees default to 1.\n   */\n  imageEffectiveZoom?: number;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 445
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2364"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "7a9415a470ccae08a05f1a16bb75bf05"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2cee1fe8b0c3e589d11a46a85bb5bdf5e6798080",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

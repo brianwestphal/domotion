@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4fqodwqrkmx5dn",
+          "message": {
+            "text": "DM-2458 static retirement gate: rejects the former stock palette/helper symbols, sampled native-control literals, and production platform/user-agent/fixture routing; verifies the terminal emitter ordering; and exercises 24 materialized/authoritative-empty/missing/unknown/structural/non-control route rows. This is the mutation/static proof that deleted fallback ownership cannot silently return.",
+            "markdown": "DM-2458 static retirement gate: rejects the former stock palette/helper symbols, sampled native-control literals, and production platform/user-agent/fixture routing; verifies the terminal emitter ordering; and exercises 24 materialized/authoritative-empty/missing/unknown/structural/non-control route rows. This is the mutation/static proof that deleted fallback ownership cannot silently return."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/native-control-fallback-gate.ts"
+                },
+                "region": {
+                  "startLine": 25,
+                  "endLine": 110,
+                  "snippet": {
+                    "text": "const BANNED_SAMPLED_TOKENS = [\n  \"STOCK_LIGHT\", \"STOCK_DARK\", \"stockPalette\", \"unfilledTrackColor\",\n  \"resolveAccent\", \"ACCENT_BLUE\", \"TRACK_BG\", \"TRACK_FG\", \"METER_GREEN\",\n  \"METER_YELLOW\", \"METER_RED\", \"DISABLED_BORDER\", \"renderDatePicker\",\n  \"renderCalendarIcon\", \"renderClockIcon\", \"renderNumberInput\",\n  \"renderSearchInput\", \"renderCustomCheckboxOrSwitch\",\n] as const;\n\nexport function auditNativeControlFallbackSources(\n  formControlsSource: string,\n  emitterSource: string,\n): string[] {\n  const errors: string[] = [];\n  for (const token of BANNED_SAMPLED_TOKENS) {\n    if (formControlsSource.includes(token)) errors.push(`sampled native fallback token remains: ${token}`);\n  }\n  const forbiddenPlatformOrFixtureChecks = [\n    /process\\.platform/,\n    /navigator\\.(?:platform|userAgent)/,\n    /data-domotion-anim/,\n    /fixture(?:Name|Path|Id)/i,\n  ];\n  for (const pattern of forbiddenPlatformOrFixtureChecks) {\n    if (pattern.test(formControlsSource)) errors.push(`platform/fixture routing check remains: ${pattern.source}`);\n  }\n  if (!formControlsSource.includes(\"formControlRenderRoute\")) {\n    errors.push(\"form-control route classifier missing\");\n  }\n  if (!formControlsSource.includes(\"required Chromium native-control surface unavailable\")) {\n    errors.push(\"missing-raster fail-closed warning missing\");\n  }\n  const nativeRecord = emitterSource.indexOf(\"const nativeControlRaster = el.nativeControlRaster\");\n  const terminalGuard = emitterSource.indexOf(\"if (nativeControlRaster != null)\", nativeRecord);\n  const structuralDispatch = emitterSource.indexOf(\"renderFormControl(el\", terminalGuard);\n  if (nativeRecord < 0 || terminalGuard < 0 || structuralDispatch < 0\n      || !(nativeRecord < terminalGuard && terminalGuard < structuralDispatch)) {\n    errors.push(\"native-control raster must terminate emission before renderFormControl\");\n  }\n  return errors;\n}\n\ninterface RouteRow {\n  name: string;\n  tag: CapturedElement[\"tag\"];\n  inputType?: string;\n  appearance?: string;\n  raster?: \"materialized\" | \"empty\" | \"missing\";\n  expected: FormControlRenderRoute;\n}\n\nexport const FORM_CONTROL_ROUTE_ROWS: RouteRow[] = [\n  ...[\n    [\"checkbox\", \"input\", \"checkbox\"],\n    [\"radio\", \"input\", \"radio\"],\n    [\"range-horizontal\", \"input\", \"slider-horizontal\"],\n    [\"range-vertical\", \"input\", \"slider-vertical\"],\n    [\"progress\", \"progress\", \"progress-bar\"],\n    [\"meter\", \"meter\", \"meter\"],\n    [\"file-button-host\", \"input\", \"none\"],\n    [\"date-native\", \"input\", \"textfield\"],\n    [\"select-native\", \"select\", \"menulist\"],\n  ].map(([name, tag, appearance]): RouteRow => ({\n    name: `${name}-materialized`, tag: tag as CapturedElement[\"tag\"],\n    inputType: tag === \"input\" ? name.split(\"-\")[0] : undefined,\n    appearance, raster: \"materialized\", expected: \"native-raster\",\n  })),\n  ...[\n    [\"checkbox\", \"input\", \"checkbox\"],\n    [\"radio\", \"input\", \"radio\"],\n    [\"range\", \"input\", \"slider-horizontal\"],\n    [\"progress\", \"progress\", \"progress-bar\"],\n    [\"meter\", \"meter\", \"meter\"],\n    [\"date\", \"input\", \"textfield\"],\n    [\"select\", \"select\", \"menulist\"],\n  ].map(([name, tag, appearance]): RouteRow => ({\n    name: `${name}-missing`, tag: tag as CapturedElement[\"tag\"],\n    inputType: tag === \"input\" ? name : undefined,\n    appearance, raster: \"missing\", expected: \"missing-native-raster\",\n  })),\n  { name: \"unknown-old-tree\", tag: \"input\", inputType: \"checkbox\", expected: \"missing-native-raster\" },\n  { name: \"author-none\", tag: \"input\", inputType: \"range\", appearance: \"none\", expected: \"structural\" },\n  { name: \"author-base\", tag: \"input\", inputType: \"checkbox\", appearance: \"base\", expected: \"structural\" },\n  { name: \"author-base-select\", tag: \"select\", appearance: \"base-select\", expected: \"structural\" },\n  { name: \"author-menulist-button\", tag: \"select\", appearance: \"menulist-button\", expected: \"structural\" },\n  { name: \"author-listbox\", tag: \"select\", appearance: \"listbox\", expected: \"structural\" },\n];"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/native-control-fallback-gate.test.ts"
+                },
+                "region": {
+                  "startLine": 14
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/form-controls.ts"
+                },
+                "region": {
+                  "startLine": 207
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2458"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "d18c17ef521d2425709805487b00d22e"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2cee1fe8b0c3e589d11a46a85bb5bdf5e6798080",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

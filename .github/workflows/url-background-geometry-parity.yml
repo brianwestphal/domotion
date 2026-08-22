@@ -1,0 +1,91 @@
+name: URL background geometry parity
+
+# Every runner asks its own Chromium and generated SVG for the same decoded
+# marker geometry. Reports and lossless surfaces are platform-local; no shared
+# screenshot baseline or cross-platform tolerance participates.
+on:
+  pull_request:
+    paths:
+      - "src/capture/background-image-sizing.ts"
+      - "src/capture/script/walker/background-attachment.ts"
+      - "src/capture/script/walker/borders-backgrounds.ts"
+      - "src/capture/script/walker/fragmentation.ts"
+      - "src/capture/types.ts"
+      - "src/render/background-attachment.ts"
+      - "src/render/image-pattern.ts"
+      - "src/render/element-tree-to-svg.ts"
+      - "tools/url-background-geometry-audit.ts"
+      - "tests/url-background-geometry-gate.test.ts"
+      - "tests/background-image-geometry.e2e.test.ts"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/url-background-geometry-parity.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/capture/background-image-sizing.ts"
+      - "src/capture/script/walker/background-attachment.ts"
+      - "src/capture/script/walker/borders-backgrounds.ts"
+      - "src/capture/script/walker/fragmentation.ts"
+      - "src/capture/types.ts"
+      - "src/render/background-attachment.ts"
+      - "src/render/image-pattern.ts"
+      - "src/render/element-tree-to-svg.ts"
+      - "tools/url-background-geometry-audit.ts"
+      - "tests/url-background-geometry-gate.test.ts"
+      - "tests/background-image-geometry.e2e.test.ts"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/url-background-geometry-parity.yml"
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "22.21.0"
+
+jobs:
+  parity:
+    name: ${{ matrix.label }} URL background geometry
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            label: macOS
+          - os: ubuntu-latest
+            label: Linux
+          - os: windows-latest
+            label: Windows
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium
+      - name: Reject warning, route, palette, pattern, and geometry mutations
+        run: npx vitest run tests/url-background-geometry-gate.test.ts
+      - name: Validate focused capture and renderer ownership
+        run: npx vitest run --config vitest.e2e.config.ts tests/background-image-geometry.e2e.test.ts
+      - name: Create platform evidence directory
+        run: node -e "require('node:fs').mkdirSync('tests/output/url-background/${{ runner.os }}',{recursive:true})"
+      - name: Record immutable runner image identity
+        run: node scripts/record-runner-image.mjs tests/output/url-background/${{ runner.os }}/runner-image.txt
+      - name: Run hard DPR 1/2 Chromium-versus-SVG gate
+        run: >-
+          npm run background:url-geometry-audit --
+          --dpr 1,2
+          --json tests/output/url-background/${{ runner.os }}/report.json
+          --artifacts tests/output/url-background/${{ runner.os }}/artifacts
+      - name: Upload fingerprinted report and lossless row surfaces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: url-background-geometry-${{ runner.os }}
+          path: tests/output/url-background/${{ runner.os }}/
+          if-no-files-found: error
+          retention-days: 30

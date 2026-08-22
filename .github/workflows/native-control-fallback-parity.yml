@@ -1,0 +1,81 @@
+name: Native-control sampled-fallback retirement
+
+on:
+  pull_request:
+    paths:
+      - "src/capture/effective-appearance.ts"
+      - "src/capture/native-control-raster.ts"
+      - "src/capture/native-control-decoration-raster.ts"
+      - "src/capture/pseudo-fragment-cdp.ts"
+      - "src/render/form-controls.ts"
+      - "src/render/element-tree-to-svg.ts"
+      - "src/render/form-controls.test.ts"
+      - "tests/native-control-fallback-gate.test.ts"
+      - "tests/native-control-fallback-activation.e2e.test.ts"
+      - "tools/native-control-fallback-gate.ts"
+      - "tools/native-control-platform-fingerprint.ts"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/native-control-fallback-parity.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/capture/effective-appearance.ts"
+      - "src/capture/native-control-raster.ts"
+      - "src/capture/native-control-decoration-raster.ts"
+      - "src/capture/pseudo-fragment-cdp.ts"
+      - "src/render/form-controls.ts"
+      - "src/render/element-tree-to-svg.ts"
+      - "src/render/form-controls.test.ts"
+      - "tests/native-control-fallback-gate.test.ts"
+      - "tests/native-control-fallback-activation.e2e.test.ts"
+      - "tools/native-control-fallback-gate.ts"
+      - "tools/native-control-platform-fingerprint.ts"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/native-control-fallback-parity.yml"
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "22.21.0"
+
+jobs:
+  parity:
+    name: ${{ matrix.label }} source-owned form controls
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            label: macOS
+          - os: ubuntu-latest
+            label: Linux
+          - os: windows-latest
+            label: Windows
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium
+      - name: Record the exact native producer fingerprint
+        run: node --import tsx tools/native-control-platform-fingerprint.ts --json tests/output/native-control-fallback/fingerprint.json
+      - name: Reject sampled constants, route drift, and platform/fixture switches
+        run: npm run forms:native-fallback-gate
+      - name: Run focused static and mutation coverage
+        run: npx vitest run src/render/form-controls.test.ts tests/native-control-fallback-gate.test.ts src/capture/effective-appearance.test.ts src/capture/native-control-raster.test.ts src/capture/native-control-decoration.test.ts src/render/native-control-decoration.test.ts
+      - name: Run native, split, and structural activation matrices
+        run: npm run forms:native-fallback-browser
+      - name: Upload immutable producer identity
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-control-fallback-${{ runner.os }}
+          path: tests/output/native-control-fallback/fingerprint.json
+          if-no-files-found: error

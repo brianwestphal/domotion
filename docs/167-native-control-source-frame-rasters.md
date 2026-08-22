@@ -118,3 +118,9 @@ classification is now shipped in [doc 170](170-blink-effective-appearance-routin
 native/closed-shadow subcontrol splitting is shipped separately in
 [doc 171](171-closed-shadow-control-decorations.md). Whole-host and partial
 surfaces intentionally retain distinct paint phases and failure records.
+
+DM-2458 subsequently made this failure contract irreversible in the renderer:
+the sampled palettes, calibrated constants, and native-default geometry
+branches were deleted, and a static/mutation gate now enumerates every
+`renderFormControl` entry path. See
+[doc 182](182-native-control-fallback-retirement.md).

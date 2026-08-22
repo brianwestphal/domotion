@@ -78,6 +78,15 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 - [x] **showcase-cards**: Card list with badges, buttons, metadata
 - [x] **showcase-forms**: Publish form with labels, inputs, pre block, button
 
+### Composed Parity Integration Tests
+- [x] **composed-multilingual-flex-grid**: Platform fallback and bidi isolation inside flex/grid messaging UI, with neutral-wrapper and node-split relations
+- [x] **composed-responsive-fragmented-controls**: Native controls inside responsive multicol layout with equivalent grid syntax
+- [x] **composed-gradient-mask-clip-stacking**: Gradients, masks, and clips under explicit stacking ownership and reversed DOM order
+- [x] **composed-svg-effects-translation**: Inline SVG filter/clip/marker effects under translation covariance
+- [x] **composed-zoom-transform-scale**: Effective zoom, nested transforms, and scale-normalized geometry
+- [x] **composed-same-origin-iframe**: Native same-origin recursion containing fallback, bidi, gradient, mask, and clip decisions
+- [x] **composed-dynamic-replaced-freeze**: Transformed canvas pixels frozen at capture under an independently stacked vector overlay
+
 ## Testing Approach
 
 Tests are defined in `tests/features.ts` (26 feature tests) and `tests/showcase.ts` (3 integration tests). Both use the shared runner in `tests/runner.ts`.

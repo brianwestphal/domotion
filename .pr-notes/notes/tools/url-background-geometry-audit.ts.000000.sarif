@@ -5,7 +5,7 @@
     {
       "tool": {
         "driver": {
-          "name": "Codex Hot Sheet",
+          "name": "Codex Max",
           "rules": [
             {
               "id": "review-note",
@@ -23,10 +23,10 @@
           "ruleIndex": 0,
           "kind": "informational",
           "level": "none",
-          "guid": "mt3kb98yr5t6i0dr",
+          "guid": "mt4ej2wosx03awzu",
           "message": {
-            "text": "The 21-row live Chromium discriminator is green without accepting the defects as parity. The final run reported 21/21: all six source-equivalent controls had zero label mismatch and zero marker-bound delta, while every expected current gap crossed either the 4% label threshold or the two-device-pixel bound threshold; auto-ratio was 69.16%, local scroll 93.94%, transformed fixed 85.75%, zoomed auto 78.15%, and both inline and multicol sliced fragments were 100%. The separate one-device-pixel equivalence bound prevents canvas-area dilution.",
-            "markdown": "The 21-row live Chromium discriminator is green without accepting the defects as parity. The final run reported 21/21: all six source-equivalent controls had zero label mismatch and zero marker-bound delta, while every expected current gap crossed either the 4% label threshold or the two-device-pixel bound threshold; auto-ratio was 69.16%, local scroll 93.94%, transformed fixed 85.75%, zoomed auto 78.15%, and both inline and multicol sliced fragments were 100%. The separate one-device-pixel equivalence bound prevents canvas-area dilution."
+            "text": "The release row has no observational success branch: complete source-equivalent geometry, independent ink bounds, every active palette color, exact finite pattern cardinality, zero warnings, and the held-out slice mutation are conjunctive blockers. The pure mutation test proves each former escape hatch independently turns the adjudicator red.",
+            "markdown": "The release row has no observational success branch: complete source-equivalent geometry, independent ink bounds, every active palette color, exact finite pattern cardinality, zero warnings, and the held-out slice mutation are conjunctive blockers. The pure mutation test proves each former escape hatch independently turns the adjudicator red."
           },
           "locations": [
             {
@@ -35,10 +35,10 @@
                   "uri": "tools/url-background-geometry-audit.ts"
                 },
                 "region": {
-                  "startLine": 145,
-                  "endLine": 290,
+                  "startLine": 718,
+                  "endLine": 754,
                   "snippet": {
-                    "text": "const CASES: AuditCase[] = [\n  {\n    id: \"explicit-size-repeat-control\",\n    axis: \"explicit-size/repeat positive control\",\n    expectedRoute: \"source-equivalent\",\n    targetCss: \"background-size:32px 20px;background-position:0 0;background-repeat:repeat\",\n  },\n  {\n    id: \"intrinsic-auto-auto-control\",\n    axis: \"intrinsic dimensions + ratio\",\n    expectedRoute: \"source-equivalent\",\n    targetCss: \"background-size:auto auto;background-position:7px 5px;background-repeat:repeat\",\n  },\n  {\n    id: \"auto-width-from-explicit-height\",\n    axis: \"one auto dimension resolves through natural ratio\",\n    expectedRoute: \"current-gap\",\n    targetCss: \"background-size:auto 37px;background-position:11px 9px;background-repeat:no-repeat\",\n  },\n  {\n    id: \"calculated-size\",\n    axis: \"calculated length-percentage size\",\n    expectedRoute: \"current-gap\",\n    targetCss: \"background-size:calc(37% + 9px) calc(24% + 5px);background-position:13px 17px;background-repeat:no-repeat\",\n  },\n  {\n    id: \"contain-fractional-area\",\n    axis: \"contain dependent-axis integer rounding\",\n    expectedRoute: \"current-gap\",\n    targetCss: \"width:157.5px;height:93.5px;background-size:contain;background-position:43% 61%;background-repeat:no-repeat\",\n  },\n  {\n    id: \"cover-position-control\",\n    axis: \"cover + percentage position\",\n    expectedRoute: \"source-equivalent\",\n    targetCss: \"background-size:cover;background-position:37% 63%;background-repeat:no-repeat\",\n  },\n  {\n    id: \"calculated-position-control\",\n    axis: \"calculated length-percentage position\",\n    expectedRoute: \"current-gap\",\n    targetCss: \"background-size:47px 31px;background-position:calc(23% + 7px) calc(71% - 5px);background-repeat:no-repeat\",\n  },\n  {\n    id: \"round-recomputes-auto-axis\",\n    axis: \"round repeat changes orthogonal auto dimension\",\n    expectedRoute: \"current-gap\",\n    targetCss: \"width:153px;height:97px;background-size:43px auto;background-position:31% 67%;background-repeat:round no-repeat\",\n  },\n  {\n    id: \"space-multiple-tiles-control\",\n    axis: \"space repeat ignores position with two or more tiles\",\n    expectedRoute: \"current-gap\",\n    targetCss: \"width:153px;height:97px;background-size:38px 24px;background-position:29px 61px;background-repeat:space no-repeat\",\n  },\n  {\n    id: \"space-single-tile-fallback\",\n    axis: \"space repeat falls back to no-repeat\",\n    expectedRoute: \"current-gap\",\n    targetCss: \"width:91px;height:75px;background-size:54px 27px;background-position:23px 31px;background-repeat:space no-repeat\",\n  },\n  {\n    id: \"origin-clip-cross-control\",\n    axis: \"independent origin and clip reference boxes\",\n    expectedRoute: \"source-equivalent\",\n    targetCss: \"box-sizing:border-box;width:171px;height:109px;border:7px solid #202020;padding:13px 11px;background-origin:content-box;background-clip:padding-box;background-size:32px 20px;background-position:5px 7px;background-repeat:repeat\",\n  },\n  {\n    id: \"fixed-viewport-control\",\n    axis: \"fixed attachment viewport positioning area\",\n    expectedRoute: \"current-gap\",\n    targetCss: \"margin-left:17px;background-size:47px 31px;background-position:19px 23px;background-repeat:repeat;background-attachment:fixed\",\n  },\n  {\n    id: \"fixed-under-transform\",\n    axis: \"transformed ancestor converts fixed to scroll attachment\",\n    expectedRoute: \"current-gap\",\n    hostCss: \"transform:translate(0,0)\",\n    targetCss: \"margin-left:17px;background-size:47px 31px;background-position:19px 23px;background-repeat:repeat;background-attachment:fixed\",\n  },\n  {\n    id: \"local-nonzero-scroll\",\n    axis: \"local attachment uses scroll offset and scrollable paint area\",\n    expectedRoute: \"current-gap\",\n    mutation: \"scroll-local\",\n    targetContent: '<i aria-hidden=\"true\"></i>',\n    extraCss: \"#target::-webkit-scrollbar{display:none}#target>i{display:block;width:330px;height:260px}\",\n    targetCss: \"overflow:scroll;background-size:47px 31px;background-position:11px 17px;background-repeat:repeat;background-attachment:local\",\n  },\n  {\n    id: \"effective-zoom-auto-intrinsic\",\n    axis: \"effective zoom scales natural image size\",\n    expectedRoute: \"current-gap\",\n    targetCss: \"zoom:1.25;width:128px;height:80px;background-size:auto auto;background-position:7px 5px;background-repeat:repeat\",\n  },\n  {\n    id: \"affine-transform-control\",\n    axis: \"tile geometry remains in transformed local space\",\n    expectedRoute: \"current-gap\",\n    hostCss: \"transform:translate(9px,5px) rotate(3deg);transform-origin:0 0\",\n    targetCss: \"width:147px;height:91px;background-size:32px 20px;background-position:7px 5px;background-repeat:repeat\",\n  },\n  {\n    id: \"cyclic-multiple-layer-lists\",\n    axis: \"background longhand lists repeat cyclically\",\n    expectedRoute: \"current-gap\",\n    imageCss: MARKER_URLS.map((url) => `url(\"${url}\")`).join(\",\"),\n    targetCss: \"background-size:32px 20px,24px 16px;background-position:9px 7px,99px 63px;background-repeat:no-repeat\",\n  },\n  {\n    id: \"wrapped-inline-clone\",\n    axis: \"clone fragment restarts image geometry\",\n    expectedRoute: \"source-equivalent\",\n    targetTag: \"span\",\n    sceneCss: \"width:104px;line-height:31px;font:24px/31px sans-serif\",\n    targetContent: \"wide words wrap here\",\n    targetCss: \"box-decoration-break:clone;-webkit-box-decoration-break:clone;background-size:32px 20px;background-position:3px 4px;background-repeat:repeat;padding:2px 5px\",\n  },\n  {\n    id: \"wrapped-inline-slice\",\n    axis: \"slice fragment uses stitched imaginary box\",\n    expectedRoute: \"current-gap\",\n    targetTag: \"span\",\n    sceneCss: \"width:104px;line-height:31px;font:24px/31px sans-serif\",\n    targetContent: \"wide words wrap here\",\n    targetCss: \"box-decoration-break:slice;-webkit-box-decoration-break:slice;background-size:32px 20px;background-position:3px 4px;background-repeat:repeat;padding:2px 5px\",\n  },\n  {\n    id: \"multicol-block-clone\",\n    axis: \"clone block fragment restarts image geometry\",\n    expectedRoute: \"source-equivalent\",\n    sceneCss: \"padding:10px;width:220px;height:150px;column-count:2;column-gap:16px;column-fill:auto;font:12px/18px sans-serif\",\n    hostCss: \"display:contents\",\n    targetContent: \"A fragmented block crosses the first column and continues through the second column with enough words to preserve a visible background in both physical fragments.\",\n    targetCss: \"width:auto;height:auto;padding:4px;color:transparent;box-decoration-break:clone;-webkit-box-decoration-break:clone;background-size:32px 20px;background-position:3px 4px;background-repeat:repeat\",\n  },\n  {\n    id: \"multicol-block-slice\",\n    axis: \"slice block fragment uses stitched imaginary box\",\n    expectedRoute: \"current-gap\",\n    sceneCss: \"padding:10px;width:220px;height:150px;column-count:2;column-gap:16px;column-fill:auto;font:12px/18px sans-serif\",\n    hostCss: \"display:contents\",\n    targetContent: \"A fragmented block crosses the first column and continues through the second column with enough words to preserve a visible background in both physical fragments.\",\n    targetCss: \"width:auto;height:auto;padding:4px;color:transparent;box-decoration-break:slice;-webkit-box-decoration-break:slice;background-size:32px 20px;background-position:3px 4px;background-repeat:repeat\",\n  },\n];"
+                    "text": "export function adjudicateUrlBackgroundRow(row: {\n  expectedRoute: string;\n  comparison: Comparison;\n  patterns: PatternFacts[];\n  expectedPatternCount: number;\n  activePalette: string[];\n  warnings: string[];\n  restartMutation?: AuditRow[\"restartMutation\"];\n  requiresRestartMutation: boolean;\n}): string[] {\n  const blockers: string[] = [];\n  if (row.expectedRoute !== \"source-equivalent\" && row.expectedRoute !== \"source-geometry-equivalent\") {\n    blockers.push(`unsupported or observational route ${row.expectedRoute}`);\n  } else if (!comparisonMatchesRoute(row.expectedRoute, row.comparison)) {\n    blockers.push(`source comparison exceeds the ${row.expectedRoute} envelope`);\n  }\n  if (row.comparison.sourceInkBounds == null || row.comparison.generatedInkBounds == null) {\n    blockers.push(\"independent source/generated marker ink is missing\");\n  } else if (row.comparison.maxInkBoundDelta == null || row.comparison.maxInkBoundDelta > 1) {\n    blockers.push(\"independent marker ink bounds differ by more than one device pixel\");\n  }\n  for (const name of row.activePalette) {\n    if (row.comparison.sourceBounds[name] == null) blockers.push(`source palette color ${name} is missing`);\n    if (row.comparison.generatedBounds[name] == null) blockers.push(`generated palette color ${name} is missing`);\n  }\n  if (row.patterns.length !== row.expectedPatternCount) {\n    blockers.push(`expected ${row.expectedPatternCount} materialized patterns, received ${row.patterns.length}`);\n  }\n  if (!row.patterns.every(validPattern)) blockers.push(\"materialized pattern facts are missing or non-finite\");\n  if (row.warnings.length > 0) blockers.push(`capture emitted ${row.warnings.length} warning(s)`);\n  if (row.requiresRestartMutation && row.restartMutation?.discriminated !== true) {\n    blockers.push(\"slice restart mutation was not discriminated\");\n  }\n  return blockers;\n}\n\nfunction sha256(bytes: Buffer | string): string {"
                   }
                 }
               }
@@ -46,7 +46,7 @@
           ],
           "properties": {
             "tags": [
-              "test-evidence"
+              "rationale"
             ],
             "ext-ai-tool-confidence": 0.99
           },
@@ -55,56 +55,31 @@
               "id": 0,
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "docs/163-url-background-image-geometry-audit.md"
+                  "uri": "tests/url-background-geometry-gate.test.ts"
                 },
                 "region": {
-                  "startLine": 218
+                  "startLine": 44
                 }
               }
             }
           ],
-          "rank": 100,
+          "rank": 98,
           "workItemUris": [
-            "DM-2370"
+            "DM-2480"
           ],
           "partialFingerprints": {
-            "prNoteAnchor/v1": "f0a78aff08e3fa29c768895f863e5089"
+            "prNoteAnchor/v1": "caf075f5a45eb95cd77d728abfd3a9f9"
           }
-        }
-      ],
-      "versionControlProvenance": [
-        {
-          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
-          "revisionId": "19a77e763dd52dcf20dd0d2e22c4040dc3535d47",
-          "branch": "main"
-        }
-      ]
-    },
-    {
-      "tool": {
-        "driver": {
-          "name": "Codex",
-          "rules": [
-            {
-              "id": "review-note",
-              "name": "ReviewNote",
-              "shortDescription": {
-                "text": "AI-authored, line-anchored review note."
-              }
-            }
-          ]
-        }
-      },
-      "results": [
+        },
         {
           "ruleId": "review-note",
           "ruleIndex": 0,
           "kind": "informational",
           "level": "none",
-          "guid": "mt4dghd731pwty0h",
+          "guid": "mt4emfjnqnkvjr77",
           "message": {
-            "text": "The independent live-Chromium oracle passes 26/26 at DPR 1 and 26/26 at DPR 2 after suppressing unrelated atomic text surfaces. It requires a vector pattern per physical fragment and structured stitched facts; forced physical-fragment restart mutations visibly drift, while viewport-fixed rows correctly bypass the strip.",
-            "markdown": "The independent live-Chromium oracle passes 26/26 at DPR 1 and 26/26 at DPR 2 after suppressing unrelated atomic text surfaces. It requires a vector pattern per physical fragment and structured stitched facts; forced physical-fragment restart mutations visibly drift, while viewport-fixed rows correctly bypass the strip."
+            "text": "Every native producer persists the exact source PNG, generated PNG/SVG, and restart mutation pair with byte count and SHA-256. The workflow uploads those platform-local surfaces together with the Chromium, Playwright, source, OS/runner, viewport, and DPR fingerprint instead of sharing a screenshot baseline across operating systems.",
+            "markdown": "Every native producer persists the exact source PNG, generated PNG/SVG, and restart mutation pair with byte count and SHA-256. The workflow uploads those platform-local surfaces together with the Chromium, Playwright, source, OS/runner, viewport, and DPR fingerprint instead of sharing a screenshot baseline across operating systems."
           },
           "locations": [
             {
@@ -113,10 +88,63 @@
                   "uri": "tools/url-background-geometry-audit.ts"
                 },
                 "region": {
-                  "startLine": 610,
-                  "endLine": 705,
+                  "startLine": 758,
+                  "endLine": 774,
                   "snippet": {
-                    "text": "    // when every independent marker edge remains within one device pixel;\n    // the bounded label fraction covers only those differently filtered edge\n    // pixels and is not used for bitmap or unscaled positive controls.\n    return comparison.labelMismatchFraction <= MAX_GEOMETRY_LABEL_MISMATCH\n      && comparison.maxColorBoundDelta != null\n      && comparison.maxColorBoundDelta <= MAX_GEOMETRY_BOUND_DELTA;\n  }\n  return comparison.labelMismatchFraction >= MIN_GAP_LABEL_MISMATCH\n    || comparison.maxColorBoundDelta == null\n    || comparison.maxColorBoundDelta >= MIN_GAP_BOUND_DELTA;\n}\n\nexport async function runUrlBackgroundGeometryAudit(deviceScaleFactor = 1): Promise<{\n  sourceRevisions: typeof SOURCE_REVISIONS;\n  chromiumVersion: string;\n  playwrightVersion: string;\n  platform: NodeJS.Platform;\n  architecture: string;\n  deviceScaleFactor: number;\n  thresholds: Record<string, number>;\n  rows: AuditRow[];\n  controls: Record<string, boolean>;\n  verdict: string;\n}> {\n  process.env.DOMOTION_HELPER_NO_SERVE = \"1\";\n  process.env.DOMOTION_GENERIC_PROBE = \"0\";\n  const [{ captureElementTreeWithWarnings }, { elementTreeToSvg }] = await Promise.all([\n    import(\"../src/capture/index.js\"),\n    import(\"../src/render/element-tree-to-svg.js\"),\n  ]);\n  const require = createRequire(import.meta.url);\n  const playwrightVersion = (require(\"playwright/package.json\") as { version: string }).version;\n  const browser = await chromium.launch({ headless: true });\n  try {\n    const page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor });\n    const generatedPage = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor });\n    const rows: AuditRow[] = [];\n    for (const test of CASES) {\n      await page.setContent(htmlFor(test), { waitUntil: \"load\" });\n      await mutate(page, test.mutation);\n      const source = await readPaintFacts(page);\n      const sourcePng = await page.screenshot({ type: \"png\" });\n      const { tree, warnings } = await captureElementTreeWithWarnings(page, \"#scene\", { x: 0, y: 0, ...VIEWPORT });\n      const captured = findCapturedTarget(tree);\n      // This oracle adjudicates the vector URL-background route itself. A\n      // source-owned text fallback may atomically raster the same fragmented\n      // element when unrelated protocol text facts are unavailable; suppress\n      // that outer surface here so it cannot make a missing vector pattern\n      // appear pixel-perfect by replaying Chromium's source screenshot.\n      suppressAtomicRasterSurfaces(tree);\n      const svg = elementTreeToSvg(tree, VIEWPORT.width, VIEWPORT.height, { hiDPIFactor: deviceScaleFactor });\n      await generatedPage.setContent(\n        `<!doctype html><style>html,body{margin:0;width:${VIEWPORT.width}px;height:${VIEWPORT.height}px;background:#fff;overflow:hidden}svg{display:block}</style>${svg}`,\n        { waitUntil: \"load\" },\n      );\n      await generatedPage.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));\n      const generatedPng = await generatedPage.screenshot({ type: \"png\" });\n      const comparison = await comparePaint(\n        sourcePng,\n        generatedPng,\n        test.imageCss == null ? [1, 2, 3, 4] : [5, 6, 7, 8],\n      );\n      let restartMutation: AuditRow[\"restartMutation\"];\n      const fixedToViewport = source.backgroundAttachment === \"fixed\"\n        && captured?.styles.backgroundAttachmentGeometry?.fixedToViewport === true;\n      if (source.boxDecorationBreak === \"slice\" && !fixedToViewport\n          && captured?.inlineFragments != null) {\n        const savedGeometry = captured.inlineFragments.map((fragment) => ({\n          area: fragment.backgroundPositioningArea,\n          offset: fragment.backgroundOffsetInStitchedBox,\n        }));\n        for (const fragment of captured.inlineFragments) {\n          // Held-out negative: replace Blink's stitched imaginary box with\n          // the clone route's physical fragment box. A real continuation row\n          // must visibly reject this restart without relying on source labels.\n          fragment.backgroundPositioningArea = {\n            x: fragment.x,\n            y: fragment.y,\n            width: fragment.width,\n            height: fragment.height,\n          };\n          fragment.backgroundOffsetInStitchedBox = { x: 0, y: 0 };\n        }\n        const mutatedSvg = elementTreeToSvg(tree, VIEWPORT.width, VIEWPORT.height, { hiDPIFactor: deviceScaleFactor });\n        await generatedPage.setContent(\n          `<!doctype html><style>html,body{margin:0;width:${VIEWPORT.width}px;height:${VIEWPORT.height}px;background:#fff;overflow:hidden}svg{display:block}</style>${mutatedSvg}`,\n          { waitUntil: \"load\" },\n        );\n        await generatedPage.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));\n        const mutatedPng = await generatedPage.screenshot({ type: \"png\" });\n        const mutatedComparison = await comparePaint(\n          sourcePng,\n          mutatedPng,\n          test.imageCss == null ? [1, 2, 3, 4] : [5, 6, 7, 8],\n        );\n        restartMutation = {"
+                    "text": "function persistArtifact(\n  root: string | undefined,\n  relativePath: string,\n  role: EvidenceArtifact[\"role\"],\n  contents: Buffer | string,\n): EvidenceArtifact | null {\n  if (root == null) return null;\n  const path = join(root, relativePath);\n  mkdirSync(dirname(path), { recursive: true });\n  writeFileSync(path, contents);\n  return {\n    role,\n    path: relativePath.replaceAll(\"\\\\\", \"/\"),\n    bytes: Buffer.byteLength(contents),\n    sha256: sha256(contents),\n  };\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/url-background-geometry-parity.yml"
+                },
+                "region": {
+                  "startLine": 69
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2480"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "7126dede4ac95beb9d98e92e4a014652"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4emukoo37b4joz",
+          "message": {
+            "text": "The producer requires the complete DPR 1/2 Cartesian set and a supported native platform before it can return pass. The focused native combined run covered 26/26 rows at DPR1 and 26/26 at DPR2 with all 14 controls true, zero warnings, zero blockers, complete pattern/palette evidence, and <=1-device-pixel independent ink bounds; the workflow repeats both DPRs on macOS, Linux, and Windows.",
+            "markdown": "The producer requires the complete DPR 1/2 Cartesian set and a supported native platform before it can return pass. The focused native combined run covered 26/26 rows at DPR1 and 26/26 at DPR2 with all 14 controls true, zero warnings, zero blockers, complete pattern/palette evidence, and <=1-device-pixel independent ink bounds; the workflow repeats both DPRs on macOS, Linux, and Windows."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/url-background-geometry-audit.ts"
+                },
+                "region": {
+                  "startLine": 1003,
+                  "endLine": 1040,
+                  "snippet": {
+                    "text": "export async function runUrlBackgroundGeometryGate(\n  deviceScaleFactors: number[] = [...REQUIRED_DEVICE_SCALE_FACTORS],\n  artifactDir?: string,\n): Promise<UrlBackgroundGateReport> {\n  const uniqueDprs = [...new Set(deviceScaleFactors)].sort((a, b) => a - b);\n  const runs: UrlBackgroundAuditReport[] = [];\n  for (const dpr of uniqueDprs) runs.push(await runUrlBackgroundGeometryAudit(dpr, artifactDir));\n  const blockers: string[] = [];\n  if (JSON.stringify(uniqueDprs) !== JSON.stringify(REQUIRED_DEVICE_SCALE_FACTORS)) {\n    blockers.push(`required DPR Cartesian rows are 1,2; received ${uniqueDprs.join(\",\") || \"none\"}`);\n  }\n  if (!(REQUIRED_PLATFORMS as readonly string[]).includes(process.platform)) {\n    blockers.push(`unsupported producer platform ${process.platform}`);\n  }\n  for (const run of runs) {\n    if (run.verdict !== \"source-equivalent\") blockers.push(`${run.platform}@${run.deviceScaleFactor}x: ${run.verdict}`);\n    if (artifactDir != null) {\n      for (const row of run.rows) {\n        const expectedArtifacts = row.restartMutation == null ? 3 : 5;\n        if (row.artifacts.length !== expectedArtifacts) {\n          blockers.push(`${run.platform}@${run.deviceScaleFactor}x/${row.id}: expected ${expectedArtifacts} artifacts, received ${row.artifacts.length}`);\n        }\n      }\n    }\n  }\n  return {\n    schemaVersion: 1,\n    gate: \"url-background-geometry\",\n    requiredPlatforms: REQUIRED_PLATFORMS,\n    requiredDeviceScaleFactors: REQUIRED_DEVICE_SCALE_FACTORS,\n    sourceRevisions: SOURCE_REVISIONS,\n    runs,\n    blockers,\n    verdict: blockers.length === 0 ? \"pass\" : \"fail\",\n  };\n}\n\nasync function main(): Promise<number> {"
                   }
                 }
               }
@@ -136,35 +164,24 @@
                   "uri": "tests/background-image-geometry.e2e.test.ts"
                 },
                 "region": {
-                  "startLine": 1
-                }
-              }
-            },
-            {
-              "id": 1,
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "src/render/element-tree-to-svg.ts"
-                },
-                "region": {
-                  "startLine": 3816
+                  "startLine": 5
                 }
               }
             }
           ],
-          "rank": 96,
+          "rank": 94,
           "workItemUris": [
-            "DM-2365"
+            "DM-2480"
           ],
           "partialFingerprints": {
-            "prNoteAnchor/v1": "bf9b427529257bb050b82264e6424935"
+            "prNoteAnchor/v1": "24b5ba36d3cb8f0e0945ea82104181b7"
           }
         }
       ],
       "versionControlProvenance": [
         {
           "repositoryUri": "git@github.com:brianwestphal/domotion.git",
-          "revisionId": "1504b92ef04ae10fb8edce48194fe46a201932f0",
+          "revisionId": "2cee1fe8b0c3e589d11a46a85bb5bdf5e6798080",
           "branch": "main"
         }
       ]

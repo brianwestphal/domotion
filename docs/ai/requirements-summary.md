@@ -169,6 +169,18 @@ they describe (see `CLAUDE.md` "Documentation"):
   outline overflow, viewport clipping, scroll, fractional zoom/DPR, and forced
   screenshot failure.
 
+- **Sampled native-control fallback retirement (DM-2458, doc 182) — Shipped.**
+  `formControlRenderRoute` makes Blink EffectiveAppearance the terminal owner:
+  complete native appearances consume a materialized Chromium surface;
+  required-raster absence and unknown old captures warn and emit nothing; only
+  captured structural `none`/`base`/`base-select`/`listbox`/
+  `menulist-button` paint reaches the remaining helpers. The macOS light/dark
+  palettes, accent luminance threshold, and all sampled native checkbox/radio/
+  range/progress/meter/file/date/select/spin/search/details branches are
+  deleted. A 24-row static/mutation gate and fingerprinted macOS/Linux/Windows
+  browser matrix cover state, accent, scheme/forced colors, zoom/DPR, direction,
+  whole-host/partial/structural ownership, and missing-source failure.
+
 - **Blink EffectiveAppearance ownership (DM-2453, doc 170) — Shipped.**
   Native-control routing now uses the pinned LayoutTheme auto mapping and
   author-style switch instead of host tags or a CSSOM declaration scan.
@@ -1583,6 +1595,21 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   [176](../176-source-owned-pseudo-fragment-capture.md), and
   [178](../178-direct-pseudo-fragment-rendering.md).
 
+<!-- DM-2364 -->
+- Replaced/native ownership changes are gated as paired live-Chromium facts,
+  not inferred from a static visual fixture. The 42-row-per-DPR matrix covers
+  all object-fit modes and arbitrary positions, intrinsic and effective-zoom
+  changes, loaded/loading/failed image fallback, independently changing canvas
+  and video source frames, native/author/split controls, appearance none/base,
+  accent/color-scheme/axis/zoom state, and exact generated pseudo boxes.
+  `<img>` capture retains unzoomed `imageIntrinsic` plus
+  `imageEffectiveZoom`, matching Blink's `GetNaturalDimensions(EffectiveZoom)`;
+  old trees default to one. A strict pure adjudicator and native
+  macOS/Linux/Windows DPR-1/2 workflow fail closed on missing pairs/facts,
+  partial capture, warnings, inert state changes, invalid fingerprints, or
+  more than one device pixel of geometry drift. See [doc 133](../133-replaced-geometry-oracle.md)
+  and [184](../184-replaced-ownership-transition-matrix.md).
+
 - Dotted-circle routing is owned by the selected face's HarfBuzz result, with
   Chromium capture ink as the covered-glyph control and pinned ICU properties
   supplying script/category inputs. Unicode block floors, plane gates, and
@@ -1776,7 +1803,25 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   through it, viewport-fixed layers ignore it, and clone restarts. The strict
   26-row evidence and exact contract are in
   [doc 163](../163-url-background-image-geometry-audit.md). DPR 1 and DPR 2
-  pass 26/26 with restart mutations. DM-2480 owns the all-platform DPR gate.
+  pass 26/26 with restart mutations. A hard native macOS/Linux/Windows
+  workflow now requires complete warning-free palette, pattern, independent
+  ink-bound, and mutation evidence at both DPRs and preserves lossless
+  fingerprinted artifacts. There is no observational/current-gap success
+  route.
+
+<!-- DM-2366 -->
+- `background-clip:text` URL image and non-transparent color semantics are
+  **implemented without rasterizing text**. Pinned Blink paints color only in
+  the bottom FillLayer, paints that layer's image above it, applies one DstIn
+  alpha text mask (including author stroke geometry), and paints foreground
+  text later. Domotion now follows that order for color-only, selected URL,
+  multiple-layer, transparent/opaque fill, stroke, descendant-owner, and
+  sliced/cloned fragmented-inline states. URL size/position/repeat/origin/
+  attachment facts stay capture-owned, slice uses the stitched imaginary box,
+  and clone restarts. The independent live vector-only oracle is green at DPR
+  1/2 with zero structural errors and a constant four-device-pixel edge bound;
+  source links and evidence are in
+  [doc 181](../181-background-clip-text-url-color-semantics.md).
 
 <!-- DM-2368 -->
 - Native scrollbar **capture is source-owned; author-custom paint is vector and
@@ -1808,3 +1853,6 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   stable-CDP limits, DM-2482 custom-vector paint, and DM-2483 native strip
   rasters are in [doc 169](../169-authoritative-scrollbar-capture.md). DM-2484
   owns the dependent three-platform release gate.
+
+<!-- Composed parity corpus -->
+- The composed integration corpus is **shipped** ([doc 183](../183-composed-metamorphic-parity-corpus.md)). Seven repository visual rows and one pinned html-test page cross multilingual fallback/bidi with flex/grid, controls with responsive fragmentation, gradient/mask/clip paint with stacking, SVG effects, zoom/transforms, same-origin iframe recursion, and dynamic canvas pixels frozen at capture. A live Chromium E2E leg proves the neutral-wrapper, equivalent-syntax, node-split, translation, scale, and DOM-order relations actually move or remain invariant as declared; the visual leg launches a fresh process per page so global cache history cannot become a hidden fixture-order axis. A hard native macOS/Linux/Windows workflow builds each platform resolver helper, records the producer fingerprint, and uploads source/SVG/raster/diff evidence. The primary macOS calibration is exact on all seven rows (zero regions and zero changed coverage).

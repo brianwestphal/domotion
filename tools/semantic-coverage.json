@@ -707,11 +707,10 @@
         "direct URL -> DPR/type-selected image-set candidate",
         "loaded dimensions -> delayed/failed/unreadable natural sizing",
         "bitmap/SVG decoded kind -> explicit unknown fail-closed route",
-        "clone fragment -> sliced stitched fragment"
-      ],
-      "uncoveredStates": [
+        "clone fragment -> sliced stitched fragment",
         "darwin DPR evidence -> all-platform release evidence"
       ],
+      "uncoveredStates": [],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/css/css_image_set_value.cc",
         "external/chromium/third_party/blink/renderer/core/style/style_image_set.cc",
@@ -737,9 +736,11 @@
       ],
       "oracles": [
         "tools/url-background-geometry-audit.ts",
+        "tests/url-background-geometry-gate.test.ts",
         "tests/background-image-geometry.e2e.test.ts",
         "tests/background-image-sizing.e2e.test.ts",
-        "tests/background-attachment-geometry.e2e.test.ts"
+        "tests/background-attachment-geometry.e2e.test.ts",
+        ".github/workflows/url-background-geometry-parity.yml"
       ],
       "metamorphicTests": [
         "src/capture/background-image-sizing.test.ts",
@@ -750,8 +751,82 @@
       "visualFixtures": [
         "tests/features.ts#url-background-fragment-slice-continuation"
       ],
+      "coverage": "exact",
+      "boundary": "",
+      "featureIds": [
+        "render.tree-to-svg"
+      ],
+      "verifiedPlatforms": [
+        "darwin",
+        "linux",
+        "win32"
+      ]
+    },
+    {
+      "id": "paint.background-clip-text",
+      "parityAreas": [
+        "background-clip-text-paint",
+        "url-background-image-geometry"
+      ],
+      "subjects": [
+        "background-clip:text",
+        "background-image URL",
+        "background-color",
+        "background layer paint order",
+        "text fill and stroke",
+        "fragmented inline background",
+        "descendant text mask"
+      ],
+      "states": [
+        "gradient -> selected URL image",
+        "transparent color -> non-transparent bottom-layer color",
+        "single layer -> multiple layers",
+        "transparent text fill -> opaque/semitransparent foreground",
+        "fill-only mask -> author-stroked alpha mask",
+        "direct text -> descendant text",
+        "single box -> sliced/cloned fragments",
+        "DPR 1 -> DPR 2",
+        "darwin local evidence -> linux/win32 native evidence"
+      ],
+      "exactStates": [
+        "gradient -> selected URL image",
+        "transparent color -> non-transparent bottom-layer color",
+        "single layer -> multiple layers",
+        "transparent text fill -> opaque/semitransparent foreground",
+        "fill-only mask -> author-stroked alpha mask",
+        "direct text -> descendant text",
+        "single box -> sliced/cloned fragments",
+        "DPR 1 -> DPR 2"
+      ],
+      "uncoveredStates": [
+        "darwin local evidence -> linux/win32 native evidence"
+      ],
+      "upstreamSources": [
+        "external/chromium/third_party/blink/renderer/core/paint/box_painter_base.cc",
+        "external/chromium/third_party/blink/renderer/core/paint/box_fragment_painter.cc",
+        "external/chromium/third_party/blink/renderer/core/paint/text_painter.cc",
+        "external/skia/include/core/SkBlendMode.h"
+      ],
+      "productionOwners": [
+        "src/capture/background-image-sizing.ts",
+        "src/capture/script/walker/fragmentation.ts",
+        "src/render/image-pattern.ts",
+        "src/render/element-tree-to-svg.ts"
+      ],
+      "oracles": [
+        "tools/background-clip-text-oracle.ts",
+        "tests/background-clip-text-oracle.e2e.test.ts"
+      ],
+      "metamorphicTests": [
+        "src/render/background-clip-text.test.ts",
+        "src/render/text-stroke-synthesis.test.ts"
+      ],
+      "visualFixtures": [
+        "tests/features.ts#background-clip-text-url-color-stack",
+        "tests/features.ts#background-clip-text-url-inherited-stroke"
+      ],
       "coverage": "partial",
-      "boundary": "DM-2477 source-derives candidate selection, decoded image kind, and independent natural-sizing/load facts at the live DPR. DM-2478 resolves exact Blink tile size/destination/phase/spacing in the 1/64 px LayoutUnit domain and expands cyclic longhands. DM-2479 source-derives fixed/local/root positioning inputs. DM-2365 source-derives stitched slice continuation across LTR/RTL/vertical inline and multicol fragments while clone restarts. Ordinary URL backgrounds remain vector-composable; DM-2480 adds the all-platform DPR gate.",
+      "boundary": "Blink-derived production ownership and the vector-only DPR 1/2 gate are exact on the verified macOS run. A dedicated Linux/Windows run of this focused final-paint oracle remains explicit; the existing all-platform URL-geometry and text gates cover its constituent routes but not this combined color/URL glyph-mask corpus.",
       "featureIds": [
         "render.tree-to-svg"
       ],
@@ -1064,41 +1139,56 @@
         "object-fit",
         "object-position",
         "intrinsic dimensions",
+        "effective zoom",
         "image decoding",
         "transformed replaced snapshots"
       ],
       "states": [
         "fill -> contain/cover/none/scale-down",
         "center -> non-bucket position",
+        "intrinsic dimensions -> changed intrinsic dimensions",
+        "effective zoom 1 -> 1.25",
+        "horizontal LTR -> vertical RTL or fractional calc position",
         "local surface -> clipped affine or projective output",
-        "decoded -> broken",
-        "static -> dynamic frame"
+        "decoded -> loading or broken fallback",
+        "capture frame A -> capture frame B",
+        "captured frame -> live playback"
       ],
       "exactStates": [
         "fill -> contain/cover/none/scale-down",
         "center -> non-bucket position",
-        "local surface -> clipped affine or projective output"
+        "intrinsic dimensions -> changed intrinsic dimensions",
+        "effective zoom 1 -> 1.25",
+        "horizontal LTR -> vertical RTL or fractional calc position",
+        "local surface -> clipped affine or projective output",
+        "decoded -> loading or broken fallback",
+        "capture frame A -> capture frame B"
       ],
       "uncoveredStates": [
-        "decoded -> broken",
-        "static -> dynamic frame"
+        "captured frame -> live playback"
       ],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/layout",
         "external/chromium/third_party/blink/renderer/core/paint"
       ],
       "productionOwners": [
+        "src/capture/types.ts",
+        "src/capture/script/index.ts",
         "src/capture/script/walker/replaced-elements.ts",
         "src/render/element-tree-to-svg.ts",
         "src/capture/index.ts"
       ],
       "oracles": [
         "tools/replaced-geometry-oracle.ts",
+        "tools/replaced-ownership-transition-oracle.ts",
+        "tools/replaced-ownership-transition-gate.ts",
         "tools/raster-boundary-oracle.ts",
-        "tests/replaced-snapshot-transform.e2e.test.ts"
+        "tests/replaced-snapshot-transform.e2e.test.ts",
+        ".github/workflows/replaced-ownership-transitions.yml"
       ],
       "metamorphicTests": [
         "src/render/object-fit-scale-down.test.ts",
+        "tests/replaced-ownership-transition-gate.test.ts",
         "src/capture/replaced-snapshot-geometry.test.ts",
         "tests/replaced-used-size.e2e.test.ts",
         "src/capture/content-box.test.ts"
@@ -1108,7 +1198,7 @@
         "tests/features.ts#replaced-canvas-transformed-clip"
       ],
       "coverage": "partial",
-      "boundary": "Transformed clipped snapshots are source-owned through Blink content quads and one raster-to-output map (DM-2380); broken-image UA paint and live dynamic-frame progression remain outside exact coverage.",
+      "boundary": "DM-2364 source-gates object/intrinsic/zoom geometry, decode fallback, and independently changing canvas/video capture frames at DPR 1/2 on three OSes. Transformed clipped snapshots remain source-owned through Blink content quads and one raster-to-output map (DM-2380); live playback after the frozen capture frame remains outside SVG.",
       "featureIds": [
         "render.tree-to-svg"
       ],
@@ -1133,7 +1223,8 @@
         "accessibility name"
       ],
       "states": [
-        "loaded or loading image -> no broken fallback",
+        "loaded image -> no broken fallback",
+        "loading image -> non-replaced UA fallback",
         "failed resource -> collapsed or UA fallback disposition",
         "missing alternative -> empty, icon-only, or title fallback",
         "nonempty alternative -> shaped inline fallback text",
@@ -1146,7 +1237,8 @@
         "captured fallback facts -> hybrid SVG container, icon, and text emission"
       ],
       "exactStates": [
-        "loaded or loading image -> no broken fallback",
+        "loaded image -> no broken fallback",
+        "loading image -> non-replaced UA fallback",
         "failed resource -> collapsed or UA fallback disposition",
         "missing alternative -> empty, icon-only, or title fallback",
         "nonempty alternative -> shaped inline fallback text",
@@ -1242,18 +1334,18 @@
       ],
       "exactStates": [
         "UA-only pseudo -> Chromium-resolved author pseudo ownership",
-        "native stock scrollbar -> author-custom vector scrollbar"
-      ],
-      "uncoveredStates": [
         "native -> author styled",
         "light -> dark",
         "default -> accented",
+        "DPR 1 -> DPR 2",
+        "zoom 1 -> zoom 1.25",
+        "native stock scrollbar -> author-custom vector scrollbar"
+      ],
+      "uncoveredStates": [
         "no scrollbar -> classic/overlay scrollbar",
         "overlay visible -> overlay faded",
         "physical right -> RTL logical left",
         "native stock -> standard width/color or custom parts",
-        "DPR 1 -> DPR 2",
-        "zoom 1 -> zoom 1.25",
         "not resizable -> resizable"
       ],
       "upstreamSources": [
@@ -1283,6 +1375,8 @@
         "tests/native-scrollbar-release-gate.test.ts",
         "tests/native-scrollbar-parity-workflow.test.ts",
         "tools/replaced-geometry-oracle.ts",
+        "tools/replaced-ownership-transition-oracle.ts",
+        "tools/replaced-ownership-transition-gate.ts",
         "tools/raster-boundary-oracle.ts",
         "tools/native-scrollbar-ownership-audit.ts",
         "tools/native-scrollbar-release-gate.ts"
@@ -1291,6 +1385,7 @@
         "src/capture/pseudo-style-cdp.test.ts",
         "src/capture/scrollbar-capture.test.ts",
         "src/capture/native-scrollbar-raster.test.ts",
+        "tests/replaced-ownership-transition-gate.test.ts",
         "src/render/custom-scrollbar.test.ts",
         "src/render/native-scrollbar-raster.test.ts",
         "src/render/form-controls.test.ts"
@@ -1301,7 +1396,96 @@
         "external/html-test/25-scrollbar-gutter.html"
       ],
       "coverage": "partial",
-      "boundary": "Author control-pseudo activation/final cascade is Chromium-resolved (doc 158). DM-2368/doc 165 source-audits ownership; DM-2481/doc 169 captures marker-owned geometry/state and deletes the 7px synthesis. DM-2482 paints supported custom parts as ordered vector boxes and confines dynamic/unsupported effects to owner-part crops. DM-2483 losslessly materializes same-frame platform-native horizontal/vertical/corner crops, proves faded overlay absence, records DPR/SHA/platform provenance, and has an exact source-to-final-output DPR-2 oracle. DM-2484/doc 173 supplies the strict schema-v2 macOS/Linux/Windows release adjudicator; fresh Cartesian platform artifacts remain uncovered.",
+      "boundary": "Author control-pseudo activation/final cascade is Chromium-resolved (doc 158). DM-2364 adds paired native/author/split ownership plus accent, scheme, DPR, zoom, direction, and writing-mode source-frame rows on macOS/Linux/Windows. DM-2368/doc 165 source-audits scrollbar ownership; DM-2481/doc 169 captures marker-owned geometry/state and deletes the 7px synthesis. DM-2482 paints supported custom parts as ordered vector boxes and confines dynamic/unsupported effects to owner-part crops. DM-2483 losslessly materializes same-frame platform-native horizontal/vertical/corner crops. DM-2484/doc 173 retains the strict scrollbar-specific platform release adjudicator; fresh Cartesian scrollbar artifacts remain uncovered.",
+      "featureIds": [
+        "render.tree-to-svg"
+      ],
+      "verifiedPlatforms": [
+        "darwin",
+        "linux",
+        "win32"
+      ]
+    },
+    {
+      "id": "controls.sampled-native-fallback-retirement",
+      "parityAreas": [
+        "replaced-elements-controls-generated-content",
+        "raster-fallback-boundary"
+      ],
+      "subjects": [
+        "Blink EffectiveAppearance host ownership",
+        "required native-control surface failure",
+        "author-owned structural control pseudos",
+        "closed-shadow decoration split",
+        "sampled native fallback deletion"
+      ],
+      "states": [
+        "required native surface present -> terminal Chromium raster",
+        "required native surface absent -> warning and empty paint",
+        "unknown old capture -> warning and empty paint",
+        "native appearance -> none/base/base-select/listbox/menulist-button structural ownership",
+        "rest -> checked/disabled/value interaction states",
+        "default accent -> author accent",
+        "light -> dark/forced colors",
+        "DPR 1 -> DPR 2",
+        "zoom 1 -> fractional zoom",
+        "LTR -> RTL",
+        "whole host -> file/date/select partial decoration",
+        "details marker shown -> source-suppressed"
+      ],
+      "exactStates": [
+        "required native surface present -> terminal Chromium raster",
+        "required native surface absent -> warning and empty paint",
+        "unknown old capture -> warning and empty paint",
+        "native appearance -> none/base/base-select/listbox/menulist-button structural ownership",
+        "rest -> checked/disabled/value interaction states",
+        "default accent -> author accent",
+        "light -> dark/forced colors",
+        "DPR 1 -> DPR 2",
+        "zoom 1 -> fractional zoom",
+        "LTR -> RTL",
+        "whole host -> file/date/select partial decoration",
+        "details marker shown -> source-suppressed"
+      ],
+      "uncoveredStates": [],
+      "upstreamSources": [
+        "external/chromium/third_party/blink/renderer/core/layout/layout_theme.cc",
+        "external/chromium/third_party/blink/renderer/core/paint/theme_painter.cc",
+        "external/chromium/third_party/blink/renderer/core/paint/theme_painter_default.cc",
+        "external/chromium/third_party/blink/renderer/core/html/resources/html.css"
+      ],
+      "productionOwners": [
+        "src/capture/effective-appearance.ts",
+        "src/capture/effective-appearance-cdp.ts",
+        "src/capture/native-control-raster.ts",
+        "src/capture/native-control-decoration-raster.ts",
+        "src/capture/pseudo-fragment-cdp.ts",
+        "src/render/form-controls.ts",
+        "src/render/element-tree-to-svg.ts"
+      ],
+      "oracles": [
+        "tools/native-control-fallback-gate.ts",
+        "tools/native-control-platform-fingerprint.ts",
+        "tests/native-control-fallback-activation.e2e.test.ts",
+        "tests/effective-appearance.e2e.test.ts",
+        "tests/native-control-source-frame.e2e.test.ts",
+        "tests/native-control-decoration.e2e.test.ts",
+        "tests/checkable-pseudo-indicators.e2e.test.ts",
+        "tests/summary-disclosure-marker.e2e.test.ts",
+        ".github/workflows/native-control-fallback-parity.yml"
+      ],
+      "metamorphicTests": [
+        "tests/native-control-fallback-gate.test.ts",
+        "src/render/form-controls.test.ts",
+        "src/capture/effective-appearance.test.ts",
+        "src/capture/native-control-raster.test.ts",
+        "src/capture/native-control-decoration.test.ts"
+      ],
+      "visualFixtures": [
+        "tests/native-control-fallback-activation.e2e.test.ts",
+        "tests/features.ts#form-controls"
+      ],
+      "coverage": "exact",
       "featureIds": [
         "render.tree-to-svg"
       ],
@@ -1540,6 +1724,76 @@
       "coverage": "exact",
       "featureIds": [
         "capture.emoji-detect",
+        "render.tree-to-svg"
+      ],
+      "verifiedPlatforms": [
+        "darwin",
+        "linux",
+        "win32"
+      ]
+    },
+    {
+      "id": "integration.composed-metamorphic-corpus",
+      "parityAreas": [
+        "end-to-end-visual-integration"
+      ],
+      "subjects": [
+        "multilingual flex/grid layout",
+        "responsive fragmented controls",
+        "gradient/mask/clip stacking",
+        "SVG effects",
+        "zoom/transforms",
+        "same-origin iframe recursion",
+        "dynamic replaced content"
+      ],
+      "states": [
+        "direct child -> neutral wrapper",
+        "grid longhands -> equivalent shorthand",
+        "single text node -> split nodes at existing run boundaries",
+        "base geometry -> translated geometry",
+        "base geometry -> normalized scale",
+        "back-to-front DOM -> reversed DOM with explicit z-index",
+        "live canvas frame A with captured frame A -> live frame B with capture unchanged",
+        "seven sampled crossings -> exhaustive CSS Cartesian product"
+      ],
+      "exactStates": [
+        "direct child -> neutral wrapper",
+        "grid longhands -> equivalent shorthand",
+        "single text node -> split nodes at existing run boundaries",
+        "base geometry -> translated geometry",
+        "base geometry -> normalized scale",
+        "back-to-front DOM -> reversed DOM with explicit z-index",
+        "live canvas frame A with captured frame A -> live frame B with capture unchanged"
+      ],
+      "uncoveredStates": [
+        "seven sampled crossings -> exhaustive CSS Cartesian product"
+      ],
+      "upstreamSources": [
+        "external/chromium/third_party/blink/renderer/core/layout",
+        "external/chromium/third_party/blink/renderer/core/paint"
+      ],
+      "productionOwners": [
+        "src/capture/index.ts",
+        "src/render/element-tree-to-svg.ts",
+        "tests/runner.tsx"
+      ],
+      "oracles": [
+        "tests/composed-parity-corpus.e2e.test.ts",
+        ".github/workflows/composed-parity-corpus.yml"
+      ],
+      "metamorphicTests": [
+        "tests/composed-parity-corpus.test.ts",
+        "tests/composed-parity-corpus.e2e.test.ts",
+        "tests/composed-parity-workflow.test.ts"
+      ],
+      "visualFixtures": [
+        "tests/composed-parity-fixtures.ts",
+        "tests/fixtures/html-test/36-composed-metamorphic-parity.html"
+      ],
+      "coverage": "partial",
+      "boundary": "The seven deliberate multi-decision families and six named relations are live-activation checked and hard-wired to native macOS/Linux/Windows source-versus-SVG producers. They remain a high-value sample, not an exhaustive Cartesian product; a residual still requires reduction to its owning stage oracle.",
+      "featureIds": [
+        "capture.iframe-recursion",
         "render.tree-to-svg"
       ],
       "verifiedPlatforms": [

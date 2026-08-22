@@ -35,6 +35,8 @@ describe("partial native-control decoration composition", () => {
       y: 20,
       width: 180,
       height: 44,
+      fontAscent: 12,
+      fontDescent: 4,
       children: [],
       styles: BASE_STYLES,
       nativeControlDecorationRaster: {

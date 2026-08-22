@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4h9orfzmap9o3k",
+          "message": {
+            "text": "The release decision is intentionally pure and fail-closed: every row must name its source decision, carry facts, be exact, match the expected owner, stay within one device pixel, and discriminate required mutations; every declared pair and family must also be present. Focused mutation tests are 6/6 and separately kill owner swaps, partial records, 1.01px drift, warnings, missing pairs, inert states, and malformed fingerprints.",
+            "markdown": "The release decision is intentionally pure and fail-closed: every row must name its source decision, carry facts, be exact, match the expected owner, stay within one device pixel, and discriminate required mutations; every declared pair and family must also be present. Focused mutation tests are 6/6 and separately kill owner swaps, partial records, 1.01px drift, warnings, missing pairs, inert states, and malformed fingerprints."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/replaced-ownership-transition-gate.ts"
+                },
+                "region": {
+                  "startLine": 76,
+                  "endLine": 134,
+                  "snippet": {
+                    "text": "export function adjudicateReplacedOwnershipTransitions(\n  rows: readonly ReplacedOwnershipTransitionRow[],\n  fingerprint: ReplacedPlatformFingerprint,\n  requirements: ReplacedOwnershipRequirements,\n): ReplacedOwnershipAdjudication {\n  const errors = fingerprintErrors(fingerprint);\n  const ids = new Set<string>();\n  for (const row of rows) {\n    if (ids.has(row.id)) errors.push(`${row.id}: duplicate row id`);\n    ids.add(row.id);\n    if (row.expectedOwner !== row.actualOwner) {\n      errors.push(`${row.id}: expected ${row.expectedOwner}, captured ${row.actualOwner}`);\n    }\n    if (!row.exactCapture) errors.push(`${row.id}: capture was partial or inferred`);\n    if (row.source.trim() === \"\") errors.push(`${row.id}: missing source-owned rationale`);\n    if (Object.keys(row.facts).length === 0) errors.push(`${row.id}: missing captured decision facts`);\n    if (row.maxDevicePixelDelta != null && (\n      !Number.isFinite(row.maxDevicePixelDelta)\n      || row.maxDevicePixelDelta > requirements.toleranceDevicePixels\n    )) {\n      errors.push(`${row.id}: geometry delta ${row.maxDevicePixelDelta} exceeds ${requirements.toleranceDevicePixels} device px`);\n    }\n    if (row.mutationRequired === true && row.mutationDiscriminated !== true) {\n      errors.push(`${row.id}: required mutation did not change the observed source fact`);\n    }\n    for (const warning of row.unexpectedWarnings ?? []) errors.push(`${row.id}: unexpected warning ${warning}`);\n  }\n\n  for (const family of requirements.families) {\n    if (!rows.some((row) => row.family === family)) errors.push(`missing required family ${family}`);\n  }\n  for (const pairId of requirements.pairIds) {\n    const pair = rows.filter((row) => row.pairId === pairId);\n    if (pair.length < 2) {\n      errors.push(`${pairId}: missing paired control`);\n      continue;\n    }\n    if (new Set(pair.map((row) => row.pairRole)).size !== pair.length) {\n      errors.push(`${pairId}: duplicate pair role`);\n    }\n    const modes = new Set(pair.map((row) => row.pairMode));\n    if (modes.size !== 1) errors.push(`${pairId}: pair mode disagrees across rows`);\n    if (pair[0]?.pairMode === \"ownership-transition\"\n      && new Set(pair.map((row) => row.expectedOwner)).size < 2) {\n      errors.push(`${pairId}: ownership control never crosses an ownership boundary`);\n    }\n    if (pair[0]?.pairMode === \"state-mutation\"\n      && !pair.some((row) => row.mutationDiscriminated === true)) {\n      errors.push(`${pairId}: state mutation is observationally inert`);\n    }\n  }\n\n  const failedIds = new Set(errors.map((error) => error.split(\":\", 1)[0]));\n  return {\n    pass: errors.length === 0,\n    errors,\n    passedRows: rows.filter((row) => !failedIds.has(row.id)).length,\n    totalRows: rows.length,\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/replaced-ownership-transition-gate.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2364"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b7b08effcdd36516b49f782d105d2509"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2cee1fe8b0c3e589d11a46a85bb5bdf5e6798080",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

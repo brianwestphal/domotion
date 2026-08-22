@@ -45,17 +45,17 @@ describe("source-owned checkable indicators (DM-2459)", () => {
     }
   });
 
-  it("retains generic synthesis only for old captures whose pseudo facts are undefined", () => {
-    expect(renderFormControl(checkable("checkbox", "none", undefined), "")).toContain("<polyline");
-    expect(renderFormControl(checkable("radio", "none", undefined), "")).toContain("<circle");
-    expect(renderFormControl(checkable("checkbox", "base", undefined), "")).toContain("<polyline");
+  it("does not revive sampled indicators for old structural captures", () => {
+    expect(renderFormControl(checkable("checkbox", "none", undefined), "")).toBe("");
+    expect(renderFormControl(checkable("radio", "none", undefined), "")).toBe("");
+    expect(renderFormControl(checkable("checkbox", "base", undefined), "")).toBe("");
   });
 
-  it("does not transfer native auto ownership merely because modern pseudo facts exist", () => {
+  it("fails closed when native auto ownership lacks its captured surface", () => {
     const checkbox = checkable("checkbox", "checkbox", []);
     checkbox.styles.inputAppearance = "auto";
     expect(checkablePseudoFactsOwnIndicator(checkbox)).toBe(false);
-    expect(renderFormControl(checkbox, "")).toContain("<polyline");
+    expect(renderFormControl(checkbox, "")).toBe("");
   });
 });
 
@@ -64,6 +64,7 @@ describe("author-styled listbox option rows (DM-2190)", () => {
     const el = {
       tag: "select", x: 250, y: 700, width: 540, height: 140, children: [],
       styles: {
+        effectiveAppearance: "listbox",
         fontSize: "16px", fontFamily: "Arial", color: "rgb(0, 0, 0)",
         selectListboxOptions: [{
           text: "Red", selected: true, disabled: false,
@@ -88,14 +89,17 @@ describe("Chromium-owned partial control decorations", () => {
     kinds: ["menulist-button-arrow" as const],
   };
 
-  it("keeps select/date value text vector but suppresses sampled glyphs", () => {
+  it("keeps captured structural select text but suppresses sampled picker glyphs", () => {
     const select = {
       tag: "select", x: 10, y: 20, width: 150, height: 32, children: [],
+      fontAscent: 12, fontDescent: 3,
       nativeControlDecorationRaster: reservation,
       styles: {
+        effectiveAppearance: "menulist-button",
         selectDisplayText: "Structural value", selectChevron: true,
         fontFamily: "Arial", fontSize: "14px", color: "rgb(1,2,3)",
-        paddingLeft: "6px", borderLeftWidth: "1px",
+        paddingLeft: "6px", paddingTop: "2px", paddingBottom: "2px",
+        borderLeftWidth: "1px", borderTopWidth: "1px", borderBottomWidth: "1px",
       },
     } as unknown as CapturedElement;
     const selectSvg = renderFormControl(select, "");
@@ -108,11 +112,13 @@ describe("Chromium-owned partial control decorations", () => {
         ...reservation,
         kinds: ["calendar-picker-indicator" as const],
       },
-      styles: { inputType: "date", inputValue: "2026-08-22", fontSize: "13.333px", color: "black" },
+      styles: {
+        inputType: "date", effectiveAppearance: "none",
+        inputValue: "2026-08-22", fontSize: "13.333px", color: "black",
+      },
     } as unknown as CapturedElement;
     const dateSvg = renderFormControl(date, "");
-    expect(dateSvg).toContain("08/22/2026");
-    expect(dateSvg).not.toContain("<g fill=\"none\"");
+    expect(dateSvg).toBe("");
   });
 
   it("never reopens sampled search/spin paint for empty or failed reservations", () => {
@@ -124,7 +130,7 @@ describe("Chromium-owned partial control decorations", () => {
           kinds: [inputType === "search" ? "search-cancel-button" : "inner-spin-button"],
         },
         styles: {
-          inputType, inputValue: "7", searchCancelButtonBg: "red",
+          inputType, effectiveAppearance: "none", inputValue: "7", searchCancelButtonBg: "red",
           numberSpinButtonBg: "red",
         },
       } as unknown as CapturedElement;
@@ -133,16 +139,17 @@ describe("Chromium-owned partial control decorations", () => {
   });
 });
 
-describe("file-selector synthetic text (DM-2189)", () => {
-  it("uses the shared glyph-path renderer when the resolved font is available", () => {
+describe("file-selector source-owned paint (DM-2189 / DM-2458)", () => {
+  it("does not invent a localized button or status for incomplete captures", () => {
     const el = { tag: "input", x: 20, y: 20, width: 240, height: 36, children: [], styles: {
-      inputType: "file", fileButtonFontFamily: "Arial", fileButtonFontSize: "13.3333px",
+      inputType: "file", effectiveAppearance: "none",
+      fileButtonFontFamily: "Arial", fileButtonFontSize: "13.3333px",
       fileButtonFontWeight: "400", fileButtonLabelWidth: 68, fileButtonPadding: "4px 8px",
       fileButtonMarginRight: "4px", inputMultiple: false,
     } } as unknown as CapturedElement;
     const svg = renderFormControl(el, "");
-    expect(svg).toContain('role="img" aria-label="Choose File"');
-    expect(svg).not.toContain("No file chosen</text>");
+    expect(svg).toBe("");
+    expect(svg).not.toContain("Choose File");
   });
 
   const exactFile = (native: boolean): CapturedElement => ({
@@ -152,9 +159,11 @@ describe("file-selector synthetic text (DM-2189)", () => {
       kinds: ["file-selector-button"],
     } : undefined,
     styles: {
-      inputType: "file", opacity: "1",
+      inputType: "file", effectiveAppearance: "none", opacity: "1",
       borderTopWidth: "0px", borderRightWidth: "0px",
       borderBottomWidth: "0px", borderLeftWidth: "0px",
+      fileButtonBg: "rgb(240, 241, 242)",
+      fileButtonBorder: "1px solid rgb(90, 91, 92)",
       fileSelectorButton: {
         x: 20, y: 20, width: 94, height: 30, text: "Browse…", textWidth: 52,
         fontSize: 14, fontFamily: "Arial", fontWeight: "400", fontStyle: "normal",
@@ -206,7 +215,8 @@ describe("collectFormControlConicTiles — conic on range thumb/track (DM-1252)"
   it("surfaces a conic thumb at the thumb-diameter tile and a conic track at the track-thickness tile", () => {
     const tiles = collectFormControlConicTiles(rangeEl({
       inputType: "range",
-      rangeThumbWidth: "36px", rangeThumbBgImage: "conic-gradient(red, blue)",
+      rangeThumbWidth: "36px", rangeThumbHeight: "36px", rangeThumbRadius: "18px",
+      rangeThumbBgImage: "conic-gradient(red, blue)",
       rangeTrackBg: "rgb(204, 204, 204)", rangeTrackHeight: "8px", rangeTrackBgImage: "conic-gradient(green, yellow)",
     }));
     expect(tiles).toContainEqual({ layer: "conic-gradient(red, blue)", w: 36, h: 36 });   // circle thumb
@@ -215,7 +225,8 @@ describe("collectFormControlConicTiles — conic on range thumb/track (DM-1252)"
 
   it("uses thumbW×thumbH for a non-circular (ellipse/rect) styled thumb", () => {
     const tiles = collectFormControlConicTiles(rangeEl({
-      inputType: "range", rangeThumbWidth: "40px", rangeThumbHeight: "20px", rangeThumbRadius: "4px",
+      inputType: "range", rangeTrackBg: "transparent", rangeTrackHeight: "8px",
+      rangeThumbWidth: "40px", rangeThumbHeight: "20px", rangeThumbRadius: "4px",
       rangeThumbBgImage: "conic-gradient(red, blue)",
     }));
     expect(tiles).toContainEqual({ layer: "conic-gradient(red, blue)", w: 40, h: 20 });
@@ -229,9 +240,9 @@ describe("collectFormControlConicTiles — conic on range thumb/track (DM-1252)"
   it("surfaces a conic color-swatch at the element box minus wrapper padding (DM-1254)", () => {
     const colorEl = (styles: Record<string, unknown>): CapturedElement =>
       ({ tag: "input", x: 20, y: 16, width: 80, height: 48, children: [], styles } as unknown as CapturedElement);
-    // default 4px wrapper padding → 80-8 × 48-8
+    // Missing wrapper geometry fails closed instead of substituting 4px.
     expect(collectFormControlConicTiles(colorEl({ inputType: "color", colorSwatchBgImage: "conic-gradient(red, blue)" })))
-      .toContainEqual({ layer: "conic-gradient(red, blue)", w: 72, h: 40 });
+      .toEqual([]);
     // explicit wrapper padding
     expect(collectFormControlConicTiles(colorEl({ inputType: "color", colorSwatchBgImage: "conic-gradient(red, blue)", colorSwatchWrapperPadding: "2px" })))
       .toContainEqual({ layer: "conic-gradient(red, blue)", w: 76, h: 44 });
@@ -294,14 +305,21 @@ describe("form-controls font-family escaping (DM-866)", () => {
       y: 0,
       width: 120,
       height: 30,
+      fontAscent: 11,
+      fontDescent: 3,
       styles: {
+        effectiveAppearance: "none",
         selectDisplayText: "Choose…",
         fontFamily: `-apple-system, "Segoe UI", system-ui, sans-serif`,
         fontSize: "13",
         fontWeight: "400",
         color: "rgb(0,0,0)",
         paddingLeft: "0",
+        paddingTop: "0",
+        paddingBottom: "0",
         borderLeftWidth: "0",
+        borderTopWidth: "0",
+        borderBottomWidth: "0",
       },
     } as unknown as Parameters<typeof renderFormControl>[0];
 
@@ -360,32 +378,39 @@ describe("::details-content separator (DM-1152)", () => {
   });
 });
 
-describe("native vs author-styled <meter> geometry (DM-1156 / DM-1155)", () => {
+describe("source-owned structural <meter> geometry (DM-1156 / DM-2458)", () => {
   function makeMeter(styles: Record<string, unknown>): Parameters<typeof renderFormControl>[0] {
     return {
       tag: "meter",
       x: 264, y: 100, width: 528, height: 16,
-      styles: { meterValue: 9, meterMin: 0, meterMax: 10, meterLow: 3, meterHigh: 7, meterOptimum: 8, ...styles },
+      styles: {
+        effectiveAppearance: "none",
+        meterValue: 9, meterMin: 0, meterMax: 10,
+        meterLow: 3, meterHigh: 7, meterOptimum: 8,
+        meterBarBg: "rgb(12, 34, 56)",
+        meterOptimumBg: "rgb(78, 90, 12)",
+        ...styles,
+      },
     } as unknown as Parameters<typeof renderFormControl>[0];
   }
 
-  it("paints the native UA groove border (rgb(203,203,203)) around the bar", () => {
-    // macOS Chrome paints native <meter> as a grooved bar with a crisp 1px
-    // gray border. Author-styled meters (appearance:none) get no groove.
+  it("does not paint the retired sampled native groove", () => {
     const svg = renderFormControl(makeMeter({}), "");
-    expect(svg).toContain('stroke="rgb(203,203,203)"');
-    expect(svg).toContain('stroke-width="1"');
+    expect(svg).toContain('fill="rgb(12, 34, 56)"');
+    expect(svg).toContain('fill="rgb(78, 90, 12)"');
+    expect(svg).not.toContain("stroke=");
+    expect(svg).not.toContain("rgb(203,203,203)");
   });
 
-  it("does NOT paint a groove on an author-styled (border-radius pill) meter", () => {
+  it("keeps the captured author radius", () => {
     const svg = renderFormControl(makeMeter({ meterBarRadius: "8px" }), "");
     expect(svg).not.toContain('stroke="rgb(203,203,203)"');
     // The pill track keeps its author radius.
     expect(svg).toContain('rx="8"');
   });
 
-  it("insets the author-styled value fill to the center half-height (floor(h/4))", () => {
-    // Chrome insets the value pseudo to the center ~half of the track: for a
+  it("uses Blink html.css's structural 1fr/2fr/1fr value grid", () => {
+    // The source-owned structural pseudo uses the center half of the track: for a
     // 16px meter the value spans the center 8px (inset 4 top/bottom), not the
     // full height. Snapped box top = round(y) = 100, inset 4 → value y = 104.
     const svg = renderFormControl(makeMeter({ meterBarRadius: "8px" }), "");

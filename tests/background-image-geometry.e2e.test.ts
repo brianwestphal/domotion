@@ -6,12 +6,25 @@ describe("Blink URL background tile geometry", () => {
   for (const dpr of [1, 2]) {
     it(`matches independent Chromium marker geometry at DPR ${dpr}`, async () => {
       const report = await runUrlBackgroundGeometryAudit(dpr);
+      expect(report.schemaVersion).toBe(2);
       expect(report.deviceScaleFactor).toBe(dpr);
+      expect(report.verdict).toBe("source-equivalent");
+      expect(report.blockers).toEqual([]);
+      expect(report.environment).toMatchObject({
+        platform: process.platform,
+        deviceScaleFactor: dpr,
+        browserType: "chromium",
+        headless: true,
+      });
+      expect(report.environment.fingerprint).toMatch(/^[0-9a-f]{64}$/);
       expect(report.rows.filter((row) => !row.pass).map((row) => row.id)).toEqual([]);
       expect(report.controls).toMatchObject({
-        paletteDetectedEverywhere: true,
-        positiveControlsRemainTight: true,
-        everyExpectedGapIsDiscriminated: true,
+        paletteEvidenceComplete: true,
+        allRowsSourceEquivalent: true,
+        noObservationalRoutes: true,
+        warningsEmpty: true,
+        patternEvidenceComplete: true,
+        independentInkBoundsExact: true,
         autoRatioRouteIsExact: true,
         attachmentOwnershipCaptured: true,
         localAttachmentOffsetsCaptured: true,
@@ -21,6 +34,16 @@ describe("Blink URL background tile geometry", () => {
         fragmentPatternsMaterialized: true,
         cyclicLayerRowHasFourImagePatterns: true,
       });
+      for (const row of report.rows) {
+        expect(row.warnings, row.id).toEqual([]);
+        expect(row.blockers, row.id).toEqual([]);
+        expect(row.patterns.length, row.id).toBe(row.expectedPatternCount);
+        expect(row.comparison.maxInkBoundDelta, row.id).toBeLessThanOrEqual(1);
+        for (const color of row.activePalette) {
+          expect(row.comparison.sourceBounds[color], `${row.id}/${color}/source`).not.toBeNull();
+          expect(row.comparison.generatedBounds[color], `${row.id}/${color}/generated`).not.toBeNull();
+        }
+      }
 
       const byId = new Map(report.rows.map((row) => [row.id, row]));
       for (const id of [

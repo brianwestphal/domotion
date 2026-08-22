@@ -209,6 +209,106 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4fqfh9fql6yugz",
+          "message": {
+            "text": "EffectiveAppearance is the only safe host-paint discriminator. Pinned Blink ThemePainter dispatches these native values with live state, zoom, scheme, forced-colors, accent and platform theme inputs, so a missing surface cannot be reconstructed from host type or an old macOS sample; unknown captures deliberately fail closed. The parent emitter's terminal surface guard is linked below.",
+            "markdown": "EffectiveAppearance is the only safe host-paint discriminator. Pinned Blink ThemePainter dispatches these native values with live state, zoom, scheme, forced-colors, accent and platform theme inputs, so a missing surface cannot be reconstructed from host type or an old macOS sample; unknown captures deliberately fail closed. The parent emitter's terminal surface guard is linked below."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/form-controls.ts"
+                },
+                "region": {
+                  "startLine": 217,
+                  "endLine": 243,
+                  "snippet": {
+                    "text": "/**\n * Blink's EffectiveAppearance is the paint-ownership boundary. A materialized\n * native record terminates structural rendering; a native/unknown appearance\n * without its required record fails closed instead of reviving sampled chrome.\n */\nexport function formControlRenderRoute(el: CapturedElement): FormControlRenderRoute {\n  const isControl = el.tag === \"input\" || el.tag === \"button\" || el.tag === \"select\"\n    || el.tag === \"textarea\" || el.tag === \"progress\" || el.tag === \"meter\";\n  if (!isControl) return \"not-form-control\";\n  if (el.nativeControlRaster != null) return \"native-raster\";\n  const appearance = el.styles.effectiveAppearance;\n  if (appearance == null || isWholeHostNativeAppearance(appearance)) {\n    return \"missing-native-raster\";\n  }\n  return STRUCTURAL_FORM_APPEARANCES.has(appearance)\n    ? \"structural\"\n    : \"missing-native-raster\";\n}\n\nexport function renderFormControl(el: CapturedElement, indent: string, defCtx?: DefCtx): string {\n  const route = formControlRenderRoute(el);\n  if (route === \"native-raster\") return \"\";\n  if (route === \"missing-native-raster\") {\n    const type = el.styles.inputType == null ? \"\" : `[type=${el.styles.inputType}]`;\n    console.warn(`[domotion] required Chromium native-control surface unavailable for ${el.tag}${type}; sampled SVG chrome is disabled`);\n    return \"\";\n  }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 5242
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/paint/theme_painter.cc"
+                },
+                "region": {
+                  "startLine": 95
+                }
+              }
+            },
+            {
+              "id": 2,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/paint/theme_painter_default.cc"
+                },
+                "region": {
+                  "startLine": 330
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2458"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e9813e6d90a23cfff57230fc6e2f4c2d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2cee1fe8b0c3e589d11a46a85bb5bdf5e6798080",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
