@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex DM-2469 Max",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4962w41g9svrky",
+          "message": {
+            "text": "The affine record is derived from one paused live/neutral/restored Chromium frame, not from computed matrix diagonals. The prepass retains actual text nodes privately, leaves CSS zoom active, solves the signed mapping only after the neutral tree has supplied normal shaping segments, and fails closed when restoration, fragment count, or correlation changes. Focused evidence: 6/6 unit controls and 5/5 DPR 1/2 browser protocol rows; a wrapped rotate+anisotropic smoke row held every corner within 0.000015 CSS px.",
+            "markdown": "The affine record is derived from one paused live/neutral/restored Chromium frame, not from computed matrix diagonals. The prepass retains actual text nodes privately, leaves CSS zoom active, solves the signed mapping only after the neutral tree has supplied normal shaping segments, and fails closed when restoration, fragment count, or correlation changes. Focused evidence: 6/6 unit controls and 5/5 DPR 1/2 browser protocol rows; a wrapped rotate+anisotropic smoke row held every corner within 0.000015 CSS px."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/text-paint-geometry-cdp.ts"
+                },
+                "region": {
+                  "startLine": 337,
+                  "endLine": 400,
+                  "snippet": {
+                    "text": "/**\n * Measure one coherent live/neutral/restored frame and leave per-element facts\n * in private frame globals for the synchronous capture script to consume.\n */\nexport async function prepareTextPaintGeometry(\n  page: Page,\n  selector: string,\n  viewport: { x: number; y: number; width: number; height: number },\n  captureNeutralTree: (key: string) => Promise<{ tree: CapturedElement[] }>,\n): Promise<TextPaintGeometryProbe> {\n  const key = `__domotionTextPaintGeometry_${Date.now()}_${Math.random().toString(36).slice(2)}`;\n  const prepared = (await Promise.all(page.frames().map((frame, index) =>\n    setupFrameRegistry(frame, selector, key, `f${index}`)))).filter((frame): frame is PreparedFrame => frame != null);\n  const warnings: CaptureWarning[] = [];\n  let session: CDPSession | undefined;\n  let playbackRate: number | undefined;\n  let neutral = false;\n  try {\n    session = await page.context().newCDPSession(page);\n    const contexts = await defaultRuntimeContexts(session, key);\n    try {\n      await session.send(\"Animation.enable\");\n      playbackRate = (await session.send(\"Animation.getPlaybackRate\")).playbackRate;\n      await session.send(\"Animation.setPlaybackRate\", { playbackRate: 0 });\n    } catch {\n      playbackRate = undefined;\n    }\n    const live = await measureRows(session, key, prepared, contexts, viewport);\n    await mutateFrames(prepared, key, true);\n    neutral = true;\n    await settleFrames(prepared);\n    const neutralQuads = await measureRows(session, key, prepared, contexts, viewport);\n    const neutralResult = await captureNeutralTree(key);\n    await mutateFrames(prepared, key, false);\n    neutral = false;\n    await settleFrames(prepared);\n    const restored = await measureRows(session, key, prepared, contexts, viewport);\n\n    const measured: MeasuredRow[] = [];\n    for (const frame of prepared) {\n      for (const row of frame.rows) {\n        const measurementKey = `${frame.token}:${row.sourceTextNodeIndex}`;\n        const paintQuads = live.get(measurementKey) ?? [];\n        const localQuads = neutralQuads.get(measurementKey) ?? [];\n        const restoredQuads = restored.get(measurementKey) ?? [];\n        let failureReason: string | undefined;\n        if (paintQuads.length === 0 || localQuads.length === 0) {\n          failureReason = \"DOM.getContentQuads unavailable for text node\";\n        } else if (quadSetDistance(paintQuads, restoredQuads) > RESTORE_EPSILON) {\n          failureReason = \"text transform probe did not restore the source frame exactly\";\n        }\n        measured.push({ ...row, neutralQuads: localQuads, paintQuads, failureReason });\n      }\n    }\n    const byFrame = factsByFrame(prepared, measured, neutralResult.tree as ProbeTreeElement[]);\n    await Promise.all(prepared.map(({ frame, token }) => frame.evaluate(({ key, facts }) => {\n      const registry = (globalThis as typeof globalThis & Record<string, any>)[key];\n      if (registry != null) registry.factsByElement = facts;\n    }, { key, facts: byFrame.get(token) ?? {} })));\n  } catch (error) {\n    warnings.push({\n      selector,\n      feature: \"transform\",\n      detail: `authoritative affine text-fragment probe failed closed: ${error instanceof Error ? error.message : String(error)}`,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/text-fragment-geometry.ts"
+                },
+                "region": {
+                  "startLine": 105
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/text-paint-geometry.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 75
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2469"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "8fca41e3fe83c9e50a9ef4ff007b065f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "cb9d97b39e7a2e3a3eb670b258937709611818c5",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

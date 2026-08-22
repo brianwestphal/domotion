@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex DM-2469 Max",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "warning",
+          "guid": "mt4962w4chgfcaql",
+          "message": {
+            "text": "Baseline provenance is narrower than the matrix provenance and must stay explicit. The affine plane plus UTF-16 origins/advances come from Chromium quads and browser-measured segment geometry, but baseline uses an explicit captured segment baseline when present and otherwise the existing captured ascent plus physical fragment origin; it is not a new DOMSnapshot/LayoutText baseline decoder. DM-2470 should validate that seam or replace it before claiming independent Blink-baseline protocol ownership.",
+            "markdown": "Baseline provenance is narrower than the matrix provenance and must stay explicit. The affine plane plus UTF-16 origins/advances come from Chromium quads and browser-measured segment geometry, but baseline uses an explicit captured segment baseline when present and otherwise the existing captured ascent plus physical fragment origin; it is not a new DOMSnapshot/LayoutText baseline decoder. DM-2470 should validate that seam or replace it before claiming independent Blink-baseline protocol ownership."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/text-fragment-geometry.ts"
+                },
+                "region": {
+                  "startLine": 201,
+                  "endLine": 224,
+                  "snippet": {
+                    "text": "    const target = quadRect(item.neutralQuad);\n    const candidates = segments\n      .map((segment, index) => ({ index, distance: rectEdgeDistance(segmentRect(segment), target) }))\n      .filter((candidate) => !usedSegments.has(candidate.index))\n      .sort((left, right) => left.distance - right.distance);\n    const best = candidates[0];\n    if (best == null || best.distance > TEXT_FRAGMENT_CORRELATION_EPSILON) {\n      return { geometry: null, failureReason: \"neutral text segment could not be correlated with its protocol fragment\" };\n    }\n    if (candidates[1] != null && Math.abs(candidates[1].distance - best.distance) < 1e-4) {\n      return { geometry: null, failureReason: \"neutral text fragment correlation is ambiguous\" };\n    }\n    usedSegments.add(best.index);\n    const segment = segments[best.index];\n    const vertical = segment.verticalWritingMode != null;\n    const shaped = exactCodeUnitGeometry(segment);\n    if (shaped == null) {\n      return { geometry: null, failureReason: \"exact shaped text origins or advances are unavailable\" };\n    }\n    const ascent = segment.fontAscent ?? elementAscent ?? 0;\n    const baseline = segment.baseline ?? (vertical ? segment.x + ascent : segment.y + ascent);\n    const inlineOffset = segment.inlineOffset ?? (vertical\n      ? segment.y\n      : item.node.direction === \"rtl\" ? segment.x + segment.width : segment.x);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "risk"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/159-exact-text-transform-geometry-audit.md"
+                },
+                "region": {
+                  "startLine": 20
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2469"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "6e2ed3efb4b4ca8573446ff2458b172a"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "cb9d97b39e7a2e3a3eb670b258937709611818c5",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

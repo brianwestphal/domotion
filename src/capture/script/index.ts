@@ -81,6 +81,32 @@ const captureDocumentTree =
     return allocated;
   }
   let _backdropRasterSeq = 0;
+  // DM-2469: the Node/CDP affine probe retains live nodes in a private
+  // per-frame registry. The synchronous walker consumes only immutable facts;
+  // no author-visible attributes or source-order guesses are involved.
+  function _textPaintRegistryFor(el) {
+    if (typeof args.tgk !== 'string' || args.tgk === '') return undefined;
+    var view = el.ownerDocument != null ? el.ownerDocument.defaultView : undefined;
+    return view != null ? view[args.tgk] : undefined;
+  }
+  function _textPaintElementIndexFor(el) {
+    var registry = _textPaintRegistryFor(el);
+    return registry != null && registry.indexByElement != null
+      ? registry.indexByElement.get(el)
+      : undefined;
+  }
+  function _textPaintFactFor(el) {
+    var registry = _textPaintRegistryFor(el);
+    var index = _textPaintElementIndexFor(el);
+    return registry != null && index != null && registry.factsByElement != null
+      ? registry.factsByElement[index]
+      : undefined;
+  }
+  function _textPaintSourceKeyFor(el) {
+    var registry = _textPaintRegistryFor(el);
+    var index = _textPaintElementIndexFor(el);
+    return registry != null && index != null ? registry.token + ':' + index : undefined;
+  }
 
   // Wire up per-concern helpers. Each factory closes over its own state and
   // returns the handles captureInner / the orchestration tail call. Renamed
@@ -184,6 +210,7 @@ const captureDocumentTree =
   };
   const captureInner = (el, cs, frozenTransform, frozenTransformOrigin) => {
     const rect = el.getBoundingClientRect();
+    const _textPaintFact = _textPaintFactFor(el);
     let projectiveTransform;
     let projectiveHidden;
     let transformSubtreeRaster;
@@ -227,6 +254,15 @@ const captureDocumentTree =
     // for metadata/paint ordering but the renderer returns after this image.
     if (_nonAffineProjectiveRoots.has(el)) {
       transformSubtreeRaster = _makeTransformSubtreeRaster();
+    }
+    // Missing, changing, singular, or projective text-fragment facts are an
+    // explicit Chromium surface boundary. Never fall back to the legacy
+    // scalar font/rect approximation for that transformed subtree.
+    if (_textPaintFact != null && _textPaintFact.surfaceReason != null
+      && transformSubtreeRaster == null) {
+      transformSubtreeRaster = _makeTransformSubtreeRaster();
+      warn(sel, '<transform>', 'Chromium text-fragment geometry unavailable; retained one outer raster surface: '
+        + _textPaintFact.surfaceReason);
     }
     // DM-513: when an element's rect is outside the viewport, normally skip the
     // whole subtree. But position:fixed / position:sticky descendants escape
@@ -319,7 +355,12 @@ const captureDocumentTree =
     // elements are still skipped.
     const _inkTextZeroWidth = rect.width === 0 && rect.height > 0
       && el.textContent != null && el.textContent.trim().length > 0;
-    if (zeroSized && el.children.length === 0 && !_hasAnim && !_inkTextZeroWidth) return null;
+    // DM-2463: a failed/no-source image can be a zero-sized but semantically
+    // distinct Blink disposition (collapsed vs empty-inline vs primary). Keep
+    // the host long enough for the CDP UA-shadow post-pass to classify it; its
+    // zero box remains non-painting in the renderer.
+    const _keepImageFallbackState = el.tagName != null && el.tagName.toLowerCase() === 'img';
+    if (zeroSized && el.children.length === 0 && !_hasAnim && !_inkTextZeroWidth && !_keepImageFallbackState) return null;
 
     const tag = el.tagName.toLowerCase();
 
@@ -738,6 +779,39 @@ const captureDocumentTree =
       // the renderer can synthesize the same fallback.
       var imageBroken = el.complete && el.naturalWidth === 0;
       var imageAlt = el.alt || '';
+      // Seed only light-DOM/source facts here. Closed UA-shadow ownership,
+      // used geometry, text shaping/font facts, and AX semantics are attached
+      // by the Node/CDP post-pass while the private live-node registry exists.
+      var _imageHasSrc = el.hasAttribute('src');
+      var _imageHasAlt = el.hasAttribute('alt');
+      var _imageHasTitle = el.hasAttribute('title');
+      var brokenImageFallback = {
+        schemaVersion: 1,
+        authority: 'chromium-ua-shadow-v1',
+        sourceNodeIndex: _projectiveNodeIndex.get(el),
+        selector: sel,
+        effectiveZoom: _effectiveZoomFor(el),
+        hostRect: {
+          x: rect.left - vp.x,
+          y: rect.top - vp.y,
+          width: rect.width,
+          height: rect.height,
+        },
+        source: {
+          complete: el.complete === true,
+          naturalWidth: Number(el.naturalWidth) || 0,
+          naturalHeight: Number(el.naturalHeight) || 0,
+          currentSrc: el.currentSrc || '',
+          src: { present: _imageHasSrc, value: _imageHasSrc ? el.getAttribute('src') : null },
+          alt: { present: _imageHasAlt, value: _imageHasAlt ? el.getAttribute('alt') : null },
+          title: { present: _imageHasTitle, value: _imageHasTitle ? el.getAttribute('title') : null },
+          // Blink HTMLImageElement::AltText: a present alt wins even when it
+          // is empty; title is consulted only when alt is absent.
+          resolvedText: _imageHasAlt
+            ? (el.getAttribute('alt') || '')
+            : (_imageHasTitle ? (el.getAttribute('title') || '') : ''),
+        },
+      };
     } else if (tag === 'input' && el.type === 'image') {
       // <input type="image"> renders the src as a clickable button-image.
       // No currentSrc / naturalWidth on HTMLInputElement; the bounding rect
@@ -1130,12 +1204,16 @@ const captureDocumentTree =
       projectiveTransform,
       projectiveHidden,
       transformSubtreeRaster,
-      children, imageSrc, imageIntrinsic, imageBroken, imageAlt, svgContent, pseudoImages,
+      children, imageSrc, imageIntrinsic, imageBroken, imageAlt, brokenImageFallback, svgContent, pseudoImages,
       pseudoBoxes: pseudoBoxes.length > 0 ? pseudoBoxes : undefined,
       // SK-1115: ::marker pseudo styles plus list-marker intrinsic dims and
       // list-item index — see walker/lists-counters.ts.
       ..._listsCounters,
       textSegments: textSegments.length > 0 ? textSegments : undefined,
+      textPaintGeometry: _textPaintFact != null ? _textPaintFact.geometry : undefined,
+      // Correlation marker emitted only by the all-transform-neutral probe
+      // capture and consumed before that intermediate tree is discarded.
+      _textPaintSourceKey: args.tgp === true ? _textPaintSourceKeyFor(el) : undefined,
       lineClampTextFragments: lineClampTextFragments || undefined,
       textTop, textLeft, textHeight, textWidth,
       // DM-2446: Blink chooses and measures the face at computed size

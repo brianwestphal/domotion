@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt491nopukw1mqv1",
+          "message": {
+            "text": "The untouched live-Chromium matrix validates the complete DM-2466 structural envelope. A fresh macOS Chromium 147.0.7727.15 run passed 80/80 scenario/DPR rows and rejected 10/10 forbidden mutations; the focused Vitest browser leg passed 40/40 DPR-1 rows in 247 ms. The collector uses one pierced pseudo identity and one snapshot epoch, then issues only independent style/quad/advance queries in parallel. No detached clone or production pseudo helper participates.",
+            "markdown": "The untouched live-Chromium matrix validates the complete DM-2466 structural envelope. A fresh macOS Chromium 147.0.7727.15 run passed 80/80 scenario/DPR rows and rejected 10/10 forbidden mutations; the focused Vitest browser leg passed 40/40 DPR-1 rows in 247 ms. The collector uses one pierced pseudo identity and one snapshot epoch, then issues only independent style/quad/advance queries in parallel. No detached clone or production pseudo helper participates."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/pseudo-fragment-geometry-oracle.ts"
+                },
+                "region": {
+                  "startLine": 382,
+                  "endLine": 484,
+                  "snippet": {
+                    "text": "async function collectDprRows(browser: Browser, deviceScaleFactor: number): Promise<PseudoOracleRow[]> {\n  const context = await browser.newContext({ viewport: { width: 980, height: 720 }, deviceScaleFactor });\n  const page = await context.newPage();\n  const session = await context.newCDPSession(page);\n  try {\n    await page.setContent(fixtureHtml(), { waitUntil: \"load\" });\n    await page.evaluate(async () => { await document.fonts.ready; await new Promise<void>((resolve) => requestAnimationFrame(() => resolve())); window.scrollTo(0, 37); });\n    await session.send(\"DOM.enable\");\n    const { root } = await session.send(\"DOM.getDocument\", { depth: -1, pierce: true }) as unknown as { root: CdpNode };\n    const pseudos = pseudoNodes(root);\n    const snapshot = await session.send(\"DOMSnapshot.captureSnapshot\", {\n      computedStyles: [], includePaintOrder: true, includeDOMRects: true,\n    }) as unknown as SnapshotResult;\n    // These are independent protocol queries against one frozen layout epoch.\n    // Issue them together; serial round trips make the 2-DPR matrix needlessly\n    // slow without changing the evidence.\n    const rows = await Promise.all(scenarios.map(async (scenario): Promise<PseudoOracleRow> => {\n      const node = pseudos.get(`${scenario.id}:${scenario.pseudo}`);\n      if (node == null) {\n        const pass = scenario.expectation === \"absent\" || scenario.expectation === \"unpainted\";\n        return { id: scenario.id, pseudo: scenario.pseudo, deviceScaleFactor, expected: scenario.expectation, actual: \"absent\", states: scenario.states, boxFragments: 0, contentItems: [], textFragments: 0, imageFragments: 0, errors: pass ? [] : [\"expected a protocol pseudo node\"], pass };\n      }\n      const styleResult = await browserStyle(page, scenario);\n      const rawRows = layoutRows(snapshot, node.backendNodeId);\n      const normalizedRows = await measuredRows(page, rawRows, styleResult);\n      let contentQuads: Quad[] = [];\n      try {\n        const result = await session.send(\"DOM.getContentQuads\", { backendNodeId: node.backendNodeId }) as unknown as { quads: number[][] };\n        contentQuads = result.quads.map(normalizeQuad);\n      } catch {\n        // A real pseudo node with no LayoutObject is an explicit unpainted row.\n      }\n      const input: PseudoProtocolInput = {\n        hostCorrelationId: scenario.id,\n        pseudo: scenario.pseudo,\n        layoutRows: normalizedRows,\n        contentQuads,\n        style: normalizeStyle(styleResult),\n      };\n      const record = decodePseudoFragmentProtocol(input);\n      const errors = record.status === \"exact\" ? protocolRecordErrors(input, record) : [];\n      const expectedStatus = scenario.expectation === \"exact\" ? \"exact\" : scenario.expectation;\n      const pass = record.status === expectedStatus && errors.length === 0;\n      return {\n        id: scenario.id,\n        pseudo: scenario.pseudo,\n        deviceScaleFactor,\n        expected: scenario.expectation,\n        actual: record.status,\n        states: scenario.states,\n        boxFragments: record.boxFragments.length,\n        contentItems: record.contentItems.map((item) => item.kind),\n        textFragments: record.fragments.filter((fragment) => fragment.kind === \"text\").length,\n        imageFragments: record.fragments.filter((fragment) => fragment.kind === \"image\").length,\n        errors: [...errors, ...(pass || record.reason == null ? [] : [record.reason])],\n        pass,\n        input,\n        record,\n      };\n    }));\n    return rows;\n  } finally {\n    await session.detach().catch(() => undefined);\n    await context.close();\n  }\n}\n\nfunction mutateAndReject(row: PseudoOracleRow | undefined, mutate: (record: DecodedPseudoFragmentSet) => void): { rejected: boolean; evidence: string } {\n  if (row?.input == null || row.record?.status !== \"exact\") return { rejected: false, evidence: \"target exact row unavailable\" };\n  const record = structuredClone(row.record);\n  mutate(record);\n  const errors = protocolRecordErrors(row.input, record);\n  return { rejected: errors.length > 0, evidence: errors[0] ?? \"mutation survived\" };\n}\n\nfunction mutationMatrix(rows: PseudoOracleRow[]): PseudoMutationResult[] {\n  const exact = (id: string) => rows.find((row) => row.deviceScaleFactor === 1 && row.id === id && row.record?.status === \"exact\");\n  const mutation = (id: string, target: PseudoOracleRow | undefined, change: (record: DecodedPseudoFragmentSet) => void): PseudoMutationResult => ({ id, ...mutateAndReject(target, change) });\n  const firstText = (record: DecodedPseudoFragmentSet) => record.fragments.find((fragment) => fragment.kind === \"text\");\n  return [\n    mutation(\"font-size-half-leading\", exact(\"line-explicit\"), (record) => { const fragment = firstText(record); if (fragment?.kind === \"text\") fragment.baseline.origin.y += 3; }),\n    mutation(\"host-first-last-baseline\", exact(\"vertical-align-super\"), (record) => { const fragment = firstText(record); if (fragment?.kind === \"text\") fragment.baseline.origin.y += 7; }),\n    mutation(\"union-all-fragments\", exact(\"wrap-three\"), (record) => { if (record.fragments.length > 1) record.fragments.splice(1); }),\n    mutation(\"sort-bidi-by-source-offset\", exact(\"bidi-rtl\"), (record) => { record.fragments.sort((a, b) => (a.kind === \"text\" ? a.sourceStartUtf16 : 0) - (b.kind === \"text\" ? b.sourceStartUtf16 : 0)); }),\n    mutation(\"omit-fragmentainer-translation\", exact(\"multicol\"), (record) => { const box = record.boxFragments.find((fragment) => fragment.fragmentainerTranslation != null && Math.abs(fragment.fragmentainerTranslation.x) > 1); if (box != null) box.fragmentainerTranslation = { x: 0, y: 0 }; }),\n    mutation(\"concatenate-content-items\", exact(\"mixed-content\"), (record) => { for (const fragment of record.fragments) fragment.contentItemIndex = 0; }),\n    mutation(\"wrong-slice-edge-ownership\", exact(\"edges-slice\"), (record) => { if (record.boxFragments.length > 1) record.boxFragments[0].edgeOwnership.inlineEnd = true; }),\n    mutation(\"horizontal-baseline-in-vertical-writing\", exact(\"writing-vertical-rl\"), (record) => { const fragment = firstText(record); if (fragment?.kind === \"text\") fragment.baseline.origin = { x: fragment.localRect.x, y: fragment.localRect.y + fragment.baseline.ascent }; }),\n    mutation(\"codepoint-not-utf16-offset\", exact(\"line-explicit\"), (record) => { const fragment = record.fragments.find((item) => item.kind === \"text\" && item.text.includes(\"😀\")); if (fragment?.kind === \"text\") fragment.sourceEndUtf16--; }),\n    mutation(\"drop-anonymous-image-row\", exact(\"mixed-content\"), (record) => { const index = record.fragments.findIndex((fragment) => fragment.kind === \"image\"); if (index >= 0) record.fragments.splice(index, 1); }),\n  ];\n}\n\nexport async function runPseudoFragmentGeometryOracle(options: { deviceScaleFactors?: number[] } = {}): Promise<PseudoFragmentOracleReport> {\n  const browser = await chromium.launch({ headless: true });\n  try {\n    const deviceScaleFactors = options.deviceScaleFactors ?? [1, 2];\n    const rows = (await Promise.all(deviceScaleFactors.map((dpr) => collectDprRows(browser, dpr)))).flat();\n    const coveredStates = [...new Set(rows.filter((row) => row.pass).flatMap((row) => row.states))];\n    for (const dpr of deviceScaleFactors) if (rows.some((row) => row.deviceScaleFactor === dpr && row.pass)) coveredStates.push(`DPR:${dpr}`);\n    const mutations = mutationMatrix(rows);\n    const allStatesCovered = requiredStates.filter((state) => state !== \"DPR:2\" || deviceScaleFactors.includes(2)).every((state) => coveredStates.includes(state));\n    const pass = rows.every((row) => row.pass) && mutations.every((item) => item.rejected) && allStatesCovered;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/pseudo-fragment-geometry-oracle.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 5
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/pseudo-fragment-protocol.test.ts"
+                },
+                "region": {
+                  "startLine": 37
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2466"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e97125bd1e96f2e0cd06493b8343f4cc"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "cb9d97b39e7a2e3a3eb670b258937709611818c5",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

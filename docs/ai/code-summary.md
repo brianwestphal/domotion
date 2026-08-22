@@ -80,6 +80,14 @@ shortest possible map:
   switch. The adjusted value is captured separately from the computed
   longhand; unavailable facts warn and retain a conservative Chromium owner
   (DM-2453, doc 170).
+  `text-paint-geometry-cdp.ts` owns transformed text's same-frame Chromium
+  protocol: live and all-transform-neutral physical text quads, exact source
+  restoration, and private same-origin-frame correlation. It delegates only
+  matrix solving/held-out-corner and shaped-segment correlation to
+  `text-fragment-geometry.ts`, then serializes `textPaintGeometry` or reserves
+  one fail-closed outer transform raster. CSS zoom stays in the neutral local
+  geometry; DM-2470 is the sole consumer/removal migration for legacy scalar
+  fields (DM-2469, doc 159).
 - **`src/render/`** — pure node-side renderers that convert a captured
   element tree into SVG markup. `element-tree-to-svg.ts` is the big one;
   `culling-geometry.ts` is its fail-closed geometry preflight: it exposes the
@@ -239,6 +247,14 @@ shortest possible map:
   Chromium parity gates kept separate from whole-image similarity. The
   replaced-element leg is `tools/replaced-geometry-oracle.ts`: exact concrete
   object-fit rectangles, control paint ownership, and generated pseudo boxes.
+  The generated-pseudo structural leg is
+  `tools/pseudo-fragment-geometry-oracle.ts` plus the pure
+  `tools/pseudo-fragment-protocol.ts` decoder: one pierced CDP pseudo identity
+  and one DOMSnapshot epoch are joined to ordered content quads, retaining
+  anonymous text/image item boundaries, UTF-16 visual fragments,
+  fragmentainer translations, logical slice/clone edges, shaped advances, and
+  TextFragmentPainter's writing-mode baseline transform. It is an oracle for
+  DM-2467/2468, not yet a production capture route.
   Dynamic replaced surfaces have a focused transform-space gate in
   `tests/replaced-snapshot-transform.e2e.test.ts`: Chromium-vs-SVG ink bounds
   for off-page/nested affine + zoom/scroll/DPR, transform-then-scrolled-ancestor-clip
@@ -249,6 +265,19 @@ shortest possible map:
   `replacedSnapshot.rasterToOutput` instead of copying live-AABB clip deltas.
   `tools/raster-boundary-oracle.ts` is the paired activation/vector gate for
   every inventoried raster fallback.
+- **Broken-image capture boundary (DM-2463 / doc 156)** —
+  `src/capture/script/index.ts` seeds alt/title presence, load facts, effective
+  zoom, and private live-node correlation for every `<img>`, including
+  zero-sized states. Before that registry is released,
+  `src/capture/broken-image-fallback.ts` pierces Chromium's closed UA shadow
+  and attaches the six-way disposition, host/container/icon physical boxes,
+  used style/clip/threshold facts, code-point-safe hidden-Text ranges, canvas
+  fontBoundingBox metrics, platform fonts, DPR resource selection, and an
+  independent AX name/ignored record. Required-fact failures warn and select
+  a classified terminal surface; they never reactivate the legacy mountain.
+  `src/capture/broken-image-fallback{,.e2e}.test.ts` covers the state machine,
+  standards/quirks, DPR 1/2, text/AX, and the complete capture pipeline.
+  DM-2464 still owns consumption by the hybrid SVG emitter.
 - **`src/scrubber/`** — the `svg-scrubber` server + kerfjs
   page-side UI (`server.ts`, `client.tsx`, `trim.ts`): video-style
   play/scrub/range-loop/frame-export/trim for an animated SVG (doc 56), plus

@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt492tub58wbm6nm",
+          "message": {
+            "text": "The live Chromium proof crosses DPR 1/2 and validates pierced UA-shadow geometry/style, 17/18 icon activation, AltText title precedence, astral-safe UTF-16 ranges, inherited font metrics/platform faces, RTL/vertical/zoom placement, and AX name/ignored semantics. The separate pipeline case proves zero-sized states survive the synchronous walker and private correlation fields are removed after enrichment.",
+            "markdown": "The live Chromium proof crosses DPR 1/2 and validates pierced UA-shadow geometry/style, 17/18 icon activation, AltText title precedence, astral-safe UTF-16 ranges, inherited font metrics/platform faces, RTL/vertical/zoom placement, and AX name/ignored semantics. The separate pipeline case proves zero-sized states survive the synchronous walker and private correlation fields are removed after enrichment."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/broken-image-fallback.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 111,
+                  "endLine": 205,
+                  "snippet": {
+                    "text": "    it(`captures source-owned layout/text/font/AX facts at DPR ${dpr}`, async () => {\n      const context = await env!.browser.newContext({\n        viewport: { width: 760, height: 500 },\n        deviceScaleFactor: dpr,\n      });\n      const page = await context.newPage();\n      const registry = `__dm2463_${dpr}`;\n      try {\n        await page.setContent(`<!doctype html><style>\n          html,body{margin:0} img{position:absolute;font:italic 700 20px/28px Georgia,serif;color:rgb(17,34,51)}\n          #text{left:10px;top:10px}\n          #title{left:10px;top:55px}\n          #empty{left:10px;top:100px}\n          #missing{left:10px;top:130px}\n          #small{left:10px;top:175px;width:17px;height:17px}\n          #threshold{left:50px;top:175px;width:18px;height:18px}\n          #rtl{left:100px;top:175px;direction:rtl}\n          #vertical{left:250px;top:10px;width:72px;height:180px;writing-mode:vertical-rl}\n          #zoom{left:360px;top:10px;zoom:1.5}\n          #good{left:10px;top:230px;width:20px;height:20px}\n          #nosrc{left:50px;top:230px}\n        </style>\n        <img id=\"text\" src=\"${BROKEN}\" alt=\"A😀ב alternative\">\n        <img id=\"title\" src=\"${BROKEN}\" title=\"Title fallback\">\n        <img id=\"empty\" src=\"${BROKEN}\" alt=\"\">\n        <img id=\"missing\" src=\"${BROKEN}\">\n        <img id=\"small\" src=\"${BROKEN}\" alt=\"\">\n        <img id=\"threshold\" src=\"${BROKEN}\" alt=\"\">\n        <img id=\"rtl\" src=\"${BROKEN}\" alt=\"مرحبا\">\n        <img id=\"vertical\" src=\"${BROKEN}\" alt=\"vertical\">\n        <img id=\"zoom\" src=\"${BROKEN}\" alt=\"zoomed\">\n        <img id=\"good\" src=\"${GOOD}\" alt=\"successful\">\n        <img id=\"nosrc\" alt=\"no source\">`, { waitUntil: \"load\" });\n        const { byId, warnings } = await captureLiveImages(\n          page,\n          registry,\n          { x: 0, y: 0, width: 760, height: 500 },\n        );\n\n        expect(warnings).toEqual([]);\n        expect(byId.get(\"text\")).toMatchObject({\n          disposition: \"non-replaced-fallback\",\n          captureStatus: \"exact\",\n          paintOwnership: \"hybrid-icon-raster-vector-text\",\n          source: { alt: { present: true }, title: { present: false }, resolvedText: \"A😀ב alternative\" },\n          icon: { visible: true, cssWidth: 16, cssHeight: 16, resourceScale: dpr === 1 ? 1 : 2 },\n          text: { value: \"A😀ב alternative\" },\n          accessibility: { ignored: false, role: \"image\", name: \"A😀ב alternative\" },\n        });\n        const text = byId.get(\"text\")!.text!;\n        expect(text.fontMetrics.ascent).toBeGreaterThan(0);\n        expect(text.segments).not.toHaveLength(0);\n        expect(text.resolvedFonts).not.toHaveLength(0);\n        expect(text.codepoints.map(({ text }) => text)).toEqual(Array.from(\"A😀ב alternative\"));\n        expect(text.codepoints.find(({ text }) => text === \"😀\")).toMatchObject({ start: 1, end: 3 });\n\n        expect(byId.get(\"title\")).toMatchObject({\n          disposition: \"non-replaced-fallback\",\n          source: { alt: { present: false }, title: { present: true }, resolvedText: \"Title fallback\" },\n          accessibility: { ignored: false, role: \"image\", name: \"Title fallback\" },\n        });\n        expect(byId.get(\"empty\")).toMatchObject({\n          disposition: \"empty-inline\",\n          paintOwnership: \"none\",\n          icon: { visible: false },\n          accessibility: { ignored: true },\n        });\n        expect(byId.get(\"missing\")).toMatchObject({\n          disposition: \"non-replaced-fallback\",\n          icon: { visible: true },\n          source: { alt: { present: false }, resolvedText: \"\" },\n          accessibility: { ignored: false, role: \"image\" },\n        });\n        expect(byId.get(\"small\")).toMatchObject({\n          disposition: \"replaced-flow-root-fallback\",\n          icon: { visible: false },\n          container: { display: \"flow-root\", border: { top: 0 }, padding: { top: 0 } },\n        });\n        expect(byId.get(\"threshold\")).toMatchObject({\n          disposition: \"replaced-flow-root-fallback\",\n          icon: { visible: true },\n          container: { display: \"flow-root\", overflowX: \"hidden\", border: { top: dpr > 0 ? 1 : 1 }, padding: { top: 1 } },\n        });\n        expect(byId.get(\"rtl\")).toMatchObject({\n          container: { direction: \"rtl\" },\n          icon: { float: \"right\", visible: true },\n          text: { style: { direction: \"rtl\" } },\n        });\n        expect(byId.get(\"vertical\")).toMatchObject({\n          container: { writingMode: \"vertical-rl\" },\n          text: { style: { writingMode: \"vertical-rl\" } },\n        });\n        expect(byId.get(\"vertical\")!.text!.segments[0].verticalWritingMode).toBe(\"vertical-rl\");\n        expect(byId.get(\"zoom\")).toMatchObject({\n          container: { effectiveZoom: 1.5 },"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/broken-image-fallback.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 374
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2463"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "1235d7e2692c09610d94c8735d83ac14"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "cb9d97b39e7a2e3a3eb670b258937709611818c5",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

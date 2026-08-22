@@ -25,6 +25,8 @@ import { captureEffectiveAppearanceFacts } from "./effective-appearance-cdp.js";
 import { finalizeScrollbarResizerOverlap, prepareCapturedScrollbarSets } from "./scrollbar-capture.js";
 import { ensureSessionGenericFamilyOverrides } from "./generic-font-probe.js";
 import { primeBackgroundImageSizing } from "./background-image-sizing.js";
+import { captureBrokenImageFallbackFacts } from "./broken-image-fallback.js";
+import { prepareTextPaintGeometry } from "./text-paint-geometry-cdp.js";
 import { clipRectForScreenshot } from "./clip-rect.js";
 import {
   isNonAffineProjectiveQuad,
@@ -1557,6 +1559,7 @@ export async function captureElementTreeWithWarnings(
   let effectiveAppearance: Awaited<ReturnType<typeof captureEffectiveAppearanceFacts>> | undefined;
   let scrollbarCapture: Awaited<ReturnType<typeof prepareCapturedScrollbarSets>> | undefined;
   let projectiveProbe: ProjectivePaintProbe | undefined;
+  let textPaintProbe: Awaited<ReturnType<typeof prepareTextPaintGeometry>> | undefined;
   let result: unknown;
   try {
     const resizerMetrics = await measureBlinkPlatformResizer(page);
@@ -1581,8 +1584,23 @@ export async function captureElementTreeWithWarnings(
       pq: projectiveProbe.facts,
       pqk: projectiveProbe.key,
     };
-    result = await page.evaluate(`(${CAPTURE_SCRIPT})(${JSON.stringify(captureArgs)})`);
+    textPaintProbe = await prepareTextPaintGeometry(
+      page,
+      selector,
+      viewport,
+      async (textPaintKey) => {
+        const neutralResult = await page.evaluate(
+          `(${CAPTURE_SCRIPT})(${JSON.stringify({ ...captureArgs, tgk: textPaintKey, tgp: true })})`,
+        );
+        return neutralResult as { tree: CapturedElement[] };
+      },
+    );
+    result = await page.evaluate(`(${CAPTURE_SCRIPT})(${JSON.stringify({
+      ...captureArgs,
+      tgk: textPaintProbe.key,
+    })})`);
   } finally {
+    await textPaintProbe?.dispose();
     await scrollbarCapture?.dispose();
     await effectiveAppearance?.dispose();
     await maskIntrinsicPrime.dispose();
@@ -1595,6 +1613,7 @@ export async function captureElementTreeWithWarnings(
   const typed = result as { tree: CapturedElement[]; warnings: CaptureWarning[] };
   const warnings = typed.warnings ?? [];
   warnings.push(...(scrollbarCapture?.warnings ?? []));
+  warnings.push(...(textPaintProbe?.warnings ?? []));
   finalizeScrollbarResizerOverlap(typed.tree);
   _resetLastCaptureWarnings(warnings);
   try {
@@ -1616,6 +1635,16 @@ export async function captureElementTreeWithWarnings(
       sourceNodeKey: projectiveProbe?.key,
       sourceImagePath: opts?.rasterizeFromImagePath,
     });
+    // DM-2463: closed broken-image UA shadow roots are only available through
+    // Chromium CDP. Consume their geometry/text/AX facts while the same private
+    // live-node registry used by the projective/control passes is still alive.
+    await captureBrokenImageFallbackFacts(
+      page,
+      typed.tree,
+      viewport,
+      warnings,
+      projectiveProbe?.key,
+    );
     await rasterizeProjectiveSurfaces(page, typed.tree, viewport, projectiveProbe?.key);
   } finally {
     await pseudoStyles?.dispose();

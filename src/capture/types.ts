@@ -281,6 +281,58 @@ export interface TextSegment {
   };
 }
 
+/** One Chromium physical text-fragment plane, in capture-viewport pixels. */
+export type CapturedTextPaintQuad = [
+  number, number,
+  number, number,
+  number, number,
+  number, number,
+];
+
+/** Complete signed 2D mapping `x' = ax + cy + e`, `y' = bx + dy + f`. */
+export type CapturedTextPaintAffine = [number, number, number, number, number, number];
+
+/**
+ * DM-2469: browser-owned local geometry for one physical text fragment.
+ *
+ * Zoom remains in the local coordinates and font metrics. `paintMatrix` owns
+ * only the later CSS-transform mapping into capture-viewport paint space.
+ * DM-2470 consumes this record; legacy text fields remain alongside it until
+ * that renderer migration is complete.
+ */
+export interface CapturedTextPaintFragment {
+  source: "blink-text-fragment-affine-v1";
+  space: "pre-css-transform-viewport";
+  textSegmentIndex: number;
+  sourceTextNodeIndex: number;
+  physicalFragmentIndex: number;
+  neutralQuad: CapturedTextPaintQuad;
+  paintQuad: CapturedTextPaintQuad;
+  paintMatrix: CapturedTextPaintAffine;
+  /** Maximum held-out corner error after applying `paintMatrix`. */
+  affineResidual: number;
+  /** Physical baseline coordinate: Y for horizontal text, X for vertical. */
+  baseline: number;
+  /** Physical inline-axis start: X for horizontal text, Y for vertical. */
+  inlineOffset: number;
+  /** Per-code-unit shaped origins on the physical inline axis. */
+  shapedOrigins: number[];
+  /** Per-code-unit physical advances, retained in DOM/source order. */
+  shapedAdvances: number[];
+  writingMode: string;
+  direction: string;
+  transformBox: string;
+  transformOrigin: string;
+  /** Cumulative CSS zoom already present in local geometry and metrics. */
+  effectiveZoom: number;
+}
+
+export interface CapturedTextPaintGeometry {
+  source: "blink-text-fragment-affine-v1";
+  space: "pre-css-transform-viewport";
+  fragments: CapturedTextPaintFragment[];
+}
+
 /**
  * The computed-style snapshot captured per element. Every field is the
  * resolved `getComputedStyle` value (already serialized to a string, or a
@@ -1343,6 +1395,146 @@ export interface CapturedScrollbarSet {
   missingFacts: string[];
 }
 
+export type BrokenImageFallbackDisposition =
+  | "primary"
+  | "loading"
+  | "collapsed"
+  | "empty-inline"
+  | "non-replaced-fallback"
+  | "replaced-flow-root-fallback";
+
+export type CapturedBrokenImageQuad = [
+  number, number, number, number, number, number, number, number,
+];
+
+/** Blink physical box-model quads, localized to the requested capture viewport. */
+export interface CapturedBrokenImagePhysicalBox {
+  rect: { x: number; y: number; width: number; height: number };
+  content: CapturedBrokenImageQuad;
+  padding: CapturedBrokenImageQuad;
+  border: CapturedBrokenImageQuad;
+  margin: CapturedBrokenImageQuad;
+}
+
+/**
+ * Source-owned Chromium broken-image fallback record (DM-2463).
+ *
+ * The record deliberately separates load/disposition, visible UA-shadow
+ * paint, ordinary shaped alternative text, and accessibility semantics. A
+ * failed `captureStatus` requests one explicit terminal Chromium surface; it
+ * must never reactivate the legacy fixed-mountain approximation.
+ */
+export interface CapturedBrokenImageFallback {
+  schemaVersion: 1;
+  authority: "chromium-ua-shadow-v1";
+  disposition: BrokenImageFallbackDisposition;
+  captureStatus: "exact" | "terminal-raster";
+  paintOwnership: "none" | "hybrid-icon-raster-vector-text" | "terminal-raster";
+  loadState: "no-source" | "loading" | "loaded" | "failed";
+  source: {
+    complete: boolean;
+    naturalWidth: number;
+    naturalHeight: number;
+    currentSrc: string;
+    src: { present: boolean; value: string | null };
+    alt: { present: boolean; value: string | null };
+    title: { present: boolean; value: string | null };
+    /** HTMLImageElement::AltText(): present alt, otherwise title. */
+    resolvedText: string;
+  };
+  hostBox: CapturedBrokenImagePhysicalBox | null;
+  container?: {
+    box: CapturedBrokenImagePhysicalBox | null;
+    display: string;
+    float: string;
+    overflowX: string;
+    overflowY: string;
+    /** Padding-box clip used by the flow-root fallback's hidden overflow. */
+    overflowClip: CapturedBrokenImageQuad | null;
+    direction: string;
+    writingMode: string;
+    effectiveZoom: number;
+    border: {
+      top: number; right: number; bottom: number; left: number;
+      topStyle: string; rightStyle: string; bottomStyle: string; leftStyle: string;
+      topColor: string; rightColor: string; bottomColor: string; leftColor: string;
+    };
+    padding: { top: number; right: number; bottom: number; left: number };
+  };
+  icon?: {
+    box: CapturedBrokenImagePhysicalBox | null;
+    display: string;
+    float: string;
+    visible: boolean;
+    cssWidth: number;
+    cssHeight: number;
+    devicePixelRatio: number;
+    /** LayoutImageResource::BrokenImage selects 200% at DPR >= 2. */
+    resourceScale: 1 | 2;
+  };
+  text?: {
+    value: string;
+    box: { x: number; y: number; width: number; height: number } | null;
+    quads: CapturedBrokenImageQuad[];
+    /** Code-point-safe, UTF-16-indexed geometry for later shaping correlation. */
+    codepoints: Array<{
+      text: string;
+      start: number;
+      end: number;
+      rects: Array<{ x: number; y: number; width: number; height: number }>;
+      naturalAdvance: number;
+    }>;
+    /** Normal vector-text input; the broken-image mechanism never rasterizes it wholesale. */
+    segments: TextSegment[];
+    style: {
+      color: string;
+      fontFamily: string;
+      fontSize: number;
+      fontStyle: string;
+      fontWeight: string;
+      fontStretch: string;
+      fontVariant: string;
+      fontFeatureSettings: string;
+      fontVariationSettings: string;
+      lineHeight: string;
+      letterSpacing: string;
+      wordSpacing: string;
+      textTransform: string;
+      whiteSpace: string;
+      direction: string;
+      writingMode: string;
+    };
+    fontMetrics: {
+      ascent: number;
+      descent: number;
+      actualAscent: number;
+      actualDescent: number;
+    };
+    resolvedFonts: Array<{
+      familyName: string;
+      postScriptName: string;
+      isCustomFont: boolean;
+      glyphCount: number;
+    }>;
+  };
+  accessibility: {
+    ignored: boolean;
+    role: string | null;
+    name: string | null;
+    description: string | null;
+  } | {
+    unavailableReason: string;
+  };
+  terminalRaster?: {
+    rect: { x: number; y: number; width: number; height: number };
+    reason: string;
+  };
+  /** Private live-DOM correlation consumed and deleted by the CDP post-pass. */
+  sourceNodeIndex?: number;
+  /** Private warning context consumed and deleted by the CDP post-pass. */
+  selector?: string;
+}
+
 export interface CapturedElement {
   tag: string;
   text: string;
@@ -1472,10 +1664,13 @@ export interface CapturedElement {
   /** Intrinsic pixel dimensions of <img>, used for object-fit: none. */
   imageIntrinsic?: { w: number; h: number };
   /** True when the <img> failed to load (`complete && naturalWidth === 0`).
-   *  Renderer paints the broken-image fallback (icon + alt text). DM-372. */
+   *  Legacy serialized-tree compatibility only; new live captures use
+   *  `brokenImageFallback`. */
   imageBroken?: boolean;
-  /** <img alt> attribute, painted next to the broken-image icon. DM-372. */
+  /** Legacy <img alt> compatibility; presence/title semantics live in the record below. */
   imageAlt?: string;
+  /** Chromium UA-shadow fallback state/geometry/text/AX facts. */
+  brokenImageFallback?: CapturedBrokenImageFallback;
   /** Intrinsic pixel dimensions of list-style-image on <li>. */
   listMarkerIntrinsic?: { w: number; h: number };
   /** 1-based list-item counter value used to format numeric/alpha markers. */
@@ -1525,6 +1720,8 @@ export interface CapturedElement {
   svgContent?: string;
   /** Individual text node segments (for mixed content with interleaved child elements) */
   textSegments?: TextSegment[];
+  /** DM-2469 authoritative pre-transform fragment planes and paint matrices. */
+  textPaintGeometry?: CapturedTextPaintGeometry;
   /** Bounding box of all text (union of segments) */
   textTop?: number;
   textLeft?: number;

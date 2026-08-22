@@ -1631,7 +1631,8 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   boundary (doc 06).
 
 <!-- DM-2384 -->
-- Broken-image fallback parity (doc 156) is **design-only**. Blink replaces a
+- Broken-image fallback parity (doc 156) is **capture-complete, emit-pending**.
+  Blink replaces a
   failed host with a UA-shadow block-flow/inline fallback state machine; it
   does not ask `ImagePainter` to draw a framed mountain. Source and fresh CDP
   evidence require a hybrid result: author paint plus the UA container/clip
@@ -1639,9 +1640,14 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   text path, and only Chromium's DPR-selected broken-image bitmap is raster.
   Empty/missing alt, the exact 17/18 px transition, standards/quirks sizing,
   RTL/vertical placement, zoom, title/AX semantics, and platform-native text
-  must come from captured browser facts. Current code still emits the fixed
-  gray approximation. DM-2463 captures the UA facts, DM-2464 emits the hybrid,
-  and DM-2465 adds dependency-ordered all-platform stage/oracle controls.
+  must come from captured browser facts. DM-2463 now pierces the closed UA
+  shadow through CDP and records the six-way disposition, physical boxes and
+  clip/style facts, alt/title presence and resolution, code-point-safe hidden
+  text ranges/font metrics/platform fonts, DPR resource selection, and AX
+  name/ignored state. Missing required facts warn and select a classified
+  terminal surface. The renderer still emits the fixed gray approximation;
+  DM-2464 emits the hybrid, and DM-2465 adds dependency-ordered all-platform
+  stage/oracle controls.
 
 <!-- DM-2382 -->
 - Legacy WebKit control-pseudo cascade is Chromium-owned. A Node-side CDP
@@ -1657,17 +1663,19 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   old source-order fallback is removed and authoritative-surface failure is
   explicit. See [doc 158](../158-authoritative-control-pseudo-cascade.md).
 
-<!-- DM-2381 -->
-- Transformed text remains **design-only** for arbitrary affine matrices. The
-  current capture reduces matrix diagonals to a cumulative geometric-mean font
-  scale and mixes live scale rectangles with neutralized rotation/skew
-  rectangles. Pinned Blink/HarfBuzz/Skia source instead keeps zoom-adjusted
-  shaped fragments local and applies a complete signed paint matrix. Fresh
-  Chromium text-node quads distinguish equal-scalar rotation from scale,
-  preserve reflection winding and wrapped fragments, move with transform-box,
-  and put non-affine perspective at the existing outer raster boundary. See
-  [doc 159](../159-exact-text-transform-geometry-audit.md); exact capture,
-  renderer migration, and all-platform gates are tracked in DM-2469/2470/2471.
+<!-- DM-2381 / DM-2469 -->
+- Exact transformed-text **capture is implemented; renderer migration remains**.
+  A same-frame Node/CDP prepass pauses animations, retains real text nodes
+  without author-visible markers, measures live and all-transform-neutral
+  physical fragments with zoom active, and serializes the complete signed
+  affine mapping plus ordered baselines and UTF-16 shaped origins/advances.
+  Equal-diagonal rotation/scale, reflection, wrap, transform-box, RTL/vertical,
+  same-origin iframe, zoom and DPR controls are green. Missing, ambiguous,
+  changing, singular, or projective facts warn and select the existing outer
+  Chromium raster owner. Legacy diagonal/font-magnitude fields remain only for
+  DM-2470 to migrate every text paint branch and delete; DM-2471 owns the
+  independent all-platform matrix/ink gate. See
+  [doc 159](../159-exact-text-transform-geometry-audit.md).
 
 <!-- DM-2371 / DM-2473 / DM-2474 / DM-2475 -->
 - Cloned inline-SVG 3D ownership and its independent static parity gate are

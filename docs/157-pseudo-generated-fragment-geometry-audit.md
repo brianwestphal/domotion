@@ -1,7 +1,7 @@
 # 157 — Generated pseudo fragment and baseline geometry audit
 
 **Ticket:** DM-2383  
-**Status:** investigation and design only; production is unchanged  
+**Status:** DM-2466 protocol decoder/oracle complete (doc 175); production is unchanged pending DM-2467/2468
 **Source pins:** Chromium `7d859f271cbda744098ac69f44978d4edfa62be3`,
 HarfBuzz `4de187dd0a915d13c976fa8bd474c084229f3aab`, and the
 Chromium-pinned Skia revision `62efacd37737505732dbe3d8daa62abd679626a1`
@@ -36,6 +36,12 @@ host-anchor heuristic for a new capture.
 
 This investigation intentionally makes no production change. Follow-up work
 is dependency ordered as DM-2466 → DM-2467 → DM-2468.
+
+DM-2466 is now complete. The source-transcribed decoder and its 80-row live
+Chromium DPR matrix are documented in
+[doc 175](175-pseudo-fragment-protocol-oracle.md). The production limitations
+below deliberately remain current until DM-2467 installs the record and
+DM-2468 consumes it.
 
 ## Current Domotion behavior
 
@@ -326,8 +332,8 @@ plus negative `content:none` and hidden/clipped controls.
 ## Follow-up tickets
 
 - **DM-2466 — Build a Chromium pseudo-fragment geometry oracle and protocol
-  decoder.** Establish the source-owned record and mutation-complete structural
-  gate first.
+  decoder.** Complete: doc 175 records the source-owned decoder, 80-row live
+  DPR matrix, and mutation-complete structural gate.
 - **DM-2467 — Capture source-owned before/after fragment and baseline
   records.** Blocked by DM-2466; add the protocol-backed capture path and
   fail-closed surface boundary.

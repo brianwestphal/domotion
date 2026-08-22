@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt492jatyfzo11yq",
+          "message": {
+            "text": "Closed broken-image paint ownership must be read through CDP while live-node correlation exists. Blink creates this tree as a user-agent shadow root, so page JavaScript and complete/naturalWidth cannot supply its disposition, used boxes, hidden Text node, or AX semantics; requesting the frontend document first is required before backend UA nodes can be pushed for CSS/font queries.",
+            "markdown": "Closed broken-image paint ownership must be read through CDP while live-node correlation exists. Blink creates this tree as a user-agent shadow root, so page JavaScript and complete/naturalWidth cannot supply its disposition, used boxes, hidden Text node, or AX semantics; requesting the frontend document first is required before backend UA nodes can be pushed for CSS/font queries."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/broken-image-fallback.ts"
+                },
+                "region": {
+                  "startLine": 437,
+                  "endLine": 471,
+                  "snippet": {
+                    "text": "export async function captureBrokenImageFallbackFacts(\n  page: Page,\n  elements: CapturedElement[],\n  viewport: { x: number; y: number; width: number; height: number },\n  warnings: CaptureWarning[],\n  sourceNodeKey?: string,\n): Promise<void> {\n  const targets: Array<{ element: CapturedElement; probe: ProbeRecord }> = [];\n  const visit = (nodes: CapturedElement[]): void => {\n    for (const element of nodes) {\n      if (element.tag === \"img\" && element.brokenImageFallback != null) {\n        targets.push({ element, probe: element.brokenImageFallback as unknown as ProbeRecord });\n      }\n      visit(element.children ?? []);\n    }\n  };\n  visit(elements);\n  if (targets.length === 0) return;\n  if (sourceNodeKey == null) {\n    for (const target of targets) warningFor(target.element, target.probe, warnings, \"live image-node registry unavailable\");\n    return;\n  }\n\n  let session: CDPSession | undefined;\n  try {\n    session = await page.context().newCDPSession(page);\n    await Promise.all([\n      session.send(\"DOM.enable\"),\n      session.send(\"Runtime.enable\"),\n      session.send(\"CSS.enable\"),\n      session.send(\"Accessibility.enable\"),\n    ]);\n    // CDP requires a frontend document to exist before backend UA-shadow ids\n    // can be pushed for computed-style/font queries.\n    await session.send(\"DOM.getDocument\", { depth: 0, pierce: true });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/index.ts"
+                },
+                "region": {
+                  "startLine": 1641
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2463"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4a944dcb4d73af44504fd4201d27b111"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt492o2wpn5nsoga",
+          "message": {
+            "text": "Required-fact failure is deliberately fail-closed and observable. The terminal-raster record preserves the already-classified source/load state and exact host bounds while the warning prevents DM-372's known-inexact mountain/text heuristic from silently becoming authority again; DM-2464 can materialize this explicit terminal request.",
+            "markdown": "Required-fact failure is deliberately fail-closed and observable. The terminal-raster record preserves the already-classified source/load state and exact host bounds while the warning prevents DM-372's known-inexact mountain/text heuristic from silently becoming authority again; DM-2464 can materialize this explicit terminal request."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/broken-image-fallback.ts"
+                },
+                "region": {
+                  "startLine": 412,
+                  "endLine": 430,
+                  "snippet": {
+                    "text": "function warningFor(target: CapturedElement, probe: ProbeRecord, warnings: CaptureWarning[], reason: string): void {\n  const selector = probe.selector ?? \"img\";\n  if (!warnings.some((warning) => warning.feature === FEATURE && warning.selector === selector)) {\n    warnings.push({ selector, feature: FEATURE, detail: `${reason}; terminal Chromium raster required` });\n  }\n  const hostRect = probe.hostRect ?? { x: target.x, y: target.y, width: target.width, height: target.height };\n  target.brokenImageFallback = {\n    schemaVersion: 1,\n    authority: \"chromium-ua-shadow-v1\",\n    disposition: classifyBrokenImageDisposition({ source: probe.source, uaShadowPresent: false }),\n    captureStatus: \"terminal-raster\",\n    paintOwnership: \"terminal-raster\",\n    loadState: loadState(probe.source),\n    source: probe.source,\n    hostBox: boxFromRect(hostRect),\n    accessibility: { unavailableReason: reason },\n    terminalRaster: { rect: hostRect, reason },\n  };\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/types.ts"
+                },
+                "region": {
+                  "startLine": 1395
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2463"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "7651e01a0b6e7182233b568c21aac883"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "cb9d97b39e7a2e3a3eb670b258937709611818c5",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

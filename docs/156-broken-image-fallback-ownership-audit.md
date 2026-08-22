@@ -1,7 +1,8 @@
 # 156 — Chromium broken-image fallback ownership audit
 
-Status: investigation complete; implementation is design-only. The renderer
-still uses the approximation described under **Current gap**.
+Status: capture foundation shipped in DM-2463; hybrid rendering and the
+all-platform paint gate remain DM-2464/DM-2465. The renderer still uses the
+approximation described under **Current gap** for current serialized output.
 
 ## Question and evidence boundary
 
@@ -21,7 +22,7 @@ only verifies that the installed browser still exposes the expected boundary.
 
 ## Current gap
 
-Live capture records only:
+The legacy compatibility fields still record:
 
 - `imageBroken = el.complete && el.naturalWidth === 0`; and
 - `imageAlt = el.alt || ""`.
@@ -32,10 +33,15 @@ mountain at `(host.x + 1, host.y + 1)`. It places raw SVG `<text>` at
 `host.y + min(14, font-size)`. There are no focused tests for
 `imageBroken`, `imageAlt`, or `paintBrokenImage`.
 
-That is not a simplified version of Blink's current path. It loses the
-fallback layout disposition, title fallback, empty-alt suppression, UA
-border/padding, clipping threshold, inherited shaped text, baseline, RTL,
-vertical writing, zoom, DPR resource selection, and accessibility state.
+DM-2463 no longer treats those fields as capture authority. Every live
+`<img>` now receives `brokenImageFallback`: a Node/CDP post-pass pierces the
+UA shadow tree while private live-node correlation exists and records the
+disposition, physical host/container/icon boxes, used styles/clip, alt/title
+presence and resolution, code-point-safe hidden-Text ranges, font metrics and
+platform fonts, DPR resource selection, and independent AX state. Missing
+required facts warn and request a classified terminal surface. The remaining
+gap is emission: `paintBrokenImage()` still consumes the compatibility fields
+until DM-2464 replaces it with the hybrid record.
 
 ## Blink's decision procedure
 
@@ -273,9 +279,12 @@ and separately gated because it sacrifices scalable text.
 
 The work is split so capture facts cannot be fixture-fit inside the renderer:
 
-1. **DM-2463 — capture fallback state and UA-shadow geometry.** Add the CDP
-   post-pass, explicit state record, resolved alternative text, shaped text
-   facts, accessibility facts, and failure warning.
+1. **DM-2463 — capture fallback state and UA-shadow geometry (shipped).**
+   `src/capture/broken-image-fallback.ts` adds the CDP post-pass, explicit
+   state record, resolved alternative text, shaped text/font facts,
+   accessibility facts, and fail-closed warning. Focused unit and live-browser
+   tests cover standards/quirks, sizing/source states, DPR 1/2, threshold,
+   direction/writing mode, zoom, title/empty/missing alt, and pipeline cleanup.
 2. **DM-2464 — render the hybrid fallback.** Remove the gray mountain and raw
    `<text>`, keep host/container/text vector, and stamp only the exact DPR icon
    raster.

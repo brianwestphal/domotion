@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt491i6566ksk4ki",
+          "message": {
+            "text": "The decoder deliberately requires a one-to-one ordered join between DOMSnapshot visual groups and DOM.getContentQuads. Blink leaves multicol text boxes fragmentainer-local while the content quads carry physical translations; accepting a cardinality mismatch or unioning rows would recreate the legacy ambiguity. Unavailable, malformed, unpainted, and mismatched protocol states therefore return no synthesized fragments. The baseline at lines 472-496 uses the primary ascent and LineRelativeRect writing transform transcribed from pinned TextFragmentPainter, never CSS font-size half-leading.",
+            "markdown": "The decoder deliberately requires a one-to-one ordered join between DOMSnapshot visual groups and DOM.getContentQuads. Blink leaves multicol text boxes fragmentainer-local while the content quads carry physical translations; accepting a cardinality mismatch or unioning rows would recreate the legacy ambiguity. Unavailable, malformed, unpainted, and mismatched protocol states therefore return no synthesized fragments. The baseline at lines 472-496 uses the primary ascent and LineRelativeRect writing transform transcribed from pinned TextFragmentPainter, never CSS font-size half-leading."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/pseudo-fragment-protocol.ts"
+                },
+                "region": {
+                  "startLine": 401,
+                  "endLine": 501,
+                  "snippet": {
+                    "text": "export function decodePseudoFragmentProtocol(input: PseudoProtocolInput): DecodedPseudoFragmentSet {\n  const base = {\n    hostCorrelationId: input.hostCorrelationId,\n    pseudo: input.pseudo,\n    writingMode: input.style.writingMode,\n    direction: input.style.direction,\n  };\n  if (input.protocolAvailable === false) {\n    return { ...base, status: \"protocol-unavailable\", reason: \"Chromium protocol unavailable\", contentItems: [], boxFragments: [], fragments: [] };\n  }\n  if (input.layoutRows.some((row) => !validRect(row.bounds)) || input.contentQuads.some((quad) => !validQuad(quad))) {\n    return ambiguous(input, \"non-finite or negative protocol geometry\");\n  }\n  if (input.layoutRows.length === 0 || input.contentQuads.length === 0) {\n    return { ...base, status: \"unpainted\", reason: \"pseudo has no observable layout fragments\", contentItems: [], boxFragments: [], fragments: [] };\n  }\n\n  const aggregate = selectAggregateRow(input.layoutRows);\n  const built = buildItemsAndEvents(input.layoutRows, aggregate);\n  if (\"error\" in built) return ambiguous(input, built.error);\n  const { contentItems, events } = built;\n\n  // An empty decorative box has no anonymous child rows but remains a real\n  // box fragment. All non-empty rows must pair one-for-one with ordered quads.\n  const groups = events.length === 0 ? input.contentQuads.map(() => [] as FragmentEvent[]) : groupEvents(events, input.style.writingMode);\n  if (groups.length !== input.contentQuads.length) {\n    return ambiguous(input, `ordered fragment cardinality mismatch: ${groups.length} snapshot groups, ${input.contentQuads.length} quads`, contentItems);\n  }\n\n  const boxFragments: PseudoBoxFragment[] = [];\n  const fragments: PseudoFragment[] = [];\n  let visualOrder = 0;\n  for (let index = 0; index < groups.length; index++) {\n    const group = groups[index];\n    const quad = input.contentQuads[index];\n    const physicalRect = rectFromQuad(quad);\n    const ownership = edgeOwnership(index, groups.length, input.style.boxDecorationBreak);\n    const insets = ownedInsets(input.style, ownership);\n    const contentRect = group.length > 0 ? unionRects(group.map((event) => event.localRect)) : null;\n    const localBorderRect = contentRect == null ? aggregate?.bounds ?? null : expand(contentRect, insets);\n    if (localBorderRect == null) return ambiguous(input, \"box quad has no matching aggregate or content geometry\", contentItems);\n\n    let translation: Point | null = null;\n    if (axisAligned(quad) && Math.abs(localBorderRect.width - physicalRect.width) <= EPSILON && Math.abs(localBorderRect.height - physicalRect.height) <= EPSILON) {\n      translation = { x: physicalRect.x - localBorderRect.x, y: physicalRect.y - localBorderRect.y };\n    }\n    boxFragments.push({\n      index,\n      physicalQuad: quad,\n      physicalRect,\n      localContentRect: contentRect,\n      localBorderRect,\n      edgeOwnership: ownership,\n      fragmentainerTranslation: translation,\n    });\n\n    for (const event of group) {\n      const mappedQuad = mapRect(event.localRect, localBorderRect, quad);\n      const mappedRect = rectFromQuad(mappedQuad);\n      if (event.kind === \"image\") {\n        fragments.push({\n          kind: \"image\",\n          contentItemIndex: event.contentItemIndex,\n          visualOrder: visualOrder++,\n          boxFragmentIndex: index,\n          localRect: event.localRect,\n          physicalRect: mappedRect,\n          physicalQuad: mappedQuad,\n        });\n        continue;\n      }\n      const protocolAdvance = inlineAdvance(event.localRect, input.style.writingMode);\n      const shapedAdvance = event.shapedAdvance ?? protocolAdvance;\n      const localBaseline = blinkTextPaintBaseline(event.localRect, input.style.writingMode, input.style.primaryFontAscent, shapedAdvance);\n      const physicalBaseline = {\n        origin: mapPoint(localBaseline.origin, localBorderRect, quad),\n        end: mapPoint(localBaseline.end, localBorderRect, quad),\n      };\n      fragments.push({\n        kind: \"text\",\n        contentItemIndex: event.contentItemIndex,\n        sourceStartUtf16: event.startUtf16!,\n        sourceEndUtf16: event.endUtf16!,\n        text: event.text!,\n        visualOrder: visualOrder++,\n        boxFragmentIndex: index,\n        localRect: event.localRect,\n        physicalRect: mappedRect,\n        physicalQuad: mappedQuad,\n        protocolInlineAdvance: protocolAdvance,\n        shapedInlineAdvance: shapedAdvance,\n        baseline: {\n          ...physicalBaseline,\n          ascent: input.style.primaryFontAscent,\n          source: \"TextFragmentPainter.primary-font-ascent+writing-transform\",\n        },\n      });\n    }\n  }\n\n  return { ...base, status: \"exact\", contentItems, boxFragments, fragments };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/paint/text_fragment_painter.cc"
+                },
+                "region": {
+                  "startLine": 374
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/paint/line_relative_rect.cc"
+                },
+                "region": {
+                  "startLine": 20
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2466"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "3e987acd55b3cc0dad0cbc808d3c6aa4"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "cb9d97b39e7a2e3a3eb670b258937709611818c5",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

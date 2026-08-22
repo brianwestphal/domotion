@@ -6,10 +6,32 @@ local, zoom-adjusted layout space, then the paint-property transform maps that
 paint into its destination space. A single magnitude derived from matrix
 diagonals cannot stand in for that mapping.
 
-No production routing changed in this investigation. The implementation is
-split into three dependency-ordered follow-ups: exact affine fragment capture
-(DM-2469), matrix-owned text emission with deletion of scalar compensation
-(DM-2470), and an independent all-platform Chromium gate (DM-2471).
+DM-2469 now implements the capture half of that model. A Node/CDP prepass
+retains each live text node, pauses the animation timeline, measures live and
+all-transform-neutral physical quads, captures normal shaped segments while
+CSS zoom remains active, solves one complete signed affine map, validates every
+held-out corner, and restores the source frame. The record is serialized beside
+the legacy scalar fields only until DM-2470 migrates every renderer text branch
+and deletes them. DM-2471 remains the independent all-platform Chromium gate.
+
+## Implementation status (DM-2469)
+
+- `src/capture/text-paint-geometry-cdp.ts` owns the same-frame live/neutral/
+  restored CDP protocol and private cross-frame node correlation. It never adds
+  an author-visible DOM marker.
+- `src/capture/text-fragment-geometry.ts` solves and validates the affine map,
+  correlates physical quads with normal text segments, and refuses missing
+  UTF-16 shaped origins/advances instead of inferring them from an AABB.
+- `CapturedElement.textPaintGeometry` preserves ordered neutral/paint quads,
+  complete matrix, residual, baseline, inline origin, shaped positions,
+  writing direction, reference-box/origin facts, and effective zoom.
+- A mismatched fragment count, singular/non-parallelogram plane, missing CDP
+  surface, ambiguous segment match, or failed exact restoration warns and
+  reserves one outer `transformSubtreeRaster`. Projective contexts share that
+  existing Chromium-owned terminal rather than acquiring a text-only bitmap.
+- DM-2470 still owns renderer consumption and removal of `_scaleMag`,
+  `cumScaleX/Y`, and anisotropic correction. Until then old-tree compatibility
+  and current output remain intentionally unchanged.
 
 ## Verdict
 
@@ -133,7 +155,7 @@ Run:
 npm run transform:text-geometry-audit -- --json /tmp/text-transform-audit.json
 ```
 
-The audit is observational. It obtains `DOM.getContentQuads` for the actual
+The original audit is observational. It obtains `DOM.getContentQuads` for the actual
 text node before and after a temporary all-owner identity override. The
 override leaves CSS zoom active. Three corresponding corners solve the affine
 map from neutral fragment space to live paint space; the fourth corner of every
@@ -186,28 +208,50 @@ show user-visible impact, but cannot select paint ownership; the source and
 matrix/quad discriminators above do that before the fixtures are reused as
 integration acceptance.
 
+The DM-2469 focused implementation checks add a production-path protocol leg:
+
+```sh
+npx vitest run src/capture/text-fragment-geometry.test.ts
+npx vitest run --config vitest.e2e.config.ts tests/text-paint-geometry.e2e.test.ts
+```
+
+The 2026-08-22 run passed 6/6 pure matrix/correlation controls and 5/5 live
+browser controls. DPR 1/2 rows cover identity, translation, the mandatory
+equal-diagonal rotate/scale collision, standalone transforms, anisotropy,
+both reflections, nested asymmetric origins, affine `matrix3d`, wrap, zoom,
+RTL, vertical writing, same-origin iframe correlation, and a content/border
+reference-box pair. The projective positive selected one populated outer PNG
+surface; its affine `matrix3d` negative remained vector. The direct live CDP
+row matched the serialized paint quad and every held-out residual was at most
+`0.05` CSS px (the sampled rotate/anisotropic row was `0.000015` CSS px).
+
 ## Exact capture representation
 
 The required record is a local fragment plus a matrix, never a scaled font:
 
 ```ts
 interface CapturedTextPaintGeometry {
-  // Physical text geometry with all vector-affine CSS transforms neutralized.
-  // Effective CSS zoom has already affected these coordinates and font metrics.
+  source: "blink-text-fragment-affine-v1";
   space: "pre-css-transform-viewport";
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  baseline: number;
-  inlineOffset: number;
-  xOffsets?: number[];
-  yOffsets?: number[];
-
-  // Complete signed affine mapping into the owning SVG paint space.
-  // The implementation may store an equivalent parent-relative matrix, but
-  // it must be derived before serialization rather than refitted by the renderer.
-  paintMatrix: [number, number, number, number, number, number];
+  fragments: Array<{
+    source: "blink-text-fragment-affine-v1";
+    textSegmentIndex: number;
+    sourceTextNodeIndex: number;
+    physicalFragmentIndex: number;
+    neutralQuad: [number, number, number, number, number, number, number, number];
+    paintQuad: [number, number, number, number, number, number, number, number];
+    paintMatrix: [number, number, number, number, number, number];
+    affineResidual: number;
+    baseline: number;
+    inlineOffset: number;
+    shapedOrigins: number[];
+    shapedAdvances: number[];
+    writingMode: string;
+    direction: string;
+    transformBox: string;
+    transformOrigin: string;
+    effectiveZoom: number;
+  }>;
 }
 ```
 
@@ -258,9 +302,10 @@ split paint space.
 
 ## Follow-up order
 
-1. **DM-2469 — capture exact affine text-fragment geometry and transform
-   matrices.** Own the neutral/live protocol, schema, fragment correlation,
-   warnings, and projective boundary.
+1. **DM-2469 — implemented:** exact affine text-fragment geometry and transform
+   matrices. The neutral/live protocol, schema, fragment correlation, warnings,
+   restoration check, same-origin-frame route, and projective boundary ship in
+   capture.
 2. **DM-2470 — render transformed text from captured affine geometry and remove
    scalar compensation.** Consume the record across every text paint branch,
    delete `_scaleMag`/`cumScale*`/anisotropic correction, and prevent double
