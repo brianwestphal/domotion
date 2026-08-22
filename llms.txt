@@ -147,13 +147,25 @@ For Node scripts instead of the CLI: `captureElementTree()` + `elementTreeToSvg(
 
 ### Work the loop — build → render → *look* → critique → iterate
 
-You cannot judge a visual you haven't seen. **Never ship the first render.** The output is an ordinary, self-contained, standards-compliant SVG, so you can look at it cheaply:
+You cannot judge a visual you haven't seen. **Never ship the first render, and never hand an SVG back for user review until you have opened a rendered derivative yourself.** Valid XML, a successful CLI exit, and source-code inspection do not count as visual review. The output is an ordinary, self-contained, standards-compliant SVG, so you can look at it cheaply:
 
-1. **Render**, then **rasterize and actually view it as pixels.** For a still: `svg-to-image out.svg -o out.png` (the published one-shot rasterizer) and *look at the PNG*. For an animation: pull key beats as stills with `svg-to-image out.svg -o payoff.png --at <ms>` (the hook frame, the payoff frame, any frame you suspect is broken), and/or `svg-to-video out.svg -o out.mp4` to watch it; `svg-scrubber out.svg` is the interactive timeline bench. `svg-review` is for pixel-diffing a capture against Chromium (fidelity bugs), not aesthetic review.
+1. **Render**, then **rasterize and actually open the pixels.** For a still: `svg-to-image out.svg -o out-review.png` (the published one-shot Chromium rasterizer), then use your environment's image-viewing tool to inspect the PNG. Add `--scale 2` when small type, fine strokes, or masks need a close look. For an animation, pull meaningful beats with `svg-to-image out.svg -o beat-<name>.png --at <ms>` and open every PNG; do not inspect only time zero.
 2. **Critique against the checklist** (bottom of this section): hierarchy, contrast, easing, pacing, restraint. Name the single weakest thing.
 3. **Fix that one thing and re-render.** Iterate.
 4. **Prototype cheap, commit late.** Get the *still* frames right first (composition, color, type) — they're fast to render and most problems are visible without motion. Add motion only once the frames look good; motion can't rescue a weak frame.
 5. **Iterate visibly when working with a human.** Show intermediate renders and ask before going further on a fork (format, palette direction, motion style) — a 5-second still is a cheap way to converge.
+
+#### Visual handoff gate — required before returning an SVG
+
+Use temporary preview paths so the deliverable itself stays untouched. Before you say an SVG is ready:
+
+- **Still SVG:** open at least one intrinsic-size Chromium raster from `svg-to-image`. Check the entire canvas, not just the focal element: edges/cropping, alignment and spacing, text wrapping and legibility, missing assets, masks/filters/shadows, and the intended transparent or opaque background. Use a 2× raster as an additional close-up when fine detail matters; it does not replace the intrinsic-size view.
+- **Animated SVG:** inspect representative stills with `svg-to-image --at <ms>` at the opening state, a motion/transition midpoint, the payoff, and the final state just before the loop/cut. Sample immediately before and after any suspicious transition. Then render with `svg-to-video out.svg -o out-review.mp4` and **watch one complete loop** for flashes, doubled frames, jumps, unintended pauses, unreadable holds, and a visible loop seam. If the duration cannot be derived, pass `--duration <seconds>` explicitly.
+- **Timeline diagnosis:** use `svg-scrubber out.svg` to play, pause, frame-step, and scrub when a video exposes a timing problem or the important time is unclear. `svg-scrubber --review` can preserve the exact time/range and marked region when the problem needs to become a ticket.
+- **Reference comparison:** when a Chromium reference exists (for example, a `domotion capture --debug` bundle), use `svg-review --expected <expected.png> --actual <actual.svg>` as well. This is a fidelity comparison, not a substitute for judging an original design.
+- **Handoff evidence:** tell the user which raster(s) and animation times you actually inspected and whether you watched the complete loop. If Chromium, ffmpeg, image viewing, or video playback was unavailable, say exactly which visual check could not be run and do not claim the artifact was visually reviewed.
+
+If any inspected frame is wrong, fix it and repeat the gate. A plausible SVG source file is not the deliverable; the rendered result is.
 
 ### Motion — timing, easing, and the cut
 
@@ -227,7 +239,9 @@ Before returning a result, verify:
 - [ ] **Story:** reads as hook → build → payoff; one idea per frame.
 - [ ] **Restraint:** removed any motion/decoration that doesn't carry meaning.
 - [ ] **Cross-browser-safe** props only; loop (if any) has no visible seam.
-- [ ] **You looked at the rendered pixels** (still PNG and/or video), not just the config.
+- [ ] **Render correctness:** no unintended clipping/overlap, missing assets, broken masks/filters, bad text wrapping, or wrong background/alpha at the canvas edges.
+- [ ] **Animation coverage:** opened representative `--at` frames and watched one complete rendered loop, not just time zero.
+- [ ] **Handoff evidence:** named the previews/times actually inspected, or disclosed the exact visual check that could not run.
 
 ### Cheat-sheet
 

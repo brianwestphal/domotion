@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "corpusFingerprint": "da51ac6b7e8e023b4b3de81af15e2076ef199c9fdbf31a3a6d34a2ac99351562",
+  "sourcePins": {
+    "chromium": "7d859f271cbda744098ac69f44978d4edfa62be3",
+    "skia": "62efacd37737505732dbe3d8daa62abd679626a1"
+  },
+  "requiredScenarioIds": [
+    "dsf1.zoom0.8",
+    "dsf1.zoom1",
+    "dsf1.zoom1.25",
+    "dsf2.zoom0.8",
+    "dsf2.zoom1",
+    "dsf2.zoom1.25",
+    "dsf4.zoom0.8",
+    "dsf4.zoom1",
+    "dsf4.zoom1.25"
+  ],
+  "unratifiedFamilies": ["border.double"],
+  "platforms": {
+    "darwin": {
+      "fingerprint": {
+        "image": "macos26-arm64",
+        "imageVersion": "20260728.0273.1",
+        "osRelease": "25.5.0",
+        "chromium": "147.0.7727.15",
+        "platform": "darwin",
+        "arch": "arm64",
+        "node": "v22.21.0"
+      },
+      "evidence": {
+        "workflowRuns": [32604023290, 32604759338],
+        "repeatedArtifactSetSha256": [
+          "0bc025a5d57791ccf4aeaf7a6fd2b6fc9ed4aeeb17806a3faf3c0e47915c96ac",
+          "0bc025a5d57791ccf4aeaf7a6fd2b6fc9ed4aeeb17806a3faf3c0e47915c96ac"
+        ]
+      },
+      "scenarios": {
+        "dsf1.zoom0.8": { "edgeCeilingCssPx": 0.505883, "profileRmseCeiling": 0.196079, "observedWorstEdge": 0.5019607843137237, "observedWorstRmse": 0.18972334331443563, "repeatedMaxEdgeDelta": 0, "repeatedMaxRmseDelta": 0 },
+        "dsf1.zoom1": { "edgeCeilingCssPx": 0.505883, "profileRmseCeiling": 0.188236, "observedWorstEdge": 0.5019607843137237, "observedWorstRmse": 0.18379448883585953, "repeatedMaxEdgeDelta": 0, "repeatedMaxRmseDelta": 0 },
+        "dsf1.zoom1.25": { "edgeCeilingCssPx": 0.505883, "profileRmseCeiling": 0.184315, "observedWorstEdge": 0.5019607843137237, "observedWorstRmse": 0.1774699372389766, "repeatedMaxEdgeDelta": 0, "repeatedMaxRmseDelta": 0 },
+        "dsf2.zoom0.8": { "edgeCeilingCssPx": 0.019609, "profileRmseCeiling": 0.015687, "observedWorstEdge": 0.015686274509789655, "observedWorstRmse": 0.009681778821150865, "repeatedMaxEdgeDelta": 0, "repeatedMaxRmseDelta": 0 },
+        "dsf2.zoom1": { "edgeCeilingCssPx": 0.035295, "profileRmseCeiling": 0.019609, "observedWorstEdge": 0.029411764705855603, "observedWorstRmse": 0.012265553768063224, "repeatedMaxEdgeDelta": 0, "repeatedMaxRmseDelta": 0 },
+        "dsf2.zoom1.25": { "edgeCeilingCssPx": 0.011765, "profileRmseCeiling": 0.011765, "observedWorstEdge": 0.007843137254894827, "observedWorstRmse": 0.004436748430974431, "repeatedMaxEdgeDelta": 0, "repeatedMaxRmseDelta": 0 },
+        "dsf4.zoom0.8": { "edgeCeilingCssPx": 0.015687, "profileRmseCeiling": 0.015687, "observedWorstEdge": 0.008823529411756681, "observedWorstRmse": 0.007892004626469844, "repeatedMaxEdgeDelta": 0, "repeatedMaxRmseDelta": 0 },
+        "dsf4.zoom1": { "edgeCeilingCssPx": 0.02353, "profileRmseCeiling": 0.015687, "observedWorstEdge": 0.01666666666665151, "observedWorstRmse": 0.011371934337067078, "repeatedMaxEdgeDelta": 0, "repeatedMaxRmseDelta": 0 },
+        "dsf4.zoom1.25": { "edgeCeilingCssPx": 0.003922, "profileRmseCeiling": 0.003922, "observedWorstEdge": 0, "observedWorstRmse": 0, "repeatedMaxEdgeDelta": 0, "repeatedMaxRmseDelta": 0 }
+      }
+    },
+    "linux": {
+      "fingerprint": {
+        "image": "ubuntu24-x64",
+        "imageVersion": "20260816.277.1",
+        "osRelease": "6.17.0-1022-azure",
+        "chromium": "147.0.7727.15",
+        "platform": "linux",
+        "arch": "x64",
+        "node": "v22.21.0"
+      },
+      "evidence": {
+        "workflowRuns": [32604023290, 32604759338],
+        "repeatedArtifactSetSha256": [
+          "0bc025a5d57791ccf4aeaf7a6fd2b6fc9ed4aeeb17806a3faf3c0e47915c96ac",
+          "0bc025a5d57791ccf4aeaf7a6fd2b6fc9ed4aeeb17806a3faf3c0e47915c96ac"
+        ]
+      },
+      "scenarios": {
+        "dsf1.zoom0.8": { "edgeCeilingCssPx": 0.505883, "profileRmseCeiling": 0.196079, "observedWorstEdge": 0.5019607843137237, "observedWorstRmse": 0.18972334331443563, "repeatedMaxEdgeDelta": 0, "repeatedMaxRmseDelta": 0 },
+        "dsf1.zoom1": { "edgeCeilingCssPx": 0.505883, "profileRmseCeiling": 0.188236, "observedWorstEdge": 0.5019607843137237, "observedWorstRmse": 0.18379448883585953, "repeatedMaxEdgeDelta": 0, "repeatedMaxRmseDelta": 0 },
+        "dsf1.zoom1.25": { "edgeCeilingCssPx": 0.505883, "profileRmseCeiling": 0.184315, "observedWorstEdge": 0.5019607843137237, "observedWorstRmse": 0.1774699372389766, "repeatedMaxEdgeDelta": 0, "repeatedMaxRmseDelta": 0 },
+        "dsf2.zoom0.8": { "edgeCeilingCssPx": 0.019609, "profileRmseCeiling": 0.015687, "observedWorstEdge": 0.015686274509789655, "observedWorstRmse": 0.009681778821150865, "repeatedMaxEdgeDelta": 0, "repeatedMaxRmseDelta": 0 },
+        "dsf2.zoom1": { "edgeCeilingCssPx": 0.035295, "profileRmseCeiling": 0.019609, "observedWorstEdge": 0.029411764705855603, "observedWorstRmse": 0.012265553768063224, "repeatedMaxEdgeDelta": 0, "repeatedMaxRmseDelta": 0 },
+        "dsf2.zoom1.25": { "edgeCeilingCssPx": 0.011765, "profileRmseCeiling": 0.011765, "observedWorstEdge": 0.007843137254894827, "observedWorstRmse": 0.004436748430974431, "repeatedMaxEdgeDelta": 0, "repeatedMaxRmseDelta": 0 },
+        "dsf4.zoom0.8": { "edgeCeilingCssPx": 0.015687, "profileRmseCeiling": 0.015687, "observedWorstEdge": 0.008823529411756681, "observedWorstRmse": 0.007892004626469844, "repeatedMaxEdgeDelta": 0, "repeatedMaxRmseDelta": 0 },
+        "dsf4.zoom1": { "edgeCeilingCssPx": 0.02353, "profileRmseCeiling": 0.015687, "observedWorstEdge": 0.01666666666665151, "observedWorstRmse": 0.011371934337067078, "repeatedMaxEdgeDelta": 0, "repeatedMaxRmseDelta": 0 },
+        "dsf4.zoom1.25": { "edgeCeilingCssPx": 0.003922, "profileRmseCeiling": 0.003922, "observedWorstEdge": 0, "observedWorstRmse": 0, "repeatedMaxEdgeDelta": 0, "repeatedMaxRmseDelta": 0 }
+      }
+    },
+    "win32": {
+      "fingerprint": {
+        "image": "win25-vs2026-x64",
+        "imageVersion": "20260818.207.1",
+        "osRelease": "10.0.26100",
+        "chromium": "147.0.7727.15",
+        "platform": "win32",
+        "arch": "x64",
+        "node": "v22.21.0"
+      },
+      "evidence": {
+        "workflowRuns": [32604023290, 32604759338],
+        "repeatedArtifactSetSha256": [
+          "0bc025a5d57791ccf4aeaf7a6fd2b6fc9ed4aeeb17806a3faf3c0e47915c96ac",
+          "0bc025a5d57791ccf4aeaf7a6fd2b6fc9ed4aeeb17806a3faf3c0e47915c96ac"
+        ]
+      },
+      "scenarios": {
+        "dsf1.zoom0.8": { "edgeCeilingCssPx": 0.505883, "profileRmseCeiling": 0.196079, "observedWorstEdge": 0.5019607843137237, "observedWorstRmse": 0.18972334331443563, "repeatedMaxEdgeDelta": 0, "repeatedMaxRmseDelta": 0 },
+        "dsf1.zoom1": { "edgeCeilingCssPx": 0.505883, "profileRmseCeiling": 0.188236, "observedWorstEdge": 0.5019607843137237, "observedWorstRmse": 0.18379448883585953, "repeatedMaxEdgeDelta": 0, "repeatedMaxRmseDelta": 0 },
+        "dsf1.zoom1.25": { "edgeCeilingCssPx": 0.505883, "profileRmseCeiling": 0.184315, "observedWorstEdge": 0.5019607843137237, "observedWorstRmse": 0.1774699372389766, "repeatedMaxEdgeDelta": 0, "repeatedMaxRmseDelta": 0 },
+        "dsf2.zoom0.8": { "edgeCeilingCssPx": 0.019609, "profileRmseCeiling": 0.015687, "observedWorstEdge": 0.015686274509789655, "observedWorstRmse": 0.009681778821150865, "repeatedMaxEdgeDelta": 0, "repeatedMaxRmseDelta": 0 },
+        "dsf2.zoom1": { "edgeCeilingCssPx": 0.035295, "profileRmseCeiling": 0.019609, "observedWorstEdge": 0.029411764705855603, "observedWorstRmse": 0.012265553768063224, "repeatedMaxEdgeDelta": 0, "repeatedMaxRmseDelta": 0 },
+        "dsf2.zoom1.25": { "edgeCeilingCssPx": 0.011765, "profileRmseCeiling": 0.011765, "observedWorstEdge": 0.007843137254894827, "observedWorstRmse": 0.004436748430974431, "repeatedMaxEdgeDelta": 0, "repeatedMaxRmseDelta": 0 },
+        "dsf4.zoom0.8": { "edgeCeilingCssPx": 0.015687, "profileRmseCeiling": 0.015687, "observedWorstEdge": 0.008823529411756681, "observedWorstRmse": 0.007892004626469844, "repeatedMaxEdgeDelta": 0, "repeatedMaxRmseDelta": 0 },
+        "dsf4.zoom1": { "edgeCeilingCssPx": 0.02353, "profileRmseCeiling": 0.015687, "observedWorstEdge": 0.01666666666665151, "observedWorstRmse": 0.011371934337067078, "repeatedMaxEdgeDelta": 0, "repeatedMaxRmseDelta": 0 },
+        "dsf4.zoom1.25": { "edgeCeilingCssPx": 0.003922, "profileRmseCeiling": 0.003922, "observedWorstEdge": 0, "observedWorstRmse": 0, "repeatedMaxEdgeDelta": 0, "repeatedMaxRmseDelta": 0 }
+      }
+    }
+  }
+}

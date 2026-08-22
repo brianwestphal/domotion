@@ -418,19 +418,21 @@
         "zoom"
       ],
       "states": [
-        "solid -> dotted/dashed/double",
+        "solid -> dotted/dashed",
+        "solid -> double",
         "round -> non-round corner",
         "uniform -> mixed sides",
         "unzoomed -> effective zoom",
         "unfragmented -> fragmented"
       ],
       "exactStates": [
+        "solid -> dotted/dashed",
         "round -> non-round corner",
         "uniform -> mixed sides",
         "unzoomed -> effective zoom"
       ],
       "uncoveredStates": [
-        "solid -> dotted/dashed/double",
+        "solid -> double",
         "unfragmented -> fragmented"
       ],
       "upstreamSources": [
@@ -443,17 +445,20 @@
       ],
       "oracles": [
         "tools/border-phase-oracle.ts",
+        "tools/border-phase-ratifier.ts",
         "tools/paint-geometry-oracle.ts"
       ],
       "metamorphicTests": [
         "src/render/borders.test.ts",
-        "tests/border-phase-oracle.test.ts"
+        "tests/border-phase-oracle.test.ts",
+        "tests/border-phase-ratifier.test.ts",
+        "tests/border-phase-ratification-workflow.test.ts"
       ],
       "visualFixtures": [
         "tests/features.ts#border-styles-variants"
       ],
       "coverage": "partial",
-      "boundary": "Native phase envelopes and some dotted/dashed paint profiles remain under review.",
+      "boundary": "Reviewed macOS/Linux/Windows phase envelopes cover the 112 source-exact rows per scenario. Uniform border.double remains unratified until DM-2491 snaps its stripe reference geometry; fragmented-table coverage remains separate.",
       "featureIds": [
         "render.tree-to-svg"
       ],
@@ -878,6 +883,7 @@
         "transform-box",
         "perspective",
         "transform-style",
+        "projective raster owner",
         "animation timeline",
         "zoom"
       ],
@@ -888,6 +894,7 @@
         "flat -> preserve-3d",
         "border-box -> fill-box",
         "static -> animated",
+        "descendant-union owner -> used rendering-context root",
         "document timeline -> scroll/view/rAF timeline",
         "unzoomed -> zoomed"
       ],
@@ -901,6 +908,7 @@
         "unzoomed -> zoomed"
       ],
       "uncoveredStates": [
+        "descendant-union owner -> used rendering-context root",
         "document timeline -> scroll/view/rAF timeline"
       ],
       "upstreamSources": [
@@ -938,6 +946,8 @@
         "tests/animated-projective-frame.e2e.test.ts",
         "tests/animated-projective-frame-workflow.test.ts",
         ".github/workflows/animated-projective-frame-parity.yml",
+        "tools/nested-projective-ownership-audit.ts",
+        "tests/nested-projective-ownership-audit.e2e.test.ts",
         "tools/animated-culling-geometry-oracle.ts",
         "tools/raster-boundary-oracle.ts",
         "tests/viewbox-culling-geometry.e2e.test.ts"
@@ -945,6 +955,7 @@
       "metamorphicTests": [
         "src/capture/text-fragment-geometry.test.ts",
         "tests/animated-projective-frame-oracle.test.ts",
+        "tests/nested-projective-ownership-audit.test.ts",
         "src/render/text-affine.test.ts",
         "src/render/projective-transform.test.ts",
         "src/stacking-context.test.ts",
@@ -963,7 +974,7 @@
         "tests/features.ts#perspective-fixed-containing-block-ownership"
       ],
       "coverage": "partial",
-      "boundary": "Computed perspective/origin, the non-box inline stacking/fixed-owner split, and perspective/preserve-3d fixed-containing-block ownership are source-audited and gated. DM-2469 captures transformed text as ordered all-transform-neutral physical fragments plus complete signed live-paint matrices, with zoom retained locally, exact restoration/correlation checks, same-origin frames, and explicit outer Chromium ownership for unavailable or projective facts. DM-2470 consumes that neutral bundle through one signed residual matrix across every text paint branch and removes transform-derived font magnitudes, unsigned ancestor products and anisotropic correction. DM-2471 independently gates direct live/neutral/restored quads and final Chromium-versus-SVG device-space ink/content over 25 cases at DPR 1/2 on macOS/Linux/Windows with eight mutations and no platform envelope. DM-2359 pauses every participating document timeline before any prepass, exposes the exact sampled CDP quad/computed composition/residual/outer raster owner, and gates rotate3d, translate3d, matrix3d, perspective/origin, preserve-3d, grouping flattening, and additive composition at four frames and DPR 1/2 on all three platforms. Refused, drifting, changing-enumeration, or non-document timelines fail explicitly rather than being approximated in 2D. The affine plane and UTF-16 shaped origins/advances are browser/protocol owned; baseline still inherits the normal segment metric seam (explicit segment baseline, else captured ascent plus physical origin), behaviorally checked by final ink rather than a separately decoded Blink fragment-baseline protocol row. The animated viewBox path has source-derived function-first composed sweeps and explicit unknown retention, validated by doc 166's all-platform gate.",
+      "boundary": "Computed perspective/origin, the non-box inline stacking/fixed-owner split, and perspective/preserve-3d fixed-containing-block ownership are source-audited and gated. DM-2469 captures transformed text as ordered all-transform-neutral physical fragments plus complete signed live-paint matrices, with zoom retained locally, exact restoration/correlation checks, same-origin frames, and explicit Chromium ownership for unavailable or projective facts. DM-2470 consumes that neutral bundle through one signed residual matrix across every text paint branch and removes transform-derived font magnitudes, unsigned ancestor products and anisotropic correction. DM-2471 independently gates direct live/neutral/restored quads and final Chromium-versus-SVG device-space ink/content over 25 cases at DPR 1/2 on macOS/Linux/Windows with eight mutations and no platform envelope. DM-2359 pauses every participating document timeline before any prepass and exactly exposes the sampled CDP quad/computed composition/residual, raster materialization, and atomic application across four frames and DPR 1/2 on all three platforms. DM-2356 proves smallest owner identity remains partial: production and the animated oracle both use a descendant-union outer-host assumption instead of Blink's direct-parent used-preserve rendering-context root. Its 13-family DPR-1/2 observational corpus passes 26/26 source-model rows and six mutations while identifying 18 vector-absorbing over-owners. Refused, drifting, changing-enumeration, or non-document timelines fail explicitly rather than being approximated in 2D. The affine plane and UTF-16 shaped origins/advances are browser/protocol owned; baseline still inherits the normal segment metric seam (explicit segment baseline, else captured ascent plus physical origin), behaviorally checked by final ink rather than a separately decoded Blink fragment-baseline protocol row. The animated viewBox path has source-derived function-first composed sweeps and explicit unknown retention, validated by doc 166's all-platform gate.",
       "featureIds": [
         "capture.animated-projective-frame",
         "render.tree-to-svg",

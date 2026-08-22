@@ -196,6 +196,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "codex-dm2355",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt504u5kdal1ofj3",
+          "message": {
+            "text": "The paint envelope deliberately excludes uniform border.double even though its sampled residuals are stable. Pinned Blink snaps the outer reference rect before border paint, while the current local double emitter derives both stripes from unsnapped element coordinates; classifying those 16 rows as paint-passable would hide a logical ownership mismatch. DM-2491 tracks the geometry correction.",
+            "markdown": "The paint envelope deliberately excludes uniform border.double even though its sampled residuals are stable. Pinned Blink snaps the outer reference rect before border paint, while the current local double emitter derives both stripes from unsnapped element coordinates; classifying those 16 rows as paint-passable would hide a logical ownership mismatch. DM-2491 tracks the geometry correction."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/border-phase-oracle.ts"
+                },
+                "region": {
+                  "startLine": 32,
+                  "endLine": 42,
+                  "snippet": {
+                    "text": "/** Blink pixel-snaps the border/outline reference rect before paint. Every\n * square-outline branch and the solid/dashed/dotted border branches mirror\n * that decision locally. The uniform double-border emitter still places its\n * two stripes from the unsnapped captured box, so it must stay outside any\n * paint-profile envelope even when one sampled phase happens to coincide. */\nexport function borderPhaseGeometryStatus(\n  phaseCase: Pick<PhaseCase, \"kind\" | \"style\">,\n): \"source-exact\" | \"unratified-border-double-snap\" {\n  return phaseCase.kind === \"border\" && phaseCase.style === \"double\"\n    ? \"unratified-border-double-snap\"\n    : \"source-exact\";"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 1448
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/191-cross-platform-border-phase-envelopes.md"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2355"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "031b4167b5d117bea162bf5551430771"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "34e5c5d86b14d5433d6a7d5de7a237def6ca27cc",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

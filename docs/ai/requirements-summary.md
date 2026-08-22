@@ -130,6 +130,16 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Cross-platform border/outline phase envelopes (DM-2355, docs 127/191) —
+  Shipped source-exact subset.** The native HTML-versus-img-rendered-SVG
+  producer now fingerprints source pins, corpus, runner, and every lossless
+  artifact; a separate strict macOS/Linux/Windows gate crosses DSF 1/2/4 and
+  zoom 0.8/1/1.25. Pinned Blink reference-box ownership ratifies 112/128 rows
+  per scenario with narrow stable paint ceilings. The 16 uniform
+  `border.double` rows remain explicitly unratified because their local stripe
+  boxes still start from unsnapped captured coordinates (DM-2491); no alpha
+  tolerance can convert that logical gap into a pass.
+
 - **Projective inline-SVG raster ownership (doc 162) — Shipped.** Chromium CDP
   content/border quads now distinguish actual non-affine paint from inert
   `perspective`/`preserve-3d` property presence without appending HTML markers
@@ -1826,19 +1836,36 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   routing plus independent live-Chromium versus complete generated-SVG
   alpha/ink within fixed device tolerances. Six unsafe mutations must move,
   and native macOS/Linux/Windows jobs upload fingerprinted reports. The exact
-  boundary and evidence are in
-  [doc 162](../162-inline-svg-3d-transform-audit.md).
-- Animated CSS 3D frame state is **shipped** (DM-2359,
-  [doc 186](../186-animated-3d-frame-state-parity.md)). Direct capture accepts
+  SVG boundary and evidence are in
+  [doc 162](../162-inline-svg-3d-transform-audit.md). The smallest nested HTML
+  owner chosen before opaque-clone promotion remains partial as documented in
+  [doc 189](../189-nested-projective-context-ownership.md).
+- Animated CSS 3D frame synchronization, geometry, and atomic paint are
+  **shipped** (DM-2359, [doc 186](../186-animated-3d-frame-state-parity.md)).
+  Direct capture accepts
   an exact `animationTimeMs`, pauses CSS/WAAPI and SMIL timelines before every
   capture prepass, and rejects drift, refused/non-document time, or changing
   animation enumeration. Each 3D-influenced element exposes the same-frame CDP
   content/border quad, computed transform composition/origin/perspective/style,
-  residual, and effective atomic-raster owner. A native macOS/Linux/Windows
+  residual, and selected atomic-raster owner. A native macOS/Linux/Windows
   DPR-1/2 workflow crosses rotate3d, affine translate3d retention, matrix3d,
   perspective/origin, preserve-to-flat ownership, overflow grouping flattening,
   and additive composition at 0/250/500/750ms; 64 rows and five mutations are
-  locally green without fitting an apparent 2D matrix.
+  locally green without fitting an apparent 2D matrix. DM-2356 proved that the
+  perspective/grouping expected owner was copied from production's
+  descendant-union assumption, so those green rows are not independent proof
+  of minimal ownership.
+- Nested projective owner selection is **investigated and known partial**
+  (DM-2356, [doc 189](../189-nested-projective-context-ownership.md)). Pinned
+  Blink source propagates a rendering-context ID only through a direct parent
+  whose *used* style preserves 3D; perspective alone creates no context, and an
+  ordinary, flat, opacity/filter/clip/mask/isolation, or non-visible-overflow
+  intermediary breaks propagation. The DPR-1/2 observational corpus proves
+  26/26 source-model rows, but production selects the smallest owner in only
+  8/26 and absorbs the vector sentinel in all 18 over-owned rows. Atomic
+  one-image emission remains correct. Implementation must capture the
+  frame-coherent used context root, retain inline-SVG promotion, and fail closed
+  when an internal active view-transition grouping fact is unavailable.
 
 <!-- DM-2370 -->
 - URL background tile geometry, including sliced-fragment continuation, is

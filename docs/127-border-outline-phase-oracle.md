@@ -11,22 +11,23 @@ and Chromium paints that SVG through an `<img>`. This exercises the delivered
 image path; parsing emitted coordinates cannot reveal SVG rasterizer phase.
 
 For the middle of each top edge, the tool records every device-pixel alpha
-value at device scale factor 4. It derives coverage-weighted outer/inner edges
+value at the requested device scale factor. It derives coverage-weighted outer/inner edges
 and centerlines, reports profile RMSE, and fits three shared models to the HTML
 measurements: no snap, CSS outer-edge rounding, and device-center rounding.
 The best model is evidence for a shared renderer rule, not permission to
 special-case a fixture or primitive.
 
-The calibrated default gate (`DSF=4`, `zoom=1`) is 0.56 CSS px per edge and 0.48 alpha RMSE,
-immediately above the initial measured maxima (0.551 and 0.471). A proposed
-paint change should reduce those maxima, tighten the limits, and also run the
-two fixture tests; widening either limit requires an explicit review. Useful
-options:
+The producer's broad 0.56 CSS-px / 0.48 alpha-RMSE limits remain diagnostic
+compatibility defaults. DM-2355 reviewed the complete native matrix and moved
+the source-exact subset to the much narrower, scenario-specific envelopes in
+doc 191. Widening one of those ratified ceilings requires new pinned-source and
+native-artifact review. Useful options:
 
 ```sh
 npm run borders:phase-oracle -- --json /tmp/border-phase.json
 npm run borders:phase-oracle -- --keep /tmp/border-phase-artifacts
 npm run borders:phase-oracle -- --dsf 1,2,4 --zoom 0.8,1,1.25 --report-only --json /tmp/border-phase-matrix.json
+npm run borders:phase-ratify -- --report /tmp/border-phase-matrix.json --run-env /tmp/run-env.json --artifact-dir /tmp/border-phase-artifacts
 ```
 
 `--keep` writes a scenario directory containing the native HTML PNG, emitted
@@ -37,11 +38,11 @@ threshold therefore cannot disguise a changed logical snap decision.
 
 `.github/workflows/border-phase-oracle.yml` runs the 3 × 3 DSF/zoom matrix on
 macOS, Linux, and Windows and uploads the JSON plus visual evidence. The report
-fingerprints OS, architecture, Node, and Chromium. Expanded scenarios use
-`--report-only` until reviewed native artifacts establish platform-specific
-envelopes; the calibrated default remains blocking. This is intentional:
-copying the macOS DSF=4 thresholds onto other rasterizers would turn expected
-paint-profile variation into false logical failures.
+fingerprints OS, architecture, Node, Chromium, the corpus/source pins, and each
+artifact. The separate strict adjudicator applies the reviewed envelope only
+to the 112 rows per scenario whose geometry is source-exact. Sixteen uniform
+`border.double` rows remain explicitly unratified under DM-2491; their paint
+residuals cannot be converted into a logical pass by widening a threshold.
 
 The first expanded run found and closed a shared effective-zoom boundary
 (DM-2323). Blink stores border widths and outline width/offset in zoomed integer
@@ -49,11 +50,12 @@ paint units, but CSSOM serializes those values divided by `EffectiveZoom`.
 Domotion already captured physical DOMRects, so consuming the CSSOM lengths
 unchanged mixed coordinate spaces. Capture now reconstructs the paint lengths
 once from the memoized ancestor effective zoom. On the local DSF 1/2 × zoom
-0.8/1.25 discriminator this changed 309 threshold failures to 9; both DSF=2
-scenarios reached 128/128 and the inferred HTML/SVG snap rule agrees in all
-four scenarios. The remaining nine are DSF=1 dotted-outline alpha/edge-profile
-residuals (worst 0.675 CSS px), kept in the paint section rather than hidden by
-a widened logical envelope.
+0.8/1.25 discriminator this changed 309 threshold failures to 9 and made the
+inferred HTML/SVG snap rule agree in all four scenarios. Later outline snap
+work closed the logical dotted-outline discrepancy. DM-2355's repeated native
+review found the remaining DSF=1 dotted-outline coverage profile byte-stable
+across runners and separated it from the still-unratified double-border
+geometry; doc 191 records the exact ceilings and evidence fingerprints.
 
 Collapsed table borders have a separate exact logical gate. The capture-side
 model mirrors Chromium's `TableBorders`: one logical edge grid, source merges

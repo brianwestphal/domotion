@@ -109,6 +109,11 @@ shortest possible map:
   uploads fingerprinted reports (DM-2471, doc 179).
 - **`src/render/`** — pure node-side renderers that convert a captured
   element tree into SVG markup. `element-tree-to-svg.ts` is the big one;
+  its straight border/outline reference geometry is guarded by
+  `tools/border-phase-oracle.ts` plus the independent strict
+  `border-phase-ratifier.ts`: 112 source-exact rows per DSF/zoom scenario use
+  reviewed three-platform paint envelopes, while all 16 uniform
+  `border.double` rows stay named and unratified pending DM-2491 (doc 191).
   its URL clip-path route accepts only Blink's exclusive bare-URL operation,
   maps HTML `objectBoundingBox` content through the captured border rect, and
   leaves cloned SVG URL references on native forced-fill ownership. `svg-inline.ts`
@@ -577,8 +582,11 @@ shortest possible map:
   literal matrix3d syntax, the apparent 2D submatrix, non-scaling-stroke box
   ownership, HTML root markers, a raster below `svgContent`, and property-only
   routing. `.github/workflows/inline-svg-3d-parity.yml` enforces the gate on
-  macOS/Linux/Windows and always uploads a fingerprinted native report.
-- **Animated projective frame state (DM-2359, doc 186)** —
+  macOS/Linux/Windows and always uploads a fingerprinted native report. That
+  gate proves SVG affine freezing, opaque-clone promotion, and atomic
+  application; doc 189 records that the preceding nested HTML owner selector
+  still over-climbs across Blink rendering-context breaks.
+- **Animated projective frame state (DM-2359/DM-2356, docs 186/189)** —
   `src/capture/animation-frame.ts` pauses CSS/WAAPI and SMIL timelines across
   every attached document, verifies exact numeric current time and stable
   enumeration after paint commit, and fails strict capture on drift/refusal or
@@ -586,10 +594,25 @@ shortest possible map:
   it before every async/synchronous capture prepass. The CDP projective probe
   then serializes `projectiveFrameState`: sample time/count, computed transform
   operations/origin/perspective/style/overflow, content and border quads,
-  fourth-corner residual, and selected outer raster owner. The CLI video seek
+  fourth-corner residual, and selected raster owner. The CLI video seek
   reuses the same primitive in best-effort mode. The eight-family four-time
   oracle forbids projective 2D fitting and gates 64 DPR-1/2 rows plus five
-  mutations on macOS/Linux/Windows.
+  mutations on macOS/Linux/Windows. DM-2356's independent source audit proves
+  the owner expectation was not independent: both it and production promote a
+  perspective-only or grouping-broken scene to the outer host. Timing,
+  composition, quads, residuals, raster materialization, and one-application
+  remain exact; smallest-owner routing is partial until the selector consumes
+  Blink's direct-parent used-preserve rendering-context root.
+- **Nested projective ownership audit (DM-2356, doc 189)** —
+  `tools/nested-projective-ownership-audit.ts` reconstructs pinned Blink
+  `RenderingContextId` propagation from live used-style/CDP facts and compares
+  exact owner IDs, atomic image placement, and uniquely colored vector
+  sentinels with production. At DPR 1/2, source-model evidence is 26/26 while
+  production is minimal in 8/26 rows and over-owns the remaining 18, absorbing
+  every sentinel; six promotion/demotion/duplication/double-transform mutations
+  are killed. Perspective does not create a context, ordinary/flat/grouping
+  intermediaries break it, and a nested preserve subtree starts a fresh root.
+  The audit is observational and changes no production route.
 - **Source-owned summary disclosure paint (DM-2457, doc 180)** —
   `src/capture/summary-marker-cdp.ts` joins a pierced Chromium `::marker` node
   with its single DOMSnapshot marker paint row, then threads an exact

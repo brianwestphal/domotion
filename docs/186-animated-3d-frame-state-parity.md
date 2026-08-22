@@ -1,7 +1,8 @@
 # 186 — Animated CSS 3D frame-state parity
 
-**Status:** shipped for document-timeline CSS/WAAPI and SMIL animation at
-explicit capture times; hard macOS/Linux/Windows DPR 1/2 gate.
+**Status:** exact document-timeline CSS/WAAPI and SMIL frame synchronization,
+quads, residuals, and atomic paint shipped; the macOS/Linux/Windows DPR 1/2
+owner-minimality expectation is known partial (DM-2356).
 
 DM-2359 closes the gap between the static projective boundary in
 [doc 162](162-inline-svg-3d-transform-audit.md) and an animation that changes
@@ -35,6 +36,13 @@ The pinned Chromium checkout is
   grouping properties that force the *used* 3D style flat. The computed
   `preserve-3d` token remains independently relevant to stacking and fixed
   containment.
+- `core/paint/paint_property_tree_builder.cc:1458-1466,1634-1651` assigns a
+  rendering-context ID only through direct parents whose *used* style preserves
+  3D. Perspective contributes a projection node but does not establish that
+  context (`paint_property_tree_builder_test.cc:3495-3523`). This later
+  DM-2356 audit invalidates the oracle's outer-host expectation for
+  perspective-only and grouping-break rows while leaving its time/quad evidence
+  intact.
 - `core/paint/paint_property_tree_builder.cc` owns transform/perspective
   composition and flattening. Pinned `SkMatrix::mapPointPerspective` performs
   homogeneous division, so a non-affine fourth corner cannot be fitted to an
@@ -70,7 +78,8 @@ Every 3D-influenced `CapturedElement` in an explicitly seeked capture may carry
 - HTML/SVG paint role;
 - CDP content and border quads in capture CSS coordinates;
 - held-out fourth-corner residual and non-affine activation bit;
-- effective outer `ownsRasterBoundary` result;
+- selected `ownsRasterBoundary` result (currently conservative rather than
+  proven minimal across nested context breaks);
 - the same-frame computed `transform`, independent translate/rotate/scale,
   transform origin/style, perspective/origin, and overflow axes.
 
@@ -90,10 +99,10 @@ and 750ms for DPR 1 and 2:
 | `rotate3d` | non-affine residual and child-owned atomic surface |
 | `translate3d` | perspective-composed uniform scale remains affine/vector |
 | `matrix3d` | identity starts inactive; interpolated projective frames activate |
-| `perspective` | animated distance and origin retain the owning host |
+| `perspective` | animated distance/origin change the child plane, but perspective alone does not make the host a rendering-context owner |
 | `transform-origin` | same 3D matrix with moving pivot changes the exact quad |
-| `preserve-3d` | discrete preserve→flat transition moves ownership host→child |
-| grouping flatten | `overflow:visible→hidden` keeps computed preserve ownership while used paint flattens |
+| `preserve-3d` | discrete preserve→flat transition ends direct context propagation and starts a child/self boundary |
+| grouping flatten | `overflow:visible→hidden` retains computed fixed-CB ownership while used paint starts a fresh inner context |
 | animation composition | two additive transform animations survive as Chromium's complete composed matrix |
 
 For each row the tool first pauses the source and reads a fresh independent CDP
@@ -104,10 +113,16 @@ required, and no projective 2D approximation in final SVG markup.
 
 Five destructive mutations must fail: stale timestamp, one-pixel quad shift,
 dropped owner/raster, apparent-2D fitting, and collapsed animation
-composition. The local macOS arm64 calibration is **64/64 rows and 5/5
-mutations** at DPR 1/2. `.github/workflows/animated-projective-frame-parity.yml`
-runs the same matrix on native macOS, Linux, and Windows and uploads the
-fingerprinted JSON even when the gate fails.
+composition. The local macOS arm64 calibration was **64/64 rows and 5/5
+mutations** at DPR 1/2 against the then-encoded expectations.
+`.github/workflows/animated-projective-frame-parity.yml` runs the same matrix on
+native macOS, Linux, and Windows and uploads the fingerprinted JSON even when
+the gate fails. DM-2356 proves that `expectedOwnerId()` encoded the same
+outer-host assumption as production for perspective and grouping rows, so the
+64/64 owner result was false-green. Exact timeline synchronization, computed
+composition, CDP quads/residuals, raster materialization, and one-application
+evidence remain valid; smallest-owner claims do not until the follow-up replaces
+that expectation with Blink rendering-context roots.
 
 ## Explicit boundary
 

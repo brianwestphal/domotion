@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex DM-2356 Max audit",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4zzvpl7ik1swpj",
+          "message": {
+            "text": "The live DPR-1 discriminator proves the current owner selector is structurally wrong even when final pixels are close. Source-model ownership matches all 13 rows and every raster applies once, but only shared, extension, independent, and affine rows are minimal; perspective, ordinary, flat, opacity, overflow, isolation, clip, mask, and filter absorb the uniquely colored out-of-owner vector sentinel. A separate DPR-2 run reproduced the same 9/13 over-owner split, and all six promotion, demotion, omission, duplication, vector-absorption, and double-transform mutations were killed.",
+            "markdown": "The live DPR-1 discriminator proves the current owner selector is structurally wrong even when final pixels are close. Source-model ownership matches all 13 rows and every raster applies once, but only shared, extension, independent, and affine rows are minimal; perspective, ordinary, flat, opacity, overflow, isolation, clip, mask, and filter absorb the uniquely colored out-of-owner vector sentinel. A separate DPR-2 run reproduced the same 9/13 over-owner split, and all six promotion, demotion, omission, duplication, vector-absorption, and double-transform mutations were killed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/nested-projective-ownership-audit.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 8,
+                  "endLine": 47,
+                  "snippet": {
+                    "text": "\ndescribe(\"DM-2356 live nested projective ownership audit\", () => {\n  it(\"proves Blink context roots and detects current outer-owner/vector absorption drift\", async () => {\n    const report = await runNestedProjectiveOwnershipAudit({ dprs: [1] });\n    expect(report.verdict).toBe(\"investigation-complete\");\n    expect(report.blockers).toEqual([]);\n    expect(report.rows).toHaveLength(NESTED_PROJECTIVE_CASES.length);\n    expect(new Set(report.rows.map((row) => row.family)))\n      .toEqual(new Set(NESTED_PROJECTIVE_REQUIRED_FAMILIES));\n    expect(report.rows.every((row) => row.sourceModelMatchesDesign)).toBe(true);\n    expect(report.rows.every((row) => row.atomicOneApplication)).toBe(true);\n    expect(report.mutations).toHaveLength(6);\n    expect(report.mutations.every((mutation) => mutation.killed)).toBe(true);\n\n    expect(report.rows.filter((row) => row.ownerMinimal).map((row) => row.id)).toEqual([\n      \"shared@dpr1\",\n      \"extension@dpr1\",\n      \"independent@dpr1\",\n      \"affine@dpr1\",\n    ]);\n    expect(report.rows.filter((row) => !row.ownerMinimal).map((row) => row.id)).toEqual([\n      \"perspective@dpr1\",\n      \"ordinary@dpr1\",\n      \"flat@dpr1\",\n      \"opacity@dpr1\",\n      \"overflow@dpr1\",\n      \"isolation@dpr1\",\n      \"clip@dpr1\",\n      \"mask@dpr1\",\n      \"filter@dpr1\",\n    ]);\n    expect(report.rows.filter((row) => !row.ownerMinimal)\n      .every((row) => !row.vectorSentinelRetained && row.sentinelBakedIntoRaster)).toBe(true);\n    expect(report.productionGaps).toContain(\n      \"perspective: owner np-perspective-outer != np-perspective-plane\",\n    );\n    expect(report.productionGaps).toContain(\n      \"overflow: owner np-overflow-outer != np-overflow-inner\",\n    );\n    expect(report.sourceVsSvgChangedFraction.dpr1).toBeGreaterThan(0);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/nested-projective-ownership-audit.ts"
+                },
+                "region": {
+                  "startLine": 656
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/189-nested-projective-context-ownership.md"
+                },
+                "region": {
+                  "startLine": 100
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2356"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "cf8312cb67ee7a4707b8fcfc8e94c239"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "34e5c5d86b14d5433d6a7d5de7a237def6ca27cc",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

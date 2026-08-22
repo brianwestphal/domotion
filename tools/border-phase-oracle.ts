@@ -6,7 +6,8 @@
  *   [--dsf 1,2,4] [--zoom 0.8,1,1.25] [--report-only]
  *   [--max-edge-error 0.56] [--max-profile-rmse 0.48]
  */
-import { chromium } from "@playwright/test";
+import { chromium, type Page } from "@playwright/test";
+import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
 import { join } from "node:path";
@@ -22,6 +23,24 @@ export interface EdgeProfile { values: number[]; origin: number; outer: number; 
 export interface SnapSample { nominalCenter: number; observedCenter: number; width: number }
 export interface SnapFit { rule: "none" | "css-edge-round" | "device-center-round"; mae: number }
 export interface PhaseScenario { id: string; dsf: number; zoom: number }
+
+export const BORDER_PHASE_SOURCE_PINS = {
+  chromium: "7d859f271cbda744098ac69f44978d4edfa62be3",
+  skia: "62efacd37737505732dbe3d8daa62abd679626a1",
+} as const;
+
+/** Blink pixel-snaps the border/outline reference rect before paint. Every
+ * square-outline branch and the solid/dashed/dotted border branches mirror
+ * that decision locally. The uniform double-border emitter still places its
+ * two stripes from the unsnapped captured box, so it must stay outside any
+ * paint-profile envelope even when one sampled phase happens to coincide. */
+export function borderPhaseGeometryStatus(
+  phaseCase: Pick<PhaseCase, "kind" | "style">,
+): "source-exact" | "unratified-border-double-snap" {
+  return phaseCase.kind === "border" && phaseCase.style === "double"
+    ? "unratified-border-double-snap"
+    : "source-exact";
+}
 
 /** Inputs consumed by Blink's `BoxBorderPainter::PaintBorderFastPath`.
  * This is a decision oracle, not an SVG implementation preference: keeping the
@@ -175,6 +194,51 @@ function numberList(raw: string, name: string): number[] {
   return [...new Set(values)];
 }
 
+const sha256 = (value: string | Buffer): string =>
+  createHash("sha256").update(value).digest("hex");
+
+/** Linux's headless screenshot protocol rejects the full DSF=4 surface even
+ * though the resulting PNG is within Chromium's image dimensions. Capture
+ * bounded vertical tiles and stitch their unchanged device pixels so all
+ * platforms run the same 128-case corpus. */
+async function screenshotInVerticalTiles(
+  page: Page,
+  width: number,
+  height: number,
+  dsf: number,
+): Promise<Buffer> {
+  const maxTileDeviceHeight = 3_600;
+  const tileCssHeight = Math.max(1, Math.floor(maxTileDeviceHeight / dsf));
+  if (height <= tileCssHeight) return page.screenshot({ omitBackground: true });
+
+  const tiles: Array<{ input: Buffer; left: number; top: number }> = [];
+  let y = 0;
+  let outputWidth = 0;
+  let outputHeight = 0;
+  while (y < height) {
+    const tileHeight = Math.min(tileCssHeight, height - y);
+    const input = await page.screenshot({
+      clip: { x: 0, y, width, height: tileHeight },
+      omitBackground: true,
+    });
+    const metadata = await sharp(input).metadata();
+    if (metadata.width == null || metadata.height == null)
+      throw new Error(`screenshot tile ${y} has no dimensions`);
+    outputWidth = Math.max(outputWidth, metadata.width);
+    tiles.push({ input, left: 0, top: outputHeight });
+    outputHeight += metadata.height;
+    y += tileHeight;
+  }
+  return sharp({
+    create: {
+      width: outputWidth,
+      height: outputHeight,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    },
+  }).composite(tiles).png().toBuffer();
+}
+
 async function main(): Promise<number> {
   const args = process.argv.slice(2);
   const option = (name: string, fallback: string) => { const i = args.indexOf(name); return i >= 0 && args[i + 1] != null ? args[i + 1] : fallback; };
@@ -186,6 +250,12 @@ async function main(): Promise<number> {
   // the named fixture residuals; widening them requires an explicit review.
   const maxEdgeError = Number(option("--max-edge-error", "0.56")), maxProfileRmse = Number(option("--max-profile-rmse", "0.48"));
   const cases = buildPhaseCases();
+  const corpusFingerprint = sha256(JSON.stringify({
+    schemaVersion: 2,
+    cases,
+    scenarios,
+    sourcePins: BORDER_PHASE_SOURCE_PINS,
+  }));
   const browser = await chromium.launch();
   try {
     const reports = [];
@@ -196,7 +266,7 @@ async function main(): Promise<number> {
       try {
         const htmlPage = await context.newPage();
         await htmlPage.setContent(pageHtml(cases, scenario.zoom), { waitUntil: "load" });
-        const htmlPng = await htmlPage.screenshot({ omitBackground: true });
+        const htmlPng = await screenshotInVerticalTiles(htmlPage, width, height, scenario.dsf);
         const tree = await captureElementTree(htmlPage, "body", { x: 0, y: 0, width, height });
         const inner = elementTreeToSvgInner(tree, width, height);
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${inner}</svg>`;
@@ -204,7 +274,7 @@ async function main(): Promise<number> {
         await svgPage.setContent(`<style>html,body{margin:0;background:transparent}img{display:block;width:${width}px;height:${height}px}</style><img>`, { waitUntil: "load" });
         await svgPage.locator("img").evaluate((img, src) => { (img as HTMLImageElement).src = `data:image/svg+xml;base64,${src}`; }, Buffer.from(svg).toString("base64"));
         await svgPage.locator("img").evaluate((img) => (img as HTMLImageElement).decode());
-        const svgPng = await svgPage.screenshot({ omitBackground: true });
+        const svgPng = await screenshotInVerticalTiles(svgPage, width, height, scenario.dsf);
         const htmlProfiles = await imageProfiles(htmlPng, cases, scenario), svgProfiles = await imageProfiles(svgPng, cases, scenario);
         const rows = cases.map((c) => {
           const html = htmlProfiles.get(c.id)!, emitted = svgProfiles.get(c.id)!;
@@ -216,7 +286,31 @@ async function main(): Promise<number> {
         const sample = (key: "html" | "svg") => finite.map((row) => ({ nominalCenter: row.nominalCenter, observedCenter: row[key].center, width: row.paintedWidth }));
         const geometry = { htmlSnapFits: deriveSnapRule(sample("html"), scenario.dsf), svgSnapFits: deriveSnapRule(sample("svg"), scenario.dsf) };
         const failed = rows.filter((row) => !Number.isFinite(row.outerError) || row.outerError > maxEdgeError || row.innerError > maxEdgeError || row.profileRmse > maxProfileRmse);
-        reports.push({ scenario, geometry, paintResiduals: { worstEdge, worstRmse, failed: failed.map((row) => row.id) }, rows });
+        const ratified = rows.filter((row) => borderPhaseGeometryStatus(row) === "source-exact");
+        const ratifiedFailed = ratified.filter((row) => !Number.isFinite(row.outerError)
+          || row.outerError > maxEdgeError || row.innerError > maxEdgeError
+          || row.profileRmse > maxProfileRmse);
+        reports.push({
+          scenario,
+          geometry,
+          geometryOwnership: {
+            ratifiedRows: ratified.length,
+            unratifiedRows: rows.length - ratified.length,
+            unratifiedFamilies: ["border.double"],
+          },
+          paintResiduals: { worstEdge, worstRmse, failed: failed.map((row) => row.id) },
+          ratifiedPaintResiduals: {
+            worstEdge: Math.max(...ratified.flatMap((row) => [row.outerError, row.innerError])),
+            worstRmse: Math.max(...ratified.map((row) => row.profileRmse)),
+            failed: ratifiedFailed.map((row) => row.id),
+          },
+          artifacts: {
+            htmlPngSha256: sha256(htmlPng),
+            svgSha256: sha256(svg),
+            svgPngSha256: sha256(svgPng),
+          },
+          rows,
+        });
         console.log(`${scenario.id}: ${rows.length - failed.length}/${rows.length} pass; edge=${worstEdge.toFixed(3)} CSS px; profile=${worstRmse.toFixed(3)}; HTML snap=${geometry.htmlSnapFits[0].rule}; SVG snap=${geometry.svgSnapFits[0].rule}`);
         if (keepDir) {
           const dir = join(keepDir, scenario.id); mkdirSync(dir, { recursive: true });
@@ -225,7 +319,13 @@ async function main(): Promise<number> {
       } finally { await context.close(); }
     }
     const browserVersion = browser.version();
-    const report = { meta: { platform: platform(), arch: arch(), osRelease: release(), node: process.version, browserVersion, scenarios: scenarios.length, casesPerScenario: cases.length, maxEdgeError, maxProfileRmse, reportOnly }, scenarios: reports };
+    const report = {
+      schemaVersion: 2,
+      sourcePins: BORDER_PHASE_SOURCE_PINS,
+      corpusFingerprint,
+      meta: { platform: platform(), arch: arch(), osRelease: release(), node: process.version, browserVersion, scenarios: scenarios.length, casesPerScenario: cases.length, maxEdgeError, maxProfileRmse, reportOnly },
+      scenarios: reports,
+    };
     if (jsonPath) writeFileSync(jsonPath, JSON.stringify(report, null, 2));
     const failedCount = reports.reduce((count, entry) => count + entry.paintResiduals.failed.length, 0);
     if (failedCount && reportOnly) console.log(`diagnostic mode: recorded ${failedCount} paint-profile residual(s) without gating`);

@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4zifnfria3bt3f",
+          "message": {
+            "text": "The gate deliberately combines an intrinsic-size still, optional 2x close-up, representative timeline samples, and a complete rendered loop: each catches a different failure class, so successful generation or a single time-zero frame cannot substitute for visual review. The focused contract test is green, and the local current-code smoke rendered 1280x720 PNG frames plus a 25-frame, 2.47-second MP4 through Chromium and ffmpeg.",
+            "markdown": "The gate deliberately combines an intrinsic-size still, optional 2x close-up, representative timeline samples, and a complete rendered loop: each catches a different failure class, so successful generation or a single time-zero frame cannot substitute for visual review. The focused contract test is green, and the local current-code smoke rendered 1280x720 PNG frames plus a 25-frame, 2.47-second MP4 through Chromium and ffmpeg."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "llms.txt"
+                },
+                "region": {
+                  "startLine": 162,
+                  "endLine": 166,
+                  "snippet": {
+                    "text": "- **Still SVG:** open at least one intrinsic-size Chromium raster from `svg-to-image`. Check the entire canvas, not just the focal element: edges/cropping, alignment and spacing, text wrapping and legibility, missing assets, masks/filters/shadows, and the intended transparent or opaque background. Use a 2× raster as an additional close-up when fine detail matters; it does not replace the intrinsic-size view.\n- **Animated SVG:** inspect representative stills with `svg-to-image --at <ms>` at the opening state, a motion/transition midpoint, the payoff, and the final state just before the loop/cut. Sample immediately before and after any suspicious transition. Then render with `svg-to-video out.svg -o out-review.mp4` and **watch one complete loop** for flashes, doubled frames, jumps, unintended pauses, unreadable holds, and a visible loop seam. If the duration cannot be derived, pass `--duration <seconds>` explicitly.\n- **Timeline diagnosis:** use `svg-scrubber out.svg` to play, pause, frame-step, and scrub when a video exposes a timing problem or the important time is unclear. `svg-scrubber --review` can preserve the exact time/range and marked region when the problem needs to become a ticket.\n- **Reference comparison:** when a Chromium reference exists (for example, a `domotion capture --debug` bundle), use `svg-review --expected <expected.png> --actual <actual.svg>` as well. This is a fidelity comparison, not a substitute for judging an original design.\n- **Handoff evidence:** tell the user which raster(s) and animation times you actually inspected and whether you watched the complete loop. If Chromium, ffmpeg, image viewing, or video playback was unavailable, say exactly which visual check could not be run and do not claim the artifact was visually reviewed."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/llms-visual-review-guidance.test.ts"
+                },
+                "region": {
+                  "startLine": 23
+                }
+              }
+            }
+          ],
+          "rank": 85,
+          "workItemUris": [
+            "DM-2486"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "3f14c4f725061bf74ce38b6987f4177e"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "34e5c5d86b14d5433d6a7d5de7a237def6ca27cc",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

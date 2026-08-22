@@ -157,10 +157,11 @@ single edge layer after table-part backgrounds. The generated visual fixture
 crosses spans, unequal tracks, conflicts, joints, vertical-rl, and RTL at 0
 regions / 0.00%. The phase oracle now runs a parameterized zoom/device-scale
 matrix and records separate snap-geometry and paint-profile sections with OS,
-architecture, Node, and Chromium fingerprints. A manual CI matrix collects the
-same report and evidence on macOS, Linux, and Windows; only the calibrated
-default scenario gates until native artifacts support reviewed per-platform
-envelopes.
+architecture, Node, Chromium, source, corpus, and artifact fingerprints.
+DM-2355/doc 191 reviewed the macOS/Linux/Windows evidence and promoted the 112
+source-exact rows per scenario to a hard per-platform envelope. The 16 uniform
+`border.double` rows remain explicitly unratified under DM-2491; a stable alpha
+profile cannot override their unsnapped logical reference geometry.
 
 Fragmented collapsed tables keep that same global winner graph. Matching
 `TablePainter::PaintCollapsedBorders`, Domotion obtains physical table, section,

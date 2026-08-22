@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex-dm2355",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt504zs9lrv60sm8",
+          "message": {
+            "text": "The strict gate separates immutable logical identity from bounded paint variation. It rejects runner/source/corpus/scenario/row/snap-model/artifact drift before applying scenario-specific ceilings only to the 112 source-owned rows. Untouched-main runs 32604023290 and 32604759338 produced the same full artifact-set SHA-256 on macOS, Linux, and Windows; focused mutations prove ratified paint, row relabeling, and runner/evidence drift all fail closed.",
+            "markdown": "The strict gate separates immutable logical identity from bounded paint variation. It rejects runner/source/corpus/scenario/row/snap-model/artifact drift before applying scenario-specific ceilings only to the 112 source-owned rows. Untouched-main runs 32604023290 and 32604759338 produced the same full artifact-set SHA-256 on macOS, Linux, and Windows; focused mutations prove ratified paint, row relabeling, and runner/evidence drift all fail closed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/border-phase-ratifier.ts"
+                },
+                "region": {
+                  "startLine": 213,
+                  "endLine": 300,
+                  "snippet": {
+                    "text": "  if (platformBaseline != null) {\n    compareReportFingerprint(platformBaseline.fingerprint, report.meta, findings);\n    if (runEnvironment == null) findings.push(\"missing runner fingerprint\");\n    else compareFingerprint(platformBaseline.fingerprint, runEnvironment, \"runner\", findings);\n    if (platformBaseline.evidence.workflowRuns.length < 2\n        || platformBaseline.evidence.repeatedArtifactSetSha256.length < 2\n        || new Set(platformBaseline.evidence.repeatedArtifactSetSha256).size !== 1)\n      findings.push(`${report.meta.platform} baseline lacks repeated stable artifact evidence`);\n  }\n\n  const expectedCases = buildPhaseCases();\n  const expectedCasesById = new Map(expectedCases.map((phaseCase) => [phaseCase.id, phaseCase]));\n  const expectedIds = new Set(expectedCases.map(({ id }) => id));\n  const requiredScenarios = buildPhaseScenarios([1, 2, 4], [0.8, 1, 1.25]);\n  const requiredScenarioIds = requiredScenarios.map(({ id }) => id);\n  const requiredScenariosById = new Map(requiredScenarios.map((scenario) => [scenario.id, scenario]));\n  if (report.meta.scenarios !== requiredScenarios.length)\n    findings.push(`report scenario count ${report.meta.scenarios} != ${requiredScenarios.length}`);\n  if (report.meta.casesPerScenario !== expectedCases.length)\n    findings.push(`report case count ${report.meta.casesPerScenario} != ${expectedCases.length}`);\n  if (JSON.stringify(baseline.requiredScenarioIds) !== JSON.stringify(requiredScenarioIds))\n    findings.push(\"baseline scenario inventory drift\");\n  if (JSON.stringify(baseline.unratifiedFamilies) !== JSON.stringify([\"border.double\"]))\n    findings.push(\"baseline unratified-family inventory drift\");\n\n  const reportById = new Map(report.scenarios.map((scenario) => [scenario.scenario.id, scenario]));\n  const scenarioResults: BorderPhaseAdjudication[\"scenarios\"] = [];\n  let ratifiedRows = 0;\n  let unratifiedRows = 0;\n  for (const id of requiredScenarioIds) {\n    const scenario = reportById.get(id);\n    const envelope = platformBaseline?.scenarios[id];\n    if (scenario == null) {\n      findings.push(`missing scenario ${id}`);\n      continue;\n    }\n    const expectedScenario = requiredScenariosById.get(id)!;\n    if (scenario.scenario.dsf !== expectedScenario.dsf || scenario.scenario.zoom !== expectedScenario.zoom)\n      findings.push(`${id} scenario coordinates drift`);\n    if (envelope == null) findings.push(`missing ${report.meta.platform} envelope for ${id}`);\n    if (scenario.rows.length !== expectedIds.size)\n      findings.push(`${id} has ${scenario.rows.length}/${expectedIds.size} rows`);\n    const actualIds = new Set(scenario.rows.map(({ id: rowId }) => rowId));\n    for (const expectedId of expectedIds)\n      if (!actualIds.has(expectedId)) findings.push(`${id} missing row ${expectedId}`);\n    for (const actualId of actualIds)\n      if (!expectedIds.has(actualId)) findings.push(`${id} has unexpected row ${actualId}`);\n    for (const row of scenario.rows) {\n      const expected = expectedCasesById.get(row.id);\n      if (expected == null) continue;\n      const exactFields = [\"kind\", \"style\", \"width\", \"phase\", \"x\", \"y\", \"boxWidth\", \"boxHeight\"] as const;\n      for (const field of exactFields) {\n        if (row[field] !== expected[field])\n          findings.push(`${id}/${row.id} ${field} corpus drift`);\n      }\n      if (Math.abs(row.nominalCenter - expected.nominalCenter * expectedScenario.zoom) > 1e-12)\n        findings.push(`${id}/${row.id} nominalCenter corpus drift`);\n    }\n\n    const sourceExact = scenario.rows.filter((row) => borderPhaseGeometryStatus(row) === \"source-exact\");\n    const unratified = scenario.rows.filter((row) => borderPhaseGeometryStatus(row) !== \"source-exact\");\n    ratifiedRows += sourceExact.length;\n    unratifiedRows += unratified.length;\n    if (sourceExact.length !== 112 || unratified.length !== 16)\n      findings.push(`${id} ownership split ${sourceExact.length}/${unratified.length} != 112/16`);\n    if (scenario.geometryOwnership.ratifiedRows !== sourceExact.length\n        || scenario.geometryOwnership.unratifiedRows !== unratified.length\n        || JSON.stringify(scenario.geometryOwnership.unratifiedFamilies) !== JSON.stringify([\"border.double\"]))\n      findings.push(`${id} serialized geometry ownership drift`);\n    if (scenario.geometry.htmlSnapFits[0]?.rule !== \"css-edge-round\"\n        || scenario.geometry.svgSnapFits[0]?.rule !== \"css-edge-round\")\n      findings.push(`${id} no longer selects Blink CSS-edge snapping in both arms`);\n\n    const worstEdge = Math.max(...sourceExact.flatMap((row) => [row.outerError, row.innerError]));\n    const worstRmse = Math.max(...sourceExact.map((row) => row.profileRmse));\n    const edgeCeiling = envelope?.edgeCeilingCssPx ?? 0;\n    const rmseCeiling = envelope?.profileRmseCeiling ?? 0;\n    const scenarioFindingsBefore = findings.length;\n    if (!Number.isFinite(worstEdge) || worstEdge > edgeCeiling)\n      findings.push(`${id} ratified edge ${worstEdge} > ${edgeCeiling}`);\n    if (!Number.isFinite(worstRmse) || worstRmse > rmseCeiling)\n      findings.push(`${id} ratified profile ${worstRmse} > ${rmseCeiling}`);\n    if (scenario.ratifiedPaintResiduals.failed.length !== 0)\n      findings.push(`${id} producer reports ratified failures: ${scenario.ratifiedPaintResiduals.failed.join(\", \")}`);\n    if (Math.abs(scenario.ratifiedPaintResiduals.worstEdge - worstEdge) > 1e-12\n        || Math.abs(scenario.ratifiedPaintResiduals.worstRmse - worstRmse) > 1e-12)\n      findings.push(`${id} ratified summary does not match row evidence`);\n    if (artifactDir != null) verifyArtifactHashes(scenario, artifactDir, findings);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/baselines/border-phase-envelopes.json"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/border-phase-ratifier.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "id": 2,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/border-phase-oracle.yml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2355"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "18664494ff20f823dac130b19c29beb8"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "34e5c5d86b14d5433d6a7d5de7a237def6ca27cc",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

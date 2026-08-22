@@ -201,7 +201,7 @@ npm run demos:examples  # run the bundled example demo scripts
 
 - `FEATURES.md` — per-feature support checklist with links to test fixtures.
 - `docs/` — requirements docs covering rendering fidelity, supported CSS features, and known caveats.
-- [`llms.txt`](llms.txt) — a concise, self-contained guide for **AI agents using Domotion as a tool** (Claude, Cursor, etc.): the CLIs, the config schema, the template library, the API, and the gotchas. Point your agent at it.
+- [`llms.txt`](llms.txt) — a concise, self-contained guide for **AI agents using Domotion as a tool** (Claude, Cursor, etc.): the CLIs, config schema, template library, API, gotchas, and a required rendered-pixel/video review gate before an SVG is handed back. Point your agent at it.
 - `CLAUDE.md` — guidance for AI assistants working *on this repo's* source (different audience from `llms.txt`).
 
 ## License

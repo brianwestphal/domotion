@@ -1,11 +1,27 @@
 name: Border phase oracle
 
-# DM-2321: collect the same zoom/device-scale paint evidence on native
-# Chromium builds for every supported desktop platform. These jobs are
-# diagnostic until reviewed per-platform envelopes exist: logical snap-model
-# choices and alpha-profile residuals remain separate in the JSON artifact.
+# DM-2355: hard-gate the source-exact subset of the native border/outline
+# matrix. Uniform border.double remains named and unratified until its stripe
+# reference box follows Blink's snap geometry; no alpha tolerance can pass it.
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/border-phase-oracle.yml'
+      - 'src/capture/script/walker/borders-backgrounds.ts'
+      - 'src/render/element-tree-to-svg.ts'
+      - 'tests/baselines/border-phase-envelopes.json'
+      - 'tests/border-phase-*.test.ts'
+      - 'tools/border-phase-*.ts'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/border-phase-oracle.yml'
+      - 'src/capture/script/walker/borders-backgrounds.ts'
+      - 'src/render/element-tree-to-svg.ts'
+      - 'tests/baselines/border-phase-envelopes.json'
+      - 'tests/border-phase-*.test.ts'
+      - 'tools/border-phase-*.ts'
 
 env:
   NODE_VERSION: '22.21.0'
@@ -17,18 +33,26 @@ jobs:
       matrix:
         os: [macos-latest, ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
       - run: npm ci
-      - run: npx playwright install chromium
-      - name: Run zoom and device-scale matrix
+      - name: Install Chromium and Linux system dependencies
+        if: runner.os == 'Linux'
+        run: npx playwright install --with-deps chromium
+      - name: Install Chromium
+        if: runner.os != 'Linux'
+        run: npx playwright install chromium
+      - name: Produce the complete zoom and device-scale matrix
         run: npm run borders:phase-oracle -- --dsf 1,2,4 --zoom 0.8,1,1.25 --report-only --json tests/output/border-phase/report.json --keep tests/output/border-phase/artifacts
       - name: Record runner environment
         if: always()
         run: node scripts/run-env.mjs tests/output/border-phase/run-env.json
-      - name: Upload fingerprinted report and visual evidence
+      - name: Ratify only source-exact geometry against the reviewed native envelope
+        run: npm run borders:phase-ratify -- --baseline tests/baselines/border-phase-envelopes.json --report tests/output/border-phase/report.json --run-env tests/output/border-phase/run-env.json --artifact-dir tests/output/border-phase/artifacts --json tests/output/border-phase/adjudication.json
+      - name: Upload fingerprinted report, adjudication, and lossless visual evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:

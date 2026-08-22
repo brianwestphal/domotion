@@ -68,12 +68,18 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
   Blink's square-dot endpoint enforcement. Rounded mixed sides stroke the full
   closed border centerline and intersect it with both the border ring and the
   side's rounded miter wedge, preserving dash continuity through corner arcs.
-  Adjacent widths never shorten the path or alter its dash phase.
-- [x] border-style: double, groove, ridge, inset, outset — implemented in the `src/render/element-tree-to-svg.ts` uniform-border path
+  Adjacent widths never shorten the path or alter its dash phase. DM-2355's
+  source-scoped phase gate ratifies solid/dashed/dotted borders and
+  solid/dashed/dotted/double outlines across macOS/Linux/Windows at DSF 1/2/4
+  and zoom 0.8/1/1.25 ([doc 191](191-cross-platform-border-phase-envelopes.md)).
+- [~] border-style: double — visible in the uniform-border path, but its two
+  stripe boxes still start from the unsnapped captured reference box at
+  fractional phases; all 16 phase rows remain unratified under DM-2491.
+- [x] border-style: groove, ridge, inset, outset — implemented in the `src/render/element-tree-to-svg.ts` uniform-border path
 - [x] border-radius percentages (e.g. `border-radius: 50%` → circle when symmetric box) — SK-1093
 - [x] per-corner border-radius (asymmetric `10px 30px 50px 70px`) and elliptical corners (`50px / 20px`) — DM-300, see docs/14
 - [ ] border-image — tracked SK-466
-- [x] outline (style/width/color/offset, including dashed/dotted) — SK-1111
+- [x] outline (style/width/color/offset, including dashed/dotted/double) — SK-1111 / DM-2355
 - [x] box-shadow: outset and inset, with blur via `<filter feGaussianBlur>` — SK-1101 / SK-1111 / SK-1113
 - [x] text-shadow: x/y offset + blur, multi-layered — SK-1113
 - [x] opacity (element-level, applies to whole subtree)

@@ -1,7 +1,8 @@
 # Cloned inline-SVG 3D transform audit
 
-**Status:** projective raster promotion, SVG-child affine freezing, and the
-hard all-platform two-leg parity gate shipped
+**Status:** SVG-child affine freezing, opaque-clone projective promotion, and
+the hard all-platform two-leg parity gate shipped; smallest nested HTML
+projective-context selection is known partial (DM-2356)
 
 **Ticket:** DM-2371
 
@@ -14,14 +15,17 @@ sound only if every transform inside the clone is frozen into valid 2D SVG, or
 the complete non-representable paint is promoted to one raster owner that the
 renderer actually visits.
 
-Both production ownership paths now satisfy that boundary. A
+Both SVG-specific production ownership paths now satisfy that boundary. A
 true SVG-graphics-child 3D transform is not projective in Blink's SVG layout
 model: Blink deliberately resolves its complete CSS transform, reference box,
 and three-dimensional origin, then flattens the result to an affine
 `LocalToSVGParentTransform`. Domotion now correlates that used result through
 live CTMs, serializes one valid six-value SVG matrix, and verifies the isolated
 clone before accepting vector ownership. Non-affine root and `<foreignObject>`
-paint crosses one reachable outer Chromium surface.
+paint crosses one reachable Chromium surface promoted above the opaque clone.
+The preceding HTML owner selector is not yet minimal across nested rendering-
+context breaks: doc 189 proves that the current descendant-union climb can
+promote past perspective-only, ordinary/flat, or grouping intermediaries.
 
 ## Verdict
 
@@ -89,9 +93,13 @@ The former HTML marker prepass has been removed. `src/capture/index.ts` now
 correlates live DOM objects without attributes, asks Chromium CDP for content
 quads and box-model border quads, and passes those facts into the capture
 bundle. `src/capture/projective-owner.ts` classifies the held-out fourth corner,
-selects the outer 3D context, promotes any owner beneath an atomic inline-SVG
+selects a projective owner, promotes any owner beneath an atomic inline-SVG
 clone to the outermost suppressing SVG root, and removes nested duplicate
 owners. Property-only perspective with affine resulting paint stays vector.
+The SVG promotion itself is source-owned; the earlier HTML selection still
+uses an influenced-descendant union rather than Blink's used
+`RenderingContextId` propagation and can therefore choose an ancestor above
+the smallest context ([doc 189](189-nested-projective-context-ownership.md)).
 
 `rasterizeProjectiveSurfaces` isolates the selected live owner without forcing
 authored hidden descendants visible, excludes the propagated document canvas,
@@ -262,14 +270,15 @@ affine. It also deletes the need to reproduce `StrokeBoundingBox`,
 non-scaling-stroke aliases, z-origin composition, or effective-zoom math in
 JavaScript.
 
-### Raster promotion — implemented
+### Raster promotion — implemented; nested HTML root selection partial
 
 Classify root SVG and HTML layout boxes from authoritative live quads/paint
 facts rather than `offsetWidth` plus appended HTML markers. When a final plane
 is non-affine, backface/depth composition is active, or an inner HTML context
-cannot be frozen into native SVG:
+cannot be frozen into native SVG, the shipped SVG-specific route:
 
-1. choose the outermost context required for correct 3D paint order;
+1. accepts the selected HTML projective owner (whose nested minimality remains
+   the DM-2356 follow-up);
 2. if that owner is under a captured inline SVG, promote it to the inline SVG
    root unless an already-owning ancestor will suppress the root;
 3. capture bounds from transformed descendant visual paint, intersect only at
@@ -290,7 +299,9 @@ DPR-2 Chromium-versus-generated-SVG ink leg combines zoom, scroll, an outer
 ancestor's rotation/opacity/filter, border/overflow clips, transformed
 off-bounds paint, and a vector sibling; all four classified color bounds must
 agree within four device pixels, the sibling must be absent from the owner PNG,
-and the raster payload must occur once.
+and the raster payload must occur once. Those assertions prove opaque-clone
+promotion and atomic application; they do not independently decode Blink's
+nested HTML rendering-context ID, which is the separate doc 189 boundary.
 
 ## Focused implementation controls — shipped
 
@@ -340,7 +351,14 @@ rejected before the fixed platform-independent pixel limits are considered.
 - **DM-2359 — shipped in doc 186.** The static gate still does not compare two
   independently advancing timelines. Capture now pauses the source before all
   prepasses, exposes the same-frame CDP/computed/owner record, and the separate
-  all-platform DPR-1/2 gate covers animated projective ownership.
+  all-platform DPR-1/2 gate covers animated timing, geometry, and atomic paint.
+  Doc 189 shows its current owner expectation shares the descendant-union
+  over-promotion bug and must be corrected before it proves minimal ownership.
+- **DM-2356 — investigation complete in doc 189.** Blink's direct-parent used
+  preserve-3d context propagation makes perspective-only, ordinary/flat
+  intermediaries, and grouping-property breaks smaller owners than the current
+  descendant-union selector chooses. Implementation and strict-gate follow-ups
+  are tracked in Hot Sheet.
 
 ## Source map
 

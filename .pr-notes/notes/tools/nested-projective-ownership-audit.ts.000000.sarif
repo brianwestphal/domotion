@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex DM-2356 Max audit",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4zzvk4ywdgm5h5",
+          "message": {
+            "text": "Blink context ownership must follow used preserve-3d across direct parent edges, not a descendant union. Pinned paint-property code creates and propagates RenderingContextId only while the parent used style preserves 3D; perspective alone creates no ID, and ordinary, flat, or grouping intermediaries reset propagation. The observational model deliberately runs before inline-SVG promotion and ancestor dedupe so those valid later steps cannot hide an over-owned HTML context.",
+            "markdown": "Blink context ownership must follow used preserve-3d across direct parent edges, not a descendant union. Pinned paint-property code creates and propagates RenderingContextId only while the parent used style preserves 3D; perspective alone creates no ID, and ordinary, flat, or grouping intermediaries reset propagation. The observational model deliberately runs before inline-SVG promotion and ancestor dedupe so those valid later steps cannot hide an over-owned HTML context."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/nested-projective-ownership-audit.ts"
+                },
+                "region": {
+                  "startLine": 152,
+                  "endLine": 198,
+                  "snippet": {
+                    "text": "/**\n * Reconstruct Blink's TransformPaintPropertyNode::RenderingContextId flow.\n * Context state crosses exactly one DOM edge only when the parent has a used\n * preserve-3d style. Perspective extends a direct child's transform chain but\n * never creates a rendering-context id.\n */\nexport function resolveProjectiveOwnership(\n  facts: readonly ProjectiveContextFact[],\n): ProjectiveOwnershipResolution {\n  const byId = new Map(facts.map((fact) => [fact.id, fact]));\n  const propagatedToChildren = new Map<string, string | null>();\n  const contextRoot = new Map<string, string | null>();\n  const contexts: ProjectiveContextResolution[] = [];\n\n  for (const fact of facts) {\n    const reasons = projectiveGroupingReasons(fact.grouping);\n    const usedPreserve3d = fact.preserve3dApplicable\n      && fact.computedPreserve3d\n      && reasons.length === 0;\n    const inherited = fact.parentId == null\n      ? null\n      : (propagatedToChildren.get(fact.parentId) ?? null);\n    const root = inherited ?? (usedPreserve3d ? fact.id : null);\n    contextRoot.set(fact.id, root);\n    propagatedToChildren.set(fact.id, usedPreserve3d ? root : null);\n    contexts.push({\n      id: fact.id,\n      usedPreserve3d,\n      groupingReasons: reasons,\n      renderingContextRootId: root,\n    });\n  }\n\n  const candidates = new Set<string>();\n  for (const fact of facts) {\n    if (!fact.activationPlane || !fact.nonAffine) continue;\n    let owner = contextRoot.get(fact.id) ?? fact.id;\n    if (fact.inlineSvgRootId != null && ancestorOf(byId, fact.inlineSvgRootId, owner)) {\n      owner = fact.inlineSvgRootId;\n    }\n    candidates.add(owner);\n  }\n\n  const ownerIds = [...candidates].filter((candidate) => ![...candidates].some(\n    (other) => other !== candidate && ancestorOf(byId, other, candidate),\n  ));\n  return { contexts, ownerIds };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/index.ts"
+                },
+                "region": {
+                  "startLine": 1093
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/projective-owner.ts"
+                },
+                "region": {
+                  "startLine": 98
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2356"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "944f389271ad426bb9eda376c8a2b4f6"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "34e5c5d86b14d5433d6a7d5de7a237def6ca27cc",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

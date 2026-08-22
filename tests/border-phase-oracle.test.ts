@@ -3,6 +3,7 @@ import {
   buildBorderPaintDecisionCases,
   buildPhaseCases,
   buildPhaseScenarios,
+  borderPhaseGeometryStatus,
   classifyBorderPaintDecision,
   deriveSnapRule,
   profileEdges,
@@ -17,6 +18,20 @@ describe("border phase oracle corpus", () => {
     expect(new Set(cases.map((c) => c.style))).toEqual(new Set(["solid", "dashed", "dotted", "double"]));
     expect(new Set(cases.map((c) => c.phase))).toEqual(new Set([0, 0.25, 0.5, 0.75]));
     expect(Math.max(...cases.map((c) => c.y))).toBeLessThan(32 * 60);
+  });
+
+  it("ratifies only families with source-exact reference-box geometry", () => {
+    const rows = buildPhaseCases().map((phaseCase) => ({
+      id: phaseCase.id,
+      status: borderPhaseGeometryStatus(phaseCase),
+    }));
+    expect(rows.filter(({ status }) => status === "source-exact")).toHaveLength(112);
+    expect(rows.filter(({ status }) => status !== "source-exact")).toEqual(
+      buildPhaseCases()
+        .filter(({ kind, style }) => kind === "border" && style === "double")
+        .map(({ id }) => ({ id, status: "unratified-border-double-snap" })),
+    );
+    expect(borderPhaseGeometryStatus({ kind: "outline", style: "double" })).toBe("source-exact");
   });
 
   it("takes the Cartesian product of requested scale and zoom values", () => {
