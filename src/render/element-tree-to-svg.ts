@@ -79,6 +79,9 @@ import { getLastCaptureWarnings, logCaptureWarnings, _resetLastCaptureWarnings }
 import { rasterizeBitmapGlyphs } from "../capture/emoji.js";
 import { blinkPlatformResizerStrokes } from "./resize-handle.js";
 import { wrapPseudoPaintEffects } from "./pseudo-filter.js";
+import { paintCustomScrollbars, type CustomScrollbarVectorPart } from "./custom-scrollbar.js";
+import { paintNativeScrollbarRasters } from "./native-scrollbar-raster.js";
+import { resolveBackgroundAttachment } from "./background-attachment.js";
 
 // Public-API re-exports kept here for backward compatibility — older imports
 // from `./render/element-tree-to-svg.js` keep resolving. Internal consumers
@@ -2141,6 +2144,7 @@ function paintBackgroundImageLayers(
       }
       return { x: el.x, y: el.y, w: el.width, h: el.height };
     };
+    const borderBox = { x: el.x, y: el.y, width: el.width, height: el.height };
     // CSS: first layer paints on top of later layers. Emit in reverse order
     // so later SVG elements (= on top) correspond to first CSS layer.
     for (let li = layers.length - 1; li >= 0; li--) {
@@ -2155,27 +2159,38 @@ function paintBackgroundImageLayers(
       const layerAttachment = (attachmentLayers[li] ?? attachmentLayers[0] ?? "scroll").trim();
       const originBox = boxFor(layerOrigin);
       const clipBox = boxFor(layerClip);
-      // DM-821: `background-attachment: local` positions and sizes the
-      // layer against the element's full scrollable content area, not its
-      // visible viewport. `background-size: contain` on a 936×220 panel
-      // whose scroll content runs ~820px tall sizes the image to fit the
-      // 936×820 box (one width-filling tile), but using just the visible
-      // box sizes it to 660×220 instead and tiles horizontally with a
-      // visible second copy at the right edge. Substitute the scroll
-      // dimensions when the element actually scrolls.
-      let posOriginX = originBox.x, posOriginY = originBox.y;
-      let posOriginW = originBox.w, posOriginH = originBox.h;
-      if (layerAttachment === "local" && el.styles.scrollHeight != null && el.styles.scrollWidth != null) {
-        const sw = el.styles.scrollWidth as number;
-        const sh = el.styles.scrollHeight as number;
-        if (sw > posOriginW) posOriginW = sw;
-        if (sh > posOriginH) posOriginH = sh;
-      }
+      const isUrlBacked = /^\s*(?:url\(|(?:-webkit-)?image-set\()/i.test(layer);
+      // DM-2479: attachment selection happens before tile geometry. URL layers
+      // consume the live Blink ownership record; gradients retain their
+      // established path until they gain the same source-selected image
+      // contract. Feeding the resolved positioning box as an ordinary box
+      // prevents buildImagePatternDef from re-applying a viewport transform.
+      const attachmentGeometry = isUrlBacked
+        ? resolveBackgroundAttachment(
+            layerAttachment,
+            borderBox,
+            { x: originBox.x, y: originBox.y, width: originBox.w, height: originBox.h },
+            { x: clipBox.x, y: clipBox.y, width: clipBox.w, height: clipBox.h },
+            el.styles.backgroundAttachmentGeometry,
+            captureViewport,
+          )
+        : null;
+      const positioningBox = attachmentGeometry?.positioningBox
+        ?? { x: originBox.x, y: originBox.y, width: originBox.w, height: originBox.h };
+      const paintingBox = attachmentGeometry?.paintingBox
+        ?? { x: clipBox.x, y: clipBox.y, width: clipBox.w, height: clipBox.h };
       const defId = ctx.nextClipId("bg");
       // Pattern is positioned + sized relative to the origin box (where the image starts)
       // then painted into a rect clipped to the clip box. For fixed attachment
       // the origin is the viewport instead.
-      const out = buildBackgroundLayerDef(defId, layer, posOriginX, posOriginY, posOriginW, posOriginH, layerSize, layerPos, layerRepeat, layerIntrinsic, layerAttachment, captureViewport, selectedImage);
+      const out = buildBackgroundLayerDef(
+        defId, layer,
+        positioningBox.x, positioningBox.y, positioningBox.width, positioningBox.height,
+        layerSize, layerPos, layerRepeat, layerIntrinsic,
+        attachmentGeometry == null ? layerAttachment : "scroll",
+        attachmentGeometry == null ? captureViewport : null,
+        selectedImage,
+      );
       if (out.def === "") continue;
       ctx.defsParts.push(out.def);
       // DM-462: when this layer's clip is `text`, do NOT paint a rect over
@@ -2204,7 +2219,7 @@ function paintBackgroundImageLayers(
       const blendAttr = (layerBlend !== "normal" && layerBlend !== "")
         ? ` style="mix-blend-mode:${layerBlend}"` : "";
       ctx.svgParts.push(
-        `${indent}${roundedRectSvg(clipBox.x, clipBox.y, clipBox.w, clipBox.h, innerCorners, `fill="url(#${defId})"${blendAttr}`)}`,
+        `${indent}${roundedRectSvg(paintingBox.x, paintingBox.y, paintingBox.width, paintingBox.height, innerCorners, `fill="url(#${defId})"${blendAttr}`)}`,
       );
     }
   }
@@ -2603,6 +2618,157 @@ function customResizerBorder(
   const match = /^\s*([\d.]+)px\s+(none|hidden|solid|dashed|dotted|double|groove|ridge|inset|outset)\s+(.+?)\s*$/i.exec(value);
   if (match == null || match[2] === "none" || match[2] === "hidden") return null;
   return { width: (parseFloat(match[1]) || 0) * zoom, style: match[2], color: match[3] };
+}
+
+function customScrollbarBorderSide(
+  value: { width: string; style: string; color: string } | undefined,
+  zoom: number,
+): { width: string; style: string; color: string } {
+  return {
+    width: `${r((parseFloat(value?.width ?? "0") || 0) * zoom)}px`,
+    style: value?.style || "none",
+    color: value?.color || "rgba(0, 0, 0, 0)",
+  };
+}
+
+function scaledScrollbarCornerLonghands(
+  value: string | undefined,
+  zoom: number,
+): {
+  borderTopLeftRadius: string;
+  borderTopRightRadius: string;
+  borderBottomRightRadius: string;
+  borderBottomLeftRadius: string;
+} {
+  const [horizontalText = "0px", verticalText] = (value ?? "0px").split("/").map((part) => part.trim());
+  const expand = (text: string): string[] => {
+    const tokens = text.split(/\s+/).filter(Boolean);
+    if (tokens.length <= 1) return [tokens[0] ?? "0px", tokens[0] ?? "0px", tokens[0] ?? "0px", tokens[0] ?? "0px"];
+    if (tokens.length === 2) return [tokens[0], tokens[1], tokens[0], tokens[1]];
+    if (tokens.length === 3) return [tokens[0], tokens[1], tokens[2], tokens[1]];
+    return tokens.slice(0, 4);
+  };
+  const scale = (token: string): string => `${r((parseFloat(token) || 0) * zoom)}px`;
+  const horizontal = expand(horizontalText).map(scale);
+  const vertical = expand(verticalText ?? horizontalText).map(scale);
+  const pair = (index: number): string => `${horizontal[index]} ${vertical[index]}`;
+  return {
+    borderTopLeftRadius: pair(0),
+    borderTopRightRadius: pair(1),
+    borderBottomRightRadius: pair(2),
+    borderBottomLeftRadius: pair(3),
+  };
+}
+
+function scaledScrollbarBoxShadow(value: string | undefined, zoom: number): string {
+  return parseBoxShadow(value ?? "none").map((shadow) => (
+    `${shadow.color} ${r(shadow.x * zoom)}px ${r(shadow.y * zoom)}px ${r(shadow.blur * zoom)}px ${r(shadow.spread * zoom)}px${shadow.inset ? " inset" : ""}`
+  )).join(", ");
+}
+
+function paintCustomScrollbarVectorPart(
+  ctx: PaintCtx,
+  captureViewport: { w: number; h: number },
+  owner: CapturedElement,
+  item: CustomScrollbarVectorPart,
+  indent: string,
+): string[] {
+  const style = item.part.finalPseudoStyle;
+  if (style == null || style.display === "none" || style.visibility !== "visible") return [];
+  if (style.filter !== "" && style.filter !== "none") return [];
+  const opacity = Number.parseFloat(style.opacity || "1");
+  if (!Number.isFinite(opacity) || opacity <= 0) return [];
+
+  const zoom = item.effectiveZoom > 0 ? item.effectiveZoom : 1;
+  const border = customResizerBorder(style.border, zoom);
+  const topBorder = customScrollbarBorderSide(style.borderSides?.top, zoom);
+  const rightBorder = customScrollbarBorderSide(style.borderSides?.right, zoom);
+  const bottomBorder = customScrollbarBorderSide(style.borderSides?.bottom, zoom);
+  const leftBorder = customScrollbarBorderSide(style.borderSides?.left, zoom);
+  const uniformBorderWidth = `${border?.width ?? 0}px`;
+  const uniformBorderStyle = border?.style ?? "none";
+  const uniformBorderColor = border?.color ?? "rgba(0, 0, 0, 0)";
+  const perSideBorder = style.borderSides != null;
+  const radiusLonghands = scaledScrollbarCornerLonghands(style.borderRadius, zoom);
+  const rect = item.part.rect;
+  const fake: CapturedElement = {
+    ...owner,
+    x: rect.x,
+    y: rect.y,
+    width: rect.width,
+    height: rect.height,
+    children: [],
+    fieldsetLegendNotch: undefined,
+    styles: {
+      ...owner.styles,
+      backgroundColor: style.backgroundColor,
+      backgroundImage: style.backgroundImage,
+      backgroundSize: "auto",
+      backgroundPosition: "0% 0%",
+      backgroundRepeat: "repeat",
+      borderImageSource: "none",
+      borderWidth: uniformBorderWidth,
+      borderTopWidth: perSideBorder ? topBorder.width : uniformBorderWidth,
+      borderRightWidth: perSideBorder ? rightBorder.width : uniformBorderWidth,
+      borderBottomWidth: perSideBorder ? bottomBorder.width : uniformBorderWidth,
+      borderLeftWidth: perSideBorder ? leftBorder.width : uniformBorderWidth,
+      borderTopStyle: perSideBorder ? topBorder.style : uniformBorderStyle,
+      borderRightStyle: perSideBorder ? rightBorder.style : uniformBorderStyle,
+      borderBottomStyle: perSideBorder ? bottomBorder.style : uniformBorderStyle,
+      borderLeftStyle: perSideBorder ? leftBorder.style : uniformBorderStyle,
+      borderColor: uniformBorderColor,
+      borderTopColor: perSideBorder ? topBorder.color : uniformBorderColor,
+      borderRightColor: perSideBorder ? rightBorder.color : uniformBorderColor,
+      borderBottomColor: perSideBorder ? bottomBorder.color : uniformBorderColor,
+      borderLeftColor: perSideBorder ? leftBorder.color : uniformBorderColor,
+      borderRadius: radiusLonghands.borderTopLeftRadius,
+      ...radiusLonghands,
+      boxShadow: scaledScrollbarBoxShadow(style.boxShadow, zoom),
+      opacity: "1",
+      filter: "none",
+    },
+  };
+  const corners = parseCornerRadii(fake.styles, rect.width, rect.height);
+  const localCtx: PaintCtx = { ...ctx, svgParts: [] };
+  const contentIndent = opacity < 1 ? `${indent}  ` : indent;
+
+  paintBoxShadow(localCtx, fake, corners, contentIndent);
+  const color = parseColor(style.backgroundColor || "transparent");
+  if (color != null && color.a > 0) {
+    localCtx.svgParts.push(`${contentIndent}${roundedRectSvg(rect.x, rect.y, rect.width, rect.height, corners, `fill="${colorStr(color)}"`)}`);
+  }
+  if (style.backgroundImage !== "" && style.backgroundImage !== "none") {
+    const layers = buildPseudoBoxBgLayers(localCtx, captureViewport, {
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
+      backgroundImage: style.backgroundImage,
+    });
+    if (layers !== "") {
+      const clipId = ctx.nextClipId("customscrollpartbg");
+      ctx.defsParts.push(`<clipPath id="${clipId}">${roundedRectSvg(rect.x, rect.y, rect.width, rect.height, corners, "")}</clipPath>`);
+      localCtx.svgParts.push(`${contentIndent}<g clip-path="url(#${clipId})">${layers}</g>`);
+    }
+  }
+  paintInsetBoxShadow(localCtx, fake, corners, contentIndent);
+  paintBorder(
+    localCtx,
+    fake,
+    contentIndent,
+    corners,
+    captureViewport.w,
+    captureViewport.h,
+    border?.width ?? 0,
+    parseColor(border?.color ?? "transparent"),
+    false,
+    false,
+    new Set<CapturedElement>(),
+  );
+  if (localCtx.svgParts.length === 0) return [];
+  return opacity < 1
+    ? [`${indent}<g opacity="${r(opacity)}">`, ...localCtx.svgParts, `${indent}</g>`]
+    : localCtx.svgParts;
 }
 
 /**
@@ -5310,11 +5476,23 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
     }
   }
 
-  // DM-2481 removes the offset-triggered 7px scrollbar estimator. Captured
-  // scrollbar records are deliberately fail-closed until DM-2482 lowers
-  // author parts and DM-2483 composites native source-frame strips.
-  // PaintOverflowControls orders scrollbars / scroll corner before the
-  // resizer, and the controls overlay scrolled descendants.
+  // CustomScrollbarTheme paints the captured CSS boxes in source order:
+  // horizontal, vertical, custom corner, then the separately owned resizer.
+  // Geometry is already in capture-viewport coordinates and must not be
+  // recomputed from scroll ranges or transformed a second time.
+  svgParts.push(...paintCustomScrollbars({
+    defsParts,
+    nextId: (prefix) => paintCtx.nextClipId(prefix),
+    paintVectorPart: (item, partIndent) => paintCustomScrollbarVectorPart(
+      paintCtx, captureViewport, el, item, partIndent,
+    ),
+  }, captureViewport, el, indent));
+
+  // PaintOverflowControls orders both axes and the corner before the resizer.
+  // Native crops are already clipped source-frame pixels in capture-viewport
+  // coordinates; this consumer never reconstructs or scales platform chrome.
+  svgParts.push(...paintNativeScrollbarRasters(el, indent));
+
   svgParts.push(...paintResizeHandle(paintCtx, captureViewport, el, indent));
 
   closeWrappers();

@@ -35,11 +35,16 @@ import { createListsCountersHandler } from "./walker/lists-counters.js";
 import { createReplacedElementsHandler } from "./walker/replaced-elements.js";
 import { createMasksClipsHandler } from "./walker/masks-clips.js";
 import { createFormControlsHandler } from "./walker/form-controls.js";
-import { createTransformsHandler, composeEffectiveTransform } from "./walker/transforms.js";
+import {
+  createTransformsHandler,
+  composeEffectiveTransform,
+  transformHasRotationOrSkew,
+} from "./walker/transforms.js";
 import {
   createBordersBackgroundsHandler,
   physicalComputedTileSize as physicalComputedCssPixelTerms,
 } from "./walker/borders-backgrounds.js";
+import { createBackgroundAttachmentHandler } from "./walker/background-attachment.js";
 import { createPseudoContentHandler } from "./walker/pseudo-content.js";
 import { createInputValueHandler } from "./walker/input-value.js";
 import { createTextSegmentsHandler, computeElementRaster } from "./walker/text-segments.js";
@@ -121,6 +126,12 @@ const captureDocumentTree =
     warn,
     shortSelector,
     vp,
+  });
+  const { captureBackgroundAttachment } = createBackgroundAttachmentHandler({
+    vp,
+    transformRelatedBoxFor: (el) => _transformRelatedBox.get(el),
+    effectiveZoomFor: (el) => _effectiveZoomFor(el),
+    scrollbarPropertyKey: args.sk,
   });
   const { capturePseudoContent } = createPseudoContentHandler({
     vp,
@@ -832,6 +843,10 @@ const captureDocumentTree =
         // background-image intrinsic dims (DM-308), and border-image
         // intrinsic dims.
         ...captureBordersBackgrounds(el, cs, tag, rect, isPlaceholderCapture, _effectiveZoomFor(el)),
+        backgroundAttachmentGeometry: (function () {
+          const _scale = _backgroundAttachmentPaintScaleFor(el);
+          return captureBackgroundAttachment(el, cs, rect, _scale[0], _scale[1]);
+        })(),
         overflowX: cs.overflowX,
         overflowY: cs.overflowY,
         // DM-761: `overflow-clip-margin` extends the overflow clip outward
@@ -1869,6 +1884,16 @@ const captureDocumentTree =
     return false;
   };
   const _ownershipEls = [root, ...Array.from(_allEls)];
+  // Attachment ownership walks beyond the selected capture root. A fixed
+  // background on the root still becomes scroll-attached when an authored
+  // transform ancestor outside that root establishes the containing block;
+  // likewise, a transform on an inert inline ancestor must remain a negative
+  // control. Include those ancestors in the LayoutBox applicability probe.
+  let _ownershipAncestor = root.parentElement;
+  while (_ownershipAncestor != null) {
+    _ownershipEls.push(_ownershipAncestor);
+    _ownershipAncestor = _ownershipAncestor.parentElement;
+  }
   const _probeUnsupportedTags = /^(?:AUDIO|CANVAS|EMBED|IFRAME|IMG|INPUT|METER|OBJECT|PROGRESS|SELECT|TEXTAREA|VIDEO)$/;
   for (let _oi = 0; _oi < _ownershipEls.length; _oi++) {
     const _owner = _ownershipEls[_oi];
@@ -2036,6 +2061,33 @@ const captureDocumentTree =
     const _sx = Math.abs(_sa) > 0 ? Math.abs(_sa) : 1;
     const _sy = Math.abs(_sd) > 0 ? Math.abs(_sd) : 1;
     return [_sx, _sy];
+  };
+  // Background attachment geometry is serialized in the same physical space
+  // as the element rect. Pure translate/scale transforms stay live during
+  // capture, so their scale is already baked into that space. Rotation/skew
+  // transforms are temporarily frozen and later re-applied by the SVG wrapper;
+  // folding their matrix a/d terms into scroll offsets would apply that part
+  // twice. Resolve the scale along the real DOM ancestry and cache the result.
+  const _backgroundAttachmentPaintScale = new WeakMap();
+  const _backgroundAttachmentPaintScaleFor = (el) => {
+    if (el == null) return [1, 1];
+    const _hit = _backgroundAttachmentPaintScale.get(el);
+    if (_hit != null) return _hit;
+    const _parent = _backgroundAttachmentPaintScaleFor(el.parentElement);
+    const _styleWindow = el.ownerDocument?.defaultView ?? window;
+    const _style = _styleWindow.getComputedStyle(el);
+    const _effectiveTransform = composeEffectiveTransform(_style);
+    const _ownScale = transformHasRotationOrSkew(_effectiveTransform)
+      ? [1, 1]
+      : _computeOwnScale(_effectiveTransform);
+    const _ownZoom = parseFloat(_style.zoom);
+    const _zoom = Number.isFinite(_ownZoom) && _ownZoom > 0 ? _ownZoom : 1;
+    const _resolved = [
+      _parent[0] * _ownScale[0] * _zoom,
+      _parent[1] * _ownScale[1] * _zoom,
+    ];
+    _backgroundAttachmentPaintScale.set(el, _resolved);
+    return _resolved;
   };
   for (let _si = 0; _si < _allEls.length; _si++) {
     const _el = _allEls[_si];

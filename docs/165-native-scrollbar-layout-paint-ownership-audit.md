@@ -1,13 +1,12 @@
 # Native scrollbar layout and paint ownership audit
 
-**Status:** source audit plus DM-2481 capture implemented; scrollbar paint is
-still fail-closed pending DM-2482/DM-2483
+**Status:** source audit, DM-2481 capture, DM-2482 author-custom vector paint,
+and DM-2483 stock-native same-frame strip paint implemented
 
 **Ticket:** DM-2368
 
-**Implementation follow-ups:** DM-2482 (custom-vector paint) and DM-2483
-(stock-native raster). DM-2484's strict all-platform adjudicator/workflow is
-implemented but intentionally red pending those paint routes. See
+**Release follow-up:** DM-2484's strict all-platform adjudicator/workflow is
+implemented but intentionally red pending fresh platform artifacts. See
 [doc 169](169-authoritative-scrollbar-capture.md) for the implemented live
 marker protocol, explicit stable-CDP unknowns, and removal of the 7 px
 synthesis, and [doc 173](173-native-scrollbar-release-gate.md) for the release
@@ -73,7 +72,8 @@ indicator which Chromium did not paint.
 
 The capture/renderer findings below describe the baseline audited by DM-2368.
 DM-2481/doc 169 now supplies structured marker-owned records and removes the
-7 px fallback; the custom/native paint gaps remain.
+7 px fallback; DM-2482 closes the author-custom paint gap while the native
+platform route remains separate.
 
 ### Capture
 
@@ -217,6 +217,17 @@ Chromium. Conversely, pseudo syntax alone is insufficient: the implementation
 must capture Blink's final cascade, dynamic state, layout rectangles, and
 source order/phase.
 
+DM-2482 implements that boundary in `src/render/custom-scrollbar.ts`. The
+renderer consumes only captured rectangles and paints background, buttons,
+track background, track pieces, thumb, horizontal axis, vertical axis, and
+corner in pinned Blink order before the resizer. It reuses the existing
+background/gradient, uniform or per-side border, radius, inset/outset shadow,
+opacity, clip, and zoom-aware vector machinery. Stable CDP cannot expose a
+dynamic anonymous-instance winner, so selector detection chooses a same-source-
+frame crop bounded to only that part; unsupported author filters/CSS image
+functions use the same owner-only fallback. No route reconstructs layout or
+expands the crop beyond its captured owner.
+
 ## Stock platform raster boundary
 
 The stock route is deliberately not one reusable vector recipe.
@@ -359,15 +370,15 @@ The focused evidence includes:
 | Control | Live Chromium result at DPR 1 | Current generated SVG |
 | --- | --- | --- |
 | visible / hidden / clip / auto-no-overflow | no marker chrome | no synthetic thumb (correct negative) |
-| width:none at x=51,y=67 | no chrome | two synthetic thumbs (false positive) |
-| custom `scroll`, no overflow | 16 px vertical + 14 px horizontal reservation; red disabled tracks and 16×14 green corner; no thumb | no scrollbar paint |
-| custom vertical top/mid/max | 16 px gutter; blue thumb y=33/70/109, 12×30, for scrollTop 0/122/250 | none at top; generic 7 px pill after positive offset |
-| custom horizontal mid | authored 14 px bar; blue thumb 46×10 at x=92 | generic 7 px pill |
-| both axes | red tracks, both blue thumbs, green 16×14 corner | two generic pills, no track/corner |
-| RTL horizontal-tb | vertical blue thumb moves from physical x=172 to x=40 | fixed physical-right assumption |
-| vertical-rl | both physical bars/corner; negative horizontal offset retained | one axis omitted by positive-offset activation |
-| asymmetric border + ancestor clip | marker bounds stay inside the 145×112 clip | generic geometry ignores source part rectangles |
-| zoom 1.25 | bar/corner bounds scale once; DPR 2 bounds normalize to within 1 CSS px of DPR 1 | fixed 7 px geometry |
+| width:none at x=51,y=67 | no chrome | no scrollbar paint (correct explicit absence) |
+| custom `scroll`, no overflow | 16 px vertical + 14 px horizontal reservation; red disabled tracks and 16×14 green corner; no thumb | source-owned background/track/corner vectors; no invented thumb |
+| custom vertical top/mid/max | 16 px gutter; blue thumb y=33/70/109, 12×30, for scrollTop 0/122/250 | matching custom parts and marker bounds |
+| custom horizontal mid | authored 14 px bar; blue thumb 46×10 at x=92 | matching custom parts and marker bounds |
+| both axes | red tracks, both blue thumbs, green 16×14 corner | matching axes/corner in Blink order |
+| RTL horizontal-tb | vertical blue thumb moves from physical x=172 to x=40 | matching captured logical-left geometry |
+| vertical-rl | both physical bars/corner; negative horizontal offset retained | matching captured axes/corner |
+| asymmetric border + ancestor clip | marker bounds stay inside the 145×112 clip | custom vector parts stay inside the same clip |
+| zoom 1.25 | bar/corner bounds scale once; DPR 2 bounds normalize to within 1 CSS px of DPR 1 | source/generated bounds differ by at most 1 device px |
 | stock macOS light | overlay: zero layout gutter; 185 right-edge and 318 bottom-edge changed pixels | two synthetic pills |
 | stock macOS dark surface | separate scheme/surface fingerprint, still zero layout gutter | same hard-coded color |
 | standard thin + blue/red colors | zero layout gutter; 426 blue classified thumb pixels | no standard color ownership |
@@ -444,13 +455,15 @@ source-owned frame, and reject any emitted legacy 7 px synthesized thumb.
 1. DM-2481 captures authoritative scrollbar existence/geometry/state/phase
    records and removes offset-based activation.
 2. DM-2482 extends Chromium-resolved pseudo capture and emits supported custom
-   parts as vector CSS boxes; it is blocked by DM-2481.
+   parts as vector CSS boxes; it is implemented on the DM-2481 record.
 3. DM-2483 captures and composites narrow stock-native strip/corner rasters
-   with exact clip/phase/transform ownership; it is blocked by DM-2481.
+   with exact clip/phase/transform ownership; it is implemented on DM-2481.
 4. DM-2484 promotes the observational oracle on all three platforms/DPRs and
    is blocked by all three implementation tickets. It deletes the legacy
    synthesis and SK-468 warning only when every route is explicit.
 
-Until all three implementation seams exist, native scrollbar fidelity remains
-partial and source screenshots made with hidden scrollbars must not be counted
-as positive paint evidence.
+The stock-native source-frame seam now exists, but release evidence remains
+incomplete until DM-2484 collects the full macOS/Linux/Windows matrix. Source
+screenshots made with hidden scrollbars still cannot count as positive paint
+evidence. Author-custom paint remains independently covered by the strict
+vector marker gate.

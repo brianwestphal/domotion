@@ -1,13 +1,14 @@
 # Authoritative Blink scrollbar capture
 
-**Ticket:** DM-2481
-**Status:** capture protocol implemented; dependent custom/native paint remains
-DM-2482/DM-2483
+**Tickets:** DM-2481, DM-2482, DM-2483
+**Status:** authoritative capture, author-custom vector paint, and same-frame
+platform-native strip paint implemented
 
 This change replaces Domotion's `scrollWidth/clientWidth` plus positive-offset
 scrollbar guess with a live Chromium ownership record. The renderer no longer
-emits the legacy host-independent 7 px macOS-shaped pill. Scrollbar paint now
-fails closed until the custom-vector and stock-native raster consumers land.
+emits the legacy host-independent 7 px macOS-shaped pill. Author-custom paint
+now consumes the captured parts; stock-native paint stays on its separate
+platform-raster route.
 
 The source authority is pinned Chromium
 `7d859f271cbda744098ac69f44978d4edfa62be3`:
@@ -36,7 +37,10 @@ restores the original inline declaration before the measured animation frame.
 No measurement is taken while the temporary declaration is present.
 
 For an author WebKit scrollbar, reserved colors repaint the already-created
-background, track, track pieces, buttons, thumb, and corner. For a stock or
+background, track, track pieces, buttons, thumb, and corner. The topmost parts
+are measured together, then the lower scrollbar background and track each get
+an isolated paint-only marker pass; this prevents a thumb or track piece from
+occluding the lower owner's rectangle without changing layout. For a stock or
 standard scrollbar, the pass changes only standard `scrollbar-color`, which
 keeps Blink on the native `ScrollbarTheme` route. Chromium paints one frame;
 the pass subtracts a just-prior unmarked frame, classifies connected changed
@@ -70,41 +74,71 @@ normal platform paint.
 CDP exposes matched unqualified `::-webkit-scrollbar*` pseudos on the scroll
 host. `src/capture/pseudo-style-cdp.ts` now obtains their final computed
 display/visibility/opacity, size constraints, margins, background, border,
-radius, padding, shadow, and filter from Chromium. It does not scan stylesheet
-source order.
+radius, padding, shadow, and filter from Chromium. Stylesheet text is inspected
+only to detect selectors whose anonymous dynamic instance cannot be queried;
+it is never used to replay source order, specificity, or cascade winners.
 
 Chromium's stable DOM/CSS agents do not expose the anonymous horizontal/
 vertical or start/end scrollbar part nodes. A rule whose winner exists only on
 `:horizontal`, `:vertical`, `:start`, `:end`, `:decrement`, `:increment`,
 `:hover`, or `:active` therefore cannot be returned as a computed style object.
-The live marker frame still proves its part rectangle, but the record remains
-`partial` with `dynamic-scrollbar-pseudo-cascade`. Likewise, stock overlay
-animator opacity, an invisible full frame, native subpart rectangles, overlay
-hidden state, and internal paint phase remain named missing facts until
-DM-2483 obtains them with the narrow source-frame raster/browser-internal seam.
+The live marker frame still proves its part rectangle. DM-2482 retains the
+corresponding pre-marker source-frame pixels as a crop bounded to that owning
+part, with `dynamic-author-part` provenance; it does not guess a CSSOM winner.
+Unsupported author filters and CSS image functions take the same narrow route
+with `unsupported-author-part` provenance, while the remaining supported
+parts stay vector. Stock paint crosses the source-frame boundary described
+below; no native theme or animator value is synthesized.
 Non-axis-aligned transforms fail with a named axis-correlation fact instead of
 assigning a rotated marker to the wrong source axis. This is the required
 explicit unknown path; no CSSOM cascade reconstruction or platform constant
 substitutes for it.
 
+## Platform-native source-frame strips
+
+DM-2483 captures one unmodified Chromium compositor frame before marker paint.
+Classic horizontal and vertical frames use Blink-owned marker/layout geometry;
+the physical overlap of both frames owns the native corner. Overlay controls
+use a reversible `scrollbar-width:none` discriminator: connected source versus
+underlay device pixels supply only the visible ink rectangles, while the
+emitted crop always comes from the unmodified source. Restoration may advance
+only pixels already proven to belong to the platform animator; any changed
+backdrop pixel rejects the frame. Source-equal underlay/restoration proves a
+fully faded overlay and records `absent` with `overlay-source-frame-empty`.
+
+`CapturedNativeScrollbarRaster` records the outward-snapped CSS crop, exact
+pixel dimensions and DPR, source/crop SHA-256, interaction state, scheme/color
+facts through its parent bar, and a platform fingerprint containing OS,
+architecture, Chromium/Playwright revisions and launch arguments. The bitmap
+is precomposited for overlays, already clipped in capture-viewport coordinates,
+and has identity `outputTransform`; render therefore emits it once without a
+theme constant, resampling, alpha reconstruction, or element-local geometry.
+`src/render/native-scrollbar-raster.ts` preserves horizontal, vertical, corner,
+then resizer order. Missing/unstable crops warn and remain fail-closed. Culling
+unions exact emitted strip rectangles and retains missing reservations.
+
 ## Evidence
 
 The focused unit/browser contract covers connected marker classification,
-custom horizontal/vertical/corner geometry, final unqualified pseudo winners,
-mid-scroll ranges, RTL negative `scrollLeft`, logical-left placement,
-`scrollbar-width:none`, CSS zoom 1.25, DPR 2, forced colors/dark preference,
-non-axis transform failure, and the hidden-scrollbar launch negative.
+custom horizontal/vertical/corner geometry, Blink paint order, final
+unqualified pseudo winners, dynamic-selector and unsupported-effect owner
+crops, uniform and asymmetric vector borders, mid-scroll ranges, RTL negative
+`scrollLeft`, logical-left placement, `scrollbar-width:none`, CSS zoom 1.25,
+DPR 2, forced colors/dark preference, non-axis transform failure, and
+the hidden-scrollbar launch negative. The native oracle additionally compares
+each embedded PNG byte-for-byte with the supplied Chromium source crop and the
+final generated-SVG strip pixel-for-pixel at DPR 2, while a vector sentinel
+outside the crop remains vector.
 
-The upgraded 23-row ownership audit completed on macOS arm64 with Headless
-Chromium 147:
+The upgraded ownership audit completed on macOS arm64 with Headless Chromium
+147. Every author-custom route passes the strict generated marker gate:
 
 ```text
-23/23 PASS
-verdict: authoritative-capture-and-dependent-paint-gaps-observed
-generated legacy thumbs: 0 in every row
-custom records: marker-owned author-custom axes/corner, explicit dynamic-cascade gap
-native records: marker-owned visible thumbs, explicit theme/opacity/phase gaps
-negative records: width:none and auto/no-overflow absent
+custom-vector rows: PASS
+source/generated marker bounds: <= 1 device px on every part
+custom coverage: top/mid/max, x/y, both axes/corner, RTL, vertical writing,
+                 clipping, zoom 1.25, DPR 1/2, and no-paint negatives
+generated legacy thumbs: 0 in every custom row
 ```
 
 Commands:
@@ -118,13 +152,15 @@ npm run scrollbars:ownership-audit -- --json /tmp/dm2481-scrollbar-audit.json
 
 ## Dependent work
 
-- DM-2482 may vector-paint only author parts whose final Chromium style is
-  present; a dynamic-only missing winner must warn or use an owner-only raster.
-- DM-2483 must materialize stock native frame/corner strips from the same
-  compositor frame and fill the animator opacity, platform fingerprint, phase,
-  clip, and root-transform facts that stable CDP cannot expose.
+- DM-2482 is implemented: `src/render/custom-scrollbar.ts` preserves Blink's
+  background, button, track, piece, thumb, axis, corner, and resizer-relative
+  order. Supported final styles use the ordinary vector CSS-box painters;
+  dynamic-only or unsupported effects retain only their owning part as raster.
+- DM-2483 is implemented: stock frames/corners are lossless same-frame crops;
+  overlay no-ink is explicit absence and every crop carries its platform and
+  source-frame provenance.
 - DM-2484 now supplies the strict schema/adjudicator and dispatch-only native
   macOS/Linux/Windows artifact workflow in [doc 173](173-native-scrollbar-release-gate.md).
-  It deliberately rejects this capture-only report until DM-2482 and DM-2483
-  supply complete paint records and lossless strips; the legacy synthesis is a
+  Its producer/adjudicator still stays red until fresh macOS, Linux, and Windows
+  Cartesian artifacts are collected and reviewed; the legacy synthesis is a
   named mutation blocker.

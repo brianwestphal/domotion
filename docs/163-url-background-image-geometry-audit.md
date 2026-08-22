@@ -1,19 +1,21 @@
 # URL background image geometry audit
 
-**Status:** DM-2477 capture seam implemented; tile, attachment, and fragment geometry remain partial
+**Status:** DM-2477 capture and DM-2479 attachment seams implemented; tile and fragment geometry remain partial
 
-**Ticket:** DM-2370
+**Ticket:** DM-2370 / DM-2477 / DM-2479
 
-**Implemented seam:** DM-2477 authoritative selected-image/natural-sizing capture
+**Implemented seams:** DM-2477 authoritative selected-image/natural-sizing capture; DM-2479 exact attachment positioning-area ownership
 
-**Remaining follow-ups:** DM-2478, DM-2479, existing DM-2365, and gate DM-2480
+**Remaining follow-ups:** DM-2478, existing DM-2365, and gate DM-2480
 
 Domotion turns each CSS `url()` background layer into one SVG
 `<pattern><image>`. That is the right representation boundary, but the numbers
 inside the pattern are not all Blink's numbers yet. DM-2477 now captures the
 selected candidate and complete natural-sizing state before the synchronous
-tree walk. The remaining renderer still projects that state to a width/height
-pair and approximates repeat modes with a large pattern cell. Blink carries the
+tree walk. DM-2479 now also captures fixed/local/canvas positioning ownership
+and selects those geometry inputs before URL tile construction. The remaining
+renderer still projects natural sizing to a width/height pair and approximates
+repeat modes with a large pattern cell. Blink carries the
 source-selected image plus snapped and unsnapped positioning areas through
 `BackgroundImageGeometry`, then gives an explicit destination, phase, spacing,
 and scale to Skia.
@@ -49,8 +51,9 @@ integer explicit-repeat, auto/auto, cover/percentage, integer origin/clip, and
 clone-fragment rows are already exact in the focused probe. The unresolved
 surface includes natural ratio on a single `auto` axis, calculated sizes and
 phase, contain rounding, both `space` branches, round's orthogonal-auto rule,
-fixed/local attachment, effective zoom, transformed pattern phase, cyclic
-lists, and sliced fragments.
+effective-zoom tile sizing, transformed pattern phase, cyclic lists, and sliced
+fragments. Fixed, transformed-fixed, local, and canvas attachment positioning
+now have an independent exact natural-tile browser oracle.
 
 ## Current information loss
 
@@ -102,7 +105,7 @@ simulated with a cell twice the area, single-tile `space` with another large
 period, and `round` never recomputes an orthogonal `auto` dimension. These are
 observable paint differences, not equivalent encodings.
 
-### Layer, attachment, and fragment ownership
+### Layer and fragment ownership
 
 `paintBackgroundImageLayers` at
 `src/render/element-tree-to-svg.ts:2106-2175` selects a missing per-layer value
@@ -111,12 +114,14 @@ as `layers[0]`; a four-layer image with two positions/sizes should use values
 from a viewport rectangle but does not retain Blink's snapped/unsnapped box
 pair.
 
-For `local`, lines `2155-2170` enlarge the width/height to the scroll extent but
-do not subtract the actual scroll position or reproduce the overflow clip and
-border-ended paint rectangle. For `fixed`, `buildImagePatternDef` uses capture
-viewport `(0,0)` whenever the computed token is `fixed`; it does not apply
-Blink's transformed-ancestor rule or map the viewport origin into local paint
-space.
+DM-2479 moved attachment selection out of this approximation.
+`src/capture/script/walker/background-attachment.ts` records the
+scrollbar-excluding layout viewport, transform/will-change applicability,
+pixel-snapped two-axis local scroll offsets, overflow clip, scroll extent plus
+borders, and root stitched canvas box. `src/render/background-attachment.ts`
+selects and maps those captured inputs before the existing tile builder runs,
+so tile geometry is not transformed twice. Old captures without the record
+retain the previous scroll-box fallback.
 
 Finally, `paintInlineFragment` at
 `src/render/element-tree-to-svg.ts:3628-3653` deliberately emits URL background
@@ -234,6 +239,7 @@ Run:
 
 ```sh
 npm run background:url-geometry-audit -- --json /tmp/url-background-geometry-audit.json
+npx vitest run --config vitest.e2e.config.ts tests/background-attachment-geometry.e2e.test.ts
 ```
 
 The 2026-08-22 run used Playwright 1.59.1, Headless Chromium 147.0.7727.15,
@@ -266,9 +272,9 @@ promotion and makes any warning a failure after implementation.
 | space single-tile fallback | current gap | 22.22% | 6 px |
 | content origin + padding clip | equivalent | 0.00% | 0 px |
 | fixed viewport | current gap | 8.13% | 1 px |
-| fixed under transformed ancestor | current gap | 85.75% | 29 px |
-| local after x/y scroll | current gap | 93.94% | 11 px |
-| zoom 1.25 + intrinsic auto | current gap | 78.15% | 5 px |
+| fixed under transformed ancestor | current gap | 6.10% | 1 px |
+| local after x/y scroll | current gap | 6.12% | 0 px |
+| zoom 1.25 + intrinsic auto | current gap | 24.32% | missing marker |
 | affine transformed local space | current gap | 4.56% | 0 px |
 | four images + two-value lists | current gap | 7.35% | 1 px |
 | wrapped inline clone | equivalent | 0.00% | 0 px |
@@ -283,8 +289,14 @@ proves a percentage-position row can be exact rather than all percentages
 being labeled unsupported. The independent origin/clip row proves those boxes
 are not intrinsically unrepresentable. Clone versus slice proves fragment
 activation, not missing inline paint in both variants. Fixed under transform
-moves much farther than ordinary fixed, proving the transformed-ancestor rule
-is separately discriminated.
+and local-scroll rows now assert their captured attachment ownership/offset
+facts directly; their residual marker-label mismatch is the scaled-tile
+sampling seam owned by DM-2478. The separate focused attachment oracle uses an
+unscaled natural-size tile and is byte-exact (mean absolute error `0.000`) at
+DPR 1 and DPR 2. Its semantic leg covers positive and negative fixed ownership,
+perspective and inert-inline controls, nonzero page and element scroll, zoom,
+borders/padding, both axes, mutation, affine freeze/no-double-scale, and the
+body-propagated root stitched canvas.
 
 ## Exact representation design
 
@@ -331,14 +343,33 @@ SVG period trick. Layer longhands expand with `value[layerIndex %
 valueCount]`. Origin changes the positioning area; clip changes the painting
 area; neither is inferred from the other.
 
-### Attachment and fragments (DM-2479 / DM-2365)
+### Attachment positioning (DM-2479, implemented)
 
-Attachment and fragmentation select the geometry inputs before the pure tile
-calculation. Capture/renderer must retain fixed-viewport applicability and
-local scroll facts rather than derive them from a computed token. DM-2479 owns
-normal/fixed/local/root positioning spaces and transform mapping. Existing
-DM-2365 owns the stitched imaginary box and slice/clone offsets for wrapped
-inline and block fragmentation. Both consume the same geometry helper.
+Attachment selects geometry inputs before the pure tile calculation. The live
+walker stores one `blink-box-background-paint-context-v1` record containing:
+
+- the layout viewport with root scrollbars excluded and capture-viewport origin;
+- whether fixed attachment survives the non-root applicable-transform and
+  `will-change` walk;
+- for local attachment, active scroll-container state, physically snapped x/y
+  offsets, border-ended scroll extent, and the scrollbar-aware overflow clip;
+- for the visible root/body-propagated canvas owner, the root stitched
+  positioning rectangle; and
+- physical zoom/scale at the capture boundary, excluding affine transforms
+  frozen and later re-applied by the renderer.
+
+The renderer uses that record to choose the positioning and painting boxes,
+then invokes ordinary scroll tile construction once. This keeps transforms out
+of tile math and preserves old-capture compatibility. Six pure resolver cases
+and three live Chromium cases cover fixed/scroll/local/canvas routing, DPR 1/2
+pixels, both scroll axes, scroll/page mutation, borders/padding, zoom,
+applicable and inert ancestors, perspective, affine mapping, and stitching.
+
+### Fragments (DM-2365)
+
+Existing DM-2365 owns the stitched imaginary box and slice/clone offsets for
+wrapped inline and block fragmentation. It should consume the same geometry
+helper without creating a second attachment approximation.
 
 ### Hard gate (DM-2480)
 
@@ -353,13 +384,13 @@ ink, missing pattern ownership, or warnings fail rather than skip.
 
 - **DM-2477** — implemented: authoritative natural sizing and selected-layer capture.
 - **DM-2478** — exact pure tile geometry and SVG lowering; blocked by DM-2477.
-- **DM-2479** — exact normal/fixed/local/root attachment positioning areas.
+- **DM-2479** — implemented: exact normal/fixed/local/root attachment positioning areas.
 - **DM-2365** — existing slice/clone background-image continuation ticket;
   retained instead of filing a duplicate.
 - **DM-2480** — all-platform/DPR parity gate; blocked by all four implementation
   tickets above.
 
-DM-2477 changes production capture and removes renderer-side candidate guessing.
-Until the remaining tickets land, URL background tile/attachment/fragment
-geometry remains partial and the observational probe's expected-gap routes are
-not accepted parity.
+DM-2477 and DM-2479 change production capture and remove renderer-side candidate
+and attachment guessing. Until the remaining tickets land, URL background tile
+and fragment geometry remains partial and the observational probe's expected-gap
+routes are not accepted parity.

@@ -1681,6 +1681,10 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   sizing at effective zoom, including DPR/type/density, independent dimensions
   and ratio, orientation, aligned layer index, and explicit decode/failure
   state; the renderer consumes that selected URL instead of a DPR-1 guess.
+  DM-2479 also captures fixed-viewport applicability, the scrollbar-excluding
+  layout viewport, local pixel-snapped x/y scroll plus overflow/extent, and the
+  stitched root canvas, then selects those positioning/painting inputs before
+  URL tile construction without double-applying affine transforms.
   Blink then tracks snapped and unsnapped positioning/painting areas, resolves
   auto/contain/cover/calc, then owns destination, phase, repeat spacing,
   attachment, and stitched-fragment offsets before Skia sampling. Capture must
@@ -1691,12 +1695,13 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   scroll; local subtracts the real scroll offset; shorter longhand lists repeat
   cyclically; slice continues through one stitched box while clone restarts.
   The strict 21-row inline-and-multicol evidence and exact contract are in
-  [doc 163](../163-url-background-image-geometry-audit.md). DM-2478/2479 plus
-  existing DM-2365 implement the remaining seams, and DM-2480 owns the
+  [doc 163](../163-url-background-image-geometry-audit.md). DM-2478 plus
+  existing DM-2365 implement the remaining tile/fragment seams, and DM-2480 owns the
   all-platform DPR gate.
 
 <!-- DM-2368 -->
-- Native scrollbar **capture is source-owned; paint is still pending**. Never
+- Native scrollbar **capture is source-owned; author-custom paint is vector and
+  stock-native paint remains platform-owned**. Never
   infer paint from a positive scroll offset or synthesize a host-independent
   7 px pill. The live marker protocol captures Blink's actual bar
   existence, overlay/classic route, used width, logical side, frame/part/corner
@@ -1707,14 +1712,20 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   chrome is a narrow, capture-DPR, precomposited platform raster because macOS
   depends on its scroller animator, Aura/Fluent on runtime native theme/state,
   and Windows UXTheme/GDI already produces an offscreen bitmap before Skia.
-  Missing dynamic anonymous-pseudo or native animator/phase facts are explicit
-  partial/unavailable warnings, never reconstructed cascade/layout. A faded
+  Stable CDP cannot return dynamic anonymous-part winners, so affected custom
+  parts retain a pre-marker source-frame crop bounded to their owner; unsupported
+  author effects take the same narrow route. Neither reconstructs cascade or
+  layout, and every other supported part remains vector. Native platform paint
+  is losslessly cropped from one source frame at the captured rectangles with
+  DPR, SHA, interaction, launch, browser, and OS provenance; overlay geometry
+  comes from a reversible width:none ink discriminator and retains its backdrop.
+  Missing/incoherent source facts remain explicit partial/unavailable warnings. A faded
   overlay, width:none, hidden/clip/visible axis, or auto axis without overflow
   emits nothing. The focused overflow/axis/RTL/writing/clip/scheme/
   zoom/DPR evidence and exact contract are in
   [doc 165](../165-native-scrollbar-layout-paint-ownership-audit.md); its oracle
   must run without Playwright's default `--hide-scrollbars` and later be
   promoted on native macOS/Linux/Windows images. DM-2481's implementation and
-  stable-CDP limits are in [doc 169](../169-authoritative-scrollbar-capture.md).
-  DM-2482 owns custom-vector parts, DM-2483 stock-native strip rasters, and
-  DM-2484 the dependent platform gate.
+  stable-CDP limits, DM-2482 custom-vector paint, and DM-2483 native strip
+  rasters are in [doc 169](../169-authoritative-scrollbar-capture.md). DM-2484
+  owns the dependent three-platform release gate.

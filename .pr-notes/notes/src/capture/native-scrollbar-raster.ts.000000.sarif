@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt46fxexmn220owm",
+          "message": {
+            "text": "Overlay geometry is proven from final pixels, not reconstructed from a platform thickness. The width:none frame is discriminator-only; emission always crops the untouched compositor frame. Animator drift is accepted only inside the already-proven source/underlay mask, while any backdrop delta fails closed.",
+            "markdown": "Overlay geometry is proven from final pixels, not reconstructed from a platform thickness. The width:none frame is discriminator-only; emission always crops the untouched compositor frame. Animator drift is accepted only inside the already-proven source/underlay mask, while any backdrop delta fails closed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/native-scrollbar-raster.ts"
+                },
+                "region": {
+                  "startLine": 189,
+                  "endLine": 284,
+                  "snippet": {
+                    "text": "export function analyzeNativeOverlayInk(\n  source: NativeScrollbarFrame | null,\n  underlay: NativeScrollbarFrame | null,\n  restored: NativeScrollbarFrame | null,\n  rect: CapturedScrollbarRect,\n  clip: CapturedScrollbarRect | null,\n  viewport: CapturedScrollbarRect,\n): NativeOverlayInkAnalysis {\n  if (source == null || underlay == null || restored == null\n      || source.width !== underlay.width || source.height !== underlay.height\n      || source.width !== restored.width || source.height !== restored.height) {\n    return { verdict: \"unavailable\", rects: [] };\n  }\n  const plan = pixelCropForRect(rect, clip, viewport, source);\n  if (plan == null) return { verdict: \"unavailable\", rects: [] };\n  const sourceCrop = cropNativeControlRgba(source, plan.pixel);\n  const underlayCrop = cropNativeControlRgba(underlay, plan.pixel);\n  const restoredCrop = cropNativeControlRgba(restored, plan.pixel);\n  if (sourceCrop == null || underlayCrop == null || restoredCrop == null) {\n    return { verdict: \"unavailable\", rects: [] };\n  }\n  if (equalBytes(sourceCrop, underlayCrop)) {\n    return equalBytes(sourceCrop, restoredCrop)\n      ? { verdict: \"empty\", rects: [] }\n      : { verdict: \"unstable\", rects: [] };\n  }\n\n  const pixelCount = plan.pixel.width * plan.pixel.height;\n  const changed = new Uint8Array(pixelCount);\n  for (let pixel = 0; pixel < pixelCount; pixel++) {\n    const offset = pixel * 4;\n    if (sourceCrop[offset] !== underlayCrop[offset]\n        || sourceCrop[offset + 1] !== underlayCrop[offset + 1]\n        || sourceCrop[offset + 2] !== underlayCrop[offset + 2]\n        || sourceCrop[offset + 3] !== underlayCrop[offset + 3]) changed[pixel] = 1;\n  }\n  // A platform animator may legitimately advance the scrollbar alpha while\n  // width:none is restored. Accept that only when every source/restored delta\n  // is confined to the source-owned mask proven by source-vs-underlay. Any\n  // changed backdrop pixel remains an incoherent-frame failure.\n  for (let pixel = 0; pixel < pixelCount; pixel++) {\n    const offset = pixel * 4;\n    const restoredChanged = sourceCrop[offset] !== restoredCrop[offset]\n      || sourceCrop[offset + 1] !== restoredCrop[offset + 1]\n      || sourceCrop[offset + 2] !== restoredCrop[offset + 2]\n      || sourceCrop[offset + 3] !== restoredCrop[offset + 3];\n    if (restoredChanged && changed[pixel] === 0) return { verdict: \"unstable\", rects: [] };\n  }\n\n  const seen = new Uint8Array(pixelCount);\n  const scaleX = source.width / viewport.width;\n  const scaleY = source.height / viewport.height;\n  const rects: CapturedScrollbarRect[] = [];\n  for (let start = 0; start < pixelCount; start++) {\n    if (changed[start] === 0 || seen[start] !== 0) continue;\n    const queue = [start];\n    seen[start] = 1;\n    let minX = plan.pixel.width;\n    let minY = plan.pixel.height;\n    let maxX = -1;\n    let maxY = -1;\n    let pixels = 0;\n    for (let cursor = 0; cursor < queue.length; cursor++) {\n      const pixel = queue[cursor]!;\n      const x = pixel % plan.pixel.width;\n      const y = Math.floor(pixel / plan.pixel.width);\n      minX = Math.min(minX, x);\n      minY = Math.min(minY, y);\n      maxX = Math.max(maxX, x);\n      maxY = Math.max(maxY, y);\n      pixels++;\n      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {\n        if (dx === 0 && dy === 0) continue;\n        const nextX = x + dx;\n        const nextY = y + dy;\n        if (nextX < 0 || nextX >= plan.pixel.width || nextY < 0 || nextY >= plan.pixel.height) continue;\n        const next = nextY * plan.pixel.width + nextX;\n        if (changed[next] === 0 || seen[next] !== 0) continue;\n        seen[next] = 1;\n        queue.push(next);\n      }\n    }\n    // Single-pixel changes are indistinguishable from compositor/readback\n    // noise and cannot define a platform owner rectangle.\n    if (pixels < 2) continue;\n    rects.push({\n      x: (plan.pixel.left + minX) / scaleX,\n      y: (plan.pixel.top + minY) / scaleY,\n      width: (maxX - minX + 1) / scaleX,\n      height: (maxY - minY + 1) / scaleY,\n    });\n  }\n  return rects.length === 0\n    ? { verdict: \"unavailable\", rects: [] }\n    : { verdict: \"visible\", rects };\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 94,
+          "workItemUris": [
+            "DM-2483"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4dc8d8baf38a8594af72059319683771"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "765f6a352dbe272c4fdf67f4f689ed646e485107",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

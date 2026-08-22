@@ -463,7 +463,7 @@ shortest possible map:
   `<foreignObject>`, zoom/scroll, ancestor rotation/opacity/filter, clipping,
   off-bounds paint, and a vector-sibling isolation control. The logical audit
   is 26/26; DM-2475 adds the all-platform independent raster leg.
-- **URL background geometry audit + authoritative capture (DM-2370/2477)** —
+- **URL background geometry audit + authoritative capture (DM-2370/2477/2479)** —
   `tools/url-background-geometry-audit.ts`
   (`npm run background:url-geometry-audit`) paints a deterministic decoded
   color tile in live Chromium and through the actual capture→generated-SVG
@@ -478,8 +478,16 @@ shortest possible map:
   MIME/density selection at the live DPR, awaits decode, and records candidate,
   independent natural dimensions/ratio, orientation, zoom, and explicit load
   state per aligned layer. The walker serializes it and the renderer consumes
-  the selected URL instead of guessing DPR 1. [Doc 163](../163-url-background-image-geometry-audit.md)
-  owns the exact boundary. DM-2478/2479 plus existing DM-2365 finish geometry;
+  the selected URL instead of guessing DPR 1.
+  `src/capture/script/walker/background-attachment.ts` independently captures
+  fixed applicability, the scrollbar-excluding layout viewport, snapped local
+  scroll/overflow geometry, and the stitched root canvas;
+  `src/render/background-attachment.ts` selects those positioning/painting
+  inputs without applying transforms twice. Six pure cases and a three-case
+  live Chromium oracle are exact at DPR 1/2 and cover mutation, zoom, affine,
+  borders/padding, both axes, inert/perspective controls, and root stitching.
+  [Doc 163](../163-url-background-image-geometry-audit.md) owns the exact
+  boundary. DM-2478 plus existing DM-2365 finish tile/fragment geometry;
   DM-2480 promotes the observational probe to an all-platform DPR gate.
 - **Native scrollbar ownership and capture (DM-2368 / DM-2481)** —
   `tools/native-scrollbar-ownership-audit.ts`
@@ -495,16 +503,25 @@ shortest possible map:
   frames/parts/corner, ranges, RTL/logical side, used width/colors/scheme,
   zoom/DPR, clip/phase/state facts, and attaches explicit absent/partial/
   unavailable records. `pseudo-style-cdp.ts` captures final unqualified
-  scrollbar pseudo winners; stable CDP's missing anonymous dynamic instances
-  and native animator/phase facts stay named warnings. The renderer has no
-  offset-triggered 7 px fallback. Pinned Blink proves geometry/phase are structured capture facts, custom
+  scrollbar pseudo winners and detects dynamic anonymous-instance selectors
+  without replaying their cascade. `src/render/custom-scrollbar.ts` consumes
+  the captured rectangles in Blink background/button/track/piece/thumb and
+  horizontal/vertical/corner order, reusing the ordinary vector background,
+  gradient, per-side border, radius, shadow, opacity, clip, and zoom machinery.
+  A dynamic-only winner or unsupported author effect is a same-source-frame
+  owner-part crop; all other parts remain vector. `native-scrollbar-raster.ts`
+  captures one unmodified compositor frame, derives visible overlay ink with a
+  reversible width:none discriminator, records lossless strip/corner crops and
+  platform/SHA provenance, and renders horizontal/vertical/corner before the
+  resizer. Fully faded overlays are explicit absence. The renderer has no offset-triggered
+  7 px fallback. Pinned Blink proves geometry/phase are structured capture facts, custom
   WebKit parts are anonymous CSS/ObjectPainter boxes and vector-eligible, and
   stock native paint is platform-owned. Windows UXTheme/GDI already crosses an
   offscreen `SkBitmap`; macOS and Aura/Fluent depend on native animator/theme
   state. [Doc 165](../165-native-scrollbar-layout-paint-ownership-audit.md)
   and [doc 169](../169-authoritative-scrollbar-capture.md) define the capture
-  record, narrow precomposited stock strips, custom-vector lowering, explicit
-  absence, and remaining DM-2482/2483 paint seams plus the DM-2484 gate.
+  record, narrow precomposited stock strips, shipped custom-vector lowering,
+  explicit absence, the shipped stock-native seam, and the DM-2484 gate.
 
 - **Pseudo-element filter effects (DM-2367)** —
   `src/render/pseudo-filter.ts` is the shared empty/text/image generated-paint

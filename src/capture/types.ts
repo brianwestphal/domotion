@@ -318,6 +318,43 @@ export interface CapturedBackgroundImage {
   warning?: string;
 }
 
+export interface CapturedBackgroundRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Live Blink ownership inputs for `background-attachment` (DM-2479).
+ * Coordinates are in the same capture-local paint space as CapturedElement's
+ * x/y box; the renderer must not apply an ancestor transform to them twice.
+ */
+export interface CapturedBackgroundAttachmentGeometry {
+  source: "blink-box-background-paint-context-v1";
+  /** True only when Blink keeps a computed fixed layer viewport-fixed. */
+  fixedToViewport: boolean;
+  /** Layout viewport visible-content rect, excluding layout scrollbars. */
+  layoutViewport: CapturedBackgroundRect;
+  local?: {
+    /** False when `local` is set on a box Blink does not make a scroll container. */
+    active: boolean;
+    /** Pixel-snapped live scroll offset, already mapped into renderer axes. */
+    scrollOffsetX: number;
+    scrollOffsetY: number;
+    /** Scrolled border paint extent: ScrollWidth/Height plus physical borders. */
+    borderPaintWidth: number;
+    borderPaintHeight: number;
+    /** LayoutBox::OverflowClipRect in capture-local output coordinates. */
+    overflowClip: CapturedBackgroundRect;
+  };
+  canvas?: {
+    owner: "root" | "body-propagated";
+    /** Root box stitched positioning rectangle used by LayoutView paint. */
+    positioningRect: CapturedBackgroundRect;
+  };
+}
+
 export interface CapturedStyles {
   backgroundColor: string;
   borderColor: string;
@@ -485,6 +522,8 @@ export interface CapturedStyles {
   backgroundClip: string;
   backgroundOrigin: string;
   backgroundAttachment: string;
+  /** Source-owned normal/fixed/local/root positioning inputs (DM-2479). */
+  backgroundAttachmentGeometry?: CapturedBackgroundAttachmentGeometry;
   /**
    * CSS `background-blend-mode` — per-layer blend mode (comma-separated to
    * match the layer count). Captured verbatim from `getComputedStyle`. The
@@ -1161,6 +1200,13 @@ export interface CapturedScrollbarPseudoStyle {
   backgroundImage: string;
   borderRadius: string;
   border: string;
+  /** Present only when Blink's four final border sides are not uniform. */
+  borderSides?: {
+    top: { width: string; style: string; color: string };
+    right: { width: string; style: string; color: string };
+    bottom: { width: string; style: string; color: string };
+    left: { width: string; style: string; color: string };
+  };
   padding: string;
   boxShadow: string;
   filter: string;
@@ -1178,9 +1224,50 @@ export interface CapturedScrollbarPart {
     y: number;
     width: number;
     height: number;
+    /** Device scale of the same-frame Chromium crop. */
+    captureDpr?: number;
+    /** Why this author-owned part could not remain a supported vector box. */
+    provenance?: "unsupported-author-part" | "dynamic-author-part";
     dataUri?: string;
     empty?: boolean;
   };
+}
+
+/** The platform/browser identity which owns a stock scrollbar bitmap. */
+export interface CapturedScrollbarPlatformFingerprint {
+  platform: NodeJS.Platform;
+  architecture: string;
+  osRelease: string;
+  runnerImage: string;
+  runnerImageVersion: string;
+  chromiumVersion: string;
+  chromiumRevision: string;
+  playwrightVersion: string;
+  launchArguments: string[];
+  hideScrollbarsDefaultRemoved: boolean;
+}
+
+/**
+ * One lossless source-frame stock scrollbar strip. The bitmap is already in
+ * capture-viewport coordinates and must not receive the element's static CSS
+ * transform again. Overlay strips intentionally retain their source backdrop.
+ */
+export interface CapturedNativeScrollbarRaster {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  pixelWidth: number;
+  pixelHeight: number;
+  captureDpr: number;
+  dataUri?: string;
+  empty?: boolean;
+  precomposited: true;
+  sourceFrameSha256: string;
+  cropSha256?: string;
+  opacitySource: "precomposited-source-frame";
+  interaction: { hostHovered: boolean; hostPressed: boolean };
+  platformFingerprint: CapturedScrollbarPlatformFingerprint;
 }
 
 export interface CapturedScrollbar {
@@ -1204,15 +1291,7 @@ export interface CapturedScrollbar {
   parts: CapturedScrollbarPart[];
   /** Named browser-internal facts which the stable capture surface could not prove. */
   missingFacts: string[];
-  nativeRaster?: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    captureDpr: number;
-    dataUri?: string;
-    empty?: boolean;
-  };
+  nativeRaster?: CapturedNativeScrollbarRaster;
 }
 
 /**
@@ -1226,6 +1305,8 @@ export interface CapturedScrollbarSet {
   horizontal?: CapturedScrollbar;
   vertical?: CapturedScrollbar;
   corner?: CapturedScrollbarPart;
+  /** Native corner is a separate source-owned bitmap painted after both axes. */
+  nativeCornerRaster?: CapturedNativeScrollbarRaster;
   overlay: boolean | null;
   paintPhase: "background" | "foreground" | "overlay-overflow-controls" | "unknown";
   overflowControlsClip: CapturedScrollbarRect | null;
@@ -1241,6 +1322,8 @@ export interface CapturedScrollbarSet {
   effectiveZoom: number;
   captureDpr: number;
   forcedColors: boolean;
+  /** Proven source-frame absence for a fully faded platform overlay. */
+  noInkReason?: "overlay-source-frame-empty";
   missingFacts: string[];
 }
 

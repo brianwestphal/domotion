@@ -90,6 +90,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex /root/dm2452_sfns_oracle",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt46aku1pys00ow2",
+          "message": {
+            "text": "Dynamic scrollbar selectors choose a crop bounded to the owning part because stable CDP exposes no computed anonymous orientation/state instance. The detector only identifies the affected pseudo kind (selector detection (0)); it never replays cascade order or specificity. Unsupported filters and non-vector CSS image functions follow the same narrow route, while a missing crop remains fail-closed. This preserves the ticket's no-production-tolerance and no-whole-scroller-raster boundaries.",
+            "markdown": "Dynamic scrollbar selectors choose a crop bounded to the owning part because stable CDP exposes no computed anonymous orientation/state instance. The detector only identifies the affected pseudo kind ([selector detection](0)); it never replays cascade order or specificity. Unsupported filters and non-vector CSS image functions follow the same narrow route, while a missing crop remains fail-closed. This preserves the ticket's no-production-tolerance and no-whole-scroller-raster boundaries."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/scrollbar-capture.ts"
+                },
+                "region": {
+                  "startLine": 614,
+                  "endLine": 678,
+                  "snippet": {
+                    "text": "function authorPartRasterProvenance(\n  part: CapturedScrollbarPart,\n  dynamicKinds: ReadonlySet<string>,\n): NonNullable<CapturedScrollbarPart[\"raster\"]>[\"provenance\"] | null {\n  if (dynamicKinds.has(pseudoKindForPart(part.kind))) return \"dynamic-author-part\";\n  const style = part.finalPseudoStyle;\n  if (style == null) return null;\n  if (style.filter !== \"\" && style.filter !== \"none\") return \"unsupported-author-part\";\n  // Linear/radial layers are supported by the existing SVG background paint\n  // servers. Source images, conic/cross-fade/paint functions and other CSS\n  // images retain only this owning part as a same-frame crop.\n  if (/(?:url|image-set|cross-fade|element|paint|conic-gradient)\\s*\\(/i.test(style.backgroundImage)) {\n    return \"unsupported-author-part\";\n  }\n  return null;\n}\n\nasync function materializeAuthorPartRasters(\n  baselinePng: Buffer,\n  record: CapturedScrollbarSet,\n  viewport: ScrollbarCaptureViewport,\n  viewportSize: { width: number; height: number } | null,\n  dynamicKinds: ReadonlySet<string>,\n): Promise<void> {\n  const metadata = await sharp(baselinePng).metadata();\n  if (metadata.width == null || metadata.height == null) return;\n  const surfaceWidth = viewportSize?.width ?? metadata.width / Math.max(1, record.captureDpr);\n  const surfaceHeight = viewportSize?.height ?? metadata.height / Math.max(1, record.captureDpr);\n  const scaleX = metadata.width / surfaceWidth;\n  const scaleY = metadata.height / surfaceHeight;\n  const parts = [\n    ...(record.horizontal?.parts ?? []),\n    ...(record.vertical?.parts ?? []),\n    ...(record.corner == null ? [] : [record.corner]),\n  ];\n  const failures: string[] = [];\n  await Promise.all(parts.map(async (part) => {\n    const provenance = authorPartRasterProvenance(part, dynamicKinds);\n    if (provenance == null) return;\n    const left = Math.max(0, Math.floor((viewport.x + part.rect.x) * scaleX));\n    const top = Math.max(0, Math.floor((viewport.y + part.rect.y) * scaleY));\n    const right = Math.min(metadata.width!, Math.ceil((viewport.x + part.rect.x + part.rect.width) * scaleX));\n    const bottom = Math.min(metadata.height!, Math.ceil((viewport.y + part.rect.y + part.rect.height) * scaleY));\n    if (right <= left || bottom <= top) {\n      part.raster = { ...part.rect, captureDpr: record.captureDpr, provenance, empty: true };\n      return;\n    }\n    try {\n      const png = await sharp(baselinePng).extract({\n        left,\n        top,\n        width: right - left,\n        height: bottom - top,\n      }).png().toBuffer();\n      part.raster = {\n        ...part.rect,\n        captureDpr: record.captureDpr,\n        provenance,\n        dataUri: `data:image/png;base64,${png.toString(\"base64\")}`,\n      };\n    } catch {\n      part.raster = { ...part.rect, captureDpr: record.captureDpr, provenance };\n      failures.push(`${part.kind}-author-part-raster`);\n    }\n  }));"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/pseudo-style-cdp.ts"
+                },
+                "region": {
+                  "startLine": 125
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2482"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "04a4aaac5b065490bcc8b5cf330ef0bd"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "765f6a352dbe272c4fdf67f4f689ed646e485107",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -30,6 +30,15 @@ import type { Page } from "@playwright/test";
 import sharp from "sharp";
 
 import type { ResolvedPseudoStyleCapture } from "./pseudo-style-cdp.js";
+import {
+  analyzeNativeOverlayInk,
+  captureNativeScrollbarFingerprint,
+  captureNativeScrollbarSourceFrame,
+  classifyNativeOverlayInk,
+  materializeNativeScrollbarRaster,
+  type NativeOverlayInkVerdict,
+  type NativeScrollbarFrame,
+} from "./native-scrollbar-raster.js";
 import type {
   CapturedElement,
   CapturedScrollbar,
@@ -120,6 +129,12 @@ interface PreparedScrollbarCapture {
   dispose(): Promise<void>;
 }
 
+interface NativeOverlayFrames {
+  source: NativeScrollbarFrame | null;
+  underlay: NativeScrollbarFrame | null;
+  restored: NativeScrollbarFrame | null;
+}
+
 function squaredDistance(a: readonly number[], b: readonly number[]): number {
   return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
 }
@@ -141,6 +156,20 @@ function unionRects(rects: readonly CapturedScrollbarRect[]): CapturedScrollbarR
   const right = Math.max(...rects.map((rect) => rect.x + rect.width));
   const bottom = Math.max(...rects.map((rect) => rect.y + rect.height));
   return { x: left, y: top, width: right - left, height: bottom - top };
+}
+
+/** PaintLayerScrollableArea::ScrollCornerRect is the physical axis overlap. */
+export function nativeScrollbarCornerRect(
+  horizontal: Pick<CapturedScrollbar, "frameRect"> | null | undefined,
+  vertical: Pick<CapturedScrollbar, "frameRect" | "logicalSide"> | null | undefined,
+): CapturedScrollbarRect | null {
+  if (horizontal == null || vertical == null) return null;
+  return {
+    x: vertical.frameRect.x,
+    y: horizontal.frameRect.y,
+    width: vertical.frameRect.width,
+    height: horizontal.frameRect.height,
+  };
 }
 
 function parseStandardColors(value: string): { thumb: string; track: string } | null {
@@ -293,7 +322,19 @@ function scrollbarForOrientation(
   route: CapturedScrollbar["route"],
   styles: Record<string, CapturedScrollbarPseudoStyle | undefined>,
 ): CapturedScrollbar | null {
-  const owned = components.filter((component) => component.orientation === orientation);
+  const paintOrder: Readonly<Record<CapturedScrollbarPartKind, number>> = {
+    background: 0,
+    "back-button": 1,
+    "forward-button": 1,
+    track: 2,
+    "back-track": 3,
+    "forward-track": 3,
+    thumb: 4,
+    corner: 5,
+  };
+  const owned = components.filter((component) => component.orientation === orientation)
+    .sort((a, b) => paintOrder[a.kind] - paintOrder[b.kind]
+      || (orientation === "horizontal" ? a.rect.x - b.rect.x : a.rect.y - b.rect.y));
   if (owned.length === 0) return null;
   const backgroundRects = owned.filter(({ kind }) => kind === "background").map(({ rect }) => rect);
   const frameRect = unionRects(backgroundRects.length > 0 ? backgroundRects : owned.map(({ rect }) => rect));
@@ -304,22 +345,14 @@ function scrollbarForOrientation(
     finalPseudoStyle: finalStyleForPart(kind, styles),
   }));
   const missingFacts: string[] = [];
-  if (backgroundRects.length === 0 && route === "native-raster") missingFacts.push("full-frame-rect");
-  if (route === "native-raster") missingFacts.push("native-theme-part-rectangles", "animator-opacity");
-  // CDP resolves unqualified scrollbar pseudos on the host, but Chromium does
-  // not expose the anonymous orientation/start/end instances. Geometry stays
-  // authoritative; DM-2482 must not vector-paint a dynamic-only winner until
-  // an instrumented browser protocol supplies it.
-  if (route === "author-custom") missingFacts.push("dynamic-scrollbar-pseudo-cascade");
   const hoveredPart = candidate.hostHovered ? "unknown" : null;
   const pressedPart = candidate.hostPressed ? "unknown" : null;
-  if (hoveredPart === "unknown") missingFacts.push("hovered-part");
-  if (pressedPart === "unknown") missingFacts.push("pressed-part");
+  if (route === "author-custom" && hoveredPart === "unknown") missingFacts.push("hovered-part");
+  if (route === "author-custom" && pressedPart === "unknown") missingFacts.push("pressed-part");
   const layoutGutter = orientation === "horizontal"
     ? candidate.layoutGutterHorizontal
     : candidate.layoutGutterVertical;
   const isOverlay = route === "native-raster" && layoutGutter <= 0.5;
-  if (isOverlay) missingFacts.push("overlay-hidden-state");
   const styleOpacity = Number.parseFloat(styles.scrollbar?.opacity ?? "1");
   return {
     orientation,
@@ -356,6 +389,10 @@ function makeScrollbarSet(
 ): CapturedScrollbarSet {
   const hasForcedScrollbar = candidate.overflowX === "scroll" || candidate.overflowY === "scroll";
   const hasRange = candidate.scrollWidth > candidate.clientWidth || candidate.scrollHeight > candidate.clientHeight;
+  // The source crop is viewport-owned, but it is currently emitted inside the
+  // element's SVG paint wrapper. A rotated/skewed/projective wrapper would
+  // transform those final pixels a second time, so fail closed until an outer
+  // paint-surface owner can place that crop outside the wrapper.
   const transformUnresolved = !candidate.axisAlignedOutput
     && candidate.scrollbarWidth !== "none"
     && (hasForcedScrollbar || hasRange);
@@ -371,8 +408,8 @@ function makeScrollbarSet(
   const missingFacts = [...new Set([
     ...(horizontal?.missingFacts ?? []),
     ...(vertical?.missingFacts ?? []),
-    ...(!candidate.clipExact ? ["exact-overflow-controls-clip"] : []),
-    ...(candidate.rootScroller ? ["visual-viewport-scrollbar-transform"] : []),
+    ...(!candidate.clipExact && route === "author-custom" ? ["exact-overflow-controls-clip"] : []),
+    ...(candidate.rootScroller && route === "author-custom" ? ["visual-viewport-scrollbar-transform"] : []),
     ...(transformUnresolved ? ["scrollbar-axis-under-non-axis-aligned-transform"] : []),
   ])].sort();
   const hasBar = horizontal != null || vertical != null;
@@ -381,7 +418,6 @@ function makeScrollbarSet(
     horizontal == null ? 0 : candidate.layoutGutterHorizontal,
   );
   const overlay = !hasBar ? null : route === "author-custom" ? false : layoutGutter <= 0.5;
-  if (overlay === true) missingFacts.push("overflow-controls-paint-phase");
 
   let status: CapturedScrollbarSet["status"];
   if (candidate.scrollbarWidth === "none") {
@@ -407,7 +443,9 @@ function makeScrollbarSet(
     vertical: vertical ?? undefined,
     corner,
     overlay,
-    paintPhase: overlay === false ? "background" : overlay === true ? "unknown" : "unknown",
+    paintPhase: overlay === false
+      ? "background"
+      : overlay === true ? "overlay-overflow-controls" : "unknown",
     overflowControlsClip: candidate.hasOverflowControlsClip ? {
       x: candidate.clipRect.x,
       y: candidate.clipRect.y,
@@ -422,15 +460,130 @@ function makeScrollbarSet(
   };
 }
 
+async function materializeNativeScrollbarSet(
+  record: CapturedScrollbarSet,
+  candidate: BrowserCandidate,
+  viewport: ScrollbarCaptureViewport,
+  sourceFrame: NativeScrollbarFrame | null,
+  overlayFrames: NativeOverlayFrames,
+  fingerprint: Awaited<ReturnType<typeof captureNativeScrollbarFingerprint>>,
+): Promise<void> {
+  if (record.horizontal?.route !== "native-raster" && record.vertical?.route !== "native-raster") {
+    if (record.status === "unavailable" && record.overlay !== false
+        && fingerprint.hideScrollbarsDefaultRemoved) {
+      const verdict = classifyNativeOverlayInk(
+        overlayFrames.source,
+        overlayFrames.underlay,
+        overlayFrames.restored,
+        candidate.outputRect,
+        record.overflowControlsClip,
+        viewport,
+      );
+      if (verdict === "empty") {
+        record.status = "absent";
+        record.noInkReason = "overlay-source-frame-empty";
+        record.missingFacts = [];
+      }
+    }
+    return;
+  }
+
+  const interaction = { hostHovered: candidate.hostHovered, hostPressed: candidate.hostPressed };
+  const missing = new Set(record.missingFacts);
+  const bars = [record.horizontal, record.vertical].filter((bar): bar is CapturedScrollbar => bar != null);
+  for (const bar of bars) {
+    let overlayVerdict: NativeOverlayInkVerdict = "visible";
+    if (record.overlay === true) {
+      if (!fingerprint.hideScrollbarsDefaultRemoved) overlayVerdict = "unavailable";
+      else {
+        overlayVerdict = classifyNativeOverlayInk(
+          overlayFrames.source,
+          overlayFrames.underlay,
+          overlayFrames.restored,
+          bar.frameRect,
+          record.overflowControlsClip,
+          viewport,
+        );
+      }
+    }
+    if (overlayVerdict === "unstable") {
+      bar.missingFacts.push("overlay-source-frame-stability");
+      missing.add("overlay-source-frame-stability");
+      continue;
+    }
+    if (overlayVerdict === "unavailable") {
+      const fact = fingerprint.hideScrollbarsDefaultRemoved
+        ? "overlay-underlay-discriminator"
+        : "browser-launch-hide-scrollbars";
+      bar.missingFacts.push(fact);
+      missing.add(fact);
+      continue;
+    }
+    const empty = overlayVerdict === "empty";
+    const raster = await materializeNativeScrollbarRaster(
+      sourceFrame,
+      bar.frameRect,
+      record.overflowControlsClip,
+      viewport,
+      record.captureDpr,
+      fingerprint,
+      interaction,
+      empty,
+    );
+    if (raster == null) {
+      bar.missingFacts.push("native-strip-raster");
+      missing.add("native-strip-raster");
+      continue;
+    }
+    bar.nativeRaster = raster;
+    bar.hiddenIfOverlay = empty;
+    if (empty) bar.opacity = 0;
+  }
+
+  if (record.overlay === false) {
+    const cornerRect = nativeScrollbarCornerRect(record.horizontal, record.vertical);
+    if (cornerRect != null) {
+      const corner = await materializeNativeScrollbarRaster(
+        sourceFrame,
+        cornerRect,
+        record.overflowControlsClip,
+        viewport,
+        record.captureDpr,
+        fingerprint,
+        interaction,
+      );
+      if (corner == null) missing.add("native-corner-raster");
+      else record.nativeCornerRaster = corner;
+    }
+  }
+
+  for (const bar of bars) for (const fact of bar.missingFacts) missing.add(fact);
+  record.missingFacts = [...missing].sort();
+  if (record.status !== "absent") record.status = record.missingFacts.length === 0 ? "captured" : "partial";
+}
+
 function cssColor(rgb: readonly [number, number, number]): string {
   return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
 }
 
-function customMarkerCss(attribute: string, token: string): string {
-  const host = `[${attribute}="${token}"]`;
+function customMarkerCss(
+  attribute: string,
+  token: string,
+  isolatedKind?: CapturedScrollbarPartKind,
+): string {
+  // Four impossible ids make the diagnostic rule stronger than ordinary
+  // author `#id ... !important` selectors without changing which host it
+  // matches. Marker declarations remain paint-only; source display/sizing and
+  // margins continue to own layout.
+  const host = `[${attribute}="${token}"]:not(#dm-scrollbar-a#dm-scrollbar-b#dm-scrollbar-c#dm-scrollbar-d)`;
   const rule = (pseudo: string, marker: MarkerDefinition): string => {
     const color = cssColor(marker.rgb);
-    return `${host}${pseudo}{background-color:${color}!important;background-image:linear-gradient(${color},${color})!important;box-shadow:inset 0 0 0 100vmax ${color}!important;border-color:${color}!important;border-radius:0!important;filter:none!important;}`;
+    const selected = isolatedKind == null || marker.kind === isolatedKind;
+    const background = selected ? color : "transparent";
+    const image = selected ? `linear-gradient(${color},${color})` : "none";
+    const shadow = selected ? `inset 0 0 0 100vmax ${color}` : "none";
+    const border = selected ? color : "transparent";
+    return `${host}${pseudo}{visibility:visible!important;opacity:1!important;background-color:${background}!important;background-image:${image}!important;box-shadow:${shadow}!important;border-color:${border}!important;border-radius:0!important;filter:none!important;}`;
   };
   const marker = (kind: CapturedScrollbarPartKind): MarkerDefinition => SCROLLBAR_MARKERS.find((entry) => entry.kind === kind)!;
   return [
@@ -443,6 +596,99 @@ function customMarkerCss(attribute: string, token: string): string {
     rule("::-webkit-scrollbar-thumb", marker("thumb")),
     rule("::-webkit-scrollbar-corner", marker("corner")),
   ].join("\n");
+}
+
+type ScrollbarPseudoKind =
+  | "scrollbar"
+  | "scrollbar-button"
+  | "scrollbar-thumb"
+  | "scrollbar-track"
+  | "scrollbar-track-piece"
+  | "scrollbar-corner";
+
+function pseudoKindForPart(kind: CapturedScrollbarPartKind): ScrollbarPseudoKind {
+  if (kind === "background") return "scrollbar";
+  if (kind === "back-button" || kind === "forward-button") return "scrollbar-button";
+  if (kind === "track") return "scrollbar-track";
+  if (kind === "back-track" || kind === "forward-track") return "scrollbar-track-piece";
+  if (kind === "thumb") return "scrollbar-thumb";
+  return "scrollbar-corner";
+}
+
+function authorPartRasterProvenance(
+  part: CapturedScrollbarPart,
+  dynamicKinds: ReadonlySet<string>,
+): NonNullable<CapturedScrollbarPart["raster"]>["provenance"] | null {
+  if (dynamicKinds.has(pseudoKindForPart(part.kind))) return "dynamic-author-part";
+  const style = part.finalPseudoStyle;
+  if (style == null) return null;
+  if (style.filter !== "" && style.filter !== "none") return "unsupported-author-part";
+  // Linear/radial layers are supported by the existing SVG background paint
+  // servers. Source images, conic/cross-fade/paint functions and other CSS
+  // images retain only this owning part as a same-frame crop.
+  if (/(?:url|image-set|cross-fade|element|paint|conic-gradient)\s*\(/i.test(style.backgroundImage)) {
+    return "unsupported-author-part";
+  }
+  return null;
+}
+
+async function materializeAuthorPartRasters(
+  baselinePng: Buffer,
+  record: CapturedScrollbarSet,
+  viewport: ScrollbarCaptureViewport,
+  viewportSize: { width: number; height: number } | null,
+  dynamicKinds: ReadonlySet<string>,
+): Promise<void> {
+  const metadata = await sharp(baselinePng).metadata();
+  if (metadata.width == null || metadata.height == null) return;
+  const surfaceWidth = viewportSize?.width ?? metadata.width / Math.max(1, record.captureDpr);
+  const surfaceHeight = viewportSize?.height ?? metadata.height / Math.max(1, record.captureDpr);
+  const scaleX = metadata.width / surfaceWidth;
+  const scaleY = metadata.height / surfaceHeight;
+  const parts = [
+    ...(record.horizontal?.parts ?? []),
+    ...(record.vertical?.parts ?? []),
+    ...(record.corner == null ? [] : [record.corner]),
+  ];
+  const failures: string[] = [];
+  await Promise.all(parts.map(async (part) => {
+    const provenance = authorPartRasterProvenance(part, dynamicKinds);
+    if (provenance == null) return;
+    const left = Math.max(0, Math.floor((viewport.x + part.rect.x) * scaleX));
+    const top = Math.max(0, Math.floor((viewport.y + part.rect.y) * scaleY));
+    const right = Math.min(metadata.width!, Math.ceil((viewport.x + part.rect.x + part.rect.width) * scaleX));
+    const bottom = Math.min(metadata.height!, Math.ceil((viewport.y + part.rect.y + part.rect.height) * scaleY));
+    if (right <= left || bottom <= top) {
+      part.raster = { ...part.rect, captureDpr: record.captureDpr, provenance, empty: true };
+      return;
+    }
+    try {
+      const png = await sharp(baselinePng).extract({
+        left,
+        top,
+        width: right - left,
+        height: bottom - top,
+      }).png().toBuffer();
+      part.raster = {
+        ...part.rect,
+        captureDpr: record.captureDpr,
+        provenance,
+        dataUri: `data:image/png;base64,${png.toString("base64")}`,
+      };
+    } catch {
+      part.raster = { ...part.rect, captureDpr: record.captureDpr, provenance };
+      failures.push(`${part.kind}-author-part-raster`);
+    }
+  }));
+  if (failures.length === 0) return;
+  record.missingFacts = [...new Set([...record.missingFacts, ...failures])].sort();
+  if (record.horizontal != null) {
+    record.horizontal.missingFacts = [...new Set([...record.horizontal.missingFacts, ...failures])].sort();
+  }
+  if (record.vertical != null) {
+    record.vertical.missingFacts = [...new Set([...record.vertical.missingFacts, ...failures])].sort();
+  }
+  if (record.status === "captured") record.status = "partial";
 }
 
 async function restoreMarkerPaint(
@@ -476,12 +722,122 @@ async function restoreMarkerPaint(
     .catch(() => undefined);
 }
 
+function routeForCandidate(
+  candidate: BrowserCandidate,
+  pseudoCapture: Pick<ResolvedPseudoStyleCapture, "stylesByHost">,
+): CapturedScrollbar["route"] {
+  const hostStyles = candidate.hostId == null ? undefined : pseudoCapture.stylesByHost[candidate.hostId];
+  const standardRoute = candidate.scrollbarWidth !== "auto" || candidate.scrollbarColor !== "auto";
+  const hasAuthorWebKitScrollbar = Object.entries(hostStyles ?? {}).some(([kind, style]) => (
+    kind.startsWith("scrollbar") && style?.matched === true
+  ));
+  return hasAuthorWebKitScrollbar && !standardRoute ? "author-custom" : "native-raster";
+}
+
+function nativeOverlayComponentsFromSource(
+  candidate: BrowserCandidate,
+  frames: NativeOverlayFrames,
+  viewport: ScrollbarCaptureViewport,
+): ClassifiedComponent[] {
+  const analysis = analyzeNativeOverlayInk(
+    frames.source,
+    frames.underlay,
+    frames.restored,
+    candidate.outputRect,
+    candidate.hasOverflowControlsClip ? candidate.clipRect : null,
+    viewport,
+  );
+  if (analysis.verdict !== "visible") return [];
+  const hasHorizontal = candidate.overflowX === "scroll" || candidate.scrollWidth > candidate.clientWidth;
+  const hasVertical = candidate.overflowY === "scroll" || candidate.scrollHeight > candidate.clientHeight;
+  return analysis.rects.map((rect) => {
+    let orientation: "horizontal" | "vertical";
+    if (hasHorizontal && !hasVertical) orientation = "horizontal";
+    else if (hasVertical && !hasHorizontal) orientation = "vertical";
+    else if (rect.width > rect.height * 1.2) orientation = "horizontal";
+    else if (rect.height > rect.width * 1.2) orientation = "vertical";
+    else {
+      const centerX = rect.x + rect.width / 2;
+      const centerY = rect.y + rect.height / 2;
+      const distanceBottom = Math.abs(centerY - (candidate.outputRect.y + candidate.outputRect.height));
+      const distanceVertical = Math.min(
+        Math.abs(centerX - candidate.outputRect.x),
+        Math.abs(centerX - (candidate.outputRect.x + candidate.outputRect.width)),
+      );
+      orientation = distanceBottom < distanceVertical ? "horizontal" : "vertical";
+    }
+    return {
+      kind: "background",
+      orientation,
+      rect,
+      pixelRect: rect,
+      pixels: Math.max(2, Math.round(rect.width * rect.height * candidate.devicePixelRatio ** 2)),
+    };
+  });
+}
+
+async function captureNativeOverlayFrames(
+  page: Page,
+  nodesKey: string,
+  indexes: readonly number[],
+  viewport: ScrollbarCaptureViewport,
+): Promise<NativeOverlayFrames> {
+  const source = await captureNativeScrollbarSourceFrame(page, viewport);
+  if (indexes.length === 0 || source == null) return { source, underlay: null, restored: null };
+  const restoreKey = `__domotionScrollbarWidthRestore_${randomUUID().replaceAll("-", "")}`;
+  let underlay: NativeScrollbarFrame | null = null;
+  try {
+    await page.evaluate(({ nodesKey, indexes, restoreKey }) => {
+      const pageGlobal = globalThis as typeof globalThis & Record<string, unknown>;
+      const nodes = pageGlobal[nodesKey] as Element[] | undefined;
+      const restore: Array<{ element: HTMLElement; value: string; priority: string }> = [];
+      for (const index of indexes) {
+        const element = nodes?.[index];
+        if (!(element instanceof HTMLElement) || !element.isConnected) continue;
+        restore.push({
+          element,
+          value: element.style.getPropertyValue("scrollbar-width"),
+          priority: element.style.getPropertyPriority("scrollbar-width"),
+        });
+        element.style.setProperty("scrollbar-width", "none", "important");
+      }
+      pageGlobal[restoreKey] = restore;
+      void document.documentElement.getBoundingClientRect();
+    }, { nodesKey, indexes, restoreKey });
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    underlay = await captureNativeScrollbarSourceFrame(page, viewport);
+  } catch {
+    underlay = null;
+  } finally {
+    await page.evaluate((restoreKey) => {
+      const pageGlobal = globalThis as typeof globalThis & Record<string, unknown>;
+      const restore = pageGlobal[restoreKey] as Array<{
+        element: HTMLElement;
+        value: string;
+        priority: string;
+      }> | undefined;
+      for (let index = (restore?.length ?? 0) - 1; index >= 0; index--) {
+        const entry = restore![index];
+        if (entry.value === "") entry.element.style.removeProperty("scrollbar-width");
+        else entry.element.style.setProperty("scrollbar-width", entry.value, entry.priority);
+      }
+      delete pageGlobal[restoreKey];
+      void document.documentElement.getBoundingClientRect();
+    }, restoreKey).catch(() => undefined);
+  }
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
+    .catch(() => undefined);
+  const restored = await captureNativeScrollbarSourceFrame(page, viewport);
+  return { source, underlay, restored };
+}
+
 /** Attach source-owned sets as private element expandos for CAPTURE_SCRIPT. */
 export async function prepareCapturedScrollbarSets(
   page: Page,
   selector: string,
   viewport: ScrollbarCaptureViewport,
-  pseudoCapture: Pick<ResolvedPseudoStyleCapture, "propertyKey" | "stylesByHost">,
+  pseudoCapture: Pick<ResolvedPseudoStyleCapture, "propertyKey" | "stylesByHost" | "dynamicScrollbarKinds">,
+  options?: { sourceImagePath?: string },
 ): Promise<PreparedScrollbarCapture> {
   const propertyKey = `__domotionCapturedScrollbars_${randomUUID().replaceAll("-", "")}`;
   const nodesKey = `${propertyKey}_nodes`;
@@ -633,16 +989,22 @@ export async function prepareCapturedScrollbarSets(
 
   const warnings: CaptureWarning[] = [];
   const viewportSize = page.viewportSize();
+  const fingerprint = await captureNativeScrollbarFingerprint(page);
+  const overlayIndexes = candidates.filter((candidate) => (
+    routeForCandidate(candidate, pseudoCapture) === "native-raster"
+    && Math.max(candidate.layoutGutterVertical, candidate.layoutGutterHorizontal) <= 0.5
+    && candidate.scrollbarWidth !== "none"
+    && (candidate.overflowX === "scroll" || candidate.overflowY === "scroll"
+      || candidate.scrollWidth > candidate.clientWidth || candidate.scrollHeight > candidate.clientHeight)
+  )).map(({ index }) => index);
+  const overlayFrames = await captureNativeOverlayFrames(page, nodesKey, overlayIndexes, viewport);
+  const sourceFrame = options?.sourceImagePath == null
+    ? overlayFrames.source
+    : await captureNativeScrollbarSourceFrame(page, viewport, options.sourceImagePath);
   try {
     for (const candidate of candidates) {
       const hostStyles = candidate.hostId == null ? undefined : pseudoCapture.stylesByHost[candidate.hostId];
-      const standardRoute = candidate.scrollbarWidth !== "auto" || candidate.scrollbarColor !== "auto";
-      const hasAuthorWebKitScrollbar = Object.entries(hostStyles ?? {}).some(([kind, style]) => (
-        kind.startsWith("scrollbar") && style?.matched === true
-      ));
-      const route: CapturedScrollbar["route"] = hasAuthorWebKitScrollbar && !standardRoute
-        ? "author-custom"
-        : "native-raster";
+      const route = routeForCandidate(candidate, pseudoCapture);
       if (candidate.scrollbarWidth === "none") {
         const record = makeScrollbarSet(candidate, route, [], {});
         await page.evaluate(({ nodesKey, index, propertyKey, record }) => {
@@ -728,35 +1090,82 @@ export async function prepareCapturedScrollbarSets(
       let components: ClassifiedComponent[] = [];
       try {
         await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-        const png = await page.screenshot({ type: "png" });
-        const decoded = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
         const baseline = await sharp(baselinePng).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-        const surfaceWidth = viewportSize?.width ?? decoded.info.width / Math.max(1, candidate.devicePixelRatio);
-        const surfaceHeight = viewportSize?.height ?? decoded.info.height / Math.max(1, candidate.devicePixelRatio);
-        const scaleX = decoded.info.width / surfaceWidth;
-        const scaleY = decoded.info.height / surfaceHeight;
-        const restriction = {
-          x: Math.max(0, candidate.screenRect.x * scaleX),
-          y: Math.max(0, candidate.screenRect.y * scaleY),
-          width: Math.max(0, candidate.screenRect.width * scaleX),
-          height: Math.max(0, candidate.screenRect.height * scaleY),
+        const classifyScreenshot = async (): Promise<ClassifiedComponent[]> => {
+          const png = await page.screenshot({ type: "png" });
+          const decoded = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+          const surfaceWidth = viewportSize?.width ?? decoded.info.width / Math.max(1, candidate.devicePixelRatio);
+          const surfaceHeight = viewportSize?.height ?? decoded.info.height / Math.max(1, candidate.devicePixelRatio);
+          const scaleX = decoded.info.width / surfaceWidth;
+          const scaleY = decoded.info.height / surfaceHeight;
+          const restriction = {
+            x: Math.max(0, candidate.screenRect.x * scaleX),
+            y: Math.max(0, candidate.screenRect.y * scaleY),
+            width: Math.max(0, candidate.screenRect.width * scaleX),
+            height: Math.max(0, candidate.screenRect.height * scaleY),
+          };
+          return scrollbarMarkerComponents(
+            decoded.data,
+            decoded.info.width,
+            decoded.info.height,
+            restriction,
+            baseline.info.width === decoded.info.width && baseline.info.height === decoded.info.height
+              ? baseline.data
+              : undefined,
+          ).map((component) => classifyComponent(component, scaleX, scaleY, candidate, viewport))
+            .filter((component): component is ClassifiedComponent => component != null);
         };
-        components = scrollbarMarkerComponents(
-          decoded.data,
-          decoded.info.width,
-          decoded.info.height,
-          restriction,
-          baseline.info.width === decoded.info.width && baseline.info.height === decoded.info.height
-            ? baseline.data
-            : undefined,
-        ).map((component) => classifyComponent(component, scaleX, scaleY, candidate, viewport))
-          .filter((component): component is ClassifiedComponent => component != null);
+        components = await classifyScreenshot();
+        if (route === "author-custom") {
+          // The all-parts frame exposes the topmost pieces/thumb/buttons but
+          // those obscure Blink's frame and track background objects. Repaint
+          // each lower layer alone while preserving every source layout value
+          // so their rectangles also remain browser-owned facts.
+          for (const isolatedKind of ["background", "track"] as const) {
+            const css = customMarkerCss(markerAttribute, token, isolatedKind);
+            await page.evaluate(({ nodesKey, css }) => {
+              const state = (globalThis as typeof globalThis & Record<string, unknown>)[`${nodesKey}_marker`] as {
+                style: HTMLStyleElement | null;
+              } | undefined;
+              if (state?.style != null) state.style.textContent = css;
+            }, { nodesKey, css });
+            await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+            const isolated = (await classifyScreenshot()).filter(({ kind }) => kind === isolatedKind);
+            components = [
+              ...components.filter(({ kind }) => kind !== isolatedKind),
+              ...isolated,
+            ];
+          }
+        }
       } finally {
         await restoreMarkerPaint(page, { nodesKey, index: candidate.index, markerAttribute });
       }
 
+      if (route === "native-raster" && components.length === 0
+          && Math.max(candidate.layoutGutterVertical, candidate.layoutGutterHorizontal) <= 0.5) {
+        components = nativeOverlayComponentsFromSource(candidate, overlayFrames, viewport);
+      }
+
       const styles = (hostStyles ?? {}) as Record<string, CapturedScrollbarPseudoStyle | undefined>;
       const record = makeScrollbarSet(candidate, route, components, styles);
+      if (route === "native-raster") {
+        await materializeNativeScrollbarSet(
+          record,
+          candidate,
+          viewport,
+          sourceFrame,
+          overlayFrames,
+          fingerprint,
+        );
+      } else {
+        await materializeAuthorPartRasters(
+          baselinePng,
+          record,
+          viewport,
+          viewportSize,
+          pseudoCapture.dynamicScrollbarKinds,
+        );
+      }
       await page.evaluate(({ nodesKey, index, propertyKey, record }) => {
         const nodes = (globalThis as typeof globalThis & Record<string, unknown>)[nodesKey] as Element[] | undefined;
         const element = nodes?.[index];

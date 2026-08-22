@@ -217,6 +217,48 @@ describe("renderer-owned viewBox-culling geometry", () => {
     expect(facts.visualBounds).toEqual({ kind: "bounded", box: { x: 120, y: 40, w: 80, h: 30 } });
   });
 
+  it("unions capture-viewport native scrollbar strips and retains missing crops", () => {
+    const fingerprint = {
+      platform: "darwin" as const, architecture: "arm64", osRelease: "25.6.0",
+      runnerImage: "macos15", runnerImageVersion: "1", chromiumVersion: "147",
+      chromiumRevision: "123", playwrightVersion: "1.59", launchArguments: ["--headless"],
+      hideScrollbarsDefaultRemoved: true,
+    };
+    const bar = (dataUri?: string) => ({
+      orientation: "vertical" as const, route: "native-raster" as const,
+      frameRect: { x: 5, y: 20, width: 8, height: 40 }, usedWidth: "auto" as const,
+      logicalSide: "left" as const, visibleSize: 20, totalSize: 40, currentPosition: 0,
+      enabled: true, hoveredPart: null, pressedPart: null, hiddenIfOverlay: false,
+      opacity: 1, usedColorScheme: "light" as const, standardColors: null, parts: [],
+      missingFacts: dataUri == null ? ["native-strip-raster"] : [],
+      nativeRaster: dataUri == null ? undefined : {
+        x: 5, y: 20, width: 8, height: 40, pixelWidth: 16, pixelHeight: 80,
+        captureDpr: 2, dataUri, precomposited: true as const,
+        sourceFrameSha256: "a".repeat(64), cropSha256: "b".repeat(64),
+        opacitySource: "precomposited-source-frame" as const,
+        interaction: { hostHovered: false, hostPressed: false }, platformFingerprint: fingerprint,
+      },
+    });
+    const set = (vertical: ReturnType<typeof bar>, status: "captured" | "partial") => ({
+      status, source: "blink-live-marker-probe-v1" as const, rootScroller: false,
+      vertical, overlay: false, paintPhase: "background" as const, overflowControlsClip: null,
+      outputTransform: { space: "capture-viewport" as const, matrix: [1, 0, 0, 1, 0, 0] as [number, number, number, number, number, number] },
+      effectiveZoom: 1, captureDpr: 2, forcedColors: false,
+      missingFacts: status === "partial" ? ["native-strip-raster"] : [],
+    });
+    const materialized = el(20, 30, 100, 40);
+    materialized.scrollbars = set(bar("data:image/png;base64,AA=="), "captured");
+    const missing = el(220, 30, 100, 40);
+    missing.scrollbars = set(bar(), "partial");
+    const index = buildRendererCullGeometry([materialized, missing], 800, 600);
+    expect(index.get(materialized)!.visualBounds).toEqual({
+      kind: "bounded", box: { x: 5, y: 20, w: 8, h: 40 },
+    });
+    expect(index.get(missing)!.visualBounds).toEqual({
+      kind: "unknown", reason: "native-scrollbar-raster-unavailable",
+    });
+  });
+
   it("retains an atomic raster whose separately emitted reflection can enter", () => {
     const target = el(900, 10, 100, 40, { webkitBoxReflect: "left 200px" });
     target.transformSubtreeRaster = {

@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 /**
- * DM-2370 investigation probe.
+ * DM-2370 investigation probe with DM-2479 attachment ownership controls.
  *
  * Observational only: paint the same CSS url() background in Chromium and in
  * Domotion's generated SVG, then compare device-pixel geometry of a synthetic
@@ -67,6 +67,9 @@ interface PaintFacts {
   scrollTop: number;
   scrollWidth: number;
   scrollHeight: number;
+  attachmentFixedToViewport?: boolean;
+  attachmentLocalOffsetX?: number;
+  attachmentLocalOffsetY?: number;
 }
 
 interface Bounds {
@@ -365,6 +368,9 @@ function capturedFacts(element: CapturedElement | null): PaintFacts | null {
     scrollTop: style.scrollTop ?? 0,
     scrollWidth: style.scrollWidth ?? element.width,
     scrollHeight: style.scrollHeight ?? element.height,
+    attachmentFixedToViewport: style.backgroundAttachmentGeometry?.fixedToViewport,
+    attachmentLocalOffsetX: style.backgroundAttachmentGeometry?.local?.scrollOffsetX,
+    attachmentLocalOffsetY: style.backgroundAttachmentGeometry?.local?.scrollOffsetY,
   };
 }
 
@@ -562,9 +568,18 @@ export async function runUrlBackgroundGeometryAudit(): Promise<{
       positiveControlsRemainTight: equivalentRows.every((row) => row.pass),
       everyExpectedGapIsDiscriminated: gapRows.every((row) => row.pass),
       autoRatioMutationMovesPaint: (byId.get("auto-width-from-explicit-height")?.comparison.labelMismatchFraction ?? 0) >= MIN_GAP_LABEL_MISMATCH,
-      transformedFixedDiffersFromViewportFixed:
-        (byId.get("fixed-under-transform")?.comparison.labelMismatchFraction ?? 0)
-        > (byId.get("fixed-viewport-control")?.comparison.labelMismatchFraction ?? 1) + 0.02,
+      // DM-2479 closed the old transformed-fixed ownership gap. Keep this
+      // audit useful by asserting the independently captured ownership facts,
+      // while the row's residual scaled-tile color mismatch remains a DM-2478
+      // witness rather than requiring the fixed case to stay visually worse.
+      attachmentOwnershipCaptured:
+        byId.get("fixed-viewport-control")?.captured?.attachmentFixedToViewport === true
+        && byId.get("fixed-under-transform")?.captured?.attachmentFixedToViewport === false,
+      localAttachmentOffsetsCaptured:
+        byId.get("local-nonzero-scroll")?.captured?.attachmentLocalOffsetX
+          === byId.get("local-nonzero-scroll")?.source.scrollLeft
+        && byId.get("local-nonzero-scroll")?.captured?.attachmentLocalOffsetY
+          === byId.get("local-nonzero-scroll")?.source.scrollTop,
       sliceAndCloneTakeDifferentRoutes:
         byId.get("wrapped-inline-clone")?.pass === true && byId.get("wrapped-inline-slice")?.pass === true,
       blockSliceAndCloneTakeDifferentRoutes:

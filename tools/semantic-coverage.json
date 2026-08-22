@@ -686,6 +686,7 @@
       "exactStates": [
         "explicit size -> natural auto/ratio",
         "contain -> cover",
+        "scroll -> fixed/local attachment",
         "padding origin -> independent content origin/padding clip",
         "direct URL -> DPR/type-selected image-set candidate",
         "loaded dimensions -> delayed/failed/unreadable natural sizing"
@@ -693,7 +694,6 @@
       "uncoveredStates": [
         "length/percentage -> calculated size/position",
         "repeat/no-repeat -> round/space",
-        "scroll -> fixed/local attachment",
         "single layer -> cyclic multiple layers",
         "unzoomed/untransformed -> zoomed/transformed",
         "clone fragment -> sliced stitched fragment"
@@ -712,20 +712,24 @@
         "src/capture/background-image-sizing.ts",
         "src/capture/index.ts",
         "src/capture/script/walker/borders-backgrounds.ts",
+        "src/capture/script/walker/background-attachment.ts",
         "src/capture/types.ts",
+        "src/render/background-attachment.ts",
         "src/render/image-pattern.ts",
         "src/render/element-tree-to-svg.ts"
       ],
       "oracles": [
         "tools/url-background-geometry-audit.ts",
-        "tests/background-image-sizing.e2e.test.ts"
+        "tests/background-image-sizing.e2e.test.ts",
+        "tests/background-attachment-geometry.e2e.test.ts"
       ],
       "metamorphicTests": [
-        "src/capture/background-image-sizing.test.ts"
+        "src/capture/background-image-sizing.test.ts",
+        "src/render/background-attachment.test.ts"
       ],
       "visualFixtures": [],
       "coverage": "partial",
-      "boundary": "DM-2477 source-derives candidate selection and independent natural-sizing/load facts at the live DPR, including zoom/orientation and aligned non-URL layer slots. DM-2370 proves ordinary URL backgrounds remain vector-composable, but tile, attachment, cyclic-longhand, and slice-fragment geometry still require DM-2478/2479 and DM-2365; DM-2480 adds the all-platform DPR gate.",
+      "boundary": "DM-2477 source-derives candidate selection and independent natural-sizing/load facts at the live DPR, including zoom/orientation and aligned non-URL layer slots. DM-2479 source-derives the scrollbar-excluding fixed viewport, applicable-transform fallback, pixel-snapped local scroll/overflow geometry, and stitched root canvas, then selects those positioning inputs before tile construction. Ordinary URL backgrounds remain vector-composable; tile/cyclic-longhand and slice-fragment geometry still require DM-2478 and DM-2365, while DM-2480 adds the all-platform DPR gate.",
       "featureIds": [
         "render.tree-to-svg"
       ],
@@ -1133,12 +1137,14 @@
         "overlay visible -> overlay faded",
         "physical right -> RTL logical left",
         "native stock -> standard width/color or custom parts",
+        "native stock scrollbar -> author-custom vector scrollbar",
         "DPR 1 -> DPR 2",
         "zoom 1 -> zoom 1.25",
         "not resizable -> resizable"
       ],
       "exactStates": [
-        "UA-only pseudo -> Chromium-resolved author pseudo ownership"
+        "UA-only pseudo -> Chromium-resolved author pseudo ownership",
+        "native stock scrollbar -> author-custom vector scrollbar"
       ],
       "uncoveredStates": [
         "native -> author styled",
@@ -1165,9 +1171,12 @@
       "productionOwners": [
         "src/capture/pseudo-style-cdp.ts",
         "src/capture/scrollbar-capture.ts",
+        "src/capture/native-scrollbar-raster.ts",
         "src/capture/types.ts",
         "src/capture/script/pseudo-rules.ts",
         "src/render/form-controls.ts",
+        "src/render/custom-scrollbar.ts",
+        "src/render/native-scrollbar-raster.ts",
         "src/render/element-tree-to-svg.ts"
       ],
       "oracles": [
@@ -1183,6 +1192,9 @@
       "metamorphicTests": [
         "src/capture/pseudo-style-cdp.test.ts",
         "src/capture/scrollbar-capture.test.ts",
+        "src/capture/native-scrollbar-raster.test.ts",
+        "src/render/custom-scrollbar.test.ts",
+        "src/render/native-scrollbar-raster.test.ts",
         "src/render/form-controls.test.ts"
       ],
       "visualFixtures": [
@@ -1191,7 +1203,7 @@
         "external/html-test/25-scrollbar-gutter.html"
       ],
       "coverage": "partial",
-      "boundary": "Author control-pseudo activation/final cascade is Chromium-resolved (doc 158). DM-2368/doc 165 source-audits ownership; DM-2481/doc 169 captures marker-owned geometry/state and deletes the 7px synthesis. DM-2484/doc 173 adds a strict schema-v2 macOS/Linux/Windows × DPR/zoom release adjudicator, lossless artifact verification, and adversarial mutations, but it intentionally rejects the current capture-only producer. Stable CDP dynamic-pseudo/native animator/frame/phase facts, DM-2482 custom vector paint, DM-2483 native narrow rasters/schema-v2 output, and fresh platform artifacts remain uncovered.",
+      "boundary": "Author control-pseudo activation/final cascade is Chromium-resolved (doc 158). DM-2368/doc 165 source-audits ownership; DM-2481/doc 169 captures marker-owned geometry/state and deletes the 7px synthesis. DM-2482 paints supported custom parts as ordered vector boxes and confines dynamic/unsupported effects to owner-part crops. DM-2483 losslessly materializes same-frame platform-native horizontal/vertical/corner crops, proves faded overlay absence, records DPR/SHA/platform provenance, and has an exact source-to-final-output DPR-2 oracle. DM-2484/doc 173 supplies the strict schema-v2 macOS/Linux/Windows release adjudicator; fresh Cartesian platform artifacts remain uncovered.",
       "featureIds": [
         "render.tree-to-svg"
       ],

@@ -266,6 +266,49 @@ Emit: `src/render/mask.ts::buildMaskDef` (moved out of element-tree-to-svg.ts in
 
 Doc: [22-mask-element-paint-references.md](../22-mask-element-paint-references.md).
 
+### C3. Author-custom scrollbar owner-part paint
+
+Trigger: a captured author `::-webkit-scrollbar*` part either has a selector
+qualified by anonymous runtime state (`:vertical`, `:start`, `:hover`, and
+related states that stable CDP cannot query as computed pseudo nodes), or uses
+an author filter/CSS image function the vector pseudo-box path cannot express.
+
+Why: replaying stylesheet source order cannot recover Blink's final cascade on
+an anonymous `LayoutCustomScrollbarPart`. Rasterizing the whole scroller would
+discard otherwise-supported vector parts and could consume neighboring content.
+
+Capture: `src/capture/pseudo-style-cdp.ts` detects only the affected pseudo
+kind without attempting cascade reconstruction.
+`src/capture/scrollbar-capture.ts::materializeAuthorPartRasters` crops the
+pre-marker Chromium source frame to that part's captured device-pixel owner and
+records capture DPR plus `dynamic-author-part` or `unsupported-author-part`
+provenance. A crop failure remains fail-closed.
+
+Emit: `src/render/custom-scrollbar.ts` emits the `<image>` only inside that
+part's normal Blink-order group and overflow-controls clip. Every other
+supported part stays on the vector background/gradient/border/radius/shadow
+path. See [doc 169](../169-authoritative-scrollbar-capture.md).
+
+### C4. Platform-native scrollbar strips
+
+Trigger: a live Chromium scrollbar stays on `ScrollbarTheme` rather than the
+author-custom pseudo-box route and has visible source-frame ink.
+
+Why: macOS animator/theme paint, Aura/Fluent native paint, and Windows
+UXTheme/GDI pixels are platform-owned and cannot be reconstructed from a
+portable 7 px pill or host constants.
+
+Capture: `src/capture/native-scrollbar-raster.ts` losslessly crops the actual
+horizontal/vertical frames and classic corner from one compositor frame,
+recording DPR, source/crop SHA and the complete platform/browser/launch
+fingerprint. Overlay crops intentionally retain their backdrop; a reversible
+width:none discriminator proves visible ink or explicit faded absence.
+
+Emit: `src/render/native-scrollbar-raster.ts` places the capture-viewport crops
+without resampling or another element transform in horizontal, vertical,
+corner, resizer order. Missing pixels remain fail-closed. See
+[doc 169](../169-authoritative-scrollbar-capture.md).
+
 ---
 
 ## Not in this list

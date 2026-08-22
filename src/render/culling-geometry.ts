@@ -437,6 +437,43 @@ function ownGeometry(el: CapturedElement): {
     }
   }
 
+  // DM-2483: stock scrollbar images are emitted at their already-snapped
+  // capture-viewport rectangles. In particular, a logical-left scrollbar or
+  // clipped root control need not be bounded by this element's captured border
+  // box. Union the actual emitted images; retain a partial reservation when a
+  // required platform crop is missing instead of culling on a guessed host box.
+  const scrollbarSets = [el.scrollbars, el.rootScrollbars]
+    .filter((set, index, sets) => set != null && sets.indexOf(set) === index);
+  for (const set of scrollbarSets) {
+    if (set == null || set.status === "absent") continue;
+    const rasters = [
+      set.horizontal?.route === "native-raster" ? set.horizontal.nativeRaster : undefined,
+      set.vertical?.route === "native-raster" ? set.vertical.nativeRaster : undefined,
+      set.nativeCornerRaster,
+    ];
+    const expectedNative = set.horizontal?.route === "native-raster"
+      || set.vertical?.route === "native-raster";
+    if (set.status === "partial" && expectedNative && rasters.every((raster) => raster == null)) {
+      visual = { kind: "unknown", reason: "native-scrollbar-raster-unavailable" };
+      continue;
+    }
+    for (const raster of rasters) {
+      if (raster == null || raster.empty === true) continue;
+      if (raster.dataUri == null) {
+        visual = { kind: "unknown", reason: "native-scrollbar-raster-unavailable" };
+        continue;
+      }
+      const rasterBox = box(raster.x, raster.y, raster.width, raster.height);
+      if (rasterBox == null || rasterBox.w === 0 || rasterBox.h === 0) {
+        visual = { kind: "unknown", reason: "native-scrollbar-raster-invalid" };
+        continue;
+      }
+      fill = unionReference(fill, { kind: "exact", box: rasterBox });
+      stroke = unionReference(stroke, { kind: "exact", box: rasterBox });
+      visual = unionVisual(visual, { kind: "bounded", box: rasterBox });
+    }
+  }
+
   if (el.replacedSnapshot != null && el.imageSrc == null) {
     const raster = el.replacedSnapshot;
     if (raster.dataUri == null) {

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt46fxfbp6rrd98n",
+          "message": {
+            "text": "The focused native oracle proves the complete same-frame boundary at DPR 2. It compares each embedded PNG byte-for-byte with Chromium’s supplied source crop, then rasterizes the generated SVG and compares every output strip row exactly; vector sentinel and negative activation controls remain intact.",
+            "markdown": "The focused native oracle proves the complete same-frame boundary at DPR 2. It compares each embedded PNG byte-for-byte with Chromium’s supplied source crop, then rasterizes the generated SVG and compares every output strip row exactly; vector sentinel and negative activation controls remain intact."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/scrollbar-capture.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 41,
+                  "endLine": 143,
+                  "snippet": {
+                    "text": "  it(\"embeds exact same-frame platform-native strip pixels without resampling\", async () => {\n    const context = await env!.browser.newContext({ viewport: { width: 400, height: 260 }, deviceScaleFactor: 2 });\n    const page = await context.newPage();\n    const scratch = await mkdtemp(join(tmpdir(), \"domotion-native-scrollbar-\"));\n    try {\n      await page.setContent(`<!doctype html><style>\n        html,body{margin:0;overflow:hidden}\n        #native{margin:20.25px;width:200px;height:140px;overflow:scroll;resize:both;\n          scrollbar-color:rgb(20,40,160) rgb(230,220,200);scrollbar-width:auto;\n          background:rgb(255,238,221);border:3px solid rgb(17,34,51)}\n        #native>div{width:600px;height:500px;background:linear-gradient(#efe,#fee)}\n        #sentinel{position:absolute;left:300px;top:30px;width:22px;height:19px;background:rgb(7,201,91)}\n        #none{overflow:scroll;scrollbar-width:none;width:30px;height:30px}\n        #visible{overflow:visible;width:30px;height:30px}\n        #auto-empty{overflow:auto;width:30px;height:30px}\n      </style>\n      <div id=\"native\" data-domotion-anim=\"native\"><div></div></div>\n      <div id=\"sentinel\"></div>\n      <div id=\"none\" data-domotion-anim=\"none\"><div style=\"width:90px;height:90px\"></div></div>\n      <div id=\"visible\" data-domotion-anim=\"visible\"><div style=\"width:90px;height:90px\"></div></div>\n      <div id=\"auto-empty\" data-domotion-anim=\"auto-empty\"></div>`);\n      const nativeBox = (await page.locator(\"#native\").boundingBox())!;\n      await page.locator(\"#native\").evaluate((element) => {\n        element.scrollTop = 100;\n        element.scrollLeft = 70;\n      });\n      // Keep the platform overlay animator in its hovered state while the\n      // capture prepasses run; programmatic offsets avoid inertial-scroll drift.\n      await page.mouse.move(nativeBox.x + nativeBox.width - 2, nativeBox.y + 50);\n      await page.waitForTimeout(250);\n      const sourcePath = join(scratch, \"source.png\");\n      await writeFile(sourcePath, await page.screenshot({ type: \"png\" }));\n\n      const capture = await captureElementTreeWithWarnings(\n        page,\n        \"body\",\n        { x: 0, y: 0, width: 400, height: 260 },\n        { rasterizeFromImagePath: sourcePath },\n      );\n      const target = byAnimId(capture.tree, \"native\")!;\n      const set = target.scrollbars!;\n      expect(set).toMatchObject({\n        status: \"captured\", overlay: true, paintPhase: \"overlay-overflow-controls\",\n        captureDpr: 2,\n        outputTransform: { space: \"capture-viewport\", matrix: [1, 0, 0, 1, 0, 0] },\n        missingFacts: [],\n      });\n      expect(byAnimId(capture.tree, \"none\")?.scrollbars?.status).toBe(\"absent\");\n      expect(byAnimId(capture.tree, \"visible\")?.scrollbars).toBeUndefined();\n      expect(byAnimId(capture.tree, \"auto-empty\")?.scrollbars?.status).toBe(\"absent\");\n      expect(capture.warnings.filter(({ feature }) => feature === \"scrollbar-capture\")).toEqual([]);\n\n      const source = await sharp(sourcePath).ensureAlpha().raw().toBuffer({ resolveWithObject: true });\n      for (const bar of [set.horizontal, set.vertical]) {\n        const raster = bar?.nativeRaster;\n        expect(raster).toMatchObject({\n          captureDpr: 2, precomposited: true,\n          opacitySource: \"precomposited-source-frame\",\n          interaction: { hostHovered: true, hostPressed: false },\n          platformFingerprint: { hideScrollbarsDefaultRemoved: true },\n        });\n        expect(raster?.dataUri).toMatch(/^data:image\\/png;base64,/);\n        expect(raster?.pixelWidth).toBe(Math.round((raster?.width ?? 0) * 2));\n        expect(raster?.pixelHeight).toBe(Math.round((raster?.height ?? 0) * 2));\n        const encoded = Buffer.from(raster!.dataUri!.split(\",\")[1]!, \"base64\");\n        const crop = await sharp(encoded).ensureAlpha().raw().toBuffer({ resolveWithObject: true });\n        const left = Math.round(raster!.x * 2);\n        const top = Math.round(raster!.y * 2);\n        const expected = Buffer.alloc(crop.info.width * crop.info.height * 4);\n        for (let y = 0; y < crop.info.height; y++) {\n          const start = ((top + y) * source.info.width + left) * 4;\n          expected.set(source.data.subarray(start, start + crop.info.width * 4), y * crop.info.width * 4);\n        }\n        expect(Buffer.compare(crop.data, expected)).toBe(0);\n      }\n\n      const svg = elementTreeToSvg(capture.tree, 400, 260);\n      expect(svg.indexOf(\"native-horizontal\")).toBeLessThan(svg.indexOf(\"native-vertical\"));\n      expect(svg).toContain('data-domotion-scrollbar-route=\"native-raster\"');\n      expect(svg).toContain(\"rgb(7,201,91)\");\n      expect(svg).not.toContain('fill=\"rgba(0,0,0,0.40)\"');\n\n      const outputPage = await context.newPage();\n      try {\n        await outputPage.setContent(`<style>html,body{margin:0}</style>${svg}`);\n        const output = await sharp(await outputPage.screenshot({ type: \"png\" }))\n          .ensureAlpha().raw().toBuffer({ resolveWithObject: true });\n        for (const bar of [set.horizontal, set.vertical]) {\n          const raster = bar!.nativeRaster!;\n          const left = Math.round(raster.x * 2);\n          const top = Math.round(raster.y * 2);\n          for (let y = 0; y < raster.pixelHeight; y++) {\n            const sourceStart = ((top + y) * source.info.width + left) * 4;\n            const outputStart = ((top + y) * output.info.width + left) * 4;\n            expect(Buffer.compare(\n              source.data.subarray(sourceStart, sourceStart + raster.pixelWidth * 4),\n              output.data.subarray(outputStart, outputStart + raster.pixelWidth * 4),\n            )).toBe(0);\n          }\n        }\n      } finally {\n        await outputPage.close();\n      }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 98,
+          "workItemUris": [
+            "DM-2483"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "97e1373287a3eec9321cf00176845db8"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "765f6a352dbe272c4fdf67f4f689ed646e485107",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

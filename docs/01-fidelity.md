@@ -26,11 +26,11 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 - [x] float + clear (text wraps correctly around floats via per-line capture)
 - [x] box-sizing, margin, padding, width/height, min/max
 - [x] overflow: hidden/scroll/auto/clip (children clipped to padding box); rounded `overflow-clip-margin` follows Blink's pixel-snapped reference-box outsets and coverage-corrected contour (DM-2419)
-- [~] overflow: scroll/auto — content clipping is retained, but scrollbar
-  chrome is still a 7 px offset-triggered synthesis. It does not preserve
-  Blink's existence/axis/phase/geometry, author custom parts, or the live
-  platform theme; the exact custom-vector / stock-native-raster contract and
-  strict controls are in
+- [~] overflow: scroll/auto — content clipping and Blink-owned scrollbar
+  existence/axis/phase/geometry are retained. Supported author-custom parts
+  paint as ordered vector CSS boxes, with dynamic/unsupported paint confined
+  to owner-part crops; stock-native theme pixels remain the separate platform
+  raster boundary. The exact contract and strict controls are in
   [doc 165](165-native-scrollbar-layout-paint-ownership-audit.md) (DM-2368;
   legacy tracker SK-468).
 - [x] CSS resize controls — Blink's exact scroll-container/iframe activation,
@@ -54,10 +54,12 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
   density-corrected independent natural dimensions/ratio, orientation, zoom,
   and explicit load/failure state per aligned layer. Single-axis auto-ratio
   lowering, general calc sizing/phase, contain snapping, round/space,
-  fixed/local attachment, transformed phase, cyclic longhand expansion, and
-  sliced fragments remain source-proven gaps. The exact contract is in
-  [doc 163](163-url-background-image-geometry-audit.md); remaining work is
-  DM-2478/2479, existing DM-2365, and gate DM-2480.
+  transformed tile phase, cyclic longhand expansion, and sliced fragments
+  remain source-proven gaps. DM-2479 now captures and renders exact
+  fixed/transformed-fixed/local/root positioning areas, including viewport
+  scrollbars, both local scroll axes, overflow clips, zoom, and stitched canvas
+  geometry. The exact contract is in [doc 163](163-url-background-image-geometry-audit.md);
+  remaining work is DM-2478, existing DM-2365, and gate DM-2480.
 - [x] border (uniform) with border-radius
 - [x] border (per-side with different width/style/color)
 - [x] box-decoration-break (`slice` default + `clone`) on (a) wrapped inline elements and (b) block-level elements that fragment at a multi-column container boundary — per-fragment paint of background / border / shadow / image. Slice direction depends on the fragmentation axis: inline-axis (wrapped inline) means first fragment owns LEFT + TL/BL, last owns RIGHT + TR/BR, intermediate fragments paint top + bottom only; block-axis (multi-column block) means first owns TOP + TL/TR, last owns BOTTOM + BL/BR, intermediate paint left + right only. Clone mode paints a complete box on every fragment regardless of axis. Slice-mode URL background-image continuation across fragments is not yet supported; its source-owned stitched-box design is in [doc 163](163-url-background-image-geometry-audit.md) and implementation remains DM-2365.

@@ -2,10 +2,10 @@
 /**
  * DM-2368 investigation probe.
  *
- * Observational only.  It compares live Chromium scrollbar pixels and geometry
- * with Domotion's generated SVG.  Loud author scrollbar colors isolate Blink's
- * custom-scrollbar part geometry; marker-free native rows record the active
- * platform theme without pretending that one host's chrome is portable.
+ * It compares live Chromium scrollbar pixels and geometry with Domotion's
+ * generated SVG. Loud author scrollbar colors strictly gate custom-part
+ * geometry within one device pixel; native rows retain their platform-owned
+ * adjudication contract rather than substituting one host's chrome.
  */
 import { writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
@@ -33,7 +33,7 @@ const MARKERS = [
 
 type ExpectedRoute =
   | "marker-free-control"
-  | "custom-vector-current-gap"
+  | "custom-vector"
   | "suppressed-captured-absence"
   | "native-platform-fingerprint";
 
@@ -197,7 +197,7 @@ const CASES: AuditCase[] = [
   {
     id: "custom-scroll-no-overflow",
     axis: "custom non-overlay overflow:scroll bars exist without overflow",
-    expectedRoute: "custom-vector-current-gap",
+    expectedRoute: "custom-vector",
     targetCss: "overflow:scroll",
     contentCss: "width:70px;height:60px",
     custom: true,
@@ -205,7 +205,7 @@ const CASES: AuditCase[] = [
   {
     id: "custom-y-top",
     axis: "vertical custom track/thumb at minimum offset",
-    expectedRoute: "custom-vector-current-gap",
+    expectedRoute: "custom-vector",
     targetCss: "overflow-y:auto;overflow-x:hidden",
     contentCss: "width:90px;height:360px",
     custom: true,
@@ -213,7 +213,7 @@ const CASES: AuditCase[] = [
   {
     id: "custom-y-mid",
     axis: "vertical custom thumb proportional midpoint",
-    expectedRoute: "custom-vector-current-gap",
+    expectedRoute: "custom-vector",
     targetCss: "overflow-y:auto;overflow-x:hidden",
     contentCss: "width:90px;height:360px",
     custom: true,
@@ -222,7 +222,7 @@ const CASES: AuditCase[] = [
   {
     id: "custom-y-max",
     axis: "vertical custom thumb maximum offset",
-    expectedRoute: "custom-vector-current-gap",
+    expectedRoute: "custom-vector",
     targetCss: "overflow-y:auto;overflow-x:hidden",
     contentCss: "width:90px;height:360px",
     custom: true,
@@ -231,7 +231,7 @@ const CASES: AuditCase[] = [
   {
     id: "custom-x-mid",
     axis: "horizontal custom track/thumb midpoint",
-    expectedRoute: "custom-vector-current-gap",
+    expectedRoute: "custom-vector",
     targetCss: "overflow-x:auto;overflow-y:hidden",
     contentCss: "width:390px;height:60px",
     custom: true,
@@ -240,7 +240,7 @@ const CASES: AuditCase[] = [
   {
     id: "custom-both-corner",
     axis: "both axes plus source-owned scroll corner",
-    expectedRoute: "custom-vector-current-gap",
+    expectedRoute: "custom-vector",
     targetCss: "overflow:auto",
     contentCss: "width:390px;height:330px",
     custom: true,
@@ -250,7 +250,7 @@ const CASES: AuditCase[] = [
   {
     id: "custom-rtl-logical-left",
     axis: "horizontal-tb RTL places vertical scrollbar on logical left",
-    expectedRoute: "custom-vector-current-gap",
+    expectedRoute: "custom-vector",
     targetCss: "overflow-y:auto;overflow-x:hidden;direction:rtl",
     contentCss: "width:90px;height:360px",
     custom: true,
@@ -259,7 +259,7 @@ const CASES: AuditCase[] = [
   {
     id: "custom-vertical-writing",
     axis: "vertical-rl writing mode",
-    expectedRoute: "custom-vector-current-gap",
+    expectedRoute: "custom-vector",
     targetCss: "overflow:auto;writing-mode:vertical-rl",
     contentCss: "width:360px;height:300px",
     custom: true,
@@ -268,7 +268,7 @@ const CASES: AuditCase[] = [
   {
     id: "custom-border-clip",
     axis: "asymmetric borders/radius plus ancestor overflow clip",
-    expectedRoute: "custom-vector-current-gap",
+    expectedRoute: "custom-vector",
     targetCss: "left:-9px;top:-7px;overflow:auto;border-width:3px 9px 7px 5px;border-radius:22px 7px 28px 3px",
     contentCss: "width:390px;height:330px",
     clipCss: "overflow:hidden;border-radius:19px;width:145px;height:112px",
@@ -278,7 +278,7 @@ const CASES: AuditCase[] = [
   {
     id: "custom-zoom-125",
     axis: "CSS zoom 1.25 crosses layout/paint coordinates once",
-    expectedRoute: "custom-vector-current-gap",
+    expectedRoute: "custom-vector",
     targetCss: "overflow:auto;zoom:1.25",
     contentCss: "width:390px;height:330px",
     custom: true,
@@ -551,21 +551,34 @@ function countGenericThumbs(svg: string): number {
   return [...svg.matchAll(/<rect\b[^>]*\bfill="rgba\(0,0,0,0\.40\)"[^>]*>/g)].length;
 }
 
+function markerBoundsMatchWithinOneDevicePixel(
+  source: PixelFacts,
+  generated: PixelFacts,
+): boolean {
+  return MARKERS.every(({ name }) => {
+    const expected = source.markers[name];
+    const actual = generated.markers[name];
+    if (expected == null || actual == null) return expected == null && actual == null;
+    return boundDelta(expected, actual) != null && boundDelta(expected, actual)! <= 1;
+  });
+}
+
 function rowPass(row: Omit<AuditRow, "pass">): boolean {
   if (row.expectedRoute === "marker-free-control") {
     return row.sourcePixels.markerPixels === 0
       && row.generatedPixels.markerPixels === 0
       && row.generatedGenericThumbs === 0;
   }
-  if (row.expectedRoute === "custom-vector-current-gap") {
+  if (row.expectedRoute === "custom-vector") {
     return row.sourcePixels.markerPixels >= 120
+      && row.generatedPixels.markerPixels >= 120
       && row.sourcePixels.markers.track != null
       // overflow:scroll creates disabled track chrome even when there is no
       // scroll range; Blink correctly has no thumb in that activation row.
       && (row.id === "custom-scroll-no-overflow" || row.sourcePixels.markers.thumb != null)
-      && row.generatedPixels.markerPixels <= 4
+      && markerBoundsMatchWithinOneDevicePixel(row.sourcePixels, row.generatedPixels)
       && row.generatedGenericThumbs === 0
-      && row.captured?.scrollbarStatus === "partial"
+      && (row.captured?.scrollbarStatus === "captured" || row.captured?.scrollbarStatus === "partial")
       && [row.captured.horizontalRoute, row.captured.verticalRoute].includes("author-custom");
   }
   if (row.expectedRoute === "suppressed-captured-absence") {
@@ -706,7 +719,7 @@ export async function runNativeScrollbarOwnershipAudit(): Promise<{
       .filter((candidate) => candidate.expectedRoute === "marker-free-control")
       .every((candidate) => candidate.pass),
     everyCustomRouteIsDiscriminated: rows
-      .filter((candidate) => candidate.expectedRoute === "custom-vector-current-gap")
+      .filter((candidate) => candidate.expectedRoute === "custom-vector")
       .every((candidate) => candidate.pass),
     everyNativeFingerprintIsDiscriminated: rows
       .filter((candidate) => candidate.expectedRoute === "native-platform-fingerprint")

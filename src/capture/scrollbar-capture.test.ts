@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  nativeScrollbarCornerRect,
   SCROLLBAR_MARKERS,
   scrollbarMarkerComponents,
   usedScrollbarColorScheme,
@@ -25,6 +26,18 @@ function paint(
 }
 
 describe("Blink live scrollbar marker classification", () => {
+  it("derives the native corner from the physical horizontal/vertical frame overlap", () => {
+    expect(nativeScrollbarCornerRect(
+      { frameRect: { x: 12, y: 90, width: 78, height: 10 } },
+      { frameRect: { x: 90, y: 10, width: 10, height: 80 }, logicalSide: "right" },
+    )).toEqual({ x: 90, y: 90, width: 10, height: 10 });
+    expect(nativeScrollbarCornerRect(
+      { frameRect: { x: 10, y: 90, width: 80, height: 10 } },
+      { frameRect: { x: 0, y: 10, width: 10, height: 80 }, logicalSide: "left" },
+    )).toEqual({ x: 0, y: 90, width: 10, height: 10 });
+    expect(nativeScrollbarCornerRect(null, undefined)).toBeNull();
+  });
+
   it("resolves the used scheme from the computed allowance and live preference", () => {
     expect(usedScrollbarColorScheme("normal", true)).toBe("light");
     expect(usedScrollbarColorScheme("light", true)).toBe("light");

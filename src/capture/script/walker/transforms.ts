@@ -71,7 +71,7 @@
 // form `matrix(a, b, c, d, e, f)`; rotation/skew produces non-zero b or c.
 // matrix3d (12 values for the 4×4 matrix major-column layout) carries the
 // 2D submatrix in positions 0, 1, 4, 5 (= a, b, c, d in 2D form).
-const transformHasRotationOrSkew = (transformStr) => {
+export const transformHasRotationOrSkew = (transformStr) => {
   if (!transformStr || transformStr === 'none') return false;
   const m2 = /^matrix\(\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)/.exec(transformStr);
   if (m2) {

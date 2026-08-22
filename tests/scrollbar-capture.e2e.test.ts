@@ -1,4 +1,8 @@
 import { afterAll, describe, expect, it } from "vitest";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import sharp from "sharp";
 
 import { captureElementTreeWithWarnings, launchChromium } from "../src/capture/index.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
@@ -34,6 +38,115 @@ const CUSTOM_CSS = `
 `;
 
 describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
+  it("embeds exact same-frame platform-native strip pixels without resampling", async () => {
+    const context = await env!.browser.newContext({ viewport: { width: 400, height: 260 }, deviceScaleFactor: 2 });
+    const page = await context.newPage();
+    const scratch = await mkdtemp(join(tmpdir(), "domotion-native-scrollbar-"));
+    try {
+      await page.setContent(`<!doctype html><style>
+        html,body{margin:0;overflow:hidden}
+        #native{margin:20.25px;width:200px;height:140px;overflow:scroll;resize:both;
+          scrollbar-color:rgb(20,40,160) rgb(230,220,200);scrollbar-width:auto;
+          background:rgb(255,238,221);border:3px solid rgb(17,34,51)}
+        #native>div{width:600px;height:500px;background:linear-gradient(#efe,#fee)}
+        #sentinel{position:absolute;left:300px;top:30px;width:22px;height:19px;background:rgb(7,201,91)}
+        #none{overflow:scroll;scrollbar-width:none;width:30px;height:30px}
+        #visible{overflow:visible;width:30px;height:30px}
+        #auto-empty{overflow:auto;width:30px;height:30px}
+      </style>
+      <div id="native" data-domotion-anim="native"><div></div></div>
+      <div id="sentinel"></div>
+      <div id="none" data-domotion-anim="none"><div style="width:90px;height:90px"></div></div>
+      <div id="visible" data-domotion-anim="visible"><div style="width:90px;height:90px"></div></div>
+      <div id="auto-empty" data-domotion-anim="auto-empty"></div>`);
+      const nativeBox = (await page.locator("#native").boundingBox())!;
+      await page.locator("#native").evaluate((element) => {
+        element.scrollTop = 100;
+        element.scrollLeft = 70;
+      });
+      // Keep the platform overlay animator in its hovered state while the
+      // capture prepasses run; programmatic offsets avoid inertial-scroll drift.
+      await page.mouse.move(nativeBox.x + nativeBox.width - 2, nativeBox.y + 50);
+      await page.waitForTimeout(250);
+      const sourcePath = join(scratch, "source.png");
+      await writeFile(sourcePath, await page.screenshot({ type: "png" }));
+
+      const capture = await captureElementTreeWithWarnings(
+        page,
+        "body",
+        { x: 0, y: 0, width: 400, height: 260 },
+        { rasterizeFromImagePath: sourcePath },
+      );
+      const target = byAnimId(capture.tree, "native")!;
+      const set = target.scrollbars!;
+      expect(set).toMatchObject({
+        status: "captured", overlay: true, paintPhase: "overlay-overflow-controls",
+        captureDpr: 2,
+        outputTransform: { space: "capture-viewport", matrix: [1, 0, 0, 1, 0, 0] },
+        missingFacts: [],
+      });
+      expect(byAnimId(capture.tree, "none")?.scrollbars?.status).toBe("absent");
+      expect(byAnimId(capture.tree, "visible")?.scrollbars).toBeUndefined();
+      expect(byAnimId(capture.tree, "auto-empty")?.scrollbars?.status).toBe("absent");
+      expect(capture.warnings.filter(({ feature }) => feature === "scrollbar-capture")).toEqual([]);
+
+      const source = await sharp(sourcePath).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      for (const bar of [set.horizontal, set.vertical]) {
+        const raster = bar?.nativeRaster;
+        expect(raster).toMatchObject({
+          captureDpr: 2, precomposited: true,
+          opacitySource: "precomposited-source-frame",
+          interaction: { hostHovered: true, hostPressed: false },
+          platformFingerprint: { hideScrollbarsDefaultRemoved: true },
+        });
+        expect(raster?.dataUri).toMatch(/^data:image\/png;base64,/);
+        expect(raster?.pixelWidth).toBe(Math.round((raster?.width ?? 0) * 2));
+        expect(raster?.pixelHeight).toBe(Math.round((raster?.height ?? 0) * 2));
+        const encoded = Buffer.from(raster!.dataUri!.split(",")[1]!, "base64");
+        const crop = await sharp(encoded).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+        const left = Math.round(raster!.x * 2);
+        const top = Math.round(raster!.y * 2);
+        const expected = Buffer.alloc(crop.info.width * crop.info.height * 4);
+        for (let y = 0; y < crop.info.height; y++) {
+          const start = ((top + y) * source.info.width + left) * 4;
+          expected.set(source.data.subarray(start, start + crop.info.width * 4), y * crop.info.width * 4);
+        }
+        expect(Buffer.compare(crop.data, expected)).toBe(0);
+      }
+
+      const svg = elementTreeToSvg(capture.tree, 400, 260);
+      expect(svg.indexOf("native-horizontal")).toBeLessThan(svg.indexOf("native-vertical"));
+      expect(svg).toContain('data-domotion-scrollbar-route="native-raster"');
+      expect(svg).toContain("rgb(7,201,91)");
+      expect(svg).not.toContain('fill="rgba(0,0,0,0.40)"');
+
+      const outputPage = await context.newPage();
+      try {
+        await outputPage.setContent(`<style>html,body{margin:0}</style>${svg}`);
+        const output = await sharp(await outputPage.screenshot({ type: "png" }))
+          .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+        for (const bar of [set.horizontal, set.vertical]) {
+          const raster = bar!.nativeRaster!;
+          const left = Math.round(raster.x * 2);
+          const top = Math.round(raster.y * 2);
+          for (let y = 0; y < raster.pixelHeight; y++) {
+            const sourceStart = ((top + y) * source.info.width + left) * 4;
+            const outputStart = ((top + y) * output.info.width + left) * 4;
+            expect(Buffer.compare(
+              source.data.subarray(sourceStart, sourceStart + raster.pixelWidth * 4),
+              output.data.subarray(outputStart, outputStart + raster.pixelWidth * 4),
+            )).toBe(0);
+          }
+        }
+      } finally {
+        await outputPage.close();
+      }
+    } finally {
+      await context.close();
+      await rm(scratch, { recursive: true, force: true });
+    }
+  });
+
   it("selects the author route when customization exists only on a part pseudo", async () => {
     const page = await env!.browser.newPage({ viewport: { width: 360, height: 240 } });
     try {
@@ -48,6 +161,70 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
       expect([set.horizontal?.route, set.vertical?.route]).toContain("author-custom");
       const thumb = set.vertical?.parts.find(({ kind }) => kind === "thumb");
       expect(thumb?.finalPseudoStyle?.backgroundColor).toBe("rgb(33, 61, 203)");
+    } finally {
+      await page.close();
+    }
+  });
+
+  it("keeps anonymous state-dependent paint as an owner-only part crop", async () => {
+    const page = await env!.browser.newPage({ viewport: { width: 360, height: 240 } });
+    try {
+      await page.setContent(`<!doctype html><style>
+        html,body{margin:0}
+        #dynamic{margin:20px;width:180px;height:120px;overflow:scroll}
+        #dynamic::-webkit-scrollbar{width:16px;height:14px;background:rgb(201,31,32)}
+        #dynamic::-webkit-scrollbar-track{background:rgb(201,31,32)}
+        #dynamic::-webkit-scrollbar-thumb{background:rgb(33,61,203)!important}
+        #dynamic::-webkit-scrollbar-thumb:vertical{background:rgb(171,42,199)!important}
+        #dynamic::-webkit-scrollbar-button{display:none}
+        #dynamic>div{width:500px;height:500px}
+      </style><div id="dynamic" data-domotion-anim="dynamic"><div></div></div>`);
+      const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 360, height: 240 });
+      const target = byAnimId(capture.tree, "dynamic")!;
+      const verticalThumb = target.scrollbars?.vertical?.parts.find(({ kind }) => kind === "thumb");
+      const horizontalThumb = target.scrollbars?.horizontal?.parts.find(({ kind }) => kind === "thumb");
+      expect(verticalThumb?.raster).toMatchObject({
+        provenance: "dynamic-author-part",
+        captureDpr: 1,
+      });
+      expect(verticalThumb?.raster?.dataUri).toMatch(/^data:image\/png;base64,/);
+      // Detection is deliberately conservative at pseudo-kind granularity:
+      // stable CDP cannot prove which anonymous orientation instance won, so
+      // both thumb owners stay source pixels instead of replaying selectors.
+      expect(horizontalThumb?.raster?.provenance).toBe("dynamic-author-part");
+      const svg = elementTreeToSvg(capture.tree, 360, 240);
+      expect(svg).toContain('data-domotion-scrollbar-part="track"');
+      expect(svg).toContain('data-domotion-scrollbar-part="thumb"');
+      expect(svg).toContain("data:image/png;base64,");
+      expect(svg).not.toContain("dynamic-scrollbar-pseudo-cascade");
+    } finally {
+      await page.close();
+    }
+  });
+
+  it("rasterizes an unsupported effect only inside the author part owner", async () => {
+    const page = await env!.browser.newPage({ viewport: { width: 360, height: 240 } });
+    try {
+      await page.setContent(`<!doctype html><style>
+        html,body{margin:0}
+        #filtered{margin:20px;width:180px;height:120px;overflow:scroll}
+        #filtered::-webkit-scrollbar{width:16px;height:14px;background:rgb(201,31,32)}
+        #filtered::-webkit-scrollbar-track{background:rgb(201,31,32)}
+        #filtered::-webkit-scrollbar-thumb{background:rgb(33,61,203);filter:blur(1px)}
+        #filtered::-webkit-scrollbar-button{display:none}
+        #filtered>div{width:500px;height:500px}
+      </style><div id="filtered" data-domotion-anim="filtered"><div></div></div>`);
+      const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 360, height: 240 });
+      const target = byAnimId(capture.tree, "filtered")!;
+      const thumb = target.scrollbars?.vertical?.parts.find(({ kind }) => kind === "thumb");
+      const track = target.scrollbars?.vertical?.parts.find(({ kind }) => kind === "track");
+      expect(thumb?.raster).toMatchObject({ provenance: "unsupported-author-part" });
+      expect(thumb?.raster?.dataUri).toMatch(/^data:image\/png;base64,/);
+      expect(track?.raster).toBeUndefined();
+      const svg = elementTreeToSvg(capture.tree, 360, 240);
+      const thumbGroup = svg.slice(svg.indexOf('data-domotion-scrollbar-part="thumb"'));
+      expect(thumbGroup).toContain("<image");
+      expect(svg).toContain('data-domotion-scrollbar-part="track"');
     } finally {
       await page.close();
     }
@@ -85,7 +262,7 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
       const none = byAnimId(capture.tree, "none")!;
 
       expect(ltr.scrollbars).toMatchObject({
-        status: "partial",
+        status: "captured",
         source: "blink-live-marker-probe-v1",
         overlay: false,
         paintPhase: "background",
@@ -108,18 +285,19 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
       expect(ltr.scrollbars?.vertical?.parts.find(({ kind }) => kind === "thumb")?.finalPseudoStyle)
         .toMatchObject({ backgroundColor: "rgb(33, 61, 203)", border: "2px solid rgb(201, 31, 32)" });
       expect(ltr.scrollbars?.horizontal?.parts.map(({ kind }) => kind)).toEqual([
-        "back-track", "thumb", "forward-track",
+        "background", "track", "back-track", "forward-track", "thumb",
       ]);
       expect(rtl.scrollbars?.vertical?.logicalSide).toBe("left");
       expect(rtl.scrollbars?.horizontal?.currentPosition).toBe(-70);
       expect(none.scrollbars).toMatchObject({ status: "absent", horizontal: undefined, vertical: undefined });
 
       const scrollbarWarnings = capture.warnings.filter(({ feature }) => feature === "scrollbar-capture");
-      expect(scrollbarWarnings.map(({ selector }) => selector).sort()).toEqual(["div#ltr", "div#rtl"]);
-      expect(scrollbarWarnings.every(({ detail }) => detail.includes("dynamic-scrollbar-pseudo-cascade"))).toBe(true);
+      expect(scrollbarWarnings).toEqual([]);
 
       const svg = elementTreeToSvg(capture.tree, 700, 330);
       expect(svg).not.toContain('fill="rgba(0,0,0,0.40)"');
+      expect(svg).toContain('data-domotion-scrollbar-route="author-custom"');
+      expect(svg).toContain('data-domotion-scrollbar-part="thumb"');
     } finally {
       await page.close();
     }
@@ -178,9 +356,15 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
       const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 420, height: 280 });
       const set = byAnimId(capture.tree, "forced")!.scrollbars!;
       expect(set.forcedColors).toBe(true);
-      expect(["partial", "unavailable"]).toContain(set.status);
-      for (const bar of [set.horizontal, set.vertical]) {
-        if (bar != null) expect(bar.usedColorScheme).toBe("dark");
+      if (set.status === "absent") {
+        // A fully faded platform overlay has no source-frame ink. This is a
+        // proven negative, not the old marker-paint failure.
+        expect(set.noInkReason).toBe("overlay-source-frame-empty");
+      } else {
+        expect(["captured", "partial"]).toContain(set.status);
+        for (const bar of [set.horizontal, set.vertical]) {
+          if (bar != null) expect(bar.usedColorScheme).toBe("dark");
+        }
       }
     } finally {
       await page.close();

@@ -1562,7 +1562,9 @@ export async function captureElementTreeWithWarnings(
     const resizerMetrics = await measureBlinkPlatformResizer(page);
     pseudoStyles = await captureResolvedControlPseudoStyles(page);
     effectiveAppearance = await captureEffectiveAppearanceFacts(page);
-    scrollbarCapture = await prepareCapturedScrollbarSets(page, selector, viewport, pseudoStyles);
+    scrollbarCapture = await prepareCapturedScrollbarSets(page, selector, viewport, pseudoStyles, {
+      sourceImagePath: opts?.rasterizeFromImagePath,
+    });
     projectiveProbe = await measureProjectivePaintQuads(page, selector, viewport);
     const captureArgs = {
       sel: selector,

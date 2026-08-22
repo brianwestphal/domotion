@@ -119,6 +119,40 @@ const SCROLLBAR_KIND_TO_SELECTOR: Readonly<Partial<Record<ControlPseudoKind, str
   "scrollbar-corner": "::-webkit-scrollbar-corner",
 };
 
+const DYNAMIC_SCROLLBAR_STATE = /:(?:horizontal|vertical|decrement|increment|start|end|double-button|single-button|no-button|corner-present|window-inactive|hover|active|enabled|disabled)\b/i;
+
+/**
+ * Identify scrollbar pseudo kinds whose final style depends on an anonymous
+ * instance state that stable CDP cannot query. This is detection only: the
+ * capture path never tries to replay the author cascade. A matching part is
+ * retained as a same-frame owner-only crop instead.
+ */
+export function dynamicScrollbarPseudoKindsFromCss(
+  styleSheetTexts: readonly string[],
+): Set<ControlPseudoKind> {
+  const result = new Set<ControlPseudoKind>();
+  const pseudo = /::-webkit-scrollbar(?:-track-piece|-button|-thumb|-track|-corner)?/gi;
+  for (const rawText of styleSheetTexts) {
+    const text = rawText.replace(/\/\*[\s\S]*?\*\//g, "");
+    for (const block of text.matchAll(/([^{}]+)\{/g)) {
+      const selectorText = block[1] ?? "";
+      for (const match of selectorText.matchAll(pseudo)) {
+        const suffix = selectorText.slice((match.index ?? 0) + match[0].length);
+        if (!DYNAMIC_SCROLLBAR_STATE.test(suffix)) continue;
+        const normalized = match[0].toLowerCase();
+        const kind = normalized.endsWith("-track-piece") ? "scrollbar-track-piece"
+          : normalized.endsWith("-button") ? "scrollbar-button"
+            : normalized.endsWith("-thumb") ? "scrollbar-thumb"
+              : normalized.endsWith("-track") ? "scrollbar-track"
+                : normalized.endsWith("-corner") ? "scrollbar-corner"
+                  : "scrollbar";
+        result.add(kind);
+      }
+    }
+  }
+  return result;
+}
+
 function attributesOf(node: CdpNode): Record<string, string> {
   const result: Record<string, string> = {};
   const attributes = node.attributes ?? [];
@@ -203,6 +237,37 @@ function resolvedBorder(properties: ReadonlyMap<string, string>): string {
   return `${first.width} ${first.style} ${first.color}`;
 }
 
+function resolvedNonUniformBorderSides(
+  properties: ReadonlyMap<string, string>,
+): CapturedScrollbarPseudoStyle["borderSides"] {
+  const side = (name: "top" | "right" | "bottom" | "left") => ({
+    width: propertyValue(properties, `border-${name}-width`),
+    style: propertyValue(properties, `border-${name}-style`),
+    color: propertyValue(properties, `border-${name}-color`),
+  });
+  const result = {
+    top: side("top"),
+    right: side("right"),
+    bottom: side("bottom"),
+    left: side("left"),
+  };
+  const sides = [result.top, result.right, result.bottom, result.left];
+  const first = result.top;
+  const uniform = sides.every((candidate) => (
+    candidate.width === first.width
+    && candidate.style === first.style
+    && candidate.color === first.color
+  ));
+  const hasPaint = sides.some((candidate) => (
+    candidate.width !== ""
+    && candidate.width !== "0px"
+    && candidate.style !== ""
+    && candidate.style !== "none"
+    && candidate.style !== "hidden"
+  ));
+  return !uniform && hasPaint ? result : undefined;
+}
+
 function resolvedBorderRadius(properties: ReadonlyMap<string, string>): string {
   const rawCorners = [
     propertyValue(properties, "border-top-left-radius"),
@@ -253,6 +318,7 @@ export function resolvedControlPseudoStyle(
     backgroundImage: backgroundImage === "none" ? "" : backgroundImage,
     borderRadius: resolvedBorderRadius(computed),
     border: resolvedBorder(computed),
+    borderSides: resolvedNonUniformBorderSides(computed),
     padding,
     boxShadow: boxShadow === "none" ? "" : boxShadow,
     filter: propertyValue(computed, "filter"),
@@ -454,6 +520,8 @@ export interface ResolvedPseudoStyleCapture {
   /** Expando whose entries retain pierced closed-UA-shadow decoration nodes. */
   decorationPropertyKey: string;
   stylesByHost: ResolvedControlPseudoStyles;
+  /** Author scrollbar pseudos with anonymous state-dependent final winners. */
+  dynamicScrollbarKinds: ReadonlySet<ControlPseudoKind>;
   dispose(): Promise<void>;
 }
 
@@ -473,7 +541,16 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
   const hostIdsByNode = new Map<number, string>();
   const hostObjectIdsByNode = new Map<number, string>();
   const hostObjectIds = new Set<string>();
+  const authorStyleSheetIds = new Set<string>();
   let nextHostId = 1;
+
+  session.on("CSS.styleSheetAdded", (event: unknown) => {
+    if (event == null || typeof event !== "object" || !("header" in event)) return;
+    const header = (event as { header?: { styleSheetId?: string; origin?: string } }).header;
+    if (header?.styleSheetId != null && header.origin !== "user-agent") {
+      authorStyleSheetIds.add(header.styleSheetId);
+    }
+  });
 
   const ensureHost = async (nodeId: number, knownObjectId?: string): Promise<string> => {
     const existing = hostIdsByNode.get(nodeId);
@@ -673,10 +750,20 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
     throw error;
   }
 
+  const authorStyleSheetTexts = await Promise.all([...authorStyleSheetIds].map(async (styleSheetId) => {
+    try {
+      return (await session.send("CSS.getStyleSheetText", { styleSheetId })).text;
+    } catch {
+      return "";
+    }
+  }));
+  const dynamicScrollbarKinds = dynamicScrollbarPseudoKindsFromCss(authorStyleSheetTexts);
+
   return {
     propertyKey,
     decorationPropertyKey,
     stylesByHost,
+    dynamicScrollbarKinds,
     async dispose(): Promise<void> {
       await Promise.all([...hostObjectIds].map(async (objectId) => {
         await session.send("Runtime.callFunctionOn", {

@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex-dm2479",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt46bcypuruvtljq",
+          "message": {
+            "text": "Select the positioning and painting rectangles before invoking ordinary URL tile construction. Lowering every captured attachment route to one scroll-space tile call prevents fixed/local geometry from being transformed or offset twice and deliberately leaves DM-2478's tile-size/repeat math isolated.",
+            "markdown": "Select the positioning and painting rectangles before invoking ordinary URL tile construction. Lowering every captured attachment route to one scroll-space tile call prevents fixed/local geometry from being transformed or offset twice and deliberately leaves DM-2478's tile-size/repeat math isolated."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/background-attachment.ts"
+                },
+                "region": {
+                  "startLine": 56,
+                  "endLine": 112,
+                  "snippet": {
+                    "text": "export function resolveBackgroundAttachment(\n  computedAttachment: string,\n  borderBox: CapturedBackgroundRect,\n  originBox: CapturedBackgroundRect,\n  clipBox: CapturedBackgroundRect,\n  geometry: CapturedBackgroundAttachmentGeometry | undefined,\n  captureViewport: { w: number; h: number },\n): ResolvedBackgroundAttachment {\n  const token = computedAttachment.trim().toLowerCase();\n  const compatible = geometry?.source === \"blink-box-background-paint-context-v1\"\n    && finiteRect(geometry.layoutViewport);\n  const canvas = compatible ? geometry.canvas : undefined;\n  const canvasPaint = { x: 0, y: 0, width: captureViewport.w, height: captureViewport.h };\n\n  if (token === \"fixed\" && compatible && geometry.fixedToViewport) {\n    return {\n      attachment: \"fixed\",\n      positioningBox: geometry.layoutViewport,\n      paintingBox: canvas == null ? clipBox : canvasPaint,\n      localOverflowClipped: false,\n    };\n  }\n\n  if (token === \"local\" && compatible && geometry.local?.active === true) {\n    const scrolledBorder = {\n      x: borderBox.x - geometry.local.scrollOffsetX,\n      y: borderBox.y - geometry.local.scrollOffsetY,\n      width: geometry.local.borderPaintWidth,\n      height: geometry.local.borderPaintHeight,\n    };\n    const positioningBox = rebaseReferenceBox(originBox, borderBox, scrolledBorder);\n    const scrolledClip = rebaseReferenceBox(clipBox, borderBox, scrolledBorder);\n    return {\n      attachment: \"local\",\n      positioningBox,\n      paintingBox: intersectBackgroundRects(scrolledClip, geometry.local.overflowClip),\n      localOverflowClipped: true,\n    };\n  }\n\n  // A transformed/will-change non-root fixed layer deliberately lands here:\n  // Blink treats it exactly as scroll. Canvas backgrounds keep the root box's\n  // stitched positioning size even though their destination covers the view.\n  if (canvas != null && finiteRect(canvas.positioningRect)) {\n    return {\n      attachment: \"scroll\",\n      positioningBox: rebaseReferenceBox(originBox, borderBox, canvas.positioningRect),\n      paintingBox: canvasPaint,\n      localOverflowClipped: false,\n    };\n  }\n  return {\n    attachment: \"scroll\",\n    positioningBox: originBox,\n    paintingBox: clipBox,\n    localOverflowClipped: false,\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/background-attachment.ts"
+                },
+                "region": {
+                  "startLine": 128
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 2169
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2479"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "5b4d77cc353f98304c3b8942db711a5d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "765f6a352dbe272c4fdf67f4f689ed646e485107",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

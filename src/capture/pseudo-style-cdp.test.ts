@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   controlPseudoKindForNode,
+  dynamicScrollbarPseudoKindsFromCss,
   hasAuthorPseudoOrigin,
   resolvedControlPseudoStyle,
 } from "./pseudo-style-cdp.js";
@@ -45,6 +46,22 @@ describe("Chromium-resolved control pseudo capture", () => {
     expect(hasAuthorPseudoOrigin(["user-agent", "user-agent"])).toBe(false);
     expect(hasAuthorPseudoOrigin(["user-agent", "regular"])).toBe(true);
     expect(hasAuthorPseudoOrigin(["injected", "user-agent"])).toBe(true);
+  });
+
+  it("detects stateful anonymous scrollbar winners without replaying their cascade", () => {
+    const kinds = dynamicScrollbarPseudoKindsFromCss([
+      `
+        .box::-webkit-scrollbar-thumb:vertical:hover { background: red }
+        .box::-webkit-scrollbar-track-piece:start { background: blue }
+        .box::-webkit-scrollbar-button:increment { display: block }
+        .box::-webkit-scrollbar-corner { background: green }
+      `,
+    ]);
+    expect([...kinds].sort()).toEqual([
+      "scrollbar-button",
+      "scrollbar-thumb",
+      "scrollbar-track-piece",
+    ]);
   });
 
   it("serializes final longhands after Blink resolves shorthand/longhand competition", () => {
@@ -125,6 +142,12 @@ describe("Chromium-resolved control pseudo capture", () => {
     expect(style.backgroundImage).toBe("");
     expect(style.boxShadow).toBe("");
     expect(style.border).toBe("");
+    expect(style.borderSides).toEqual({
+      top: { width: "1px", style: "solid", color: "red" },
+      right: { width: "0px", style: "none", color: "red" },
+      bottom: { width: "0px", style: "none", color: "red" },
+      left: { width: "0px", style: "none", color: "red" },
+    });
     expect(style.padding).toBe("0px");
   });
 });
