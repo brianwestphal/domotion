@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4abpihfbnl9gm5",
+          "message": {
+            "text": "A transformed text owner must consume Blink's transform-neutral paint bundle under one signed residual matrix. This avoids double-applying ancestor transforms and deliberately rejects singular or missing geometry instead of reviving the removed scalar compensation.",
+            "markdown": "A transformed text owner must consume Blink's transform-neutral paint bundle under one signed residual matrix. This avoids double-applying ancestor transforms and deliberately rejects singular or missing geometry instead of reviving the removed scalar compensation."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-affine.ts"
+                },
+                "region": {
+                  "startLine": 118,
+                  "endLine": 160,
+                  "snippet": {
+                    "text": "  residualMatrix?: CapturedTextPaintAffine;\n  failureReason?: string;\n}\n\n/**\n * Replace legacy mixed/post-transform text coordinates with the same-frame\n * neutral capture and return the sole residual matrix the SVG branch owns.\n */\nexport function prepareAffineTextPaint(\n  el: CapturedElement,\n  emittedCtm: CapturedTextPaintAffine | null | undefined,\n): PreparedAffineTextPaint {\n  const geometry = el.textPaintGeometry;\n  if (geometry == null) return { element: el };\n  const neutral = geometry.neutral;\n  if (neutral == null) return { element: el, failureReason: \"neutral text paint bundle unavailable\" };\n  const paintMatrix = onePaintMatrix(geometry);\n  if (paintMatrix == null) return { element: el, failureReason: \"text fragments do not share one affine paint plane\" };\n  const inverse = emittedCtm == null ? null : invertTextAffine(emittedCtm);\n  if (inverse == null) return { element: el, failureReason: \"emitted text ancestor matrix is singular\" };\n  const fragmentsBySegment = new Map(geometry.fragments.map((fragment) => [fragment.textSegmentIndex, fragment]));\n  const element: CapturedElement = {\n    ...el,\n    x: neutral.x,\n    y: neutral.y,\n    width: neutral.width,\n    height: neutral.height,\n    text: neutral.text,\n    textSegments: neutral.textSegments?.map((segment, index) => {\n      const fragment = fragmentsBySegment.get(index);\n      if (fragment == null) return { ...segment };\n      const vertical = fragment.writingMode.startsWith(\"vertical\") || fragment.writingMode.startsWith(\"sideways\");\n      return {\n        ...segment,\n        baseline: fragment.baseline,\n        inlineOffset: fragment.inlineOffset,\n        fontAscent: fragment.baseline - (vertical ? segment.x : segment.y),\n        xOffsets: vertical ? segment.xOffsets : [...fragment.shapedOrigins],\n        xAdvances: vertical ? segment.xAdvances : [...fragment.shapedAdvances],\n        yOffsets: vertical ? [...fragment.shapedOrigins] : segment.yOffsets,\n        verticalAdvances: vertical ? [...fragment.shapedAdvances] : segment.verticalAdvances,\n      };\n    }),"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ]
+          },
+          "workItemUris": [
+            "DM-2470"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "878547cc57a43555153a777d46bc1de8"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "548924f23f61b7e86719cc0b451ce2191e73b88d",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

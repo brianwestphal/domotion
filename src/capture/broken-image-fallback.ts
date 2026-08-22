@@ -16,6 +16,8 @@ import type {
   CaptureWarning,
   TextSegment,
 } from "./types.js";
+import { captureBrokenImageIconRaster } from "./broken-image-icon-raster.js";
+import { resolveCharOrientation } from "./script/walker/text-segments.js";
 
 const FEATURE = "broken-image-fallback";
 
@@ -233,12 +235,18 @@ function buildTextSegments(probe: TextProbe): TextSegment[] {
     const yOffsets: number[] = [];
     const verticalAdvances: number[] = [];
     const verticalNaturalWidths: number[] = [];
+    const verticalOrientations: Array<"upright" | "rotated"> = [];
     for (const { point, rect } of group) {
+      const effectiveOrientation = /^(?:sideways)-/.test(probe.style.writingMode)
+        ? "sideways"
+        : probe.style.textOrientation;
+      const orientation = resolveCharOrientation(point.text, effectiveOrientation) as "upright" | "rotated";
       for (let offset = point.start; offset < point.end; offset++) {
         xOffsets.push(rect.x);
         yOffsets.push(rect.y);
         verticalAdvances.push(rect.height);
         verticalNaturalWidths.push(point.naturalAdvance);
+        verticalOrientations.push(orientation);
       }
     }
     const sidewaysLr = probe.style.writingMode === "sideways-lr";
@@ -264,6 +272,7 @@ function buildTextSegments(probe: TextProbe): TextSegment[] {
       fontAscent: probe.metrics.ascent,
       ...(vertical ? {
         verticalWritingMode: probe.style.writingMode,
+        verticalOrientations,
         yOffsets,
         verticalAdvances,
         verticalNaturalWidths,
@@ -328,6 +337,7 @@ async function readTextProbe(
             whiteSpace: style.whiteSpace,
             direction: style.direction,
             writingMode: style.writingMode,
+            textOrientation: style.textOrientation,
           },
           metrics: {
             ascent: metrics.fontBoundingBoxAscent,
@@ -575,6 +585,13 @@ export async function captureBrokenImageFallbackFacts(
           bottom: numberStyle(containerStyle, "padding-bottom"),
           left: numberStyle(containerStyle, "padding-left"),
         };
+        const iconRaster = iconVisible ? await captureBrokenImageIconRaster(page, session, {
+          sourceNodeKey,
+          sourceNodeIndex,
+          iconBackendNodeId: iconNode.backendNodeId,
+          iconRect: iconBox!.rect,
+          viewport,
+        }) : undefined;
         const record: CapturedBrokenImageFallback = {
           schemaVersion: 1,
           authority: "chromium-ua-shadow-v1",
@@ -609,6 +626,7 @@ export async function captureBrokenImageFallbackFacts(
             cssHeight: numberStyle(iconStyle, "height"),
             devicePixelRatio: await page.evaluate(() => devicePixelRatio),
             resourceScale: await page.evaluate(() => devicePixelRatio >= 2 ? 2 as const : 1 as const),
+            raster: iconRaster,
           },
           text,
           accessibility,

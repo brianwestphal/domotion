@@ -1429,59 +1429,6 @@ export function mergeFeatureLists(a: string[] | undefined, b: string[] | undefin
 }
 
 /**
- * DM-680: anisotropic-ancestor scale correction. When the element sits inside
- * a `transform: scale(sx, sy)` with sx ≠ sy, the capture script already
- * folded the geometric mean of (sx, sy) into fontSize / fontAscent / fontDescent
- * — that produces correct glyph metrics for the uniform / isotropic case but
- * leaves an axis ratio still to apply (Chrome paints glyphs into post-transform
- * device space, where width scales by sx and height by sy independently). Wrap
- * the text emission in a per-axis correction `<g transform=...>` pivoted around
- * the text origin so the net visual scale is exactly (sx, sy).
- *
- * DM-822: callers that emit per-char positions FROM CAPTURED xOffsets must
- * also call `anisotropicCorrectionXOffsets` to pre-divide those xOffsets by
- * (cx, cy). The captured xOffsets are post-transform (= native_x × sx)
- * already; without the pre-division, the wrap's outer scale multiplies them
- * a second time and inter-glyph spacing comes out 1.5×–2× too wide on
- * fixtures like `21-deep-anisotropic-scale`'s `scale(1.6, 0.7)` box. The
- * per-axis (cx, cy) factors are `sx/geo` and `sy/geo` so that geo×cx == sx
- * exactly; dividing xOffsetsRel by cx (which is what the wrap is about to
- * multiply by) is the exact inverse and leaves the post-wrap glyph
- * positions equal to the captured xOffsets.
- */
-function getAnisotropicCorrectionFactors(el: { cumScaleX?: number; cumScaleY?: number }): { cx: number; cy: number } | null {
-  const sx = el.cumScaleX;
-  const sy = el.cumScaleY;
-  if (sx == null || sy == null || sx === sy) return null;
-  const geo = Math.sqrt(sx * sy);
-  if (geo === 0) return null;
-  const cx = sx / geo;
-  const cy = sy / geo;
-  if (Math.abs(cx - 1) < 1e-4 && Math.abs(cy - 1) < 1e-4) return null;
-  return { cx, cy };
-}
-
-function anisotropicCorrectionXOffsets(el: { cumScaleX?: number; cumScaleY?: number }, xOffsetsRel: number[] | undefined): number[] | undefined {
-  if (xOffsetsRel == null) return xOffsetsRel;
-  const f = getAnisotropicCorrectionFactors(el);
-  if (f == null) return xOffsetsRel;
-  // xOffsetsRel is in user-space, relative to the text origin (the wrap's
-  // pivot). Dividing by cx pre-shrinks the inter-glyph spacing so that the
-  // wrap's scale(cx, cy) multiplies it back to the captured xOffsets.
-  return xOffsetsRel.map((v) => v / f.cx);
-}
-
-function anisotropicCorrectionWrap(el: { cumScaleX?: number; cumScaleY?: number; textLeft?: number; textTop?: number; x: number; y: number }, body: string): string {
-  const f = getAnisotropicCorrectionFactors(el);
-  if (f == null) return body;
-  // Pivot around the text origin so the correction stretches glyphs in place
-  // rather than translating the whole block.
-  const px = el.textLeft ?? el.x;
-  const py = el.textTop ?? el.y;
-  return `<g transform="translate(${r(px)} ${r(py)}) scale(${r(f.cx)} ${r(f.cy)}) translate(${r(-px)} ${r(-py)})">${body}</g>`;
-}
-
-/**
  * Render a single-line text element.
  */
 export function renderSingleLineText(opts: RenderTextOpts): string {
@@ -1536,9 +1483,9 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   const dir = el.styles.direction === "rtl" ? "rtl" : "ltr";
   const reordered = applyBidi(pathTextRaw, xOffsetsRelRaw, dir);
   const pathText = reordered.text;
-  // DM-822: pre-divide xOffsetsRel by cx when an anisotropic correction
-  // wrap will multiply positions on emit. No-op for uniform-scale text.
-  const xOffsetsRel = anisotropicCorrectionXOffsets(el, reordered.xOffsets);
+  // DM-2470: shaped origins stay in Blink's pre-transform plane. The caller
+  // applies the complete signed affine paint matrix to the whole text bundle.
+  const xOffsetsRel = reordered.xOffsets;
   const ffsFeatures = elementFontFeatures(el, singleSeg?.fontFamily ?? fontFamily);
   const features = mergeFeatureLists(
     mergeFeatureLists(
@@ -1659,9 +1606,9 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
       ? wrapPseudoPaintEffects(singleSeg.pseudoBox, inner)
       : inner;
   if (opts.overflowClip) {
-    return anisotropicCorrectionWrap(el, `<g clip-path="url(#${clipId})">${transformed}</g>`);
+    return `<g clip-path="url(#${clipId})">${transformed}</g>`;
   }
-  return anisotropicCorrectionWrap(el, transformed);
+  return transformed;
 }
 
 // Build the <rect> (+ optional background-image layers + per-side borders)
@@ -1814,8 +1761,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     } else {
       reordered = applyBidi(_segRaw, xOffsetsRelRaw, dir);
     }
-    // DM-822: anisotropic correction — see `anisotropicCorrectionXOffsets`.
-    const segXOffsets = anisotropicCorrectionXOffsets(el, reordered.xOffsets);
+    const segXOffsets = reordered.xOffsets;
     const segAscent = seg.fontAscent ?? el.fontAscent;
     const result = renderTextAsPath(reordered.text, seg.x, seg.y, {
       fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight, fill: segColor,
@@ -1858,9 +1804,9 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
   // element actually overflow-clips (DM-305) — see comment in
   // renderSingleLineText for why an unconditional clip is wrong.
   if (opts.overflowClip) {
-    return anisotropicCorrectionWrap(el, `<g clip-path="url(#${clipId})">${parts.join("\n")}</g>`);
+    return `<g clip-path="url(#${clipId})">${parts.join("\n")}</g>`;
   }
-  return anisotropicCorrectionWrap(el, parts.join("\n"));
+  return parts.join("\n");
 }
 
 /**
@@ -1896,8 +1842,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
     for (const seg of el.textSegments) {
       const xOffsetsRelRaw = seg.xOffsets != null ? seg.xOffsets.map((v) => v - seg.x) : undefined;
       const reordered = applyBidi(suppressGlyphChars(seg.text, seg), xOffsetsRelRaw, dir);
-      // DM-822: anisotropic correction — see `anisotropicCorrectionXOffsets`.
-      const segXOffsets = anisotropicCorrectionXOffsets(el, reordered.xOffsets);
+      const segXOffsets = reordered.xOffsets;
       const segFontSize = seg.fontSize ?? fontSize;
       const segFontWeight = seg.fontWeight ?? fontWeight;
       const segColor = seg.color ?? fillColor;
@@ -1931,7 +1876,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
     }
   }
   parts.push("</g>");
-  return anisotropicCorrectionWrap(el, parts.join("\n"));
+  return parts.join("\n");
 }
 
 /**
@@ -1992,7 +1937,7 @@ export function renderInputText(opts: RenderTextOpts): string {
       });
       segParts.push(segResult);
     }
-    if (segParts.length > 0) return anisotropicCorrectionWrap(el, `<g clip-path="url(#${clipId})">${segParts.join("")}</g>`);
+    if (segParts.length > 0) return `<g clip-path="url(#${clipId})">${segParts.join("")}</g>`;
   }
   const result = renderTextAsPath(el.text, textX, tt, {
     fontSize, fontFamily, fontWeight: textFontWeight, fill: textColor,
@@ -2006,5 +1951,5 @@ export function renderInputText(opts: RenderTextOpts): string {
   // overflow the visible width (common on readonly inputs with long text or
   // any input narrower than its value) are truncated like Chrome paints
   // them, not extending past the right border. DM-245.
-  return anisotropicCorrectionWrap(el, `<g clip-path="url(#${clipId})">${result}</g>`);
+  return `<g clip-path="url(#${clipId})">${result}</g>`;
 }

@@ -777,12 +777,12 @@
       ],
       "exactStates": [
         "identity -> affine",
+        "local text -> transformed text",
+        "affine -> projective",
         "border-box -> fill-box",
         "unzoomed -> zoomed"
       ],
       "uncoveredStates": [
-        "local text -> transformed text",
-        "affine -> projective",
         "flat -> preserve-3d",
         "static -> animated"
       ],
@@ -800,6 +800,7 @@
         "src/capture/index.ts",
         "src/capture/types.ts",
         "src/capture/script/walker/transforms.ts",
+        "src/render/text-affine.ts",
         "src/render/text.ts",
         "src/render/transforms.ts",
         "src/render/culling-geometry.ts",
@@ -809,6 +810,7 @@
       ],
       "oracles": [
         "tests/text-paint-geometry.e2e.test.ts",
+        "tests/text-affine-render.e2e.test.ts",
         "tools/transform-geometry-oracle.ts",
         "tools/text-transform-geometry-audit.ts",
         "tools/animated-culling-geometry-oracle.ts",
@@ -817,6 +819,7 @@
       ],
       "metamorphicTests": [
         "src/capture/text-fragment-geometry.test.ts",
+        "src/render/text-affine.test.ts",
         "src/render/projective-transform.test.ts",
         "src/stacking-context.test.ts",
         "src/capture/perspective-ownership.e2e.test.ts",
@@ -832,7 +835,7 @@
         "tests/features.ts#perspective-fixed-containing-block-ownership"
       ],
       "coverage": "partial",
-      "boundary": "Computed perspective/origin, the non-box inline stacking/fixed-owner split, and perspective/preserve-3d fixed-containing-block ownership are source-audited and gated. DM-2469 now captures transformed text as ordered all-transform-neutral physical fragments plus complete signed live-paint matrices, with zoom retained locally, exact restoration/correlation checks, same-origin frames, and explicit outer Chromium ownership for unavailable or projective facts. The affine plane and UTF-16 shaped origins/advances are browser/protocol owned; baseline currently inherits the normal segment metric seam (explicit segment baseline, else captured ascent plus physical origin), not a separately decoded Blink fragment-baseline protocol row. DM-2470 must consume the record and delete scalar compensation; DM-2471 must add the all-platform matrix/ink gate. The animated viewBox path has source-derived function-first composed sweeps and explicit unknown retention, validated by doc 166's macOS/Linux/Windows final-SVG gate.",
+      "boundary": "Computed perspective/origin, the non-box inline stacking/fixed-owner split, and perspective/preserve-3d fixed-containing-block ownership are source-audited and gated. DM-2469 captures transformed text as ordered all-transform-neutral physical fragments plus complete signed live-paint matrices, with zoom retained locally, exact restoration/correlation checks, same-origin frames, and explicit outer Chromium ownership for unavailable or projective facts. DM-2470 consumes that neutral bundle through one signed residual matrix across every text paint branch and removes transform-derived font magnitudes, unsigned ancestor products and anisotropic correction. The affine plane and UTF-16 shaped origins/advances are browser/protocol owned; baseline still inherits the normal segment metric seam (explicit segment baseline, else captured ascent plus physical origin), not a separately decoded Blink fragment-baseline protocol row. Direct DM-2467 pseudo-record consumption remains DM-2468, and DM-2471 must add the independent all-platform matrix/ink gate. The animated viewBox path has source-derived function-first composed sweeps and explicit unknown retention, validated by doc 166's macOS/Linux/Windows final-SVG gate.",
       "featureIds": [
         "render.tree-to-svg",
         "render.cull"
@@ -945,13 +948,10 @@
         "no inline edges -> asymmetric logical margin/border/padding",
         "host text first -> child-first or child-only host",
         "DOMSnapshot fragmentainer-local -> ordered physical content quads",
-        "protocol unavailable -> fail-closed ambiguity"
+        "protocol unavailable -> fail-closed ambiguity",
+        "source-owned capture record -> direct renderer paint on macOS/Linux/Windows"
       ],
       "exactStates": [
-        "DOMSnapshot fragmentainer-local -> ordered physical content quads",
-        "protocol unavailable -> fail-closed ambiguity"
-      ],
-      "uncoveredStates": [
         "content none -> generated string",
         "baseline -> non-baseline vertical-align",
         "single line -> wrapped lines",
@@ -960,7 +960,12 @@
         "text-only -> mixed text and generated image",
         "unfragmented -> multicol fragmentation",
         "no inline edges -> asymmetric logical margin/border/padding",
-        "host text first -> child-first or child-only host"
+        "host text first -> child-first or child-only host",
+        "DOMSnapshot fragmentainer-local -> ordered physical content quads",
+        "protocol unavailable -> fail-closed ambiguity"
+      ],
+      "uncoveredStates": [
+        "source-owned capture record -> direct renderer paint on macOS/Linux/Windows"
       ],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/dom/pseudo_element.cc",
@@ -971,6 +976,9 @@
         "external/skia/src/core"
       ],
       "productionOwners": [
+        "src/capture/pseudo-fragment-protocol.ts",
+        "src/capture/pseudo-fragment-cdp.ts",
+        "src/capture/pseudo-fragment-compat.ts",
         "src/capture/script/walker/pseudo-content.ts",
         "src/capture/script/walker/pseudo-inject.ts",
         "src/capture/script/index.ts",
@@ -981,11 +989,14 @@
         "tools/pseudo-fragment-geometry-oracle.ts",
         "tools/pseudo-fragment-protocol.ts",
         "tests/pseudo-fragment-geometry-oracle.e2e.test.ts",
+        "src/capture/pseudo-fragment-cdp.e2e.test.ts",
+        "tests/pseudo-fragment-capture.e2e.test.ts",
         "tools/replaced-geometry-oracle.ts",
         "tests/generated-pseudo-layout-probe.e2e.test.ts"
       ],
       "metamorphicTests": [
         "tests/pseudo-fragment-protocol.test.ts",
+        "src/capture/pseudo-fragment-compat.test.ts",
         "tests/flex-after-pseudo-position.e2e.test.ts",
         "tests/pseudo-before-marker.e2e.test.ts"
       ],
@@ -995,7 +1006,7 @@
         "tests/features.ts#pseudo-after-down-caret-vertical-align"
       ],
       "coverage": "partial",
-      "boundary": "Docs 157/175 now provide a source-transcribed protocol decoder, 80-row live Chromium DPR matrix, and ten mutation controls for content-item identity, UTF-16/visual fragments, physical quads, fragmentainer translations, logical edges, shaped advances, and paint baselines. Production capture still uses the aggregate clone/host-anchor path until DM-2467, and the independent all-platform renderer gate remains DM-2468.",
+      "boundary": "Docs 157/175/176 provide one shared source-transcribed decoder, an 80-row live Chromium DPR matrix, ten mutation controls, and the production frame-scoped CDP capture route for content-item identity, UTF-16/visual fragments, physical quads, fragmentainer translations, logical edges, selected faces, shaped advances, and paint baselines. New live records bypass clone/host-anchor geometry and fail closed to an isolated pseudo surface; direct native-record rendering and independent all-platform pixels remain DM-2468.",
       "featureIds": [
         "render.text",
         "render.tree-to-svg"
@@ -1104,11 +1115,11 @@
         "LTR horizontal layout -> RTL or vertical fallback layout",
         "DPR below 2 -> DPR at least 2 icon resource",
         "unclipped inline fallback -> clipped replaced fallback",
-        "named image -> decorative or unnamed accessibility state"
+        "named image -> decorative or unnamed accessibility state",
+        "captured fallback facts -> hybrid SVG container, icon, and text emission"
       ],
       "uncoveredStates": [
-        "light color scheme -> dark color scheme",
-        "captured fallback facts -> hybrid SVG container, icon, and text emission"
+        "light color scheme -> dark color scheme"
       ],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/html/html_image_element.cc",
@@ -1123,21 +1134,26 @@
         "src/capture/script/index.ts",
         "src/capture/types.ts",
         "src/capture/broken-image-fallback.ts",
+        "src/capture/broken-image-icon-raster.ts",
         "src/capture/index.ts",
+        "src/render/broken-image-fallback.ts",
         "src/render/element-tree-to-svg.ts"
       ],
       "oracles": [
         "tools/replaced-geometry-oracle.ts",
         "tools/raster-boundary-oracle.ts",
-        "src/capture/broken-image-fallback.e2e.test.ts"
+        "src/capture/broken-image-fallback.e2e.test.ts",
+        "tests/broken-image-fallback-render.e2e.test.ts"
       ],
       "metamorphicTests": [
         "src/capture/broken-image-fallback.test.ts",
-        "src/capture/broken-image-fallback.e2e.test.ts"
+        "src/capture/broken-image-fallback.e2e.test.ts",
+        "src/render/broken-image-fallback.test.ts",
+        "tests/broken-image-fallback-render.e2e.test.ts"
       ],
       "visualFixtures": [],
       "coverage": "partial",
-      "boundary": "DM-2463 now captures Chromium-owned primary/loading/collapsed/empty/non-replaced/replaced disposition, pierced UA-shadow physical boxes/styles, code-point-safe hidden-text geometry and font facts, DPR resource selection, and independent AX semantics. Missing required CDP facts warn and request a classified terminal surface. DM-2464 still must replace the renderer's fixed vector mountain/raw-text heuristic with the hybrid container/icon/text emit, and DM-2465 owns icon pixels plus all-platform light/dark proof.",
+      "boundary": "DM-2463 captures Chromium-owned primary/loading/collapsed/empty/non-replaced/replaced disposition, pierced UA-shadow physical boxes/styles, code-point-safe hidden-text geometry/font facts, and AX semantics. DM-2464 reversibly isolates and fingerprints only the live DPR icon, emits captured UA border/clip vectors plus normal shaped bidi/vertical text, removes the fixed mountain/raw-text heuristic, and keeps successful/loading/hidden states negative. Missing required facts remain classified/warned. DM-2465 owns direct icon-content and macOS/Linux/Windows light/dark proof.",
       "featureIds": [
         "render.tree-to-svg"
       ],

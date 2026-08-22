@@ -1,8 +1,7 @@
 # 156 — Chromium broken-image fallback ownership audit
 
-Status: capture foundation shipped in DM-2463; hybrid rendering and the
-all-platform paint gate remain DM-2464/DM-2465. The renderer still uses the
-approximation described under **Current gap** for current serialized output.
+Status: capture foundation and hybrid rendering shipped in DM-2463/DM-2464.
+The independent macOS/Linux/Windows paint gate remains DM-2465.
 
 ## Question and evidence boundary
 
@@ -20,18 +19,17 @@ Fresh browser measurements below used Playwright Chromium 147.0.7727.15 on
 macOS at DPR 1 and 2. The source decision precedes the measurements; the probe
 only verifies that the installed browser still exposes the expected boundary.
 
-## Current gap
+## Shipped boundary and remaining gate
 
-The legacy compatibility fields still record:
+Older serialized trees may still carry the compatibility fields:
 
 - `imageBroken = el.complete && el.naturalWidth === 0`; and
 - `imageAlt = el.alt || ""`.
 
-`paintBrokenImage()` then paints an unconditional fixed 16 px gray outline and
-mountain at `(host.x + 1, host.y + 1)`. It places raw SVG `<text>` at
-`host.x + 20` with a baseline computed as
-`host.y + min(14, font-size)`. There are no focused tests for
-`imageBroken`, `imageAlt`, or `paintBrokenImage`.
+The former `paintBrokenImage()` consumed those fields to paint an unconditional
+fixed gray mountain and raw SVG `<text>`. DM-2464 removes that helper. A legacy
+broken record without the authoritative live facts now fails closed instead of
+silently reviving the source-inexact geometry or baseline.
 
 DM-2463 no longer treats those fields as capture authority. Every live
 `<img>` now receives `brokenImageFallback`: a Node/CDP post-pass pierces the
@@ -39,9 +37,17 @@ UA shadow tree while private live-node correlation exists and records the
 disposition, physical host/container/icon boxes, used styles/clip, alt/title
 presence and resolution, code-point-safe hidden-Text ranges, font metrics and
 platform fonts, DPR resource selection, and independent AX state. Missing
-required facts warn and request a classified terminal surface. The remaining
-gap is emission: `paintBrokenImage()` still consumes the compatibility fields
-until DM-2464 replaces it with the hybrid record.
+required facts warn and request a classified terminal surface.
+
+DM-2464 consumes that record through `src/render/broken-image-fallback.ts`.
+Author paint stays in the ordinary box pipeline; captured UA border and clip
+become vectors; hidden alternative-text segments use the normal shaped text
+renderer; and `src/capture/broken-image-icon-raster.ts` supplies only the
+isolated `#alttext-image` compositor pixels with PNG/decoded-RGBA fingerprints.
+The DPR-1/2 browser test pins 16×16/32×32 icon crops, 24×24/48×48 zoomed crops,
+vertical orientation, title/empty/missing states, successful-image and hidden-
+icon negatives, and one independent AX node. DM-2465 still owns the stricter
+direct icon-content comparison and macOS/Linux/Windows reports.
 
 ## Blink's decision procedure
 
@@ -285,9 +291,12 @@ The work is split so capture facts cannot be fixture-fit inside the renderer:
    accessibility facts, and fail-closed warning. Focused unit and live-browser
    tests cover standards/quirks, sizing/source states, DPR 1/2, threshold,
    direction/writing mode, zoom, title/empty/missing alt, and pipeline cleanup.
-2. **DM-2464 — render the hybrid fallback.** Remove the gray mountain and raw
-   `<text>`, keep host/container/text vector, and stamp only the exact DPR icon
-   raster.
+2. **DM-2464 — render the hybrid fallback (shipped).** The gray mountain and
+   raw `<text>` are gone. Captured container/clip geometry and shaped text stay
+   vector, while a reversible transparent-isolation pass stamps only the exact
+   live DPR icon crop. Unit activation tests and a DPR-1/2 browser render/AX
+   matrix cover LTR/RTL/vertical, title/empty/missing alt, 17/18 px, zoom,
+   author paint, clipping, successful images, and hidden icons.
 3. **DM-2465 — gate geometry and raster ownership on every platform.** Extend
    the replaced-geometry and raster-boundary oracles, then add focused visual
    fixtures and macOS/Linux/Windows reports.

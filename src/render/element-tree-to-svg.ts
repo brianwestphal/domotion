@@ -82,6 +82,12 @@ import { wrapPseudoPaintEffects } from "./pseudo-filter.js";
 import { paintCustomScrollbars, type CustomScrollbarVectorPart } from "./custom-scrollbar.js";
 import { paintNativeScrollbarRasters } from "./native-scrollbar-raster.js";
 import { resolveBackgroundAttachment } from "./background-attachment.js";
+import { renderBrokenImageFallback } from "./broken-image-fallback.js";
+import {
+  buildEmittedTextCtmMap,
+  prepareAffineTextPaint,
+  wrapAffineTextPaint,
+} from "./text-affine.js";
 
 // Public-API re-exports kept here for backward compatibility — older imports
 // from `./render/element-tree-to-svg.js` keep resolving. Internal consumers
@@ -248,6 +254,8 @@ interface PaintCtx {
   peekClipIdx(): number;
   // Advance the counter by n (after a sub-allocator consumed n ids).
   advanceClipIdx(n: number): void;
+  /** Static SVG CTM already surrounding each text branch (DM-2470). */
+  emittedTextCtm: ReturnType<typeof buildEmittedTextCtmMap>;
 }
 
 // DM-1342: explicit render-context struct threaded through the lifted render
@@ -883,7 +891,7 @@ function buildPseudoBoxBgLayers(
 // (font resolution + shaping + outline/embedded-font build + markup).
 function renderOneText(
   ctx: PaintCtx,
-  opts: { el: CapturedElement; idPrefix: string; clipId: string; fillColor: string; overflowClip?: boolean },
+  opts: { el: CapturedElement; idPrefix: string; clipId: string; fillColor: string; overflowClip?: boolean; affineMatrix?: import("../capture/types.js").CapturedTextPaintAffine },
   emit: (pb: { x: number; y: number; width: number; height: number; backgroundImage: string; borderRadius?: number }) => string,
 ): string {
   const _tText = profNow();
@@ -895,14 +903,14 @@ function renderOneText(
     // segments carry their per-char positions in `yOffsets` (not `xOffsets`)
     // and need per-char rotation for text-orientation: mixed / sideways — the
     // horizontal renderers would mis-paint them along the wrong axis.
-    if (hasVerticalSegments(opts.el)) return renderVerticalSegments(opts.el, opts.fillColor);
+    if (hasVerticalSegments(opts.el)) return wrapAffineTextPaint(opts.affineMatrix, renderVerticalSegments(opts.el, opts.fillColor));
     // DM-2417: clamp-owned source fragments must stay on their captured
     // per-line geometry even when filtering leaves exactly one segment.  The
     // single-line fallback reads the full DOM text and would resurrect hidden
     // post-clamp content.  The generated marker itself is also a segment when
     // the clamp root has no direct text of its own.
     if (opts.el.lineClampTextFragments && opts.el.textSegments != null) {
-      return renderMultiSegmentText(optsWithEmit, opts.el.textSegments);
+      return wrapAffineTextPaint(opts.affineMatrix, renderMultiSegmentText(optsWithEmit, opts.el.textSegments));
     }
     // DM-799: input/textarea dispatch must come BEFORE the multi-line branch. A
     // textarea with newline-bearing value (`\n` in `el.text`) would otherwise
@@ -910,10 +918,10 @@ function renderOneText(
     // word-wrap — Lorem-ipsum lines overflowed the textarea's right edge
     // instead of being painted from the captured `elementRaster` PNG (which
     // carries Chrome's own wrapping).
-    if (opts.el.tag === "input" || opts.el.tag === "textarea") return renderInputText(optsWithEmit);
-    if (hasMultipleSegments) return renderMultiSegmentText(optsWithEmit, opts.el.textSegments!);
-    if (isMultiLine) return renderMultiLineText(optsWithEmit);
-    return renderSingleLineText(optsWithEmit);
+    if (opts.el.tag === "input" || opts.el.tag === "textarea") return wrapAffineTextPaint(opts.affineMatrix, renderInputText(optsWithEmit));
+    if (hasMultipleSegments) return wrapAffineTextPaint(opts.affineMatrix, renderMultiSegmentText(optsWithEmit, opts.el.textSegments!));
+    if (isMultiLine) return wrapAffineTextPaint(opts.affineMatrix, renderMultiLineText(optsWithEmit));
+    return wrapAffineTextPaint(opts.affineMatrix, renderSingleLineText(optsWithEmit));
   } catch (e) {
     // DM-1713: a fontkit exception on a SINGLE element's text — a null glyph
     // outline point (`reading 'xCoordinate'`), an unsupported bitmap size
@@ -927,7 +935,7 @@ function renderOneText(
       `[element-tree-to-svg] text render failed for <${el.tag}> "${el.text.slice(0, 24)}" ` +
       `(${e instanceof Error ? e.message : String(e)}) — source-owned boundary`,
     );
-    return `<g clip-path="url(#${opts.clipId})">${renderSourceOwnedTextBoundary(el.text, "element-render-failed")}</g>`;
+    return wrapAffineTextPaint(opts.affineMatrix, `<g clip-path="url(#${opts.clipId})">${renderSourceOwnedTextBoundary(el.text, "element-render-failed")}</g>`);
   } finally {
     profAccum("text-render", profNow() - _tText);
   }
@@ -1013,6 +1021,16 @@ function paintText(
   captureViewport: { w: number; h: number },
   textBgClipFragmentFills: (string[] | null)[] = [],
 ): void {
+  const sourceEl = el;
+  const affine = prepareAffineTextPaint(el, ctx.emittedTextCtm.get(el));
+  if (affine.failureReason != null) {
+    // A present geometry record is authoritative. Re-entering the legacy
+    // post-transform DOMRect route would silently double/misapply transforms.
+    console.warn(`[element-tree-to-svg] affine text paint failed closed for <${el.tag}>: ${affine.failureReason}`);
+    return;
+  }
+  el = affine.element;
+  const affineMatrix = affine.residualMatrix;
   const paintsClampFragments = el.lineClampTextFragments === true;
   const hasCapturedClampFragment = (el.textSegments?.length ?? 0) > 0;
   if (paintsClampFragments ? hasCapturedClampFragment : el.text !== "") {
@@ -1086,7 +1104,7 @@ function paintText(
           rasterGlyphs: undefined,
         })),
       };
-      let body = renderOneText(ctx, { el: shifted, idPrefix: ctx.idPrefix, clipId: cid, fillColor: shadowFillColor }, emit);
+      let body = renderOneText(ctx, { el: shifted, idPrefix: ctx.idPrefix, clipId: cid, fillColor: shadowFillColor, affineMatrix }, emit);
       if (sh.blur > 0) {
         const stdDev = sh.blur / 2;
         const fid = ctx.nextClipId("tsh");
@@ -1130,7 +1148,7 @@ function paintText(
             // a recolored gradient-pill rect underneath the shadow.
             pseudoBox: undefined,
           };
-          let segBody = renderMultiSegmentText({ el, idPrefix: ctx.idPrefix, clipId: cid, fillColor: segShadowFill, emitPseudoBoxBgLayers: emit }, [shiftedSeg]);
+          let segBody = wrapAffineTextPaint(affineMatrix, renderMultiSegmentText({ el, idPrefix: ctx.idPrefix, clipId: cid, fillColor: segShadowFill, emitPseudoBoxBgLayers: emit }, [shiftedSeg]));
           if (sh.blur > 0) {
             const stdDev = sh.blur / 2;
             const fid = ctx.nextClipId("tssh");
@@ -1151,7 +1169,7 @@ function paintText(
     const tox = el.styles.overflowX;
     const toy = el.styles.overflowY;
     const textOverflowClip = (tox != null && tox !== "visible") || (toy != null && toy !== "visible");
-    const renderOpts = { el, idPrefix: ctx.idPrefix, clipId: cid, fillColor, overflowClip: textOverflowClip };
+    const renderOpts = { el, idPrefix: ctx.idPrefix, clipId: cid, fillColor, overflowClip: textOverflowClip, affineMatrix };
     const hasTextBgClip = textBgClipFills.some((s) => s != null);
     if (hasTextBgClip && textIsTransparent) {
       // DM-462: background-clip:text — the bg-image should fill the glyph
@@ -1176,10 +1194,10 @@ function paintText(
       // ordered by paint-order, with a transparent fill so only the stroke
       // paints.
       const maskFillEl: CapturedElement = { ...el, styles: { ...el.styles, color: "rgb(255,255,255)", webkitTextFillColor: "rgb(255,255,255)", webkitTextStrokeWidth: "0px" } };
-      const maskBody = renderOneText(ctx, { el: maskFillEl, idPrefix: ctx.idPrefix, clipId: cid, fillColor: "rgb(255,255,255)", overflowClip: textOverflowClip }, emit);
+      const maskBody = renderOneText(ctx, { el: maskFillEl, idPrefix: ctx.idPrefix, clipId: cid, fillColor: "rgb(255,255,255)", overflowClip: textOverflowClip, affineMatrix }, emit);
       const mid = ctx.nextClipId("tbgm");
       ctx.defsParts.push(
-        `<mask id="${mid}" maskUnits="userSpaceOnUse" x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}">${maskBody}</mask>`,
+        `<mask id="${mid}" maskUnits="userSpaceOnUse" x="${r(sourceEl.x)}" y="${r(sourceEl.y)}" width="${r(sourceEl.width)}" height="${r(sourceEl.height)}">${maskBody}</mask>`,
       );
       // Visible `-webkit-text-stroke` pass for gradient-filled (bg-clip:text)
       // glyphs: render the SAME text with a fully transparent fill so only the
@@ -1192,7 +1210,7 @@ function paintText(
       const bgClipStrokeW = parseFloat(el.styles.webkitTextStrokeWidth ?? "0") || 0;
       let bgClipStrokeBody = "";
       if (bgClipStrokeW > 0) {
-        bgClipStrokeBody = renderOneText(ctx, { el, idPrefix: ctx.idPrefix, clipId: cid, fillColor: "rgba(0,0,0,0)", overflowClip: textOverflowClip }, emit);
+        bgClipStrokeBody = renderOneText(ctx, { el, idPrefix: ctx.idPrefix, clipId: cid, fillColor: "rgba(0,0,0,0)", overflowClip: textOverflowClip, affineMatrix }, emit);
       }
       // Emit one masked rect per text-clipped layer, walking from BOTTOM
       // (highest li) to TOP (li = 0) so the topmost CSS layer paints last.
@@ -1208,16 +1226,16 @@ function paintText(
         // Chromium restarts an inline's bg-clip:text gradient per fragment).
         // Block elements have no per-fragment fills and keep the single rect.
         const fragFills = textBgClipFragmentFills[li];
-        if (fragFills != null && el.inlineFragments != null) {
-          for (let fi = 0; fi < el.inlineFragments.length; fi++) {
-            const fr = el.inlineFragments[fi];
+        if (fragFills != null && sourceEl.inlineFragments != null) {
+          for (let fi = 0; fi < sourceEl.inlineFragments.length; fi++) {
+            const fr = sourceEl.inlineFragments[fi];
             ctx.svgParts.push(
               `${indent}<rect x="${r(fr.x)}" y="${r(fr.y)}" width="${r(fr.width)}" height="${r(fr.height)}" fill="${fragFills[fi] ?? f}" mask="url(#${mid})" />`,
             );
           }
         } else {
           ctx.svgParts.push(
-            `${indent}<rect x="${r(el.x)}" y="${r(el.y)}" width="${r(el.width)}" height="${r(el.height)}" fill="${f}" mask="url(#${mid})" />`,
+            `${indent}<rect x="${r(sourceEl.x)}" y="${r(sourceEl.y)}" width="${r(sourceEl.width)}" height="${r(sourceEl.height)}" fill="${f}" mask="url(#${mid})" />`,
           );
         }
       }
@@ -2354,35 +2372,6 @@ function paintInlineSvg(el: CapturedElement, indent: string, allocClassPrefix?: 
   return { svg, handled: true };
 }
 
-// Broken-image fallback paint, extracted from renderElement (DM-1306, DM-1312).
-// When an <img> failed to load (or has empty src), Chrome paints a small
-// broken-image placeholder icon plus the alt text in the host font. We
-// approximate the icon with a 16x16 outlined box containing a small mountain
-// polyline and emit the alt text right after it (DM-372). Reads only el + the
-// resolved textColor + indent; appends to no shared state.
-function paintBrokenImage(el: CapturedElement, textColor: ReturnType<typeof parseColor>, indent: string): string[] {
-  const out: string[] = [];
-  const ix = el.x;
-  const iy = el.y;
-  const iconSize = 16;
-  const iconX = ix + 1;
-  const iconY = iy + 1;
-  // Icon: a rectangle with a tiny mountain inside (Chrome's broken-image icon
-  // is more elaborate but a simple framed mountain is recognizable).
-  out.push(`${indent}<rect x="${r(iconX)}" y="${r(iconY)}" width="${iconSize - 2}" height="${iconSize - 2}" fill="none" stroke="rgb(128,128,128)" stroke-width="1" />`);
-  out.push(`${indent}<polyline points="${r(iconX + 2)},${r(iconY + iconSize - 4)} ${r(iconX + 5)},${r(iconY + iconSize / 2)} ${r(iconX + 8)},${r(iconY + iconSize - 6)} ${r(iconX + 12)},${r(iconY + iconSize - 4)}" fill="none" stroke="rgb(128,128,128)" stroke-width="0.8" />`);
-  // Alt text emitted next to the icon. Use the element's font / color.
-  if (el.imageAlt != null && el.imageAlt !== "") {
-    const fontSizePx = parseFloat(el.styles.fontSize) || 14;
-    const tx = ix + iconSize + 4;
-    const ty = iy + Math.min(iconSize - 2, fontSizePx);
-    const fillCol = textColor != null ? colorStr(textColor) : "rgb(0,0,0)";
-    const escAlt = el.imageAlt.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    out.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="${r(fontSizePx)}" font-family="${esc(el.styles.fontFamily)}" fill="${fillCol}">${escAlt}</text>`);
-  }
-  return out;
-}
-
 // Inset box-shadow paint, extracted from renderElement (DM-1306) — the inset
 // counterpart to paintBoxShadow. Per CSS Backgrounds 3 6.4 / Chromium
 // BoxPainterBase::PaintInsetBoxShadow: the shadow shape is the padding box
@@ -3103,6 +3092,7 @@ function buildRenderState(
     nextClipId: (prefix) => `${idPrefix}${prefix}${clipIdx++}`,
     peekClipIdx: () => clipIdx,
     advanceClipIdx: (n) => { clipIdx += n; },
+    emittedTextCtm: buildEmittedTextCtmMap(elements),
   };
   // Form-control gradient defs (SK-1224) — renderFormControl pushes
   // <linearGradient> entries into defsParts via this context.
@@ -5297,13 +5287,21 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
     svgParts.push(`${indent}<image href="${nativeDecoration.dataUri}" x="${r(nativeDecoration.x)}" y="${r(nativeDecoration.y)}" width="${r(nativeDecoration.width)}" height="${r(nativeDecoration.height)}" preserveAspectRatio="none"/>`);
   }
 
-  // Broken-image fallback (DM-372): a placeholder icon + alt text when an
-  // <img> failed to load. See paintBrokenImage.
-  if (el.tag === "img" && el.imageBroken === true) {
-    svgParts.push(...paintBrokenImage(el, textColor, indent));
-  } else
-  // Image (<img> or <input type="image">)
-  if (el.imageSrc != null && (el.tag === "img" || (el.tag === "input" && el.styles.inputType === "image"))) {
+  // DM-2464: the authoritative live record owns failed/loading/no-source
+  // image paint. Its helper emits captured UA vectors + shaped text and only
+  // the isolated Chromium icon pixels. Old serialized `imageBroken` records
+  // deliberately fail closed instead of reviving the fixed mountain/raw-text
+  // approximation removed here.
+  const brokenFallback = renderBrokenImageFallback(el, {
+    indent,
+    idPrefix: paintCtx.idPrefix,
+    nextId: (prefix) => paintCtx.nextClipId(prefix),
+  });
+  defsParts.push(...brokenFallback.defs);
+  svgParts.push(...brokenFallback.svg);
+  if (!brokenFallback.handled && el.imageBroken !== true
+      && el.imageSrc != null
+      && (el.tag === "img" || (el.tag === "input" && el.styles.inputType === "image"))) {
     paintImage(paintCtx, el, borderRadius, corners, indent);
   }
 

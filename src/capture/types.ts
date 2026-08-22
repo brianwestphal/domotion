@@ -1,3 +1,10 @@
+import type {
+  PhysicalEdges as CapturedPseudoPhysicalEdges,
+  PseudoBoxFragment as CapturedPseudoBoxFragment,
+  PseudoContentItem as CapturedPseudoContentItem,
+  PseudoFragment as CapturedPseudoFragment,
+} from "./pseudo-fragment-protocol.js";
+
 /**
  * Capture-side types describing the serialisable element tree produced by the
  * in-page CAPTURE_SCRIPT and consumed by the Node-side renderer. These live in
@@ -331,6 +338,112 @@ export interface CapturedTextPaintGeometry {
   source: "blink-text-fragment-affine-v1";
   space: "pre-css-transform-viewport";
   fragments: CapturedTextPaintFragment[];
+  /**
+   * Same paused-frame capture with every CSS transform neutralized. DM-2470
+   * renders this complete text bundle, then applies `paintMatrix` once.  It
+   * includes pseudo/generated fragments and bitmap-candidate geometry so no
+   * branch falls back to mixed post-transform DOMRect coordinates.
+   */
+  neutral?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    text: string;
+    textSegments?: TextSegment[];
+    textTop?: number;
+    textLeft?: number;
+    textHeight?: number;
+    textWidth?: number;
+    fontAscent?: number;
+    fontDescent?: number;
+    inputXOffsets?: number[];
+  };
+}
+
+/** Browser-computed face and line metrics retained with a generated pseudo. */
+export interface CapturedPseudoTypography {
+  fontFamily: string;
+  fontSize: number;
+  paintFontSize: number;
+  fontWeight: string;
+  fontStyle: string;
+  fontStretch: string;
+  fontVariant: string;
+  fontFeatureSettings: string;
+  fontVariationSettings: string;
+  fontKerning: string;
+  lineHeight: number | "normal";
+  letterSpacing: string;
+  wordSpacing: string;
+  textOrientation: string;
+  whiteSpace: string;
+  language: string;
+  effectiveZoom: number;
+  primaryFontAscent: number;
+  primaryFontDescent: number;
+  resolvedFonts: Array<{
+    familyName: string;
+    postScriptName: string;
+    isCustomFont: boolean;
+    glyphCount: number;
+  }>;
+}
+
+/** Paint properties owned by the pseudo box rather than by its host. */
+export interface CapturedPseudoPaintStyle {
+  color: string;
+  backgroundColor: string;
+  backgroundImage: string;
+  backgroundPosition: string;
+  backgroundSize: string;
+  borderTopColor: string;
+  borderRightColor: string;
+  borderBottomColor: string;
+  borderLeftColor: string;
+  borderTopStyle: string;
+  borderRightStyle: string;
+  borderBottomStyle: string;
+  borderLeftStyle: string;
+  borderRadius: string;
+  opacity: number;
+  filter: string;
+  transform: string;
+  transformOrigin: string;
+  zIndex?: number;
+}
+
+/**
+ * DM-2467: source-owned Blink layout record for one live ::before/::after.
+ *
+ * The anonymous child boundaries and UTF-16 offsets come from one
+ * DOMSnapshot epoch; the ordered physical boxes come from the corresponding
+ * pseudo backend node. Internal host correlation ids are deliberately absent
+ * from this serialized contract.
+ */
+export interface CapturedPseudoFragmentSet {
+  source: "blink-pseudo-fragment-v1";
+  pseudo: "::before" | "::after";
+  status: "exact" | "unpainted" | "terminal-raster";
+  reason?: string;
+  writingMode: string;
+  direction: "ltr" | "rtl";
+  boxDecorationBreak: "slice" | "clone";
+  edges: {
+    border: CapturedPseudoPhysicalEdges;
+    padding: CapturedPseudoPhysicalEdges;
+    margin: CapturedPseudoPhysicalEdges;
+  };
+  contentItems: Array<CapturedPseudoContentItem & { resolvedUrl?: string }>;
+  boxFragments: CapturedPseudoBoxFragment[];
+  fragments: CapturedPseudoFragment[];
+  typography: CapturedPseudoTypography;
+  paint: CapturedPseudoPaintStyle;
+  terminalRaster?: {
+    dataUri?: string;
+    rect: { x: number; y: number; width: number; height: number };
+    isolated: true;
+  };
 }
 
 /**
@@ -1471,6 +1584,18 @@ export interface CapturedBrokenImageFallback {
     devicePixelRatio: number;
     /** LayoutImageResource::BrokenImage selects 200% at DPR >= 2. */
     resourceScale: 1 | 2;
+    /** Minimal alpha-bearing compositor crop containing only #alttext-image. */
+    raster?: {
+      source: "chromium-isolated-ua-shadow-icon-v1";
+      dataUri: string;
+      /** Capture-local, viewport-clipped SVG destination for this crop. */
+      rect: { x: number; y: number; width: number; height: number };
+      pixelWidth: number;
+      pixelHeight: number;
+      pngSha256: string;
+      /** Fingerprint of decoded RGBA bytes, independent of PNG metadata. */
+      rgbaSha256: string;
+    };
   };
   text?: {
     value: string;
@@ -1503,6 +1628,8 @@ export interface CapturedBrokenImageFallback {
       whiteSpace: string;
       direction: string;
       writingMode: string;
+      /** Computed CSS orientation used to classify each vertical glyph. */
+      textOrientation: string;
     };
     fontMetrics: {
       ascent: number;
@@ -1528,6 +1655,8 @@ export interface CapturedBrokenImageFallback {
   terminalRaster?: {
     rect: { x: number; y: number; width: number; height: number };
     reason: string;
+    /** Optional whole-fallback compositor payload; absence remains fail-closed. */
+    dataUri?: string;
   };
   /** Private live-DOM correlation consumed and deleted by the CDP post-pass. */
   sourceNodeIndex?: number;
@@ -1705,6 +1834,13 @@ export interface CapturedElement {
    */
   markerFirstLineDy?: number;
   markerFirstLineHeight?: number;
+  /**
+   * Source-owned live Chromium geometry for generated ::before/::after
+   * fragments. Legacy pseudoImages/textSegments/pseudoBoxes remain a separate
+   * serialized-tree compatibility projection; they are not geometry authority
+   * for records present here.
+   */
+  pseudoFragments?: CapturedPseudoFragmentSet[];
   /** ::before / ::after pseudo-element image content (content: url(...)). */
   pseudoImages?: Array<{
     url: string;
@@ -1854,18 +1990,6 @@ export interface CapturedElement {
    * successfully captured transparent result from a failed screenshot.
    */
   urlFilterRaster?: { x: number; y: number; width: number; height: number; token?: string; dataUri?: string; empty?: boolean };
-  /**
-   * DM-680: per-axis cumulative ancestor scale, present ONLY when the element
-   * sits inside an anisotropically scaled subtree (e.g. `transform: scale(1.3,
-   * 0.8)`). The geometric mean is already folded into fontSize / fontAscent /
-   * fontDescent at capture time — these fields drive a per-axis correction
-   * `<g transform="scale(cx, cy)">` around the text emission so glyphs render
-   * with the same width / height stretch Chrome paints. Absent when the
-   * cumulative scale is isotropic (uniform scale, or no scale) — the
-   * geometric-mean handling already produces a faithful result there.
-   */
-  cumScaleX?: number;
-  cumScaleY?: number;
   /**
    * For <canvas> / <video> / <iframe> / <object> / <embed>: a viewport-relative
    * content-box rect (border-box minus border + padding) that

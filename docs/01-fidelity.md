@@ -118,14 +118,14 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 - [x] `<img>` with src/width/height
 - [x] object-fit (fill/contain/cover/none/scale-down) + object-position → exact Chromium concrete object rectangle (including arbitrary percentages and computed `calc()` lengths)
 - [x] `<picture>`/`srcset` → captured as the resolved `<img currentSrc>`
-- [~] broken-image fallback — currently approximated by a fixed gray 16 px
-  framed-mountain plus raw SVG text. This is not Chromium's paint: Blink lays
-  out a UA-shadow fallback container, shapes alt/title text through its normal
-  font pipeline, and paints a bundled DPR-selected bitmap icon. Missing/empty
-  alt, intrinsic dimensions, the 18 px threshold, RTL/vertical writing,
-  border/padding, clipping, zoom, and accessibility semantics are not yet
-  source-exact. The audited hybrid boundary and implementation sequence are in
-  [doc 156](156-broken-image-fallback-ownership-audit.md).
+- [~] broken-image fallback — the live Chromium UA-shadow record now drives a
+  hybrid result: author and UA container/clip paint stay vector, alt/title text
+  uses the ordinary shaped text route, and only the isolated DPR-selected icon
+  is raster. The fixed gray mountain/raw-text approximation is removed.
+  DPR 1/2, the 17/18 px threshold, LTR/RTL/vertical writing, zoom, author paint,
+  clipping, title/empty/missing alt, successful/hidden negatives, and AX are
+  covered locally; [doc 156](156-broken-image-fallback-ownership-audit.md)
+  retains DM-2465's independent macOS/Linux/Windows proof as the remaining gate.
 - [x] `<svg>` inline content (passed through verbatim)
 
 ### Form controls

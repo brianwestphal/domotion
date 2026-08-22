@@ -27,6 +27,8 @@ import { ensureSessionGenericFamilyOverrides } from "./generic-font-probe.js";
 import { primeBackgroundImageSizing } from "./background-image-sizing.js";
 import { captureBrokenImageFallbackFacts } from "./broken-image-fallback.js";
 import { prepareTextPaintGeometry } from "./text-paint-geometry-cdp.js";
+import { preparePseudoFragmentGeometry } from "./pseudo-fragment-cdp.js";
+import { projectPseudoFragmentCompatibility } from "./pseudo-fragment-compat.js";
 import { clipRectForScreenshot } from "./clip-rect.js";
 import {
   isNonAffineProjectiveQuad,
@@ -1559,6 +1561,7 @@ export async function captureElementTreeWithWarnings(
   let effectiveAppearance: Awaited<ReturnType<typeof captureEffectiveAppearanceFacts>> | undefined;
   let scrollbarCapture: Awaited<ReturnType<typeof prepareCapturedScrollbarSets>> | undefined;
   let projectiveProbe: ProjectivePaintProbe | undefined;
+  let pseudoFragmentProbe: Awaited<ReturnType<typeof preparePseudoFragmentGeometry>> | undefined;
   let textPaintProbe: Awaited<ReturnType<typeof prepareTextPaintGeometry>> | undefined;
   let result: unknown;
   try {
@@ -1569,6 +1572,7 @@ export async function captureElementTreeWithWarnings(
       sourceImagePath: opts?.rasterizeFromImagePath,
     });
     projectiveProbe = await measureProjectivePaintQuads(page, selector, viewport);
+    pseudoFragmentProbe = await preparePseudoFragmentGeometry(page, selector, viewport);
     const captureArgs = {
       sel: selector,
       vp: viewport,
@@ -1583,6 +1587,7 @@ export async function captureElementTreeWithWarnings(
       sk: scrollbarCapture.propertyKey,
       pq: projectiveProbe.facts,
       pqk: projectiveProbe.key,
+      pgk: pseudoFragmentProbe.key,
     };
     textPaintProbe = await prepareTextPaintGeometry(
       page,
@@ -1600,7 +1605,7 @@ export async function captureElementTreeWithWarnings(
       tgk: textPaintProbe.key,
     })})`);
   } finally {
-    await textPaintProbe?.dispose();
+    await pseudoFragmentProbe?.dispose();
     await scrollbarCapture?.dispose();
     await effectiveAppearance?.dispose();
     await maskIntrinsicPrime.dispose();
@@ -1613,9 +1618,12 @@ export async function captureElementTreeWithWarnings(
   const typed = result as { tree: CapturedElement[]; warnings: CaptureWarning[] };
   const warnings = typed.warnings ?? [];
   warnings.push(...(scrollbarCapture?.warnings ?? []));
+  warnings.push(...(pseudoFragmentProbe?.warnings ?? []));
   warnings.push(...(textPaintProbe?.warnings ?? []));
+  projectPseudoFragmentCompatibility(typed.tree);
   finalizeScrollbarResizerOverlap(typed.tree);
   _resetLastCaptureWarnings(warnings);
+  try {
   try {
     // DM-2455: structural hosts keep their vector box/text while one separate
     // transparent Chromium atlas supplies only the closed-shadow/native
@@ -1652,11 +1660,32 @@ export async function captureElementTreeWithWarnings(
   }
   await refineLineClampEllipsisFragments(page, typed.tree, viewport, warnings);
   await rasterizeUrlFilterSurfaces(page, typed.tree, viewport);
-  await rasterizeBitmapGlyphs(page, typed.tree, viewport);
+  if (textPaintProbe != null) {
+    // Bitmap glyphs and pseudo fallbacks belong to the same pre-transform
+    // plane as vector glyphs. Materialize only affine-owned candidates while
+    // the source DOM is neutral, then let the live pass handle everything
+    // without an authoritative text geometry record.
+    await textPaintProbe.withNeutralTransforms(() => rasterizeBitmapGlyphs(
+      page,
+      typed.tree,
+      viewport,
+      {
+        skipBackdropFilters: true,
+        includeElement: (element) => element.textPaintGeometry?.neutral?.textSegments != null,
+        textSegmentsFor: (element) => element.textPaintGeometry?.neutral?.textSegments,
+      },
+    ));
+  }
+  await rasterizeBitmapGlyphs(page, typed.tree, viewport, {
+    includeElement: (element) => element.textPaintGeometry?.neutral == null,
+  });
   await rasterizeReplacedElements(page, typed.tree, viewport, { sourceImagePath: opts?.rasterizeFromImagePath });
   await rasterizeMaskSources(page, typed.tree, viewport);
   await rasterizeAdvancedGradients(typed.tree, page);
   return { tree: typed.tree, warnings };
+  } finally {
+    await textPaintProbe?.dispose();
+  }
 }
 
 /**

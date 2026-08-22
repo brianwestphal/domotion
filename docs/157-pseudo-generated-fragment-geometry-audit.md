@@ -1,16 +1,16 @@
 # 157 — Generated pseudo fragment and baseline geometry audit
 
 **Ticket:** DM-2383  
-**Status:** DM-2466 protocol decoder/oracle complete (doc 175); production is unchanged pending DM-2467/2468
+**Status:** DM-2466 oracle and DM-2467 source-owned production capture complete (docs 175/176); direct record rendering remains DM-2468
 **Source pins:** Chromium `7d859f271cbda744098ac69f44978d4edfa62be3`,
 HarfBuzz `4de187dd0a915d13c976fa8bd474c084229f3aab`, and the
 Chromium-pinned Skia revision `62efacd37737505732dbe3d8daa62abd679626a1`
 
 ## Verdict
 
-Domotion does not yet have a source-exact representation of in-flow
-`::before` and `::after` content. The current code has two independent
-geometry approximations:
+Domotion now has the source-exact capture representation proposed by this
+audit. Before DM-2467, the live route had two independent geometry
+approximations:
 
 1. `pseudo-content.ts` lays out an isolated real-element clone, but keeps only
    an aggregate width and reconstructs the text origin with
@@ -34,16 +34,17 @@ expose an unambiguous mapping, capture must warn and retain the isolated
 Chromium-painted pseudo surface. It must not silently use the known-inexact
 host-anchor heuristic for a new capture.
 
-This investigation intentionally makes no production change. Follow-up work
-is dependency ordered as DM-2466 → DM-2467 → DM-2468.
+DM-2466 supplied the source-transcribed decoder and 80-row live Chromium DPR
+matrix in [doc 175](175-pseudo-fragment-protocol-oracle.md). DM-2467 now uses
+that same decoder for live frame-aware capture, selected-face/typography facts,
+exact physical baselines, and an isolated pseudo-only terminal surface; see
+[doc 176](176-source-owned-pseudo-fragment-capture.md). The aggregate paths
+below remain relevant only to old serialized captures. New live records bypass
+both heuristic walkers, then populate current renderer fields through a
+separate exact-record compatibility projection. DM-2468 still owns native
+record paint ordering and independent all-platform pixel evidence.
 
-DM-2466 is now complete. The source-transcribed decoder and its 80-row live
-Chromium DPR matrix are documented in
-[doc 175](175-pseudo-fragment-protocol-oracle.md). The production limitations
-below deliberately remain current until DM-2467 installs the record and
-DM-2468 consumes it.
-
-## Current Domotion behavior
+## Pre-DM-2467 behavior retained for legacy serialized trees
 
 ### Capture probe
 
@@ -86,14 +87,14 @@ This makes the pseudo inherit the host run's baseline even when its font,
 assumes logical order is physical order, which does not hold after bidi
 reordering or in vertical writing.
 
-### Structural limitation
+### Retired live-capture structural limitation
 
-`src/capture/script/index.ts` captures pseudo content before ordinary text and
-injects it afterward. `src/capture/types.ts` provides aggregate
-`textSegments`, `pseudoImages`, and `pseudoBoxes`, but no identity joining a
-pseudo, generated content item, line fragment, and baseline. The architecture
-therefore cannot preserve Blink's fragment tree even though Chromium can
-expose the required facts.
+Before DM-2467, `src/capture/script/index.ts` captured pseudo content before
+ordinary text and injected it afterward. The live schema now adds
+`CapturedPseudoFragmentSet`, and the synchronous walker skips both heuristic
+steps whenever the CDP prepass installed a record. The aggregate fields remain
+for legacy serialized-tree compatibility and are projected from the exact
+record for a new capture.
 
 Existing coverage does not close this gap. The generated leg in
 `tools/replaced-geometry-oracle.ts` and

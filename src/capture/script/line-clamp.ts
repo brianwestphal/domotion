@@ -253,7 +253,7 @@ const measureMarker = (doc, cs, text, writingMode, scale) => {
  * text walker; a WeakMap makes the root analysis single-shot while descendants
  * reuse the exact logical-line ownership established for their clamp root.
  */
-export const createLineClampHandler = ({ vp, measureFontMetrics, normColor, scaleMag }) => {
+export const createLineClampHandler = ({ vp, measureFontMetrics, normColor, effectiveZoomFor }) => {
   const contexts = new WeakMap();
   let probeSequence = 0;
 
@@ -289,7 +289,10 @@ export const createLineClampHandler = ({ vp, measureFontMetrics, normColor, scal
       return null;
     }
     const direction = cs.direction === 'rtl' ? 'rtl' : 'ltr';
-    const scale = scaleMag?.(el) || 1;
+    // CSS zoom belongs to Blink's local layout/metric space. CSS transforms
+    // are deliberately excluded: DM-2470 applies the signed fragment paint
+    // matrix once after the complete marker/text bundle is emitted.
+    const scale = effectiveZoomFor?.(el) || 1;
     const markerText = blinkLineClampEllipsisText(primaryFontHasEllipsis(el.ownerDocument, cs));
     const measured = measureMarker(el.ownerDocument, cs, markerText, writingMode, scale);
     const inlineStarts = clampLine.chars.map((char) => vertical ? char.top : char.left);
@@ -306,7 +309,7 @@ export const createLineClampHandler = ({ vp, measureFontMetrics, normColor, scal
       ? clampLine.chars.reduce((best, char) => (vertical ? char.top : char.left) < (vertical ? best.top : best.left) ? char : best)
       : clampLine.chars.reduce((best, char) => (vertical ? char.bottom : char.right) > (vertical ? best.bottom : best.right) ? char : best);
     const adjacentStyle = getComputedStyle(adjacent.owner);
-    const adjacentAscent = measureFontMetrics(adjacentStyle).ascent * (scaleMag?.(adjacent.owner) || 1);
+    const adjacentAscent = measureFontMetrics(adjacentStyle).ascent * (effectiveZoomFor?.(adjacent.owner) || 1);
     const rootMetrics = measureFontMetrics(cs);
     const rootAscent = rootMetrics.ascent * scale;
     const baseline = vertical

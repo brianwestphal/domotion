@@ -103,6 +103,35 @@ The affine/non-affine boundary is also covered by
 `npm run transform:geometry-oracle`, `npm run raster:boundary-oracle`, and the
 focused inline-SVG route/pixel oracle.
 
+### E7. Chromium broken-image icon
+
+Trigger: a live failed `<img>` record exposes a visible UA-shadow
+`#alttext-image`. Successful/loading images, empty-alt auto-sized images, and
+fixed fallbacks below Blink's 18 px threshold do not activate this raster.
+
+Why: Blink selects a bundled 100%/200% GRIT bitmap at DPR 1/2 and paints it as
+an ordinary image inside the fallback. Recreating the shaded page/fold/mountain
+as SVG would substitute invented geometry for Chromium-owned pixels. The rest
+of the fallback is deliberately not raster-owned: author paint and captured UA
+border/clip remain vectors, and alt/title text uses the normal shaped renderer.
+
+Capture: `src/capture/broken-image-icon-raster.ts` reversibly hides unrelated
+light-DOM paint, resolves the closed-UA-shadow icon through CDP, suppresses the
+container border/background and sibling text without changing layout, and
+takes the minimal transparent compositor crop. The record carries CSS/device
+dimensions plus SHA-256 fingerprints of both PNG bytes and decoded RGBA.
+Failure flows through DM-2463's classified terminal warning rather than a
+vector approximation.
+
+Emit: `src/render/broken-image-fallback.ts` stamps that crop at its captured,
+viewport-clipped destination and tags it as the 1× or 2× resource. It emits the
+captured container sides/clip and ordinary shaped text separately, and exposes
+the captured AX image/ignored state once. Repeated identical icon payloads may
+subsequently be hoisted into `<defs>` and referenced by `<use>`.
+
+Doc: [156-broken-image-fallback-ownership-audit.md](../156-broken-image-fallback-ownership-audit.md).
+Ticket: DM-2464; DM-2465 owns the independent all-platform content gate.
+
 ---
 
 ## CSS-feature fallbacks
@@ -317,19 +346,6 @@ Textarea soft wrapping and vertical writing modes are also **not** fallbacks.
 Current capture records their logical line/run geometry and emits vectors.
 `elementRaster` remains only so older serialized captured trees can still be
 rendered; no live capture path sets it.
-
-The broken-image placeholder is also **not yet** an emitted raster path.
-DM-2463 now inventories its capture boundary in
-`src/capture/broken-image-fallback.ts`: live UA-shadow disposition/geometry,
-hidden alternative-text/font facts, icon visibility/DPR selection, AX, and an
-explicit terminal warning record. Current emission still draws a source-inexact
-gray vector mountain and raw SVG text.
-[The Chromium ownership audit](../156-broken-image-fallback-ownership-audit.md)
-shows that the eventual faithful route is hybrid: author/container/clip and
-alternative text remain vector, while only Chromium's DPR-selected broken-image
-bitmap becomes a minimal raster `<image>`. Add that icon-level emitted-path
-entry here when DM-2464 ships; until then, describing it as a live raster
-fallback would misstate the generated SVG.
 
 These also emit `<image>` tags but **aren't fallbacks** — they're the renderer faithfully passing through an author-supplied raster:
 

@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4a26qot0czbnzd",
+          "message": {
+            "text": "The legacy fields are a one-way compatibility projection from the source-owned record, not a second layout authority. Skipping them outright would regress the renderer before DM-2468, while retaining pseudo-content.ts would preserve the forbidden clone and host-anchor decisions. This bridge keeps old serialized trees readable and derives new live text/image/box fields only from exact protocol geometry or the terminal raster.",
+            "markdown": "The legacy fields are a one-way compatibility projection from the source-owned record, not a second layout authority. Skipping them outright would regress the renderer before DM-2468, while retaining pseudo-content.ts would preserve the forbidden clone and host-anchor decisions. This bridge keeps old serialized trees readable and derives new live text/image/box fields only from exact protocol geometry or the terminal raster."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/pseudo-fragment-compat.ts"
+                },
+                "region": {
+                  "startLine": 139,
+                  "endLine": 149,
+                  "snippet": {
+                    "text": "export function projectPseudoFragmentCompatibility(tree: CapturedElement[]): void {\n  const visit = (elements: CapturedElement[]): void => {\n    for (const element of elements) {\n      const records = element.pseudoFragments ?? [];\n      for (const record of records.filter((row) => row.pseudo === \"::before\")) projectRecord(element, record);\n      for (const record of records.filter((row) => row.pseudo === \"::after\")) projectRecord(element, record);\n      visit(element.children ?? []);\n    }\n  };\n  visit(tree);\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "alternative-considered"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/index.ts"
+                },
+                "region": {
+                  "startLine": 675
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/176-source-owned-pseudo-fragment-capture.md"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2467"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "180d5f4c83d5367a84fb1a0cb9b4edfb"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "548924f23f61b7e86719cc0b451ce2191e73b88d",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

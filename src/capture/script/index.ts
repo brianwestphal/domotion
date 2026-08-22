@@ -107,6 +107,20 @@ const captureDocumentTree =
     var index = _textPaintElementIndexFor(el);
     return registry != null && index != null ? registry.token + ':' + index : undefined;
   }
+  // DM-2467: exact generated-content fragment records are installed by one
+  // frame-scoped CDP prepass. Presence (including a terminal-raster record)
+  // disables the legacy clone/probe path for that live host.
+  function _pseudoFragmentFactsFor(el) {
+    if (typeof args.pgk !== 'string' || args.pgk === '') return undefined;
+    var view = el.ownerDocument != null ? el.ownerDocument.defaultView : undefined;
+    var registry = view != null ? view[args.pgk] : undefined;
+    var index = registry != null && registry.indexByElement != null
+      ? registry.indexByElement.get(el)
+      : undefined;
+    return registry != null && index != null && registry.factsByElement != null
+      ? registry.factsByElement[index]
+      : undefined;
+  }
 
   // Wire up per-concern helpers. Each factory closes over its own state and
   // returns the handles captureInner / the orchestration tail call. Renamed
@@ -175,7 +189,7 @@ const captureDocumentTree =
     vp,
     measureFontMetrics: _measureFontMetrics,
     normColor,
-    scaleMag: (el) => _scaleMag(el),
+    effectiveZoomFor: (el) => _effectiveZoomFor(el),
   });
   const { captureTextSegments } = createTextSegmentsHandler({
     vp,
@@ -211,6 +225,7 @@ const captureDocumentTree =
   const captureInner = (el, cs, frozenTransform, frozenTransformOrigin) => {
     const rect = el.getBoundingClientRect();
     const _textPaintFact = _textPaintFactFor(el);
+    const _pseudoFragmentFacts = _pseudoFragmentFactsFor(el);
     let projectiveTransform;
     let projectiveHidden;
     let transformSubtreeRaster;
@@ -261,7 +276,7 @@ const captureDocumentTree =
     if (_textPaintFact != null && _textPaintFact.surfaceReason != null
       && transformSubtreeRaster == null) {
       transformSubtreeRaster = _makeTransformSubtreeRaster();
-      warn(sel, '<transform>', 'Chromium text-fragment geometry unavailable; retained one outer raster surface: '
+      warn(shortSelector(el), '<transform>', 'Chromium text-fragment geometry unavailable; retained one outer raster surface: '
         + _textPaintFact.surfaceReason);
     }
     // DM-513: when an element's rect is outside the viewport, normally skip the
@@ -502,7 +517,7 @@ const captureDocumentTree =
         if (_entry.kind === 'file-selector-button') _buttonNode = _entry.node;
         else if (_entry.kind === 'file-selector-status') _statusNode = _entry.node;
       }
-      const _paintScale = _scaleMag(el);
+      const _paintScale = _effectiveZoomFor(el);
       const _buttonRect = _buttonNode && _buttonNode.getBoundingClientRect();
       const _buttonStyle = _buttonNode && getComputedStyle(_buttonNode);
       const _buttonMetrics = _buttonStyle && _measureFontMetrics(_buttonStyle);
@@ -662,7 +677,7 @@ const captureDocumentTree =
     // DM-750: content-visibility:hidden hides the host's subtree, which
     // includes generated content from ::before / ::after. Skip the pseudo
     // capture too so the placeholder host is just an empty rect.
-    const _pcResult = _contentVisHidden
+    const _pcResult = _contentVisHidden || Array.isArray(_pseudoFragmentFacts)
       ? { pseudoSegments: [], pseudoBoxes: [] }
       : capturePseudoContent(el, cs, rect, _counterSnapshot);
     const pseudoSegments = _pcResult.pseudoSegments;
@@ -729,9 +744,11 @@ const captureDocumentTree =
     // place; returns the new pseudoImages + updated text-shaping locals
     // (pseudos can override the host's textLeft/Top/Width/Height when
     // they're the only segment — DM-495).
-    const _pi = injectPseudoSegments(el, pseudoSegments, textSegments, {
-      text, textLeft, textTop, textWidth, textHeight, fontAscent,
-    });
+    const _pi = Array.isArray(_pseudoFragmentFacts)
+      ? { pseudoImages: [], text, textLeft, textTop, textWidth, textHeight, fontAscent }
+      : injectPseudoSegments(el, pseudoSegments, textSegments, {
+        text, textLeft, textTop, textWidth, textHeight, fontAscent,
+      });
     const pseudoImages = _pi.pseudoImages;
     text = _pi.text;
     textLeft = _pi.textLeft;
@@ -746,7 +763,6 @@ const captureDocumentTree =
     // metrics (initial-letter and other synthetic rows) when their logical-size
     // value does not match the segment's own canvas face.
     var _segmentZoom = _effectiveZoomFor(el);
-    var _segmentTransformScale = _segmentZoom !== 0 ? _scaleMag(el) / _segmentZoom : _scaleMag(el);
     for (const _seg of textSegments) {
       var _segLogicalSize = _seg.fontSize ?? parseFloat(cs.fontSize);
       if (!isFinite(_segLogicalSize) || _segLogicalSize <= 0) continue;
@@ -758,8 +774,9 @@ const captureDocumentTree =
       };
       var _segLogicalMetrics = _measureFontMetrics(_segMetricStyle);
       var _segComputedMetrics = _measureFontMetrics(_segMetricStyle, (_segLogicalSize * _segmentZoom).toFixed(4) + 'px');
-      if (_seg.fontAscent === _segLogicalMetrics.ascent) _seg.fontAscent = _segComputedMetrics.ascent * _segmentTransformScale;
-      if (_seg.fontDescent === _segLogicalMetrics.descent) _seg.fontDescent = _segComputedMetrics.descent * _segmentTransformScale;
+      if (_seg.fontAscent === _segLogicalMetrics.ascent) _seg.fontAscent = _segComputedMetrics.ascent;
+      if (_seg.fontDescent === _segLogicalMetrics.descent) _seg.fontDescent = _segComputedMetrics.descent;
+      if (_seg.fontSize != null) _seg.fontSize = _segLogicalSize * _segmentZoom;
     }
 
     let textImageUri = undefined;
@@ -1081,21 +1098,13 @@ const captureDocumentTree =
         whiteSpace: cs.whiteSpace,
         textTransform: cs.textTransform,
         color: normColor(cs.color),
-        // DM-587: live-rect capture records text bboxes at scaled (live)
-        // viewport coords, but `cs.fontSize` and `canvas.measureText` are in
-        // CSS px (unscaled). Multiply by the cumulative ancestor scale so
-        // the renderer's text-Y math (baseline = top + ascent) lands the
-        // baseline inside the scaled bbox — without this, glyphs inside e.g.
-        // a `transform: scale(0.7)` container overflow their captured cell
-        // and escape per-label `overflow: hidden` clip-paths. _cumulativeScale
-        // is pre-computed in the pre-pass above. Defaults to 1 for elements
-        // outside any scaled ancestor (the common case).
+        // DM-2470: font metrics live in Blink's pre-transform plane. Effective
+        // CSS zoom is layout-local and is crossed here exactly once; the later
+        // signed CSS transform is carried solely by textPaintGeometry.
         fontSize: (function() {
           var _fs = parseFloat(cs.fontSize);
           if (!isFinite(_fs)) return cs.fontSize;
-          var _s = _scaleMag(el);
-          if (_s === 1) return cs.fontSize;
-          return (_fs * _s).toFixed(4) + 'px';
+          return (_fs * _effectiveZoomFor(el)).toFixed(4) + 'px';
         })(),
         fontLogicalSize: cs.fontSize,
         fontComputedSize: (function() {
@@ -1204,7 +1213,9 @@ const captureDocumentTree =
       projectiveTransform,
       projectiveHidden,
       transformSubtreeRaster,
-      children, imageSrc, imageIntrinsic, imageBroken, imageAlt, brokenImageFallback, svgContent, pseudoImages,
+      children, imageSrc, imageIntrinsic, imageBroken, imageAlt, brokenImageFallback, svgContent,
+      pseudoFragments: Array.isArray(_pseudoFragmentFacts) ? _pseudoFragmentFacts : undefined,
+      pseudoImages,
       pseudoBoxes: pseudoBoxes.length > 0 ? pseudoBoxes : undefined,
       // SK-1115: ::marker pseudo styles plus list-marker intrinsic dims and
       // list-item index — see walker/lists-counters.ts.
@@ -1226,21 +1237,21 @@ const captureDocumentTree =
         var _logical = parseFloat(cs.fontSize);
         var _zoom = _effectiveZoomFor(el);
         var _computed = _logical * _zoom;
-        if (!isFinite(_computed) || _zoom === 0) return fontAscent * _scaleMag(el);
+        if (!isFinite(_computed) || _zoom === 0) return fontAscent;
         // Pseudo/input walkers may have supplied metrics for a style other
         // than this host element. Preserve that source and only apply the
-        // established paint scale when it does not match the host metric.
-        if (fontAscent !== _measureFontMetrics(cs).ascent) return fontAscent * _scaleMag(el);
-        return _measureFontMetrics(cs, _computed.toFixed(4) + 'px').ascent * (_scaleMag(el) / _zoom);
+        // established local metric when it does not match the host metric.
+        if (fontAscent !== _measureFontMetrics(cs).ascent) return fontAscent;
+        return _measureFontMetrics(cs, _computed.toFixed(4) + 'px').ascent;
       })(),
       fontDescent: (function() {
         if (fontDescent == null) return fontDescent;
         var _logical = parseFloat(cs.fontSize);
         var _zoom = _effectiveZoomFor(el);
         var _computed = _logical * _zoom;
-        if (!isFinite(_computed) || _zoom === 0) return fontDescent * _scaleMag(el);
-        if (fontDescent !== _measureFontMetrics(cs).descent) return fontDescent * _scaleMag(el);
-        return _measureFontMetrics(cs, _computed.toFixed(4) + 'px').descent * (_scaleMag(el) / _zoom);
+        if (!isFinite(_computed) || _zoom === 0) return fontDescent;
+        if (fontDescent !== _measureFontMetrics(cs).descent) return fontDescent;
+        return _measureFontMetrics(cs, _computed.toFixed(4) + 'px').descent;
       })(),
       inputXOffsets,
       textImageUri, textImageScale,
@@ -1370,18 +1381,6 @@ const captureDocumentTree =
         height: rect.height,
         token: urlFilterRasterToken,
       },
-      // DM-680: per-axis cumulative ancestor scale, exposed ONLY when
-      // anisotropic (sx ≠ sy within a small epsilon). The geometric mean is
-      // already folded into fontSize / fontAscent / fontDescent above, so
-      // the renderer's text-emission path only needs to apply a per-axis
-      // correction transform when the two axes diverge. Emitting these on
-      // every transformed element would add noise to the captured tree.
-      ...(function () {
-        const _s = _scaleXY(el);
-        const _sx = _s[0], _sy = _s[1];
-        if (Math.abs(_sx - _sy) > 1e-4) return { cumScaleX: _sx, cumScaleY: _sy };
-        return {};
-      })(),
     };
     // Elements that fragment into multiple paint boxes need per-fragment
     // paint of background + border, not a single rect covering the bbox
@@ -1839,8 +1838,7 @@ const captureDocumentTree =
   // Deliberately a SEPARATE implementation from the outer inline loops rather
   // than a shared refactor: the outer path is the hot path every fixture
   // exercises, so we leave it byte-identical and isolate the inner-iframe code
-  // here. Adds inner elements to `_fixedAncestors` / `_transformInfluenced` /
-  // `_cumulativeScale` (keyed by element, so no collision with outer entries),
+  // here. Adds inner elements to `_fixedAncestors` / `_transformInfluenced`,
   // snapshots inner counters into `_counterSnapshot`, and folds the iframe's own
   // `@counter-style` rules into `_counterStyles`. Runs with `vp` already shifted
   // to the iframe's space so the cull tests use the real painted region.
@@ -1869,21 +1867,6 @@ const captureDocumentTree =
       _transformInfluenced.add(tel);
       var tdescs = tel.getElementsByTagName('*');
       for (var td = 0; td < tdescs.length; td++) _transformInfluenced.add(tdescs[td]);
-    }
-    // cumulative ancestor scale (transform: scale / zoom) — DM-587 / DM-680 /
-    // DM-755. Document order = parents before children, so each element sees
-    // its (inner) parent's already-folded scale.
-    for (var s = 0; s < allEls.length; s++) {
-      var sel2 = allEls[s];
-      var cumX = 1, cumY = 1;
-      var pe = sel2.parentElement;
-      if (pe != null && _cumulativeScale.has(pe)) { var p = _cumulativeScale.get(pe); cumX = p[0]; cumY = p[1]; }
-      var ownCs = getComputedStyle(sel2);
-      var ownT = ownCs.transform;
-      if (ownT != null && ownT !== 'none' && ownT !== '') { var own = _computeOwnScale(ownT); cumX *= own[0]; cumY *= own[1]; }
-      var ownZ = parseFloat(ownCs.zoom);
-      if (Number.isFinite(ownZ) && ownZ > 0 && ownZ !== 1) { cumX *= ownZ; cumY *= ownZ; }
-      if (cumX !== 1 || cumY !== 1) _cumulativeScale.set(sel2, [cumX, cumY]);
     }
     // CSS counters + @counter-style for the inner document.
     _counterPreWalk(rootEl);
@@ -2111,31 +2094,9 @@ const captureDocumentTree =
     for (let _aj = 0; _aj < _adescs.length; _aj++) _animInfluenced.add(_adescs[_aj]);
   }
 
-  // DM-587: every element's cumulative ancestor scale. The live-rect capture
-  // model records every rect in scaled (live) viewport coords — but text
-  // metrics from `getComputedStyle.fontSize` and `canvas.measureText` are in
-  // CSS px (unscaled). Inside a `transform: scale(0.7)` container, glyphs
-  // would be painted at full CSS size into a scaled-down captured bbox,
-  // overflowing it. Pre-compute the cumulative scale here so the captureInner
-  // pass can multiply font-size + font-ascent + font-descent at capture time.
-  // Walk top-down so each element sees its ancestor's already-folded scale.
-  // For non-scale transforms (rotate, skew, perspective) we approximate by
-  // sqrt(|a*d|) which is exact for pure scale and 1 for pure rotation — the
-  // error grows for combined rotate+scale but no real-world fixture exercises
-  // that on text-bearing elements. Translations contribute scale=1.
-  // DM-680: cumulative ancestor scale is captured PER AXIS (sx, sy). The
-  // map value is `[sx, sy]`. Geometric-mean magnitude is still used to
-  // pre-scale fontSize / fontAscent / fontDescent (so the SVG re-rasterizer
-  // sees Chrome-equivalent font metrics in the common uniform case). When
-  // the scale is anisotropic (sx ≠ sy, e.g. `transform: scale(1.3, 0.8)`),
-  // we also expose `cumScaleX` / `cumScaleY` on the captured element so the
-  // renderer can wrap text in a correction `<g transform="scale(cx, cy)">`
-  // pivoted around the text origin — matching how Chrome paints glyphs
-  // into the post-transform device space with per-axis scaling.
-  const _cumulativeScale = new Map();
-  // Keep effective CSS zoom separate from transform scale. Border/outline
-  // ComputedStyle lengths need Blink's EffectiveZoom, whereas text geometry's
-  // cumulative scale intentionally includes transforms too.
+  // DM-2470: keep effective CSS zoom as a local layout/metric input. CSS
+  // transforms never enter this map; authoritative textPaintGeometry owns
+  // their complete signed affine mapping after shaping.
   const _cumulativeZoom = new Map();
   const _effectiveZoomFor = (el) => {
     if (el == null) return 1;
@@ -2147,7 +2108,10 @@ const captureDocumentTree =
     _cumulativeZoom.set(el, zoom);
     return zoom;
   };
-  const _computeOwnScale = (_tt) => {
+  // Background attachment is a separate box-paint protocol. Its live physical
+  // scroll geometry still needs pure scale magnitudes, so keep that conversion
+  // narrowly named and owned here rather than sharing it with text.
+  const _backgroundAttachmentAxisScale = (_tt) => {
     if (_tt == null || _tt === 'none' || _tt === '') return [1, 1];
     const _m2 = /^matrix\(\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)/.exec(_tt);
     let _sa = 1, _sd = 1;
@@ -2181,7 +2145,7 @@ const captureDocumentTree =
     const _effectiveTransform = composeEffectiveTransform(_style);
     const _ownScale = transformHasRotationOrSkew(_effectiveTransform)
       ? [1, 1]
-      : _computeOwnScale(_effectiveTransform);
+      : _backgroundAttachmentAxisScale(_effectiveTransform);
     const _ownZoom = parseFloat(_style.zoom);
     const _zoom = Number.isFinite(_ownZoom) && _ownZoom > 0 ? _ownZoom : 1;
     const _resolved = [
@@ -2191,48 +2155,6 @@ const captureDocumentTree =
     _backgroundAttachmentPaintScale.set(el, _resolved);
     return _resolved;
   };
-  for (let _si = 0; _si < _allEls.length; _si++) {
-    const _el = _allEls[_si];
-    let _cumX = 1, _cumY = 1;
-    const _pe = _el.parentElement;
-    if (_pe != null && _cumulativeScale.has(_pe)) {
-      const _p = _cumulativeScale.get(_pe);
-      _cumX = _p[0]; _cumY = _p[1];
-    }
-    const _ownCs = getComputedStyle(_el);
-    const _ownT = _ownCs.transform;
-    if (_ownT != null && _ownT !== 'none' && _ownT !== '') {
-      const _own = _computeOwnScale(_ownT);
-      _cumX *= _own[0]; _cumY *= _own[1];
-    }
-    // DM-755: CSS `zoom` is a legacy WebKit / IE property that Chrome still
-    // honors as a real layout-affecting scaler. `getComputedStyle().zoom`
-    // returns the resolved factor as a string ("1", "0.5", "2", "1.5" for
-    // 150%, "reset"); `getBoundingClientRect()` already includes the zoom
-    // in coordinates, but `getComputedStyle()` returns `fontSize` /
-    // `padding` etc. in PRE-zoom CSS pixels. Folding zoom into the same
-    // cumulative scale that handles `transform: scale()` re-uses the
-    // downstream `fontSize × cum` and `cumScaleX / cumScaleY` correction
-    // wrappers — text inside a `zoom: 2` box gets painted at 2× the
-    // captured font size, matching Chrome's effective paint.
-    const _ownZ = parseFloat(_ownCs.zoom);
-    if (Number.isFinite(_ownZ) && _ownZ > 0 && _ownZ !== 1) {
-      _cumX *= _ownZ; _cumY *= _ownZ;
-    }
-    if (_cumX !== 1 || _cumY !== 1) _cumulativeScale.set(_el, [_cumX, _cumY]);
-  }
-  // Helper: read the per-axis scale for an element, defaulting to [1, 1].
-  const _scaleXY = (el) => _cumulativeScale.get(el) || [1, 1];
-  // Helper: geometric-mean magnitude (the value the old single-scalar code
-  // used). Drives fontSize / fontAscent / fontDescent pre-scaling so the
-  // SVG re-rasterizer sees Chrome-equivalent font metrics in the uniform
-  // case; the renderer applies a per-axis correction transform on top when
-  // sx ≠ sy.
-  const _scaleMag = (el) => {
-    const s = _scaleXY(el);
-    return Math.sqrt(s[0] * s[1]);
-  };
-
   // CSS counters pre-walk (DM-357). Walk the document in DOM order,
   // applying counter-reset / counter-set / counter-increment per the
   // computed style of each element, and snapshot the active counter

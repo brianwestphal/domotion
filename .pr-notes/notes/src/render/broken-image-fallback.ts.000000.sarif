@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex dm2462_culling_oracle",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt49zhb1pckilrl7",
+          "message": {
+            "text": "This is a hybrid paint owner, not a whole-image snapshot: captured UA border/clip geometry is vector, alternative text goes through the ordinary shaped horizontal/vertical renderer, and only the live icon pixels cross the raster boundary. The authoritative record owns every failed/loading/collapsed decision; absent exact facts fail closed instead of reactivating the removed fixed mountain/raw-text heuristic. Captured AX is exposed on the outer replacement while the visual text subtree is hidden from AX to avoid duplicate names.",
+            "markdown": "This is a hybrid paint owner, not a whole-image snapshot: captured UA border/clip geometry is vector, alternative text goes through the ordinary shaped horizontal/vertical renderer, and only the live icon pixels cross the raster boundary. The authoritative record owns every failed/loading/collapsed decision; absent exact facts fail closed instead of reactivating the removed fixed mountain/raw-text heuristic. Captured AX is exposed on the outer replacement while the visual text subtree is hidden from AX to avoid duplicate names."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/broken-image-fallback.ts"
+                },
+                "region": {
+                  "startLine": 121,
+                  "endLine": 192,
+                  "snippet": {
+                    "text": "export function renderBrokenImageFallback(\n  el: CapturedElement,\n  options: BrokenImageFallbackRenderOptions,\n): BrokenImageFallbackRenderResult {\n  const record = el.brokenImageFallback;\n  if (el.tag !== \"img\" || record == null) return { handled: false, defs: [], svg: [] };\n\n  // A decoded primary image continues through ordinary object-fit paint.\n  if (record.disposition === \"primary\" && record.loadState === \"loaded\") {\n    return { handled: false, defs: [], svg: [] };\n  }\n  const defs: string[] = [];\n  const svg: string[] = [];\n  const { attrs, title } = accessibilityAttributes(el);\n  const prefix = `${options.indent}<g${attrs}>${title}`;\n  const suffix = \"</g>\";\n\n  if (record.captureStatus === \"terminal-raster\") {\n    // DM-2463 classifies this boundary and issues the warning. A terminal\n    // payload may be added by capture; without one, fail closed with no UA\n    // synthesis rather than resurrecting the fixed mountain/raw-text guess.\n    const raster = record.terminalRaster;\n    if (raster?.dataUri != null) {\n      svg.push(`${prefix}<image href=\"${esc(raster.dataUri)}\" x=\"${r(raster.rect.x)}\" y=\"${r(raster.rect.y)}\" width=\"${r(raster.rect.width)}\" height=\"${r(raster.rect.height)}\" preserveAspectRatio=\"none\"/>${suffix}`);\n    }\n    return { handled: true, defs, svg };\n  }\n\n  if (record.disposition === \"loading\" || record.disposition === \"collapsed\"\n      || record.disposition === \"primary\") {\n    return { handled: true, defs, svg };\n  }\n\n  const body: string[] = [];\n  const container = record.container;\n  if (container?.box != null) {\n    const sides = [\"top\", \"right\", \"bottom\", \"left\"] as const;\n    for (const side of sides) {\n      const width = container.border[side];\n      const style = container.border[`${side}Style`];\n      if (!(width > 0) || style === \"none\" || style === \"hidden\") continue;\n      body.push(`<path d=\"${quadPath(sidePolygon(container.box.border, container.box.padding, side))}\" fill=\"${esc(container.border[`${side}Color`])}\"/>`);\n    }\n  }\n\n  let contentOpen = \"\";\n  let contentClose = \"\";\n  let textClipId = \"\";\n  if (container?.overflowClip != null) {\n    textClipId = options.nextId(\"bifc\");\n    defs.push(`<clipPath id=\"${textClipId}\"><path d=\"${quadPath(container.overflowClip)}\"/></clipPath>`);\n    contentOpen = `<g clip-path=\"url(#${textClipId})\">`;\n    contentClose = \"</g>\";\n  } else {\n    // renderMultiSegmentText receives a required clip id but does not reference\n    // it while overflowClip is false.\n    textClipId = options.nextId(\"bift\");\n  }\n\n  const content: string[] = [];\n  const raster = record.icon?.raster;\n  if (record.icon?.visible === true && raster != null) {\n    content.push(`<image href=\"${esc(raster.dataUri)}\" x=\"${r(raster.rect.x)}\" y=\"${r(raster.rect.y)}\" width=\"${r(raster.rect.width)}\" height=\"${r(raster.rect.height)}\" preserveAspectRatio=\"none\" data-broken-image-icon=\"${record.icon.resourceScale}x\"/>`);\n  }\n  const text = renderFallbackText(el, options.idPrefix, textClipId);\n  // The captured AX node is authoritative for the replacement. Normal text\n  // rendering deliberately retains its own portable SVG semantics, so hide\n  // that nested visual subtree and expose exactly the source AX record above.\n  if (text !== \"\") content.push(`<g aria-hidden=\"true\" data-broken-image-text=\"vector\">${text}</g>`);\n  if (content.length > 0) body.push(`${contentOpen}${content.join(\"\")}${contentClose}`);\n  if (body.length > 0 || title !== \"\") svg.push(`${prefix}${body.join(\"\")}${suffix}`);\n  return { handled: true, defs, svg };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/broken-image-icon-raster.ts"
+                },
+                "region": {
+                  "startLine": 53
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/broken-image-fallback-render.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 103
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2464"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4253eaacdd1132b8919d612c47b92a29"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "548924f23f61b7e86719cc0b451ce2191e73b88d",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

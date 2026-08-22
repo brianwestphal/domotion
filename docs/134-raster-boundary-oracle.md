@@ -29,11 +29,10 @@ the verdict to move. Add a positive and negative row here whenever a fallback
 is introduced, retired, or changes ownership, and update
 `docs/reference/raster-image-fallback-cases.md` in the same commit.
 
-The broken-image placeholder is not one of the live raster rows because
-current emission does not raster it—it emits an inexact vector mountain. The
+The broken-image placeholder is not yet one of this oracle's live rows. The
 [ownership audit](156-broken-image-fallback-ownership-audit.md) requires only
 Chromium's 1×/2× icon pixels to cross the raster boundary; the UA container and
-alternative text stay vector. DM-2463 now captures live icon visibility and
-DPR resource selection (plus successful/loading/hidden negatives), but does
-not claim icon pixel ownership has emitted. DM-2465 adds the raster positive
-and final negatives after DM-2464 ships the hybrid path.
+alternative text stay vector. DM-2463/2464 now capture, fingerprint, and emit
+that isolated icon while successful/loading/hidden controls remain negative in
+a focused DPR-1/2 browser test. DM-2465 promotes those decisions into this
+independent activation program and adds the direct all-platform pixel gate.

@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4a26qbeok001w4",
+          "message": {
+            "text": "One immutable Blink protocol epoch now owns live generated-pseudo geometry. Per-frame private host correlation, a shared DOMSnapshot, real pseudo content quads, and the DM-2466 source transcription retain anonymous item identity and exact baselines; an unavailable or ambiguous row becomes an isolated Chromium pseudo surface instead of selecting the legacy clone/host-anchor path. Focused live coverage exercises astral UTF-16/bidi, mixed text-image-text, vertical writing, multicol fragmentation, affine quads, selected faces, same-origin frames, and forced protocol failure.",
+            "markdown": "One immutable Blink protocol epoch now owns live generated-pseudo geometry. Per-frame private host correlation, a shared DOMSnapshot, real pseudo content quads, and the DM-2466 source transcription retain anonymous item identity and exact baselines; an unavailable or ambiguous row becomes an isolated Chromium pseudo surface instead of selecting the legacy clone/host-anchor path. Focused live coverage exercises astral UTF-16/bidi, mixed text-image-text, vertical writing, multicol fragmentation, affine quads, selected faces, same-origin frames, and forced protocol failure."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/pseudo-fragment-cdp.ts"
+                },
+                "region": {
+                  "startLine": 513,
+                  "endLine": 650,
+                  "snippet": {
+                    "text": "export async function preparePseudoFragmentGeometry(\n  page: Page,\n  selector: string,\n  viewport: { x: number; y: number; width: number; height: number },\n): Promise<PseudoFragmentProbe> {\n  const key = `__domotionPseudoFragments_${Date.now()}_${Math.random().toString(36).slice(2)}`;\n  const prepared = (await Promise.all(page.frames().map((frame, index) =>\n    setupFrame(frame, selector, key, `f${index}`, frame === page.mainFrame()))))\n    .filter((row): row is PreparedFrame => row != null);\n  const candidates = prepared.flatMap((row) => row.candidates);\n  const warnings: CaptureWarning[] = [];\n  const facts = new Map<string, Record<number, CapturedPseudoFragmentSet[]>>();\n  for (const frame of prepared) facts.set(frame.token, {});\n  let session: CDPSession | undefined;\n  let playbackRate: number | undefined;\n  try {\n    session = await page.context().newCDPSession(page);\n    const contexts = await runtimeContexts(session, key);\n    // Populate stable frontend node ids so CSS.getPlatformFontsForNode can\n    // report the exact faces selected for anonymous pseudo text.\n    await session.send(\"DOM.getDocument\", { depth: -1, pierce: true });\n    await resolvePseudoNodes(session, key, prepared, contexts);\n    try {\n      await session.send(\"Animation.enable\");\n      playbackRate = (await session.send(\"Animation.getPlaybackRate\")).playbackRate;\n      await session.send(\"Animation.setPlaybackRate\", { playbackRate: 0 });\n    } catch {\n      playbackRate = undefined;\n    }\n    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));\n    const snapshot = await session.send(\"DOMSnapshot.captureSnapshot\", {\n      computedStyles: [],\n      includePaintOrder: true,\n      includeDOMRects: true,\n    }) as unknown as SnapshotResult;\n    for (const candidate of candidates) {\n      if (candidate.backendNodeId == null) {\n        const reason = \"computed generated content had no correlatable Chromium pseudo backend node\";\n        const terminalRaster = await isolatePseudoSurface(page, prepared, candidate, key, viewport).catch(() => ({\n          rect: { x: 0, y: 0, width: 0, height: 0 }, isolated: true as const,\n        }));\n        const frameFacts = facts.get(candidate.token)!;\n        (frameFacts[candidate.elementIndex] ??= []).push({\n          source: \"blink-pseudo-fragment-v1\",\n          pseudo: `::${candidate.pseudo}`,\n          status: \"terminal-raster\",\n          reason,\n          writingMode: candidate.style.writingMode,\n          direction: candidate.style.direction === \"rtl\" ? \"rtl\" : \"ltr\",\n          boxDecorationBreak: candidate.style.boxDecorationBreak === \"clone\" ? \"clone\" : \"slice\",\n          edges: { border: candidate.style.border, padding: candidate.style.padding, margin: candidate.style.margin },\n          contentItems: [], boxFragments: [], fragments: [],\n          typography: candidate.style.typography,\n          paint: candidate.style.paint,\n          terminalRaster,\n        });\n        warnings.push({\n          selector: candidate.selector,\n          feature: FEATURE,\n          detail: `${reason}; retained one isolated Chromium-painted pseudo surface`,\n        });\n        continue;\n      }\n      let rows = snapshotRows(snapshot, candidate.backendNodeId);\n      rows = await addShapedAdvances(candidate, rows, key);\n      const quads = await session.send(\"DOM.getContentQuads\", { backendNodeId: candidate.backendNodeId })\n        .then((result) => result.quads.map((value) => quad(value, viewport)))\n        .catch(() => [] as Quad[]);\n      const decoded = decodePseudoFragmentProtocol({\n        hostCorrelationId: candidate.correlationId,\n        pseudo: candidate.pseudo,\n        layoutRows: rows,\n        contentQuads: quads,\n        style: protocolStyle(candidate.style),\n      });\n      let record: CapturedPseudoFragmentSet;\n      if (decoded.status === \"exact\" || decoded.status === \"unpainted\") {\n        record = exactRecord(candidate, decoded);\n      } else {\n        const reason = decoded.reason ?? decoded.status;\n        const terminalRaster = await isolatePseudoSurface(page, prepared, candidate, key, viewport).catch(() => ({\n          rect: { x: 0, y: 0, width: 0, height: 0 }, isolated: true as const,\n        }));\n        record = {\n          source: \"blink-pseudo-fragment-v1\",\n          pseudo: `::${candidate.pseudo}`,\n          status: \"terminal-raster\",\n          reason,\n          writingMode: candidate.style.writingMode,\n          direction: candidate.style.direction === \"rtl\" ? \"rtl\" : \"ltr\",\n          boxDecorationBreak: candidate.style.boxDecorationBreak === \"clone\" ? \"clone\" : \"slice\",\n          edges: { border: candidate.style.border, padding: candidate.style.padding, margin: candidate.style.margin },\n          contentItems: [], boxFragments: [], fragments: [],\n          typography: candidate.style.typography,\n          paint: candidate.style.paint,\n          terminalRaster,\n        };\n        warnings.push({\n          selector: candidate.selector,\n          feature: FEATURE,\n          detail: `authoritative Chromium pseudo geometry unavailable (${reason}); retained one isolated Chromium-painted pseudo surface`,\n        });\n      }\n      const frameFacts = facts.get(candidate.token)!;\n      (frameFacts[candidate.elementIndex] ??= []).push(record);\n    }\n  } catch (error) {\n    for (const candidate of candidates) {\n      const reason = error instanceof Error ? error.message : String(error);\n      const terminalRaster = await isolatePseudoSurface(page, prepared, candidate, key, viewport).catch(() => ({\n        rect: { x: 0, y: 0, width: 0, height: 0 }, isolated: true as const,\n      }));\n      const frameFacts = facts.get(candidate.token)!;\n      (frameFacts[candidate.elementIndex] ??= []).push({\n        source: \"blink-pseudo-fragment-v1\",\n        pseudo: `::${candidate.pseudo}`,\n        status: \"terminal-raster\",\n        reason,\n        writingMode: candidate.style.writingMode,\n        direction: candidate.style.direction === \"rtl\" ? \"rtl\" : \"ltr\",\n        boxDecorationBreak: candidate.style.boxDecorationBreak === \"clone\" ? \"clone\" : \"slice\",\n        edges: { border: candidate.style.border, padding: candidate.style.padding, margin: candidate.style.margin },\n        contentItems: [], boxFragments: [], fragments: [],\n        typography: candidate.style.typography,\n        paint: candidate.style.paint,\n        terminalRaster,\n      });\n      warnings.push({\n        selector: candidate.selector,\n        feature: FEATURE,\n        detail: `Chromium pseudo protocol prepass failed closed (${reason}); retained one isolated Chromium-painted pseudo surface`,\n      });\n    }\n  } finally {\n    if (session != null && playbackRate != null) await session.send(\"Animation.setPlaybackRate\", { playbackRate }).catch(() => undefined);\n    await session?.send(\"Animation.disable\").catch(() => undefined);\n    await session?.detach().catch(() => undefined);\n  }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/pseudo-fragment-protocol.ts"
+                },
+                "region": {
+                  "startLine": 372
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/index.ts"
+                },
+                "region": {
+                  "startLine": 113
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2467"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4549fa8ef25ada5ebf21dd450ab75dd3"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "548924f23f61b7e86719cc0b451ce2191e73b88d",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

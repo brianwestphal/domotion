@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex dm2462_culling_oracle",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt49zhgyjub0qym2",
+          "message": {
+            "text": "The live Chromium-to-generated-SVG matrix passes at DPR 1 and 2 and pins the ownership discriminators, not just a whole-frame score: 16/32 icon pixels, 24/48 zoomed pixels, PNG/RGBA hashes, vertical UAX #50 segments, shaped-vector markers, no mountain, hidden/success negatives, and exactly one title-fallback AX image node. The broad MAE is only integration smoke; DM-2465 deliberately retains the independent three-platform direct-icon oracle.",
+            "markdown": "The live Chromium-to-generated-SVG matrix passes at DPR 1 and 2 and pins the ownership discriminators, not just a whole-frame score: 16/32 icon pixels, 24/48 zoomed pixels, PNG/RGBA hashes, vertical UAX #50 segments, shaped-vector markers, no mountain, hidden/success negatives, and exactly one title-fallback AX image node. The broad MAE is only integration smoke; DM-2465 deliberately retains the independent three-platform direct-icon oracle."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/broken-image-fallback-render.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 83,
+                  "endLine": 137,
+                  "snippet": {
+                    "text": "        expect(capture.warnings.filter(({ feature }) => feature === \"broken-image-fallback\")).toEqual([]);\n        const images = flatten(capture.tree).filter((node) => node.tag === \"img\");\n        expect(images).toHaveLength(11);\n        const records = images.map((image) => image.brokenImageFallback!);\n        const visibleIcons = records.filter((record) => record.icon?.visible === true);\n        const hiddenIcons = records.filter((record) => record.icon?.visible === false);\n        expect(visibleIcons.length).toBeGreaterThan(5);\n        expect(visibleIcons.every((record) => record.icon?.raster?.source === \"chromium-isolated-ua-shadow-icon-v1\")).toBe(true);\n        expect(visibleIcons.every((record) => record.icon?.raster?.rgbaSha256.length === 64)).toBe(true);\n        expect(visibleIcons.every((record) => record.icon?.raster?.pngSha256.length === 64)).toBe(true);\n        const ltr = records.find((record) => record.source.resolvedText === \"A😀 fallback\")!;\n        expect(ltr.icon?.resourceScale).toBe(dpr === 1 ? 1 : 2);\n        expect(ltr.icon?.raster).toMatchObject({ pixelWidth: 16 * dpr, pixelHeight: 16 * dpr });\n        const zoom = records.find((record) => record.source.resolvedText === \"Zoom\")!;\n        expect(zoom.icon?.raster).toMatchObject({ pixelWidth: 24 * dpr, pixelHeight: 24 * dpr });\n        expect(hiddenIcons.every((record) => record.icon?.raster == null)).toBe(true);\n        const ordinary = records.find((record) => record.loadState === \"loaded\")!;\n        expect(ordinary).toMatchObject({ disposition: \"primary\", paintOwnership: \"none\" });\n        expect(ordinary.icon).toBeUndefined();\n\n        const svg = elementTreeToSvg(capture.tree, WIDTH, HEIGHT);\n        expect(svg.match(/data-broken-image-icon=/g)).toHaveLength(visibleIcons.length);\n        expect(svg).not.toContain(\"<polyline\");\n        // The normal text route may choose outlined `<use>` glyphs or its\n        // embedded subset-font `<text>` mode. It must never emit authored\n        // alternative text in the old raw host-font element.\n        expect(svg).toMatch(/font-family=\"dmf\\d+\"/);\n        expect(svg).not.toMatch(/<text\\b[^>]*>Title fallback<\\/text>/);\n        const vectorTextRecords = records.filter((record) => (record.text?.segments.length ?? 0) > 0);\n        expect(svg.match(/data-broken-image-text=\"vector\"/g)).toHaveLength(vectorTextRecords.length);\n        // The vertical record used to disappear at renderer dispatch because\n        // its UA-shadow segments lacked per-character UAX #50 orientation.\n        expect(records.find((record) => record.source.resolvedText === \"縦書き\")?.text?.segments.every(\n          (segment) => segment.verticalOrientations != null,\n        )).toBe(true);\n        expect(svg).toContain('aria-label=\"Title fallback\"');\n        expect(svg).toContain('aria-hidden=\"true\"');\n        // The ordinary successful image remains independent of the icon\n        // payloads; image-hoisting may represent repeated icon rasters as\n        // `<use>` references, so ownership is asserted by the marker above.\n        expect(svg).toContain(GOOD);\n\n        await generated.setContent(`<style>html,body{margin:0;width:${WIDTH}px;height:${HEIGHT}px;overflow:hidden;background:white}</style>${svg}`);\n        await generated.evaluate(() => document.fonts.ready);\n        await generated.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));\n        const axSession = await generated.context().newCDPSession(generated);\n        await axSession.send(\"Accessibility.enable\");\n        const axTree = await axSession.send(\"Accessibility.getFullAXTree\");\n        const titleAx = axTree.nodes.filter((node) => node.role?.value === \"image\" && node.name?.value === \"Title fallback\");\n        expect(titleAx).toHaveLength(1);\n        const actual = await generated.screenshot();\n        // Text outlines are independently shaped by Domotion, while every icon\n        // pixel is the exact isolated Chromium crop. Keep this integration\n        // guard intentionally broad; DM-2465 owns the tight platform oracle.\n        expect(await meanAbsoluteError(expected, actual)).toBeLessThan(7);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/broken-image-icon-raster.ts"
+                },
+                "region": {
+                  "startLine": 178
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/broken-image-fallback.ts"
+                },
+                "region": {
+                  "startLine": 180
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2464"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "02584b8f2ba083d77467d1af66ea4262"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "548924f23f61b7e86719cc0b451ce2191e73b88d",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -20,7 +20,7 @@ import { existsSync } from "node:fs";
 import type { CDPSession, Page } from "@playwright/test";
 import * as fontkit from "fontkit";
 import sharp from "sharp";
-import type { CapturedElement } from "./types.js";
+import type { CapturedElement, TextSegment } from "./types.js";
 import { clipRectForScreenshot } from "./clip-rect.js";
 import { forEachElement } from "../tree-ops/for-each-element.js";
 import { planBackdropIsolation, type SnapshotNode } from "./backdrop-isolation.js";
@@ -578,8 +578,16 @@ export async function rasterizeBitmapGlyphs(
   page: Page,
   tree: CapturedElement[],
   viewport: { x: number; y: number; width: number; height: number },
+  options: {
+    /** DM-2470: backdrop surfaces are materialized only in the live pass. */
+    skipBackdropFilters?: boolean;
+    /** Select elements owned by this live or transform-neutral pass. */
+    includeElement?: (element: CapturedElement) => boolean;
+    /** Supply the authoritative segment plane for selected elements. */
+    textSegmentsFor?: (element: CapturedElement) => TextSegment[] | undefined;
+  } = {},
 ): Promise<void> {
-  await rasterizeBackdropFilters(page, tree, viewport);
+  if (options.skipBackdropFilters !== true) await rasterizeBackdropFilters(page, tree, viewport);
   // Two kinds of candidates share the pipeline:
   //  - Segment-level rasterRect (SK-1058): the whole pseudo text is a color-
   //    bitmap run; renderer emits one <image> and skips the text path.
@@ -589,6 +597,7 @@ export async function rasterizeBitmapGlyphs(
   const candidates: RasterCandidate[] = [];
   const sbixAligns: SbixAlignJob[] = [];
   forEachElement(tree, (el) => {
+      if (options.includeElement != null && !options.includeElement(el)) return;
       // Element-level raster (SK-1108): textarea content region, too
       // involved to word-wrap in the path pipeline. Key on text+size+color so
       // identical textareas dedupe to one screenshot.
@@ -612,8 +621,9 @@ export async function rasterizeBitmapGlyphs(
           setDataUri: (uri) => { er.dataUri = uri; },
         });
       }
-      if (el.textSegments != null) {
-        for (const seg of el.textSegments) {
+      const textSegments = options.textSegmentsFor?.(el) ?? el.textSegments;
+      if (textSegments != null) {
+        for (const seg of textSegments) {
           if (seg.rasterRect != null) {
             if (selectedRasterSpansForSegment(el, seg, segmentCandidates(seg.text)).length === 0) {
               seg.rasterRect = undefined;

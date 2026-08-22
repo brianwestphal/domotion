@@ -108,6 +108,7 @@
     "paint:order-oracle": "tsx tools/paint-order-oracle.ts",
     "replaced:geometry-oracle": "tsx tools/replaced-geometry-oracle.ts",
     "raster:boundary-oracle": "tsx tools/raster-boundary-oracle.ts",
+    "broken-image:hybrid-e2e": "vitest run --config vitest.e2e.config.ts src/capture/broken-image-fallback.e2e.test.ts tests/broken-image-fallback-render.e2e.test.ts",
     "fonts:macos-terminal-raster": "tsx tools/macos-terminal-raster-oracle.ts",
     "fonts:sfns-mask-baseline": "npm run build:capture-script && tsx tools/sfns-mask-baseline-oracle.ts",
     "stage:evidence:collect": "tsx tools/collect-stage-evidence.ts",

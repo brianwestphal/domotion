@@ -86,8 +86,13 @@ shortest possible map:
   matrix solving/held-out-corner and shaped-segment correlation to
   `text-fragment-geometry.ts`, then serializes `textPaintGeometry` or reserves
   one fail-closed outer transform raster. CSS zoom stays in the neutral local
-  geometry; DM-2470 is the sole consumer/removal migration for legacy scalar
-  fields (DM-2469, doc 159).
+  geometry. `render/text-affine.ts` now composes the CTM already emitted for the
+  element, swaps in that neutral text bundle, and applies exactly one signed
+  residual matrix across normal, wrapped, vertical, bitmap, decoration, shadow,
+  stroke, background-clip and input branches. The legacy transform-derived font
+  magnitude, unsigned cumulative axes and anisotropic correction are removed
+  (DM-2469/2470, docs 159/177). Direct DM-2467 pseudo-record consumption remains
+  DM-2468; an unavailable generated clamp marker retains the outer raster.
 - **`src/render/`** — pure node-side renderers that convert a captured
   element tree into SVG markup. `element-tree-to-svg.ts` is the big one;
   `culling-geometry.ts` is its fail-closed geometry preflight: it exposes the
@@ -249,12 +254,18 @@ shortest possible map:
   object-fit rectangles, control paint ownership, and generated pseudo boxes.
   The generated-pseudo structural leg is
   `tools/pseudo-fragment-geometry-oracle.ts` plus the pure
-  `tools/pseudo-fragment-protocol.ts` decoder: one pierced CDP pseudo identity
+  `src/capture/pseudo-fragment-protocol.ts` decoder (re-exported by the tool): one pierced CDP pseudo identity
   and one DOMSnapshot epoch are joined to ordered content quads, retaining
   anonymous text/image item boundaries, UTF-16 visual fragments,
   fragmentainer translations, logical slice/clone edges, shaped advances, and
-  TextFragmentPainter's writing-mode baseline transform. It is an oracle for
-  DM-2467/2468, not yet a production capture route.
+  TextFragmentPainter's writing-mode baseline transform.
+  `src/capture/pseudo-fragment-cdp.ts` is now the DM-2467 production capture
+  route: private per-frame host correlation, selected-face/typography facts,
+  exact records on `CapturedElement.pseudoFragments`, and an isolated
+  Chromium-painted pseudo surface on unavailable/ambiguous protocol geometry.
+  `src/capture/pseudo-fragment-compat.ts` separately projects that record into
+  legacy renderer fields until DM-2468 consumes it directly; the live path no
+  longer invokes clone/host-anchor pseudo geometry when a record is present.
   Dynamic replaced surfaces have a focused transform-space gate in
   `tests/replaced-snapshot-transform.e2e.test.ts`: Chromium-vs-SVG ink bounds
   for off-page/nested affine + zoom/scroll/DPR, transform-then-scrolled-ancestor-clip
@@ -265,7 +276,7 @@ shortest possible map:
   `replacedSnapshot.rasterToOutput` instead of copying live-AABB clip deltas.
   `tools/raster-boundary-oracle.ts` is the paired activation/vector gate for
   every inventoried raster fallback.
-- **Broken-image capture boundary (DM-2463 / doc 156)** —
+- **Broken-image hybrid boundary (DM-2463/DM-2464 / doc 156)** —
   `src/capture/script/index.ts` seeds alt/title presence, load facts, effective
   zoom, and private live-node correlation for every `<img>`, including
   zero-sized states. Before that registry is released,
@@ -273,11 +284,18 @@ shortest possible map:
   and attaches the six-way disposition, host/container/icon physical boxes,
   used style/clip/threshold facts, code-point-safe hidden-Text ranges, canvas
   fontBoundingBox metrics, platform fonts, DPR resource selection, and an
-  independent AX name/ignored record. Required-fact failures warn and select
-  a classified terminal surface; they never reactivate the legacy mountain.
-  `src/capture/broken-image-fallback{,.e2e}.test.ts` covers the state machine,
-  standards/quirks, DPR 1/2, text/AX, and the complete capture pipeline.
-  DM-2464 still owns consumption by the hybrid SVG emitter.
+  independent AX name/ignored record. `src/capture/broken-image-icon-raster.ts`
+  then takes a reversible transparent-isolation crop of only the live
+  `#alttext-image`, retaining DPR dimensions and PNG/decoded-RGBA fingerprints.
+  `src/render/broken-image-fallback.ts` emits captured UA border/clip vectors,
+  routes alt/title segments through the normal shaped text renderer, stamps
+  only that icon raster, and exposes the captured AX state independently.
+  Required-fact failures warn and select a classified terminal surface; they
+  never reactivate the removed legacy mountain/raw-text helper.
+  Capture/unit tests cover the state machine and source facts;
+  `tests/broken-image-fallback-render.e2e.test.ts` covers DPR-1/2 hybrid paint,
+  LTR/RTL/vertical text, zoom, threshold/hidden/success negatives, fingerprints,
+  and single-node AX exposure. DM-2465 owns the independent all-platform gate.
 - **`src/scrubber/`** — the `svg-scrubber` server + kerfjs
   page-side UI (`server.ts`, `client.tsx`, `trim.ts`): video-style
   play/scrub/range-loop/frame-export/trim for an animated SVG (doc 56), plus

@@ -2,7 +2,7 @@
 
 **Ticket:** DM-2466
 
-**Status:** structural decoder and live oracle complete; production capture and rendering intentionally unchanged
+**Status:** structural decoder/live oracle complete; DM-2467 production capture now shares the decoder (doc 176), direct rendering remains DM-2468
 
 **Source pins:** Chromium `7d859f271cbda744098ac69f44978d4edfa62be3`,
 HarfBuzz `4de187dd0a915d13c976fa8bd474c084229f3aab`, and Chromium-pinned
@@ -10,8 +10,9 @@ Skia `62efacd37737505732dbe3d8daa62abd679626a1`
 
 ## Outcome
 
-`tools/pseudo-fragment-protocol.ts` now defines the source-owned intermediate
-record proposed by doc 157. It correlates one host and pseudo type with ordered
+`src/capture/pseudo-fragment-protocol.ts` defines the source-owned intermediate
+record proposed by doc 157; `tools/pseudo-fragment-protocol.ts` is its thin
+oracle/test compatibility re-export. The decoder correlates one host and pseudo type with ordered
 generated content items, box fragments, text/image fragments, UTF-16 source
 slices, visual order, physical quads, fragmentainer translations, logical edge
 ownership, shaped inline advances, and writing-mode-aware paint baselines.
@@ -41,6 +42,13 @@ Use `-- --json <path>` to retain the complete fingerprinted record. The report
 records the browser, Playwright version, operating system, architecture, device
 scale factor, all three source pins, protocol inputs, decoded records, state
 coverage, and mutation evidence.
+
+DM-2467 subsequently installed this same decoder in the production prepass;
+[doc 176](176-source-owned-pseudo-fragment-capture.md) documents the private
+frame registries, selected-face facts, exact-record schema, legacy projection,
+and isolated Chromium surface failure boundary. The 80-row oracle remains the
+independent structural decision proof rather than being duplicated inside the
+capture implementation.
 
 ## Source-owned decoding boundary
 

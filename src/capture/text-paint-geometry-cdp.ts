@@ -41,6 +41,8 @@ interface ProbeTreeElement extends CapturedElement {
 export interface TextPaintGeometryProbe {
   key: string;
   warnings: CaptureWarning[];
+  /** Run a post-capture materializer in the same pre-transform paint plane. */
+  withNeutralTransforms<T>(work: () => Promise<T>): Promise<T>;
   dispose(): Promise<void>;
 }
 
@@ -320,6 +322,34 @@ function factsByFrame(
         })),
       );
     if (built.geometry != null) {
+      // DM-2470: retain the complete same-frame transform-neutral text bundle,
+      // not only its correlated protocol quads. Pseudos, generated fragments,
+      // decorations, raster candidates, and clips all share these coordinates
+      // and must receive the one paint matrix together.
+      built.geometry.neutral = {
+        x: neutral!.x,
+        y: neutral!.y,
+        width: neutral!.width,
+        height: neutral!.height,
+        text: neutral!.text,
+        textSegments: neutral!.textSegments?.map((segment) => ({
+          ...segment,
+          xOffsets: segment.xOffsets == null ? undefined : [...segment.xOffsets],
+          yOffsets: segment.yOffsets == null ? undefined : [...segment.yOffsets],
+          xAdvances: segment.xAdvances == null ? undefined : [...segment.xAdvances],
+          verticalAdvances: segment.verticalAdvances == null ? undefined : [...segment.verticalAdvances],
+          rasterRect: segment.rasterRect == null ? undefined : { ...segment.rasterRect },
+          rasterGlyphs: segment.rasterGlyphs?.map((glyph) => ({ ...glyph, rect: { ...glyph.rect } })),
+          pseudoBox: segment.pseudoBox == null ? undefined : { ...segment.pseudoBox },
+        })),
+        textTop: neutral!.textTop,
+        textLeft: neutral!.textLeft,
+        textHeight: neutral!.textHeight,
+        textWidth: neutral!.textWidth,
+        fontAscent: neutral!.fontAscent,
+        fontDescent: neutral!.fontDescent,
+        inputXOffsets: neutral!.inputXOffsets == null ? undefined : [...neutral!.inputXOffsets],
+      };
       frameFacts[elementIndex] = { geometry: built.geometry };
       continue;
     }
@@ -423,6 +453,16 @@ export async function prepareTextPaintGeometry(
   return {
     key,
     warnings,
+    withNeutralTransforms: async <T>(work: () => Promise<T>): Promise<T> => {
+      await mutateFrames(prepared, key, true);
+      await settleFrames(prepared);
+      try {
+        return await work();
+      } finally {
+        await mutateFrames(prepared, key, false);
+        await settleFrames(prepared);
+      }
+    },
     dispose: async () => {
       await Promise.all(prepared.map(({ frame }) => frame.evaluate((probeKey) => {
         delete (globalThis as typeof globalThis & Record<string, unknown>)[probeKey];

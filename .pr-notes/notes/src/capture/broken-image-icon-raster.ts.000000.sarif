@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex dm2462_culling_oracle",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt49zh4s2g48i4ct",
+          "message": {
+            "text": "The compositor crop is intentionally narrower than the failed image surface: Chromium remains the sole decoder/sampler for #alttext-image, while reversible light-DOM and UA-shadow isolation removes author/container/text paint without moving layout. The retained PNG and decoded-RGBA hashes make both transport bytes and actual pixels independently reviewable; any empty/uncorrelated crop throws into DM-2463's classified terminal boundary.",
+            "markdown": "The compositor crop is intentionally narrower than the failed image surface: Chromium remains the sole decoder/sampler for #alttext-image, while reversible light-DOM and UA-shadow isolation removes author/container/text paint without moving layout. The retained PNG and decoded-RGBA hashes make both transport bytes and actual pixels independently reviewable; any empty/uncorrelated crop throws into DM-2463's classified terminal boundary."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/broken-image-icon-raster.ts"
+                },
+                "region": {
+                  "startLine": 53,
+                  "endLine": 201,
+                  "snippet": {
+                    "text": "/** Capture one exact, alpha-bearing icon crop without host/text paint. */\nexport async function captureBrokenImageIconRaster(\n  page: Page,\n  session: CDPSession,\n  options: CaptureBrokenImageIconOptions,\n): Promise<CapturedBrokenImageIconRaster> {\n  const plan = planNativeControlClip(options.iconRect, options.viewport);\n  if (plan == null) throw new Error(\"visible broken-image icon is outside the capture viewport\");\n\n  const restoreKey = `__domotionBrokenIconRestore_${Date.now()}_${Math.random().toString(36).slice(2)}`;\n  let iconObjectId: string | undefined;\n  let uaRestore: unknown;\n  try {\n    const prepared = await page.evaluate(({ sourceNodeKey, sourceNodeIndex, restoreKey }) => {\n      const pageGlobal = globalThis as typeof globalThis & Record<string, unknown>;\n      const sourceNodes = pageGlobal[sourceNodeKey] as Element[] | undefined;\n      const host = sourceNodes?.[sourceNodeIndex];\n      if (!(host instanceof HTMLElement) || !host.isConnected) return false;\n      const entries: Array<{\n        element: Element & { style: CSSStyleDeclaration };\n        property: string;\n        value: string;\n        priority: string;\n      }> = [];\n      pageGlobal[restoreKey] = entries;\n\n      for (const element of Array.from(document.querySelectorAll(\"*\"))) {\n        const styled = element as Element & { style: CSSStyleDeclaration };\n        entries.push({\n          element: styled,\n          property: \"visibility\",\n          value: styled.style.getPropertyValue(\"visibility\"),\n          priority: styled.style.getPropertyPriority(\"visibility\"),\n        });\n        styled.style.setProperty(\"visibility\", \"hidden\", \"important\");\n      }\n      for (const canvas of [document.documentElement, document.body]) {\n        if (canvas == null) continue;\n        for (const property of [\"background-color\", \"background-image\"]) {\n          entries.push({\n            element: canvas,\n            property,\n            value: canvas.style.getPropertyValue(property),\n            priority: canvas.style.getPropertyPriority(property),\n          });\n          canvas.style.setProperty(property, property === \"background-color\" ? \"transparent\" : \"none\", \"important\");\n        }\n      }\n      const hostStyle = host.style;\n      const hostValues: Array<[string, string]> = [\n        [\"visibility\", \"visible\"],\n        [\"opacity\", \"1\"],\n        [\"filter\", \"none\"],\n        [\"backdrop-filter\", \"none\"],\n        [\"mix-blend-mode\", \"normal\"],\n        [\"background-color\", \"transparent\"],\n        [\"background-image\", \"none\"],\n        [\"border-top-color\", \"transparent\"],\n        [\"border-right-color\", \"transparent\"],\n        [\"border-bottom-color\", \"transparent\"],\n        [\"border-left-color\", \"transparent\"],\n        [\"border-image-source\", \"none\"],\n        [\"box-shadow\", \"none\"],\n        [\"outline\", \"none\"],\n        [\"clip-path\", \"none\"],\n        [\"mask-image\", \"none\"],\n      ];\n      for (const [property, value] of hostValues) {\n        entries.push({\n          element: host,\n          property,\n          value: hostStyle.getPropertyValue(property),\n          priority: hostStyle.getPropertyPriority(property),\n        });\n        hostStyle.setProperty(property, value, \"important\");\n      }\n      return true;\n    }, {\n      sourceNodeKey: options.sourceNodeKey,\n      sourceNodeIndex: options.sourceNodeIndex,\n      restoreKey,\n    });\n    if (!prepared) throw new Error(\"broken-image host lost live-node correlation during icon isolation\");\n\n    const resolved = await session.send(\"DOM.resolveNode\", { backendNodeId: options.iconBackendNodeId });\n    iconObjectId = resolved.object.objectId;\n    if (iconObjectId == null) throw new Error(\"broken-image icon UA node could not be resolved\");\n    const isolated = await session.send(\"Runtime.callFunctionOn\", {\n      objectId: iconObjectId,\n      returnByValue: true,\n      functionDeclaration: `function() {\n        const root = this.getRootNode();\n        const container = root && root.querySelector ? root.querySelector(\"#alttext-container\") : null;\n        const text = root && root.querySelector ? root.querySelector(\"#alttext\") : null;\n        if (!container || !text || this.id !== \"alttext-image\") {\n          throw new Error(\"broken-image UA owner identity changed during icon isolation\");\n        }\n        const entries = [];\n        const set = (element, property, value) => {\n          entries.push({ property, value: element.style.getPropertyValue(property), priority: element.style.getPropertyPriority(property), owner: element.id });\n          element.style.setProperty(property, value, \"important\");\n        };\n        set(container, \"background-color\", \"transparent\");\n        set(container, \"background-image\", \"none\");\n        set(container, \"border-top-color\", \"transparent\");\n        set(container, \"border-right-color\", \"transparent\");\n        set(container, \"border-bottom-color\", \"transparent\");\n        set(container, \"border-left-color\", \"transparent\");\n        set(container, \"box-shadow\", \"none\");\n        set(container, \"outline\", \"none\");\n        set(text, \"visibility\", \"hidden\");\n        set(this, \"visibility\", \"visible\");\n        set(this, \"opacity\", \"1\");\n        set(this, \"filter\", \"none\");\n        set(this, \"mix-blend-mode\", \"normal\");\n        set(this, \"background-color\", \"transparent\");\n        set(this, \"background-image\", \"none\");\n        return entries;\n      }`,\n    });\n    if (isolated.exceptionDetails != null) throw new Error(isolated.exceptionDetails.text);\n    uaRestore = isolated.result.value;\n\n    // Force style/paint invalidation before CopyFromSurface.\n    await page.evaluate(() => document.documentElement.getBoundingClientRect().width);\n    const png = Buffer.from(await page.screenshot({\n      clip: plan.pageClip,\n      omitBackground: true,\n      type: \"png\",\n      animations: \"allow\",\n    }));\n    const decoded = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });\n    if (decoded.info.channels !== 4 || decoded.info.width <= 0 || decoded.info.height <= 0) {\n      throw new Error(\"isolated broken-image icon crop did not decode as RGBA\");\n    }\n    let painted = false;\n    for (let offset = 3; offset < decoded.data.length; offset += 4) {\n      if (decoded.data[offset] !== 0) { painted = true; break; }\n    }\n    if (!painted) throw new Error(\"isolated broken-image icon crop contained no pixels\");\n    return {\n      source: \"chromium-isolated-ua-shadow-icon-v1\",\n      dataUri: `data:image/png;base64,${png.toString(\"base64\")}`,\n      rect: plan.output,\n      pixelWidth: decoded.info.width,\n      pixelHeight: decoded.info.height,\n      pngSha256: createHash(\"sha256\").update(png).digest(\"hex\"),\n      rgbaSha256: createHash(\"sha256\").update(decoded.data).digest(\"hex\"),\n    };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/broken-image-fallback.ts"
+                },
+                "region": {
+                  "startLine": 180
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/broken-image-fallback-render.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 89
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2464"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f59c01607396c63f8ce9edeecdd4d98b"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "548924f23f61b7e86719cc0b451ce2191e73b88d",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

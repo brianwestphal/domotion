@@ -3,7 +3,7 @@
  * DM-2381 investigation probe.
  *
  * This is deliberately observational: it proves that Chromium exposes an
- * oriented quad per text fragment, records the current scalar capture facts,
+ * oriented quad per text fragment, records the transform-local font facts,
  * and classifies affine versus projective paint. It does not change routing.
  */
 import { writeFileSync } from "node:fs";
@@ -40,8 +40,6 @@ interface CapturedFacts {
   fontPaintSize: number | null;
   paintMetricScale: number | null;
   storedTransform: string | null;
-  cumScaleX: number | null;
-  cumScaleY: number | null;
   textSegmentCount: number;
   transformRaster: boolean;
 }
@@ -174,8 +172,8 @@ function capturedFacts(tree: CapturedElement[], text: string): CapturedFacts {
   if (textOwner == null) {
     return {
       fontLogicalSize: null, fontComputedSize: null, fontPaintSize: null,
-      paintMetricScale: null, storedTransform: null, cumScaleX: null,
-      cumScaleY: null, textSegmentCount: 0, transformRaster,
+      paintMetricScale: null, storedTransform: null,
+      textSegmentCount: 0, transformRaster,
     };
   }
   const owner: CapturedElement = textOwner;
@@ -190,8 +188,6 @@ function capturedFacts(tree: CapturedElement[], text: string): CapturedFacts {
       ? fontPaintSize / fontComputedSize
       : null,
     storedTransform: owner.styles.transform ?? null,
-    cumScaleX: owner.cumScaleX ?? null,
-    cumScaleY: owner.cumScaleY ?? null,
     textSegmentCount: owner.textSegments?.length ?? 0,
     transformRaster,
   };
