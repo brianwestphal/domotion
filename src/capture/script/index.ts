@@ -337,13 +337,27 @@ const captureDocumentTree =
           cs.boxShadow != null && cs.boxShadow !== '' && cs.boxShadow !== 'none',
         )
       : 'none';
-    const _nativeDecorationKinds = _nativeControlTag
-      ? nativeControlDecorationKinds(_autoAppearanceDescriptor, _effectiveAppearance)
-      : [];
     const _nativeDecorationRefs = typeof args.ndk === 'string' && args.ndk !== ''
       && Array.isArray(el[args.ndk]) ? el[args.ndk] : [];
+    let _fileSelectorButtonAppearance;
+    for (let _fri = 0; _fri < _nativeDecorationRefs.length; _fri++) {
+      const _fileRef = _nativeDecorationRefs[_fri];
+      if (_fileRef == null || _fileRef.kind !== 'file-selector-button') continue;
+      _fileSelectorButtonAppearance = _fileRef.ownership == null
+        ? null
+        : _fileRef.ownership.effectiveAppearance;
+      break;
+    }
+    const _nativeDecorationKinds = _nativeControlTag
+      ? nativeControlDecorationKinds(
+          _autoAppearanceDescriptor,
+          _effectiveAppearance,
+          tag === 'input' && el.type === 'file' ? _fileSelectorButtonAppearance : undefined,
+        )
+      : [];
     const _nativeDecorationParts = [];
     const _missingNativeDecorationKinds = [];
+    let _nativeDecorationUnavailableReason;
     for (let _dki = 0; _dki < _nativeDecorationKinds.length; _dki++) {
       const _kind = _nativeDecorationKinds[_dki];
       if (_kind === 'menulist-button-arrow') continue;
@@ -352,6 +366,12 @@ const captureDocumentTree =
         const _entry = _nativeDecorationRefs[_dri];
         if (_entry == null || _entry.kind !== _kind || !(_entry.node instanceof Element)) continue;
         _found = true;
+        if (_kind === 'file-selector-button'
+            && (_entry.ownership == null || _entry.ownership.effectiveAppearance == null)) {
+          _nativeDecorationUnavailableReason = _entry.ownership && _entry.ownership.reason
+            ? _entry.ownership.reason
+            : 'file-selector child EffectiveAppearance unavailable';
+        }
         const _part = _entry.node;
         const _partStyle = getComputedStyle(_part);
         const _partRect = _part.getBoundingClientRect();
@@ -372,6 +392,29 @@ const captureDocumentTree =
       }
       if (!_found) _missingNativeDecorationKinds.push(_kind);
     }
+    // The file status <span> is a sibling layout/text owner, not part of the
+    // native crop. Retain its identity and quad solely so isolation can hide
+    // it reversibly while keeping the exact button visible.
+    if (_nativeDecorationKinds.indexOf('file-selector-button') >= 0) {
+      let _fileStatusFound = false;
+      for (let _dri = 0; _dri < _nativeDecorationRefs.length; _dri++) {
+        const _entry = _nativeDecorationRefs[_dri];
+        if (_entry == null || _entry.kind !== 'file-selector-status' || !(_entry.node instanceof Element)) continue;
+        _fileStatusFound = true;
+        const _statusRect = _entry.node.getBoundingClientRect();
+        if (_entry.node.isConnected && _statusRect.width >= 0 && _statusRect.height >= 0) {
+          _nativeDecorationParts.push({
+            kind: 'file-selector-status',
+            index: _dri,
+            x: _statusRect.left,
+            y: _statusRect.top,
+            width: _statusRect.width,
+            height: _statusRect.height,
+          });
+        }
+      }
+      if (!_fileStatusFound) _missingNativeDecorationKinds.push('file-selector-status');
+    }
     if (_nativeDecorationKinds.indexOf('menulist-button-arrow') >= 0) {
       let _selectInnerFound = false;
       for (let _dri = 0; _dri < _nativeDecorationRefs.length; _dri++) {
@@ -391,6 +434,93 @@ const captureDocumentTree =
         }
       }
       if (!_selectInnerFound) _missingNativeDecorationKinds.push('select-inner');
+    }
+    // FileInputType's button and filename are real closed-shadow children.
+    // Preserve their source layout/text facts independently of whether the
+    // button's own EffectiveAppearance selects native pixels or author paint.
+    // This keeps localized/multiple/long status text structural and gives the
+    // author-owned pseudo route the same physical rect as Blink.
+    let _fileSelectorCapture;
+    if (tag === 'input' && el.type === 'file') {
+      let _buttonNode;
+      let _statusNode;
+      for (let _fri = 0; _fri < _nativeDecorationRefs.length; _fri++) {
+        const _entry = _nativeDecorationRefs[_fri];
+        if (_entry == null || !(_entry.node instanceof Element)) continue;
+        if (_entry.kind === 'file-selector-button') _buttonNode = _entry.node;
+        else if (_entry.kind === 'file-selector-status') _statusNode = _entry.node;
+      }
+      const _paintScale = _scaleMag(el);
+      const _buttonRect = _buttonNode && _buttonNode.getBoundingClientRect();
+      const _buttonStyle = _buttonNode && getComputedStyle(_buttonNode);
+      const _buttonMetrics = _buttonStyle && _measureFontMetrics(_buttonStyle);
+      let _buttonTextWidth = 0;
+      if (_buttonNode && _buttonStyle) {
+        try {
+          const _buttonCanvas = document.createElement('canvas');
+          const _buttonCtx = _buttonCanvas.getContext('2d');
+          if (_buttonCtx) {
+            _buttonCtx.font = _buttonStyle.font;
+            _buttonTextWidth = _buttonCtx.measureText(
+              _buttonNode.value || _buttonNode.getAttribute('value') || '',
+            ).width * _paintScale;
+          }
+        } catch (_e) {}
+      }
+      const _statusRect = _statusNode && _statusNode.getBoundingClientRect();
+      const _statusStyle = _statusNode && getComputedStyle(_statusNode);
+      const _statusText = _statusNode && captureTextSegments(_statusNode, _statusStyle);
+      if (_statusText && Array.isArray(_statusText.textSegments)) {
+        for (let _fsi = 0; _fsi < _statusText.textSegments.length; _fsi++) {
+          const _seg = _statusText.textSegments[_fsi];
+          if (_seg.fontAscent != null) _seg.fontAscent *= _paintScale;
+          if (_seg.fontDescent != null) _seg.fontDescent *= _paintScale;
+          if (_seg.fontSize != null) _seg.fontSize *= _paintScale;
+          if (Array.isArray(_seg.verticalNaturalWidths)) {
+            _seg.verticalNaturalWidths = _seg.verticalNaturalWidths.map((_width) => _width * _paintScale);
+          }
+        }
+      }
+      _fileSelectorCapture = {
+        fileSelectorButton: _buttonRect && _buttonStyle && _buttonMetrics ? {
+          x: _buttonRect.left - vp.x,
+          y: _buttonRect.top - vp.y,
+          width: _buttonRect.width,
+          height: _buttonRect.height,
+          text: _buttonNode.value || _buttonNode.getAttribute('value') || '',
+          textWidth: _buttonTextWidth,
+          fontSize: (parseFloat(_buttonStyle.fontSize) || 0) * _paintScale,
+          fontFamily: _buttonStyle.fontFamily,
+          fontWeight: _buttonStyle.fontWeight,
+          fontStyle: _buttonStyle.fontStyle,
+          fontAscent: _buttonMetrics.ascent * _paintScale,
+          fontDescent: _buttonMetrics.descent * _paintScale,
+          color: normColor(_buttonStyle.color),
+          boxShadow: _buttonStyle.boxShadow,
+          borderRadius: _buttonStyle.borderRadius,
+          writingMode: _buttonStyle.writingMode,
+          textOrientation: _buttonStyle.textOrientation,
+          direction: _buttonStyle.direction,
+        } : undefined,
+        fileSelectorStatus: _statusRect && _statusStyle && _statusText ? {
+          x: _statusRect.left - vp.x,
+          y: _statusRect.top - vp.y,
+          width: _statusRect.width,
+          height: _statusRect.height,
+          text: _statusText.text || _statusNode.textContent || '',
+          textSegments: _statusText.textSegments,
+          fontSize: (parseFloat(_statusStyle.fontSize) || 0) * _paintScale,
+          fontFamily: _statusStyle.fontFamily,
+          fontWeight: _statusStyle.fontWeight,
+          fontStyle: _statusStyle.fontStyle,
+          fontAscent: (_statusText.fontAscent || 0) * _paintScale,
+          fontDescent: (_statusText.fontDescent || 0) * _paintScale,
+          color: normColor(_statusStyle.color),
+          writingMode: _statusStyle.writingMode,
+          textOrientation: _statusStyle.textOrientation,
+          direction: _statusStyle.direction,
+        } : undefined,
+      };
     }
     if (_nativeControlTag && _effectiveAppearance == null) {
       const _autoAppearance = _specifiedAppearance === 'auto'
@@ -803,6 +933,7 @@ const captureDocumentTree =
         // input border tinting deliberately stay inline (entangled with
         // text-shaping and border-color emission respectively).
         ...captureFormControls(el, cs, tag),
+        ..._fileSelectorCapture,
         // ComputedStyle::EffectiveAppearance after Blink's author-style
         // adjustment. This is distinct from the computed `appearance`
         // longhand and lets later decoration ownership split at the exact
@@ -1056,13 +1187,32 @@ const captureDocumentTree =
       nativeControlDecorationRaster: (function () {
         if (_nativeDecorationKinds.length === 0 || rect.width <= 0 || rect.height <= 0) return undefined;
         const rasterExpand = 1;
-        const base = {
+        const _fileButtonPart = _nativeDecorationKinds.indexOf('file-selector-button') >= 0
+          ? _nativeDecorationParts.find((_part) => _part.kind === 'file-selector-button')
+          : undefined;
+        // ThemePainter owns exactly the file button's border box. The 4px
+        // logical-end margin and filename span are separate layout/text paint;
+        // author box-shadow is likewise structural outside this source crop.
+        const base = _fileButtonPart != null ? {
+          x: _fileButtonPart.x - vp.x,
+          y: _fileButtonPart.y - vp.y,
+          width: _fileButtonPart.width,
+          height: _fileButtonPart.height,
+          kinds: _nativeDecorationKinds,
+          exactPartBox: true,
+        } : {
           x: rect.left - vp.x - rasterExpand,
           y: rect.top - vp.y - rasterExpand,
           width: rect.width + rasterExpand * 2,
           height: rect.height + rasterExpand * 2,
           kinds: _nativeDecorationKinds,
         };
+        if (_nativeDecorationUnavailableReason != null) {
+          return Object.assign(base, {
+            unavailableReason: _nativeDecorationUnavailableReason,
+            selector: sel,
+          });
+        }
         if (_missingNativeDecorationKinds.length > 0) {
           return Object.assign(base, {
             unavailableReason: 'pierced UA-shadow node missing: ' + _missingNativeDecorationKinds.join(', '),

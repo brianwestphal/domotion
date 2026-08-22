@@ -90,6 +90,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex GPT-5",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt44ihowwssil61h",
+          "message": {
+            "text": "The exact crop is safe only while both real closed-shadow siblings retain identity and geometry. Isolation hides the status span, restores the upload button's own text fill, validates closed-root ownership/quads and interaction state, and later requires complete style/node restoration; the focused browser test also proves the full-page screenshot is byte-identical before and after capture.",
+            "markdown": "The exact crop is safe only while both real closed-shadow siblings retain identity and geometry. Isolation hides the status span, restores the upload button's own text fill, validates closed-root ownership/quads and interaction state, and later requires complete style/node restoration; the focused browser test also proves the full-page screenshot is byte-identical before and after capture."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/native-control-decoration-raster.ts"
+                },
+                "region": {
+                  "startLine": 315,
+                  "endLine": 356,
+                  "snippet": {
+                    "text": "        if (row.exactPartBox) {\n          let buttonFound = false;\n          let statusFound = false;\n          for (const expected of row.parts ?? []) {\n            const entry = retained?.[expected.index];\n            const node = entry?.node;\n            if (!(node instanceof HTMLElement) || !node.isConnected || entry?.kind !== expected.kind\n                || !(node.getRootNode() instanceof ShadowRoot)\n                || (node.getRootNode() as ShadowRoot).host !== host) {\n              return { connected: true, fingerprintMatches: false, reason: `${expected.kind} identity changed` };\n            }\n            const rect = node.getBoundingClientRect();\n            if (Math.abs(rect.left - expected.x) > 0.25 || Math.abs(rect.top - expected.y) > 0.25\n                || Math.abs(rect.width - expected.width) > 0.25\n                || Math.abs(rect.height - expected.height) > 0.25) {\n              return { connected: true, fingerprintMatches: false, reason: `${expected.kind} used rect changed` };\n            }\n            if (expected.kind === \"file-selector-button\") {\n              buttonFound = true;\n              const used = getComputedStyle(node);\n              helpers.set(node, \"visibility\", \"visible\");\n              // Host text-fill is transparent only to remove the sibling\n              // filename. Restore the real child label from its own used\n              // color without altering state, font, geometry, or theme paint.\n              helpers.set(node, \"-webkit-text-fill-color\", used.color);\n            } else if (expected.kind === \"file-selector-status\") {\n              statusFound = true;\n              helpers.set(node, \"visibility\", \"hidden\");\n            }\n          }\n          if (!buttonFound || !statusFound) {\n            return { connected: true, fingerprintMatches: false, reason: \"file-selector button/status topology changed\" };\n          }\n          const initial = interactionStates[rowIndex];\n          if (initial == null || document.activeElement !== initialActiveElement\n              || host.matches(\":focus\") !== initial.focus\n              || host.matches(\":hover\") !== initial.hover\n              || host.matches(\":active\") !== initial.active) {\n            return { connected: true, fingerprintMatches: false, reason: \"file input interaction state changed during isolation\" };\n          }\n          return { connected: true, fingerprintMatches: true };\n        }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/native-control-decoration.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 42
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/index.ts"
+                },
+                "region": {
+                  "startLine": 438
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2454"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "8fa24890fadf3c105537061d75cbac91"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "09bd8134661e9f6397d3665834092e2657393186",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

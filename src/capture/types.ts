@@ -747,6 +747,46 @@ export interface CapturedStyles {
    *  Lets the renderer position the trailing 'No file chosen' placeholder at
    *  exactly Chrome's painted x rather than overestimating via a per-char ratio. */
   fileButtonLabelWidth?: number;
+  /** Real closed-shadow file upload button layout/text facts (DM-2454). */
+  fileSelectorButton?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    text: string;
+    textWidth: number;
+    fontSize: number;
+    fontFamily: string;
+    fontWeight: string;
+    fontStyle: string;
+    fontAscent: number;
+    fontDescent: number;
+    color: string;
+    boxShadow: string;
+    borderRadius: string;
+    writingMode: string;
+    textOrientation: string;
+    direction: string;
+  };
+  /** Real closed-shadow filename/status text, kept as source-shaped vectors. */
+  fileSelectorStatus?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    text: string;
+    textSegments: TextSegment[];
+    fontSize: number;
+    fontFamily: string;
+    fontWeight: string;
+    fontStyle: string;
+    fontAscent: number;
+    fontDescent: number;
+    color: string;
+    writingMode: string;
+    textOrientation: string;
+    direction: string;
+  };
   /** CSS outline (drawn outside the border-box, doesn't take layout space). */
   outlineStyle?: string;
   outlineWidth?: string;
@@ -1483,6 +1523,7 @@ export interface CapturedElement {
       | "calendar-picker-indicator"
       | "search-cancel-button"
       | "inner-spin-button"
+      | "file-selector-button"
     >;
     dataUri?: string;
     empty?: boolean;
@@ -1492,9 +1533,12 @@ export interface CapturedElement {
     selector?: string;
     /** Private host ThemePainter decoration discriminator. */
     selectArrow?: boolean;
+    /** Private exact-subcontrol crop; boundary ink is expected. */
+    exactPartBox?: boolean;
     /** Private pierced-UA-node identities and used geometry. */
     parts?: Array<{
-      kind: "calendar-picker-indicator" | "search-cancel-button" | "inner-spin-button" | "select-inner";
+      kind: "calendar-picker-indicator" | "search-cancel-button" | "inner-spin-button"
+        | "select-inner" | "file-selector-button" | "file-selector-status";
       index: number;
       x: number;
       y: number;

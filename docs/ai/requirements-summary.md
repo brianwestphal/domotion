@@ -182,6 +182,17 @@ they describe (see `CLAUDE.md` "Documentation"):
   scheme/forced-colors, writing axes, zoom, fractional geometry, and DPR are
   gated on macOS, Linux, and Windows.
 
+- **Native file-selector button (DM-2454, doc 172) — Shipped.** A file host's
+  `appearance:none` does not own its closed-shadow upload button: capture
+  resolves the real child button's EffectiveAppearance and crops exactly its
+  platform-painted border quad. The 4 px logical margin, host/focus paint, and
+  localized status sibling remain structural; status text uses Chromium's
+  captured segments for multiple/long labels, bidi, and vertical writing.
+  Unknown child facts or changed topology warn and suppress the sampled button.
+  Author background/border/radius/none retain the existing vector pseudo route;
+  author font/color/padding/shadow retain native paint. SVG composes button
+  shadow overflow, exact child pixels, then status text.
+
 - **Replaced/control/generated geometry (doc 133) — Shipped.** A live
   11-row Chromium oracle gates every object-fit mode, exact percentage/calc
   object-position, native-vs-author control ownership, and positioned

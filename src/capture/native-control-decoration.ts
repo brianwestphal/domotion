@@ -22,6 +22,7 @@ export const NATIVE_CONTROL_DECORATION_KINDS = [
   "calendar-picker-indicator",
   "search-cancel-button",
   "inner-spin-button",
+  "file-selector-button",
 ] as const;
 
 export type NativeControlDecorationKind = typeof NATIVE_CONTROL_DECORATION_KINDS[number];
@@ -38,17 +39,31 @@ const TEMPORAL_INPUT_TYPES = new Set([
 export function nativeControlDecorationKinds(
   control: ControlDescriptor,
   effectiveAppearance: string | null,
+  fileSelectorButtonAppearance?: string | null,
 ): NativeControlDecorationKind[] {
+  const tag = control.tag.toLowerCase();
+  const type = (control.type ?? "text").toLowerCase();
+
+  // FileInputType's host is deliberately `appearance:none`; Blink creates a
+  // real closed-shadow <input type=button> whose own EffectiveAppearance is
+  // the source of paint ownership. Unknown/missing child facts reserve the
+  // source route and fail closed later. A positively CSS-owned child is the
+  // only state which leaves the existing structural pseudo renderer active.
+  if (tag === "input" && type === "file") {
+    if (fileSelectorButtonAppearance === "none"
+        || fileSelectorButtonAppearance === "base"
+        || fileSelectorButtonAppearance === "base-select") return [];
+    return ["file-selector-button"];
+  }
+
   if (effectiveAppearance == null || isWholeHostNativeAppearance(effectiveAppearance)) return [];
   if (effectiveAppearance === "base" || effectiveAppearance === "base-select") return [];
 
-  const tag = control.tag.toLowerCase();
   if (tag === "select") {
     return effectiveAppearance === "menulist-button" ? ["menulist-button-arrow"] : [];
   }
   if (tag !== "input") return [];
 
-  const type = (control.type ?? "text").toLowerCase();
   if (type === "number") return ["inner-spin-button"];
   if (type === "search") return ["search-cancel-button"];
   if (TEMPORAL_INPUT_TYPES.has(type)) {

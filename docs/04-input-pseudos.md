@@ -46,6 +46,14 @@ Each field comes from `getComputedStyle(el, '::-webkit-foo').<prop>`. Do this on
 > anonymous `::-webkit-resizer` uses the host's native pseudo computed style
 > plus CDP pseudo-match metadata. See
 > [doc 158](158-authoritative-control-pseudo-cascade.md).
+>
+> `<input type=file>` is the source-defined exception to host-only control
+> ownership. Blink's host computes to `appearance:none`, but its real closed-
+> shadow `input[type=button]` independently resolves EffectiveAppearance.
+> Native child paint is captured from that exact border quad; the sibling
+> status span is emitted through ordinary shaped text, and author-owned
+> `::file-selector-button` remains vector. See
+> [doc 172](172-native-file-selector-button.md).
 
 ## Render changes
 

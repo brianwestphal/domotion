@@ -42,6 +42,61 @@ async function colors(uri: string): Promise<Map<string, number>> {
 }
 
 describeBrowser("source-owned partial native-control decorations", () => {
+  it("captures the real file button and keeps exact status text structural", async () => {
+    const viewport = { width: 820, height: 360 };
+    const page = await env!.browser.newPage({ viewport, deviceScaleFactor: 2 });
+    try {
+      await page.setContent(`<style>
+        html,body{margin:0;background:white;font:18px Arial;color:rgb(19,37,61)}
+        .file{position:absolute;left:40.25px;width:410px}
+        #empty{top:30.5px} #multiple{top:92.25px} #vertical{top:154.5px;height:160px;writing-mode:vertical-rl;direction:rtl}
+        #author{top:30.5px;left:500px;width:280px}
+        #shadow::file-selector-button{box-shadow:7px 5px 0 rgb(220,30,92)}
+        #author::file-selector-button{background:rgb(18,98,178);border:3px solid rgb(177,31,74);border-radius:9px}
+      </style>
+      <input class="file" id="empty" data-domotion-anim="file-empty" type="file">
+      <input class="file" id="multiple" data-domotion-anim="file-multiple" type="file" multiple>
+      <input class="file" id="vertical" data-domotion-anim="file-vertical" type="file">
+      <input class="file" id="author" data-domotion-anim="file-author" type="file">`);
+      await page.setInputFiles("#multiple", [
+        { name: "alpha.txt", mimeType: "text/plain", buffer: Buffer.from("a") },
+        { name: "beta.txt", mimeType: "text/plain", buffer: Buffer.from("b") },
+      ]);
+      const before = await page.screenshot({ omitBackground: true });
+      const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, ...viewport });
+      const after = await page.screenshot({ omitBackground: true });
+      expect(Buffer.compare(before, after)).toBe(0);
+      expect(capture.warnings.filter(({ feature }) => feature === "native-control-decoration-raster")).toEqual([]);
+
+      for (const id of ["file-empty", "file-multiple", "file-vertical"]) {
+        const file = byId(capture.tree, id);
+        expect(file.nativeControlDecorationRaster?.kinds).toEqual(["file-selector-button"]);
+        expect(file.nativeControlDecorationRaster?.dataUri).toMatch(/^data:image\/png;base64,/);
+        expect(file.nativeControlDecorationRaster?.sourceNodeIndex).toBeUndefined();
+        expect(file.nativeControlDecorationRaster?.exactPartBox).toBeUndefined();
+        expect(file.styles.fileSelectorButton?.text).toMatch(/^Choose File/);
+        expect(file.styles.fileSelectorStatus?.text).not.toBe("");
+      }
+      expect(byId(capture.tree, "file-empty").styles.fileSelectorStatus?.text).toBe("No file chosen");
+      expect(byId(capture.tree, "file-multiple").styles.fileSelectorStatus?.text).toBe("2 files");
+
+      const authored = byId(capture.tree, "file-author");
+      expect(authored.nativeControlDecorationRaster).toBeUndefined();
+      expect(authored.styles.fileSelectorButton?.text).toMatch(/^Choose File/);
+      expect(authored.styles.fileSelectorStatus?.text).toBe("No file chosen");
+
+      const svg = elementTreeToSvgInner(capture.tree, viewport.width, viewport.height);
+      const multiple = byId(capture.tree, "file-multiple");
+      const imageAt = svg.indexOf(multiple.nativeControlDecorationRaster!.dataUri!);
+      const statusAt = svg.indexOf('aria-label="2 files"');
+      expect(imageAt).toBeGreaterThanOrEqual(0);
+      expect(statusAt).toBeGreaterThan(imageAt);
+      expect(svg).toContain("rgb(18, 98, 178)");
+    } finally {
+      await page.close();
+    }
+  }, 90_000);
+
   it("splits the complete/select/base routes and every closed-shadow input part", async () => {
     const viewport = { width: 940, height: 620 };
     const page = await env!.browser.newPage({ viewport, deviceScaleFactor: 2 });

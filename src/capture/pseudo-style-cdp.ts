@@ -25,6 +25,11 @@
 
 import { randomUUID } from "node:crypto";
 import type { CDPSession, Page } from "@playwright/test";
+import {
+  authorControlStyleFactsFromMatchedStyles,
+  effectiveAppearanceForControl,
+  type CdpMatchedStylesLike,
+} from "./effective-appearance.js";
 import type { CapturedScrollbarPseudoStyle } from "./types.js";
 
 export const CONTROL_PSEUDO_KINDS = [
@@ -42,6 +47,8 @@ export const CONTROL_PSEUDO_KINDS = [
   "search-cancel-button",
   "calendar-picker-indicator",
   "select-inner",
+  "file-selector-button",
+  "file-selector-status",
   "resizer",
   "scrollbar",
   "scrollbar-button",
@@ -91,6 +98,7 @@ const PSEUDO_ID_TO_KIND: Readonly<Record<string, ControlPseudoKind>> = {
   "-webkit-search-cancel-button": "search-cancel-button",
   "-webkit-calendar-picker-indicator": "calendar-picker-indicator",
   "-internal-select-inner-element": "select-inner",
+  "-webkit-file-upload-button": "file-selector-button",
 };
 
 const SCROLLBAR_PSEUDO_TYPE_TO_KIND: Readonly<Record<string, ControlPseudoKind>> = {
@@ -125,6 +133,7 @@ export function controlPseudoKindForNode(
   attributes: Readonly<Record<string, string>>,
   hostNodeName: string,
   hostAttributes: Readonly<Record<string, string>>,
+  nodeName = "",
 ): ControlPseudoKind | null {
   const pseudoId = attributes.pseudo ?? attributes["-webkit-pseudo"];
   if (pseudoId != null && PSEUDO_ID_TO_KIND[pseudoId] != null) {
@@ -141,6 +150,17 @@ export function controlPseudoKindForNode(
     && (hostAttributes.type ?? "text").toLowerCase() === "range"
   ) {
     return "thumb";
+  }
+  // FileInputType::CreateShadowSubtree appends exactly one status <span>
+  // after the pseudo-addressable upload button. It has no pseudo id, so the
+  // pierced node name plus the source host type is its stable ownership key.
+  if (
+    nodeName === "SPAN"
+    && hostNodeName === "INPUT"
+    && (hostAttributes.type ?? "text").toLowerCase() === "file"
+    && attributes["aria-hidden"] === "true"
+  ) {
+    return "file-selector-status";
   }
   return null;
 }
@@ -478,6 +498,7 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
     hostNodeId: number,
     nodeId: number,
     kind: ControlPseudoKind,
+    ownership?: { effectiveAppearance: string | null; reason?: string },
   ): Promise<void> => {
     await ensureHost(hostNodeId);
     const hostObjectId = hostObjectIdsByNode.get(hostNodeId);
@@ -487,18 +508,19 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
     }
     await session.send("Runtime.callFunctionOn", {
       objectId: hostObjectId,
-      functionDeclaration: `function(key, kind, node) {
+      functionDeclaration: `function(key, kind, node, ownership) {
         let parts = this[key];
         if (!Array.isArray(parts)) {
           parts = [];
           Object.defineProperty(this, key, { value: parts, configurable: true });
         }
-        parts.push({ kind, node });
+        parts.push({ kind, node, ownership });
       }`,
       arguments: [
         { value: decorationPropertyKey },
         { value: kind },
         { objectId: partObjectId },
+        { value: ownership },
       ],
     });
   };
@@ -524,19 +546,68 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
       if (visited.has(node.nodeId)) return;
       visited.add(node.nodeId);
       if (uaHost != null) {
-        const kind = controlPseudoKindForNode(attributesOf(node), uaHost.nodeName, attributesOf(uaHost));
+        const kind = controlPseudoKindForNode(
+          attributesOf(node), uaHost.nodeName, attributesOf(uaHost), node.nodeName,
+        );
         if (kind != null) {
+          let matched: CdpMatchedStylesLike | undefined;
+          let computed: { computedStyle: ComputedProperty[] } | undefined;
+          let fileOwnership: { effectiveAppearance: string | null; reason?: string } | undefined;
+          if (kind === "file-selector-button") {
+            try {
+              const responses = await Promise.all([
+                session.send("CSS.getMatchedStylesForNode", { nodeId: node.nodeId }),
+                session.send("CSS.getComputedStyleForNode", { nodeId: node.nodeId }),
+                session.send("CSS.getAnimatedStylesForNode", { nodeId: node.nodeId }),
+              ]);
+              matched = responses[0] as CdpMatchedStylesLike;
+              computed = responses[1] as { computedStyle: ComputedProperty[] };
+              const animated = responses[2] as {
+                animationStyles?: CdpMatchedStylesLike["animationStyles"];
+                transitionsStyle?: CdpMatchedStylesLike["transitionsStyle"];
+              };
+              const properties = computedMap(computed.computedStyle);
+              const facts = authorControlStyleFactsFromMatchedStyles({
+                ...matched,
+                animationStyles: animated.animationStyles,
+                transitionsStyle: animated.transitionsStyle,
+              }, {
+                direction: properties.get("direction"),
+                writingMode: properties.get("writing-mode"),
+              });
+              fileOwnership = {
+                effectiveAppearance: effectiveAppearanceForControl(
+                  properties.get("appearance") ?? properties.get("-webkit-appearance"),
+                  { tag: "input", type: "button" },
+                  facts,
+                  (properties.get("box-shadow") ?? "none") !== "none",
+                ),
+                reason: facts.available ? undefined : facts.reason,
+              };
+            } catch (error) {
+              fileOwnership = {
+                effectiveAppearance: null,
+                reason: `file-selector matched styles unavailable: ${error instanceof Error ? error.message : String(error)}`,
+              };
+            }
+          }
           if (kind === "inner-spin-button" || kind === "search-cancel-button"
-              || kind === "calendar-picker-indicator" || kind === "select-inner") {
+              || kind === "calendar-picker-indicator" || kind === "select-inner"
+              || kind === "file-selector-button" || kind === "file-selector-status") {
             // Retain the actual closed-shadow Element, not just its computed
             // style. The later isolation pass needs Chromium's used rect and
             // paint owner; recreating either from pseudo CSS would be a second
             // layout engine.
-            await retainDecorationNode(uaHost.nodeId, node.nodeId, kind);
+            await retainDecorationNode(uaHost.nodeId, node.nodeId, kind, fileOwnership);
           }
-          const matched = await session.send("CSS.getMatchedStylesForNode", { nodeId: node.nodeId });
+          // The source status span has no pseudo style. Its live used style,
+          // text, and shaped fragments are read from the retained node by the
+          // capture script; querying matched pseudo rules here only adds an
+          // avoidable protocol failure surface.
+          if (kind === "file-selector-status") return;
+          matched ??= await session.send("CSS.getMatchedStylesForNode", { nodeId: node.nodeId }) as CdpMatchedStylesLike;
           if (hasAuthorPseudoOrigin(directMatchedOrigins(matched))) {
-            const computed = await session.send("CSS.getComputedStyleForNode", { nodeId: node.nodeId });
+            computed ??= await session.send("CSS.getComputedStyleForNode", { nodeId: node.nodeId }) as { computedStyle: ComputedProperty[] };
             await store(uaHost.nodeId, kind, computed.computedStyle);
           }
         }

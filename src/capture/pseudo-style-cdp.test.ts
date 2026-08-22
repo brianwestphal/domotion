@@ -21,6 +21,7 @@ describe("Chromium-resolved control pseudo capture", () => {
       ["-webkit-search-cancel-button", "search-cancel-button"],
       ["-webkit-calendar-picker-indicator", "calendar-picker-indicator"],
       ["-internal-select-inner-element", "select-inner"],
+      ["-webkit-file-upload-button", "file-selector-button"],
     ] as const;
     for (const [pseudo, kind] of rows) {
       expect(controlPseudoKindForNode({ pseudo }, "INPUT", { type: "range" })).toBe(kind);
@@ -31,6 +32,12 @@ describe("Chromium-resolved control pseudo capture", () => {
       { type: "RANGE" },
     )).toBe("thumb");
     expect(controlPseudoKindForNode({ id: "thumb" }, "DIV", {})).toBeNull();
+    expect(controlPseudoKindForNode(
+      { "aria-hidden": "true" }, "INPUT", { type: "file" }, "SPAN",
+    )).toBe("file-selector-status");
+    expect(controlPseudoKindForNode(
+      { "aria-hidden": "true" }, "INPUT", { type: "text" }, "SPAN",
+    )).toBeNull();
   });
 
   it("classifies UA-only rules as native and every non-UA direct origin as authored", () => {

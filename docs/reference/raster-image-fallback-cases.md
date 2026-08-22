@@ -137,8 +137,8 @@ sampled native chrome. See [doc 167](../167-native-control-source-frame-rasters.
 ### B1. Split native/closed-shadow control decorations
 
 Trigger: Blink EffectiveAppearance leaves a control host structural but a
-menulist-button arrow or temporal/search/number closed-shadow part still owns
-paint.
+menulist-button arrow, temporal/search/number closed-shadow part, or the real
+file-upload child still owns paint.
 
 Why: theme arrow metrics and pixels are platform-owned; search/spin state and
 resources are selected by ThemePainter; temporal indicators use closed-UA
@@ -149,12 +149,18 @@ Capture and emit: `pseudo-style-cdp.ts` retains the actual pierced UA nodes and
 `native-control-decoration-raster.ts` reads every active decoration from one
 transparent, reversible isolation frame. The select arrow is isolated from its
 anonymous selected-text child while preserving host geometry and theme inputs.
+For a file input, the child button's own EffectiveAppearance routes ownership;
+the bitmap is exactly its border box, while its logical-end margin and real
+localized status span remain structural layout/text.
 Identity, interaction state, quads, restoration, alpha, guard, overlap, clip,
 and DPR all fail closed with `native-control-decoration-raster`; presence of
 the reservation always suppresses sampled form-control glyphs. Menulist arrows
 compose after the CSS background and before inset-shadow/border/text; other
 parts compose at content paint. See
 [doc 171](../171-closed-shadow-control-decorations.md).
+File-button topology, exact crop, shadow overflow, and image-before-status
+composition are specified in
+[doc 172](../172-native-file-selector-button.md).
 
 ### C0. `backdrop-filter`
 

@@ -13,8 +13,11 @@
 
 import type { CapturedElement } from "../capture/types.js";
 import { buildLinearGradientDef, buildRadialGradientDef, gradientCacheKey, parseGradient } from "./gradients.js";
-import { r } from "./format.js";
+import { parseBoxShadow } from "./box-shadow.js";
+import { esc, r } from "./format.js";
+import { renderMultiSegmentText } from "./text.js";
 import { renderTextAsPath } from "./text-to-path.js";
+import { hasVerticalSegments, renderVerticalSegments } from "./vertical-text.js";
 
 /** Chrome's UA-default inset for the colored value bar inside a `<progress>` /
  *  `<meter>` groove: `floor(barHeight / 4)` on each edge (sampled from
@@ -916,6 +919,121 @@ function renderSearchInput(el: CapturedElement, indent: string, defCtx?: DefCtx)
   return parts.join("\n");
 }
 
+/** Paint author `box-shadow` overflow for the real file button. The native
+ * crop owns the exact button border-box, including any shadow pixels inside
+ * that box. `overflowOnly` therefore subtracts the border-box and emits only
+ * the source-owned shadow continuation which Blink clips to the file host. */
+export function renderFileSelectorOutsetShadow(
+  el: CapturedElement,
+  indent: string,
+  defCtx?: DefCtx,
+  overflowOnly = false,
+): string {
+  const button = el.styles.fileSelectorButton;
+  if (button == null || button.boxShadow === "" || button.boxShadow === "none") return "";
+  const shadows = parseBoxShadow(button.boxShadow).filter((shadow) => !shadow.inset);
+  if (shadows.length === 0) return "";
+
+  let clipAttr = "";
+  if (defCtx != null) {
+    const clipId = defCtx.nextGradId();
+    const hostPath = `M${r(el.x)},${r(el.y)}h${r(el.width)}v${r(el.height)}h${r(-el.width)}Z`;
+    const buttonHole = overflowOnly
+      ? `M${r(button.x)},${r(button.y)}h${r(button.width)}v${r(button.height)}h${r(-button.width)}Z`
+      : "";
+    defCtx.defsParts.push(`<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><path d="${hostPath}${buttonHole}" clip-rule="evenodd" fill-rule="evenodd"/></clipPath>`);
+    clipAttr = ` clip-path="url(#${clipId})"`;
+  }
+
+  const rawRadius = parseFloat(button.borderRadius) || 0;
+  const out: string[] = [];
+  for (let i = shadows.length - 1; i >= 0; i--) {
+    const shadow = shadows[i];
+    const x = button.x + shadow.x - shadow.spread;
+    const y = button.y + shadow.y - shadow.spread;
+    const width = Math.max(0, button.width + shadow.spread * 2);
+    const height = Math.max(0, button.height + shadow.spread * 2);
+    if (width <= 0 || height <= 0) continue;
+    const radius = Math.max(0, Math.min(rawRadius + shadow.spread, width / 2, height / 2));
+    let filterAttr = "";
+    if (shadow.blur > 0 && defCtx != null) {
+      const filterId = defCtx.nextGradId();
+      const pad = Math.max(1, shadow.blur * 2);
+      defCtx.defsParts.push(`<filter id="${filterId}" filterUnits="userSpaceOnUse" x="${r(x - pad)}" y="${r(y - pad)}" width="${r(width + pad * 2)}" height="${r(height + pad * 2)}"><feGaussianBlur stdDeviation="${r(shadow.blur / 2)}"/></filter>`);
+      filterAttr = ` filter="url(#${filterId})"`;
+    }
+    out.push(`${indent}<rect x="${r(x)}" y="${r(y)}" width="${r(width)}" height="${r(height)}" rx="${r(radius)}" fill="${esc(shadow.color)}"${filterAttr}${clipAttr}/>`);
+  }
+  return out.join("\n");
+}
+
+/** Emit the actual closed-shadow status span through the normal shaped-text
+ * renderer, preserving localized/multiple text, bidi, writing mode and clip. */
+function renderCapturedFileStatus(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
+  const status = el.styles.fileSelectorStatus;
+  if (status == null || status.text === "") return "";
+  const statusEl: CapturedElement = {
+    ...el,
+    tag: "span",
+    text: status.text,
+    x: status.x,
+    y: status.y,
+    width: status.width,
+    height: status.height,
+    children: [],
+    textSegments: status.textSegments,
+    fontAscent: status.fontAscent,
+    fontDescent: status.fontDescent,
+    nativeControlRaster: undefined,
+    nativeControlDecorationRaster: undefined,
+    styles: {
+      ...el.styles,
+      color: status.color,
+      fontSize: `${status.fontSize}px`,
+      fontFamily: status.fontFamily,
+      fontWeight: status.fontWeight,
+      fontStyle: status.fontStyle,
+      writingMode: status.writingMode,
+      textOrientation: status.textOrientation,
+      direction: status.direction,
+    },
+  };
+
+  let clipId = `${defCtx?.idPrefix ?? "dm"}file-status`;
+  if (defCtx != null) {
+    clipId = defCtx.nextGradId();
+    const bt = parseFloat(el.styles.borderTopWidth) || 0;
+    const br = parseFloat(el.styles.borderRightWidth) || 0;
+    const bb = parseFloat(el.styles.borderBottomWidth) || 0;
+    const bl = parseFloat(el.styles.borderLeftWidth) || 0;
+    defCtx.defsParts.push(`<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><rect x="${r(el.x + bl)}" y="${r(el.y + bt)}" width="${r(Math.max(0, el.width - bl - br))}" height="${r(Math.max(0, el.height - bt - bb))}"/></clipPath>`);
+  }
+
+  const vertical = hasVerticalSegments(statusEl);
+  let body = vertical
+    ? renderVerticalSegments(statusEl, status.color)
+    : renderMultiSegmentText({
+        el: statusEl,
+        idPrefix: defCtx?.idPrefix ?? "dm",
+        clipId,
+        fillColor: status.color,
+        overflowClip: defCtx != null,
+      }, status.textSegments);
+  if (body === "") {
+    body = renderTextAsPath(status.text, status.x, status.y, {
+      fontSize: status.fontSize,
+      fontWeight: status.fontWeight,
+      fontFamily: status.fontFamily,
+      fontStyle: status.fontStyle,
+      fill: status.color,
+      ascentOverride: status.fontAscent,
+    });
+  } else if (vertical && defCtx != null) {
+    body = `<g clip-path="url(#${clipId})">${body}</g>`;
+  }
+  return body.split("\n").map((line) => `${indent}${line}`).join("\n");
+}
+
 /**
  * <input type=file>: emit a 'Choose File' button + filename label. Styling
  * comes from the captured ::file-selector-button pseudo-element so author
@@ -933,10 +1051,22 @@ function renderFileInput(el: CapturedElement, indent: string, defCtx?: DefCtx): 
   // ugly overlapping text on top. DM-271.
   const isHidden = el.width <= 2 || el.height <= 2 || s.opacity === "0";
   if (isHidden) return "";
+  const statusMarkup = renderCapturedFileStatus(el, indent, defCtx);
+  // A reservation is authoritative even when materialization failed: never
+  // fall back to the sampled English/button approximation.
+  if (el.nativeControlDecorationRaster?.kinds.includes("file-selector-button") === true) {
+    return statusMarkup;
+  }
+  const sourceButton = s.fileSelectorButton;
+  const buttonShadow = renderFileSelectorOutsetShadow(el, indent, defCtx);
+  if (buttonShadow !== "") parts.push(buttonShadow);
   // Resolve styles from the captured pseudo, with UA defaults as fallback.
   const bg = s.fileButtonBg != null && s.fileButtonBg !== "" ? s.fileButtonBg : "rgb(239,239,239)";
-  const color = s.fileButtonColor != null && s.fileButtonColor !== "" ? s.fileButtonColor : "rgb(0,0,0)";
-  const rawRadius = s.fileButtonBorderRadius != null ? (parseFloat(s.fileButtonBorderRadius) || 3) : 3;
+  const color = s.fileButtonColor != null && s.fileButtonColor !== ""
+    ? s.fileButtonColor : (sourceButton?.color ?? "rgb(0,0,0)");
+  const rawRadius = s.fileButtonBorderRadius != null
+    ? (parseFloat(s.fileButtonBorderRadius) || 3)
+    : (parseFloat(sourceButton?.borderRadius ?? "") || 3);
   // Border: parse "Wpx <style> <color>" — only the width matters for our paint.
   let borderW = 1;
   let borderColor = palette.border;
@@ -956,18 +1086,21 @@ function renderFileInput(el: CapturedElement, indent: string, defCtx?: DefCtx): 
     if (tok.length >= 2) { padH = tok[1]; }
     if (tok.length >= 4) { padH = (tok[1] + tok[3]) / 2; }
   }
-  const fontWeight = s.fileButtonFontWeight != null && s.fileButtonFontWeight !== "" ? s.fileButtonFontWeight : "400";
+  const fontWeight = sourceButton?.fontWeight
+    ?? (s.fileButtonFontWeight != null && s.fileButtonFontWeight !== "" ? s.fileButtonFontWeight : "400");
   // Chrome's UA default font-size for ::file-selector-button is 13.333px (it
   // inherits from the input chrome, not from the page). When the author sets
   // `font: inherit` on the pseudo (the f-primary / f-outline patterns in
   // 06-forms-style-file), this becomes the body's font-size — typically 16px.
   // Reading the captured pseudo font-size makes us match either case.
-  const fontSize = s.fileButtonFontSize != null && s.fileButtonFontSize !== ""
-    ? (parseFloat(s.fileButtonFontSize) || 13)
-    : 13;
-  const fontFamily = s.fileButtonFontFamily != null && s.fileButtonFontFamily !== ""
-    ? s.fileButtonFontFamily
-    : "-apple-system, system-ui, sans-serif";
+  const fontSize = sourceButton?.fontSize
+    ?? (s.fileButtonFontSize != null && s.fileButtonFontSize !== ""
+      ? (parseFloat(s.fileButtonFontSize) || 13)
+      : 13);
+  const fontFamily = sourceButton?.fontFamily
+    ?? (s.fileButtonFontFamily != null && s.fileButtonFontFamily !== ""
+      ? s.fileButtonFontFamily
+      : "-apple-system, system-ui, sans-serif");
   // Chrome's UA ::file-selector-button has `margin-inline-end: 4px` (4px gap
   // before the trailing "No file chosen" placeholder), but the test fixture
   // overrides this to `margin-right: 12px`. Read the captured pseudo
@@ -976,18 +1109,20 @@ function renderFileInput(el: CapturedElement, indent: string, defCtx?: DefCtx): 
     ? (parseFloat(s.fileButtonMarginRight) || 4)
     : 4;
   // <input type=file multiple> labels as "Choose Files" (Chrome).
-  const labelText = s.inputMultiple === true ? "Choose Files" : "Choose File";
+  const labelText = sourceButton?.text ?? (s.inputMultiple === true ? "Choose Files" : "Choose File");
   // Use the canvas-measureText'\''d label width when the capture provided one
   // (it'\''s painted at sub-pixel exact width from Chrome'\''s actual font);
   // fall back to the cheap per-char ratio otherwise (e.g. animated frames
   // captured before measureText was available).
-  const textW = s.fileButtonLabelWidth != null && s.fileButtonLabelWidth > 0
-    ? s.fileButtonLabelWidth
-    : labelText.length * fontSize * 0.6;
-  const btnW = textW + padH * 2;
-  const btnH = Math.min(fontSize + padV * 2, el.height);
-  const bx = el.x + 2;
-  const by = el.y + (el.height - btnH) / 2;
+  const textW = sourceButton != null && sourceButton.textWidth > 0
+    ? sourceButton.textWidth
+    : s.fileButtonLabelWidth != null && s.fileButtonLabelWidth > 0
+      ? s.fileButtonLabelWidth
+      : labelText.length * fontSize * 0.6;
+  const btnW = sourceButton?.width ?? (textW + padH * 2);
+  const btnH = sourceButton?.height ?? Math.min(fontSize + padV * 2, el.height);
+  const bx = sourceButton?.x ?? (el.x + 2);
+  const by = sourceButton?.y ?? (el.y + (el.height - btnH) / 2);
   // Clamp the captured border-radius to half-extents so a `border-radius: 999px`
   // pill doesn't become an ellipse via SVG's per-axis rx/ry default-equality
   // rule (rx=999 with ry unset → ry=999 → ry clamps to btnH/2 independent of
@@ -997,19 +1132,26 @@ function renderFileInput(el: CapturedElement, indent: string, defCtx?: DefCtx): 
   parts.push(`${indent}<rect x="${r(bx)}" y="${r(by)}" width="${r(btnW)}" height="${r(btnH)}" rx="${r(radius)}" fill="${bg}"${strokeAttrs} />`);
   // Baseline offset inside the button: ~0.35*fontSize below the vertical center
   // matches Helvetica/sans-serif baseline placement at small sizes.
-  const baselineOffset = fontSize * 0.35;
-  const ascent = btnH / 2 + baselineOffset;
+  const ascent = sourceButton != null
+    ? (btnH - sourceButton.fontAscent - sourceButton.fontDescent) / 2 + sourceButton.fontAscent
+    : btnH / 2 + fontSize * 0.35;
   const labelPath = renderTextAsPath(labelText, bx + (btnW - textW) / 2, by, {
-    fontSize, fontWeight, fontFamily, fontStyle: "normal", fill: color,
+    fontSize, fontWeight, fontFamily, fontStyle: sourceButton?.fontStyle ?? "normal", fill: color,
     targetWidth: textW, ascentOverride: ascent,
   });
   parts.push(`${indent}${labelPath}`);
-  const label = el.styles.inputFileName != null && el.styles.inputFileName !== "" ? el.styles.inputFileName : "No file chosen";
-  const nameX = bx + btnW + marginRight;
-  const namePath = renderTextAsPath(label, nameX, by, {
-    fontSize, fontWeight: "400", fontFamily, fontStyle: "normal", fill: "rgb(0,0,0)", ascentOverride: ascent,
-  });
-  parts.push(`${indent}${namePath}`);
+  if (statusMarkup !== "") {
+    parts.push(statusMarkup);
+  } else {
+    // Backwards-compatible pre-DM-2454 capture fallback only. New captures
+    // carry Chromium's real localized status span and never enter this path.
+    const label = el.styles.inputFileName != null && el.styles.inputFileName !== "" ? el.styles.inputFileName : "No file chosen";
+    const nameX = bx + btnW + marginRight;
+    const namePath = renderTextAsPath(label, nameX, by, {
+      fontSize, fontWeight: "400", fontFamily, fontStyle: "normal", fill: "rgb(0,0,0)", ascentOverride: ascent,
+    });
+    parts.push(`${indent}${namePath}`);
+  }
   return parts.join("\n");
 }
 

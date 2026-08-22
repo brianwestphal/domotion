@@ -124,6 +124,7 @@ export async function rasterizeNativeControlDecorations(
       delete raster.sourceNodeIndex;
       delete raster.selector;
       delete raster.selectArrow;
+      delete raster.exactPartBox;
       delete raster.parts;
       delete raster.unavailableReason;
     }
@@ -169,15 +170,16 @@ export async function rasterizeNativeControlDecorations(
   const restoreKey = `__domotionDecorationRestore_${Date.now()}_${Math.random().toString(36).slice(2)}`;
   let facts: IsolationFact[] = active.map(() => ({ connected: false, fingerprintMatches: false }));
   let isolated: Awaited<ReturnType<typeof takeIsolationFrame>> = null;
-  const isolationRows = active.map(({ raster }) => ({
+  const isolationRows = active.map(({ element, raster }) => ({
     index: raster.sourceNodeIndex,
     selectArrow: raster.selectArrow === true,
+    exactPartBox: raster.exactPartBox === true,
     parts: raster.parts,
     hostRect: {
-      left: raster.x + viewport.x + 1,
-      top: raster.y + viewport.y + 1,
-      width: raster.width - 2,
-      height: raster.height - 2,
+      left: element.x + viewport.x,
+      top: element.y + viewport.y,
+      width: element.width,
+      height: element.height,
     },
   }));
   try {
@@ -306,6 +308,49 @@ export async function rasterizeNativeControlDecorations(
               || host.matches(":hover") !== initial.hover
               || host.matches(":active") !== initial.active) {
             return { connected: true, fingerprintMatches: false, reason: "select interaction state changed during isolation" };
+          }
+          return { connected: true, fingerprintMatches: true };
+        }
+
+        if (row.exactPartBox) {
+          let buttonFound = false;
+          let statusFound = false;
+          for (const expected of row.parts ?? []) {
+            const entry = retained?.[expected.index];
+            const node = entry?.node;
+            if (!(node instanceof HTMLElement) || !node.isConnected || entry?.kind !== expected.kind
+                || !(node.getRootNode() instanceof ShadowRoot)
+                || (node.getRootNode() as ShadowRoot).host !== host) {
+              return { connected: true, fingerprintMatches: false, reason: `${expected.kind} identity changed` };
+            }
+            const rect = node.getBoundingClientRect();
+            if (Math.abs(rect.left - expected.x) > 0.25 || Math.abs(rect.top - expected.y) > 0.25
+                || Math.abs(rect.width - expected.width) > 0.25
+                || Math.abs(rect.height - expected.height) > 0.25) {
+              return { connected: true, fingerprintMatches: false, reason: `${expected.kind} used rect changed` };
+            }
+            if (expected.kind === "file-selector-button") {
+              buttonFound = true;
+              const used = getComputedStyle(node);
+              helpers.set(node, "visibility", "visible");
+              // Host text-fill is transparent only to remove the sibling
+              // filename. Restore the real child label from its own used
+              // color without altering state, font, geometry, or theme paint.
+              helpers.set(node, "-webkit-text-fill-color", used.color);
+            } else if (expected.kind === "file-selector-status") {
+              statusFound = true;
+              helpers.set(node, "visibility", "hidden");
+            }
+          }
+          if (!buttonFound || !statusFound) {
+            return { connected: true, fingerprintMatches: false, reason: "file-selector button/status topology changed" };
+          }
+          const initial = interactionStates[rowIndex];
+          if (initial == null || document.activeElement !== initialActiveElement
+              || host.matches(":focus") !== initial.focus
+              || host.matches(":hover") !== initial.hover
+              || host.matches(":active") !== initial.active) {
+            return { connected: true, fingerprintMatches: false, reason: "file input interaction state changed during isolation" };
           }
           return { connected: true, fingerprintMatches: true };
         }
@@ -484,7 +529,7 @@ export async function rasterizeNativeControlDecorations(
       const clippedTop = plan.output.y === 0;
       const clippedRight = plan.output.x + plan.output.width === viewport.width;
       const clippedBottom = plan.output.y + plan.output.height === viewport.height;
-      if (nativeDecorationTouchesBoundary(rgba, pixelCrop.width, pixelCrop.height, {
+      if (!target.raster.exactPartBox && nativeDecorationTouchesBoundary(rgba, pixelCrop.width, pixelCrop.height, {
         left: !clippedLeft,
         top: !clippedTop,
         right: !clippedRight,

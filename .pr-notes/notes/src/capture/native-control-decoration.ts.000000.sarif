@@ -90,6 +90,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex GPT-5",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt44ibdzdnpqmqyt",
+          "message": {
+            "text": "File inputs must route from the closed-shadow child, not the host. Pinned FileInputType creates a real input button under a host whose appearance is none; LayoutTheme resolves that child independently, so only a positively CSS-owned child re-enters structural synthesis and missing facts stay conservatively source-owned.",
+            "markdown": "File inputs must route from the closed-shadow child, not the host. Pinned FileInputType creates a real input button under a host whose appearance is none; LayoutTheme resolves that child independently, so only a positively CSS-owned child re-enters structural synthesis and missing facts stay conservatively source-owned."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/native-control-decoration.ts"
+                },
+                "region": {
+                  "startLine": 47,
+                  "endLine": 55,
+                  "snippet": {
+                    "text": "  // FileInputType's host is deliberately `appearance:none`; Blink creates a\n  // real closed-shadow <input type=button> whose own EffectiveAppearance is\n  // the source of paint ownership. Unknown/missing child facts reserve the\n  // source route and fail closed later. A positively CSS-owned child is the\n  // only state which leaves the existing structural pseudo renderer active.\n  if (tag === \"input\" && type === \"file\") {\n    if (fileSelectorButtonAppearance === \"none\"\n        || fileSelectorButtonAppearance === \"base\"\n        || fileSelectorButtonAppearance === \"base-select\") return [];"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/pseudo-style-cdp.ts"
+                },
+                "region": {
+                  "startLine": 546
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/172-native-file-selector-button.md"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2454"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "cc92927b413fecee0f7daa96fbc02597"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "09bd8134661e9f6397d3665834092e2657393186",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

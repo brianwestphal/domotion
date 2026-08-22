@@ -33,6 +33,18 @@ describe("partial native-control decoration ownership", () => {
       .toEqual([]);
   });
 
+  it("uses the real file-selector child's EffectiveAppearance, not the file host", () => {
+    const file = { tag: "input", type: "file" };
+    expect(nativeControlDecorationKinds(file, "none", "push-button"))
+      .toEqual(["file-selector-button"]);
+    expect(nativeControlDecorationKinds(file, "none", null))
+      .toEqual(["file-selector-button"]);
+    expect(nativeControlDecorationKinds(file, "none", undefined))
+      .toEqual(["file-selector-button"]);
+    expect(nativeControlDecorationKinds(file, "none", "none")).toEqual([]);
+    expect(nativeControlDecorationKinds(file, "none", "base-select")).toEqual([]);
+  });
+
   it("fails closed when a pierced part changes identity, geometry, or validity", () => {
     const expected = { kind: "inner-spin-button" as const, x: 100.25, y: 20, width: 15, height: 18 };
     expect(decorationFingerprintMatches(expected, { ...expected, x: 100.4 })).toBe(true);

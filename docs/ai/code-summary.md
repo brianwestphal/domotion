@@ -68,6 +68,11 @@ shortest possible map:
   chevron/picker/cancel/spin paint even when unavailable; select arrows compose
   in Blink's background-before-inset/border phase and other parts at content
   paint (DM-2455, doc 171).
+  File inputs extend that boundary to Blink's real closed-shadow upload button:
+  CDP resolves the child EffectiveAppearance, capture records its exact border
+  quad/value and the following status span's shaped fragments, and render
+  composes shadow overflow, native child pixels, then localized status text
+  without reopening `Choose File` synthesis (DM-2454, doc 172).
   `effective-appearance-cdp.ts` obtains Blink's matched cascade and active
   interpolation facts without CSSOM; `effective-appearance.ts` reconstructs
   author background/border flags after origin, importance, layers, logical

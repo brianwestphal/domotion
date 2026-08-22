@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { renderFormControl, parseSpreadOnlyShadows, collectFormControlConicTiles } from "./form-controls.js";
+import { renderFileSelectorOutsetShadow, renderFormControl, parseSpreadOnlyShadows, collectFormControlConicTiles } from "./form-controls.js";
 import type { CapturedElement } from "../capture/types.js";
 
 describe("author-styled listbox option rows (DM-2190)", () => {
@@ -93,6 +93,59 @@ describe("file-selector synthetic text (DM-2189)", () => {
     const svg = renderFormControl(el, "");
     expect(svg).toContain('role="img" aria-label="Choose File"');
     expect(svg).not.toContain("No file chosen</text>");
+  });
+
+  const exactFile = (native: boolean): CapturedElement => ({
+    tag: "input", text: "", x: 20, y: 20, width: 280, height: 36, children: [],
+    nativeControlDecorationRaster: native ? {
+      x: 20, y: 20, width: 94, height: 30,
+      kinds: ["file-selector-button"],
+    } : undefined,
+    styles: {
+      inputType: "file", opacity: "1",
+      borderTopWidth: "0px", borderRightWidth: "0px",
+      borderBottomWidth: "0px", borderLeftWidth: "0px",
+      fileSelectorButton: {
+        x: 20, y: 20, width: 94, height: 30, text: "Browse…", textWidth: 52,
+        fontSize: 14, fontFamily: "Arial", fontWeight: "400", fontStyle: "normal",
+        fontAscent: 13, fontDescent: 3, color: "rgb(1, 2, 3)",
+        boxShadow: "rgb(220, 30, 92) 7px 5px 0px 0px", borderRadius: "3px",
+      },
+      fileSelectorStatus: {
+        x: 118, y: 25, width: 52, height: 18, text: "2 files",
+        textSegments: [{ text: "2 files", x: 118, y: 25, width: 52, height: 18 }],
+        fontSize: 14, fontFamily: "Arial", fontWeight: "400", fontStyle: "normal",
+        fontAscent: 13, fontDescent: 3, color: "rgb(7, 8, 9)",
+        writingMode: "horizontal-tb", textOrientation: "mixed", direction: "ltr",
+      },
+    },
+  } as unknown as CapturedElement);
+
+  it("reserves the exact native button while keeping Chromium's status vector", () => {
+    const svg = renderFormControl(exactFile(true), "");
+    expect(svg).toContain('aria-label="2 files"');
+    expect(svg).not.toContain("Browse");
+    expect(svg).not.toContain("Choose File");
+  });
+
+  it("keeps the author-owned route at the real child rect and actual labels", () => {
+    const svg = renderFormControl(exactFile(false), "");
+    expect(svg).toContain('<rect x="20" y="20" width="94" height="30"');
+    expect(svg).toContain('aria-label="Browse…"');
+    expect(svg).toContain('aria-label="2 files"');
+    expect(svg).not.toContain("Choose File");
+  });
+
+  it("emits only the native split's shadow overflow outside the button crop", () => {
+    const el = exactFile(true);
+    let id = 0;
+    const defsParts: string[] = [];
+    const svg = renderFileSelectorOutsetShadow(el, "", {
+      idPrefix: "t", defsParts, gradientCache: new Map(), nextGradId: () => `t${id++}`,
+    }, true);
+    expect(svg).toContain('fill="rgb(220, 30, 92)"');
+    expect(defsParts.join("\n")).toContain("clip-rule=\"evenodd\"");
+    expect(defsParts.join("\n")).toContain("M20,20h94v30h-94Z");
   });
 });
 

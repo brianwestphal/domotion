@@ -13,7 +13,7 @@ import { getEmbeddedFontFaceCss, getGlyphDefs, renderRadicalGlyph, renderSourceO
 import { beginCharacterFallbackDocument, endCharacterFallbackDocument } from "./font-resolution.js";
 import { profAccum, profNow } from "./render-profile.js";
 import type { DefCtx } from "./form-controls.js";
-import { renderFormControl } from "./form-controls.js";
+import { renderFileSelectorOutsetShadow, renderFormControl } from "./form-controls.js";
 import { CAPTURE_SCRIPT } from "../capture/script.generated.js";
 import { r, esc, stopFmt, rootSvgA11y } from "./format.js";
 import { clipPathShapeForElement, translateClipPath } from "./clip-path.js";
@@ -5110,9 +5110,21 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // capture missed them. Styled controls (author-set background/border)
   // still look like bare rects — the common case where authors match
   // Chromium defaults is handled here.
+  const isFileSelectorDecoration = nativeDecoration?.kinds.includes("file-selector-button") === true;
+  if (isFileSelectorDecoration) {
+    // FileInputType's closed-shadow child paints its outset shadow, native
+    // border-box surface, then its sibling status text. The crop deliberately
+    // excludes shadow overflow and status, so keep all three source phases
+    // separate and never place the raster after the filename.
+    const shadow = renderFileSelectorOutsetShadow(el, indent, defCtx, true);
+    if (shadow !== "") svgParts.push(shadow);
+    if (nativeDecoration?.dataUri != null) {
+      svgParts.push(`${indent}<image href="${nativeDecoration.dataUri}" x="${r(nativeDecoration.x)}" y="${r(nativeDecoration.y)}" width="${r(nativeDecoration.width)}" height="${r(nativeDecoration.height)}" preserveAspectRatio="none"/>`);
+    }
+  }
   const fc = renderFormControl(el, indent, defCtx);
   if (fc !== "") svgParts.push(fc);
-  if (!isMenulistButtonDecoration && nativeDecoration?.dataUri != null) {
+  if (!isMenulistButtonDecoration && !isFileSelectorDecoration && nativeDecoration?.dataUri != null) {
     // This transparent image owns only the decoration pixels. It deliberately
     // stays inside the host's normal opacity/transform/clip/filter wrappers,
     // above the structural box and value text, unlike a complete native host
