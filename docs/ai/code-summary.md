@@ -109,6 +109,12 @@ shortest possible map:
   uploads fingerprinted reports (DM-2471, doc 179).
 - **`src/render/`** — pure node-side renderers that convert a captured
   element tree into SVG markup. `element-tree-to-svg.ts` is the big one;
+  its URL clip-path route accepts only Blink's exclusive bare-URL operation,
+  maps HTML `objectBoundingBox` content through the captured border rect, and
+  leaves cloned SVG URL references on native forced-fill ownership. `svg-inline.ts`
+  namespaces both presentation refs and outerHTML-encoded computed-style refs,
+  so a stale `url(&quot;#id&quot;)` cannot override the rewritten clip (DM-2362,
+  docs 39/130).
   `culling-geometry.ts` is its fail-closed geometry preflight: it exposes the
   generated subtree's exact fill/stroke/view reference boxes separately from
   bounded visual ink, applies frozen affine wrappers and emitted overflow
@@ -564,6 +570,18 @@ shortest possible map:
   ownership, HTML root markers, a raster below `svgContent`, and property-only
   routing. `.github/workflows/inline-svg-3d-parity.yml` enforces the gate on
   macOS/Linux/Windows and always uploads a fingerprinted native report.
+- **Animated projective frame state (DM-2359, doc 186)** —
+  `src/capture/animation-frame.ts` pauses CSS/WAAPI and SMIL timelines across
+  every attached document, verifies exact numeric current time and stable
+  enumeration after paint commit, and fails strict capture on drift/refusal or
+  a non-document timeline. `CaptureElementTreeOptions.animationTimeMs` invokes
+  it before every async/synchronous capture prepass. The CDP projective probe
+  then serializes `projectiveFrameState`: sample time/count, computed transform
+  operations/origin/perspective/style/overflow, content and border quads,
+  fourth-corner residual, and selected outer raster owner. The CLI video seek
+  reuses the same primitive in best-effort mode. The eight-family four-time
+  oracle forbids projective 2D fitting and gates 64 DPR-1/2 rows plus five
+  mutations on macOS/Linux/Windows.
 - **Source-owned summary disclosure paint (DM-2457, doc 180)** —
   `src/capture/summary-marker-cdp.ts` joins a pierced Chromium `::marker` node
   with its single DOMSnapshot marker paint row, then threads an exact
@@ -678,6 +696,19 @@ shortest possible map:
   `tests/pseudo-filter-functions.e2e.test.ts` supplies the full function/list
   matrix, identity/none negatives, text/image activation, transform, clip,
   stack-slot, zoom/DPR, and a filter-stripped pixel mutation.
+
+- **Blend/filter pixel-stage evidence (DM-2360, doc 185)** —
+  `tools/blend-filter-pixel-stage-oracle.ts` is the source-derived arithmetic
+  and live capture→SVG adjudicator for all 17 CSS blend modes, ordered shorthand
+  color functions, blur/drop-shadow edges, isolation, background-layer blend,
+  and opacity-created groups. It uses named source pixels plus independent
+  no-filter/no-blend/no-isolation mutations and classifies shorthand/blend/
+  ordinary URL/native-SVG convolution as vector versus backdrop and HTML URL
+  convolution as narrow Chromium surfaces. The native workflow runs DPR 1/2 on
+  macOS/Linux/Windows and preserves producer/artifact fingerprints. A
+  `known-source-drift` verdict is accepted only for DM-2485's explicitly
+  classified `.65 → .7` color-alpha serialization; unexpected drift still
+  fails and the four-code pixel-stage bound is immutable.
 
 ## Upstream source is checked out locally — read it
 

@@ -9,8 +9,8 @@
 import { writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { buildLinearGradientDef, buildRadialGradientDef, normalizeRadialGradientDomain, parseGradientStops } from "../src/render/gradient-defs.js";
-import { clipPathShapeForElement, clipReferenceBox, svgEffectReferenceBox, translateClipPath, type HtmlClipGeometryBox, type SvgEffectGeometryBox } from "../src/render/clip-path.js";
-import { buildMaskDef, positionFragmentClipPathDef, positionFragmentMaskDef } from "../src/render/mask.js";
+import { clipPathShapeForElement, clipReferenceBox, parseSameDocumentClipPathUrl, svgEffectReferenceBox, translateClipPath, type HtmlClipGeometryBox, type SvgEffectGeometryBox } from "../src/render/clip-path.js";
+import { buildMaskDef, positionFragmentClipPathDef, positionFragmentMaskDef, positionObjectBoundingBoxClipPathDef } from "../src/render/mask.js";
 import { needsChromiumGradientRaster } from "../src/render/advanced-gradient-raster.js";
 import { computeTileSize, resolveConicStops } from "../src/render/conic-raster.js";
 import { parseConicGradient } from "../src/render/gradients.js";
@@ -248,6 +248,28 @@ function clipRows(): OracleRow[] {
     const delta = maxDelta(test.expected, actual);
     rows.push({ id: `clip.reference-box.${test.box}`, stage: "clip", source: "geometry_box_utils.cc:13-49", expected: test.expected, actual, maxAbsDelta: delta, pass: delta <= TOLERANCE });
   }
+  const parsedUrl = parseSameDocumentClipPathUrl('url("#source-clip")');
+  rows.push({
+    id: "clip.url-reference.exclusive-syntax",
+    stage: "clip",
+    source: "longhands_custom.cc:2340-2366 and style_builder_converter.cc:363-398",
+    expected: "source-clip",
+    actual: parsedUrl,
+    maxAbsDelta: parsedUrl === "source-clip" ? 0 : Infinity,
+    pass: parsedUrl === "source-clip",
+  });
+  const invalidUrlBoxes = ["content-box", "padding-box", "border-box", "margin-box", "fill-box", "stroke-box", "view-box"]
+    .flatMap((box) => [`url(#source-clip) ${box}`, `${box} url(#source-clip)`]);
+  const invalidResults = invalidUrlBoxes.map((value) => parseSameDocumentClipPathUrl(value));
+  rows.push({
+    id: "clip.url-reference.geometry-box-negative",
+    stage: "clip",
+    source: "ClipPath::ParseSingleValue URL and geometry-box branches are mutually exclusive",
+    expected: invalidUrlBoxes.map(() => null),
+    actual: invalidResults,
+    maxAbsDelta: invalidResults.every((value) => value == null) ? 0 : Infinity,
+    pass: invalidResults.every((value) => value == null),
+  });
   const svgBoxes = {
     fillBox: { x: 60, y: 30, width: 80, height: 40 },
     strokeBox: { x: 50, y: 20, width: 100, height: 60 },
@@ -267,6 +289,27 @@ function clipRows(): OracleRow[] {
     const delta = maxDelta(test.expected, actual);
     rows.push({ id: `clip.svg-reference-box.${test.box}`, stage: "clip", source: "svg_resources.cc:51-91 and clip_path_clipper.cc:367-386", expected: test.expected, actual, maxAbsDelta: delta, pass: delta <= TOLERANCE });
   }
+  const htmlUrlBox = clipReferenceBox(element, "border-box");
+  const htmlUrlDelta = maxDelta({ x: 10, y: 20, width: 200, height: 120 }, htmlUrlBox);
+  rows.push({ id: "clip.url-reference.html-border-box", stage: "clip", source: "clip_path_clipper.cc:364-400 ReferenceClipPathOperation non-SVG branch", expected: { x: 10, y: 20, width: 200, height: 120 }, actual: htmlUrlBox, maxAbsDelta: htmlUrlDelta, pass: htmlUrlDelta <= TOLERANCE });
+  const htmlObjectBoundingBoxDef = positionObjectBoundingBoxClipPathDef(
+    `<clipPath id="c" clipPathUnits="objectBoundingBox"><rect width=".5" height="1"/></clipPath>`,
+    htmlUrlBox.x, htmlUrlBox.y, htmlUrlBox.width, htmlUrlBox.height,
+  );
+  const htmlObjectBoundingBoxActual = {
+    units: /clipPathUnits="([^"]+)"/.exec(htmlObjectBoundingBoxDef)?.[1] ?? null,
+    transform: /transform="([^"]+)"/.exec(htmlObjectBoundingBoxDef)?.[1] ?? null,
+  };
+  const htmlObjectBoundingBoxExpected = {
+    units: "userSpaceOnUse",
+    transform: "translate(10, 20) scale(200, 120)",
+  };
+  rows.push({ id: "clip.url-reference.html-object-bbox-map", stage: "clip", source: "layout_svg_resource_clipper.cc:237-247 explicit reference-box translate/scale", expected: htmlObjectBoundingBoxExpected, actual: htmlObjectBoundingBoxActual, maxAbsDelta: 0, pass: JSON.stringify(htmlObjectBoundingBoxActual) === JSON.stringify(htmlObjectBoundingBoxExpected) });
+  const svgUrlBox = svgEffectReferenceBox(svgBoxes, "fill-box");
+  const svgUrlDelta = maxDelta(svgBoxes.fillBox, svgUrlBox);
+  rows.push({ id: "clip.url-reference.svg-forced-fill-box", stage: "clip", source: "clip_path_clipper.cc:368-374 ReferenceClipPathOperation SVG-child override", expected: svgBoxes.fillBox, actual: svgUrlBox, maxAbsDelta: svgUrlDelta, pass: svgUrlDelta <= TOLERANCE });
+  const svgUrlMutationDelta = maxDelta(svgUrlBox, svgEffectReferenceBox(svgBoxes, "stroke-box"));
+  rows.push({ id: "clip.url-reference.svg-stroke-mutation", stage: "clip", source: "SVG URL references force fill-box rather than author-selectable stroke-box", expected: { differsFromStrokeBox: true }, actual: { differsFromStrokeBox: svgUrlMutationDelta > 1 }, maxAbsDelta: 0, pass: svgUrlMutationDelta > 1 });
   const retiredHtmlMapping = clipReferenceBox({ x: 10, y: 20, width: 200, height: 120, styles: {} }, "fill-box");
   const svgFill = svgEffectReferenceBox(svgBoxes, "fill-box");
   const svgActivationDelta = maxDelta(retiredHtmlMapping, svgFill);

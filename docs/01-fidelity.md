@@ -88,9 +88,9 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 
 ### Transforms
 
-- [x] transform: translate/rotate/scale/skew/matrix — full 2D affine; static 3D trees are retained as vector planes projected from Chromium-measured corners, including perspective origins, preserve-3d depth ordering, and hidden backfaces. See `06-css-transforms.md`.
+- [x] transform: translate/rotate/scale/skew/matrix — full 2D affine. See `06-css-transforms.md`.
 - [x] `-webkit-box-reflect` — above/below/left/right reflection duplicates the complete rendered subtree as vectors, resolves signed px/% offsets against Blink's stitched box dimension, and applies optional gradient/image masks as alpha masks. Descendants retain their own independently required raster fallbacks; the reflected subtree itself is never flattened to a screenshot.
-- [~] transform: 3D — flattened to its 2D projection (no perspective). See `06-css-transforms.md`.
+- [x] transform: 3D — an affine `matrix3d` remains vector; a non-affine fourth corner, perspective/depth context, or hidden-backface composition crosses one exact Chromium atomic surface rather than a fitted 2D projection. Explicit `animationTimeMs` capture pauses all document timelines before every prepass and records the same-frame CDP quad/computed composition/residual/outer owner. The rotate3d/translate3d/matrix3d/perspective/origin/preserve/grouping/additive matrix is hard-gated at four times, DPR 1/2, on macOS/Linux/Windows. See [docs 06](06-css-transforms.md), [162](162-inline-svg-3d-transform-audit.md), and [186](186-animated-3d-frame-state-parity.md).
 
 ### Typography
 

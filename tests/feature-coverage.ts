@@ -85,6 +85,18 @@ export const FEATURES: FeatureEntry[] = [
       "tests/inline-svg-projective-ownership.e2e.test.ts",
     ],
   },
+  {
+    id: "capture.animated-projective-frame",
+    behavior: "Pause document timelines before all capture prepasses and retain the exact Chromium quad, composed 3D state, and raster owner for that frame.",
+    doc: "docs/186-animated-3d-frame-state-parity.md",
+    exports: ["seekAnimationsToFrame"],
+    tests: [
+      "tests/animated-projective-frame-oracle.test.ts",
+      "tests/animation-frame.e2e.test.ts",
+      "tests/animated-projective-frame.e2e.test.ts",
+    ],
+    transition: "affine → projective and preserve-3d → flat/grouped ownership at exact paused timeline samples.",
+  },
 
   // ── Render (DOM tree → SVG) ────────────────────────────────────────────
   {

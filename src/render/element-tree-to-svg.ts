@@ -17,14 +17,14 @@ import type { DefCtx } from "./form-controls.js";
 import { renderFileSelectorOutsetShadow, renderFormControl } from "./form-controls.js";
 import { CAPTURE_SCRIPT } from "../capture/script.generated.js";
 import { r, esc, stopFmt, rootSvgA11y } from "./format.js";
-import { clipPathShapeForElement, translateClipPath } from "./clip-path.js";
+import { clipPathShapeForElement, parseSameDocumentClipPathUrl, translateClipPath } from "./clip-path.js";
 import { buildImagePatternDef, cyclicBackgroundLayer } from "./image-pattern.js";
 import { buildLinearGradientDef, buildRadialGradientDef, parseBgPositionPx, type GradientStop } from "./gradient-defs.js";
 import { advancedGradientTile, needsChromiumGradientRaster } from "./advanced-gradient-raster.js";
 import { computeTileSize } from "./conic-raster.js";
 import { isFlexOrGridContainerDisplay, establishesStackingContext, gatherStackingContextChildren, isOverflowOnlySC, isFixedContainingBlock, paintOrderBuckets, paintsAtomicallyAsInlineBox, type PaintOrderBuckets } from "./stacking.js";
 export { parseGradientStops, buildRadialGradientDef, parseBgPositionPx } from "./gradient-defs.js"; // re-export for existing test importers
-import { buildMaskDef, buildMaskBorder9Slice, positionFragmentMaskDef, positionFragmentClipPathDef, rewriteFragmentMaskDef } from "./mask.js";
+import { buildMaskDef, buildMaskBorder9Slice, positionFragmentMaskDef, positionFragmentClipPathDef, positionObjectBoundingBoxClipPathDef, rewriteFragmentMaskDef } from "./mask.js";
 // Re-export mask helpers used by focused geometry/emission tests.
 export { buildMaskDef, maskPaintAreas, positionFragmentMaskDef, rewriteFragmentMaskDef } from "./mask.js";
 export { resolveMaskContainCoverRect, resolveMaskPosition, resolveMaskPositionAxis } from "./mask-position.js";
@@ -3577,17 +3577,15 @@ export function elementTreeToSvgInner(
 function resolveFragmentClipPathRef(
   state: RenderState,
   clipPathCss: string,
-  elX: number, elY: number,
+  el: CapturedElement,
 ): string | null {
   const { fragmentClipPathDefs, fragmentClipPathOutputId, defsParts, idPrefix } = state;
-  // Strip the optional <geometry-box> keyword so `url(#id) padding-box`
-  // matches; it doesn't affect bbox-relative clipPaths, and for
-  // userSpaceOnUse the border-box origin (the default) is what Chrome uses —
-  // a non-default box keyword's origin offset is a rare edge left for later.
-  const stripped = clipPathCss.replace(/\b(?:content-box|padding-box|border-box|margin-box|fill-box|stroke-box|view-box)\b/i, "").trim();
-  const m = /^url\(\s*(?:"|')?#([^"')\s]+)(?:"|')?\s*\)$/i.exec(stripped);
-  if (m == null) return null;
-  const fragId = m[1];
+  // A URL is an exclusive Blink ReferenceClipPathOperation. Geometry boxes
+  // can accompany a basic shape or stand alone, but cannot accompany url().
+  // Fail closed for synthetic/legacy trees carrying that invalid combination
+  // instead of painting a clip Chromium parsed as `none`.
+  const fragId = parseSameDocumentClipPathUrl(clipPathCss);
+  if (fragId == null) return null;
   const def = fragmentClipPathDefs.get(fragId);
   if (def == null) return null;
 
@@ -3595,14 +3593,17 @@ function resolveFragmentClipPathRef(
   // aliases, rewrites href / url() refs); the outer `<clipPath>`'s id becomes
   // `outId`, descendants get the `${idPrefix}fragid-${original}` alias.
   if ((def.clipPathUnits ?? "userSpaceOnUse") === "objectBoundingBox") {
-    // objectBoundingBox: coords are 0..1 fractions of the masked element's
-    // bbox — SVG auto-scales natively, so one shared def serves every
-    // consumer regardless of position (DM-826).
-    const cached = fragmentClipPathOutputId.get(fragId);
+    // Blink passes the HTML consumer's border box to the SVG resource. The
+    // generated wrapper's native SVG object bbox can instead collapse to an
+    // offset/overflowing child when the host itself has no paint. Materialize
+    // the normalized-to-border-box map, one copy per distinct consumer box.
+    const cacheKey = `${fragId}|object|${r(el.x)}|${r(el.y)}|${r(el.width)}|${r(el.height)}`;
+    const cached = fragmentClipPathOutputId.get(cacheKey);
     if (cached != null) return cached;
     const outId = `${idPrefix}cpfrag${state.fragmentClipPathCounter++}`;
-    fragmentClipPathOutputId.set(fragId, outId);
-    defsParts.push(rewriteFragmentMaskDef(def.outerHTML, outId, idPrefix));
+    fragmentClipPathOutputId.set(cacheKey, outId);
+    const rewritten = rewriteFragmentMaskDef(def.outerHTML, outId, idPrefix);
+    defsParts.push(positionObjectBoundingBoxClipPathDef(rewritten, el.x, el.y, el.width, el.height));
     return outId;
   }
 
@@ -3610,13 +3611,13 @@ function resolveFragmentClipPathRef(
   // is drawn at absolute (elX, elY), so mint a per-position copy translated to
   // match. Dedupe identical positions, mirroring resolveFragmentMaskRef
   // (width/height don't matter for a clipPath — no bbox) — DM-828.
-  const cacheKey = `${fragId}|${r(elX)}|${r(elY)}`;
+  const cacheKey = `${fragId}|${r(el.x)}|${r(el.y)}`;
   const cached = fragmentClipPathOutputId.get(cacheKey);
   if (cached != null) return cached;
   const outId = `${idPrefix}cpfrag${state.fragmentClipPathCounter++}`;
   fragmentClipPathOutputId.set(cacheKey, outId);
   const rewritten = rewriteFragmentMaskDef(def.outerHTML, outId, idPrefix);
-  defsParts.push(positionFragmentClipPathDef(rewritten, elX, elY));
+  defsParts.push(positionFragmentClipPathDef(rewritten, el.x, el.y));
   return outId;
 }
 function resolveFragmentMaskRef(
@@ -4674,7 +4675,7 @@ function resolveClipPath(state: RenderState, el: CapturedElement, corners: Corne
       // DM-826: shape translator returned "" — try the inline-`<clipPath>`
       // fragment-ref path (`clip-path: url(#id)` against the captured
       // `clipPathDefs`). See docs/39.
-      const fragId = resolveFragmentClipPathRef(state, clipPathCss, el.x, el.y);
+      const fragId = resolveFragmentClipPathRef(state, clipPathCss, el);
       if (fragId != null) clipPathUrlId = fragId;
     }
   }

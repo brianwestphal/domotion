@@ -1780,6 +1780,37 @@ export interface CapturedElement {
   /** Blink culled this plane because `backface-visibility: hidden` faced away. */
   projectiveHidden?: boolean;
   /**
+   * DM-2359: immutable Chromium paint state for an explicitly seeked animation
+   * frame. The content/border quads, computed transform family, fourth-corner
+   * residual, and effective outer raster owner all come from one paused
+   * document-timeline sample; renderers must never fit a non-affine record to a
+   * 2D SVG matrix.
+   */
+  projectiveFrameState?: {
+    source: "chromium-cdp-content-quad-v1";
+    sampleTimeMs: number;
+    animationCount: number;
+    role: "html-box" | "svg-root-box" | "svg-graphics";
+    influenced: boolean;
+    contentQuad: [number, number, number, number, number, number, number, number] | null;
+    borderQuad: [number, number, number, number, number, number, number, number] | null;
+    residual: number | null;
+    nonAffine: boolean;
+    ownsRasterBoundary: boolean;
+    computed: {
+      transform: string;
+      translate: string;
+      rotate: string;
+      scale: string;
+      transformOrigin: string;
+      transformStyle: string;
+      perspective: string;
+      perspectiveOrigin: string;
+      overflowX: string;
+      overflowY: string;
+    };
+  };
+  /**
    * Per-line-fragment rects (viewport-relative px) for inline elements that
    * wrap across multiple line boxes. Populated by capture when the element
    * is `display: inline` AND has a non-transparent background, non-zero
@@ -2129,7 +2160,8 @@ export interface CapturedElement {
    * with id rewriting so a captured `<clipPath id="hex">` becomes a
    * domotion-prefixed clip-path def referenced by elements that point at
    * `#hex`. Same-document only — external `.svg#fragment` refs are
-   * deferred. See `docs/39-clip-path-fragment-references.md`.
+   * rewritten to same-document defs by the async same-origin HTTP(S)
+   * pre-pass. See `docs/39-clip-path-fragment-references.md`.
    */
   clipPathDefs?: ClipPathFragmentDef[];
   /**

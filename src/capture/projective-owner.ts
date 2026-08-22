@@ -28,6 +28,20 @@ export interface ProjectiveOwnershipNode {
 
 export type ProjectiveSvgRole = "html-box" | "svg-root-box" | "svg-graphics";
 
+/** Computed transform state read in the same committed frame as the CDP quad. */
+export interface ProjectiveComputedState {
+  transform: string;
+  translate: string;
+  rotate: string;
+  scale: string;
+  transformOrigin: string;
+  transformStyle: string;
+  perspective: string;
+  perspectiveOrigin: string;
+  overflowX: string;
+  overflowY: string;
+}
+
 /** Serializable result of the Chromium/CDP paint-quad prepass. */
 export interface ProjectivePaintNodeFact extends ProjectiveOwnershipNode {
   role: ProjectiveSvgRole;
@@ -35,6 +49,10 @@ export interface ProjectivePaintNodeFact extends ProjectiveOwnershipNode {
   quad: ProjectivePaintQuad | null;
   /** DOM.getBoxModel border quad, used only for box homography emission. */
   borderQuad: ProjectivePaintQuad | null;
+  /** Fourth-corner residual in capture CSS pixels; null means CDP unavailable. */
+  residual: number | null;
+  /** Present only for nodes participating in the current 3D paint context. */
+  computed: ProjectiveComputedState | null;
 }
 
 export const PROJECTIVE_QUAD_EPSILON = 0.02;

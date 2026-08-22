@@ -1,5 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { svgEffectReferenceBox, type SvgEffectGeometryBox } from "./clip-path.js";
+import { parseSameDocumentClipPathUrl, svgEffectReferenceBox, type SvgEffectGeometryBox } from "./clip-path.js";
+
+describe("parseSameDocumentClipPathUrl", () => {
+  it.each([
+    ["url(#clip)", "clip"],
+    ['url("#clip")', "clip"],
+    ["url( '#clip' )", "clip"],
+  ])("accepts Blink's exclusive URL-reference syntax: %s", (value, expected) => {
+    expect(parseSameDocumentClipPathUrl(value)).toBe(expected);
+  });
+
+  it.each([
+    "url(#clip) content-box",
+    "url(#clip) padding-box",
+    "url(#clip) border-box",
+    "url(#clip) margin-box",
+    "url(#clip) fill-box",
+    "url(#clip) stroke-box",
+    "url(#clip) view-box",
+    "padding-box url(#clip)",
+    "url(other.svg#clip)",
+    "none",
+  ])("rejects a non-reference operation or trailing geometry box: %s", (value) => {
+    expect(parseSameDocumentClipPathUrl(value)).toBeNull();
+  });
+});
 
 describe("svgEffectReferenceBox (DM-2328)", () => {
   const boxes = {

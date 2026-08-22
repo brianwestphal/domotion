@@ -1,0 +1,88 @@
+name: Blend and filter pixel-stage evidence
+
+on:
+  pull_request:
+    paths:
+      - "src/render/colors.ts"
+      - "src/render/format.ts"
+      - "src/render/element-tree-to-svg.ts"
+      - "src/render/pseudo-filter.ts"
+      - "src/render/stacking.ts"
+      - "src/capture/backdrop-isolation.ts"
+      - "src/capture/index.ts"
+      - "src/capture/script/walker/masks-clips.ts"
+      - "src/capture/types.ts"
+      - "tools/blend-filter-pixel-stage-oracle.ts"
+      - "tests/blend-filter-pixel-stage-oracle.test.ts"
+      - "tests/blend-filter-pixel-stage-oracle.e2e.test.ts"
+      - "tests/blend-filter-pixel-stage-workflow.test.ts"
+      - "tests/fixtures/html-test/37-blend-filter-pixel-stage.html"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/blend-filter-pixel-stage.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/render/colors.ts"
+      - "src/render/format.ts"
+      - "src/render/element-tree-to-svg.ts"
+      - "src/render/pseudo-filter.ts"
+      - "src/render/stacking.ts"
+      - "src/capture/backdrop-isolation.ts"
+      - "src/capture/index.ts"
+      - "src/capture/script/walker/masks-clips.ts"
+      - "src/capture/types.ts"
+      - "tools/blend-filter-pixel-stage-oracle.ts"
+      - "tests/blend-filter-pixel-stage-oracle.test.ts"
+      - "tests/blend-filter-pixel-stage-oracle.e2e.test.ts"
+      - "tests/blend-filter-pixel-stage-workflow.test.ts"
+      - "tests/fixtures/html-test/37-blend-filter-pixel-stage.html"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/blend-filter-pixel-stage.yml"
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "22.21.0"
+
+jobs:
+  pixel-stage:
+    name: ${{ matrix.label }} named-pixel stages
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            label: macOS
+          - os: ubuntu-latest
+            label: Linux
+          - os: windows-latest
+            label: Windows
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium and Linux system dependencies
+        if: runner.os == 'Linux'
+        run: npx playwright install --with-deps chromium
+      - name: Install Chromium
+        if: runner.os != 'Linux'
+        run: npx playwright install chromium
+      - name: Run source arithmetic and workflow guards
+        run: npx vitest run tests/blend-filter-pixel-stage-oracle.test.ts tests/blend-filter-pixel-stage-workflow.test.ts
+      - name: Capture DPR 1/2 named-pixel and mutation evidence
+        run: npm run paint:blend-filter-stage -- --dpr 1,2 --json tests/output/blend-filter/${{ runner.os }}/report.json --artifact-dir tests/output/blend-filter/${{ runner.os }} --accept-known-findings
+      - name: Upload exact producer and pixel evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blend-filter-pixel-stage-${{ runner.os }}
+          path: tests/output/blend-filter/${{ runner.os }}
+          if-no-files-found: error

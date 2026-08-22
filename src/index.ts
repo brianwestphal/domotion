@@ -26,7 +26,13 @@ export {
   launchChromium,
   injectBrandVariables,
 } from "./capture/index.js";
-export type { CaptureOptions } from "./capture/index.js";
+export type { CaptureOptions, CaptureElementTreeOptions } from "./capture/index.js";
+export { seekAnimationsToFrame } from "./capture/animation-frame.js";
+export type {
+  SeekAnimationsToFrameOptions,
+  StableAnimationDocumentState,
+  StableAnimationFrameState,
+} from "./capture/animation-frame.js";
 export {
   getLastCaptureWarnings,
   logCaptureWarnings,

@@ -130,6 +130,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "codex-dm2362-max",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4kdmkiimege4uh",
+          "message": {
+            "text": "URL clip parsing is intentionally stricter than the old renderer path. Chromium 7d859f27 returns immediately from ClipPath::ParseSingleValue when ConsumeUrl succeeds; geometry boxes are parsed only by the separate basic-shape/standalone-box branch, and ReferenceClipPathOperation has no box field. Rejecting stale url(#id) padding-box records prevents Domotion from painting a declaration Chromium computed to none.",
+            "markdown": "URL clip parsing is intentionally stricter than the old renderer path. Chromium 7d859f27 returns immediately from ClipPath::ParseSingleValue when ConsumeUrl succeeds; geometry boxes are parsed only by the separate basic-shape/standalone-box branch, and ReferenceClipPathOperation has no box field. Rejecting stale url(#id) padding-box records prevents Domotion from painting a declaration Chromium computed to none."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/clip-path.ts"
+                },
+                "region": {
+                  "startLine": 36,
+                  "endLine": 47,
+                  "snippet": {
+                    "text": "/**\n * Parse Blink's `clip-path` URL-reference operation.\n *\n * Chromium revision 7d859f27 parses a URL as an exclusive `<clip-source>` in\n * `ClipPath::ParseSingleValue`; geometry boxes belong only to the separate\n * basic-shape / standalone-box branch.  Keep this deliberately strict so a\n * hand-built or old captured tree containing the invalid\n * `url(#id) padding-box` form cannot acquire paint that Chromium dropped.\n */\nexport function parseSameDocumentClipPathUrl(value: string): string | null {\n  const match = /^url\\(\\s*(?:\"|')?#([^\"')\\s]+)(?:\"|')?\\s*\\)$/i.exec(value.trim());\n  return match?.[1] ?? null;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/masks-clips.ts"
+                },
+                "region": {
+                  "startLine": 215
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 3583
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2362"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e87b094a0b1c73260d60a34b0394f202"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8531038c3a3b48c4353d332fa6d660bf0666b2f3",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -212,19 +212,20 @@ export const createMasksClipsHandler = ({ vp, warn }) => {
     if (!cp || cp === 'none' || cp === '') return;
     const doc = el.ownerDocument || document; // DM-1446: resolve inner-iframe defs
 
-    // Strip an optional <geometry-box> keyword (`padding-box` / `border-box` /
-    // …) before the url(...) check — `clip-path: url(#id) padding-box` is
-    // valid per CSS Masking 1 §3.1. The renderer's geo-box handling is
-    // shape-side; here we only care about the url() form.
-    const cpShape = cp.replace(/\b(?:content-box|padding-box|border-box|margin-box|fill-box|stroke-box|view-box)\b/i, '').trim();
+    // Blink parses url() as an exclusive ReferenceClipPathOperation. A
+    // geometry box can accompany a basic shape or stand alone, but cannot be
+    // combined with a URL. Keep discovery strict even though computed style
+    // normally already reports invalid combinations as `none`.
+    const cpShape = cp.trim();
     const fragMatch = /^url\(\s*(?:"|')?#([^"')\s]+)(?:"|')?\s*\)$/i.exec(cpShape);
     if (fragMatch != null) {
       const fragId = fragMatch[1];
       if (!clipPathDefs.has(fragId)) {
         const target = doc.getElementById(fragId);
         if (target != null && target.tagName.toLowerCase() === 'clippath') {
-          // SVG default for clipPathUnits is userSpaceOnUse (DM-828): the
-          // renderer translates those per-consumer; objectBoundingBox is shared.
+          // SVG default for clipPathUnits is userSpaceOnUse (DM-828). The
+          // renderer translates that per consumer and materializes an
+          // objectBoundingBox def through each HTML border rect (DM-2362).
           const units = (target.getAttribute('clipPathUnits') || 'userSpaceOnUse').toLowerCase();
           clipPathDefs.set(fragId, {
             id: fragId,

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildMaskDef, maskPaintAreas, positionFragmentMaskDef, rewriteFragmentMaskDef } from "./render/element-tree-to-svg.js";
+import { positionObjectBoundingBoxClipPathDef } from "./render/mask.js";
 
 // Locks the SVG <mask> emission for the cases exercised by the html-test
 // suite's 23-mask.html fixture (DM-395).
@@ -158,6 +159,27 @@ describe("rewriteFragmentMaskDef — DM-493 same-document mask fragment refs", (
     const a = rewriteFragmentMaskDef(`<mask id="m1"><rect width="10" height="10" fill="white"/></mask>`, "f-mkfrag0", "f-");
     const b = rewriteFragmentMaskDef(`<mask id="m1"><rect width="10" height="10" fill="white"/></mask>`, "f-mkfrag0", "f-");
     expect(a).toBe(b);
+  });
+});
+
+describe("objectBoundingBox clip-path materialization (DM-2362)", () => {
+  it("maps normalized geometry through the HTML consumer border box", () => {
+    const out = positionObjectBoundingBoxClipPathDef(
+      `<clipPath id="c" clipPathUnits="objectBoundingBox"><rect width=".5" height="1"/></clipPath>`,
+      20, 30, 200, 100,
+    );
+    expect(out).toContain(`clipPathUnits="userSpaceOnUse"`);
+    expect(out).toContain(`transform="translate(20, 30) scale(200, 100)"`);
+    expect(out).not.toContain(`clipPathUnits="objectBoundingBox"`);
+  });
+
+  it("keeps the source clipPath transform outermost, matching Blink's matrix product", () => {
+    const out = positionObjectBoundingBoxClipPathDef(
+      `<clipPath id='c' clipPathUnits='objectBoundingBox' transform='rotate(8)'><path d='M0 0H1V1Z'/></clipPath>`,
+      5, 7, 40, 60,
+    );
+    expect(out).toContain(`transform="rotate(8) translate(5, 7) scale(40, 60)"`);
+    expect(out).toContain(`clipPathUnits="userSpaceOnUse"`);
   });
 });
 

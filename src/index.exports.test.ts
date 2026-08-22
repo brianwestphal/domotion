@@ -131,6 +131,7 @@ const EXPECTED_VALUE_EXPORTS = [
   "runActions",
   "safeAreaGuideSvg",
   "safeAreaPadding",
+  "seekAnimationsToFrame",
   "setRenderTextMode",
   "statTemplate",
   "subscribeTemplate",

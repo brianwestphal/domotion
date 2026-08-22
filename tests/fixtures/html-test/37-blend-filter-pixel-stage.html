@@ -1,0 +1,171 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: transparent; }
+  #stage {
+    width: 900px;
+    height: 610px;
+    padding: 16px;
+    background: rgb(246, 248, 252);
+  }
+  .grid { display: grid; grid-template-columns: repeat(9, 88px); gap: 8px; }
+  .cell {
+    position: relative;
+    width: 88px;
+    height: 52px;
+    overflow: visible;
+    background: rgb(196, 82, 43);
+  }
+  .blend-source {
+    position: absolute;
+    inset: 0;
+    background: rgba(38, 171, 224, .65);
+    mix-blend-mode: var(--blend);
+  }
+  #filters, #composed { margin-top: 16px; }
+  #filters { grid-template-columns: repeat(8, 88px); }
+  .filter-source { position: absolute; inset: 0; background: rgb(38, 171, 224); }
+  #filter-color .filter-source {
+    filter: grayscale(.37) sepia(.44) saturate(1.35) hue-rotate(37deg)
+      invert(.18) brightness(1.12) contrast(.83);
+  }
+  #filter-reverse .filter-source {
+    filter: contrast(.83) brightness(1.12) invert(.18) hue-rotate(37deg)
+      saturate(1.35) sepia(.44) grayscale(.37);
+  }
+  #filter-sourcegraphic .filter-source {
+    background: rgba(38, 171, 224, .65);
+    filter: invert(1);
+  }
+  #filter-opacity .filter-source {
+    background: rgba(38, 171, 224, .65);
+    filter: opacity(.55) brightness(1.18);
+  }
+  .blur-cell, .shadow-cell { background: white; }
+  .blur-subject {
+    position: absolute;
+    left: 30px;
+    top: 12px;
+    width: 28px;
+    height: 28px;
+    background: rgb(16, 26, 40);
+    filter: blur(2px);
+  }
+  .shadow-subject {
+    position: absolute;
+    left: 16px;
+    top: 10px;
+    width: 24px;
+    height: 24px;
+    background: rgb(238, 62, 84);
+    filter: drop-shadow(8.5px 4.5px 2px rgba(23, 71, 230, .85));
+  }
+  .point {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    pointer-events: none;
+  }
+  #composed { grid-template-columns: repeat(6, 128px); }
+  #composed .cell { width: 128px; height: 72px; }
+  .isolation-group { position: absolute; inset: 10px; isolation: isolate; }
+  .nonisolation-group { position: absolute; inset: 10px; }
+  .surface-source {
+    position: absolute;
+    inset: 0;
+    background: rgba(38, 171, 224, .65);
+    mix-blend-mode: multiply;
+  }
+  #filter-own-source .surface-source {
+    mix-blend-mode: normal;
+    filter: invert(1);
+  }
+  #background-stack {
+    background-color: rgb(220, 170, 32);
+    background-image:
+      linear-gradient(rgb(48, 82, 220), rgb(48, 82, 220)),
+      linear-gradient(rgb(40, 190, 96), rgb(40, 190, 96));
+    background-blend-mode: screen, multiply;
+  }
+  #group-opacity .surface-source {
+    background: rgb(38, 171, 224);
+    mix-blend-mode: multiply;
+  }
+  #group-opacity .effect-group { position: absolute; inset: 0; opacity: .58; }
+  #boundary-backdrop {
+    background: rgba(250, 250, 255, .42);
+    backdrop-filter: blur(3px) saturate(1.4);
+  }
+  #boundary-convolve .filter-source { filter: url(#pixel-kernel); }
+  .boundary-control { position: absolute; top: 580px; width: 12px; height: 12px; background: rgb(38, 171, 224); }
+  #boundary-url-color { left: 16px; filter: url(#color-only); }
+  #boundary-native-convolve { left: 36px; }
+</style>
+<svg width="0" height="0" aria-hidden="true">
+  <filter id="pixel-kernel" color-interpolation-filters="sRGB" x="-20%" y="-20%" width="140%" height="140%">
+    <feConvolveMatrix order="3" kernelMatrix="0 -1 0 -1 5 -1 0 -1 0" edgeMode="none"/>
+  </filter>
+  <filter id="color-only" color-interpolation-filters="sRGB">
+    <feColorMatrix type="saturate" values=".35"/>
+  </filter>
+</svg>
+<main id="stage">
+  <section id="blends" class="grid">
+    <div class="cell" data-probe="blend.normal"><div class="blend-source" style="--blend:normal"></div></div>
+    <div class="cell" data-probe="blend.multiply"><div class="blend-source" style="--blend:multiply"></div></div>
+    <div class="cell" data-probe="blend.screen"><div class="blend-source" style="--blend:screen"></div></div>
+    <div class="cell" data-probe="blend.overlay"><div class="blend-source" style="--blend:overlay"></div></div>
+    <div class="cell" data-probe="blend.darken"><div class="blend-source" style="--blend:darken"></div></div>
+    <div class="cell" data-probe="blend.lighten"><div class="blend-source" style="--blend:lighten"></div></div>
+    <div class="cell" data-probe="blend.color-dodge"><div class="blend-source" style="--blend:color-dodge"></div></div>
+    <div class="cell" data-probe="blend.color-burn"><div class="blend-source" style="--blend:color-burn"></div></div>
+    <div class="cell" data-probe="blend.hard-light"><div class="blend-source" style="--blend:hard-light"></div></div>
+    <div class="cell" data-probe="blend.soft-light"><div class="blend-source" style="--blend:soft-light"></div></div>
+    <div class="cell" data-probe="blend.difference"><div class="blend-source" style="--blend:difference"></div></div>
+    <div class="cell" data-probe="blend.exclusion"><div class="blend-source" style="--blend:exclusion"></div></div>
+    <div class="cell" data-probe="blend.hue"><div class="blend-source" style="--blend:hue"></div></div>
+    <div class="cell" data-probe="blend.saturation"><div class="blend-source" style="--blend:saturation"></div></div>
+    <div class="cell" data-probe="blend.color"><div class="blend-source" style="--blend:color"></div></div>
+    <div class="cell" data-probe="blend.luminosity"><div class="blend-source" style="--blend:luminosity"></div></div>
+    <div class="cell" data-probe="blend.plus-lighter"><div class="blend-source" style="--blend:plus-lighter"></div></div>
+  </section>
+
+  <section id="filters" class="grid">
+    <div class="cell" id="filter-color" data-probe="filter.color-chain"><div class="filter-source"></div></div>
+    <div class="cell" id="filter-reverse" data-probe="filter.reverse-chain"><div class="filter-source"></div></div>
+    <div class="cell" id="filter-sourcegraphic" data-probe="filter.own-source"><div class="filter-source"></div></div>
+    <div class="cell" id="filter-opacity" data-probe="filter.opacity-chain"><div class="filter-source"></div></div>
+    <div class="cell blur-cell">
+      <div class="blur-subject" data-domotion-anim="boundary-filter"></div>
+      <i class="point" data-probe="filter.blur-edge" style="left:27px;top:25px"></i>
+    </div>
+    <div class="cell shadow-cell">
+      <div class="shadow-subject"></div>
+      <i class="point" data-probe="filter.drop-shadow" style="left:47px;top:28px"></i>
+    </div>
+    <div class="cell" id="boundary-convolve"><div class="filter-source" data-domotion-anim="boundary-convolve"></div></div>
+  </section>
+
+  <section id="composed" class="grid">
+    <div class="cell" data-probe="surface.isolated">
+      <div class="isolation-group"><div class="surface-source" data-domotion-anim="boundary-blend"></div></div>
+    </div>
+    <div class="cell" data-probe="surface.nonisolated">
+      <div class="nonisolation-group"><div class="surface-source"></div></div>
+    </div>
+    <div class="cell" id="filter-own-source" data-probe="surface.filter-own-source">
+      <div class="surface-source"></div>
+    </div>
+    <div class="cell" id="background-stack" data-probe="surface.background-stack"></div>
+    <div class="cell" id="group-opacity" data-probe="surface.opacity-blend">
+      <div class="effect-group"><div class="surface-source"></div></div>
+    </div>
+    <div class="cell" id="boundary-backdrop" data-probe="boundary.backdrop" data-domotion-anim="boundary-backdrop"></div>
+  </section>
+  <div id="boundary-url-color" class="boundary-control" data-domotion-anim="boundary-url-color"></div>
+  <svg id="boundary-native-convolve" class="boundary-control" data-domotion-anim="boundary-native-convolve" viewBox="0 0 12 12">
+    <filter id="native-pixel-kernel"><feConvolveMatrix order="3" kernelMatrix="0 -1 0 -1 5 -1 0 -1 0" edgeMode="none"/></filter>
+    <rect width="12" height="12" fill="rgb(38,171,224)" filter="url(#native-pixel-kernel)"/>
+  </svg>
+</main>

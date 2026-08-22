@@ -1,0 +1,85 @@
+name: Animated projective frame parity
+
+on:
+  pull_request:
+    paths:
+      - "src/capture/animation-frame.ts"
+      - "src/capture/index.ts"
+      - "src/capture/projective-owner.ts"
+      - "src/capture/script/index.ts"
+      - "src/capture/script.generated.ts"
+      - "src/capture/types.ts"
+      - "src/cli/svg-to-video-core.ts"
+      - "src/render/element-tree-to-svg.ts"
+      - "tools/animated-projective-frame-oracle.ts"
+      - "tests/animated-projective-frame-oracle.test.ts"
+      - "tests/animation-frame.e2e.test.ts"
+      - "tests/animated-projective-frame.e2e.test.ts"
+      - "tests/animated-projective-frame-workflow.test.ts"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/animated-projective-frame-parity.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/capture/animation-frame.ts"
+      - "src/capture/index.ts"
+      - "src/capture/projective-owner.ts"
+      - "src/capture/script/index.ts"
+      - "src/capture/script.generated.ts"
+      - "src/capture/types.ts"
+      - "src/cli/svg-to-video-core.ts"
+      - "src/render/element-tree-to-svg.ts"
+      - "tools/animated-projective-frame-oracle.ts"
+      - "tests/animated-projective-frame-oracle.test.ts"
+      - "tests/animation-frame.e2e.test.ts"
+      - "tests/animated-projective-frame.e2e.test.ts"
+      - "tests/animated-projective-frame-workflow.test.ts"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/animated-projective-frame-parity.yml"
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "22.21.0"
+
+jobs:
+  parity:
+    name: ${{ matrix.label }} animated CSS 3D frames
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            label: macOS
+          - os: ubuntu-latest
+            label: Linux
+          - os: windows-latest
+            label: Windows
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - if: runner.os == 'Linux'
+        run: npx playwright install --with-deps chromium
+      - if: runner.os != 'Linux'
+        run: npx playwright install chromium
+      - name: Run frame-synchronized Chromium quad and ownership gate
+        run: npm run transform:animated-3d-frame-gate -- --dpr 1,2 --json tests/output/animated-projective-frame-gate.json
+      - name: Run focused multi-document CSS and SMIL seek regression
+        run: npx vitest run --config vitest.e2e.config.ts tests/animation-frame.e2e.test.ts
+      - name: Upload fingerprinted native report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: animated-projective-frame-${{ runner.os }}
+          path: tests/output/animated-projective-frame-gate.json
+          if-no-files-found: error
+          retention-days: 30

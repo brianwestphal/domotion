@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4kwrq0lld2sywt",
+          "message": {
+            "text": "One paused, paint-committed document-time transaction prevents all later capture prepasses from observing different compositor frames. The once-per-document pre-settle makes CSS animation enumeration complete; the post-seek settle and strict count/time/play-state checks turn unsupported timelines into explicit failures instead of silent projective drift.",
+            "markdown": "One paused, paint-committed document-time transaction prevents all later capture prepasses from observing different compositor frames. The once-per-document pre-settle makes CSS animation enumeration complete; the post-seek settle and strict count/time/play-state checks turn unsupported timelines into explicit failures instead of silent projective drift."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/animation-frame.ts"
+                },
+                "region": {
+                  "startLine": 35,
+                  "endLine": 145,
+                  "snippet": {
+                    "text": "async function seekDocumentFrame(frame: Frame, timeMs: number): Promise<StableAnimationDocumentState> {\n  return frame.evaluate(async ({ requestedTimeMs, epsilonMs }) => {\n    const failures: string[] = [];\n    const root = document.documentElement as unknown as { __domotionSeekSettled?: boolean } | null;\n\n    // A CSS animation joins the document timeline only after the first style\n    // recalc. Settle once per Document before enumeration (DM-1781), then\n    // settle again after the seek so every later CDP/layout read observes the\n    // same committed compositor frame.\n    if (root != null && root.__domotionSeekSettled !== true) {\n      root.__domotionSeekSettled = true;\n      await new Promise<void>((resolve) => {\n        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));\n      });\n    }\n\n    const before = typeof document.getAnimations === \"function\" ? document.getAnimations() : [];\n    for (let index = 0; index < before.length; index++) {\n      const animation = before[index];\n      try {\n        animation.pause();\n        animation.currentTime = requestedTimeMs;\n      } catch (error) {\n        failures.push(`animation[${index}] refused document-time seek: ${String(error)}`);\n      }\n    }\n\n    let smilTimelineCount = 0;\n    for (const svg of document.querySelectorAll(\"svg\")) {\n      if (typeof svg.pauseAnimations !== \"function\") continue;\n      smilTimelineCount++;\n      try {\n        svg.pauseAnimations();\n        svg.setCurrentTime(requestedTimeMs / 1000);\n      } catch (error) {\n        failures.push(`smil[${smilTimelineCount - 1}] refused document-time seek: ${String(error)}`);\n      }\n    }\n\n    await new Promise<void>((resolve) => {\n      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));\n    });\n\n    const after = typeof document.getAnimations === \"function\" ? document.getAnimations() : [];\n    if (after.length !== before.length) {\n      failures.push(`animation enumeration changed during settle: ${before.length} -> ${after.length}`);\n    }\n    for (let index = 0; index < after.length; index++) {\n      const animation = after[index];\n      const currentTime = animation.currentTime;\n      if (typeof currentTime !== \"number\") {\n        failures.push(`animation[${index}] has a non-document timeline currentTime`);\n        continue;\n      }\n      if (Math.abs(currentTime - requestedTimeMs) > epsilonMs) {\n        failures.push(`animation[${index}] drifted to ${currentTime}ms`);\n      }\n      if (animation.playState !== \"paused\" && animation.playState !== \"finished\") {\n        failures.push(`animation[${index}] remained ${animation.playState}`);\n      }\n    }\n\n    return {\n      url: location.href,\n      animationCount: after.length,\n      smilTimelineCount,\n      failures,\n    };\n  }, { requestedTimeMs: timeMs, epsilonMs: CURRENT_TIME_EPSILON_MS });\n}\n\n/**\n * Pause CSS/WAAPI and SMIL animation timelines at one exact time and wait for\n * Chromium to commit that state to paint. Geometry capture must call this\n * before *any* prepass; otherwise independently scheduled CDP/layout reads can\n * straddle two compositor frames.\n */\nexport async function seekAnimationsToFrame(\n  page: Page,\n  timeMs: number,\n  options: SeekAnimationsToFrameOptions = {},\n): Promise<StableAnimationFrameState> {\n  if (!Number.isFinite(timeMs) || timeMs < 0) {\n    throw new Error(`animationTimeMs must be a finite non-negative number (got ${String(timeMs)})`);\n  }\n\n  const frames = options.includeChildFrames === false ? [page.mainFrame()] : page.frames();\n  const documents = await Promise.all(frames.map(async (frame) => {\n    try {\n      return await seekDocumentFrame(frame, timeMs);\n    } catch (error) {\n      return {\n        url: frame.url(),\n        animationCount: 0,\n        smilTimelineCount: 0,\n        failures: [`document frame could not be seeked: ${String(error)}`],\n      };\n    }\n  }));\n  const failures = documents.flatMap((documentState) =>\n    documentState.failures.map((failure) => `${documentState.url || \"about:blank\"}: ${failure}`));\n  if (options.strict === true && failures.length > 0) {\n    throw new Error(`Stable animation frame unavailable at ${timeMs}ms:\\n${failures.join(\"\\n\")}`);\n  }\n  return {\n    source: \"chromium-paused-document-timeline-v1\",\n    requestedTimeMs: timeMs,\n    animationCount: documents.reduce((sum, state) => sum + state.animationCount, 0),\n    smilTimelineCount: documents.reduce((sum, state) => sum + state.smilTimelineCount, 0),\n    documents,\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2359"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c3bfec51ce49b25d9ddba3587852f54c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8531038c3a3b48c4353d332fa6d660bf0666b2f3",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

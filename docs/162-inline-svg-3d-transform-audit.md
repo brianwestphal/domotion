@@ -337,9 +337,10 @@ rejected before the fixed platform-independent pixel limits are considered.
   shipped.** Promotes the probe to exact logical plus independent final-SVG
   pixel gates at DPR 1/2 on every supported platform, with six mutation
   controls and fingerprinted native artifacts.
-- **DM-2359** already owns animated 3D frame-state coverage. The new static
-  gate intentionally does not compare two independently advancing animation
-  timelines; DM-2359 retains that frame-synchronization contract.
+- **DM-2359 — shipped in doc 186.** The static gate still does not compare two
+  independently advancing timelines. Capture now pauses the source before all
+  prepasses, exposes the same-frame CDP/computed/owner record, and the separate
+  all-platform DPR-1/2 gate covers animated projective ownership.
 
 ## Source map
 

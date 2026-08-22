@@ -33,6 +33,20 @@ export interface SvgEffectReferenceBoxes {
   viewport: { width: number; height: number };
 }
 
+/**
+ * Parse Blink's `clip-path` URL-reference operation.
+ *
+ * Chromium revision 7d859f27 parses a URL as an exclusive `<clip-source>` in
+ * `ClipPath::ParseSingleValue`; geometry boxes belong only to the separate
+ * basic-shape / standalone-box branch.  Keep this deliberately strict so a
+ * hand-built or old captured tree containing the invalid
+ * `url(#id) padding-box` form cannot acquire paint that Chromium dropped.
+ */
+export function parseSameDocumentClipPathUrl(value: string): string | null {
+  const match = /^url\(\s*(?:"|')?#([^"')\s]+)(?:"|')?\s*\)$/i.exec(value.trim());
+  return match?.[1] ?? null;
+}
+
 /** SVGResources::ReferenceBoxForEffects, Chromium rev 7d859f27. */
 export function svgEffectReferenceBox(boxes: SvgEffectReferenceBoxes, geometryBox: SvgEffectGeometryBox): { x: number; y: number; width: number; height: number } {
   if (geometryBox === "content-box" || geometryBox === "padding-box" || geometryBox === "fill-box") {

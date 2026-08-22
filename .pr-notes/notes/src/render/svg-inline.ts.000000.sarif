@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex-dm2362-max",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4ke1btbtpm5akx",
+          "message": {
+            "text": "Rewriting only the presentation attribute left a cascade-winning computed-style URL stale in cloned inline SVG. outerHTML encodes url(\"#clip\") as url(&quot;#clip&quot;); before this branch the output referenced a nonexistent old id and the SVG fill-box boundary was dark 4 CSS px past Chromium at both DPR 1 and 2. The encoded-reference unit mutation and live capture-to-SVG rows now pass.",
+            "markdown": "Rewriting only the presentation attribute left a cascade-winning computed-style URL stale in cloned inline SVG. outerHTML encodes url(\"#clip\") as url(&quot;#clip&quot;); before this branch the output referenced a nonexistent old id and the SVG fill-box boundary was dark 4 CSS px past Chromium at both DPR 1 and 2. The encoded-reference unit mutation and live capture-to-SVG rows now pass."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/svg-inline.ts"
+                },
+                "region": {
+                  "startLine": 48,
+                  "endLine": 58,
+                  "snippet": {
+                    "text": "  out = out.replace(/url\\(\\s*(['\"]?)#([^)'\"\\s]+)\\1\\s*\\)/gi, (_m, quote: string, id: string) => `url(${quote}#${mapped(id)}${quote})`);\n  // DOM `outerHTML` encodes the quotes inside a serialized style attribute,\n  // e.g. `style=\"clip-path: url(&quot;#clip&quot;)\"`.  The presentation\n  // attribute above is namespaced too, but the style declaration wins in the\n  // cascade; leaving its reference stale silently disables the clip. Preserve\n  // the source entity while rewriting its fragment id. This is particularly\n  // visible for objectBoundingBox URL clips on cloned SVG graphics (DM-2362).\n  out = out.replace(\n    /url\\(\\s*(&quot;|&#34;|&#x22;|&apos;|&#39;|&#x27;)#([^&)\\s;]+)\\1\\s*\\)/gi,\n    (_m, quote: string, id: string) => `url(${quote}#${mapped(id)}${quote})`,\n  );"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/svg-inline.test.ts"
+                },
+                "region": {
+                  "startLine": 61
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/clip-path-url-reference-box.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 87
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2362"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "6b12388bb1d30ea074bc720b7ce7a604"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8531038c3a3b48c4353d332fa6d660bf0666b2f3",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

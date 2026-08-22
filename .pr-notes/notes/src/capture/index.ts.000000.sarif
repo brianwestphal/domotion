@@ -550,6 +550,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4kwwzz4p0l00o3",
+          "message": {
+            "text": "Strict frame seeking happens before external-reference, font, image, control, scrollbar, projective, pseudo, text, and raster prepasses. The resulting same-frame record carries the independently measured CDP quads, computed composition, residual, and effective outer raster owner; static callers pay no computed-frame payload cost.",
+            "markdown": "Strict frame seeking happens before external-reference, font, image, control, scrollbar, projective, pseudo, text, and raster prepasses. The resulting same-frame record carries the independently measured CDP quads, computed composition, residual, and effective outer raster owner; static callers pay no computed-frame payload cost."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/index.ts"
+                },
+                "region": {
+                  "startLine": 1578,
+                  "endLine": 1583,
+                  "snippet": {
+                    "text": "  let animationFrameState: StableAnimationFrameState | undefined;\n  if (opts?.animationTimeMs != null) {\n    animationFrameState = await seekAnimationsToFrame(page, opts.animationTimeMs, {\n      strict: true,\n      includeChildFrames: true,\n    });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/types.ts"
+                },
+                "region": {
+                  "startLine": 1783
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/projective-owner.ts"
+                },
+                "region": {
+                  "startLine": 32
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2359"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "1b7444f3e8820974c3c44810caf010a9"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8531038c3a3b48c4353d332fa6d660bf0666b2f3",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

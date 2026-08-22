@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4kx2053l2524i8",
+          "message": {
+            "text": "The independent live gate is source-exact at 64/64 rows across DPR 1/2, with all five destructive mutations killed. Four frame samples cover eight families, including affine translate3d retention, matrix3d activation, preserve-to-flat owner transfer, overflow grouping flattening, and additive composition; every non-affine row also proves a materialized atomic image and absence of matrix3d or apparent-2D fitting in final SVG.",
+            "markdown": "The independent live gate is source-exact at 64/64 rows across DPR 1/2, with all five destructive mutations killed. Four frame samples cover eight families, including affine translate3d retention, matrix3d activation, preserve-to-flat owner transfer, overflow grouping flattening, and additive composition; every non-affine row also proves a materialized atomic image and absence of matrix3d or apparent-2D fitting in final SVG."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/animated-projective-frame-oracle.ts"
+                },
+                "region": {
+                  "startLine": 278,
+                  "endLine": 365,
+                  "snippet": {
+                    "text": "export async function runAnimatedProjectiveFrameOracle(options: {\n  dprs?: number[];\n  sampleTimesMs?: number[];\n} = {}): Promise<AnimatedProjectiveOracleReport> {\n  const dprs = options.dprs ?? [1, 2];\n  const sampleTimesMs = options.sampleTimesMs ?? [...ANIMATED_PROJECTIVE_SAMPLE_TIMES_MS];\n  const browser = await chromium.launch({ headless: true });\n  const chromiumVersion = browser.version();\n  const rows: AnimatedProjectiveOracleRow[] = [];\n  let mutations: AnimatedProjectiveMutationResult[] = [];\n  try {\n    for (const dpr of dprs) {\n      const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: dpr });\n      const page = await context.newPage();\n      try {\n        await page.setContent(fixture(), { waitUntil: \"domcontentloaded\" });\n        for (const sampleTimeMs of sampleTimesMs) {\n          const settled = await seekAnimationsToFrame(page, sampleTimeMs, { strict: true, includeChildFrames: true });\n          const direct = await measureDirectNodes(page);\n          const captured = await captureElementTreeWithWarnings(\n            page,\n            \"#stage\",\n            { x: 0, y: 0, ...VIEWPORT },\n            { animationTimeMs: sampleTimeMs },\n          );\n          const elements = flatten(captured.tree);\n          const byAnimId = new Map(elements.filter((element) => element.animId != null).map((element) => [element.animId!, element]));\n          const svg = elementTreeToSvgInner(captured.tree, VIEWPORT.width, VIEWPORT.height, `dm2359-${dpr}-${sampleTimeMs}-`);\n          const owners = elements.filter((element) => element.projectiveFrameState?.ownsRasterBoundary === true);\n\n          for (const testCase of CASES) {\n            const planeId = `${testCase.id}-plane`;\n            const source = direct.get(planeId)!;\n            const ownerId = expectedOwnerId(testCase.id, direct);\n            const caseOwners = owners.filter((element) => element.animId === `${testCase.id}-host` || element.animId === planeId);\n            const actualOwner = caseOwners.length === 1 ? caseOwners[0] : undefined;\n            const ownerMarkupExact = ownerId == null\n              ? true\n              : new RegExp(`class=\"anim-${ownerId}\"[^>]*>\\\\s*<image\\\\b`).test(svg) && !svg.includes(\"matrix3d(\");\n            const expected: AnimatedProjectiveFrameExpectation = {\n              sampleTimeMs,\n              stateRequired: stateRequired(testCase.id, sampleTimeMs),\n              sourceQuad: source.quad,\n              sourceResidual: source.residual,\n              sourceComputed: source.computed,\n              animationCount: settled.animationCount,\n              ownerId,\n            };\n            const actual: AnimatedProjectiveFrameObservation = {\n              state: byAnimId.get(planeId)?.projectiveFrameState,\n              ownerId: actualOwner?.animId ?? null,\n              ownerCount: caseOwners.length,\n              rasterMaterialized: actualOwner?.transformSubtreeRaster?.dataUri != null,\n              noProjective2dApproximation: ownerMarkupExact,\n            };\n            const adjudication = adjudicateAnimatedProjectiveFrame(expected, actual);\n            const row: AnimatedProjectiveOracleRow = {\n              id: `${testCase.id}@${sampleTimeMs}ms@dpr${dpr}`,\n              family: testCase.family,\n              dpr,\n              sampleTimeMs,\n              expectedOwnerId: ownerId,\n              actualOwnerId: actual.ownerId,\n              sourceResidual: source.residual,\n              capturedResidual: actual.state?.residual ?? null,\n              sourceQuad: source.quad,\n              capturedQuad: actual.state?.contentQuad ?? null,\n              computedTransform: source.computed.transform,\n              fingerprint: fingerprint({ dpr, sampleTimeMs, case: testCase.id, quad: source.quad, computed: source.computed, ownerId }),\n              ...adjudication,\n            };\n            rows.push(row);\n            if (mutations.length === 0 && row.pass && ownerId != null && actual.state != null) {\n              mutations = runMutationControls(expected, actual);\n            }\n          }\n        }\n      } finally {\n        await context.close();\n      }\n    }\n  } finally {\n    await browser.close();\n  }\n  const pass = rows.length === dprs.length * sampleTimesMs.length * CASES.length\n    && rows.every((row) => row.pass)\n    && mutations.length === 5\n    && mutations.every((mutation) => mutation.killed);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/animated-projective-frame.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/animated-projective-frame-parity.yml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 99,
+          "workItemUris": [
+            "DM-2359"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "209320f367947750561a472c9c0a58bb"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8531038c3a3b48c4353d332fa6d660bf0666b2f3",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

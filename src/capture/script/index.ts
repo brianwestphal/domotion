@@ -228,7 +228,27 @@ const captureDocumentTree =
     const _pseudoFragmentFacts = _pseudoFragmentFactsFor(el);
     let projectiveTransform;
     let projectiveHidden;
+    let projectiveFrameState;
     let transformSubtreeRaster;
+    const _projectiveIndex = _projectiveNodeIndex.get(el);
+    const _projectiveFact = _projectiveIndex != null ? _projectiveFacts[_projectiveIndex] : undefined;
+    if (typeof args.pqt === 'number' && isFinite(args.pqt)
+      && _projectiveFact != null && _projectiveFact.influenced === true
+      && _projectiveFact.computed != null) {
+      projectiveFrameState = {
+        source: 'chromium-cdp-content-quad-v1',
+        sampleTimeMs: args.pqt,
+        animationCount: typeof args.pqa === 'number' && isFinite(args.pqa) ? args.pqa : 0,
+        role: _projectiveFact.role,
+        influenced: true,
+        contentQuad: _projectiveFact.quad,
+        borderQuad: _projectiveFact.borderQuad,
+        residual: _projectiveFact.residual,
+        nonAffine: _projectiveFact.nonAffine === true,
+        ownsRasterBoundary: _nonAffineProjectiveRoots.has(el),
+        computed: _projectiveFact.computed,
+      };
+    }
     const _quad = _projectedQuads.get(el);
     if (_quad != null && rect.width > 0 && rect.height > 0) {
       const _abs = _homographyForRect(rect, _quad);
@@ -1218,6 +1238,7 @@ const captureDocumentTree =
       },
       projectiveTransform,
       projectiveHidden,
+      projectiveFrameState,
       transformSubtreeRaster,
       children, imageSrc, imageIntrinsic, imageEffectiveZoom, imageBroken, imageAlt, brokenImageFallback, svgContent,
       pseudoFragments: Array.isArray(_pseudoFragmentFacts) ? _pseudoFragmentFacts : undefined,

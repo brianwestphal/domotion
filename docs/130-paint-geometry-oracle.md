@@ -10,6 +10,10 @@ either side.
 At 4× device scale it paints deliberately binary discriminators for the
 non-square magic-corner decision, an HTML content-box clip, mask-repeat
 phase, a conic hard-quadrant sweep, and SVG fill/stroke/view reference boxes.
+It also proves Blink's exclusive URL-clip grammar, the HTML border-box URL
+origin (including a transparent `objectBoundingBox` host whose offset child
+would give native SVG the wrong bbox), and the SVG-child forced fill-box URL
+boundary.
 The conic probe samples away from
 antialiased boundaries and distinguishes center, start-angle, and sweep order.
 Other sample points are chosen where the retired direct-corner gradient rule
@@ -31,7 +35,9 @@ padding, content/fill, margin, and half-border reference boxes; rounded
 padding/content insets and margin-corner correction; rounded overflow-clip-margin
 coverage correction, all three reference boxes, ref-box-only zero values,
 negative content-box outsets, exact axis/scroll/contain/replaced activation, and
-a margin mutation control; SVG content/padding/fill
+a margin mutation control; exclusive bare-URL clip syntax with every URL-plus-
+box ordering as a negative, HTML URL border-box/user-space and explicit
+object-bounding-box maps, and SVG URL forced-fill ownership; SVG content/padding/fill
 mapping to the object bounding box, border/margin/stroke mapping to the stroke
 bounding box, and view-box mapping to the local SVG viewport; mask size, position,
 per-axis repeat, `round`/`space` adjustment for generated and URL images, and
@@ -124,12 +130,21 @@ SVG effect boxes transcribe `SVGResources::ReferenceBoxForEffects` and
 `padding-box`, and `fill-box` select `ObjectBoundingBox()`;
 `border-box`, `margin-box`, and `stroke-box` select `StrokeBoundingBox()`;
 `view-box` selects the resolved local SVG viewport at origin zero. URL clip
-references deliberately force the fill box. Domotion does not recreate stroke
+references deliberately force the fill box. On HTML, a URL is an exclusive
+`ReferenceClipPathOperation`: URL-plus-geometry-box declarations are invalid,
+bare user-space clips start at the border box, and normalized
+`objectBoundingBox` content is explicitly mapped through that border rect. The
+explicit map matters when a transparent host's only painted child is offset;
+using the generated SVG group's natural bbox changes the clip. Domotion does not recreate stroke
 joins, markers, or nested viewport bounds: it bakes stylesheet-owned clip/mask
 declarations onto the cloned SVG child so the output browser executes the same
-native SVG logic. The activation control proves the former HTML layout-box
-mapping is observably different, while the live and strict visual fixtures
-exercise all three box classes.
+native SVG logic. Serialized computed-style URL references on cloned SVG are
+namespaced even when their quotes are encoded as `&quot;`, preventing a stale
+style declaration from overriding the rewritten presentation attribute. The
+activation controls prove the former HTML/SVG reference substitutions are
+observably different, while live and strict visual fixtures exercise the URL
+grammar, HTML/SVG ownership, nested-frame/external routes, and all three basic-
+shape box classes.
 
 ## Boundaries and next expansion
 

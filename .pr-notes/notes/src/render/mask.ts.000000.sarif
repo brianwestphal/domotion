@@ -208,6 +208,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "codex-dm2362-max",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4kduds0svbz45l",
+          "message": {
+            "text": "The explicit normalized-to-border-box map is required; native SVG objectBoundingBox on the generated wrapper is not equivalent to Blink's supplied HTML reference box. An adversarial transparent 200px host with only an 80px child offset by 80px painted through x=140 on the old route while Chromium stopped at x=120. The DPR 1/2 capture-to-SVG oracle now proves x=110 painted and x=130 clipped, and the structured source row records the exact translate/scale matrix.",
+            "markdown": "The explicit normalized-to-border-box map is required; native SVG objectBoundingBox on the generated wrapper is not equivalent to Blink's supplied HTML reference box. An adversarial transparent 200px host with only an 80px child offset by 80px painted through x=140 on the old route while Chromium stopped at x=120. The DPR 1/2 capture-to-SVG oracle now proves x=110 painted and x=130 clipped, and the structured source row records the exact translate/scale matrix."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/mask.ts"
+                },
+                "region": {
+                  "startLine": 161,
+                  "endLine": 194,
+                  "snippet": {
+                    "text": "/**\n * Materialize Blink's objectBoundingBox URL-clip transform against an HTML\n * consumer's border box (DM-2362).\n *\n * Leaving `clipPathUnits=\"objectBoundingBox\"` on the generated SVG wrapper is\n * not equivalent: SVG would derive the box from the wrapper's painted child\n * geometry, while Blink passes the HTML border box explicitly to\n * LayoutSVGResourceClipper::CalculateClipTransform.  Convert the normalized\n * coordinates to output user space once so transparent containers and\n * overflowing/offset children keep the source reference box.\n *\n * Blink starts with the clipPath element's transform and then appends the\n * reference-box translate/scale. SVG transform lists serialize that same\n * product as `existing translate(...) scale(...)`.\n */\nexport function positionObjectBoundingBoxClipPathDef(\n  rewrittenOuterHTML: string,\n  elX: number, elY: number, elW: number, elH: number,\n): string {\n  const openMatch = /^<clipPath\\b([^>]*)>/i.exec(rewrittenOuterHTML);\n  if (openMatch == null) return rewrittenOuterHTML;\n  const boxTransform = `translate(${r(elX)}, ${r(elY)}) scale(${r(elW)}, ${r(elH)})`;\n  let attrs = openMatch[1]\n    .replace(/\\sclipPathUnits\\s*=\\s*\"[^\"]*\"/gi, \"\")\n    .replace(/\\sclipPathUnits\\s*=\\s*'[^']*'/gi, \"\");\n  const existing = /\\stransform\\s*=\\s*\"([^\"]*)\"/i.exec(attrs) ?? /\\stransform\\s*=\\s*'([^']*)'/i.exec(attrs);\n  if (existing != null) {\n    attrs = attrs.replace(existing[0], ` transform=\"${existing[1]} ${boxTransform}\"`);\n  } else {\n    attrs += ` transform=\"${boxTransform}\"`;\n  }\n  attrs += ` clipPathUnits=\"userSpaceOnUse\"`;\n  return `<clipPath${attrs}>${rewrittenOuterHTML.slice(openMatch[0].length)}`;\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/clip-path-url-reference-box.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 90
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/paint-geometry-oracle.ts"
+                },
+                "region": {
+                  "startLine": 296
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2362"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "81c1e5e4adb9f5f63b2a730877cc5313"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8531038c3a3b48c4353d332fa6d660bf0666b2f3",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

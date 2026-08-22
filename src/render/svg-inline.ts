@@ -46,6 +46,16 @@ export function prefixSvgIds(svg: string, prefix: string): string {
     (_m, attr: string, id: string) => `${attr}='#${mapped(id)}'`,
   );
   out = out.replace(/url\(\s*(['"]?)#([^)'"\s]+)\1\s*\)/gi, (_m, quote: string, id: string) => `url(${quote}#${mapped(id)}${quote})`);
+  // DOM `outerHTML` encodes the quotes inside a serialized style attribute,
+  // e.g. `style="clip-path: url(&quot;#clip&quot;)"`.  The presentation
+  // attribute above is namespaced too, but the style declaration wins in the
+  // cascade; leaving its reference stale silently disables the clip. Preserve
+  // the source entity while rewriting its fragment id. This is particularly
+  // visible for objectBoundingBox URL clips on cloned SVG graphics (DM-2362).
+  out = out.replace(
+    /url\(\s*(&quot;|&#34;|&#x22;|&apos;|&#39;|&#x27;)#([^&)\s;]+)\1\s*\)/gi,
+    (_m, quote: string, id: string) => `url(${quote}#${mapped(id)}${quote})`,
+  );
   const idRefAttrs = "aria-activedescendant|aria-controls|aria-describedby|aria-details|aria-errormessage|aria-flowto|aria-labelledby|aria-owns|for";
   out = out.replace(new RegExp(`\\b(${idRefAttrs})=("|')([^"']*)\\2`, "gi"), (_m, attr: string, quote: string, value: string) =>
     `${attr}=${quote}${value.split(/\s+/).map(mapped).join(" ")}${quote}`,

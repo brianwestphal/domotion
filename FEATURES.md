@@ -39,6 +39,7 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 - [x] **layout-padding**: Padding affecting content position
 - [x] **float-paint-order-context-wide** (doc 01 § Stacking): a stacking context paints in CSS 2.1 Appendix E phases — every in-flow block's background + border (step 3), then every non-positioned float (step 4), then all inline content (step 5). So a float paints above a later block sibling's background and below the text of every paragraph in the context, and an `inline-block` / flex item keeps its own floats (it paints atomically).
 - [x] **perspective-fixed-containing-block-ownership** (DM-2385, doc 06): computed `perspective` creates a real stacking context and fixed-position containing block; asymmetric `perspective-origin` is captured as resolved pixels but has no ownership effect by itself. Computed `transform-style: preserve-3d` still traps fixed descendants when `overflow:hidden` flattens its used 3D style, while `perspective:none` remains the viewport-fixed negative control.
+- [x] **animated-projective-frame-state** (DM-2359, doc 186): `animationTimeMs` pauses document timelines before all capture prepasses and exposes the exact CDP quad, computed 3D composition, residual, and outer raster owner; rotate3d/translate3d/matrix3d/perspective/origin/preserve/grouping/additive rows are hard-gated at four times, DPR 1/2, and all three native OSes without a fitted 2D approximation.
 
 ### Components
 - [x] **comp-button**: Button with background, border, padding, text
@@ -53,6 +54,7 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 
 ### SVG
 - [x] **svg-inline**: Inline SVG elements are cloned as self-contained vectors; CSS-only clip/mask effects preserve native fill-box, stroke-box, and view-box resolution (DM-2328)
+- [x] **clip-path-url-reference-ownership** (DM-2362, docs 39/130): bare same-document/external URL clips preserve HTML border/object-bounding-box and SVG forced-fill ownership; Blink-invalid URL-plus-box declarations stay inactive, including stale captured trees and nested frames.
 
 ### Masks
 - [x] **mask-contain-cover-arbitrary-position** (DM-2379, doc 20): URL masks capture Chromium-decoded intrinsic ratios and emit concrete Blink-fitted rectangles for percentage, length, and calc positions; zoom/DPR, physical writing axes, multilayer, and slice/clone fragment controls reject the retired SVG Min/Mid/Max buckets.

@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4kdqd5lna4kscq",
+          "message": {
+            "text": "The local macOS Chromium 147.0.7727.15 run exercised 56 DPR-1/2 named rows, all six ownership boundaries, and all three destructive mutation families with zero structural or unexpected failures; the focused E2E assertion passed. The workflow repeats that immutable contract natively on macOS, Linux, and Windows and uploads artifacts even on failure. Only the explicit DM-2485 finding can be accepted; unexpected drift still fails.",
+            "markdown": "The local macOS Chromium 147.0.7727.15 run exercised 56 DPR-1/2 named rows, all six ownership boundaries, and all three destructive mutation families with zero structural or unexpected failures; the focused E2E assertion passed. The workflow repeats that immutable contract natively on macOS, Linux, and Windows and uploads artifacts even on failure. Only the explicit DM-2485 finding can be accepted; unexpected drift still fails."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/blend-filter-pixel-stage.yml"
+                },
+                "region": {
+                  "startLine": 47,
+                  "endLine": 79,
+                  "snippet": {
+                    "text": "  pixel-stage:\n    name: ${{ matrix.label }} named-pixel stages\n    strategy:\n      fail-fast: false\n      matrix:\n        include:\n          - os: macos-latest\n            label: macOS\n          - os: ubuntu-latest\n            label: Linux\n          - os: windows-latest\n            label: Windows\n    runs-on: ${{ matrix.os }}\n    timeout-minutes: 25\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with:\n          node-version: ${{ env.NODE_VERSION }}\n          cache: npm\n      - run: npm ci\n      - run: npx playwright install chromium\n      - name: Run source arithmetic and workflow guards\n        run: npx vitest run tests/blend-filter-pixel-stage-oracle.test.ts tests/blend-filter-pixel-stage-workflow.test.ts\n      - name: Capture DPR 1/2 named-pixel and mutation evidence\n        run: npm run paint:blend-filter-stage -- --dpr 1,2 --json tests/output/blend-filter/${{ runner.os }}/report.json --artifact-dir tests/output/blend-filter/${{ runner.os }} --accept-known-findings\n      - name: Upload exact producer and pixel evidence\n        if: always()\n        uses: actions/upload-artifact@v4\n        with:\n          name: blend-filter-pixel-stage-${{ runner.os }}\n          path: tests/output/blend-filter/${{ runner.os }}\n          if-no-files-found: error"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/blend-filter-pixel-stage-oracle.ts"
+                },
+                "region": {
+                  "startLine": 505
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2360"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f736b8d5dab236105735b2de4970f5bc"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8531038c3a3b48c4353d332fa6d660bf0666b2f3",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

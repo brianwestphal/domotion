@@ -23,6 +23,14 @@ const INDEX_HTML =
   `#box{position:absolute;left:40px;top:40px;width:160px;height:120px;` +
   `background:#d81b60;clip-path:url(./shapes.svg#tri)}</style></head>` +
   `<body><div id="box"></div></body></html>`;
+// DM-2362: Blink's URL reference branch is exclusive. Appending any geometry
+// box makes the declaration invalid before the external-resource pre-pass;
+// capture must neither invent a box-relative reference nor clip the element.
+const INVALID_CLIP_HTML =
+  `<!doctype html><html><head><style>body{margin:0;background:#ffffff}` +
+  `#box{position:absolute;left:40px;top:40px;width:160px;height:120px;` +
+  `background:#d81b60;clip-path:url(./shapes.svg#tri) padding-box}</style></head>` +
+  `<body><div id="box"></div></body></html>`;
 
 // External mask: the known-good same-document mask geometry (DM-493's
 // `mask-fragment-url` fixture) lifted into a separate file. White everywhere
@@ -54,6 +62,8 @@ async function setup(): Promise<{ server: Server; base: string; browser: Awaited
         res.writeHead(200, { "content-type": "image/svg+xml" }); res.end(MASK_SVG);
       } else if (url.startsWith("/mask.html")) {
         res.writeHead(200, { "content-type": "text/html" }); res.end(MASK_HTML);
+      } else if (url.startsWith("/invalid-clip.html")) {
+        res.writeHead(200, { "content-type": "text/html" }); res.end(INVALID_CLIP_HTML);
       } else {
         res.writeHead(200, { "content-type": "text/html" }); res.end(INDEX_HTML);
       }
@@ -121,6 +131,37 @@ describeBrowser("external-file clip-path fragment refs (DM-829)", () => {
       const actual = await page.screenshot({ clip: { x: 0, y: 0, width: W, height: H } });
       expect(pink(await px(actual, 120, 52))).toBe(true);   // inside → painted
       expect(pink(await px(actual, 45, 150))).toBe(false);  // clipped corner → bg
+    } finally {
+      await page.close();
+    }
+  }, 60_000);
+
+  it("rejects an external URL-plus-geometry-box declaration instead of inlining it", async () => {
+    const { base, browser } = env!;
+    const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
+    try {
+      await page.goto(`${base}/invalid-clip.html`, { waitUntil: "load" });
+      expect(await page.locator("#box").evaluate((element) => ({
+        specified: (element as HTMLElement).style.clipPath,
+        computed: getComputedStyle(element).clipPath,
+        supported: CSS.supports("clip-path", "url(./shapes.svg#tri) padding-box"),
+      }))).toEqual({ specified: "", computed: "none", supported: false });
+
+      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
+      expect((tree[0].clipPathDefs ?? []).map((def) => def.id)).not.toContain("tri");
+      const svg = elementTreeToSvgInner(tree, W, H);
+      expect(svg).not.toMatch(/cpfrag/);
+
+      // The right-bottom corner is outside the triangle used by the valid
+      // control. It remains painted here because Chromium rejected the whole
+      // declaration and Domotion retained that source decision.
+      const svgDoc = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"><rect width="${W}" height="${H}" fill="#ffffff"/>${svg}</svg>`;
+      await page.setContent(`<!doctype html><body style="margin:0">${svgDoc}</body>`, { waitUntil: "load" });
+      const actual = await page.screenshot({ clip: { x: 0, y: 0, width: W, height: H } });
+      const { data, info } = await sharp(actual).raw().toBuffer({ resolveWithObject: true });
+      const i = (150 * info.width + 190) * info.channels;
+      expect(data[i]).toBeGreaterThan(150);
+      expect(data[i + 1]).toBeLessThan(100);
     } finally {
       await page.close();
     }

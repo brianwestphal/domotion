@@ -67,7 +67,12 @@ clamp move. Conic center/domain/zoom/raster ownership has structured and live
 coverage. SVG effect geometry boxes also have source-transcribed class
 selection, mutation, live-browser, capture-contract, and strict visual evidence;
 the production path preserves computed declarations and delegates bounding-box
-resolution to native SVG.
+resolution to native SVG. URL clip sources are a separate exclusive Blink
+operation: any URL-plus-geometry-box form is invalid; bare HTML references use
+the border box (with objectBoundingBox normalized content explicitly mapped
+through it), while SVG-child references force fill-box. Strict capture→SVG DPR
+1/2 controls cover stale trees, transparent hosts, nested frames, and external
+references (DM-2362, doc 39).
 
 **Doc 107 routine parity matrix — Shipped.** The synthetic workflow derives a
 deterministic modulo-256 low-byte bucket and complementary coverage focus from
@@ -1529,6 +1534,20 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   remains the separate explicit
   Chromium raster boundary in doc 148.
 
+<!-- DM-2360 -->
+- Blend and filter parity is checked at the browser-owned pixel stage, not by
+  tuning an end-image threshold. [Doc 185](../185-blend-filter-pixel-stage-oracle.md)
+  pins Blink's author-order sRGB shorthand graph and Skia's unpremultiply,
+  clamp, premultiply, decal-blur, drop-shadow, and premultiplied 17-mode blend
+  rules. The native three-platform DPR-1/2 gate compares named source/model/SVG
+  pixels, proves activation with independent filter/blend/isolation mutations,
+  and asserts six raster boundaries: shorthand/blend/ordinary URL/native-SVG
+  convolution stay vector, while backdrop-filter and HTML URL convolution are
+  Chromium surfaces. The gate currently reports only DM-2485: computed
+  `rgba()` alpha is serialized with the coordinate formatter (`.65 → .7`), so
+  alpha-sensitive blend/filter rows are a known source drift; do not hide it by
+  increasing the fixed four-code stage bound.
+
 ## What this file is NOT
 
 - Not a complete requirements doc — the per-feature docs are.
@@ -1777,8 +1796,18 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   alpha/ink within fixed device tolerances. Six unsafe mutations must move,
   and native macOS/Linux/Windows jobs upload fingerprinted reports. The exact
   boundary and evidence are in
-  [doc 162](../162-inline-svg-3d-transform-audit.md). Animated frame-state
-  synchronization remains owned by DM-2359.
+  [doc 162](../162-inline-svg-3d-transform-audit.md).
+- Animated CSS 3D frame state is **shipped** (DM-2359,
+  [doc 186](../186-animated-3d-frame-state-parity.md)). Direct capture accepts
+  an exact `animationTimeMs`, pauses CSS/WAAPI and SMIL timelines before every
+  capture prepass, and rejects drift, refused/non-document time, or changing
+  animation enumeration. Each 3D-influenced element exposes the same-frame CDP
+  content/border quad, computed transform composition/origin/perspective/style,
+  residual, and effective atomic-raster owner. A native macOS/Linux/Windows
+  DPR-1/2 workflow crosses rotate3d, affine translate3d retention, matrix3d,
+  perspective/origin, preserve-to-flat ownership, overflow grouping flattening,
+  and additive composition at 0/250/500/750ms; 64 rows and five mutations are
+  locally green without fitting an apparent 2D matrix.
 
 <!-- DM-2370 -->
 - URL background tile geometry, including sliced-fragment continuation, is

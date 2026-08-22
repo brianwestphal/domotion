@@ -46,6 +46,16 @@ describe("prefixSvgIds — namespace ids / refs to avoid cross-document collisio
     const out = prefixSvgIds(`<image href="logo.png"/>`, "P-");
     expect(out).toBe(`<image href="logo.png"/>`);
   });
+
+  it("prefixes URL references whose style-attribute quotes were outerHTML-encoded", () => {
+    const svg = `<clipPath id="clip" clipPathUnits="objectBoundingBox"/>`
+      + `<rect clip-path="url(#clip)" style="clip-path: url(&quot;#clip&quot;);"/>`;
+    const out = prefixSvgIds(svg, "P-");
+    expect(out).toContain(`id="P-clip"`);
+    expect(out).toContain(`clip-path="url(#P-clip)"`);
+    expect(out).toContain(`style="clip-path: url(&quot;#P-clip&quot;);"`);
+    expect(out).not.toMatch(/url\((?:&quot;)?#clip/);
+  });
 });
 
 describe("inlineImgSvg — img src=svg → positioned native <svg> (DM-1588)", () => {

@@ -22,3 +22,9 @@ This is a decision-level gate, not a replacement for visual integration. The
 `preserve-3d-translatez-paint-order` fixture proves the projective snapshot is
 positioned and composited pixel-exactly, while the existing reflection fixtures
 cover duplication and mask paint.
+
+Animated projective geometry has its independent hard gate in
+[doc 186](186-animated-3d-frame-state-parity.md). It samples eight 3D families
+at four exact document times and DPR 1/2, compares fresh CDP quads and computed
+composition with the serialized frame record, and verifies outer atomic-raster
+ownership without fitting a 2D matrix.

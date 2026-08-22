@@ -24,6 +24,7 @@ import path from "node:path";
 import { readFile } from "node:fs/promises";
 import type { Browser } from "@playwright/test";
 import { isTransparentBackground } from "./common.js";
+import { seekAnimationsToFrame } from "../capture/animation-frame.js";
 
 export interface SvgToVideoOptions {
   input: string;
@@ -814,48 +815,10 @@ function frameName(i: number): string {
 }
 
 export async function seekTo(page: import("@playwright/test").Page, t: number): Promise<void> {
-  // Pause every animation and seek it to t (ms). CSS/Web-Animations via the
-  // WAAPI; SMIL via the SVG document timeline. Runs in the page — no outer scope.
-  await page.evaluate(async (tMs) => {
-    // DM-1781: a CSS animation only joins the document timeline at its first
-    // style recalc, so on a document seeked immediately after load
-    // `getAnimations()` can return an INCOMPLETE set — the animations it misses
-    // keep free-running at wall-clock time and the first sampled state is a
-    // frame off. That is exactly the observed failure shape: a parity flake at
-    // STATE 0 only (every later state is seeked on an already-rendered page).
-    // Let the document render one frame before enumerating.
-    //
-    // Once per DOCUMENT, not per seek: the video-export path seeks once per
-    // output frame and must not pay an extra frame every time. The marker lives
-    // on `documentElement` (not `window`) so a page reused via a fresh
-    // `setContent` — a new document, new element — correctly settles again.
-    const root = document.documentElement as unknown as { __domotionSeekSettled?: boolean };
-    if (root != null && root.__domotionSeekSettled !== true) {
-      if (root != null) root.__domotionSeekSettled = true;
-      await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
-    }
-    const anims = typeof document.getAnimations === "function" ? document.getAnimations() : [];
-    for (const a of anims) {
-      try {
-        a.pause();
-        a.currentTime = tMs;
-      } catch {
-        // an animation may refuse seeking; ignore
-      }
-    }
-    document.querySelectorAll("svg").forEach((svg) => {
-      if (typeof svg.pauseAnimations === "function") {
-        try {
-          svg.pauseAnimations();
-          svg.setCurrentTime(tMs / 1000);
-        } catch {
-          // ignore SVGs that don't support the SMIL timeline API
-        }
-      }
-    });
-  }, t);
-  // Let the seeked state commit to a paint before we screenshot.
-  await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
+  // Video export retains its historical best-effort behavior. Frame-scoped
+  // DOM capture opts into strict validation so unsupported/non-document
+  // timelines cannot silently produce a torn projective sample (DM-2359).
+  await seekAnimationsToFrame(page, t, { strict: false, includeChildFrames: false });
 }
 
 export async function screenshot(page: import("@playwright/test").Page, omitBackground = false): Promise<Buffer> {

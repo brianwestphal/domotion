@@ -25,6 +25,7 @@ live DOM and produces a serializable element tree the renderer can consume.
 | `captureElementTree` | function | Run the capture script in a Playwright `Page` and return the element tree for the given selector + viewport. |
 | `captureElementTreeSelfContained` | function | `captureElementTree` + the remote-image embed pass. **Prefer this whenever the tree's render reaches output** — a tree that skips the embed serializes the literal origin URL, which renders blank wherever that origin is unreachable. |
 | `captureElementTreeWithWarnings` | function | Same as above but returns `{ tree, warnings }` instead of mutating a global buffer. |
+| `seekAnimationsToFrame` | function | Pause CSS/WAAPI and SMIL timelines at one exact, paint-committed document time before frame-scoped capture. |
 | `getLastCaptureWarnings` | function | Read the warnings buffer populated by `captureElementTree`. Use when you can't switch to the `WithWarnings` form. |
 | `logCaptureWarnings` | function | Pretty-print the warnings to stderr. |
 | `embedRemoteImages` | function | Walk a captured tree and inline any `<img>` / `<image>` data into `data:` URIs so the SVG is self-contained. |
@@ -35,7 +36,9 @@ live DOM and produces a serializable element tree the renderer can consume.
 | `boxAnchorPoint` | function | Pure helper behind `contentBox` / `borderBox`: resolve a named corner / edge / center (`"top-left"` … `"bottom-right"`, the overlay `anchor.at` vocabulary) of a `{x,y,width,height}` box, with an optional `dx`/`dy` nudge. |
 | `ContentBox`, `ContentBoxOptions`, `BorderBox`, `BorderBoxOptions`, `BoxAnchor` | type | The `contentBox` / `borderBox` results, their options (`at`/`dx`/`dy`), and the named-anchor union. |
 | `launchChromium` | function | Convenience wrapper around `playwright.chromium.launch` with the headless / font / color-scheme defaults Domotion expects. |
-| `CaptureOptions` | type | Options accepted by `captureElementTree` (viewport, color-scheme, raster pre-pass toggles, etc.). |
+| `CaptureOptions` | type | Options accepted by `DemoRecorder` (viewport, color-scheme, raster pre-pass toggles, etc.). |
+| `CaptureElementTreeOptions` | type | Direct tree-capture options, including strict `animationTimeMs` frame seeking. |
+| `SeekAnimationsToFrameOptions`, `StableAnimationDocumentState`, `StableAnimationFrameState` | type | Strict/include-frame controls and auditable per-document/result records for an exact animation-frame seek. |
 | `CapturedElement` | type | The serializable element-tree node — the contract between capture and render. |
 | `CaptureWarning` | type | `{ selector, feature, detail }` entries reported by `getLastCaptureWarnings`. |
 

@@ -159,6 +159,41 @@ export function positionFragmentClipPathDef(
 }
 
 /**
+ * Materialize Blink's objectBoundingBox URL-clip transform against an HTML
+ * consumer's border box (DM-2362).
+ *
+ * Leaving `clipPathUnits="objectBoundingBox"` on the generated SVG wrapper is
+ * not equivalent: SVG would derive the box from the wrapper's painted child
+ * geometry, while Blink passes the HTML border box explicitly to
+ * LayoutSVGResourceClipper::CalculateClipTransform.  Convert the normalized
+ * coordinates to output user space once so transparent containers and
+ * overflowing/offset children keep the source reference box.
+ *
+ * Blink starts with the clipPath element's transform and then appends the
+ * reference-box translate/scale. SVG transform lists serialize that same
+ * product as `existing translate(...) scale(...)`.
+ */
+export function positionObjectBoundingBoxClipPathDef(
+  rewrittenOuterHTML: string,
+  elX: number, elY: number, elW: number, elH: number,
+): string {
+  const openMatch = /^<clipPath\b([^>]*)>/i.exec(rewrittenOuterHTML);
+  if (openMatch == null) return rewrittenOuterHTML;
+  const boxTransform = `translate(${r(elX)}, ${r(elY)}) scale(${r(elW)}, ${r(elH)})`;
+  let attrs = openMatch[1]
+    .replace(/\sclipPathUnits\s*=\s*"[^"]*"/gi, "")
+    .replace(/\sclipPathUnits\s*=\s*'[^']*'/gi, "");
+  const existing = /\stransform\s*=\s*"([^"]*)"/i.exec(attrs) ?? /\stransform\s*=\s*'([^']*)'/i.exec(attrs);
+  if (existing != null) {
+    attrs = attrs.replace(existing[0], ` transform="${existing[1]} ${boxTransform}"`);
+  } else {
+    attrs += ` transform="${boxTransform}"`;
+  }
+  attrs += ` clipPathUnits="userSpaceOnUse"`;
+  return `<clipPath${attrs}>${rewrittenOuterHTML.slice(openMatch[0].length)}`;
+}
+
+/**
  * Translate a CSS mask-image value + mask-* siblings into an SVG <mask>.
  * Handles single-layer gradients and url() sources. Position/size/repeat are
  * applied via an internal <pattern> for url sources; gradients use direct

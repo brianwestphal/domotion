@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4kdq17cipe1mn0",
+          "message": {
+            "text": "The constants are source-stage contracts, not calibration knobs. Chromium and its DEPS-owned Skia pin define the arithmetic; four 8-bit codes cover named-pixel quantization, while an eight-code mutation floor keeps every destructive control independently observable.",
+            "markdown": "The constants are source-stage contracts, not calibration knobs. Chromium and its DEPS-owned Skia pin define the arithmetic; four 8-bit codes cover named-pixel quantization, while an eight-code mutation floor keeps every destructive control independently observable."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/blend-filter-pixel-stage-oracle.ts"
+                },
+                "region": {
+                  "startLine": 21,
+                  "endLine": 29,
+                  "snippet": {
+                    "text": "export const BLEND_FILTER_SOURCE_PINS = {\n  chromium: \"7d859f271cbda744098ac69f44978d4edfa62be3\",\n  skiaPinnedByChromium: \"62efacd37737505732dbe3d8daa62abd679626a1\",\n} as const;\n\nexport const BLUR_IDENTITY_SIGMA = 0.03;\nexport const BLUR_KERNEL_RADIUS_MULTIPLIER = 3;\nexport const STAGE_CHANNEL_TOLERANCE = 4;\nexport const MUTATION_MIN_CHANNEL_DISTANCE = 8;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2360"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "340466b0b7018095aee06cf5c34ff959"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4kdq74rzjaxx4f",
+          "message": {
+            "text": "Mutation activation is measured candidate-to-mutation so a broken candidate cannot make an inert edit appear useful. The final DPR-1/2 run kept source/model errors at zero to one code and every classified DM-2485 row matched the independently modeled alpha-0.7 signature within one code; an arbitrary failure on the same row therefore remains unexpected drift.",
+            "markdown": "Mutation activation is measured candidate-to-mutation so a broken candidate cannot make an inert edit appear useful. The final DPR-1/2 run kept source/model errors at zero to one code and every classified DM-2485 row matched the independently modeled alpha-0.7 signature within one code; an arbitrary failure on the same row therefore remains unexpected drift."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/blend-filter-pixel-stage-oracle.ts"
+                },
+                "region": {
+                  "startLine": 468,
+                  "endLine": 521,
+                  "snippet": {
+                    "text": "        // Measure activation against the candidate, not the source. A known\n        // candidate defect must not make an otherwise inert mutation look\n        // active merely because both differ from Chromium.\n        const mutationDistance = maxDistance(renderedPixel, mutationPixel);\n        const mutationPass = spec.movement === \"moved\"\n          ? mutationDistance >= MUTATION_MIN_CHANNEL_DISTANCE\n          : mutationDistance <= STAGE_CHANNEL_TOLERANCE;\n        const basePass = (modelError == null || modelError <= STAGE_CHANNEL_TOLERANCE)\n          && renderedError <= STAGE_CHANNEL_TOLERANCE && mutationPass;\n        rows.push({\n          id, dpr, pointCss: point, expected: expectedPixel, source: sourcePixel,\n          rendered: renderedPixel, mutation: mutationPixel,\n          sourceModelMaxChannelError: modelError,\n          renderedMaxChannelError: renderedError,\n          mutationMaxChannelDistance: mutationDistance,\n          mutationKind: spec.mutation,\n          mutationExpectation: spec.movement,\n          knownFinding: !basePass && ALPHA_SERIALIZATION_AFFECTED.has(id)\n            && (modelError == null || modelError <= STAGE_CHANNEL_TOLERANCE)\n            && mutationPass\n            ? \"renderer-alpha-serialization\"\n            : null,\n          pass: basePass,\n        });\n      }\n      if (artifactDir != null) {\n        mkdirSync(artifactDir, { recursive: true });\n        writeFileSync(`${artifactDir}/source-dpr${dpr}.png`, sourcePng);\n        writeFileSync(`${artifactDir}/rendered-dpr${dpr}.png`, renderedPng);\n        writeFileSync(`${artifactDir}/rendered-dpr${dpr}.svg`, svg);\n        for (const [kind, png] of Object.entries(mutationPngs)) writeFileSync(`${artifactDir}/${kind}-dpr${dpr}.png`, png);\n      }\n      await context.close();\n    }\n  } finally {\n    await browser.close();\n  }\n  const failedRows = rows.filter((row) => !row.pass);\n  const knownAlphaRows = failedRows.filter((row) => row.knownFinding === \"renderer-alpha-serialization\");\n  const unexpectedFailures = [\n    ...failedRows.filter((row) => row.knownFinding == null).map((row) => row.id),\n    ...boundaries.filter((row) => !row.pass).map((row) => row.id),\n    ...structuralErrors,\n  ];\n  const findings: BlendFilterPixelStageReport[\"findings\"] = knownAlphaRows.length === 0 ? [] : [{\n    id: \"renderer-alpha-serialization\",\n    sourceAlpha: .65,\n    emittedAlpha: .7,\n    affectedRows: [...new Set(knownAlphaRows.map((row) => row.id))],\n    source: \"src/render/colors.ts::colorStr -> format.r\",\n  }];\n  const verdict = unexpectedFailures.length > 0\n    ? \"unexpected-drift\"\n    : failedRows.length > 0 ? \"known-source-drift\" : \"source-exact\";"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/185-blend-filter-pixel-stage-oracle.md"
+                },
+                "region": {
+                  "startLine": 139
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2360"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "bb158613416b2b9a0801fef88e8622e4"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8531038c3a3b48c4353d332fa6d660bf0666b2f3",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

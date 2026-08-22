@@ -32,10 +32,13 @@ import { preparePseudoFragmentGeometry } from "./pseudo-fragment-cdp.js";
 import { clipRectForScreenshot } from "./clip-rect.js";
 import {
   isNonAffineProjectiveQuad,
+  projectiveQuadResidual,
+  type ProjectiveComputedState,
   type ProjectivePaintNodeFact,
   type ProjectivePaintQuad,
   type ProjectiveSvgRole,
 } from "./projective-owner.js";
+import { seekAnimationsToFrame, type StableAnimationFrameState } from "./animation-frame.js";
 import {
   axisAlignedQuadBounds,
   mapCssRectToSourcePixels,
@@ -1021,6 +1024,7 @@ async function measureProjectivePaintQuads(
   page: Page,
   selector: string,
   viewport: { x: number; y: number; width: number; height: number },
+  includeComputedFrameState: boolean,
 ): Promise<ProjectivePaintProbe> {
   const key = `__domotionProjectivePaintNodes_${Date.now()}_${Math.random().toString(36).slice(2)}`;
   interface PreparedNode {
@@ -1030,9 +1034,10 @@ async function measureProjectivePaintQuads(
     activationPlane: boolean;
     inlineSvgRoot: number | null;
     role: ProjectiveSvgRole;
+    computed: ProjectiveComputedState | null;
   }
 
-  const prepared = await page.evaluate(({ sel, key }): Promise<PreparedNode[]> | PreparedNode[] => {
+  const prepared = await page.evaluate(({ sel, key, includeComputed }): Promise<PreparedNode[]> | PreparedNode[] => {
     const root = document.querySelector(sel);
     if (root == null) {
       (globalThis as typeof globalThis & Record<string, unknown>)[key] = [];
@@ -1045,6 +1050,7 @@ async function measureProjectivePaintQuads(
     const influenced = new Set<Element>();
     const measure = new Set<Element>();
     const activationPlanes = new Set<Element>();
+    const computedByElement = new Map<Element, ProjectiveComputedState>();
     const SVG_NS = "http://www.w3.org/2000/svg";
 
     for (const element of nodes) {
@@ -1069,8 +1075,40 @@ async function measureProjectivePaintQuads(
         || hasPerspective;
       if (!signal) continue;
 
+      if (includeComputed) {
+        computedByElement.set(element, {
+          transform,
+          translate,
+          rotate,
+          scale,
+          transformOrigin: style.transformOrigin ?? "",
+          transformStyle: style.transformStyle ?? "flat",
+          perspective: style.perspective ?? "none",
+          perspectiveOrigin: style.perspectiveOrigin ?? "",
+          overflowX: style.overflowX ?? "visible",
+          overflowY: style.overflowY ?? "visible",
+        });
+      }
+
       influenced.add(element);
-      for (const descendant of Array.from(element.querySelectorAll("*"))) influenced.add(descendant);
+      for (const descendant of Array.from(element.querySelectorAll("*"))) {
+        influenced.add(descendant);
+        if (includeComputed && !computedByElement.has(descendant)) {
+          const descendantStyle = getComputedStyle(descendant);
+          computedByElement.set(descendant, {
+            transform: descendantStyle.transform ?? "none",
+            translate: descendantStyle.translate ?? "none",
+            rotate: descendantStyle.rotate ?? "none",
+            scale: descendantStyle.scale ?? "none",
+            transformOrigin: descendantStyle.transformOrigin ?? "",
+            transformStyle: descendantStyle.transformStyle ?? "flat",
+            perspective: descendantStyle.perspective ?? "none",
+            perspectiveOrigin: descendantStyle.perspectiveOrigin ?? "",
+            overflowX: descendantStyle.overflowX ?? "visible",
+            overflowY: descendantStyle.overflowY ?? "visible",
+          });
+        }
+      }
     }
 
     for (const element of nodes) {
@@ -1111,10 +1149,11 @@ async function measureProjectivePaintQuads(
         activationPlane: activationPlanes.has(element),
         inlineSvgRoot,
         role,
+        computed: computedByElement.get(element) ?? null,
       });
     }
     return result;
-  }, { sel: selector, key });
+  }, { sel: selector, key, includeComputed: includeComputedFrameState });
 
   const quadByIndex = new Map<number, { quad: ProjectivePaintQuad | null; borderQuad: ProjectivePaintQuad | null }>();
   let cdp: CDPSession | undefined;
@@ -1178,6 +1217,8 @@ async function measureProjectivePaintQuads(
       role: node.role,
       quad,
       borderQuad: measured?.borderQuad ?? null,
+      residual: quad == null ? null : projectiveQuadResidual(quad),
+      computed: node.computed,
     };
   });
 
@@ -1329,11 +1370,34 @@ export async function measureBlinkPlatformResizer(page: Page): Promise<BlinkPlat
  * unsupported features encountered during capture are stored and accessible
  * via getLastCaptureWarnings() / logCaptureWarnings().
  */
+export interface CaptureElementTreeOptions {
+  /** DM-562 / DM-2456: authoritative compositor frame for replaced-element
+   * crops, alpha-proven static native pixels, and atomic time-dependent
+   * native-control crops. Native controls additionally use one transparent
+   * isolation frame for static alpha and overlap ownership.
+   * Caller is responsible for ensuring the PNG covers the same coordinate
+   * space as the capture viewport; invalid dimensions fail over to one live
+   * atomic source frame instead of stretching the supplied image. */
+  rasterizeFromImagePath?: string;
+  /** DM-1442: the raw `--cross-origin-frames` allowlist value (`"*"` or a
+   * comma-separated `host[:port]` list). Passed into the capture script so
+   * cross-origin iframes whose origin is on the list recurse into native SVG
+   * instead of staying a raster snapshot. Requires web security disabled via
+   * `crossOriginFramesLaunchArgs`; same-origin recursion always applies. */
+  crossOriginFrames?: string;
+  /**
+   * DM-2359: pause every document timeline at this exact millisecond before
+   * any geometry/paint prepass. A refused or drifting timeline fails capture
+   * explicitly instead of mixing two animation frames.
+   */
+  animationTimeMs?: number;
+}
+
 export async function captureElementTree(
   page: Page,
   selector: string = "body",
   viewport: { x: number; y: number; width: number; height: number },
-  opts?: { crossOriginFrames?: string },
+  opts?: CaptureElementTreeOptions,
 ): Promise<CapturedElement[]> {
   const { tree } = await captureElementTreeWithWarnings(page, selector, viewport, opts);
   return tree;
@@ -1497,10 +1561,13 @@ export async function captureElementTreeSelfContained(
     crossOriginFrames?: string;
     /** Forwarded to `embedRemoteImages` (fetch timeout / retries / warning sink). */
     embed?: EmbedRemoteImagesOptions;
+    /** Pause all document timelines at this exact capture time. */
+    animationTimeMs?: number;
   },
 ): Promise<CapturedElement[]> {
   const tree = await captureElementTree(page, selector, viewport, {
     ...(opts?.crossOriginFrames != null ? { crossOriginFrames: opts.crossOriginFrames } : {}),
+    ...(opts?.animationTimeMs != null ? { animationTimeMs: opts.animationTimeMs } : {}),
   });
   await embedRemoteImages(tree, opts?.embed ?? {});
   return tree;
@@ -1516,24 +1583,15 @@ export async function captureElementTreeWithWarnings(
   page: Page,
   selector: string = "body",
   viewport: { x: number; y: number; width: number; height: number },
-  opts?: {
-    /** DM-562 / DM-2456: authoritative compositor frame for replaced-element
-     *  crops, alpha-proven static native pixels, and atomic time-dependent
-     *  native-control crops. Native controls additionally use one transparent
-     *  isolation frame for static alpha and overlap ownership.
-     *  Caller is responsible for ensuring the PNG covers the same coordinate
-     *  space as `viewport`; invalid dimensions fail over to one live atomic
-     *  source frame instead of stretching the supplied image. */
-    rasterizeFromImagePath?: string;
-    /** DM-1442: the raw `--cross-origin-frames` allowlist value (`"*"` or a
-     *  comma-separated `host[:port]` list). Passed into the capture script so
-     *  cross-origin iframes whose origin is on the list recurse into native SVG
-     *  instead of staying a raster snapshot. Requires the browser to have been
-     *  launched with web security disabled (see `crossOriginFramesLaunchArgs`).
-     *  Same-origin recursion (Phase 1) happens regardless. */
-    crossOriginFrames?: string;
-  },
+  opts?: CaptureElementTreeOptions,
 ): Promise<{ tree: CapturedElement[]; warnings: CaptureWarning[] }> {
+  let animationFrameState: StableAnimationFrameState | undefined;
+  if (opts?.animationTimeMs != null) {
+    animationFrameState = await seekAnimationsToFrame(page, opts.animationTimeMs, {
+      strict: true,
+      includeChildFrames: true,
+    });
+  }
   // DM-829 / DM-496: external-file `clip-path` / `mask-image` fragment refs
   // (`url("./shapes.svg#id")`) can't be resolved by the synchronous capture
   // walk (it can't fetch). Run an async pre-pass that fetches the external
@@ -1571,7 +1629,12 @@ export async function captureElementTreeWithWarnings(
     scrollbarCapture = await prepareCapturedScrollbarSets(page, selector, viewport, pseudoStyles, {
       sourceImagePath: opts?.rasterizeFromImagePath,
     });
-    projectiveProbe = await measureProjectivePaintQuads(page, selector, viewport);
+    projectiveProbe = await measureProjectivePaintQuads(
+      page,
+      selector,
+      viewport,
+      animationFrameState != null,
+    );
     pseudoFragmentProbe = await preparePseudoFragmentGeometry(page, selector, viewport);
     const captureArgs = {
       sel: selector,
@@ -1587,6 +1650,8 @@ export async function captureElementTreeWithWarnings(
       sk: scrollbarCapture.propertyKey,
       pq: projectiveProbe.facts,
       pqk: projectiveProbe.key,
+      pqt: animationFrameState?.requestedTimeMs,
+      pqa: animationFrameState?.animationCount,
       pgk: pseudoFragmentProbe.key,
     };
     textPaintProbe = await prepareTextPaintGeometry(
@@ -1695,8 +1760,9 @@ export async function captureElementTreeWithWarnings(
  * `mask-image` points at a file fragment (a non-empty path before the `#`, vs
  * the same-document `url("#id")` form), fetch the `.svg` same-origin, extract
  * the referenced `<clipPath>` / `<mask>`, inline a copy into a hidden
- * in-document SVG, and rewrite the element's inline ref to `url(#localId)`
- * (keeping any `<geometry-box>` keyword for clip-path). The downstream walk
+ * in-document SVG, and rewrite the element's inline ref to `url(#localId)`.
+ * Blink parses URL clip sources and geometry boxes as mutually exclusive
+ * operations, so there is no trailing box token to preserve. The downstream walk
  * then sees a normal same-document fragment and the existing renderer paths
  * handle it unchanged (clip-path: DM-826/DM-828; mask: DM-493).
  *
@@ -1711,10 +1777,9 @@ async function inlineExternalSvgRefs(page: Page): Promise<void> {
     // External form: a non-empty, non-`#`-only path before the fragment.
     // `url("#id")` (same-document) has nothing before the `#` → skipped.
     const EXT = /url\(\s*["']?([^"')#]+)#([^"')\s]+)["']?\s*\)/i;
-    const BOX = /\b(?:content-box|padding-box|border-box|margin-box|fill-box|stroke-box|view-box)\b/i;
     const SVGNS = "http://www.w3.org/2000/svg";
 
-    type Hit = { el: HTMLElement; absUrl: string; fragId: string; kind: "clip" | "mask"; box: string | null };
+    type Hit = { el: HTMLElement; absUrl: string; fragId: string; kind: "clip" | "mask" };
     // First sweep: collect the hits. Bail fast — the common case has none, so
     // we never fetch or mutate.
     const hits: Hit[] = [];
@@ -1724,14 +1789,14 @@ async function inlineExternalSvgRefs(page: Page): Promise<void> {
       if (cp != null && cp !== "none" && cp !== "") {
         const m = EXT.exec(cp);
         if (m != null) {
-          try { hits.push({ el, absUrl: new URL(m[1], document.baseURI).href, fragId: m[2], kind: "clip", box: (BOX.exec(cp) ?? [null])[0] }); } catch { /* bad URL */ }
+          try { hits.push({ el, absUrl: new URL(m[1], document.baseURI).href, fragId: m[2], kind: "clip" }); } catch { /* bad URL */ }
         }
       }
       const mi = cs.maskImage || (cs as unknown as { webkitMaskImage?: string }).webkitMaskImage || "";
       if (mi !== "" && mi !== "none") {
         const m = EXT.exec(mi);
         if (m != null) {
-          try { hits.push({ el, absUrl: new URL(m[1], document.baseURI).href, fragId: m[2], kind: "mask", box: null }); } catch { /* bad URL */ }
+          try { hits.push({ el, absUrl: new URL(m[1], document.baseURI).href, fragId: m[2], kind: "mask" }); } catch { /* bad URL */ }
         }
       }
     }
@@ -1773,7 +1838,7 @@ async function inlineExternalSvgRefs(page: Page): Promise<void> {
         localIdFor.set(key, localId);
       }
       if (hit.kind === "clip") {
-        hit.el.style.clipPath = `url(#${localId})${hit.box ? ` ${hit.box}` : ""}`;
+        hit.el.style.clipPath = `url(#${localId})`;
       } else {
         // Override just the image longhand; mask-mode/size/position/repeat stay
         // from the original CSS so DM-493's same-document path reads them.

@@ -609,6 +609,8 @@
         "single -> multiple composed layers",
         "center position -> arbitrary position",
         "mask-origin equals mask-clip -> mask-origin differs from mask-clip on HTML URL layers",
+        "bare URL clip -> invalid URL-plus-geometry-box",
+        "HTML URL border/object box -> SVG URL forced fill box",
         "covered SVG effect combinations -> future SVG effect/property combinations"
       ],
       "exactStates": [
@@ -618,12 +620,18 @@
         "alpha -> luminance",
         "single -> multiple composed layers",
         "center position -> arbitrary position",
-        "mask-origin equals mask-clip -> mask-origin differs from mask-clip on HTML URL layers"
+        "mask-origin equals mask-clip -> mask-origin differs from mask-clip on HTML URL layers",
+        "bare URL clip -> invalid URL-plus-geometry-box",
+        "HTML URL border/object box -> SVG URL forced fill box"
       ],
       "uncoveredStates": [
         "covered SVG effect combinations -> future SVG effect/property combinations"
       ],
       "upstreamSources": [
+        "external/chromium/third_party/blink/renderer/core/css/properties/longhands/longhands_custom.cc",
+        "external/chromium/third_party/blink/renderer/core/css/resolver/style_builder_converter.cc",
+        "external/chromium/third_party/blink/renderer/core/paint/clip_path_clipper.cc",
+        "external/chromium/third_party/blink/renderer/core/layout/svg/layout_svg_resource_clipper.cc",
         "external/chromium/third_party/blink/renderer/core/paint/background_image_geometry.cc",
         "external/chromium/third_party/blink/renderer/core/paint/box_background_paint_context.cc",
         "external/chromium/third_party/blink/renderer/core/layout/svg"
@@ -633,6 +641,9 @@
         "src/render/mask-origin-clip.ts",
         "src/render/mask.ts",
         "src/render/clip-path.ts",
+        "src/render/svg-inline.ts",
+        "src/render/element-tree-to-svg.ts",
+        "src/capture/index.ts",
         "src/capture/script/walker/masks-clips.ts",
         "src/capture/script/index.ts",
         "src/capture/types.ts"
@@ -640,6 +651,8 @@
       "oracles": [
         "tools/paint-geometry-oracle.ts",
         "tools/paint-geometry-browser-oracle.ts",
+        "tests/clip-path-url-reference-box.e2e.test.ts",
+        "tests/external-svg-refs.e2e.test.ts",
         "tests/mask-position-contain-cover.e2e.test.ts",
         "tests/mask-origin-clip.e2e.test.ts"
       ],
@@ -654,7 +667,7 @@
         "tests/features.ts#clip-path-userspaceonuse-fragment"
       ],
       "coverage": "partial",
-      "boundary": "Arbitrary URL mask sizing/positioning is exact for Chromium-decoded intrinsic ratios and distinct per-layer HTML mask-origin/mask-clip border/padding/content/no-clip rectangles, including zoomed computed px terms, physical writing modes, cyclic composition, and sliced/cloned fragments. The open partial boundary is future SVG effect/property combinations, not the HTML URL-mask box model.",
+      "boundary": "Arbitrary URL mask sizing/positioning is exact for Chromium-decoded intrinsic ratios and distinct per-layer HTML mask-origin/mask-clip border/padding/content/no-clip rectangles, including zoomed computed px terms, physical writing modes, cyclic composition, and sliced/cloned fragments. URL clip references additionally preserve Blink's exclusive grammar, HTML border/object-bounding-box map, SVG forced-fill ownership, nested-frame/external resolution, and stale-tree rejection. The open partial boundary is future SVG effect/property combinations, not the HTML URL mask/clip box model.",
       "featureIds": [
         "render.tree-to-svg"
       ],
@@ -838,6 +851,7 @@
       "id": "geometry.transforms",
       "parityAreas": [
         "transforms-projection-reflection",
+        "animated-projective-frame-state",
         "animated-viewbox-culling",
         "raster-fallback-boundary"
       ],
@@ -847,6 +861,7 @@
         "transform-box",
         "perspective",
         "transform-style",
+        "animation timeline",
         "zoom"
       ],
       "states": [
@@ -856,18 +871,20 @@
         "flat -> preserve-3d",
         "border-box -> fill-box",
         "static -> animated",
+        "document timeline -> scroll/view/rAF timeline",
         "unzoomed -> zoomed"
       ],
       "exactStates": [
         "identity -> affine",
         "local text -> transformed text",
         "affine -> projective",
+        "flat -> preserve-3d",
         "border-box -> fill-box",
+        "static -> animated",
         "unzoomed -> zoomed"
       ],
       "uncoveredStates": [
-        "flat -> preserve-3d",
-        "static -> animated"
+        "document timeline -> scroll/view/rAF timeline"
       ],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/layout",
@@ -879,6 +896,8 @@
       "productionOwners": [
         "src/capture/text-paint-geometry-cdp.ts",
         "src/capture/text-fragment-geometry.ts",
+        "src/capture/animation-frame.ts",
+        "src/capture/projective-owner.ts",
         "src/capture/script/index.ts",
         "src/capture/index.ts",
         "src/capture/types.ts",
@@ -897,12 +916,18 @@
         "tests/text-transform-parity-gate.test.ts",
         "tools/transform-geometry-oracle.ts",
         "tools/text-transform-geometry-audit.ts",
+        "tools/animated-projective-frame-oracle.ts",
+        "tests/animation-frame.e2e.test.ts",
+        "tests/animated-projective-frame.e2e.test.ts",
+        "tests/animated-projective-frame-workflow.test.ts",
+        ".github/workflows/animated-projective-frame-parity.yml",
         "tools/animated-culling-geometry-oracle.ts",
         "tools/raster-boundary-oracle.ts",
         "tests/viewbox-culling-geometry.e2e.test.ts"
       ],
       "metamorphicTests": [
         "src/capture/text-fragment-geometry.test.ts",
+        "tests/animated-projective-frame-oracle.test.ts",
         "src/render/text-affine.test.ts",
         "src/render/projective-transform.test.ts",
         "src/stacking-context.test.ts",
@@ -921,8 +946,9 @@
         "tests/features.ts#perspective-fixed-containing-block-ownership"
       ],
       "coverage": "partial",
-      "boundary": "Computed perspective/origin, the non-box inline stacking/fixed-owner split, and perspective/preserve-3d fixed-containing-block ownership are source-audited and gated. DM-2469 captures transformed text as ordered all-transform-neutral physical fragments plus complete signed live-paint matrices, with zoom retained locally, exact restoration/correlation checks, same-origin frames, and explicit outer Chromium ownership for unavailable or projective facts. DM-2470 consumes that neutral bundle through one signed residual matrix across every text paint branch and removes transform-derived font magnitudes, unsigned ancestor products and anisotropic correction. DM-2471 independently gates direct live/neutral/restored quads and final Chromium-versus-SVG device-space ink/content over 25 cases at DPR 1/2 on macOS/Linux/Windows with eight mutations and no platform envelope. The affine plane and UTF-16 shaped origins/advances are browser/protocol owned; baseline still inherits the normal segment metric seam (explicit segment baseline, else captured ascent plus physical origin), behaviorally checked by final ink rather than a separately decoded Blink fragment-baseline protocol row. The animated viewBox path has source-derived function-first composed sweeps and explicit unknown retention, validated by doc 166's all-platform gate.",
+      "boundary": "Computed perspective/origin, the non-box inline stacking/fixed-owner split, and perspective/preserve-3d fixed-containing-block ownership are source-audited and gated. DM-2469 captures transformed text as ordered all-transform-neutral physical fragments plus complete signed live-paint matrices, with zoom retained locally, exact restoration/correlation checks, same-origin frames, and explicit outer Chromium ownership for unavailable or projective facts. DM-2470 consumes that neutral bundle through one signed residual matrix across every text paint branch and removes transform-derived font magnitudes, unsigned ancestor products and anisotropic correction. DM-2471 independently gates direct live/neutral/restored quads and final Chromium-versus-SVG device-space ink/content over 25 cases at DPR 1/2 on macOS/Linux/Windows with eight mutations and no platform envelope. DM-2359 pauses every participating document timeline before any prepass, exposes the exact sampled CDP quad/computed composition/residual/outer raster owner, and gates rotate3d, translate3d, matrix3d, perspective/origin, preserve-3d, grouping flattening, and additive composition at four frames and DPR 1/2 on all three platforms. Refused, drifting, changing-enumeration, or non-document timelines fail explicitly rather than being approximated in 2D. The affine plane and UTF-16 shaped origins/advances are browser/protocol owned; baseline still inherits the normal segment metric seam (explicit segment baseline, else captured ascent plus physical origin), behaviorally checked by final ink rather than a separately decoded Blink fragment-baseline protocol row. The animated viewBox path has source-derived function-first composed sweeps and explicit unknown retention, validated by doc 166's all-platform gate.",
       "featureIds": [
+        "capture.animated-projective-frame",
         "render.tree-to-svg",
         "render.cull"
       ],
@@ -982,23 +1008,28 @@
       ],
       "oracles": [
         "tools/paint-order-oracle.ts",
-        "tools/raster-boundary-oracle.ts"
+        "tools/raster-boundary-oracle.ts",
+        "tools/blend-filter-pixel-stage-oracle.ts"
       ],
       "metamorphicTests": [
         "src/stacking-context.test.ts",
         "src/render/pseudo-filter.test.ts",
         "tests/pseudo-filter-functions.e2e.test.ts",
         "src/render/stacking-flex-overflow-order.test.ts",
-        "src/capture/backdrop-isolation.test.ts"
+        "src/capture/backdrop-isolation.test.ts",
+        "tests/blend-filter-pixel-stage-oracle.test.ts",
+        "tests/blend-filter-pixel-stage-oracle.e2e.test.ts",
+        "tests/blend-filter-pixel-stage-workflow.test.ts"
       ],
       "visualFixtures": [
         "tests/features.ts#z-index-order",
         "tests/features.ts#filter-passthrough",
         "tests/pseudo-filter-functions.e2e.test.ts",
-        "tests/features.ts#blend-mode-passthrough"
+        "tests/features.ts#blend-mode-passthrough",
+        "tests/fixtures/html-test/37-blend-filter-pixel-stage.html"
       ],
       "coverage": "partial",
-      "boundary": "Pseudo shorthand filter functions are exact native-vector effects with function-list, mutation, clip/transform/stack-slot, zoom, and DPR evidence. Blend arithmetic, URL filter graphs outside their documented reference/convolution routes, and several backdrop source-surface transitions remain partial.",
+      "boundary": "Pseudo shorthand filter functions are exact native-vector effects with function-list, mutation, clip/transform/stack-slot, zoom, and DPR evidence. DM-2360 pins and gates the browser pixel stage for all 17 premultiplied blend modes, author-order sRGB shorthand chains, opacity, decal blur, fractional drop-shadow, isolation and reverse-painted background blends at DPR 1/2 on macOS/Linux/Windows. Independent filter/blend/isolation mutations and six ownership rows prevent a wrong source surface from passing an end-image tolerance. The production route remains partial because DM-2485's one-decimal rgba alpha serialization causes classified 8-11-code alpha-sensitive drift; backdrop-filter transitions remain Chromium-raster owned and the upstream mixed reference-linearRGB/shorthand-sRGB seam is not locally emulated.",
       "featureIds": [
         "render.tree-to-svg"
       ],
