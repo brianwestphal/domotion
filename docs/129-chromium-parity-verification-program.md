@@ -108,6 +108,15 @@ initial geometry/order/replaced and raster-activation audits have exact stage
 gates; the remaining partial text/paint domains are the next gaps.
 Oracles emit structured records that can be attached to demo-review results.
 
+Animated viewBox culling uses the one-sided optimization form of this contract
+([doc 166](166-animated-culling-geometry-oracle.md)): an unculled production SVG
+is the Chromium paint reference, and the compared SVG carries the production
+cull decision on the same final timeline. Every painted reference instant must
+remain visible; a conservative no-paint interval may remain visible. The gate
+persists transformed quads, alpha ink, emitted visibility, platform/browser
+fingerprints, and mutations for reference-box selection, ancestor composition,
+function-first interpolation, fixed sampling, and fail-closed retention.
+
 The border oracle separately records Chromium's paint-path decision before it
 compares pixels.  At Chromium revision `7d859f271c`,
 `BoxBorderPainter::PaintBorderFastPath` selects rectangular, double-rounded,

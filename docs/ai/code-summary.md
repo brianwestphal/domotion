@@ -263,6 +263,10 @@ shortest possible map:
   selecting each animation's SVG fill/stroke/view reference box and retaining
   unknown, empty, singular, or interleaved frozen-static/live paths. (The old
   `frame-merge.ts` fast path was removed — see doc 08.)
+  `tools/animated-culling-geometry-oracle.ts` is the independent final-SVG
+  timeline gate (doc 166): it compares an unculled control with the production
+  cull decision in live Chromium, persists quads/alpha ink/visibility and the
+  browser-platform fingerprint, and runs mutation controls across DPR/zoom.
 - **`src/post-processing/`** — the optional svgo `optimize.ts` + `gzip.ts`, plus
   `hoist-image-payloads.ts` (always-on: shares a raster payload repeated across
   frames / elements as one `<defs>` `<image>` + `<use>` refs — see `docs/26`).

@@ -1518,7 +1518,7 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   boxes; they never fall back to a primary-face ascent merely because the
   selected physical face is helper-backed.
 
-<!-- DM-2386 / DM-2460 / DM-2461 -->
+<!-- Animated viewBox culling source audit, implementation, and oracle -->
 - Animated viewBox culling's composed-timeline path is implemented (doc 155):
   matching translate/scale/2D-rotate functions interpolate before composition
   (with exact rotation-arc extrema); nested
@@ -1533,8 +1533,13 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   rectangles. Unknown/empty/singular facts, split backdrop ownership, and a
   live animation interleaved with frozen static transforms retain. A focused
   production Chromium discriminator covers the offset-descendant fill box at
-  zoom 1/1.25 and DPR 1/2; DM-2462 still owns the independent all-platform
-  global-timeline activation matrix. Exact per-frame quads remain
+  zoom 1/1.25 and DPR 1/2. The independent final-SVG timeline gate (doc 166)
+  now covers every reference-box, static/live/nested/projective transform,
+  timing, narrow-crossing, motion-path, visual-overflow, clip, and mask family
+  with enter/leave/non-activation rows. It persists quads, alpha-trimmed ink,
+  emitted visibility, and browser/OS/arch/Node/DPR/zoom fingerprints on macOS,
+  Linux, and Windows; reference-box, ancestor, function-first, fixed-sampling,
+  and fail-closed mutations must move. Exact per-frame quads remain
   oracle/finite-raster evidence, never proof between continuous SVG frames.
 
 <!-- DM-2385 -->

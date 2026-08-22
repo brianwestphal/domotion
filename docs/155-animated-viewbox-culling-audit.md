@@ -67,9 +67,10 @@ negative delay, holds, steps, easing overshoot, operation order, own-timing
 fuses, and unsupported controls are independently covered.
 
 DM-2460 now closes the renderer-geometry half of this boundary (below).
-DM-2462 still owns the independent, all-platform global-timeline activation
-oracle. Unsupported operation/timing paths and renderer geometry classified as
-unknown continue to retain content.
+The independent, all-platform global-timeline activation oracle is now shipped
+as the gate documented in
+[doc 166](166-animated-culling-geometry-oracle.md). Unsupported operation/timing
+paths and renderer geometry classified as unknown continue to retain content.
 
 ## DM-2460 implementation update
 
@@ -111,6 +112,17 @@ animator at DPR 1/2 and CSS zoom 1/1.25. Chromium reports the generated
 `anim-glide` group bbox as `(300,100,20,20)` and paints its scale-.5 endpoint at
 `310..320 × 110..120`; substituting the old 400×200 carrier origin would paint
 at `350..360` and be clipped by the 330-wide SVG.
+
+## Live oracle update
+
+`npm run culling:animated-geometry-oracle` independently renders an unculled
+control and the production-culled final SVG, seeks both with WAAPI on the same
+global clock, and records Chromium's transformed quad, alpha-trimmed ink, and
+effective visibility. Its 44 generated rows cover every required family with
+enter, leave, and negative controls at DPR 1/2 and zoom 1/1.25. Reference-box,
+ancestor-composition, function-first, fixed-sampling, and fail-closed mutations
+must move their declared browser discriminator. A macOS/Linux/Windows workflow
+persists the browser/OS/arch/Node/scenario fingerprint with every result.
 
 ## Pre-DM-2461 implementation boundary (audit baseline)
 
@@ -277,9 +289,9 @@ nearest-only timing, endpoint-matrix interpolation, or fixed sample grid.
   culling (implemented).** Owns function-first interpolation, nested/own
   timing, global interval partitioning, conservative operation bounds, and
   removal of fixed sampling as a proof mechanism.
-- **DM-2462 — Add a live Chromium animated-culling geometry oracle.** Owns the
-  generated adversarial matrix, mutation controls, environment fingerprints,
-  and parity/semantic registry wiring.
+- **Live Chromium animated-culling geometry oracle (implemented; doc 166).**
+  Owns the generated adversarial matrix, mutation controls, environment
+  fingerprints, and parity/semantic registry wiring.
 
 ## Source map
 

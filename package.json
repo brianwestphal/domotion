@@ -96,6 +96,7 @@
     "paint:geometry-oracle": "tsx tools/paint-geometry-oracle.ts",
     "paint:geometry-browser-oracle": "tsx tools/paint-geometry-browser-oracle.ts",
     "transform:geometry-oracle": "tsx tools/transform-geometry-oracle.ts",
+    "culling:animated-geometry-oracle": "tsx tools/animated-culling-geometry-oracle.ts",
     "transform:text-geometry-audit": "tsx tools/text-transform-geometry-audit.ts",
     "transform:inline-svg-3d-audit": "tsx tools/inline-svg-3d-audit.ts",
     "background:url-geometry-audit": "tsx tools/url-background-geometry-audit.ts",

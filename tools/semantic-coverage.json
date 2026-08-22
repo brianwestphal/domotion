@@ -674,6 +674,7 @@
       "id": "geometry.transforms",
       "parityAreas": [
         "transforms-projection-reflection",
+        "animated-viewbox-culling",
         "raster-fallback-boundary"
       ],
       "subjects": [
@@ -724,6 +725,7 @@
       "oracles": [
         "tools/transform-geometry-oracle.ts",
         "tools/text-transform-geometry-audit.ts",
+        "tools/animated-culling-geometry-oracle.ts",
         "tools/raster-boundary-oracle.ts",
         "tests/viewbox-culling-geometry.e2e.test.ts"
       ],
@@ -734,7 +736,8 @@
         "src/render/culling-geometry.test.ts",
         "src/render/culling-atomic-raster.test.ts",
         "src/tree-ops/viewbox-culling.test.ts",
-        "src/tree-ops/swept-transform-bounds.test.ts"
+        "src/tree-ops/swept-transform-bounds.test.ts",
+        "tests/animated-culling-geometry-oracle.test.ts"
       ],
       "visualFixtures": [
         "tests/features.ts#transform-scale-flex-descendants",
@@ -742,7 +745,7 @@
         "tests/features.ts#perspective-fixed-containing-block-ownership"
       ],
       "coverage": "partial",
-      "boundary": "Computed perspective/origin, the non-box inline stacking/fixed-owner split, and perspective/preserve-3d fixed-containing-block ownership are source-audited and gated. Doc 159 proves scalar text transforms are not Blink-compatible: exact neutral fragment/matrix capture (DM-2469), matrix-owned emission with scalar deletion (DM-2470), and an all-platform matrix/ink gate (DM-2471) remain required. Nested/animated projective contexts also remain incomplete. DM-2461 implements source-derived function-first translate/scale/2D-rotation (including arc extrema), nested/own-timing, repeat/alternate/hold/easing conservative swept bounds and deletes fixed sampling as proof. DM-2460 adds renderer-owned fill/stroke/view reference boxes, separate visual surfaces, frozen affine transforms, emitted overflow clips, exact raster bounds, explicit unknown/empty/singular retention, and a focused offset-descendant Chromium discriminator at zoom/DPR variants. DM-2462 still owns the independent all-platform global-timeline activation matrix; every unsupported or unbounded state retains paint.",
+      "boundary": "Computed perspective/origin, the non-box inline stacking/fixed-owner split, and perspective/preserve-3d fixed-containing-block ownership are source-audited and gated. Doc 159 proves scalar text transforms are not Blink-compatible: exact neutral fragment/matrix capture (DM-2469), matrix-owned emission with scalar deletion (DM-2470), and an all-platform matrix/ink gate (DM-2471) remain required. Nested projective text contexts also remain incomplete. The animated viewBox path has source-derived function-first translate/scale/2D-rotation (including arc extrema), nested/own-timing, repeat/alternate/hold/easing conservative sweeps, renderer-owned fill/stroke/view reference boxes, visual surfaces, frozen affine transforms, emitted overflow clips, exact raster bounds, and explicit unknown/empty/singular retention. Doc 166's 44-row final-SVG gate now validates that full soundness boundary on macOS/Linux/Windows at DPR 1/2 and zoom 1/1.25, including mutation controls; unsupported or unbounded states intentionally retain paint.",
       "featureIds": [
         "render.tree-to-svg",
         "render.cull"
