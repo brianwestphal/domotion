@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt439xy2rqs2aa29",
+          "message": {
+            "text": "The classifier deliberately contains no platform metrics: pinned Blink assigns complete hosts to EffectiveAppearance, but menulist-button, temporal picker, search cancel, and inner-spin retain narrower paint owners after the host becomes structural. Whole-host and base/base-select negatives are therefore decided first; Chromium's retained node and pixels decide everything downstream.",
+            "markdown": "The classifier deliberately contains no platform metrics: pinned Blink assigns complete hosts to EffectiveAppearance, but menulist-button, temporal picker, search cancel, and inner-spin retain narrower paint owners after the host becomes structural. Whole-host and base/base-select negatives are therefore decided first; Chromium's retained node and pixels decide everything downstream."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/native-control-decoration.ts"
+                },
+                "region": {
+                  "startLine": 33,
+                  "endLine": 60,
+                  "snippet": {
+                    "text": "/**\n * Return only the decoration owners which survive after the host stops being\n * a complete native surface. `base`/`base-select` deliberately remain in the\n * existing structural customizable-control route.\n */\nexport function nativeControlDecorationKinds(\n  control: ControlDescriptor,\n  effectiveAppearance: string | null,\n): NativeControlDecorationKind[] {\n  if (effectiveAppearance == null || isWholeHostNativeAppearance(effectiveAppearance)) return [];\n  if (effectiveAppearance === \"base\" || effectiveAppearance === \"base-select\") return [];\n\n  const tag = control.tag.toLowerCase();\n  if (tag === \"select\") {\n    return effectiveAppearance === \"menulist-button\" ? [\"menulist-button-arrow\"] : [];\n  }\n  if (tag !== \"input\") return [];\n\n  const type = (control.type ?? \"text\").toLowerCase();\n  if (type === \"number\") return [\"inner-spin-button\"];\n  if (type === \"search\") return [\"search-cancel-button\"];\n  if (TEMPORAL_INPUT_TYPES.has(type)) {\n    // Current multiple-fields views expose the picker indicator as the paint\n    // owner. Some historical UA sheets still mention inner-spin-button for\n    // these types, but absence of that optional node is not a capture failure.\n    return [\"calendar-picker-indicator\"];\n  }\n  return [];"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/native-control-decoration-raster.ts"
+                },
+                "region": {
+                  "startLine": 169
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/171-closed-shadow-control-decorations.md"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2455"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "0160a89481dadc9014c6446dac209e04"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "4ac44bf5377ac7ecc3cb231f9ddb40147aea1fa4",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

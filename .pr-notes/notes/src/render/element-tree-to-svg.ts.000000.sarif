@@ -1788,6 +1788,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt439xy9uz74e8ng",
+          "message": {
+            "text": "The select-arrow overlay occupies Blink's exact box-decoration phase: pinned BoxFragmentPainter paints CSS background, then ThemePainter::PaintDecorations, then inset shadow and border; selected text follows as content. The focused composition unit asserts this order, while closed-shadow input parts retain their later content slot.",
+            "markdown": "The select-arrow overlay occupies Blink's exact box-decoration phase: pinned BoxFragmentPainter paints CSS background, then ThemePainter::PaintDecorations, then inset shadow and border; selected text follows as content. The focused composition unit asserts this order, while closed-shadow input parts retain their later content slot."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 4979,
+                  "endLine": 4989,
+                  "snippet": {
+                    "text": "  const { fills: textBgClipFills, fragmentFills: textBgClipFragmentFills } = state.bgClipTextFills.get(el) ?? { fills: [], fragmentFills: [] };\n  const nativeDecoration = el.nativeControlDecorationRaster;\n  const isMenulistButtonDecoration = nativeDecoration?.kinds.includes(\"menulist-button-arrow\") === true;\n  if (paintBoxPhase && isMenulistButtonDecoration && nativeDecoration?.dataUri != null) {\n    // Blink's BoxFragmentPainter emits kMenulistButton's ThemePainter\n    // decoration after CSS background layers but before inset shadow and\n    // border. Selected text is later child content. Keep this exact phase:\n    // putting the transparent crop after the border/text changes overlap for\n    // thick borders, inset shadows, and tight vertical controls.\n    svgParts.push(`${indent}<image href=\"${nativeDecoration.dataUri}\" x=\"${r(nativeDecoration.x)}\" y=\"${r(nativeDecoration.y)}\" width=\"${r(nativeDecoration.width)}\" height=\"${r(nativeDecoration.height)}\" preserveAspectRatio=\"none\"/>`);\n  }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/native-control-decoration.test.ts"
+                },
+                "region": {
+                  "startLine": 32
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/paint/box_fragment_painter.cc"
+                },
+                "region": {
+                  "startLine": 1685
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2455"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "a4ad93135db698bc8cbab18a68ea1fa1"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "4ac44bf5377ac7ecc3cb231f9ddb40147aea1fa4",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

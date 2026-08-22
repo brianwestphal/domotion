@@ -1466,6 +1466,44 @@ export interface CapturedElement {
     /** Private marker for Blink-owned paint whose pixels advance with time. */
     frameSensitive?: boolean;
   };
+  /**
+   * Chromium-painted decoration layer for a structurally rendered form
+   * control. Unlike `nativeControlRaster`, this image never owns the host
+   * background, border, shadow, value text, or descendants. Presence is still
+   * fail-closed: the renderer must suppress its sampled select/picker/spin/
+   * cancel glyphs even when materialization failed.
+   */
+  nativeControlDecorationRaster?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    kinds: Array<
+      "menulist-button-arrow"
+      | "calendar-picker-indicator"
+      | "search-cancel-button"
+      | "inner-spin-button"
+    >;
+    dataUri?: string;
+    empty?: boolean;
+    /** Private live-host correlation consumed and deleted by the post-pass. */
+    sourceNodeIndex?: number;
+    /** Private warning context consumed and deleted by the post-pass. */
+    selector?: string;
+    /** Private host ThemePainter decoration discriminator. */
+    selectArrow?: boolean;
+    /** Private pierced-UA-node identities and used geometry. */
+    parts?: Array<{
+      kind: "calendar-picker-indicator" | "search-cancel-button" | "inner-spin-button" | "select-inner";
+      index: number;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    }>;
+    /** Private explicit discovery failure; never converted to synthetic paint. */
+    unavailableReason?: string;
+  };
   /** Chromium-composited snapshot for a backdrop-filter isolation subtree. */
   backdropFilterRaster?: { x: number; y: number; width: number; height: number; token?: string; dataUri?: string };
   /**

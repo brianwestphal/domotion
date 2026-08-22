@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt439xyfqme6b0ci",
+          "message": {
+            "text": "The live gate independently covers whole/split/base ownership, every temporal family, search/spin, author pseudo paint, disabled/readonly/empty and focus/hover/active transitions, scheme/forced-colors, writing axes, zoom, fractional origins, and DPR 1/2. It also proves byte-identical live-page restoration and forces screenshot failure to verify the warning/no-sampled-fallback terminal. The same spec is wired into macOS, Linux, and Windows workflow jobs.",
+            "markdown": "The live gate independently covers whole/split/base ownership, every temporal family, search/spin, author pseudo paint, disabled/readonly/empty and focus/hover/active transitions, scheme/forced-colors, writing axes, zoom, fractional origins, and DPR 1/2. It also proves byte-identical live-page restoration and forces screenshot failure to verify the warning/no-sampled-fallback terminal. The same spec is wired into macOS, Linux, and Windows workflow jobs."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/native-control-decoration.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 44,
+                  "endLine": 204,
+                  "snippet": {
+                    "text": "describeBrowser(\"source-owned partial native-control decorations\", () => {\n  it(\"splits the complete/select/base routes and every closed-shadow input part\", async () => {\n    const viewport = { width: 940, height: 620 };\n    const page = await env!.browser.newPage({ viewport, deviceScaleFactor: 2 });\n    try {\n      await page.setContent(`<style>\n        html,body{margin:0;background:white;color-scheme:light dark}\n        .grid{display:grid;grid-template-columns:repeat(3,280px);gap:14px;padding:20.25px}\n        .split{width:250px;height:42px;background:rgb(13,71,109);border:3px solid rgb(149,31,73);\n          box-shadow:0 0 0 3px rgb(31,149,73);color:white;padding:4px 15px}\n        #search::-webkit-search-cancel-button{-webkit-appearance:none;opacity:1;width:18px;height:18px;background:rgb(121,21,122);border:0}\n        #number::-webkit-inner-spin-button{-webkit-appearance:none;opacity:1;width:18px;background:rgb(19,119,20);border:0}\n        #date-custom::-webkit-calendar-picker-indicator{-webkit-appearance:none;background:rgb(20,80,180)}\n      </style><div class=\"grid\">\n        <select data-domotion-anim=\"native\"><option>native menulist</option></select>\n        <select class=\"split\" data-domotion-anim=\"styled\"><option>vector selected text</option></select>\n        <select class=\"split\" data-domotion-anim=\"base\" style=\"appearance:base-select\"><option>base select</option></select>\n        <input class=\"split\" data-domotion-anim=\"date\" type=\"date\" value=\"2026-08-22\">\n        <input class=\"split\" data-domotion-anim=\"time\" type=\"time\" value=\"13:45\">\n        <input class=\"split\" data-domotion-anim=\"datetime\" type=\"datetime-local\" value=\"2026-08-22T13:45\">\n        <input class=\"split\" data-domotion-anim=\"month\" type=\"month\" value=\"2026-08\">\n        <input class=\"split\" data-domotion-anim=\"week\" type=\"week\" value=\"2026-W34\">\n        <input class=\"split\" data-domotion-anim=\"date-custom\" id=\"date-custom\" type=\"date\" value=\"2026-08-22\">\n        <input class=\"split\" data-domotion-anim=\"search\" id=\"search\" type=\"search\" value=\"query\">\n        <input class=\"split\" data-domotion-anim=\"number\" id=\"number\" type=\"number\" value=\"42\">\n        <input class=\"split\" data-domotion-anim=\"readonly\" type=\"date\" value=\"2026-08-22\" readonly>\n        <input class=\"split\" data-domotion-anim=\"disabled\" type=\"date\" value=\"2026-08-22\" disabled>\n      </div>`);\n      const before = await page.screenshot({ omitBackground: true });\n      const capture = await captureElementTreeWithWarnings(page, \"body\", { x: 0, y: 0, ...viewport });\n      const after = await page.screenshot({ omitBackground: true });\n      expect(Buffer.compare(before, after)).toBe(0);\n      expect(capture.warnings.filter(({ feature }) => feature === \"native-control-decoration-raster\")).toEqual([]);\n\n      expect(byId(capture.tree, \"native\").nativeControlRaster?.dataUri).toMatch(/^data:image\\/png;base64,/);\n      expect(byId(capture.tree, \"native\").nativeControlDecorationRaster).toBeUndefined();\n      expect(byId(capture.tree, \"base\").styles.effectiveAppearance).toBe(\"base-select\");\n      expect(byId(capture.tree, \"base\").nativeControlDecorationRaster).toBeUndefined();\n\n      const styled = byId(capture.tree, \"styled\");\n      expect(styled.styles.effectiveAppearance).toBe(\"menulist-button\");\n      expect(styled.nativeControlRaster).toBeUndefined();\n      expect(styled.nativeControlDecorationRaster?.kinds).toEqual([\"menulist-button-arrow\"]);\n      expect(styled.nativeControlDecorationRaster?.dataUri).toMatch(/^data:image\\/png;base64,/);\n\n      for (const id of [\"date\", \"time\", \"datetime\", \"month\", \"week\", \"date-custom\"]) {\n        const raster = byId(capture.tree, id).nativeControlDecorationRaster;\n        expect(raster?.kinds).toEqual([\"calendar-picker-indicator\"]);\n        expect(raster?.dataUri).toMatch(/^data:image\\/png;base64,/);\n        expect(raster?.sourceNodeIndex).toBeUndefined();\n        expect(raster?.parts).toBeUndefined();\n      }\n      expect(byId(capture.tree, \"search\").nativeControlDecorationRaster?.kinds)\n        .toEqual([\"search-cancel-button\"]);\n      expect(byId(capture.tree, \"number\").nativeControlDecorationRaster?.kinds)\n        .toEqual([\"inner-spin-button\"]);\n      expect(byId(capture.tree, \"search\").nativeControlDecorationRaster?.dataUri).toMatch(/^data:image\\/png;base64,/);\n      expect(byId(capture.tree, \"number\").nativeControlDecorationRaster?.dataUri).toMatch(/^data:image\\/png;base64,/);\n      expect(byId(capture.tree, \"readonly\").nativeControlDecorationRaster?.empty).toBe(true);\n      expect(byId(capture.tree, \"disabled\").nativeControlDecorationRaster?.empty).toBe(true);\n\n      const arrowColors = await colors(styled.nativeControlDecorationRaster!.dataUri!);\n      expect(arrowColors.get(\"13,71,109\") ?? 0).toBe(0);\n      expect(arrowColors.get(\"149,31,73\") ?? 0).toBe(0);\n      const searchColors = await colors(byId(capture.tree, \"search\").nativeControlDecorationRaster!.dataUri!);\n      const numberColors = await colors(byId(capture.tree, \"number\").nativeControlDecorationRaster!.dataUri!);\n      expect(searchColors.get(\"121,21,122\") ?? 0).toBeGreaterThan(20);\n      expect(numberColors.get(\"19,119,20\") ?? 0).toBeGreaterThan(20);\n\n      const svg = elementTreeToSvgInner(capture.tree, viewport.width, viewport.height);\n      expect(svg).toContain(\"vector selected text\");\n      expect(svg.match(/<image href=\"data:image\\/png;base64,/g)?.length ?? 0).toBeGreaterThanOrEqual(9);\n    } finally {\n      await page.close();\n    }\n  }, 90_000);\n\n  it(\"retains platform paint across interaction, schemes, forced colors, axes, zoom, and DPR\", async () => {\n    const rows = [\n      { dpr: 1, scheme: \"light\" as const, forced: \"none\" as const, writing: \"horizontal-tb\", direction: \"ltr\", zoom: \"1\" },\n      { dpr: 2, scheme: \"dark\" as const, forced: \"none\" as const, writing: \"horizontal-tb\", direction: \"rtl\", zoom: \"1.25\" },\n      { dpr: 2, scheme: \"light\" as const, forced: \"active\" as const, writing: \"vertical-rl\", direction: \"rtl\", zoom: \".85\" },\n      { dpr: 1, scheme: \"dark\" as const, forced: \"none\" as const, writing: \"sideways-lr\", direction: \"ltr\", zoom: \"1.1\" },\n    ];\n    for (const row of rows) {\n      const context = await env!.browser.newContext({\n        viewport: { width: 430, height: 260 }, deviceScaleFactor: row.dpr,\n        colorScheme: row.scheme, forcedColors: \"none\",\n      });\n      const page = await context.newPage();\n      try {\n        await page.emulateMedia({ forcedColors: row.forced });\n        await page.setContent(`<style>\n          html,body{margin:0;color-scheme:light dark}\n          .c{position:absolute;left:40.25px;width:280px;height:44px;background:rgb(231,238,247);\n            border:2px solid rgb(45,65,85);writing-mode:${row.writing};direction:${row.direction};zoom:${row.zoom}}\n          #select{top:24.5px} #search{top:92.25px} #number{top:160.5px}\n        </style>\n        <select class=\"c\" id=\"select\" data-domotion-anim=\"select\"><option>axis state</option></select>\n        <input class=\"c\" id=\"search\" data-domotion-anim=\"search\" type=\"search\" value=\"clear me\">\n        <input class=\"c\" id=\"number\" data-domotion-anim=\"number\" type=\"number\" value=\"7\">`);\n\n        const captureState = async () => captureElementTreeWithWarnings(\n          page, \"body\", { x: 0, y: 0, width: 430, height: 260 },\n        );\n        const rest = await captureState();\n        expect(rest.warnings.filter(({ feature }) => feature === \"native-control-decoration-raster\")).toEqual([]);\n        expect(byId(rest.tree, \"select\").nativeControlDecorationRaster?.dataUri).toMatch(/^data:image\\/png;base64,/);\n        expect(byId(rest.tree, \"search\").nativeControlDecorationRaster?.empty).toBe(true);\n        expect(byId(rest.tree, \"number\").nativeControlDecorationRaster?.empty).toBe(true);\n\n        await page.focus(\"#search\");\n        const focused = await captureState();\n        expect(byId(focused.tree, \"search\").nativeControlDecorationRaster?.dataUri).toMatch(/^data:image\\/png;base64,/);\n        await page.hover(\"#number\");\n        const hovered = await captureState();\n        expect(byId(hovered.tree, \"number\").nativeControlDecorationRaster?.dataUri).toMatch(/^data:image\\/png;base64,/);\n        await page.mouse.down();\n        const active = await captureState();\n        expect(byId(active.tree, \"number\").nativeControlDecorationRaster?.dataUri).toMatch(/^data:image\\/png;base64,/);\n        await page.mouse.up();\n      } finally {\n        await page.mouse.up().catch(() => undefined);\n        await context.close();\n      }\n    }\n  }, 120_000);\n\n  it(\"warns and suppresses sampled decoration when the atomic readback fails\", async () => {\n    const viewport = { width: 340, height: 180 };\n    const page = await env!.browser.newPage({ viewport, deviceScaleFactor: 1 });\n    try {\n      await page.setContent(`<input style=\"appearance:none;width:1px;height:1px\">`);\n      await captureElementTree(page, \"body\", { x: 0, y: 0, ...viewport });\n      await page.setContent(`<style>html,body{margin:0}select{margin:40px;width:220px;height:44px;background:red;border:2px solid blue}</style>\n        <select data-domotion-anim=\"failed\"><option>vector survives</option></select>`);\n      (page as unknown as { screenshot: typeof page.screenshot }).screenshot = async () => {\n        throw new Error(\"forced partial-decoration readback failure\");\n      };\n      let capture: Awaited<ReturnType<typeof captureElementTreeWithWarnings>>;\n      try {\n        capture = await captureElementTreeWithWarnings(page, \"body\", { x: 0, y: 0, ...viewport });\n      } finally {\n        delete (page as unknown as Record<string, unknown>).screenshot;\n      }\n      const warning = capture.warnings.find(({ feature }) => feature === \"native-control-decoration-raster\");\n      expect(warning?.detail).toContain(\"atomic transparent isolation screenshot failed\");\n      expect(warning?.detail).toContain(\"sampled SVG decoration is suppressed\");\n      const raster = byId(capture.tree, \"failed\").nativeControlDecorationRaster!;\n      expect(raster.dataUri).toBeUndefined();\n      expect(raster.empty).toBeUndefined();\n      expect(raster.sourceNodeIndex).toBeUndefined();\n      const svg = elementTreeToSvgInner(capture.tree, viewport.width, viewport.height);\n      expect(svg).toContain(\"vector survives\");\n      expect(svg).not.toContain(\"polyline\");\n      expect(svg).not.toContain(\"data:image/png;base64\");\n    } finally {\n      delete (page as unknown as Record<string, unknown>).screenshot;\n      await page.close();\n    }\n  }, 60_000);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/visual-tests.yml"
+                },
+                "region": {
+                  "startLine": 182
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/171-closed-shadow-control-decorations.md"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2455"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "1bacfeeb074259938917514814dcaa0a"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "4ac44bf5377ac7ecc3cb231f9ddb40147aea1fa4",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

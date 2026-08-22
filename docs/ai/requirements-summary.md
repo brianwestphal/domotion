@@ -172,6 +172,16 @@ they describe (see `CLAUDE.md` "Documentation"):
   substitution-ambiguous data emits a named warning and keeps a conservative
   Chromium host raster. The focused activation matrix runs on all three OSes.
 
+- **Closed-shadow control decorations (DM-2455, doc 171) — Shipped.** Styled
+  control hosts and value text remain structural while Chromium supplies only
+  the source-owned menulist arrow, temporal picker, search cancel, or number
+  spin layer. Capture retains the actual pierced UA node and used quad, uses
+  one state-preserving transparent isolation frame, verifies exact reversible
+  select-inner restoration, and fails closed without sampled glyphs. Paint
+  phase, culling/reference bounds, base-select negatives, interaction,
+  scheme/forced-colors, writing axes, zoom, fractional geometry, and DPR are
+  gated on macOS, Linux, and Windows.
+
 - **Replaced/control/generated geometry (doc 133) — Shipped.** A live
   11-row Chromium oracle gates every object-fit mode, exact percentage/calc
   object-position, native-vs-author control ownership, and positioned

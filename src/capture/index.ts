@@ -18,6 +18,7 @@ import { CAPTURE_SCRIPT } from "./script.generated.js";
 import { parseCrossOriginAllowlist } from "./script/cross-origin.js";
 import { rasterizeBitmapGlyphs } from "./emoji.js";
 import { rasterizeNativeControlSurfaces } from "./native-control-raster.js";
+import { rasterizeNativeControlDecorations } from "./native-control-decoration-raster.js";
 import { refineLineClampEllipsisFragments } from "./line-clamp.js";
 import { captureResolvedControlPseudoStyles } from "./pseudo-style-cdp.js";
 import { captureEffectiveAppearanceFacts } from "./effective-appearance-cdp.js";
@@ -1571,6 +1572,7 @@ export async function captureElementTreeWithWarnings(
       rs: resizerMetrics.scaleFromDIP,
       pk: pseudoStyles.propertyKey,
       ps: pseudoStyles.stylesByHost,
+      ndk: pseudoStyles.decorationPropertyKey,
       eak: effectiveAppearance.propertyKey,
       ear: effectiveAppearance.setupFailure,
       sk: scrollbarCapture.propertyKey,
@@ -1581,10 +1583,12 @@ export async function captureElementTreeWithWarnings(
   } finally {
     await scrollbarCapture?.dispose();
     await effectiveAppearance?.dispose();
-    await pseudoStyles?.dispose();
     await maskIntrinsicPrime.dispose();
     await backgroundImagePrime.dispose();
-    if (result == null) await projectiveProbe?.dispose();
+    if (result == null) {
+      await pseudoStyles?.dispose();
+      await projectiveProbe?.dispose();
+    }
   }
   const typed = result as { tree: CapturedElement[]; warnings: CaptureWarning[] };
   const warnings = typed.warnings ?? [];
@@ -1592,6 +1596,15 @@ export async function captureElementTreeWithWarnings(
   finalizeScrollbarResizerOverlap(typed.tree);
   _resetLastCaptureWarnings(warnings);
   try {
+    // DM-2455: structural hosts keep their vector box/text while one separate
+    // transparent Chromium atlas supplies only the closed-shadow/native
+    // decoration layer. The CDP-retained part references remain alive until
+    // this pass validates and consumes them.
+    await rasterizeNativeControlDecorations(page, typed.tree, viewport, {
+      warnings,
+      sourceNodeKey: projectiveProbe?.key,
+      decorationNodeKey: pseudoStyles?.decorationPropertyKey,
+    });
     // DM-2456: materialize native controls first, while their platform state is
     // nearest to the synchronous DOM capture. One authoritative source frame
     // plus one atomic alpha-isolation frame replace the old per-control
@@ -1603,6 +1616,7 @@ export async function captureElementTreeWithWarnings(
     });
     await rasterizeProjectiveSurfaces(page, typed.tree, viewport, projectiveProbe?.key);
   } finally {
+    await pseudoStyles?.dispose();
     await projectiveProbe?.dispose();
   }
   await refineLineClampEllipsisFragments(page, typed.tree, viewport, warnings);

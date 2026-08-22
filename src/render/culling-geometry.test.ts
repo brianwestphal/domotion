@@ -308,4 +308,35 @@ describe("renderer-owned viewBox-culling geometry", () => {
     expect(index.get(inset)!.referenceBoxes.fillBox.kind).toBe("unknown");
     expect(index.get(fragmented)!.referenceBoxes.fillBox.kind).toBe("unknown");
   });
+
+  it("unions materialized partial-native ink and retains an unavailable reservation", () => {
+    const materialized = el(20, 30, 100, 40);
+    materialized.tag = "select";
+    materialized.nativeControlDecorationRaster = {
+      x: 19,
+      y: 29,
+      width: 102,
+      height: 42,
+      kinds: ["menulist-button-arrow"],
+      dataUri: "data:image/png;base64,AA==",
+    };
+    const missing = el(220, 30, 100, 40);
+    missing.tag = "input";
+    missing.nativeControlDecorationRaster = {
+      x: 219,
+      y: 29,
+      width: 102,
+      height: 42,
+      kinds: ["search-cancel-button"],
+    };
+    const index = buildRendererCullGeometry([materialized, missing], 800, 600);
+    expect(index.get(materialized)!.visualBounds).toEqual({
+      kind: "bounded",
+      box: { x: 19, y: 29, w: 102, h: 42 },
+    });
+    expect(index.get(missing)!.visualBounds).toEqual({
+      kind: "unknown",
+      reason: "native-decoration-raster-unavailable",
+    });
+  });
 });

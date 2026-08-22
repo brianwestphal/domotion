@@ -55,6 +55,7 @@ import {
   effectiveAppearanceForControl,
   isWholeHostNativeAppearance,
 } from "../effective-appearance.js";
+import { nativeControlDecorationKinds } from "../native-control-decoration.js";
 
 const captureDocumentTree =
 (args) => {
@@ -336,6 +337,61 @@ const captureDocumentTree =
           cs.boxShadow != null && cs.boxShadow !== '' && cs.boxShadow !== 'none',
         )
       : 'none';
+    const _nativeDecorationKinds = _nativeControlTag
+      ? nativeControlDecorationKinds(_autoAppearanceDescriptor, _effectiveAppearance)
+      : [];
+    const _nativeDecorationRefs = typeof args.ndk === 'string' && args.ndk !== ''
+      && Array.isArray(el[args.ndk]) ? el[args.ndk] : [];
+    const _nativeDecorationParts = [];
+    const _missingNativeDecorationKinds = [];
+    for (let _dki = 0; _dki < _nativeDecorationKinds.length; _dki++) {
+      const _kind = _nativeDecorationKinds[_dki];
+      if (_kind === 'menulist-button-arrow') continue;
+      let _found = false;
+      for (let _dri = 0; _dri < _nativeDecorationRefs.length; _dri++) {
+        const _entry = _nativeDecorationRefs[_dri];
+        if (_entry == null || _entry.kind !== _kind || !(_entry.node instanceof Element)) continue;
+        _found = true;
+        const _part = _entry.node;
+        const _partStyle = getComputedStyle(_part);
+        const _partRect = _part.getBoundingClientRect();
+        const _partOpacity = parseFloat(_partStyle.opacity);
+        if (_part.isConnected && _partStyle.display !== 'none'
+            && _partStyle.visibility === 'visible'
+            && (!isFinite(_partOpacity) || _partOpacity > 0)
+            && _partRect.width > 0 && _partRect.height > 0) {
+          _nativeDecorationParts.push({
+            kind: _kind,
+            index: _dri,
+            x: _partRect.left,
+            y: _partRect.top,
+            width: _partRect.width,
+            height: _partRect.height,
+          });
+        }
+      }
+      if (!_found) _missingNativeDecorationKinds.push(_kind);
+    }
+    if (_nativeDecorationKinds.indexOf('menulist-button-arrow') >= 0) {
+      let _selectInnerFound = false;
+      for (let _dri = 0; _dri < _nativeDecorationRefs.length; _dri++) {
+        const _entry = _nativeDecorationRefs[_dri];
+        if (_entry == null || _entry.kind !== 'select-inner' || !(_entry.node instanceof Element)) continue;
+        _selectInnerFound = true;
+        const _partRect = _entry.node.getBoundingClientRect();
+        if (_entry.node.isConnected && _partRect.width >= 0 && _partRect.height >= 0) {
+          _nativeDecorationParts.push({
+            kind: 'select-inner',
+            index: _dri,
+            x: _partRect.left,
+            y: _partRect.top,
+            width: _partRect.width,
+            height: _partRect.height,
+          });
+        }
+      }
+      if (!_selectInnerFound) _missingNativeDecorationKinds.push('select-inner');
+    }
     if (_nativeControlTag && _effectiveAppearance == null) {
       const _autoAppearance = _specifiedAppearance === 'auto'
         ? autoAppearanceForControl(_autoAppearanceDescriptor)
@@ -992,6 +1048,39 @@ const captureDocumentTree =
           // platform paint independently of author animation timelines.
           frameSensitive: tag === 'progress' && !el.hasAttribute('value') || undefined,
         };
+      })(),
+      // A CSS-owned host can still contain either ThemePainter's select arrow
+      // or layout-backed closed-UA-shadow decorations. Keep the host box and
+      // value text structural, but reserve this narrow overlay so a failed
+      // Chromium isolation can never reopen the sampled glyph functions.
+      nativeControlDecorationRaster: (function () {
+        if (_nativeDecorationKinds.length === 0 || rect.width <= 0 || rect.height <= 0) return undefined;
+        const rasterExpand = 1;
+        const base = {
+          x: rect.left - vp.x - rasterExpand,
+          y: rect.top - vp.y - rasterExpand,
+          width: rect.width + rasterExpand * 2,
+          height: rect.height + rasterExpand * 2,
+          kinds: _nativeDecorationKinds,
+        };
+        if (_missingNativeDecorationKinds.length > 0) {
+          return Object.assign(base, {
+            unavailableReason: 'pierced UA-shadow node missing: ' + _missingNativeDecorationKinds.join(', '),
+            selector: sel,
+          });
+        }
+        const selectArrow = _nativeDecorationKinds.indexOf('menulist-button-arrow') >= 0;
+        if (!selectArrow && _nativeDecorationParts.length === 0) {
+          // Used display/visibility/opacity/geometry proves every candidate is
+          // currently non-painting (rest/readonly/disabled/base collapse).
+          return Object.assign(base, { empty: true });
+        }
+        return Object.assign(base, {
+          sourceNodeIndex: _projectiveNodeIndex.get(el),
+          selector: sel,
+          selectArrow: selectArrow || undefined,
+          parts: _nativeDecorationParts.length > 0 ? _nativeDecorationParts : undefined,
+        });
       })(),
       // DM-2171: backdrop-filter samples already-painted content behind this
       // element through a distinct Blink effect node. An img-rendered SVG has

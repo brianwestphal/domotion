@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt439xy5gllu6ba2",
+          "message": {
+            "text": "Isolation preserves the source interaction/layout state and proves restoration before accepting pixels. Keeping the host visible avoids the focus loss caused by visibility:hidden; transparent text/box paint preserves ThemePainter inputs, while the select's anonymous text node is restored to its exact parent/sibling slot. Identity, quads, inline styles, and activeElement are rechecked so any mutation or shadow rebuild fails closed instead of returning a stale crop.",
+            "markdown": "Isolation preserves the source interaction/layout state and proves restoration before accepting pixels. Keeping the host visible avoids the focus loss caused by visibility:hidden; transparent text/box paint preserves ThemePainter inputs, while the select's anonymous text node is restored to its exact parent/sibling slot. Identity, quads, inline styles, and activeElement are rechecked so any mutation or shadow rebuild fails closed instead of returning a stale crop."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/native-control-decoration-raster.ts"
+                },
+                "region": {
+                  "startLine": 184,
+                  "endLine": 390,
+                  "snippet": {
+                    "text": "    facts = await page.evaluate(({ sourceNodeKey, decorationNodeKey, restoreKey, rows }) => {\n      type RestoreEntry =\n        | { type: \"style\"; element: HTMLElement; property: string; value: string; priority: string }\n        | { type: \"node\"; node: Node; parent: Node; nextSibling: Node | null };\n      type RetainedPart = { kind?: string; node?: Element };\n      type RestoreState = {\n        entries: RestoreEntry[];\n        activeElement: Element | null;\n      };\n      const pageGlobal = globalThis as typeof globalThis & Record<string, unknown>;\n      const sourceNodes = pageGlobal[sourceNodeKey] as Element[] | undefined;\n      const restore: RestoreEntry[] = [];\n      const initialActiveElement = document.activeElement;\n      const interactionStates = rows.map((row) => {\n        const host = row.index == null ? null : sourceNodes?.[row.index] ?? null;\n        return host instanceof HTMLElement ? {\n          focus: host.matches(\":focus\"),\n          hover: host.matches(\":hover\"),\n          active: host.matches(\":active\"),\n        } : null;\n      });\n      pageGlobal[restoreKey] = {\n        entries: restore,\n        activeElement: initialActiveElement,\n      } satisfies RestoreState;\n      function set(element: HTMLElement, property: string, value: string): void {\n        restore.push({\n          type: \"style\",\n          element,\n          property,\n          value: element.style.getPropertyValue(property),\n          priority: element.style.getPropertyPriority(property),\n        });\n        element.style.setProperty(property, value, \"important\");\n      }\n      function neutralizeHostPaint(host: HTMLElement): void {\n        // Keep geometry, writing mode, color, appearance, and interaction\n        // state intact. Blink's ThemePainter parts consume several of those\n        // values. Only surfaces which the structural renderer owns are made\n        // transparent for this one compositor readback.\n        set(host, \"visibility\", \"visible\");\n        set(host, \"opacity\", \"1\");\n        set(host, \"filter\", \"none\");\n        set(host, \"backdrop-filter\", \"none\");\n        set(host, \"mix-blend-mode\", \"normal\");\n        set(host, \"background-color\", \"transparent\");\n        set(host, \"background-image\", \"none\");\n        set(host, \"border-image-source\", \"none\");\n        for (const side of [\"top\", \"right\", \"bottom\", \"left\"]) {\n          set(host, `border-${side}-color`, \"transparent\");\n        }\n        set(host, \"box-shadow\", \"none\");\n        set(host, \"-webkit-text-fill-color\", \"transparent\");\n        set(host, \"caret-color\", \"transparent\");\n        set(host, \"text-shadow\", \"none\");\n        set(host, \"outline\", \"none\");\n      }\n\n      for (const element of Array.from(document.querySelectorAll(\"*\"))) {\n        set(element as HTMLElement, \"visibility\", \"hidden\");\n      }\n      for (const canvas of [document.documentElement, document.body]) {\n        if (canvas != null) set(canvas, \"background\", \"transparent\");\n      }\n\n      const result = rows.map((row, rowIndex) => {\n        const host = row.index == null ? null : sourceNodes?.[row.index] ?? null;\n        if (!(host instanceof HTMLElement) || !host.isConnected) {\n          return { connected: false, fingerprintMatches: false, reason: \"host detached or lost source correlation\" };\n        }\n        const retained = (host as HTMLElement & Record<string, unknown>)[decorationNodeKey] as\n          RetainedPart[] | undefined;\n        neutralizeHostPaint(host);\n\n        if (row.selectArrow) {\n          const used = getComputedStyle(host);\n          set(host, \"box-sizing\", used.boxSizing);\n          set(host, \"width\", used.width);\n          set(host, \"height\", used.height);\n          // Keep widths/radii/padding and `color`: SetupMenuListArrow consumes\n          // those exact values. Only suppress the CSS-owned host surfaces and\n          // the selected text. Inline background/border declarations retain\n          // the author-origin flags that select kMenulistButton.\n          // The selected text lives in a UA-shadow node whose UA !important\n          // declarations beat author inline declarations. Detach that exact\n          // node for the readback, then restore it at the same sibling slot.\n          // Freezing the used host size above keeps SetupMenuListArrow's rect\n          // and padding inputs unchanged.\n          for (const expected of row.parts ?? []) {\n            if (expected.kind !== \"select-inner\") continue;\n            const entry = retained?.[expected.index];\n            const node = entry?.node;\n            const root = node?.getRootNode();\n            if (!(node instanceof HTMLElement) || !node.isConnected || entry?.kind !== expected.kind\n                || !(root instanceof ShadowRoot) || root.host !== host || node.parentNode == null) {\n              return { connected: true, fingerprintMatches: false, reason: \"select inner owner identity changed\" };\n            }\n            const rect = node.getBoundingClientRect();\n            if (Math.abs(rect.left - expected.x) > 0.25 || Math.abs(rect.top - expected.y) > 0.25\n                || Math.abs(rect.width - expected.width) > 0.25\n                || Math.abs(rect.height - expected.height) > 0.25) {\n              return { connected: true, fingerprintMatches: false, reason: \"select inner used rect changed\" };\n            }\n            restore.push({ type: \"node\", node, parent: node.parentNode, nextSibling: node.nextSibling });\n            node.remove();\n          }\n          const frozenRect = host.getBoundingClientRect();\n          if (Math.abs(frozenRect.left - row.hostRect.left) > 0.25\n              || Math.abs(frozenRect.top - row.hostRect.top) > 0.25\n              || Math.abs(frozenRect.width - row.hostRect.width) > 0.25\n              || Math.abs(frozenRect.height - row.hostRect.height) > 0.25) {\n            return { connected: true, fingerprintMatches: false, reason: \"select host geometry changed during arrow isolation\" };\n          }\n          const initial = interactionStates[rowIndex];\n          if (initial == null || document.activeElement !== initialActiveElement\n              || host.matches(\":focus\") !== initial.focus\n              || host.matches(\":hover\") !== initial.hover\n              || host.matches(\":active\") !== initial.active) {\n            return { connected: true, fingerprintMatches: false, reason: \"select interaction state changed during isolation\" };\n          }\n          return { connected: true, fingerprintMatches: true };\n        }\n\n        for (const expected of row.parts ?? []) {\n          const entry = retained?.[expected.index];\n          const node = entry?.node;\n          if (!(node instanceof HTMLElement) || !node.isConnected || entry?.kind !== expected.kind\n              || !(node.getRootNode() instanceof ShadowRoot)\n              || (node.getRootNode() as ShadowRoot).host !== host) {\n            return { connected: true, fingerprintMatches: false, reason: `${expected.kind} identity changed` };\n          }\n          const rect = node.getBoundingClientRect();\n          const numbers = [rect.left, rect.top, rect.width, rect.height];\n          if (!numbers.every(Number.isFinite) || rect.width <= 0 || rect.height <= 0\n              || Math.abs(rect.left - expected.x) > 0.25\n              || Math.abs(rect.top - expected.y) > 0.25\n              || Math.abs(rect.width - expected.width) > 0.25\n              || Math.abs(rect.height - expected.height) > 0.25) {\n            return { connected: true, fingerprintMatches: false, reason: `${expected.kind} used rect changed` };\n          }\n          // Other computed part state—opacity, resource, appearance, hover,\n          // active, readonly—remains untouched and therefore authoritative.\n          set(node, \"visibility\", \"visible\");\n        }\n        const initial = interactionStates[rowIndex];\n        if (initial == null || document.activeElement !== initialActiveElement\n            || host.matches(\":focus\") !== initial.focus\n            || host.matches(\":hover\") !== initial.hover\n            || host.matches(\":active\") !== initial.active) {\n          return { connected: true, fingerprintMatches: false, reason: \"control interaction state changed during isolation\" };\n        }\n        return { connected: true, fingerprintMatches: true };\n      });\n      void document.documentElement.getBoundingClientRect();\n      return result;\n    }, {\n      sourceNodeKey: options.sourceNodeKey,\n      decorationNodeKey: options.decorationNodeKey,\n      restoreKey,\n      rows: isolationRows,\n    });\n    isolated = await takeIsolationFrame(page, viewport);\n  } catch (error) {\n    const reason = error instanceof Error ? error.message : \"isolation preparation failed\";\n    facts = active.map(() => ({ connected: false, fingerprintMatches: false, reason }));\n  } finally {\n    const restored = await page.evaluate(({ key, sourceNodeKey, decorationNodeKey, rows }) => {\n      type RestoreEntry =\n        | { type: \"style\"; element: HTMLElement; property: string; value: string; priority: string }\n        | { type: \"node\"; node: Node; parent: Node; nextSibling: Node | null };\n      type RetainedPart = { kind?: string; node?: Element };\n      type RestoreState = {\n        entries: RestoreEntry[];\n        activeElement: Element | null;\n      };\n      const pageGlobal = globalThis as typeof globalThis & Record<string, unknown>;\n      const state = pageGlobal[key] as RestoreState | undefined;\n      const failures: string[] = [];\n      for (let index = (state?.entries.length ?? 0) - 1; index >= 0; index--) {\n        const entry = state!.entries[index];\n        if (entry.type === \"node\") {\n          try {\n            if (entry.nextSibling != null && entry.nextSibling.parentNode !== entry.parent) {\n              throw new Error(\"saved sibling slot changed\");\n            }\n            entry.parent.insertBefore(entry.node, entry.nextSibling);\n            if (entry.node.parentNode !== entry.parent || entry.node.nextSibling !== entry.nextSibling) {\n              failures.push(\"select inner node did not return to its exact sibling slot\");\n            }\n          } catch {\n            failures.push(\"select inner node exact reinsertion failed\");\n            // Best-effort recovery avoids leaving the live document with a\n            // detached UA node, but the crop remains fail-closed below.\n            if (entry.parent.isConnected && entry.node.parentNode !== entry.parent) {\n              try { entry.parent.appendChild(entry.node); } catch { /* recorded above */ }\n            }\n          }\n        } else if (entry.value === \"\") {\n          try { entry.element.style.removeProperty(entry.property); } catch { failures.push(`style restore failed: ${entry.property}`); }\n        } else {\n          try { entry.element.style.setProperty(entry.property, entry.value, entry.priority); } catch { failures.push(`style restore failed: ${entry.property}`); }\n        }\n        if (entry.type === \"style\"\n            && (entry.element.style.getPropertyValue(entry.property) !== entry.value\n              || entry.element.style.getPropertyPriority(entry.property) !== entry.priority)) {\n          failures.push(`style restore mismatch: ${entry.property}`);\n        }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/native-control-decoration.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 44
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/html/forms/menu_list_inner_element.cc"
+                },
+                "region": {
+                  "startLine": 20
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2455"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "72dd05982c3b29b2d00c1e0193846346"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "4ac44bf5377ac7ecc3cb231f9ddb40147aea1fa4",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

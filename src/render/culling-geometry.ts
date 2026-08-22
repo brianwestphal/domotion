@@ -546,6 +546,41 @@ function ownGeometry(el: CapturedElement): {
     }
   }
 
+  const nativeDecoration = el.nativeControlDecorationRaster;
+  if (nativeDecoration != null && nativeDecoration.empty !== true) {
+    if (nativeDecoration.dataUri == null) {
+      // The capture reservation suppresses the sampled fallback even when
+      // Chromium isolation failed. Retain the element: culling a later-valid
+      // source surface from an animated/interpolated frame would turn that
+      // fail-closed ownership decision into silent paint loss.
+      const unknown = { kind: "unknown" as const, reason: "native-decoration-raster-unavailable" };
+      fill = unknown;
+      stroke = unknown;
+      visual = unknown;
+    } else {
+      const decorationBox = box(
+        nativeDecoration.x,
+        nativeDecoration.y,
+        nativeDecoration.width,
+        nativeDecoration.height,
+      );
+      if (decorationBox == null || decorationBox.w === 0 || decorationBox.h === 0) {
+        const unknown = { kind: "unknown" as const, reason: "native-decoration-raster-invalid" };
+        fill = unknown;
+        stroke = unknown;
+        visual = unknown;
+      } else {
+        // The transparent guard is still the SVG <image>'s object bounding
+        // box. Include it in reference and visual geometry so animation
+        // transform-box compensation and viewBox culling share the same
+        // emitted owner instead of applying the host transform twice.
+        fill = unionReference(fill, { kind: "exact", box: decorationBox });
+        stroke = unionReference(stroke, { kind: "exact", box: decorationBox });
+        visual = unionVisual(visual, { kind: "bounded", box: decorationBox });
+      }
+    }
+  }
+
   if ((el.inlineFragments?.length ?? 0) > 1 || el.styles.tableGridRect != null) {
     // The renderer emits fragment/grid-owned shapes rather than the carrier
     // rectangle. Their visual union is contained by the captured union box,

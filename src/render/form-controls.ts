@@ -822,6 +822,9 @@ function renderColorSwatch(el: CapturedElement, indent: string, defCtx?: DefCtx)
  * override the UA defaults for background / border / radius.
  */
 function renderNumberInput(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
+  // Presence reserves the closed-shadow decoration layer even when Chromium
+  // proved it empty or materialization warned. Never reopen sampled geometry.
+  if (el.nativeControlDecorationRaster != null) return "";
   const s = el.styles;
   // Like the search-cancel button, Chrome only paints the spin buttons when
   // the input is hovered or focused. Static-screenshot captures see no
@@ -878,6 +881,7 @@ function renderNumberInput(el: CapturedElement, indent: string, defCtx?: DefCtx)
  * nothing. (DM-289)
  */
 function renderSearchInput(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
+  if (el.nativeControlDecorationRaster != null) return "";
   const s = el.styles;
   if (s.inputValue == null || s.inputValue === "") return "";
   const hasAuthorPseudo = (s.searchCancelButtonBg != null && s.searchCancelButtonBg !== "")
@@ -1047,10 +1051,12 @@ function renderDatePicker(el: CapturedElement, indent: string): string {
   const cx = el.x + el.width - 12;
   const cy = el.y + el.height / 2;
   const iconSize = Math.min(11, el.height - 6);
-  if (t === "time") {
-    parts.push(renderClockIcon(indent, cx, cy, iconSize, textFill));
-  } else {
-    parts.push(renderCalendarIcon(indent, cx, cy, iconSize, textFill));
+  if (el.nativeControlDecorationRaster == null) {
+    if (t === "time") {
+      parts.push(renderClockIcon(indent, cx, cy, iconSize, textFill));
+    } else {
+      parts.push(renderCalendarIcon(indent, cx, cy, iconSize, textFill));
+    }
   }
   return parts.join("\n");
 }
@@ -1379,7 +1385,7 @@ function renderSelectChevron(el: CapturedElement, indent: string, defCtx?: DefCt
   // when the page set appearance: none — the chevron is the page's
   // responsibility (drawn via background-image) and stacking ours produces
   // a double-arrow. DM-308.
-  if (el.styles.selectChevron === true) {
+  if (el.styles.selectChevron === true && el.nativeControlDecorationRaster == null) {
     const size = Math.min(10, el.height * 0.5);
     const cx = el.x + el.width - 10;
     const cy = el.y + el.height / 2;

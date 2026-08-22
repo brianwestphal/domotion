@@ -91,10 +91,10 @@ The capture records the adjusted value as
 - `none`, `base`, `base-select`, listbox, and adjusted
   `menulist-button` do not receive a whole-host raster; their host box remains
   structural CSS paint.
-- `menulist-button` still contains a native arrow decoration. Its narrow
-  subcontrol capture is deliberately separate (DM-2455); this change prevents
-  the more damaging whole-host flattening while preserving the exact boundary
-  for that follow-up.
+- `menulist-button` contains a native arrow decoration. DM-2455 now captures
+  that ThemePainter layer—and temporal/search/spin closed-shadow parts—as a
+  narrow fail-closed Chromium overlay while preserving the structural host and
+  text; see [doc 171](171-closed-shadow-control-decorations.md).
 
 ## Verification
 

@@ -134,6 +134,28 @@ record as mandatory ownership: it emits the Chromium `<image>` when present,
 or nothing for a proved-empty/warned failure, and never falls through to
 sampled native chrome. See [doc 167](../167-native-control-source-frame-rasters.md).
 
+### B1. Split native/closed-shadow control decorations
+
+Trigger: Blink EffectiveAppearance leaves a control host structural but a
+menulist-button arrow or temporal/search/number closed-shadow part still owns
+paint.
+
+Why: theme arrow metrics and pixels are platform-owned; search/spin state and
+resources are selected by ThemePainter; temporal indicators use closed-UA
+layout plus UA resources. Rebuilding any from sampled glyph constants loses
+writing direction, zoom, state, scheme, forced-colors, and platform behavior.
+
+Capture and emit: `pseudo-style-cdp.ts` retains the actual pierced UA nodes and
+`native-control-decoration-raster.ts` reads every active decoration from one
+transparent, reversible isolation frame. The select arrow is isolated from its
+anonymous selected-text child while preserving host geometry and theme inputs.
+Identity, interaction state, quads, restoration, alpha, guard, overlap, clip,
+and DPR all fail closed with `native-control-decoration-raster`; presence of
+the reservation always suppresses sampled form-control glyphs. Menulist arrows
+compose after the CSS background and before inset-shadow/border/text; other
+parts compose at content paint. See
+[doc 171](../171-closed-shadow-control-decorations.md).
+
 ### C0. `backdrop-filter`
 
 Trigger: an element whose computed `backdrop-filter` (or prefixed equivalent)

@@ -32,6 +32,57 @@ describe("author-styled listbox option rows (DM-2190)", () => {
   });
 });
 
+describe("Chromium-owned partial control decorations", () => {
+  const reservation = {
+    x: 0, y: 0, width: 100, height: 30,
+    kinds: ["menulist-button-arrow" as const],
+  };
+
+  it("keeps select/date value text vector but suppresses sampled glyphs", () => {
+    const select = {
+      tag: "select", x: 10, y: 20, width: 150, height: 32, children: [],
+      nativeControlDecorationRaster: reservation,
+      styles: {
+        selectDisplayText: "Structural value", selectChevron: true,
+        fontFamily: "Arial", fontSize: "14px", color: "rgb(1,2,3)",
+        paddingLeft: "6px", borderLeftWidth: "1px",
+      },
+    } as unknown as CapturedElement;
+    const selectSvg = renderFormControl(select, "");
+    expect(selectSvg).toContain("Structural value");
+    expect(selectSvg).not.toContain("polyline");
+
+    const date = {
+      tag: "input", x: 10, y: 60, width: 180, height: 34, children: [],
+      nativeControlDecorationRaster: {
+        ...reservation,
+        kinds: ["calendar-picker-indicator" as const],
+      },
+      styles: { inputType: "date", inputValue: "2026-08-22", fontSize: "13.333px", color: "black" },
+    } as unknown as CapturedElement;
+    const dateSvg = renderFormControl(date, "");
+    expect(dateSvg).toContain("08/22/2026");
+    expect(dateSvg).not.toContain("<g fill=\"none\"");
+  });
+
+  it("never reopens sampled search/spin paint for empty or failed reservations", () => {
+    for (const inputType of ["search", "number"]) {
+      const el = {
+        tag: "input", x: 10, y: 20, width: 160, height: 32, children: [],
+        nativeControlDecorationRaster: {
+          ...reservation,
+          kinds: [inputType === "search" ? "search-cancel-button" : "inner-spin-button"],
+        },
+        styles: {
+          inputType, inputValue: "7", searchCancelButtonBg: "red",
+          numberSpinButtonBg: "red",
+        },
+      } as unknown as CapturedElement;
+      expect(renderFormControl(el, "")).toBe("");
+    }
+  });
+});
+
 describe("file-selector synthetic text (DM-2189)", () => {
   it("uses the shared glyph-path renderer when the resolved font is available", () => {
     const el = { tag: "input", x: 20, y: 20, width: 240, height: 36, children: [], styles: {

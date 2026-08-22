@@ -4977,6 +4977,16 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
     }
   }
   const { fills: textBgClipFills, fragmentFills: textBgClipFragmentFills } = state.bgClipTextFills.get(el) ?? { fills: [], fragmentFills: [] };
+  const nativeDecoration = el.nativeControlDecorationRaster;
+  const isMenulistButtonDecoration = nativeDecoration?.kinds.includes("menulist-button-arrow") === true;
+  if (paintBoxPhase && isMenulistButtonDecoration && nativeDecoration?.dataUri != null) {
+    // Blink's BoxFragmentPainter emits kMenulistButton's ThemePainter
+    // decoration after CSS background layers but before inset shadow and
+    // border. Selected text is later child content. Keep this exact phase:
+    // putting the transparent crop after the border/text changes overlap for
+    // thick borders, inset shadows, and tight vertical controls.
+    svgParts.push(`${indent}<image href="${nativeDecoration.dataUri}" x="${r(nativeDecoration.x)}" y="${r(nativeDecoration.y)}" width="${r(nativeDecoration.width)}" height="${r(nativeDecoration.height)}" preserveAspectRatio="none"/>`);
+  }
 
   // Inset box-shadow per CSS Backgrounds 3 §6.4 + Chromium
   // `BoxPainterBase::PaintInsetBoxShadow`: the shadow shape is the padding
@@ -5102,6 +5112,13 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // Chromium defaults is handled here.
   const fc = renderFormControl(el, indent, defCtx);
   if (fc !== "") svgParts.push(fc);
+  if (!isMenulistButtonDecoration && nativeDecoration?.dataUri != null) {
+    // This transparent image owns only the decoration pixels. It deliberately
+    // stays inside the host's normal opacity/transform/clip/filter wrappers,
+    // above the structural box and value text, unlike a complete native host
+    // raster which terminates rendering near the top of this function.
+    svgParts.push(`${indent}<image href="${nativeDecoration.dataUri}" x="${r(nativeDecoration.x)}" y="${r(nativeDecoration.y)}" width="${r(nativeDecoration.width)}" height="${r(nativeDecoration.height)}" preserveAspectRatio="none"/>`);
+  }
 
   // Broken-image fallback (DM-372): a placeholder icon + alt text when an
   // <img> failed to load. See paintBrokenImage.

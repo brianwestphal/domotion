@@ -61,6 +61,13 @@ shortest possible map:
   overlap-free source crop atomically or fail closed. Invalid clips/frames add
   `native-control-raster` warnings; renderer presence is fail-closed and never
   authorizes sampled form chrome (doc 167).
+  `native-control-decoration.ts` classifies the narrower structural-host
+  boundary; `pseudo-style-cdp.ts` retains exact closed-UA nodes and
+  `native-control-decoration-raster.ts` validates identity/quads/state and
+  materializes one transparent atlas. Reservations suppress sampled
+  chevron/picker/cancel/spin paint even when unavailable; select arrows compose
+  in Blink's background-before-inset/border phase and other parts at content
+  paint (DM-2455, doc 171).
   `effective-appearance-cdp.ts` obtains Blink's matched cascade and active
   interpolation facts without CSSOM; `effective-appearance.ts` reconstructs
   author background/border flags after origin, importance, layers, logical

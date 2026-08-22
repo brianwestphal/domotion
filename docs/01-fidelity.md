@@ -134,13 +134,14 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
   - **Line y is a measured offset, never a computed one.** Each segment's y is the line-box top plus the probe's own character-rect top. That rect already sits at the font-box top, so Chrome's half-leading is *in* it — the segment base must therefore be the content-box top **before** the half-leading that the single-line `<input>` path folds into `textTop`. Adding both counted the leading twice and pushed every line ~half a leading down (a 14px/21px monospace textarea rendered a uniform ~3px low and clipped its last visible line).
   - **Line y is snapped to a whole pixel.** Chrome positions glyphs subpixel *horizontally* only; the vertical text origin is rounded to an integer device pixel before rasterization. Measured on a box at top `40` / `140.25` / `240.5` / `340.75`: the first ink row lands at `45` / `145` / `246` / `346` — always `round(top)` plus a constant, and always an integer row. This is glyph rasterization, not a scroll-container effect: a `<textarea>` and a plain `<div>` behave identically. A textarea whose border box falls on a fractional y (ordinary page flow readily produces `.4375`) otherwise renders every line up to a pixel off. The renderer already rounds the ascent it adds to reach the baseline, so rounding the line top rounds the baseline.
   - Both are pinned by `tests/textarea-line-baseline.e2e.test.ts`, which sits its textarea at a deliberately fractional `40.4375px` and takes its expected offset from a Chrome-laid-out reference block rather than from our own arithmetic — an oracle that cannot re-assert the bug it guards.
-- [~] Native control ownership follows Blink's exact EffectiveAppearance
+- [x] Native control ownership follows Blink's exact EffectiveAppearance
   cascade boundary (DM-2453, [doc 170](170-blink-effective-appearance-routing.md)):
   complete native hosts use same-frame Chromium rasters, while author-owned
-  none/base/base-select and styled host boxes remain structural. Closed-shadow
-  subcontrol decorations such as the menulist-button arrow are still partial
-  pending DM-2455; author-styled `::-webkit-*` pseudos remain partially
-  supported (tracked SK-1125 / SK-1126).
+  none/base/base-select and styled host boxes remain structural. Source-owned
+  menulist arrows and closed-shadow temporal/search/spin parts are isolated as
+  narrow Chromium overlays without flattening the host or value text (DM-2455,
+  [doc 171](171-closed-shadow-control-decorations.md)). Author-owned pseudo
+  paint is preserved inside that exact closed-part boundary.
 
 ### List markers
 

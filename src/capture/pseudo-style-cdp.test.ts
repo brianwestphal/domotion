@@ -19,6 +19,8 @@ describe("Chromium-resolved control pseudo capture", () => {
       ["-webkit-color-swatch-wrapper", "color-swatch-wrapper"],
       ["-webkit-inner-spin-button", "inner-spin-button"],
       ["-webkit-search-cancel-button", "search-cancel-button"],
+      ["-webkit-calendar-picker-indicator", "calendar-picker-indicator"],
+      ["-internal-select-inner-element", "select-inner"],
     ] as const;
     for (const [pseudo, kind] of rows) {
       expect(controlPseudoKindForNode({ pseudo }, "INPUT", { type: "range" })).toBe(kind);

@@ -40,6 +40,8 @@ export const CONTROL_PSEUDO_KINDS = [
   "color-swatch-wrapper",
   "inner-spin-button",
   "search-cancel-button",
+  "calendar-picker-indicator",
+  "select-inner",
   "resizer",
   "scrollbar",
   "scrollbar-button",
@@ -87,6 +89,8 @@ const PSEUDO_ID_TO_KIND: Readonly<Record<string, ControlPseudoKind>> = {
   "-webkit-color-swatch-wrapper": "color-swatch-wrapper",
   "-webkit-inner-spin-button": "inner-spin-button",
   "-webkit-search-cancel-button": "search-cancel-button",
+  "-webkit-calendar-picker-indicator": "calendar-picker-indicator",
+  "-internal-select-inner-element": "select-inner",
 };
 
 const SCROLLBAR_PSEUDO_TYPE_TO_KIND: Readonly<Record<string, ControlPseudoKind>> = {
@@ -427,6 +431,8 @@ async function computedResizerProperties(session: CDPSession, objectId: string):
 
 export interface ResolvedPseudoStyleCapture {
   propertyKey: string;
+  /** Expando whose entries retain pierced closed-UA-shadow decoration nodes. */
+  decorationPropertyKey: string;
   stylesByHost: ResolvedControlPseudoStyles;
   dispose(): Promise<void>;
 }
@@ -441,9 +447,11 @@ export interface ResolvedPseudoStyleCapture {
 export async function captureResolvedControlPseudoStyles(page: Page): Promise<ResolvedPseudoStyleCapture> {
   const session = await page.context().newCDPSession(page);
   const propertyKey = `__domotionResolvedPseudos_${randomUUID().replaceAll("-", "")}`;
+  const decorationPropertyKey = `${propertyKey}_decorations`;
   const objectGroup = `${propertyKey}_objects`;
   const stylesByHost: ResolvedControlPseudoStyles = {};
   const hostIdsByNode = new Map<number, string>();
+  const hostObjectIdsByNode = new Map<number, string>();
   const hostObjectIds = new Set<string>();
   let nextHostId = 1;
 
@@ -461,8 +469,38 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
       arguments: [{ value: propertyKey }, { value: hostId }],
     });
     hostIdsByNode.set(nodeId, hostId);
+    hostObjectIdsByNode.set(nodeId, objectId);
     hostObjectIds.add(objectId);
     return hostId;
+  };
+
+  const retainDecorationNode = async (
+    hostNodeId: number,
+    nodeId: number,
+    kind: ControlPseudoKind,
+  ): Promise<void> => {
+    await ensureHost(hostNodeId);
+    const hostObjectId = hostObjectIdsByNode.get(hostNodeId);
+    const partObjectId = (await session.send("DOM.resolveNode", { nodeId, objectGroup })).object.objectId;
+    if (hostObjectId == null || partObjectId == null) {
+      throw new Error(`Chromium did not expose ${kind} decoration ownership`);
+    }
+    await session.send("Runtime.callFunctionOn", {
+      objectId: hostObjectId,
+      functionDeclaration: `function(key, kind, node) {
+        let parts = this[key];
+        if (!Array.isArray(parts)) {
+          parts = [];
+          Object.defineProperty(this, key, { value: parts, configurable: true });
+        }
+        parts.push({ kind, node });
+      }`,
+      arguments: [
+        { value: decorationPropertyKey },
+        { value: kind },
+        { objectId: partObjectId },
+      ],
+    });
   };
 
   const store = async (
@@ -488,6 +526,14 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
       if (uaHost != null) {
         const kind = controlPseudoKindForNode(attributesOf(node), uaHost.nodeName, attributesOf(uaHost));
         if (kind != null) {
+          if (kind === "inner-spin-button" || kind === "search-cancel-button"
+              || kind === "calendar-picker-indicator" || kind === "select-inner") {
+            // Retain the actual closed-shadow Element, not just its computed
+            // style. The later isolation pass needs Chromium's used rect and
+            // paint owner; recreating either from pseudo CSS would be a second
+            // layout engine.
+            await retainDecorationNode(uaHost.nodeId, node.nodeId, kind);
+          }
           const matched = await session.send("CSS.getMatchedStylesForNode", { nodeId: node.nodeId });
           if (hasAuthorPseudoOrigin(directMatchedOrigins(matched))) {
             const computed = await session.send("CSS.getComputedStyleForNode", { nodeId: node.nodeId });
@@ -558,13 +604,14 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
 
   return {
     propertyKey,
+    decorationPropertyKey,
     stylesByHost,
     async dispose(): Promise<void> {
       await Promise.all([...hostObjectIds].map(async (objectId) => {
         await session.send("Runtime.callFunctionOn", {
           objectId,
-          functionDeclaration: "function(key) { delete this[key]; }",
-          arguments: [{ value: propertyKey }],
+          functionDeclaration: "function(styleKey, decorationKey) { delete this[styleKey]; delete this[decorationKey]; }",
+          arguments: [{ value: propertyKey }, { value: decorationPropertyKey }],
         }).catch(() => undefined);
       }));
       await session.send("Runtime.releaseObjectGroup", { objectGroup }).catch(() => undefined);
