@@ -1518,7 +1518,7 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   boxes; they never fall back to a primary-face ascent merely because the
   selected physical face is helper-backed.
 
-<!-- DM-2386 / DM-2461 -->
+<!-- DM-2386 / DM-2460 / DM-2461 -->
 - Animated viewBox culling's composed-timeline path is implemented (doc 155):
   matching translate/scale/2D-rotate functions interpolate before composition
   (with exact rotation-arc extrema); nested
@@ -1526,11 +1526,16 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   steps, repeat/alternate, and cubic-bezier overshoot partition/bound the
   continuous sweep; and no fixed sample is used to prove exclusion. Unknown
   transform lists/timing, decomposition-only matrices, projective/non-finite
-  states, and excessive/unbounded partitions retain content. Full safety still
-  depends on DM-2460's emitted-SVG reference and visual/ink bounds (including
-  frozen static transforms/effects); DM-2462 owns the independent live
-  Chromium activation oracle. Exact per-frame quads remain oracle/finite-raster
-  evidence, never proof between continuous SVG frames.
+  states, and excessive/unbounded partitions retain content. DM-2460 replaces
+  the HTML carrier proxy with renderer-owned exact fill/stroke/view reference
+  boxes and separate bounded visual surfaces, including frozen affine wrappers,
+  emitted overflow clips, outline/shadow ink, and exact replaced/atomic raster
+  rectangles. Unknown/empty/singular facts, split backdrop ownership, and a
+  live animation interleaved with frozen static transforms retain. A focused
+  production Chromium discriminator covers the offset-descendant fill box at
+  zoom 1/1.25 and DPR 1/2; DM-2462 still owns the independent all-platform
+  global-timeline activation matrix. Exact per-frame quads remain
+  oracle/finite-raster evidence, never proof between continuous SVG frames.
 
 <!-- DM-2385 -->
 - Computed `perspective` is an ancestor-owned stacking-context and

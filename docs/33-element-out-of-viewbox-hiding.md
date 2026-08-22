@@ -1,4 +1,4 @@
-# 33 — Element-level out-of-viewBox hiding (DM-603 / DM-2461)
+# 33 — Element-level out-of-viewBox hiding (DM-603 / DM-2460 / DM-2461)
 
 Phase 2 of the animation-performance work. Phase 1 ([doc 8 §Out-of-frame paint suppression](08-animation-model.md)) drops entire frames from paint while they're outside their show window. Phase 2 drops individual *elements within a frame* whose bboxes don't intersect the viewBox at the relevant times.
 
@@ -12,15 +12,23 @@ Other cases Phase 2 covers:
 - **Intra-frame `translate*` animations on smaller elements** — a toast that slides in from `translateY(-100px)` to `translateY(0px)` is off-viewBox before the animation runs.
 - **Future actual-scroll transitions** — if `scroll` is ever made geometrically scroll between frames (currently it's an opacity-only fade-with-tail; see [Open question 2](#open-questions) below), the same machinery handles it.
 
-## Inputs (already available)
+## Inputs
 
-The data needed is already in the pipeline:
+The culler consumes three source-owned inputs:
 
-- **`CapturedElement.x / y / width / height`** — every captured element carries its bbox in the parent frame's coordinate space (see `src/capture/types.ts`'s `CapturedElement` interface).
-- **`IntraFrameAnimation.from / to / duration / delay`** — every intra-frame animation has explicit start and end values in CSS units.
-- **`AnimationConfig.width / height`** — the viewBox dimensions.
+- **renderer facts derived from `CapturedElement`** —
+  `src/render/culling-geometry.ts` classifies the actual emitted subtree as an
+  exact fill/stroke/view reference box and a separate bounded visual surface,
+  or explicitly as empty/unknown. The source HTML carrier rectangle is only
+  one possible generated paint primitive; it is never a fallback proxy for the
+  animation group's geometry.
+- **`IntraFrameAnimation`** — transform endpoints/timing plus optional
+  `transformOrigin` and `transformBox` (`fill-box` by default, with
+  `stroke-box` and `view-box` supported).
+- **`AnimationConfig.width / height`** — the generated SVG viewBox.
 
-No SVG parsing, no DOM measurement, no `getBBox()` runtime call. Phase 2 is a pure composition-time transform.
+No SVG string parsing, browser measurement, or runtime `getBBox()` call is
+needed. The geometry pass mirrors renderer branches before SVG serialization.
 
 ## Design
 
@@ -28,15 +36,27 @@ No SVG parsing, no DOM measurement, no `getBBox()` runtime call. Phase 2 is a pu
 
 For each captured element, compute the set of time intervals during which its transformed bbox intersects the viewBox `[0, 0, viewportW, viewportH]`. Emit `display: none` for the *complement* of that set.
 
-**Static element (no ancestor with `data-domotion-anim`, no ancestor in a scroll transition)**:
-- Intersection of `(x, y, width, height)` with `(0, 0, viewportW, viewportH)`.
-- Empty → always hidden → emit `style="display: none"` directly on the element's `<g>`. No keyframes.
-- Non-empty → always visible → no change.
+**Static element (no live animation wrapper)**:
+- Intersect the renderer-owned visual bound with
+  `(0, 0, viewportW, viewportH)`, after every frozen affine SVG wrapper on the
+  path and every finite emitted overflow clip.
+- A known bounded surface with empty intersection may emit
+  `style="display: none"`. Unknown, empty, singular, non-finite, or genuinely
+  3D facts retain the subtree.
+- Reference boxes do not substitute for visual bounds: outline/shadow/filter
+  ink and exact replaced/raster surfaces can reach the viewBox while an HTML
+  border box does not.
 
 **Animated element (matches a `data-domotion-anim`, or descendant of one)**:
 
 - Build the same root-to-leaf wrapper stack emitted by the renderer. A child's
   animation adds an inner transform; it never replaces an animated ancestor.
+- Resolve each declared origin inside the generated wrapper's used
+  `fill-box`, `stroke-box`, or root `view-box`. If that reference is unknown or
+  can change under a descendant animation, retain. An unset origin preserves
+  SVG's `(0,0)` default. Independently applying `display:none` to a descendant
+  would itself mutate an ancestor's fill/stroke box, so those reference-box
+  contributors remain emitted; a viewport reference has no such dependency.
 - Map every transform track onto the global scene clock using its frame origin,
   delay, duration, easing, iteration count, alternate direction, and `both`
   fill state. Independently timed fused tracks keep their own clocks.
@@ -73,13 +93,16 @@ Classes are coalesced when N elements share the same visible interval (common in
 
 ### Composition pipeline integration
 
-- **Capture time**: no change. `CapturedElement.{x,y,width,height}` already populated.
-- **Render time (`src/render/element-tree-to-svg.ts elementTreeToSvg`)**: no change. Each element still emits as `<g>` with its existing transform.
-- **Composition time (`src/animation/animator.ts generateAnimatedSvg`)**: new pre-pass walks the captured trees, classifies each element by visibility behavior (always-visible / always-hidden / window-hidden), and emits the CSS class assignments + keyframes. Static `display:none` elements get the style attribute pasted onto their `<g>` directly via post-emission string surgery (or, preferred: add a `displayNone?: boolean` field to `CapturedElement` and let the renderer honor it).
-
-The trees passed to the animator are already-rendered `svgContent` strings, not `CapturedElement` objects. To use captured bboxes at composition time, **the AnimationFrame interface needs to also carry the original tree**, or the renderer needs to inline data attributes (`data-bbox="x y w h"`) the animator can parse back out.
-
-**Proposed**: extend `AnimationFrame` with an optional `tree?: CapturedElement` field. When present, the animator uses the tree for bbox analysis. Backwards-compatible (existing callers passing only `svgContent` get no Phase 2 benefit but still work).
+- **Capture time** records the paint/geometry facts already required by the
+  renderer; culling adds no browser probe.
+- **Pre-render tree pass** calls `buildRendererCullGeometry`, threads every
+  animation's selected reference box into the continuous sweep, and writes
+  `displayNone` / `cullClass` on the owning `CapturedElement`.
+- **Render time** puts a cull class on the outer group and an animation class
+  on its separate inner group. Atomic Chromium snapshots use the same order;
+  their already-baked frozen static/filter state is not re-applied.
+- **Composition time** emits/deduplicates the cull keyframes alongside the
+  ordinary frame and intra-frame animation CSS.
 
 ## Output size budget
 
@@ -105,7 +128,9 @@ The composition-time pre-pass is O(elements) for static analysis, O(elements × 
 ## Implementation (shipped)
 
 1. **`CapturedElement.displayNone?: boolean`** and **`CapturedElement.cullClass?: string`** — new fields. The renderer in `src/render/element-tree-to-svg.ts` honors them on the element's outermost `<g>` wrapper. `needsGroup` is forced true whenever either field is set so the cull markers never get dropped on elements that otherwise wouldn't have wrapped.
-2. **`src/tree-ops/viewbox-culling.ts`** — tree integration and decisions;
+2. **`src/render/culling-geometry.ts`** — renderer-owned exact/bounded facts,
+   static affine mapping, emitted overflow clipping, raster surfaces, and
+   explicit empty/unknown states. **`src/tree-ops/viewbox-culling.ts`** — tree integration and decisions;
    **`src/tree-ops/swept-transform-bounds.ts`** — the pure source-transcribed
    continuous-time operation/timing model. The public tree module exports:
    - **`cullElementsOutsideViewBox(tree, viewportW, viewportH, animations?, frameStartMs, totalDurationMs)`** — walks the tree, mutates `displayNone` / `cullClass` per element, returns `{ css }` containing all the `@keyframes cull-<start>-<end>` blocks keyed by visible-window equivalence. Accepts either a single `CapturedElement` or an array of siblings.
@@ -159,14 +184,17 @@ context. A leaf box is swept through the innermost wrapper first and every
 ancestor afterward. Successive AABB expansion may lose timing correlation and
 over-retain; it cannot remove a reachable point.
 
-### Transform origin and remaining geometry boundary
+### Transform origin and renderer geometry
 
-Scale is applied as `T(origin) · operations · T(-origin)`. With no authored
-origin, the emitted SVG wrapper uses `(0,0)`. A set origin is currently resolved
-from the captured carrier box for keyword, percentage, and pixel syntax. That
-carrier proxy is deliberately identified as temporary: DM-2460 owns the actual
-emitted SVG fill/stroke/view reference box and the separate visual/ink bound.
-An unavailable origin on a scale path therefore retains paint.
+Scale/rotation is applied as `T(origin) · operations · T(-origin)`. With no
+authored origin, the emitted SVG wrapper uses `(0,0)`. A set origin resolves
+keyword, percentage, or px syntax inside the renderer-owned used `fill-box`,
+`stroke-box`, or `view-box`. Blink's mapping is pinned in
+`TransformHelper::ComputeReferenceBox`: SVG object bbox, stroke bbox, or
+resolved viewport respectively. An unavailable or time-varying reference box
+retains paint. A frozen static affine wrapper is applied to visual bounds for a
+static decision; a live animation sharing that path retains until the exact
+wrapper interleave can be represented without changing operation order.
 
 ### Per-element decision
 
@@ -184,4 +212,6 @@ overflow-visible child paint; a parent's own box can never narrow its subtree.
 - **Geometric scroll between frames** — if/when we want the `scroll` transition to actually translate (it currently doesn't; out of scope per DM-603 feedback). The cull machinery here would extend trivially.
 - **Container-level hide (vs leaf-level)** — if measurement shows leaf-level coalescing isn't enough.
 - **Bbox-area threshold** — if profiling shows tiny elements dominate the keyframes-block count and matter for bundle size.
-- **CSS-transform-aware static cull** — today the static bbox in `CapturedElement.{x,y,width,height}` is the post-author-transform bbox (capture freezes transforms before `getBoundingClientRect`). If we ever stop freezing, the cull would need to compose author transforms too.
+- **Independent full live oracle** — DM-2462 owns the broad global-timeline
+  Chromium activation matrix. DM-2460 includes a focused reference-box
+  discriminator at zoom/DPR variants, not that replacement gate.

@@ -469,6 +469,13 @@ export const intraFrameAnimationSchema = z.object({
    * center-origin scale-pop. Ignored for non-transform properties.
    */
   transformOrigin: z.string().optional(),
+  /**
+   * SVG reference box used to resolve `transformOrigin`. The generated
+   * animation wrapper is an SVG `<g>`, so Blink resolves these through its
+   * ObjectBoundingBox / StrokeBoundingBox / nearest viewport paths. Defaults
+   * to `fill-box`, preserving the original API.
+   */
+  transformBox: z.enum(["fill-box", "stroke-box", "view-box"]).optional(),
   /** Ms after the frame becomes visible before animation starts. Default 0. */
   delay: z.number().optional(),
   /**

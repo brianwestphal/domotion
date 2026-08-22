@@ -4105,6 +4105,24 @@ function computeGroupWrapperAttrs(
   return { needsGroup, groupAttrs, animClass, needsFilterOuter, localizeReferenceFilter, hasTransform: transformAttr !== "" || hasProjectiveTransform };
 }
 
+/**
+ * Atomic Chromium surfaces return before the ordinary element wrapper path,
+ * but they still belong to the generated element's cull and animation
+ * wrappers. Keep those two timeline owners in the same outer→inner order as
+ * vector content without reapplying static/filter state already baked into
+ * the screenshot.
+ */
+function wrapAtomicRasterTimeline(el: CapturedElement, markup: string): string {
+  let result = markup;
+  if (el.animId != null && el.animId !== "") {
+    result = `<g class="anim-${esc(el.animId)}">${result}</g>`;
+  }
+  const attrs: string[] = [];
+  if (el.cullClass != null && el.cullClass !== "") attrs.push(`class="${esc(el.cullClass)}"`);
+  if (el.displayNone === true) attrs.push('style="display:none"');
+  return attrs.length === 0 ? result : `<g ${attrs.join(" ")}>${result}</g>`;
+}
+
 
 /**
  * Bucket `el`'s children by CSS 2.1 Appendix E paint step, resolved ONCE per
@@ -4766,7 +4784,8 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   const urlFilterRaster = el.urlFilterRaster;
   if (urlFilterRaster?.empty === true) return;
   if (urlFilterRaster?.dataUri != null) {
-    svgParts.push(`${indent}<image href="${urlFilterRaster.dataUri}" x="${r(urlFilterRaster.x)}" y="${r(urlFilterRaster.y)}" width="${r(urlFilterRaster.width)}" height="${r(urlFilterRaster.height)}" preserveAspectRatio="none"/>`);
+    const image = `<image href="${urlFilterRaster.dataUri}" x="${r(urlFilterRaster.x)}" y="${r(urlFilterRaster.y)}" width="${r(urlFilterRaster.width)}" height="${r(urlFilterRaster.height)}" preserveAspectRatio="none"/>`;
+    svgParts.push(`${indent}${wrapAtomicRasterTimeline(el, image)}`);
     appendBoxReflection(state, el, reflectionFragmentStart, depth);
     return;
   }
@@ -4783,7 +4802,8 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   if (transformRaster != null && phase === "box") return;
   if (transformRaster?.empty === true) return;
   if (transformRaster?.dataUri != null) {
-    svgParts.push(`${indent}<image href="${transformRaster.dataUri}" x="${r(transformRaster.x)}" y="${r(transformRaster.y)}" width="${r(transformRaster.width)}" height="${r(transformRaster.height)}" preserveAspectRatio="none"/>`);
+    const image = `<image href="${transformRaster.dataUri}" x="${r(transformRaster.x)}" y="${r(transformRaster.y)}" width="${r(transformRaster.width)}" height="${r(transformRaster.height)}" preserveAspectRatio="none"/>`;
+    svgParts.push(`${indent}${wrapAtomicRasterTimeline(el, image)}`);
     appendBoxReflection(state, el, reflectionFragmentStart, depth);
     return;
   }
@@ -4793,7 +4813,8 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // receive this field and continue through the vector form-control renderer.
   const nativeControlRaster = el.nativeControlRaster;
   if (nativeControlRaster?.dataUri != null) {
-    svgParts.push(`${indent}<image href="${nativeControlRaster.dataUri}" x="${r(nativeControlRaster.x)}" y="${r(nativeControlRaster.y)}" width="${r(nativeControlRaster.width)}" height="${r(nativeControlRaster.height)}" preserveAspectRatio="none"/>`);
+    const image = `<image href="${nativeControlRaster.dataUri}" x="${r(nativeControlRaster.x)}" y="${r(nativeControlRaster.y)}" width="${r(nativeControlRaster.width)}" height="${r(nativeControlRaster.height)}" preserveAspectRatio="none"/>`;
+    svgParts.push(`${indent}${wrapAtomicRasterTimeline(el, image)}`);
     appendBoxReflection(state, el, reflectionFragmentStart, depth);
     return;
   }

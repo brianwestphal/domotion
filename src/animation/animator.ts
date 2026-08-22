@@ -2975,11 +2975,11 @@ function buildIntraFrameAnimationCss(
       const declFrom = composeAnimStop(tracks.map((t) => ({ property: t.property, val: t.from })));
       const declTo = composeAnimStop(tracks.map((t) => ({ property: t.property, val: t.to })));
       // DM-1297: SVG transforms are origin-(0,0); a `transformOrigin` makes a
-      // scale/rotate/translate resolve about the element's OWN box (e.g. a
-      // center-origin scale-pop) instead of the SVG origin. `transform-box:
-      // fill-box` switches the reference box to the element's bounding box.
+      // scale/rotate/translate resolve inside the selected SVG reference box
+      // instead of the default SVG origin. DM-2460 adds stroke/view selection;
+      // fill-box remains the backwards-compatible generated-group default.
       const originDecl = a.transformOrigin != null && a.transformOrigin !== ""
-        ? ` transform-box: fill-box; transform-origin: ${a.transformOrigin};`
+        ? ` transform-box: ${a.transformBox ?? "fill-box"}; transform-origin: ${a.transformOrigin};`
         : "";
       const animName = `f${i}-${a.animId}-${ai}`;
       // DM-1517: when a fused track carries its OWN duration/delay/easing, the

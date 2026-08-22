@@ -19,6 +19,11 @@ import {
   type SweptAnimationContext,
   type SweptBox,
 } from "./swept-transform-bounds.js";
+import {
+  buildRendererCullGeometry,
+  type RendererCullGeometryIndex,
+  type RendererOwnedCullGeometry,
+} from "../render/culling-geometry.js";
 
 type Bbox = SweptBox;
 
@@ -86,17 +91,69 @@ function decideForElement(
   vw: number, vh: number,
   inheritedCtx: readonly AnimationFrameContext[],
   animsById: Map<string, AnimationFrameContext>,
-): { contexts: AnimationFrameContext[]; decision: CullDecision } {
+  geometryIndex: RendererCullGeometryIndex,
+): {
+  contexts: AnimationFrameContext[];
+  decision: CullDecision;
+  suppressesDescendants: boolean;
+  preservesDescendantReferenceGeometry: boolean;
+} {
   const contexts = [...inheritedCtx];
+  const geometry = geometryIndex.get(el);
+  let preservesDescendantReferenceGeometry = false;
   if (el.animId != null && el.animId !== "" && animsById.has(el.animId)) {
+    const animation = animsById.get(el.animId)!;
+    // `display:none` removes an SVG descendant from its ancestor <g>'s object
+    // and stroke bounding boxes. If that ancestor resolves an authored origin
+    // in either box, independently culling a child would change the reference
+    // geometry after this decision and therefore change every sibling's live
+    // transform. View-box and the unset SVG-default origin do not depend on
+    // descendants. Preserve the others as geometry contributors; the owner
+    // can still be culled from its complete renderer-owned visual surface.
+    preservesDescendantReferenceGeometry = animation.anim.transformOrigin != null
+      && animation.anim.transformOrigin.trim() !== ""
+      && animation.anim.transformBox !== "view-box";
     contexts.push({
-      ...animsById.get(el.animId)!,
-      animatedBbox: { x: el.x, y: el.y, w: el.width, h: el.height },
+      ...animation,
+      transformReferenceBox: rendererTransformReferenceBox(geometry, animation.anim),
     });
   }
-  const bbox = { x: el.x, y: el.y, w: el.width, h: el.height };
+  // Static author transforms are already folded into the renderer-owned
+  // visual bound. A live animation on the same transform path would require
+  // interleaving the outer static wrapper with the inner animated wrapper;
+  // until that exact composition is represented, retain instead of changing
+  // the operation order.
+  if (geometry == null || geometry.visualBounds.kind !== "bounded"
+      || (contexts.length > 0 && geometry.hasStaticTransformPath)) {
+    return {
+      contexts,
+      decision: { alwaysHidden: false },
+      suppressesDescendants: geometry?.suppressesDescendants === true,
+      preservesDescendantReferenceGeometry,
+    };
+  }
+  const bbox = geometry.visualBounds.box;
   const decision = decideCull(bbox, vw, vh, contexts.length === 0 ? null : contexts);
-  return { contexts, decision };
+  return {
+    contexts,
+    decision,
+    suppressesDescendants: geometry.suppressesDescendants,
+    preservesDescendantReferenceGeometry,
+  };
+}
+
+function rendererTransformReferenceBox(
+  geometry: RendererOwnedCullGeometry | undefined,
+  animation: IntraFrameAnimation,
+): Bbox | undefined {
+  if (animation.transformOrigin == null || animation.transformOrigin.trim() === "") return undefined;
+  if (geometry == null || geometry.referenceBoxMayAnimate) return undefined;
+  const selected = animation.transformBox === "stroke-box"
+    ? geometry.referenceBoxes.strokeBox
+    : animation.transformBox === "view-box"
+      ? geometry.referenceBoxes.viewBox
+      : geometry.referenceBoxes.fillBox;
+  return selected.kind === "exact" ? selected.box : undefined;
 }
 
 /** Round to 3 decimal places for stable class-key coalescing. */
@@ -140,6 +197,7 @@ export function cullElementsOutsideViewBox(
   totalDurationMs: number,
 ): { css: string } {
   const roots = Array.isArray(tree) ? tree : [tree];
+  const geometryIndex = buildRendererCullGeometry(roots, viewportW, viewportH);
   const animsById = new Map<string, AnimationFrameContext>();
   if (animations != null) {
     for (const a of animations) {
@@ -193,9 +251,16 @@ export function cullElementsOutsideViewBox(
     el: CapturedElement,
     inheritedCtx: readonly AnimationFrameContext[],
   ): VisibleHull | null => {
-    const { contexts, decision } = decideForElement(el, viewportW, viewportH, inheritedCtx, animsById);
+    const {
+      contexts,
+      decision,
+      suppressesDescendants,
+      preservesDescendantReferenceGeometry,
+    } = decideForElement(
+      el, viewportW, viewportH, inheritedCtx, animsById, geometryIndex,
+    );
     let subtreeHull = decisionHull(decision);
-    if (el.children != null) {
+    if (!suppressesDescendants && !preservesDescendantReferenceGeometry && el.children != null) {
       for (const child of el.children) {
         subtreeHull = unionHull(subtreeHull, walk(child, contexts));
       }

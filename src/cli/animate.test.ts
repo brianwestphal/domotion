@@ -737,6 +737,34 @@ describe("validateAnimateConfig — declarative config (DM-846/847/848/852/853)"
       ).toThrow();
     });
 
+    it("DM-2460: accepts the SVG transform reference-box selector", () => {
+      const cfg = validateAnimateConfig({
+        ...base,
+        frames: [{ input: "a.html", duration: 1, animations: [{
+          selector: ".subject",
+          property: "scale",
+          from: "1",
+          to: ".5",
+          duration: 300,
+          transformOrigin: "right bottom",
+          transformBox: "view-box",
+        }] }],
+      });
+      expect(cfg.frames[0].animations?.[0]?.transformBox).toBe("view-box");
+      expect(() => validateAnimateConfig({
+        ...base,
+        frames: [{ input: "a.html", duration: 1, animations: [{
+          selector: ".subject",
+          property: "scale",
+          from: "1",
+          to: ".5",
+          duration: 300,
+          transformOrigin: "right bottom",
+          transformBox: "border-box",
+        }] }],
+      })).toThrow();
+    });
+
     it("DM-870: accepts a typing-overlay caret (boolean or object)", () => {
       const cfg = validateAnimateConfig({
         ...base,

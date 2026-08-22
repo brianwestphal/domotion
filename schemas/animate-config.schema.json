@@ -4498,6 +4498,14 @@
                 "transformOrigin": {
                   "type": "string"
                 },
+                "transformBox": {
+                  "type": "string",
+                  "enum": [
+                    "fill-box",
+                    "stroke-box",
+                    "view-box"
+                  ]
+                },
                 "delay": {
                   "type": "number"
                 },

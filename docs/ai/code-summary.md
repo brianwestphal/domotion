@@ -50,6 +50,10 @@ shortest possible map:
   .ts` by `scripts/build-capture-script.mjs`.
 - **`src/render/`** — pure node-side renderers that convert a captured
   element tree into SVG markup. `element-tree-to-svg.ts` is the big one;
+  `culling-geometry.ts` is its fail-closed geometry preflight: it exposes the
+  generated subtree's exact fill/stroke/view reference boxes separately from
+  bounded visual ink, applies frozen affine wrappers and emitted overflow
+  clips, and returns unknown instead of an HTML carrier-box proxy;
   `text-to-path.ts` + `text.ts` own glyph/decoration/wrap logic;
   `font-resolution.ts` owns font-key resolution + the per-Unicode-block
   fallback chains + `FONT_PATHS`/`LINUX_FONT_PATHS`/`WIN32_FONT_PATHS`
@@ -255,7 +259,10 @@ shortest possible map:
   (including rotation-arc extrema),
   independently timed/fused and nested global clocks, easing extrema,
   repeat/alternate/hold partitions, and unknown-on-decomposition/projective
-  paths. (The old `frame-merge.ts` fast path was removed — see doc 08.)
+  paths. `viewbox-culling.ts` joins those sweeps to `culling-geometry.ts`,
+  selecting each animation's SVG fill/stroke/view reference box and retaining
+  unknown, empty, singular, or interleaved frozen-static/live paths. (The old
+  `frame-merge.ts` fast path was removed — see doc 08.)
 - **`src/post-processing/`** — the optional svgo `optimize.ts` + `gzip.ts`, plus
   `hoist-image-payloads.ts` (always-on: shares a raster payload repeated across
   frames / elements as one `<defs>` `<image>` + `<use>` refs — see `docs/26`).

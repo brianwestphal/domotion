@@ -9,7 +9,9 @@ function el(opts: Partial<CapturedElement> & { x: number; y: number; width: numb
   return {
     tag: "div",
     text: "",
-    styles: {} as CapturedElement["styles"],
+    // These unit rows model a renderer-emitted painted rectangle. Individual
+    // geometry-boundary tests override this for transparent/unknown owners.
+    styles: { backgroundColor: "rgb(0, 0, 0)" } as CapturedElement["styles"],
     children: [],
     ...opts,
   };
@@ -150,7 +152,7 @@ describe("decideCull — translate+scale affine", () => {
     const shrink = {
       ...win,
       anim: anim({ from: "scale(1)", to: "scale(0.12)", transformOrigin: "100% 100%" }),
-      animatedBbox: { x: 0, y: 0, w: 800, h: 600 },
+      transformReferenceBox: { x: 0, y: 0, w: 800, h: 600 },
     };
 
     it("child that REMAINS inside the viewBox under the scaled composition: no hidden window", () => {
@@ -184,7 +186,7 @@ describe("decideCull — translate+scale affine", () => {
       const d = decideCull({ x: 400, y: 300, w: 100, h: 100 }, VW, VH, {
         ...win,
         anim: anim({ from: "scale(1)", to: "scale(3)", transformOrigin: "left top" }),
-        animatedBbox: { x: 0, y: 0, w: 800, h: 600 },
+        transformReferenceBox: { x: 0, y: 0, w: 800, h: 600 },
       });
       expect(d.alwaysHidden).toBe(false);
       expect(d.visStartPct).toBe(0);
@@ -195,7 +197,7 @@ describe("decideCull — translate+scale affine", () => {
       const d = decideCull({ x: 400, y: 300, w: 100, h: 100 }, VW, VH, {
         ...win,
         anim: anim({ property: "scale", from: "1", to: "3", transformOrigin: "left top" }),
-        animatedBbox: { x: 0, y: 0, w: 800, h: 600 },
+        transformReferenceBox: { x: 0, y: 0, w: 800, h: 600 },
       });
       expect(d.alwaysHidden).toBe(false);
       expect(d.visStartPct).toBe(0);
@@ -276,7 +278,7 @@ describe("decideCull — translate+scale affine", () => {
       const d = decideCull({ x: 900, y: 80, w: 100, h: 100 }, VW, VH, {
         ...win,
         anim: anim({ from: "scale(1)", to: "scale(0.5)", transformOrigin: "40px 30px" }),
-        animatedBbox: { x: 100, y: 50, w: 400, h: 300 },
+        transformReferenceBox: { x: 100, y: 50, w: 400, h: 300 },
       });
       expect(d.alwaysHidden).toBe(false);
       expect(d.visStartPct).toBe(25);
@@ -290,7 +292,7 @@ describe("decideCull — translate+scale affine", () => {
       const d = decideCull({ x: 200, y: 100, w: 100, h: 100 }, VW, VH, {
         ...win,
         anim: anim({ from: "scale(1)", to: "scale(0.1)", transformOrigin: "center" }),
-        animatedBbox: { x: 200, y: 100, w: 400, h: 400 },
+        transformReferenceBox: { x: 200, y: 100, w: 400, h: 400 },
       });
       expect(d.alwaysHidden).toBe(false);
       expect(d.visStartPct).toBeUndefined();
@@ -304,7 +306,7 @@ describe("decideCull — translate+scale affine", () => {
       const d = decideCull({ x: 1000, y: 800, w: 200, h: 200 }, VW, VH, {
         ...win,
         anim: anim({ from: "scale(1)", to: "scale(0.5)" }),
-        animatedBbox: { x: 0, y: 0, w: 2560, h: 1440 },
+        transformReferenceBox: { x: 0, y: 0, w: 2560, h: 1440 },
       });
       expect(d.alwaysHidden).toBe(false);
       expect(d.visStartPct).toBe(25);
@@ -436,33 +438,328 @@ describe("decideCull — translate+scale affine", () => {
 });
 
 describe("cullElementsOutsideViewBox — transform-origin threading through the tree walk", () => {
-  it("resolves a percentage origin against the animId carrier's box and culls children through the affine", () => {
-    // Carrier (0,0,800,600) shrinks toward its bottom-right corner. Child A
-    // stays inside under the shrink (no cull class); child B starts off-left
-    // and is pulled in (enter window); child C stays off the whole cycle
-    // (alwaysHidden).
+  it("resolves a percentage origin against generated descendant geometry, not the transparent carrier", () => {
+    // The HTML carrier is 400×200 but paints nothing. Its generated SVG
+    // animation group contains only the 20×20 child at x=300,y=100, so Blink's
+    // fill-box is 300..320 × 100..120 and `100% 100%` is (320,120). At scale
+    // .5 the child remains x=310..320. The retired carrier proxy used origin
+    // (400,200) and incorrectly moved it to x=350..360 (outside width 330).
     const anim: IntraFrameAnimation = {
       animId: "glide", property: "transform",
-      from: "scale(1)", to: "scale(0.12)",
+      from: "scale(1)", to: "scale(0.5)",
       transformOrigin: "100% 100%",
       duration: 1000, easing: "linear",
     };
     const tree: CapturedElement = el({
-      x: 0, y: 0, width: 800, height: 600, tag: "div", animId: "glide",
+      x: 0, y: 0, width: 400, height: 200, tag: "div", animId: "glide",
+      styles: { backgroundColor: "rgba(0, 0, 0, 0)" } as CapturedElement["styles"],
       children: [
-        el({ x: 0, y: 0, width: 200, height: 200, tag: "div" }),        // A: stays inside
-        el({ x: -600, y: -400, width: 100, height: 100, tag: "div" }),  // B: pulled in
-        el({ x: 0, y: 2000, width: 100, height: 100, tag: "div" }),     // C: never visible
+        el({ x: 300, y: 100, width: 20, height: 20, tag: "div" }),
       ],
     });
     // frameStart 1000, totalDur 4000 → animStart 25%, animEnd 50%.
-    const { css } = cullElementsOutsideViewBox(tree, VW, VH, [anim], 1000, 4000);
+    const { css } = cullElementsOutsideViewBox(tree, 330, 200, [anim], 1000, 4000);
     expect(tree.children![0].displayNone).toBeFalsy();
     expect(tree.children![0].cullClass).toBeUndefined();
-    expect(tree.children![1].displayNone).toBeFalsy();
-    expect(tree.children![1].cullClass).toBe("cull-25_000-100_000");
-    expect(tree.children![2].displayNone).toBe(true);
-    expect(css).toContain("@keyframes cull-25_000-100_000");
+    expect(tree.cullClass).toBeUndefined();
+    expect(css).toBe("");
+  });
+
+  it("selects fill-box, stroke-box, and view-box independently", () => {
+    const animation = (
+      animId: string,
+      transformBox: IntraFrameAnimation["transformBox"],
+      from: string,
+      to: string,
+      transformOrigin: string,
+    ): IntraFrameAnimation => ({
+      animId,
+      property: "transform",
+      from,
+      to,
+      transformOrigin,
+      transformBox,
+      duration: 1000,
+      easing: "linear",
+    });
+
+    // At width 250, this outlined surface is x=350..470. Its generated
+    // fill-box starts at x=375 (the outline centerline) while stroke-box
+    // starts at x=350 (outer stroke ink). Reflecting about fill-left stays
+    // offscreen (x=280..400); stroke-left reaches x=230 and must be retained.
+    const outlined = (animId: string): CapturedElement => el({
+      x: 400,
+      y: 100,
+      width: 20,
+      height: 20,
+      animId,
+      styles: {
+        backgroundColor: "rgb(0, 0, 0)",
+        outlineStyle: "solid",
+        outlineWidth: "50px",
+        outlineOffset: "0px",
+        outlineColor: "rgb(0, 0, 0)",
+      } as CapturedElement["styles"],
+    });
+    const fill = outlined("fill");
+    const stroke = outlined("stroke");
+    cullElementsOutsideViewBox(fill, 250, 220, [
+      animation("fill", "fill-box", "scaleX(1)", "scaleX(-1)", "left top"),
+    ], 0, 1000);
+    cullElementsOutsideViewBox(stroke, 250, 220, [
+      animation("stroke", "stroke-box", "scaleX(1)", "scaleX(-1)", "left top"),
+    ], 0, 1000);
+    expect(fill.displayNone).toBe(true);
+    expect(stroke.displayNone).toBeFalsy();
+
+    // A plain generated rect at x=340 is off a 330-wide viewport. Scale .5
+    // around fill-left (x=340) cannot move it; view-left is the viewport x=0
+    // and moves it to x=170, so view-box must retain it.
+    const fillPlain = el({ x: 340, y: 40, width: 20, height: 20, animId: "fill-plain" });
+    const viewPlain = el({ x: 340, y: 40, width: 20, height: 20, animId: "view-plain" });
+    cullElementsOutsideViewBox(fillPlain, 330, 200, [
+      animation("fill-plain", "fill-box", "scale(1)", "scale(.5)", "left top"),
+    ], 0, 1000);
+    cullElementsOutsideViewBox(viewPlain, 330, 200, [
+      animation("view-plain", "view-box", "scale(1)", "scale(.5)", "left top"),
+    ], 0, 1000);
+    expect(fillPlain.displayNone).toBe(true);
+    expect(viewPlain.displayNone).toBeFalsy();
+  });
+
+  it("resolves keyword, percentage, and px origins inside the selected box", () => {
+    const run = (animId: string, transformOrigin: string): CapturedElement => {
+      const target = el({ x: 340, y: 40, width: 20, height: 20, animId });
+      cullElementsOutsideViewBox(target, 330, 200, [{
+        animId,
+        property: "transform",
+        from: "scale(1)",
+        to: "scale(.5)",
+        transformOrigin,
+        transformBox: "fill-box",
+        duration: 1000,
+        easing: "linear",
+      }], 0, 1000);
+      return target;
+    };
+    expect(run("keyword", "left top").displayNone).toBe(true);
+    expect(run("percentage", "0% 0%").displayNone).toBe(true);
+    // Fill-left minus 100px is x=240; scale(.5) moves the rect to x=290.
+    expect(run("length", "-100px 0px").displayNone).toBeFalsy();
+  });
+
+  it("does not cull a descendant that defines an animated ancestor's fill box", () => {
+    const subject = el({ x: 300, y: 40, width: 20, height: 20 });
+    const offscreenExtent = el({ x: 900, y: 40, width: 20, height: 20 });
+    const owner = el({
+      x: 0,
+      y: 0,
+      width: 1000,
+      height: 200,
+      animId: "scale-owner",
+      styles: { backgroundColor: "rgba(0, 0, 0, 0)" } as CapturedElement["styles"],
+      children: [subject, offscreenExtent],
+    });
+    cullElementsOutsideViewBox(owner, 330, 200, [{
+      animId: "scale-owner",
+      property: "scale",
+      from: "1",
+      to: ".5",
+      transformOrigin: "right top",
+      transformBox: "fill-box",
+      duration: 1000,
+      easing: "linear",
+    }], 0, 2000);
+
+    // Removing x=900..920 would move fill-right from 920 to 320. The subject
+    // would then paint at 310..320 after the animation even though the culler
+    // had modelled it at 610..620. Keep the contributor in the generated box.
+    expect(offscreenExtent.displayNone).toBeUndefined();
+    expect(offscreenExtent.cullClass).toBeUndefined();
+
+    const viewSubject = el({ x: 300, y: 80, width: 20, height: 20 });
+    const viewOffscreen = el({ x: 900, y: 80, width: 20, height: 20 });
+    const viewOwner = el({
+      x: 0,
+      y: 0,
+      width: 1000,
+      height: 200,
+      animId: "view-owner",
+      styles: { backgroundColor: "rgba(0, 0, 0, 0)" } as CapturedElement["styles"],
+      children: [viewSubject, viewOffscreen],
+    });
+    cullElementsOutsideViewBox(viewOwner, 330, 200, [{
+      animId: "view-owner",
+      property: "scale",
+      from: "1",
+      to: ".5",
+      transformOrigin: "right top",
+      transformBox: "view-box",
+      duration: 1000,
+      easing: "linear",
+    }], 0, 2000);
+    // The viewport reference is invariant under descendant suppression, so
+    // this negative control keeps the independent child-cull optimization.
+    expect(viewOffscreen.displayNone).toBe(true);
+  });
+});
+
+describe("cullElementsOutsideViewBox — renderer-owned visual surface", () => {
+  it("maps frozen rotations that enter and leave before the static decision", () => {
+    const entering = el({
+      x: 900,
+      y: 100,
+      width: 100,
+      height: 100,
+      styles: {
+        backgroundColor: "red",
+        transform: "matrix(-1, 0, 0, -1, 0, 0)",
+        transformOrigin: "-400px 0px",
+      } as CapturedElement["styles"],
+    });
+    const leaving = el({
+      x: 100,
+      y: 100,
+      width: 100,
+      height: 100,
+      styles: {
+        backgroundColor: "red",
+        transform: "matrix(0, 1, -1, 0, 0, 0)",
+        transformOrigin: "-100px -100px",
+      } as CapturedElement["styles"],
+    });
+    cullElementsOutsideViewBox([entering, leaving], VW, VH, undefined, 0, 1000);
+    expect(entering.displayNone).toBeFalsy();
+    expect(leaving.displayNone).toBe(true);
+  });
+
+  it("retains visual overflow that reaches the viewport but culls clipped overflow", () => {
+    const outlined = el({
+      x: 810,
+      y: 20,
+      width: 20,
+      height: 20,
+      styles: {
+        backgroundColor: "red",
+        outlineStyle: "solid",
+        outlineWidth: "15px",
+        outlineOffset: "0px",
+        outlineColor: "black",
+      } as CapturedElement["styles"],
+    });
+    const clippedChild = el({ x: 790, y: 80, width: 30, height: 20 });
+    const clipped = el({
+      x: 810,
+      y: 70,
+      width: 50,
+      height: 50,
+      styles: {
+        backgroundColor: "rgba(0, 0, 0, 0)",
+        overflowX: "hidden",
+        overflowY: "hidden",
+      } as CapturedElement["styles"],
+      children: [clippedChild],
+    });
+    cullElementsOutsideViewBox([outlined, clipped], VW, VH, undefined, 0, 1000);
+    expect(outlined.displayNone).toBeFalsy();
+    expect(clipped.displayNone).toBe(true);
+    expect(clippedChild.displayNone).toBe(true);
+  });
+
+  it("uses an exact replaced raster surface instead of its HTML carrier", () => {
+    const visibleRaster = el({
+      x: 900, y: 20, width: 300, height: 150,
+      styles: { backgroundColor: "rgba(0, 0, 0, 0)" } as CapturedElement["styles"],
+      replacedSnapshot: {
+        x: 780, y: 20, width: 40, height: 30,
+        rid: "visible",
+        dataUri: "data:image/png;base64,AA==",
+      },
+    });
+    const hiddenRaster = el({
+      x: 20, y: 20, width: 30, height: 30,
+      styles: { backgroundColor: "rgba(0, 0, 0, 0)" } as CapturedElement["styles"],
+      replacedSnapshot: {
+        x: 900, y: 20, width: 40, height: 30,
+        rid: "hidden",
+        dataUri: "data:image/png;base64,AA==",
+      },
+    });
+    cullElementsOutsideViewBox([visibleRaster, hiddenRaster], VW, VH, undefined, 0, 1000);
+    expect(visibleRaster.displayNone).toBeFalsy();
+    expect(hiddenRaster.displayNone).toBe(true);
+  });
+
+  it("does not let clone-suppressed descendants veto an atomic raster cull", () => {
+    const suppressedChild = el({ x: 20, y: 20, width: 40, height: 30 });
+    const owner = el({
+      x: 20,
+      y: 20,
+      width: 40,
+      height: 30,
+      transformSubtreeRaster: {
+        x: 900,
+        y: 20,
+        width: 40,
+        height: 30,
+        dataUri: "data:image/png;base64,AA==",
+      },
+      children: [suppressedChild],
+    });
+    cullElementsOutsideViewBox(owner, VW, VH, undefined, 0, 1000);
+    expect(owner.displayNone).toBe(true);
+    // The renderer never visits this clone child; the culler likewise leaves
+    // it out of the atomic owner's visibility hull.
+    expect(suppressedChild.displayNone).toBeUndefined();
+  });
+
+  it("never culls unknown, empty, singular, or split-raster facts", () => {
+    const unknownText = el({ x: 900, y: 20, width: 30, height: 20, text: "ink" });
+    const empty = el({
+      x: 900, y: 50, width: 30, height: 20,
+      styles: { backgroundColor: "rgba(0, 0, 0, 0)" } as CapturedElement["styles"],
+    });
+    const singular = el({
+      x: 900, y: 80, width: 30, height: 20,
+      styles: {
+        backgroundColor: "red",
+        transform: "matrix(0, 0, 0, 1, 0, 0)",
+      } as CapturedElement["styles"],
+    });
+    const backdrop = el({
+      x: 900, y: 110, width: 30, height: 20,
+      backdropFilterRaster: {
+        x: 900, y: 110, width: 30, height: 20,
+        dataUri: "data:image/png;base64,AA==",
+      },
+    });
+    cullElementsOutsideViewBox([unknownText, empty, singular, backdrop], VW, VH, undefined, 0, 1000);
+    for (const target of [unknownText, empty, singular, backdrop]) {
+      expect(target.displayNone).toBeFalsy();
+      expect(target.cullClass).toBeUndefined();
+    }
+  });
+
+  it("retains a scale path when visual chrome is bounded but its exact reference box is unknown", () => {
+    const control = el({
+      tag: "input",
+      x: 900,
+      y: 20,
+      width: 100,
+      height: 40,
+      animId: "control",
+      styles: { backgroundColor: "rgba(0, 0, 0, 0)" } as CapturedElement["styles"],
+    });
+    cullElementsOutsideViewBox(control, VW, VH, [{
+      animId: "control",
+      property: "scale",
+      from: "1",
+      to: "1",
+      duration: 1000,
+      transformOrigin: "center",
+    }], 0, 1000);
+    expect(control.displayNone).toBeFalsy();
+    expect(control.cullClass).toBeUndefined();
   });
 });
 

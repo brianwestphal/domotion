@@ -189,6 +189,137 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3xet3now3xkjk3",
+          "message": {
+            "text": "The culler consumes the renderer fact for the exact generated animation wrapper. It selects fill-box, stroke-box, or view-box for an authored origin, rejects a reference that can change under descendant animation, and retains any live path interleaved with a frozen static wrapper rather than changing SVG operation order. Related geometry ownership lives in src/render/culling-geometry.ts.",
+            "markdown": "The culler consumes the renderer fact for the exact generated animation wrapper. It selects fill-box, stroke-box, or view-box for an authored origin, rejects a reference that can change under descendant animation, and retains any live path interleaved with a frozen static wrapper rather than changing SVG operation order. Related geometry ownership lives in src/render/culling-geometry.ts."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/tree-ops/viewbox-culling.ts"
+                },
+                "region": {
+                  "startLine": 89,
+                  "endLine": 130,
+                  "snippet": {
+                    "text": "function decideForElement(\n  el: CapturedElement,\n  vw: number, vh: number,\n  inheritedCtx: readonly AnimationFrameContext[],\n  animsById: Map<string, AnimationFrameContext>,\n  geometryIndex: RendererCullGeometryIndex,\n): { contexts: AnimationFrameContext[]; decision: CullDecision } {\n  const contexts = [...inheritedCtx];\n  const geometry = geometryIndex.get(el);\n  if (el.animId != null && el.animId !== \"\" && animsById.has(el.animId)) {\n    const animation = animsById.get(el.animId)!;\n    contexts.push({\n      ...animation,\n      transformReferenceBox: rendererTransformReferenceBox(geometry, animation.anim),\n    });\n  }\n  // Static author transforms are already folded into the renderer-owned\n  // visual bound. A live animation on the same transform path would require\n  // interleaving the outer static wrapper with the inner animated wrapper;\n  // until that exact composition is represented, retain instead of changing\n  // the operation order.\n  if (geometry == null || geometry.visualBounds.kind !== \"bounded\"\n      || (contexts.length > 0 && geometry.hasStaticTransformPath)) {\n    return { contexts, decision: { alwaysHidden: false } };\n  }\n  const bbox = geometry.visualBounds.box;\n  const decision = decideCull(bbox, vw, vh, contexts.length === 0 ? null : contexts);\n  return { contexts, decision };\n}\n\nfunction rendererTransformReferenceBox(\n  geometry: RendererOwnedCullGeometry | undefined,\n  animation: IntraFrameAnimation,\n): Bbox | undefined {\n  if (animation.transformOrigin == null || animation.transformOrigin.trim() === \"\") return undefined;\n  if (geometry == null || geometry.referenceBoxMayAnimate) return undefined;\n  const selected = animation.transformBox === \"stroke-box\"\n    ? geometry.referenceBoxes.strokeBox\n    : animation.transformBox === \"view-box\"\n      ? geometry.referenceBoxes.viewBox\n      : geometry.referenceBoxes.fillBox;\n  return selected.kind === \"exact\" ? selected.box : undefined;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/culling-geometry.ts"
+                },
+                "region": {
+                  "startLine": 50
+                }
+              }
+            }
+          ],
+          "rank": 97,
+          "workItemUris": [
+            "DM-2460"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "de9d5f0dcfd9787b32fb08dbdc920aeb"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3y01bo1jb9x70l",
+          "message": {
+            "text": "A culling decision must not mutate its own transform reference box. SVG display:none removes descendant geometry from an ancestor group's object/stroke bbox, so an authored fill-box or stroke-box origin protects its descendant contributors from independent suppression; view-box and the unset SVG origin are the explicit negative routes. The focused regression proves the x=900 extent stays for fill-box while the identical view-box child remains independently cullable.",
+            "markdown": "A culling decision must not mutate its own transform reference box. SVG display:none removes descendant geometry from an ancestor group's object/stroke bbox, so an authored fill-box or stroke-box origin protects its descendant contributors from independent suppression; view-box and the unset SVG origin are the explicit negative routes. The focused regression proves the x=900 extent stays for fill-box while the identical view-box child remains independently cullable."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/tree-ops/viewbox-culling.ts"
+                },
+                "region": {
+                  "startLine": 103,
+                  "endLine": 119,
+                  "snippet": {
+                    "text": "  let preservesDescendantReferenceGeometry = false;\n  if (el.animId != null && el.animId !== \"\" && animsById.has(el.animId)) {\n    const animation = animsById.get(el.animId)!;\n    // `display:none` removes an SVG descendant from its ancestor <g>'s object\n    // and stroke bounding boxes. If that ancestor resolves an authored origin\n    // in either box, independently culling a child would change the reference\n    // geometry after this decision and therefore change every sibling's live\n    // transform. View-box and the unset SVG-default origin do not depend on\n    // descendants. Preserve the others as geometry contributors; the owner\n    // can still be culled from its complete renderer-owned visual surface.\n    preservesDescendantReferenceGeometry = animation.anim.transformOrigin != null\n      && animation.anim.transformOrigin.trim() !== \"\"\n      && animation.anim.transformBox !== \"view-box\";\n    contexts.push({\n      ...animation,\n      transformReferenceBox: rendererTransformReferenceBox(geometry, animation.anim),\n    });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/tree-ops/viewbox-culling.test.ts"
+                },
+                "region": {
+                  "startLine": 560
+                }
+              }
+            }
+          ],
+          "rank": 99,
+          "workItemUris": [
+            "DM-2460"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "eb079361b5eac5516c46d3d9d505af41"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "df33556796977226655a1c0295f8b63fb2670a9c",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

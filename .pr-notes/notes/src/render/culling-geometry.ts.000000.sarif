@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3xesp1uhksa4mm",
+          "message": {
+            "text": "Reference geometry and visual ink are intentionally separate contracts. Blink resolves transform-origin from fill, stroke, or viewport geometry, while paint suppression needs the potentially larger emitted ink surface; merging them would make either the origin wrong or culling unsafe. Exact, empty, and unknown are closed states so no HTML carrier-box fallback can enter the decision.",
+            "markdown": "Reference geometry and visual ink are intentionally separate contracts. Blink resolves transform-origin from fill, stroke, or viewport geometry, while paint suppression needs the potentially larger emitted ink surface; merging them would make either the origin wrong or culling unsafe. Exact, empty, and unknown are closed states so no HTML carrier-box fallback can enter the decision."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/culling-geometry.ts"
+                },
+                "region": {
+                  "startLine": 40,
+                  "endLine": 63,
+                  "snippet": {
+                    "text": "export type RendererVisualBounds =\n  | { kind: \"bounded\"; box: RendererCullBox }\n  | { kind: \"empty\" }\n  | { kind: \"unknown\"; reason: string };\n\nexport type RendererReferenceBox =\n  | { kind: \"exact\"; box: RendererCullBox }\n  | { kind: \"empty\" }\n  | { kind: \"unknown\"; reason: string };\n\nexport interface RendererOwnedCullGeometry {\n  /** Visual surface in the generated root SVG's user coordinate system. */\n  visualBounds: RendererVisualBounds;\n  /** Geometry of the generated animation wrapper before its own transform. */\n  referenceBoxes: {\n    fillBox: RendererReferenceBox;\n    strokeBox: RendererReferenceBox;\n    viewBox: RendererReferenceBox;\n  };\n  /** Static SVG wrapper exists on this element or an emitted ancestor. */\n  hasStaticTransformPath: boolean;\n  /** A descendant animation can make a container reference box time-varying. */\n  referenceBoxMayAnimate: boolean;\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 96,
+          "workItemUris": [
+            "DM-2460"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ab5e27090fafdad3f17f2fe0224dba20"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "warning",
+          "guid": "mt3xeswhx3r6d0jy",
+          "message": {
+            "text": "Every renderer branch is classified at the narrowest sound boundary. Exact generated boxes and Chromium raster rectangles are usable; bounded visual supersets may drive static culling; text, pseudos, arbitrary effects, fragmented reference geometry, split backdrop ownership, and unavailable surfaces stay unknown. The important review invariant is that adding a new paint emitter must either add its geometry here or deliberately retain it.",
+            "markdown": "Every renderer branch is classified at the narrowest sound boundary. Exact generated boxes and Chromium raster rectangles are usable; bounded visual supersets may drive static culling; text, pseudos, arbitrary effects, fragmented reference geometry, split backdrop ownership, and unavailable surfaces stay unknown. The important review invariant is that adding a new paint emitter must either add its geometry here or deliberately retain it."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/culling-geometry.ts"
+                },
+                "region": {
+                  "startLine": 338,
+                  "endLine": 567,
+                  "snippet": {
+                    "text": "  if (el.projectiveHidden === true || (Number.parseFloat(el.styles.opacity) === 0 && !(el.animatedProperties ?? []).includes(\"opacity\"))) {\n    return { fill: { kind: \"empty\" }, stroke: { kind: \"empty\" }, visual: { kind: \"empty\" }, atomic: true };\n  }\n  const atomicRaster = el.urlFilterRaster ?? el.transformSubtreeRaster ?? el.nativeControlRaster;\n  if (atomicRaster != null) {\n    if (\"empty\" in atomicRaster && atomicRaster.empty === true) {\n      return { fill: { kind: \"empty\" }, stroke: { kind: \"empty\" }, visual: { kind: \"empty\" }, atomic: true };\n    }\n    if (atomicRaster.dataUri == null) {\n      const unknown = { kind: \"unknown\" as const, reason: \"atomic-raster-unavailable\" };\n      return { fill: unknown, stroke: unknown, visual: unknown, atomic: true };\n    }\n    const rasterBox = box(atomicRaster.x, atomicRaster.y, atomicRaster.width, atomicRaster.height);\n    if (rasterBox == null || rasterBox.w === 0 || rasterBox.h === 0) {\n      const unknown = { kind: \"unknown\" as const, reason: \"atomic-raster-empty-or-invalid\" };\n      return { fill: unknown, stroke: unknown, visual: unknown, atomic: true };\n    }\n    return {\n      fill: { kind: \"exact\", box: rasterBox },\n      stroke: { kind: \"exact\", box: rasterBox },\n      visual: { kind: \"bounded\", box: rasterBox },\n      atomic: true,\n    };\n  }\n\n  let fill: RendererReferenceBox = { kind: \"empty\" };\n  let stroke: RendererReferenceBox = { kind: \"empty\" };\n  let visual: RendererVisualBounds = { kind: \"empty\" };\n  const borderBox = box(el.x, el.y, el.width, el.height);\n  if (borderBox == null) {\n    const unknown = { kind: \"unknown\" as const, reason: \"element-box-non-finite\" };\n    return { fill: unknown, stroke: unknown, visual: unknown, atomic: false };\n  }\n\n  const paintsBorderBox = elementPaintsBorderBox(el);\n  if (paintsBorderBox) {\n    fill = { kind: \"exact\", box: borderBox };\n    stroke = { kind: \"exact\", box: borderBox };\n    visual = { kind: \"bounded\", box: borderBox };\n  }\n\n  const hasBackgroundLayer = el.styles.backgroundImage != null\n    && el.styles.backgroundImage !== \"\"\n    && el.styles.backgroundImage !== \"none\"\n    && !/\\btext\\b/i.test(el.styles.backgroundClip ?? \"\");\n  const hasControlChrome = [\"input\", \"textarea\", \"select\", \"button\", \"progress\", \"meter\"].includes(el.tag);\n  const hasScrollableChrome = (\n    (el.styles.scrollWidth ?? 0) > (el.styles.clientWidth ?? 0)\n      && ![\"visible\", \"clip\"].includes(el.styles.overflowX ?? \"visible\")\n  ) || (\n    (el.styles.scrollHeight ?? 0) > (el.styles.clientHeight ?? 0)\n      && ![\"visible\", \"clip\"].includes(el.styles.overflowY ?? \"visible\")\n  );\n  if (hasBackgroundLayer || el.imageSrc != null || hasControlChrome || hasScrollableChrome) {\n    // These generated shapes are bounded by the captured border box, but\n    // their object geometry can be a content/padding clip, object-fit rect,\n    // UA-control part, or scrollbar part. A full border-box paint already\n    // fixes the group bbox; otherwise the exact reference remains unknown.\n    visual = unionVisual(visual, { kind: \"bounded\", box: borderBox });\n    if (!paintsBorderBox) {\n      const unknown = { kind: \"unknown\" as const, reason: \"generated-box-reference-bounds-unavailable\" };\n      fill = unknown;\n      stroke = unknown;\n    }\n  }\n\n  if (el.replacedSnapshot != null && el.imageSrc == null) {\n    const raster = el.replacedSnapshot;\n    if (raster.dataUri == null) {\n      visual = { kind: \"unknown\", reason: \"replaced-raster-unavailable\" };\n    } else {\n      const rasterBox = box(raster.x, raster.y, raster.width, raster.height);\n      if (rasterBox == null || rasterBox.w === 0 || rasterBox.h === 0) {\n        visual = { kind: \"unknown\", reason: \"replaced-raster-empty-or-invalid\" };\n      } else {\n        fill = unionReference(fill, { kind: \"exact\", box: rasterBox });\n        stroke = unionReference(stroke, { kind: \"exact\", box: rasterBox });\n        visual = unionVisual(visual, { kind: \"bounded\", box: rasterBox });\n      }\n    }\n  }\n\n  for (const shadow of parseBoxShadow(el.styles.boxShadow ?? \"none\")) {\n    if (shadow.inset) {\n      // Inset paint is visually clipped to the padding box, but some emitted\n      // paths use a deliberately oversized donut before that clip. SVG object\n      // bbox semantics for that generated path are not the visual clip box.\n      const unknown = { kind: \"unknown\" as const, reason: \"inset-shadow-reference-box-unavailable\" };\n      fill = unknown;\n      stroke = unknown;\n      visual = unionVisual(visual, { kind: \"bounded\", box: borderBox });\n      continue;\n    }\n    const source = box(\n      el.x + shadow.x - shadow.spread,\n      el.y + shadow.y - shadow.spread,\n      el.width + shadow.spread * 2,\n      el.height + shadow.spread * 2,\n    );\n    if (source == null) {\n      visual = { kind: \"unknown\", reason: \"box-shadow-non-finite\" };\n      continue;\n    }\n    if (source.w <= 0 || source.h <= 0) continue;\n    fill = unionReference(fill, { kind: \"exact\", box: source });\n    stroke = unionReference(stroke, { kind: \"exact\", box: source });\n    // The renderer's generated filter is x/y=-50%, width/height=200%.\n    const painted = shadow.blur > 0\n      ? box(source.x - source.w / 2, source.y - source.h / 2, source.w * 2, source.h * 2)\n      : source;\n    visual = painted == null\n      ? { kind: \"unknown\", reason: \"box-shadow-filter-region-non-finite\" }\n      : unionVisual(visual, { kind: \"bounded\", box: painted });\n  }\n\n  const outlineWidth = parseFinitePx(el.styles.outlineWidth);\n  const outlineOffset = parseFinitePx(el.styles.outlineOffset);\n  const outlineStyle = el.styles.outlineStyle ?? \"none\";\n  const outlineColor = parseOptionalColor(el.styles.outlineColor ?? el.styles.color);\n  if (outlineWidth == null || outlineOffset == null) {\n    visual = { kind: \"unknown\", reason: \"outline-geometry-unavailable\" };\n  } else if (outlineWidth > 0 && outlineStyle !== \"none\" && outlineStyle !== \"hidden\" && (outlineColor == null || outlineColor.a > 0.01)) {\n    const corners = parseCornerRadii(el.styles, el.width, el.height);\n    const rounded = [corners.tl, corners.tr, corners.br, corners.bl]\n      .some((corner) => corner.h !== 0 || corner.v !== 0);\n    let center: RendererCullBox;\n    let outer: RendererCullBox;\n    if (!rounded) {\n      const width = Math.round(outlineWidth);\n      const outset = Math.round(outlineOffset) + width;\n      const left = Math.round(el.x) - outset;\n      const top = Math.round(el.y) - outset;\n      const right = Math.round(el.x + el.width) + outset;\n      const bottom = Math.round(el.y + el.height) + outset;\n      center = { x: left + width / 2, y: top + width / 2, w: right - left - width, h: bottom - top - width };\n      outer = { x: left, y: top, w: right - left, h: bottom - top };\n    } else {\n      const inflate = outlineOffset + outlineWidth / 2;\n      center = { x: el.x - inflate, y: el.y - inflate, w: el.width + inflate * 2, h: el.height + inflate * 2 };\n      outer = { x: center.x - outlineWidth / 2, y: center.y - outlineWidth / 2, w: center.w + outlineWidth, h: center.h + outlineWidth };\n    }\n    if (!finiteBox(center) || !finiteBox(outer)) {\n      const unknown = { kind: \"unknown\" as const, reason: \"outline-geometry-non-finite\" };\n      fill = unknown;\n      stroke = unknown;\n      visual = unknown;\n    } else {\n      fill = unionReference(fill, { kind: \"exact\", box: center });\n      stroke = unionReference(stroke, { kind: \"exact\", box: outer });\n      visual = unionVisual(visual, { kind: \"bounded\", box: outer });\n    }\n  }\n\n  if (el.backdropFilterRaster != null) {\n    // This partial Chromium surface is emitted before the element's ordinary\n    // static/animation wrapper because vector descendants still paint above\n    // it. It therefore cannot share one SVG reference box with that wrapper.\n    // Keep the whole subtree until the renderer has a single common owner.\n    const unknown = { kind: \"unknown\" as const, reason: \"split-backdrop-raster-owner\" };\n    fill = unknown;\n    stroke = unknown;\n    visual = unknown;\n  }\n\n  const resize = el.resizeHandle;\n  if (resize != null) {\n    const resizeBox = box(resize.x, resize.y, resize.width, resize.height);\n    if (resizeBox == null) visual = { kind: \"unknown\", reason: \"resize-surface-non-finite\" };\n    else {\n      fill = unionReference(fill, { kind: \"exact\", box: resizeBox });\n      stroke = unionReference(stroke, { kind: \"exact\", box: resizeBox });\n      visual = unionVisual(visual, { kind: \"bounded\", box: resizeBox });\n    }\n  }\n\n  if ((el.inlineFragments?.length ?? 0) > 1 || el.styles.tableGridRect != null) {\n    // The renderer emits fragment/grid-owned shapes rather than the carrier\n    // rectangle. Their visual union is contained by the captured union box,\n    // but the exact group object/stroke bbox is branch-dependent.\n    const unknown = { kind: \"unknown\" as const, reason: \"fragment-reference-box-unavailable\" };\n    fill = unknown;\n    stroke = unknown;\n    visual = unionVisual(visual, { kind: \"bounded\", box: borderBox });\n  }\n\n  // These channels produce geometry whose exact emitted object/ink bounds are\n  // not available at this preflight boundary.  A finite carrier proxy would\n  // reintroduce the bug this module exists to remove.\n  const exactTextRaster = el.elementRaster?.dataUri != null\n    && el.styles.writingMode != null && el.styles.writingMode !== \"horizontal-tb\";\n  if (exactTextRaster) {\n    const raster = el.elementRaster!;\n    const rasterBox = box(raster.x, raster.y, raster.width, raster.height);\n    if (rasterBox == null || rasterBox.w === 0 || rasterBox.h === 0) {\n      visual = { kind: \"unknown\", reason: \"text-raster-empty-or-invalid\" };\n    } else {\n      fill = unionReference(fill, { kind: \"exact\", box: rasterBox });\n      stroke = unionReference(stroke, { kind: \"exact\", box: rasterBox });\n      visual = unionVisual(visual, { kind: \"bounded\", box: rasterBox });\n    }\n  }\n  const hasText = !exactTextRaster && (el.text !== \"\" || (el.textSegments?.length ?? 0) > 0 || el.textImageUri != null);\n  const hasGeneratedPaint = (el.pseudoBoxes?.length ?? 0) > 0\n    || (el.pseudoImages?.length ?? 0) > 0\n    || (el.columnRules?.length ?? 0) > 0\n    || el.listItemIndex != null\n    || el.markerContent != null\n    || el.listMarkerIntrinsic != null\n    || (el.tag === \"summary\" && el.styles.summaryMarkerSuppressed !== true)\n    || el.styles.detailsContentBox != null\n    || el.lineClampTextFragments === true;\n  const hasUnknownExpansion = (el.styles.filter != null && el.styles.filter !== \"\" && el.styles.filter !== \"none\")\n    || (el.styles.textShadow != null && el.styles.textShadow !== \"\" && el.styles.textShadow !== \"none\")\n    || (el.styles.webkitBoxReflect != null && el.styles.webkitBoxReflect !== \"\" && el.styles.webkitBoxReflect !== \"none\")\n    || (el.styles.borderImageOutset != null && !/^(?:0(?:px)?)(?:\\s+0(?:px)?){0,3}$/.test(el.styles.borderImageOutset.trim()));\n  if (hasText || hasGeneratedPaint || hasUnknownExpansion) {\n    const reason = hasUnknownExpansion ? \"emitted-effect-bounds-unavailable\" : \"emitted-ink-bounds-unavailable\";\n    fill = { kind: \"unknown\", reason };\n    stroke = { kind: \"unknown\", reason };\n    visual = { kind: \"unknown\", reason };\n  } else if (el.svgContent != null) {\n    // `paintInlineSvg` clips the opaque clone to the replaced-element box, so\n    // its visual surface is bounded. Its object/stroke boxes remain content-\n    // dependent and cannot be replaced by that clip rectangle.\n    visual = unionVisual(visual, { kind: \"bounded\", box: borderBox });\n    fill = { kind: \"unknown\", reason: \"inline-svg-reference-box-unavailable\" };\n    stroke = { kind: \"unknown\", reason: \"inline-svg-reference-box-unavailable\" };\n  }\n\n  return { fill, stroke, visual, atomic: false };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "risk"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 98,
+          "workItemUris": [
+            "DM-2460"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c8e48e46f1ec9b52fbcd06798b1e6316"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "df33556796977226655a1c0295f8b63fb2670a9c",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -1543,6 +1543,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3xetavxmqa5ngm",
+          "message": {
+            "text": "Atomic Chromium snapshots need the same cull-outer, animation-inner timeline ownership as vector content. Their bitmap already contains frozen static transform and filter state, so this narrow wrapper adds only the later cull and live-animation owners and prevents both lost animation and double application.",
+            "markdown": "Atomic Chromium snapshots need the same cull-outer, animation-inner timeline ownership as vector content. Their bitmap already contains frozen static transform and filter state, so this narrow wrapper adds only the later cull and live-animation owners and prevents both lost animation and double application."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 4108,
+                  "endLine": 4123,
+                  "snippet": {
+                    "text": "/**\n * Atomic Chromium surfaces return before the ordinary element wrapper path,\n * but they still belong to the generated element's cull and animation\n * wrappers. Keep those two timeline owners in the same outer→inner order as\n * vector content without reapplying static/filter state already baked into\n * the screenshot.\n */\nfunction wrapAtomicRasterTimeline(el: CapturedElement, markup: string): string {\n  let result = markup;\n  if (el.animId != null && el.animId !== \"\") {\n    result = `<g class=\"anim-${esc(el.animId)}\">${result}</g>`;\n  }\n  const attrs: string[] = [];\n  if (el.cullClass != null && el.cullClass !== \"\") attrs.push(`class=\"${esc(el.cullClass)}\"`);\n  if (el.displayNone === true) attrs.push('style=\"display:none\"');\n  return attrs.length === 0 ? result : `<g ${attrs.join(\" \")}>${result}</g>`;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/culling-geometry.ts"
+                },
+                "region": {
+                  "startLine": 341
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2460"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "596ec579c3000ecb3d13af9d12418135"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "df33556796977226655a1c0295f8b63fb2670a9c",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

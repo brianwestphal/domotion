@@ -999,6 +999,29 @@ describe("animator", () => {
     expect(svg).toMatch(/\.anim-pop\s*\{[^}]*transform-box: fill-box; transform-origin: center/);
   });
 
+  it("DM-2460: emits the selected stroke/view reference box without changing the fill-box default", () => {
+    const render = (animId: string, transformBox?: "fill-box" | "stroke-box" | "view-box") => generateAnimatedSvg({
+      width: 100,
+      height: 100,
+      frames: [{
+        svgContent: "<rect/>",
+        duration: 1000,
+        animations: [{
+          animId,
+          property: "scale",
+          from: "1",
+          to: ".5",
+          duration: 400,
+          transformOrigin: "right bottom",
+          transformBox,
+        }],
+      }],
+    });
+    expect(render("default")).toContain("transform-box: fill-box; transform-origin: right bottom");
+    expect(render("stroke", "stroke-box")).toContain("transform-box: stroke-box; transform-origin: right bottom");
+    expect(render("view", "view-box")).toContain("transform-box: view-box; transform-origin: right bottom");
+  });
+
   it("DM-1297: no transformOrigin → no transform-box decl (unchanged for translate)", () => {
     const svg = generateAnimatedSvg({
       width: 100, height: 100,
@@ -1436,7 +1459,7 @@ describe("scene-wide cull keyframes composition", () => {
   const cullFrames = () => {
     const mkTree = (animId: string) => ({
       tag: "div", text: "", x: 100, y: 100, width: 100, height: 100,
-      styles: {} as CapturedElement["styles"], children: [], animId,
+      styles: { backgroundColor: "rgb(255, 0, 0)" } as CapturedElement["styles"], children: [], animId,
     } as CapturedElement);
     const exitAnim: IntraFrameAnimation = {
       animId: "out", property: "translateY", from: "0px", to: "1000px", duration: 1000, easing: "linear",

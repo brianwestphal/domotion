@@ -30,8 +30,8 @@ export interface SweptAnimationContext {
   /** End of its first iteration (or of the one-shot active interval). */
   animEndPct: number;
   anim: IntraFrameAnimation;
-  /** Current fill-box proxy. DM-2460 replaces this with renderer-owned facts. */
-  animatedBbox?: SweptBox;
+  /** Renderer-owned used SVG reference box for the generated animation `<g>`. */
+  transformReferenceBox?: SweptBox;
   /** Exact frame origin when the tree walk has the global scene timeline. */
   frameStartPct?: number;
 }
@@ -469,7 +469,7 @@ function buildWrapper(ctx: SweptAnimationContext): WrapperModel | "identity" | n
     }
   }
   if (!hasTransformTrack || operations.length === 0) return "identity";
-  const origin = needsOrigin ? resolveTransformOrigin(ctx.anim.transformOrigin, ctx.animatedBbox) : { x: 0, y: 0 };
+  const origin = needsOrigin ? resolveTransformOrigin(ctx.anim.transformOrigin, ctx.transformReferenceBox) : { x: 0, y: 0 };
   return origin == null ? null : { operations, origin };
 }
 

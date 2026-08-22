@@ -18,7 +18,7 @@ const ctx = (animation: IntraFrameAnimation, start = 0, end = 100): SweptAnimati
   animEndPct: end,
   frameStartPct: start - ((animation.delay ?? 0) / animation.duration) * (end - start),
   anim: animation,
-  animatedBbox: { x: 0, y: 0, w: 200, h: 100 },
+  transformReferenceBox: { x: 0, y: 0, w: 200, h: 100 },
 });
 
 describe("conservativeSweptBoxes", () => {

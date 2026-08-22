@@ -65,6 +65,23 @@ describe("overlay schema SSOT (DM-1131)", () => {
     expect("selector" in a).toBe(false);
   });
 
+  it("accepts only SVG transform-box values owned by the culling contract", () => {
+    const parsed = intraFrameAnimationSchema.parse({
+      animId: "f0a0",
+      property: "scale",
+      from: "1",
+      to: ".5",
+      duration: 300,
+      transformOrigin: "right bottom",
+      transformBox: "stroke-box",
+    });
+    expect(parsed.transformBox).toBe("stroke-box");
+    expect(intraFrameAnimationSchema.safeParse({
+      ...parsed,
+      transformBox: "border-box",
+    }).success).toBe(false);
+  });
+
   it("derives types that a consumer can annotate against (compile-time guard)", () => {
     const typed: TypingOverlay = { kind: "typing", text: "t", x: 0, y: 0 };
     expect(typed.text).toBe("t");

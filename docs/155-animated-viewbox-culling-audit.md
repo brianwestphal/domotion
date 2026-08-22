@@ -66,11 +66,51 @@ outer/inner cancellation visible at 700 ms. Repeat/alternate, positive and
 negative delay, holds, steps, easing overshoot, operation order, own-timing
 fuses, and unsupported controls are independently covered.
 
-This does **not** close the full doc-155 boundary. DM-2460 still owns the emitted
-SVG reference/visual bounds (the present carrier-box origin proxy remains),
-static frozen transforms/effects, and unknown visual ink. DM-2462 still owns the
-independent live Chromium activation oracle. Those unknown geometry paths must
-continue to retain content.
+DM-2460 now closes the renderer-geometry half of this boundary (below).
+DM-2462 still owns the independent, all-platform global-timeline activation
+oracle. Unsupported operation/timing paths and renderer geometry classified as
+unknown continue to retain content.
+
+## DM-2460 implementation update
+
+`src/render/culling-geometry.ts` is now the culler's renderer-owned preflight.
+It walks the same captured tree consumed by `element-tree-to-svg.ts`, but its
+facts describe the objects and surfaces the renderer actually emits:
+
+- `fillBox`, `strokeBox`, and `viewBox` are distinct exact/empty/unknown
+  reference-box facts for the generated animation `<g>`. A transparent
+  400×200 HTML carrier with only a 20×20 generated child at `(300,100)` has the
+  child's `300..320 × 100..120` fill box; the HTML carrier rectangle never
+  substitutes for it.
+- visual bounds are a separate bounded/empty/unknown channel. Generated box
+  paint, outline stroke ink, the renderer's finite box-shadow filter region,
+  exact replaced/atomic raster rectangles, and emitted child overflow clips
+  participate. CSS masks/clips that cannot expand source ink may leave a safe
+  superset; text/pseudo ink, arbitrary filters/effect expansion, split backdrop
+  raster ownership, and unavailable raster data remain unknown.
+- frozen static affine transforms map the emitted visual surface before a
+  static intersection decision. Singular, non-finite, or genuinely 3D
+  matrices retain. A live transform sharing a frozen static wrapper path also
+  retains because the culler does not change the renderer's static/animated
+  wrapper order.
+- Chromium-owned atomic filter/projective/native-control snapshots now keep
+  their cull wrapper outside their animation wrapper. The screenshot already
+  owns frozen static/filter state, so that state is not applied a second time.
+- a transform origin selects the animation's declared `fill-box`,
+  `stroke-box`, or `view-box`; keyword, percentage, and px syntax resolves
+  inside that box. A descendant animation that can change a container's
+  reference geometry makes that reference unknown rather than freezing it at
+  capture time. Descendants that define an authored fill/stroke reference box
+  are not independently removed with `display:none`, because doing so would
+  mutate the ancestor's used origin after the culling decision; the invariant
+  `view-box` route remains independently cullable.
+
+The preflight uses no DOM `getBBox()` call and no fixture-fit constant. The
+focused live Chromium discriminator runs the production culler, renderer, and
+animator at DPR 1/2 and CSS zoom 1/1.25. Chromium reports the generated
+`anim-glide` group bbox as `(300,100,20,20)` and paints its scale-.5 endpoint at
+`310..320 × 110..120`; substituting the old 400×200 carrier origin would paint
+at `350..360` and be clipped by the 330-wide SVG.
 
 ## Pre-DM-2461 implementation boundary (audit baseline)
 
@@ -230,8 +270,9 @@ nearest-only timing, endpoint-matrix interpolation, or fixed sample grid.
 ## Follow-up ownership
 
 - **DM-2460 — Model rendered SVG reference and visual bounds for viewBox
-  culling.** Owns exact fill/stroke/view reference boxes, separate visual
-  bounds, static frozen transforms/effects, and unknown-state retention.
+  culling (implemented).** Owns exact fill/stroke/view reference-box facts,
+  separate bounded visual surfaces, static frozen transforms, raster ownership,
+  and unknown/empty/singular retention.
 - **DM-2461 — Use composed global-timeline swept bounds for animated viewBox
   culling (implemented).** Owns function-first interpolation, nested/own
   timing, global interval partitioning, conservative operation bounds, and

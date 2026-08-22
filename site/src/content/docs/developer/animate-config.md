@@ -42,7 +42,8 @@ JSON-Schema-aware editor at the `$schema` key for autocomplete and validation.
 - **Transitions:** `crossfade` · `cut` · `push-left` · `scroll` · `magic-move`.
 - **`animations`** — per-element: `opacity`, `transform`, `translateX/Y`,
   `scale`, `width`/`height`, `clipPath`; with `easing`, `delay`, `repeat`,
-  `alternate`, `transformOrigin`.
+  `alternate`, `transformOrigin`, and SVG `transformBox`
+  (`fill-box`/`stroke-box`/`view-box`).
 - **`overlays`** — `typing` / `tap` / `svg` / `blink`, optionally anchored to an
   element's box.
 - **Continuous sessions** — omit `input` or set `"continue": true`, then drive
