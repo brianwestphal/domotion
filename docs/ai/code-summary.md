@@ -437,6 +437,20 @@ shortest possible map:
   absence, and the dependency-ordered DM-2481/2482/2483 implementation plus
   DM-2484 all-platform gate.
 
+- **Pseudo-element filter effects (DM-2367)** —
+  `src/render/pseudo-filter.ts` is the shared empty/text/image generated-paint
+  wrapper. Capture retains Chromium's complete computed filter list; render
+  keeps it as CSS `filter` on an SVG `<g>`, inside the captured transform and
+  grouped opacity. CSSOM px terms cross effective zoom exactly once during
+  capture, together with pseudo/image geometry and transform translations and
+  origins; DPR never mutates the SVG coordinate record. This intentionally
+  delegates list order, sRGB operation
+  space, premultiplication, and moving-pixel output bounds to Blink/Skia rather
+  than lowering shorthand functions to SVG primitives with different defaults.
+  `tests/pseudo-filter-functions.e2e.test.ts` supplies the full function/list
+  matrix, identity/none negatives, text/image activation, transform, clip,
+  stack-slot, zoom/DPR, and a filter-stripped pixel mutation.
+
 ## Upstream source is checked out locally — read it
 
 Two gitignored checkouts under `external/`. Between them they answer essentially every "what does Chrome actually do here" question this project asks, and reading them beats probing every time it has been tested.

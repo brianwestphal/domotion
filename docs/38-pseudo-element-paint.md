@@ -43,15 +43,15 @@ Per-pseudo CSS properties Domotion honors:
 | `background-color`    | yes                 | yes                 | n/a            | Resolved to sRGB at capture time. |
 | `background-image`    | yes (gradients/url) | yes (gradients/url) | n/a            | Multiple comma-separated layers; emit in reverse order so layer 0 paints on top. |
 | `background-position` / `-size` | yes      | yes                 | n/a            | Captured alongside a `background-image` and threaded into the layer emit. For a radial gradient the px component of the position slides the gradient core (Stripe's keynote glow uses `-90px 90px` to push the pink radial into the lower-left corner). |
-| `opacity` (0 < o < 1) | yes                 | yes                 | n/a            | Wraps the pseudo's box in a `<g opacity>` so a translucent glow paints at its true strength (the Stripe glow is `0.45`). `opacity: 0` is dropped entirely — see below. |
+| `opacity` (0 < o < 1) | yes                 | yes                 | yes            | Wraps the pseudo's complete paint in a `<g opacity>` so a translucent glow paints at its true strength (the Stripe glow is `0.45`). `opacity: 0` is dropped entirely — see below. |
 | `border-radius`       | yes (uniform)       | yes (uniform)       | n/a            | Single-value shorthand; clamped to `min(r, w/2, h/2)` for capsule shapes. |
 | `border` (uniform)    | yes                 | yes                 | n/a            | `<rect stroke=...>` with style: solid / dashed / dotted. |
 | `border` (per-side)   | yes (`<line>` per)  | yes (`<line>` per)  | n/a            | Single-side borders paint as a `<line>`; CSS triangles detected + emitted as `<polygon>`. |
 | `padding`             | yes                 | yes                 | yes            | Inflates the paint box around the text content. |
-| `transform`           | yes                 | yes                 | no             | See § Transform below. |
-| `transform-origin`    | yes                 | yes                 | no             | Pre-baked into a translate-transform-translate matrix at render time. |
+| `transform`           | yes                 | yes                 | yes            | See § Transform below. |
+| `transform-origin`    | yes                 | yes                 | yes            | Pre-baked into a translate-transform-translate matrix at render time. |
 | `z-index` (negative)  | yes                 | no                  | no             | A negative-z `::after` paints BEHIND the host content instead of on top. See § Paint order. |
-| `filter: blur(<px>)`  | yes                 | no                  | no             | Translated to `<feGaussianBlur stdDeviation=<px>>`. See § Filter. |
+| CSS filter functions  | yes                 | yes                 | yes            | `blur`, `brightness`, `contrast`, `drop-shadow`, `grayscale`, `hue-rotate`, `invert`, `opacity`, `saturate`, `sepia`, and ordered lists. See § Filter. |
 | `color`               | n/a                 | yes (overrides host)| n/a            | Pseudo glyphs paint in their own color, not the host's. |
 | `font-size` / `family`| n/a                 | yes (overrides host)| n/a            | Same as `color`. |
 | `position: absolute`  | yes                 | yes                 | yes (in flow)  | Resolves `left/top/right/bottom` against the host's padding box. |
@@ -88,6 +88,8 @@ The wrap covers the pseudo's entire paint set:
   raster-glyph overlays — all rotate together so a `transform: rotate(-15deg)`
   on a gradient pill keeps its label aligned to the pill, not to the host's
   baseline.
+- For image content: the generated replaced image, with the origin resolved
+  against its captured pseudo box.
 
 ## Paint order
 
@@ -114,18 +116,49 @@ The `z-index` is captured only when it resolves to a number (omitted for
 
 ## Filter
 
-The pseudo's own `filter` is captured when non-`none`. A `blur(<px>)` function
-translates to an SVG `<feGaussianBlur>` whose `stdDeviation` equals the CSS
-blur length directly (CSS Filter Effects §4.4 defines `blur(r)`'s argument as
-the Gaussian standard deviation). The blur `<g filter="…">` nests INSIDE the
-pseudo's transform `<g>` so the blur is applied in the pseudo's own coordinate
-space and then scaled by its transform — matching Chrome, where `filter`
-applies before the element's `transform` moves the result. The filter region
-is over-sized (`-100% … 700%`) so a large blur on a short box isn't clipped at
-the default `-10% … 110%` filter region.
+The pseudo's authoritative computed `filter` is captured when non-`none` for
+empty, text, raster-glyph, and image generated content. The renderer retains
+the complete string as the CSS `filter` property on an SVG `<g>` around the
+pseudo's complete paint. This covers `blur`, `brightness`, `contrast`,
+`drop-shadow`, `grayscale`, `hue-rotate`, `invert`, `opacity`, `saturate`,
+`sepia`, and ordered function lists. It also deliberately retains identity
+values such as `blur(0px)`: Blink still creates an effect/stacking node for a
+computed non-`none` filter.
 
-Only `blur()` is translated today; other filter functions (`drop-shadow`,
-`brightness`, `contrast`, …) on a pseudo are not yet honored.
+Computed CSSOM lengths are pre-effective-zoom CSS pixels while the captured
+pseudo boxes and SVG viewport are physical CSS pixels. Capture therefore
+scales only `px` terms in filter lists, transform origins/translations, and
+generated-image geometry exactly once by the host's effective zoom. Percentages,
+unitless color-function amounts, angles, and transform linear components stay
+unchanged. This keeps a zoomed `blur(2px)` at its painted 2.5 px radius under
+`zoom: 1.25` without double-scaling DPR.
+
+This is a native vector route, not shorthand-to-`<fe*>` translation. At pinned
+Chromium revision `7d859f271cbda744098ac69f44978d4edfa62be3`,
+`FilterEffectBuilder::BuildFilterEffect` feeds each operation's output into the
+next operation in list order, sets every CSS shorthand primitive to sRGB,
+disables primitive-bounds clipping, and validates premultiplication at the
+Skia boundary (`third_party/blink/renderer/core/paint/filter_effect_builder.cc`,
+`platform/graphics/filters/paint_filter_builder.cc`). Bare SVG primitives use
+different color-interpolation and filter-region defaults, so the retired
+`<feGaussianBlur>` plus fixed oversized region was not an equivalent model.
+Computed serialization is owned by
+`third_party/blink/renderer/core/css/properties/computed_style_utils.cc`.
+
+The nesting is `content → filter → transform → opacity`; ancestor clips and
+the pseudo's existing before/after/negative-z paint slot remain outside that
+atom. That mirrors Blink's paint-property sequence in
+`paint_property_tree_builder.cc`: the filter consumes local content before the
+transform moves it, while grouped opacity consumes the filtered result. Moving
+pixels (`blur` and `drop-shadow`) therefore use Chromium's real filter output
+bounds instead of a hard-coded percentage region.
+
+The enumerated shorthand functions do not cross a raster boundary. A CSS
+`url(#filter)` graph is not a shorthand function and remains a separate
+reference-graph representation class; HTML `SourceGraphic` convolution uses
+the explicit Chromium surface boundary in
+[doc 148](148-sourcegraphic-url-filter-surfaces.md). That boundary must not be
+generalized to shorthand lists merely because they move or recolor pixels.
 
 ## `::first-letter` and `initial-letter` (drop caps)
 
@@ -233,11 +266,13 @@ reproduce the painted cap top to within 0.5 px on every one. Fixture:
 ## Render-side reference
 
 - `src/render/element-tree-to-svg.ts` (the `pseudoBoxes` loop) — empty-
-  content paint. Owns the gradient `<defs>` allocation + transform wrap.
+  content and image paint. Owns gradient `<defs>` allocation and preserves the
+  pseudo's paint-order slot.
 - `src/render/text.ts` — text-content paint. The bg / gradient / border
   emit for `seg.pseudoBox` is duplicated between `renderSingleLineText` and
-  `renderMultiSegmentText`; the transform wrap covers box + glyphs + deco +
-  raster overlay together.
+  `renderMultiSegmentText`.
+- `src/render/pseudo-filter.ts` — shared filter / transform / opacity nesting
+  for all three generated-content representations.
 - `RenderTextOpts.emitPseudoBoxBgLayers` — closure injected by the main
   render loop so the text renderer can emit gradient layers without owning
   the `defsParts` / `clipIdx` state directly.

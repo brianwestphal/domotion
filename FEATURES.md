@@ -58,6 +58,7 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 
 ### Text effects
 - [x] **text-bg-clip-gradient** (DM-462): `background-clip: text` + `-webkit-text-fill-color: transparent` — gradient fills the glyph shapes via SVG `<mask>` over the bg-color rect
+- [x] **pseudo-filter-functions** (DM-2367, doc 38): generated empty/text/image paint supports blur, drop-shadow, brightness, contrast, grayscale, hue-rotate, invert, opacity, saturate, sepia, and ordered lists through Chromium's native SVG CSS-filter pipeline; identity/none, transform, clip, stack slot, zoom, DPR, and filter-stripped mutation controls are browser-gated.
 
 ### Replaced elements (rasterized as static snapshot — DM-457)
 - [x] **replaced-canvas-shape**: `<canvas>` with drawn shapes — bitmap survives via `page.screenshot`

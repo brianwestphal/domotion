@@ -61,7 +61,51 @@ export const pseudoCanvasFont = (pcs) =>
   (pcs.fontStyle || 'normal') + ' ' + (pcs.fontWeight || 'normal') + ' '
   + (pcs.fontSize || '16px') + ' ' + (pcs.fontFamily || 'sans-serif');
 
-const buildPseudoContentHandler = ({ vp, normColor, measureFontMetrics, textNeedsRaster, resolveCounterValue, isCustomCounterStyle, composeEffectiveTransform }) => {
+const buildPseudoContentHandler = ({
+  vp,
+  normColor,
+  measureFontMetrics,
+  textNeedsRaster,
+  resolveCounterValue,
+  isCustomCounterStyle,
+  composeEffectiveTransform,
+  effectiveZoomFor = () => 1,
+  physicalComputedCssPixelTerms = (value) => value,
+}) => {
+  // CSSOM serializes filter lengths before effective zoom, while every box
+  // captured below is already in physical viewport coordinates. Scale only
+  // computed px terms once so blur/drop-shadow use the same coordinate space.
+  const physicalFilter = (el, value) => value && value !== 'none'
+    ? physicalComputedCssPixelTerms(value, effectiveZoomFor(el))
+    : undefined;
+  const physicalNumber = (el, value) => {
+    const number = parseFloat(value);
+    return Number.isFinite(number) ? number * effectiveZoomFor(el) : 0;
+  };
+  const physicalTransform = (el, value) => {
+    const zoom = effectiveZoomFor(el);
+    if (!value || value === 'none' || zoom === 1) return value;
+    const m2 = /^matrix\(([^)]+)\)$/.exec(value);
+    if (m2 != null) {
+      const parts = m2[1].split(',').map((part) => parseFloat(part));
+      if (parts.length === 6 && parts.every(Number.isFinite)) {
+        parts[4] *= zoom;
+        parts[5] *= zoom;
+        return `matrix(${parts.join(', ')})`;
+      }
+    }
+    const m3 = /^matrix3d\(([^)]+)\)$/.exec(value);
+    if (m3 != null) {
+      const parts = m3[1].split(',').map((part) => parseFloat(part));
+      if (parts.length === 16 && parts.every(Number.isFinite)) {
+        parts[12] *= zoom;
+        parts[13] *= zoom;
+        parts[14] *= zoom;
+        return `matrix3d(${parts.join(', ')})`;
+      }
+    }
+    return value;
+  };
   // DM-1271: canvas `measureText` advance for a glyph, in the pseudo's resolved
   // font. Unlike the off-screen <span> probe below, this reproduces Chrome's
   // MINIMUM emoji advance (~1.25× font-size — a 20px advance for a 16px emoji);
@@ -365,28 +409,37 @@ const buildPseudoContentHandler = ({ vp, normColor, measureFontMetrics, textNeed
         // without this check the pseudoBox emit was skipped entirely.
         const bgImgRaw = pcs.backgroundImage;
         const hasBgImg = hasCssValue(bgImgRaw);
-        const { top: bwT, right: bwR, bottom: bwB, left: bwL } = sideWidths(pcs, 'border', 'Width');
+        const rawBorderWidths = sideWidths(pcs, 'border', 'Width');
+        const bwT = rawBorderWidths.top * effectiveZoomFor(el);
+        const bwR = rawBorderWidths.right * effectiveZoomFor(el);
+        const bwB = rawBorderWidths.bottom * effectiveZoomFor(el);
+        const bwL = rawBorderWidths.left * effectiveZoomFor(el);
         const hasBorder = bwT > 0 || bwR > 0 || bwB > 0 || bwL > 0;
         const isBlockLike = pcs.display === 'block' || pcs.display === 'inline-block' || pcs.display === 'flex';
         // DM-1073: the `opacity: 0` skip that used to repeat here is dead — the
         // loop-top guard (above) already `continue`d on opacity 0 before any
         // box-rect work, so by here opacity is non-zero.
         if (isBlockLike && (hasBg || hasBgImg || hasBorder)) {
-          const hostPadL = parseFloat(cs.paddingLeft) || 0;
-          const hostPadT = parseFloat(cs.paddingTop) || 0;
-          const hostBorL = parseFloat(cs.borderLeftWidth) || 0;
-          const hostBorT = parseFloat(cs.borderTopWidth) || 0;
-          const hostBorR = parseFloat(cs.borderRightWidth) || 0;
-          const pMarL = parseFloat(pcs.marginLeft) || 0;
-          const { left: pPadL, right: pPadR, top: pPadT, bottom: pPadB } = sideWidths(pcs, 'padding', '');
+          const zoom = effectiveZoomFor(el);
+          const hostPadL = physicalNumber(el, cs.paddingLeft);
+          const hostPadT = physicalNumber(el, cs.paddingTop);
+          const hostBorL = physicalNumber(el, cs.borderLeftWidth);
+          const hostBorT = physicalNumber(el, cs.borderTopWidth);
+          const hostBorR = physicalNumber(el, cs.borderRightWidth);
+          const pMarL = physicalNumber(el, pcs.marginLeft);
+          const rawPadding = sideWidths(pcs, 'padding', '');
+          const pPadL = rawPadding.left * zoom;
+          const pPadR = rawPadding.right * zoom;
+          const pPadT = rawPadding.top * zoom;
+          const pPadB = rawPadding.bottom * zoom;
           // Pseudo width / height come from computed style. `width: 350px`
           // resolves directly; `auto` falls back to host content width
           // (minus host padding).
-          const hostContentW = rect.width - hostBorL - hostBorR - hostPadL - (parseFloat(cs.paddingRight) || 0);
+          const hostContentW = rect.width - hostBorL - hostBorR - hostPadL - physicalNumber(el, cs.paddingRight);
           const pcsW = parseFloat(pcs.width);
           const pcsH = parseFloat(pcs.height);
-          const contentW = !isNaN(pcsW) ? pcsW : hostContentW - pMarL - (parseFloat(pcs.marginRight) || 0);
-          const contentH = !isNaN(pcsH) ? pcsH : 0;
+          const contentW = !isNaN(pcsW) ? pcsW * zoom : hostContentW - pMarL - physicalNumber(el, pcs.marginRight);
+          const contentH = !isNaN(pcsH) ? pcsH * zoom : 0;
           const borderBoxW = contentW + pPadL + pPadR + bwL + bwR;
           const borderBoxH = contentH + pPadT + pPadB + bwT + bwB;
 
@@ -411,7 +464,7 @@ const buildPseudoContentHandler = ({ vp, normColor, measureFontMetrics, textNeed
             borderBoxX = pr.left - vp.x;
             borderBoxY = pr.top - vp.y;
           } else {
-            const pMarT = parseFloat(pcs.marginTop) || 0;
+            const pMarT = physicalNumber(el, pcs.marginTop);
             borderBoxX = rect.left - vp.x + hostBorL + hostPadL + pMarL;
             borderBoxY = rect.top - vp.y + hostBorT + hostPadT + pMarT;
             // An empty decorative pseudo is still a real flex item. When an
@@ -424,12 +477,12 @@ const buildPseudoContentHandler = ({ vp, normColor, measureFontMetrics, textNeed
             const pushesEnd = justify.indexOf('space-between') >= 0 || justify.indexOf('flex-end') >= 0
               || justify === 'end' || justify === 'right';
             if (pseudo === '::after' && hostFlex && pushesEnd) {
-              const hostPadR = parseFloat(cs.paddingRight) || 0;
-              const pMarR = parseFloat(pcs.marginRight) || 0;
+              const hostPadR = physicalNumber(el, cs.paddingRight);
+              const pMarR = physicalNumber(el, pcs.marginRight);
               borderBoxX = rect.right - vp.x - hostBorR - hostPadR - pMarR - borderBoxW;
               if (cs.alignItems === 'center') {
-                const hostBorB = parseFloat(cs.borderBottomWidth) || 0;
-                const hostPadB = parseFloat(cs.paddingBottom) || 0;
+                const hostBorB = physicalNumber(el, cs.borderBottomWidth);
+                const hostPadB = physicalNumber(el, cs.paddingBottom);
                 const contentH = rect.height - hostBorT - hostBorB - hostPadT - hostPadB;
                 borderBoxY = rect.top - vp.y + hostBorT + hostPadT + (contentH - borderBoxH) / 2 + pMarT;
               }
@@ -460,7 +513,7 @@ const buildPseudoContentHandler = ({ vp, normColor, measureFontMetrics, textNeed
               if (pseudo === '::after') {
                 borderBoxX = pr.left - vp.x;
               } else {
-                const pMarR = parseFloat(pcs.marginRight) || 0;
+                const pMarR = physicalNumber(el, pcs.marginRight);
                 borderBoxX = pr.left - vp.x - pMarR - borderBoxW - pMarL;
               }
             }
@@ -496,9 +549,12 @@ const buildPseudoContentHandler = ({ vp, normColor, measureFontMetrics, textNeed
             // `media-gallery-dotnav-link::before` carousel dots are empty-content
             // background boxes that shrink toward the edges via the `scale` property
             // (scale: 0.75 / 0.5), a separate computed entry from `transform`.
-            const pcsComposed = composeEffectiveTransform != null ? composeEffectiveTransform(pcs) : (pcs.transform || 'none');
+            const pcsComposedRaw = composeEffectiveTransform != null ? composeEffectiveTransform(pcs) : (pcs.transform || 'none');
+            const pcsComposed = physicalTransform(el, pcsComposedRaw);
             const pcsTransform = pcsComposed && pcsComposed !== 'none' ? pcsComposed : undefined;
-            const pcsTransformOrigin = pcsTransform != null ? (pcs.transformOrigin || undefined) : undefined;
+            const pcsTransformOrigin = pcsTransform != null
+              ? physicalComputedCssPixelTerms(pcs.transformOrigin || '', zoom) || undefined
+              : undefined;
             // DM-1051: a negative z-index pseudo (Resend's `.rainbow-border::after`
             // glow, `z-index: -10`) paints BEHIND the host content, and its
             // `filter: blur(20px)` softens the gradient into a halo. Capture both
@@ -506,7 +562,7 @@ const buildPseudoContentHandler = ({ vp, normColor, measureFontMetrics, textNeed
             // sharp gradient rect on top of the dark pill interior.
             const pcsZ = parseInt(pcs.zIndex, 10);
             const pcsZIndex = Number.isFinite(pcsZ) ? pcsZ : undefined;
-            const pcsFilter = pcs.filter && pcs.filter !== 'none' ? pcs.filter : undefined;
+            const pcsFilter = physicalFilter(el, pcs.filter);
             return {
               // DM-1001: track which pseudo emitted this box so the renderer
               // can paint ::after pseudo-elements AFTER the host's text (the
@@ -528,14 +584,14 @@ const buildPseudoContentHandler = ({ vp, normColor, measureFontMetrics, textNeed
               // paints (Stripe's keynote glow is an off-center, 45%-opacity pink
               // radial). Capture position/size only alongside a background-image,
               // and opacity only when it actually dims the box (< 1).
-              backgroundPosition: hasBgImg ? pcs.backgroundPosition : undefined,
-              backgroundSize: hasBgImg ? pcs.backgroundSize : undefined,
+              backgroundPosition: hasBgImg ? physicalComputedCssPixelTerms(pcs.backgroundPosition, zoom) : undefined,
+              backgroundSize: hasBgImg ? physicalComputedCssPixelTerms(pcs.backgroundSize, zoom) : undefined,
               opacity: (function () { var o = parseFloat(pcs.opacity); return (isFinite(o) && o < 1) ? o : undefined; })(),
               borderTopWidth: bwT, borderTopColor: bwT > 0 ? normColor(pcs.borderTopColor) : undefined, borderTopStyle: pcs.borderTopStyle,
               borderRightWidth: bwR, borderRightColor: bwR > 0 ? normColor(pcs.borderRightColor) : undefined, borderRightStyle: pcs.borderRightStyle,
               borderBottomWidth: bwB, borderBottomColor: bwB > 0 ? normColor(pcs.borderBottomColor) : undefined, borderBottomStyle: pcs.borderBottomStyle,
               borderLeftWidth: bwL, borderLeftColor: bwL > 0 ? normColor(pcs.borderLeftColor) : undefined, borderLeftStyle: pcs.borderLeftStyle,
-              borderRadius: parseFloat(pcs.borderRadius) || 0,
+              borderRadius: physicalNumber(el, pcs.borderRadius),
               transform: pcsTransform,
               transformOrigin: pcsTransformOrigin,
               zIndex: pcsZIndex,
@@ -584,21 +640,26 @@ const buildPseudoContentHandler = ({ vp, normColor, measureFontMetrics, textNeed
         probeImg.src = imageUrl;
         // Playwright waits for load before capture, so naturalWidth /
         // Height resolve synchronously from cache.
-        const intrinsicW = probeImg.naturalWidth || 0;
-        const intrinsicH = probeImg.naturalHeight || 0;
-        let layoutW = parseFloat(pcs.width) || 0;
-        let layoutH = parseFloat(pcs.height) || 0;
+        const imageZoom = effectiveZoomFor(el);
+        const intrinsicW = (probeImg.naturalWidth || 0) * imageZoom;
+        const intrinsicH = (probeImg.naturalHeight || 0) * imageZoom;
+        let layoutW = (parseFloat(pcs.width) || 0) * imageZoom;
+        let layoutH = (parseFloat(pcs.height) || 0) * imageZoom;
         if (layoutW <= 0) layoutW = intrinsicW || 24;
         if (layoutH <= 0) layoutH = intrinsicH || 24;
         const renderW = intrinsicW > 0 ? intrinsicW : layoutW;
         const renderH = intrinsicH > 0 ? intrinsicH : layoutH;
-        const elTop = rect.top - vp.y + (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.borderTopWidth) || 0);
-        const elLeft = rect.left - vp.x + (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.borderLeftWidth) || 0);
-        const elFontSizeForImg = parseFloat(pcs.fontSize) || 14;
-        const lineHImg = parseFloat(pcs.lineHeight) || elFontSizeForImg * 1.2;
+        const elTop = rect.top - vp.y + physicalNumber(el, cs.paddingTop) + physicalNumber(el, cs.borderTopWidth);
+        const elLeft = rect.left - vp.x + physicalNumber(el, cs.paddingLeft) + physicalNumber(el, cs.borderLeftWidth);
+        const elFontSizeForImg = (parseFloat(pcs.fontSize) || 14) * imageZoom;
+        const lineHImg = (parseFloat(pcs.lineHeight) || (parseFloat(pcs.fontSize) || 14) * 1.2) * imageZoom;
         // Vertically center the LAYOUT box in the line; the image paints
         // from this anchor at render dims (may overflow downward).
         const yPosImg = elTop + (lineHImg - layoutH) / 2;
+        const imageComposedRaw = composeEffectiveTransform != null ? composeEffectiveTransform(pcs) : (pcs.transform || 'none');
+        const imageComposed = physicalTransform(el, imageComposedRaw);
+        const imageTransform = imageComposed && imageComposed !== 'none' ? imageComposed : undefined;
+        const imageOpacity = parseFloat(pcs.opacity);
         // Capture the inline-block's outer-box horizontal contributions:
         // following text is shifted by (marginL + borderL + paddingL +
         // width + paddingR + borderR + marginR) but the IMAGE paints at
@@ -613,12 +674,18 @@ const buildPseudoContentHandler = ({ vp, normColor, measureFontMetrics, textNeed
           renderWidth: renderW,
           renderHeight: renderH,
           color: pcs.color,
-          boxMarginLeft: parseFloat(pcs.marginLeft) || 0,
-          boxMarginRight: parseFloat(pcs.marginRight) || 0,
-          boxBorderLeft: parseFloat(pcs.borderLeftWidth) || 0,
-          boxBorderRight: parseFloat(pcs.borderRightWidth) || 0,
-          boxPaddingLeft: parseFloat(pcs.paddingLeft) || 0,
-          boxPaddingRight: parseFloat(pcs.paddingRight) || 0,
+          boxMarginLeft: physicalNumber(el, pcs.marginLeft),
+          boxMarginRight: physicalNumber(el, pcs.marginRight),
+          boxBorderLeft: physicalNumber(el, pcs.borderLeftWidth),
+          boxBorderRight: physicalNumber(el, pcs.borderRightWidth),
+          boxPaddingLeft: physicalNumber(el, pcs.paddingLeft),
+          boxPaddingRight: physicalNumber(el, pcs.paddingRight),
+          filter: physicalFilter(el, pcs.filter),
+          opacity: Number.isFinite(imageOpacity) && imageOpacity < 1 ? imageOpacity : undefined,
+          transform: imageTransform,
+          transformOrigin: imageTransform != null
+            ? physicalComputedCssPixelTerms(pcs.transformOrigin || '', imageZoom) || undefined
+            : undefined,
         });
         continue;
       }
@@ -804,11 +871,18 @@ const buildPseudoContentHandler = ({ vp, normColor, measureFontMetrics, textNeed
       // from `transform`. `composeEffectiveTransform` folds all four into one
       // matrix() (spec order translate → rotate → scale → transform), the same way
       // regular elements are captured (DM-943).
-      const pseudoComposed = composeEffectiveTransform != null ? composeEffectiveTransform(pcs) : (pcs.transform || 'none');
+      const pseudoComposedRaw = composeEffectiveTransform != null ? composeEffectiveTransform(pcs) : (pcs.transform || 'none');
+      const pseudoComposed = physicalTransform(el, pseudoComposedRaw);
       const pseudoTransform = pseudoComposed && pseudoComposed !== 'none' ? pseudoComposed : undefined;
-      const pseudoTransformOrigin = pseudoTransform != null ? (pcs.transformOrigin || undefined) : undefined;
+      const pseudoTransformOrigin = pseudoTransform != null
+        ? physicalComputedCssPixelTerms(pcs.transformOrigin || '', effectiveZoomFor(el)) || undefined
+        : undefined;
+      const pseudoFilter = physicalFilter(el, pcs.filter);
+      const pseudoOpacityValue = parseFloat(pcs.opacity);
+      const pseudoOpacity = Number.isFinite(pseudoOpacityValue) && pseudoOpacityValue < 1
+        ? pseudoOpacityValue : undefined;
       let pseudoBoxStyles = null;
-      if (pseudoBgColor !== '' || hasPseudoBgImg || pseudoBR > 0 || (bwUniform && pseudoBC !== '' && pseudoBC !== 'rgba(0, 0, 0, 0)') || hasPerSideBorder || pseudoTransform != null) {
+      if (pseudoBgColor !== '' || hasPseudoBgImg || pseudoBR > 0 || (bwUniform && pseudoBC !== '' && pseudoBC !== 'rgba(0, 0, 0, 0)') || hasPerSideBorder || pseudoTransform != null || pseudoFilter != null || pseudoOpacity != null) {
         pseudoBoxStyles = {
           padL: parseFloat(pcs.paddingLeft) || 0,
           padR: parseFloat(pcs.paddingRight) || 0,
@@ -834,6 +908,8 @@ const buildPseudoContentHandler = ({ vp, normColor, measureFontMetrics, textNeed
           borderColor: bwUniform && pseudoBC !== '' && pseudoBC !== 'rgba(0, 0, 0, 0)' ? pseudoBC : undefined,
           transform: pseudoTransform,
           transformOrigin: pseudoTransformOrigin,
+          filter: pseudoFilter,
+          opacity: pseudoOpacity,
           // Per-side colors. Renderer reads these when no uniform border
           // is set and emits a `<line>` for each side whose width > 0 and
           // color is paintable. Undefined when the side has no visible

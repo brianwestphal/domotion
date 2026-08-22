@@ -9,6 +9,7 @@ import { computeSkipInkGaps, getDecorationMetrics, isStretchyFenceChar, measureE
 import type { FontVariantEmojiOverride } from "./font-resolution.js";
 import type { FontSynthesisAllowance } from "./text-to-path.js";
 import { r, esc } from "./format.js";
+import { wrapPseudoPaintEffects } from "./pseudo-filter.js";
 import type { CapturedElement, TextSegment } from "../capture/types.js";
 
 // ── Rendering helpers ──
@@ -53,40 +54,6 @@ function renderPseudoBoxPerSideBorders(pb: NonNullable<TextSegment["pseudoBox"]>
     lines.push(`<line x1="${r(cx)}" y1="${r(pb.y)}" x2="${r(cx)}" y2="${r(y2)}" stroke="${esc(pb.borderLeftColor)}" stroke-width="${r(pb.borL)}"/>`);
   }
   return lines.join("");
-}
-
-/**
- * DM-783: parse a resolved `transform-origin` string (`"50px 50px"`,
- * `"50px 50px 0px"`) into an `(ox, oy)` pair in px relative to the pseudoBox's
- * top-left. Chrome's getComputedStyle always returns px values (never
- * keywords like "left top" or "%"), so we just split + parseFloat. The
- * 3rd Z component is ignored — we only paint 2D. Falls back to the box
- * center when the value is missing or unparseable, matching Chrome's
- * `50% 50%` default.
- */
-function parsePseudoTransformOrigin(originCss: string | undefined, width: number, height: number): { ox: number; oy: number } {
-  const center = { ox: width / 2, oy: height / 2 };
-  if (originCss == null || originCss === "") return center;
-  const parts = originCss.split(/\s+/).map((p) => parseFloat(p));
-  if (parts.length < 2 || !Number.isFinite(parts[0]) || !Number.isFinite(parts[1])) return center;
-  return { ox: parts[0], oy: parts[1] };
-}
-
-/**
- * DM-783: when the pseudoBox carries a `transform`, wrap `inner` in a
- * `<g transform="…">` that pre-bakes the rotation/scale around the captured
- * `transform-origin` — `translate(tx,ty) <css-transform> translate(-tx,-ty)`
- * where `(tx, ty)` is the origin in viewport coords. SVG accepts the CSS
- * matrix() / rotate() / scale() / translate() / skew() forms unchanged
- * (column-major convention matches), so `pb.transform` pastes in verbatim.
- * Returns `inner` unwrapped when no transform was captured.
- */
-function pseudoBoxTransformWrap(pb: NonNullable<TextSegment["pseudoBox"]>, inner: string): string {
-  if (pb.transform == null || pb.transform === "" || pb.transform === "none") return inner;
-  const { ox, oy } = parsePseudoTransformOrigin(pb.transformOrigin, pb.width, pb.height);
-  const tx = pb.x + ox;
-  const ty = pb.y + oy;
-  return `<g transform="translate(${r(tx)} ${r(ty)}) ${pb.transform} translate(${r(-tx)} ${r(-ty)})">${inner}</g>`;
 }
 
 /**
@@ -1688,7 +1655,9 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
     // its label aligned to the pill, not the host's baseline).
     const emphasisMarks = renderTextEmphasisMarks(el, segColor);
     const inner = `${singleSegBoxMarkup}${result}${decoMarkup}${rasterOverlay}${emphasisMarks}`;
-    const transformed = (singleSeg?.pseudoBox != null) ? pseudoBoxTransformWrap(singleSeg.pseudoBox, inner) : inner;
+    const transformed = singleSeg?.pseudoBox != null
+      ? wrapPseudoPaintEffects(singleSeg.pseudoBox, inner)
+      : inner;
   if (opts.overflowClip) {
     return anisotropicCorrectionWrap(el, `<g clip-path="url(#${clipId})">${transformed}</g>`);
   }
@@ -1875,13 +1844,11 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     // text get their actual Chrome-painted pixels stamped over the position.
     const rasterOverlay = rasterGlyphOverlays(seg, segFontSize, clipId);
     if (rasterOverlay !== "") segParts.push(rasterOverlay);
-    // DM-783: when the segment's pseudo carries a CSS transform, wrap the
-    // accumulated box + glyphs + decoration + raster overlay so all four
-    // rotate together around the captured transform-origin. No-op for non-
-    // pseudo segments (`seg.pseudoBox == null`) and for pseudos without a
-    // transform — both flush through unchanged.
-    if (seg.pseudoBox != null && seg.pseudoBox.transform != null && seg.pseudoBox.transform !== "" && seg.pseudoBox.transform !== "none") {
-      parts.push(pseudoBoxTransformWrap(seg.pseudoBox, segParts.join("")));
+    // DM-2367: the pseudo owns its whole atomic paint (box, glyphs,
+    // decorations, and raster overlays). Apply its computed filter list before
+    // transform and grouped opacity, matching Blink's paint-property nesting.
+    if (seg.pseudoBox != null) {
+      parts.push(wrapPseudoPaintEffects(seg.pseudoBox, segParts.join("")));
     } else {
       for (const sp of segParts) parts.push(sp);
     }

@@ -120,6 +120,8 @@ const captureDocumentTree =
     resolveCounterValue,
     isCustomCounterStyle,
     composeEffectiveTransform,
+    effectiveZoomFor: (el) => _effectiveZoomFor(el),
+    physicalComputedCssPixelTerms,
   });
   const { captureInputValue } = createInputValueHandler({ vp, normColor, measureFontMetrics: _measureFontMetrics });
   const { finalizeLineClampText } = createLineClampHandler({

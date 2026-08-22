@@ -78,6 +78,7 @@ import { propagateTextDecorations } from "../tree-ops/decoration-propagation.js"
 import { getLastCaptureWarnings, logCaptureWarnings, _resetLastCaptureWarnings } from "../capture/warnings.js";
 import { rasterizeBitmapGlyphs } from "../capture/emoji.js";
 import { blinkPlatformResizerStrokes } from "./resize-handle.js";
+import { wrapPseudoPaintEffects } from "./pseudo-filter.js";
 
 // Public-API re-exports kept here for backward compatibility — older imports
 // from `./render/element-tree-to-svg.js` keep resolving. Internal consumers
@@ -4348,14 +4349,8 @@ function paintPseudoBoxes(state: RenderState, el: CapturedElement, indent: strin
         // ones defer to the on-top pass.
         if (hasBgImage && !hasBgColor && !hasBorder) continue;
       }
-      // DM-783: snapshot svgParts.length so we can wrap THIS pb's emit in
-      // a `<g transform="…">` when pb.transform is present. The wrap pre-
-      // bakes the rotation/scale around the captured transform-origin so
-      // a rotate(45deg) on a `::before { border-right; border-bottom }`
-      // paints as a check-mark instead of a backwards-L (the rotation
-      // pivots around the box center, not the origin). When pb.transform
-      // is absent we splice nothing — the loop body's pushes flow through
-      // unchanged.
+      // Snapshot svgParts.length so the complete pseudo paint can be wrapped
+      // in its Blink-owned filter / transform / opacity effect nodes.
       const pbStart = svgParts.length;
       if (pb.backgroundColor) {
         const rxAttr = pb.borderRadius && pb.borderRadius > 0 ? ` rx="${r(pb.borderRadius)}"` : "";
@@ -4498,57 +4493,17 @@ function paintPseudoBoxes(state: RenderState, el: CapturedElement, indent: strin
       side(pb.x + pb.width - (pb.borderRightWidth ?? 0) / 2, pb.y, pb.x + pb.width - (pb.borderRightWidth ?? 0) / 2, pb.y + pb.height, pb.borderRightWidth, pb.borderRightColor, pb.borderRightStyle);
       side(pb.x, pb.y + pb.height - (pb.borderBottomWidth ?? 0) / 2, pb.x + pb.width, pb.y + pb.height - (pb.borderBottomWidth ?? 0) / 2, pb.borderBottomWidth, pb.borderBottomColor, pb.borderBottomStyle);
       side(pb.x + (pb.borderLeftWidth ?? 0) / 2, pb.y, pb.x + (pb.borderLeftWidth ?? 0) / 2, pb.y + pb.height, pb.borderLeftWidth, pb.borderLeftColor, pb.borderLeftStyle);
-      // DM-783: wrap whatever this iteration emitted (rect / lines /
-      // polygon / per-side strokes) in a `<g transform="…">` that pre-
-      // bakes the rotation/scale around the captured transform-origin.
-      // Defined inline here so it closes over `pb` and `svgParts` /
-      // `pbStart` from the outer scope.
+      // Wrap whatever this iteration emitted (rect / lines / polygon /
+      // per-side strokes) as one generated-content paint atom.
       function flushPbTransformWrap() {
-        const hasTransform = pb.transform != null && pb.transform !== "" && pb.transform !== "none";
-        // DM-1051: translate a `blur(<px>)` filter into an SVG feGaussianBlur.
-        // CSS `blur(r)` uses r as the Gaussian standard deviation directly
-        // (Filter Effects §4.4), so stdDeviation = the captured px value.
-        const blurMatch = pb.filter != null ? /\bblur\(\s*([\d.]+)px\s*\)/.exec(pb.filter) : null;
-        const blurStd = blurMatch != null ? parseFloat(blurMatch[1]) : null;
-        // DM-1121: a `<g opacity>` wrap also counts as needing a flush so a
-        // dimmed pseudo (e.g. a 45%-opacity glow) paints translucent.
+        const hasFilter = pb.filter != null && pb.filter.trim() !== "" && pb.filter.trim() !== "none";
+        const hasTransform = pb.transform != null && pb.transform.trim() !== "" && pb.transform.trim() !== "none";
         const hasOpacity = pb.opacity != null && pb.opacity < 1;
-        if (!hasTransform && !hasOpacity && (blurStd == null || !(blurStd > 0))) return;
+        if (!hasFilter && !hasTransform && !hasOpacity) return;
         const added = svgParts.splice(pbStart);
         if (added.length === 0) return;
-        // The inner emits were already indented; we keep the same
-        // indent for the wrapper and strip leading indent from each
-        // inner part so the wrapping `<g>` doesn't double-indent.
-        let inner = added.map((s) => s.startsWith(indent) ? s.slice(indent.length) : s).join("");
-        // Blur is applied in the pseudo's own coordinate space (before its
-        // transform scales the result), so the filter `<g>` nests INSIDE the
-        // transform `<g>`. The filter region is generously over-sized so a
-        // 20px blur on a short pill isn't clipped at the default -10%..110%.
-        if (blurStd != null && blurStd > 0) {
-          const fid = paintCtx.nextClipId("pbf");
-          defsParts.push(`<filter id="${fid}" x="-100%" y="-300%" width="300%" height="700%"><feGaussianBlur stdDeviation="${r(blurStd)}" /></filter>`);
-          inner = `<g filter="url(#${fid})">${inner}</g>`;
-        }
-        if (hasTransform) {
-          // transform-origin: resolved to px values relative to the
-          // pseudo's box top-left (Chrome's getComputedStyle normalises
-          // keywords / % to px). Default = box center (`50% 50%`).
-          let ox = pb.width / 2;
-          let oy = pb.height / 2;
-          if (pb.transformOrigin != null && pb.transformOrigin !== "") {
-            const oParts = pb.transformOrigin.split(/\s+/).map((p) => parseFloat(p));
-            if (oParts.length >= 2 && Number.isFinite(oParts[0]) && Number.isFinite(oParts[1])) {
-              ox = oParts[0]; oy = oParts[1];
-            }
-          }
-          const tx = pb.x + ox;
-          const ty = pb.y + oy;
-          inner = `<g transform="translate(${r(tx)} ${r(ty)}) ${pb.transform} translate(${r(-tx)} ${r(-ty)})">${inner}</g>`;
-        }
-        // Opacity wraps OUTERMOST so it dims the transformed/blurred result as
-        // a whole (matching how CSS `opacity` groups the pseudo's painting).
-        if (hasOpacity) inner = `<g opacity="${Number(pb.opacity!.toFixed(2))}">${inner}</g>`;
-        svgParts.push(`${indent}${inner}`);
+        const inner = added.map((s) => s.startsWith(indent) ? s.slice(indent.length) : s).join("");
+        svgParts.push(`${indent}${wrapPseudoPaintEffects(pb, inner)}`);
       }
       flushPbTransformWrap();
     }
@@ -4577,10 +4532,7 @@ function paintDeferredFadeOverlays(state: RenderState, el: CapturedElement, inde
       // DM-1051: a negative z-index glow was already painted behind in the
       // early loop — don't re-emit it on top here.
       if (pb.zIndex != null && pb.zIndex < 0) continue;
-      // DM-1121: wrap the deferred fade-overlay's rects in a `<g opacity>`
-      // when the pseudo dims itself. Stripe's keynote glow is a 45%-opacity
-      // pink radial; emitting it opaque painted a hard magenta blob.
-      const pbOpacityStart = svgParts.length;
+      const pbEffectStart = svgParts.length;
       const pbLayers = splitTopLevelCommas(pb.backgroundImage!);
       for (let li = pbLayers.length - 1; li >= 0; li--) {
         const layer = pbLayers[li].trim();
@@ -4594,12 +4546,10 @@ function paintDeferredFadeOverlays(state: RenderState, el: CapturedElement, inde
         const rxAttr = pb.borderRadius && pb.borderRadius > 0 ? ` rx="${r(pb.borderRadius)}"` : "";
         svgParts.push(`${indent}<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr} fill="url(#${defId})" />`);
       }
-      if (pb.opacity != null && pb.opacity < 1) {
-        const added = svgParts.splice(pbOpacityStart);
-        if (added.length > 0) {
-          const inner = added.map((s) => s.startsWith(indent) ? s.slice(indent.length) : s).join("");
-          svgParts.push(`${indent}<g opacity="${Number(pb.opacity.toFixed(2))}">${inner}</g>`);
-        }
+      const added = svgParts.splice(pbEffectStart);
+      if (added.length > 0) {
+        const inner = added.map((s) => s.startsWith(indent) ? s.slice(indent.length) : s).join("");
+        svgParts.push(`${indent}${wrapPseudoPaintEffects(pb, inner)}`);
       }
     }
   }
@@ -5155,7 +5105,8 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // emit ahead of the text block so text reliably wins z.
   if (el.pseudoImages != null) {
     for (const pi of el.pseudoImages) {
-      svgParts.push(`${indent}<image href="${esc(embedResizedDataUri(pi.url, pi.width, pi.height))}" x="${r(pi.x)}" y="${r(pi.y)}" width="${r(pi.width)}" height="${r(pi.height)}" preserveAspectRatio="xMidYMid meet" />`);
+      const image = `<image href="${esc(embedResizedDataUri(pi.url, pi.width, pi.height))}" x="${r(pi.x)}" y="${r(pi.y)}" width="${r(pi.width)}" height="${r(pi.height)}" preserveAspectRatio="xMidYMid meet" />`;
+      svgParts.push(`${indent}${wrapPseudoPaintEffects(pi, image)}`);
     }
   }
   // Box-only pseudo-elements (DM-579): empty-content `::before` / `::after`

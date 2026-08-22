@@ -1416,6 +1416,23 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   hinting, size knees, transparency/order, and transform controls, and rejects
   the retired derived-outline mutation plus its former production symbols.
 
+<!-- DM-2367 -->
+- Generated `::before` / `::after` paint keeps Chromium's authoritative
+  computed filter function list on a native SVG CSS-filter group. Empty boxes,
+  text (including raster glyph overlays), and generated images share one
+  `content → filter → transform → opacity` wrapper, while ancestor clips and
+  the pseudo's established paint-order slot stay outside. The supported vector
+  set is blur, brightness, contrast, drop-shadow, grayscale, hue-rotate,
+  invert, opacity, saturate, sepia, and ordered lists, including non-`none`
+  identity values. Pinned Blink `FilterEffectBuilder` owns list order, sRGB
+  interpolation, unclipped primitive bounds, and Skia premultiplication; do not
+  replace it with manually authored `<fe*>` primitives or fitted percentage
+  regions. CSSOM px terms, generated-box/image dimensions, transform origins,
+  and matrix translations cross effective zoom once during capture; DPR does
+  not alter that physical-CSS-pixel record. HTML `SourceGraphic` URL convolution
+  remains the separate explicit
+  Chromium raster boundary in doc 148.
+
 ## What this file is NOT
 
 - Not a complete requirements doc — the per-feature docs are.

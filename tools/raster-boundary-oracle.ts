@@ -3,6 +3,7 @@ import { writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
 import { captureElementTree } from "../src/capture/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
+import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
 import { needsChromiumGradientRaster } from "../src/render/advanced-gradient-raster.js";
 import { parseConicGradient } from "../src/render/gradients.js";
 
@@ -65,6 +66,21 @@ export async function runRasterBoundaryOracle(): Promise<{ rows: Row[]; mutation
     for (const [id, boundary, expected, html, source] of cases) {
       add(id, expected, activated(await capture(page, html), boundary), source);
     }
+
+    const pseudoFilterTree = await capture(page, `<style>
+      #pf{position:relative;width:100px;height:60px}
+      #pf::before{content:"";position:absolute;inset:10px;background:rgba(255,0,0,.5);
+        filter:blur(2px) saturate(1.4) drop-shadow(blue 3px 2px 1px)}
+    </style><div id="pf"></div>`);
+    const pseudoFilterSvg = elementTreeToSvg(pseudoFilterTree, 500, 320);
+    add(
+      "filter.pseudo-shorthand-vector",
+      true,
+      pseudoFilterSvg.includes("style=\"filter:blur(2px) saturate(1.4) drop-shadow")
+        && !pseudoFilterSvg.includes("<feGaussianBlur")
+        && !pseudoFilterSvg.includes("<image"),
+      "CSS shorthand lists stay in Blink's native SVG CSS-filter pipeline; they are not screenshot or primitive-lowering boundaries",
+    );
 
     add("gradient.oklab-raster", true, needsChromiumGradientRaster("linear-gradient(in oklab, red, blue)"), "SVG lacks CSS Color 4 interpolation spaces");
     add("gradient.alpha-raster", true, needsChromiumGradientRaster("linear-gradient(rgba(255,0,0,.2), blue)"), "Blink premultiplies alpha while SVG does not");

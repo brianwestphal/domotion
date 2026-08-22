@@ -1246,7 +1246,7 @@ describe("DM-1051 negative-z-index pseudo glow paints behind + blurs", () => {
     } as Partial<CapturedElement>)];
   }
 
-  it("paints the z-index:-10 glow BEHIND the dark child and wraps it in a feGaussianBlur", () => {
+  it("paints the z-index:-10 glow BEHIND the dark child with Blink's native CSS filter", () => {
     const svg = elementTreeToSvgInner(pillTree({ zIndex: -10, filter: "blur(20px)" }), 400, 400);
     const glowIdx = svg.indexOf('fill="url(#');
     const darkIdx = svg.indexOf('fill="rgb(11,14,20)"');
@@ -1254,10 +1254,12 @@ describe("DM-1051 negative-z-index pseudo glow paints behind + blurs", () => {
     expect(darkIdx).toBeGreaterThanOrEqual(0);
     // Behind: the gradient glow rect is emitted BEFORE the dark child fill.
     expect(glowIdx).toBeLessThan(darkIdx);
-    // Softened: a Gaussian blur with stdDeviation = the CSS blur px is emitted
-    // and references the glow (CSS blur(20px) → feGaussianBlur stdDeviation=20).
-    expect(svg).toContain('<feGaussianBlur stdDeviation="20"');
-    expect(svg).toMatch(/<g filter="url\(#[^"]*pbf\d+\)">/);
+    // DM-2367: preserve the authoritative computed CSS function. Blink's
+    // native SVG/CSS filter pipeline owns its sRGB space, primitive bounds,
+    // and premultiplication; hand-authored feGaussianBlur has different SVG
+    // defaults and is deliberately absent.
+    expect(svg).toContain('<g style="filter:blur(20px)">');
+    expect(svg).not.toContain("<feGaussianBlur");
     // The pseudo's own transform still wraps the blurred glow.
     expect(svg).toContain("matrix(0.95, 0, 0, 0.6, 0, 0)");
   });

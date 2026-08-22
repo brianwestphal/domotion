@@ -181,6 +181,15 @@ renderer emits that final surface atomically. Screenshot failure retains the
 existing vector URL-filter path. See
 [148-sourcegraphic-url-filter-surfaces.md](../148-sourcegraphic-url-filter-surfaces.md).
 
+Pseudo-element shorthand filter functions are an explicit **vector negative**
+for this boundary (DM-2367). Empty, text, and generated-image pseudos retain
+their computed `blur` / color-matrix / component-transfer / `drop-shadow`
+lists on a native SVG CSS-filter group, so Chromium still owns operation order,
+sRGB interpolation, premultiplication, and moving-pixel bounds. They must not
+be promoted to a screenshot merely because the list contains `blur` or
+`drop-shadow`; only a source-owned representation boundary such as the HTML
+`SourceGraphic` convolution case above activates C0b.
+
 ### C1. `conic-gradient(...)` / `repeating-conic-gradient(...)`
 
 Trigger: any background layer whose CSS value parses as a conic or repeating-conic gradient.

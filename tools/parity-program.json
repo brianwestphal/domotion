@@ -127,12 +127,12 @@
     },
     {
       "id": "compositing-effects-paint-order",
-      "domotionSources": ["src/render/element-tree-to-svg.ts", "src/tree-ops", "src/post-processing"],
-      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/paint", "external/skia/src/core"],
+      "domotionSources": ["src/capture/script/walker/pseudo-content.ts", "src/capture/script/walker/pseudo-inject.ts", "src/render/pseudo-filter.ts", "src/render/element-tree-to-svg.ts", "src/render/text.ts", "src/tree-ops", "src/post-processing"],
+      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/css/resolver/filter_operation_resolver.cc", "external/chromium/third_party/blink/renderer/core/css/properties/computed_style_utils.cc", "external/chromium/third_party/blink/renderer/core/paint/filter_effect_builder.cc", "external/chromium/third_party/blink/renderer/core/paint/paint_property_tree_builder.cc", "external/chromium/third_party/blink/renderer/platform/graphics/filters/paint_filter_builder.cc", "external/skia/src/core"],
       "oracle": "tools/paint-order-oracle.ts",
       "sourceAudit": "audited",
       "oracleStatus": "paint-model-gate",
-      "generatedCoverage": "41 generated SC-creator, perspective/preserve-3d fixed-ownership (including static/positioned inline layer controls and the exact transform-related will-change property set), overflow-only, Appendix-E bucket, atomic-containment, descendant-hoist, live Chromium hit-stack, and fixed-geometry rows plus curated visual fixtures",
+      "generatedCoverage": "41 generated SC-creator, perspective/preserve-3d fixed-ownership (including static/positioned inline layer controls and the exact transform-related will-change property set), overflow-only, Appendix-E bucket, atomic-containment, descendant-hoist, live Chromium hit-stack, and fixed-geometry rows plus curated visual fixtures; DM-2367 adds 12 pseudo filter/function-list rows plus identity/none, text/image ownership, transform/origin, ancestor clip, negative-z existing-slot, zoom/DPR, native-vector, and filter-stripped mutation controls",
       "platformCoverage": ["darwin", "linux", "win32"],
       "knownGap": "Blend arithmetic and filter kernels remain pixel-stage concerns; backdrop-filter source-surface selection is tracked at its Chromium raster boundary rather than structurally modeled.",
       "nextAction": "Extend browser rows when new stacking-context creators or backdrop source-surface transitions enter the renderer."
@@ -156,7 +156,7 @@
       "oracle": "tools/raster-boundary-oracle.ts",
       "sourceAudit": "audited",
       "oracleStatus": "exact-stage-gate",
-      "generatedCoverage": "27 positive/negative live-capture and production-predicate rows covering glyph, replaced/sprite/frame, native-control, backdrop, projective, HTML URL-filter convolution with ordinary-filter/native-SVG negatives, advanced-gradient, conic, dormant-mask, retired text-raster, and helper-disabled transitions; selected-gid raster-kind controls cover sbix/COLR/bitmap/SVG, mixed-face outline negatives, and Windows DirectWrite codepoint-to-gid identity",
+      "generatedCoverage": "28 positive/negative live-capture and production-predicate rows covering glyph, replaced/sprite/frame, native-control, backdrop, projective, HTML URL-filter convolution with ordinary-filter/native-SVG negatives, pseudo shorthand-list native-vector ownership, advanced-gradient, conic, dormant-mask, retired text-raster, and helper-disabled transitions; selected-gid raster-kind controls cover sbix/COLR/bitmap/SVG, mixed-face outline negatives, and Windows DirectWrite codepoint-to-gid identity",
       "platformCoverage": ["darwin", "linux", "win32"],
       "knownGap": "The oracle proves activation ownership; each fallback's pixel contents remain the responsibility of its dedicated visual or paint-stage gate. Broken-image paint is not yet a live raster boundary: doc 156 proves only Chromium's DPR-selected icon should become raster, while the current renderer emits an inexact vector approximation.",
       "nextAction": "Add the broken-icon positive plus successful/loading/hidden-icon negatives in DM-2465 after DM-2463/DM-2464 ship the hybrid boundary; otherwise add paired activation rows whenever a fallback is introduced, retired, or changes ownership."

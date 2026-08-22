@@ -766,26 +766,33 @@
       "states": [
         "non-stacking -> stacking context",
         "in-flow -> positioned/floating",
-        "normal -> blend/filter/backdrop",
+        "normal -> pseudo filter",
+        "normal -> blend/backdrop",
         "non-atomic -> atomic",
         "viewport fixed -> trapped fixed"
       ],
       "exactStates": [
         "non-stacking -> stacking context",
         "in-flow -> positioned/floating",
+        "normal -> pseudo filter",
         "non-atomic -> atomic",
         "viewport fixed -> trapped fixed"
       ],
       "uncoveredStates": [
-        "normal -> blend/filter/backdrop"
+        "normal -> blend/backdrop"
       ],
       "upstreamSources": [
-        "external/chromium/third_party/blink/renderer/core/paint",
+        "external/chromium/third_party/blink/renderer/core/paint/filter_effect_builder.cc",
+        "external/chromium/third_party/blink/renderer/core/paint/paint_property_tree_builder.cc",
+        "external/chromium/third_party/blink/renderer/platform/graphics/filters/paint_filter_builder.cc",
         "external/skia/src/core"
       ],
       "productionOwners": [
         "src/render/stacking.ts",
+        "src/render/pseudo-filter.ts",
         "src/render/element-tree-to-svg.ts",
+        "src/render/text.ts",
+        "src/capture/script/walker/pseudo-content.ts",
         "src/capture/backdrop-isolation.ts"
       ],
       "oracles": [
@@ -794,16 +801,19 @@
       ],
       "metamorphicTests": [
         "src/stacking-context.test.ts",
+        "src/render/pseudo-filter.test.ts",
+        "tests/pseudo-filter-functions.e2e.test.ts",
         "src/render/stacking-flex-overflow-order.test.ts",
         "src/capture/backdrop-isolation.test.ts"
       ],
       "visualFixtures": [
         "tests/features.ts#z-index-order",
         "tests/features.ts#filter-passthrough",
+        "tests/pseudo-filter-functions.e2e.test.ts",
         "tests/features.ts#blend-mode-passthrough"
       ],
       "coverage": "partial",
-      "boundary": "Blend/filter kernels and several backdrop source-surface transitions lack exact pixel-stage evidence.",
+      "boundary": "Pseudo shorthand filter functions are exact native-vector effects with function-list, mutation, clip/transform/stack-slot, zoom, and DPR evidence. Blend arithmetic, URL filter graphs outside their documented reference/convolution routes, and several backdrop source-surface transitions remain partial.",
       "featureIds": [
         "render.tree-to-svg"
       ],

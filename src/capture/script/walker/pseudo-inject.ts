@@ -85,6 +85,10 @@ export const createPseudoInjectHandler = () => {
           url: p.imageUrl,
           x: p.seg.x, y: p.seg.y,
           width: p.renderWidth, height: p.renderHeight,
+          filter: p.filter,
+          opacity: p.opacity,
+          transform: p.transform,
+          transformOrigin: p.transformOrigin,
         });
         continue;
       }
@@ -341,6 +345,8 @@ export const createPseudoInjectHandler = () => {
             // pivots around the box-relative origin instead of (0,0).
             transform: bs.transform,
             transformOrigin: bs.transformOrigin,
+            filter: bs.filter,
+            opacity: bs.opacity,
           };
         }
       }

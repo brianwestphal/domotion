@@ -144,6 +144,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3nqkd2n84iipci",
+          "message": {
+            "text": "Effective zoom crosses the capture boundary exactly once. CSSOM exposes pseudo filter lengths, transform origins, and matrix translations in pre-zoom CSS pixels, but DOMRects and the emitted SVG viewport are already physical CSS pixels; scaling only px terms and matrix translation slots avoids both an undersized blur/box and DPR double-scaling. The DPR 1/2 img-rendered oracle in the focused zoom control (0) caught the original 42×26 box versus Chromium’s 52.5×32.5 paint at zoom 1.25 and now gates filter, translated rotation, origin, and generated-image dimensions together.",
+            "markdown": "Effective zoom crosses the capture boundary exactly once. CSSOM exposes pseudo filter lengths, transform origins, and matrix translations in pre-zoom CSS pixels, but DOMRects and the emitted SVG viewport are already physical CSS pixels; scaling only px terms and matrix translation slots avoids both an undersized blur/box and DPR double-scaling. The DPR 1/2 img-rendered oracle in [the focused zoom control](0) caught the original 42×26 box versus Chromium’s 52.5×32.5 paint at zoom 1.25 and now gates filter, translated rotation, origin, and generated-image dimensions together."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/pseudo-content.ts"
+                },
+                "region": {
+                  "startLine": 75,
+                  "endLine": 107,
+                  "snippet": {
+                    "text": "  // CSSOM serializes filter lengths before effective zoom, while every box\n  // captured below is already in physical viewport coordinates. Scale only\n  // computed px terms once so blur/drop-shadow use the same coordinate space.\n  const physicalFilter = (el, value) => value && value !== 'none'\n    ? physicalComputedCssPixelTerms(value, effectiveZoomFor(el))\n    : undefined;\n  const physicalNumber = (el, value) => {\n    const number = parseFloat(value);\n    return Number.isFinite(number) ? number * effectiveZoomFor(el) : 0;\n  };\n  const physicalTransform = (el, value) => {\n    const zoom = effectiveZoomFor(el);\n    if (!value || value === 'none' || zoom === 1) return value;\n    const m2 = /^matrix\\(([^)]+)\\)$/.exec(value);\n    if (m2 != null) {\n      const parts = m2[1].split(',').map((part) => parseFloat(part));\n      if (parts.length === 6 && parts.every(Number.isFinite)) {\n        parts[4] *= zoom;\n        parts[5] *= zoom;\n        return `matrix(${parts.join(', ')})`;\n      }\n    }\n    const m3 = /^matrix3d\\(([^)]+)\\)$/.exec(value);\n    if (m3 != null) {\n      const parts = m3[1].split(',').map((part) => parseFloat(part));\n      if (parts.length === 16 && parts.every(Number.isFinite)) {\n        parts[12] *= zoom;\n        parts[13] *= zoom;\n        parts[14] *= zoom;\n        return `matrix3d(${parts.join(', ')})`;\n      }\n    }\n    return value;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/pseudo-filter-functions.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 200
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2367"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "708ae5fcf670c7f3ebb9503c38be84c6"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "bbd91e32ad53a83e1873e601df23a4936b28c86b",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

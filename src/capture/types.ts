@@ -265,6 +265,12 @@ export interface TextSegment {
      *  matrix so the rotation/scale pivots around the captured origin instead
      *  of (0, 0). When undefined, renderer defaults to the box center. */
     transformOrigin?: string;
+    /** DM-2367: authoritative computed CSS filter list. The renderer applies
+     *  it verbatim to a native SVG group so Blink owns list order, sRGB
+     *  interpolation, premultiplication, and pixel-moving bounds. */
+    filter?: string;
+    /** Group opacity owned by the generated pseudo. */
+    opacity?: number;
     /** DM-1051: the pseudo's resolved `z-index` as an integer, when it's a
      *  numeric value (not `auto`). A NEGATIVE z-index means the pseudo paints
      *  BEHIND the host's own content — Resend's `.rainbow-border::after` glow
@@ -272,11 +278,6 @@ export interface TextSegment {
      *  (a soft halo behind the dark pill) instead of treating it as an NYT-
      *  style fade overlay deferred ON TOP of the text. Undefined for `auto`. */
     zIndex?: number;
-    /** DM-1051: the pseudo's own `filter` (e.g. `"blur(20px)"`), captured
-     *  verbatim from `getComputedStyle(host, '::after').filter` when non-`none`.
-     *  Renderer translates a `blur(<px>)` into an SVG `<feGaussianBlur>` wrapper
-     *  so the glow renders soft instead of as a sharp-edged gradient rect. */
-    filter?: string;
   };
 }
 
@@ -1199,7 +1200,17 @@ export interface CapturedElement {
   markerFirstLineDy?: number;
   markerFirstLineHeight?: number;
   /** ::before / ::after pseudo-element image content (content: url(...)). */
-  pseudoImages?: Array<{ url: string; x: number; y: number; width: number; height: number }>;
+  pseudoImages?: Array<{
+    url: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    filter?: string;
+    opacity?: number;
+    transform?: string;
+    transformOrigin?: string;
+  }>;
   svgContent?: string;
   /** Individual text node segments (for mixed content with interleaved child elements) */
   textSegments?: TextSegment[];
@@ -1446,8 +1457,9 @@ export interface PseudoBox {
    *  paints BEHIND the host content; the renderer emits it before child paint
    *  instead of deferring it on top as a fade overlay. */
   zIndex?: number;
-  /** DM-1051: the pseudo's own `filter` (e.g. `"blur(20px)"`), so the renderer
-   *  can wrap the box in an `<feGaussianBlur>` instead of painting a sharp rect. */
+  /** DM-2367: authoritative computed CSS filter list. It is retained as CSS
+   *  on a native SVG group; manual `<fe*>` lowering has different SVG color
+   *  interpolation and primitive-region defaults. */
   filter?: string;
 }
 
