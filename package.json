@@ -125,7 +125,7 @@
     "@xterm/headless": "^6.0.0",
     "bidi-js": "^1.0.3",
     "fontkit": "^2.0.4",
-    "kerfjs": "^4.1.1",
+    "kerfjs": "^4.3.0",
     "sharp": "^0.35.3",
     "svg2ttf": "^6.1.0",
     "svgo": "^4.0.2",
