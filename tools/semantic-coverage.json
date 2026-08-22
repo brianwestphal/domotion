@@ -1027,7 +1027,8 @@
       "id": "controls.native-ownership",
       "parityAreas": [
         "replaced-elements-controls-generated-content",
-        "raster-fallback-boundary"
+        "raster-fallback-boundary",
+        "native-scrollbar-layout-paint-ownership"
       ],
       "subjects": [
         "appearance",
@@ -1035,7 +1036,11 @@
         "color-scheme",
         "control pseudo cascade",
         "resize",
-        "scrollbar styling"
+        "scrollbar styling",
+        "scrollbar existence and axis",
+        "overlay versus classic layout",
+        "scrollbar paint phase and clipping",
+        "platform native raster ownership"
       ],
       "states": [
         "UA-only pseudo -> Chromium-resolved author pseudo ownership",
@@ -1043,6 +1048,11 @@
         "light -> dark",
         "default -> accented",
         "no scrollbar -> classic/overlay scrollbar",
+        "overlay visible -> overlay faded",
+        "physical right -> RTL logical left",
+        "native stock -> standard width/color or custom parts",
+        "DPR 1 -> DPR 2",
+        "zoom 1 -> zoom 1.25",
         "not resizable -> resizable"
       ],
       "exactStates": [
@@ -1053,13 +1063,22 @@
         "light -> dark",
         "default -> accented",
         "no scrollbar -> classic/overlay scrollbar",
+        "overlay visible -> overlay faded",
+        "physical right -> RTL logical left",
+        "native stock -> standard width/color or custom parts",
+        "DPR 1 -> DPR 2",
+        "zoom 1 -> zoom 1.25",
         "not resizable -> resizable"
       ],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/css/resolver/style_resolver.cc",
         "external/chromium/third_party/blink/renderer/core/css/resolver/style_cascade.cc",
         "external/chromium/third_party/blink/renderer/core/layout/forms",
-        "external/chromium/third_party/blink/renderer/core/paint"
+        "external/chromium/third_party/blink/renderer/core/paint/paint_layer_scrollable_area.cc",
+        "external/chromium/third_party/blink/renderer/core/paint/scrollable_area_painter.cc",
+        "external/chromium/third_party/blink/renderer/core/scroll",
+        "external/chromium",
+        "external/skia/src/core/SkCanvas.cpp"
       ],
       "productionOwners": [
         "src/capture/pseudo-style-cdp.ts",
@@ -1070,17 +1089,20 @@
       "oracles": [
         "tests/pseudo-cascade.e2e.test.ts",
         "tools/replaced-geometry-oracle.ts",
-        "tools/raster-boundary-oracle.ts"
+        "tools/raster-boundary-oracle.ts",
+        "tools/native-scrollbar-ownership-audit.ts"
       ],
       "metamorphicTests": [
         "src/capture/pseudo-style-cdp.test.ts",
         "src/render/form-controls.test.ts"
       ],
       "visualFixtures": [
-        "tests/features.ts#form-controls"
+        "tests/features.ts#form-controls",
+        "external/html-test/25-deep-scrollbar-style.html",
+        "external/html-test/25-scrollbar-gutter.html"
       ],
       "coverage": "partial",
-      "boundary": "Author control-pseudo activation and final cascade facts are Chromium-resolved and independently gated (doc 158); native control paint still uses sampled macOS-style synthesis cross-platform and native scrollbar ownership is undefined.",
+      "boundary": "Author control-pseudo activation/final cascade is Chromium-resolved (doc 158). DM-2368/doc 165 now source-audits scrollbar ownership and supplies a strict observational browser oracle: Blink geometry/state/phase must be captured, supported custom scrollbar parts are vector CSS boxes, and stock native chrome is a narrow per-platform precomposited raster. Production still uses a 7px offset-triggered synthesis and has none of those exact routes.",
       "featureIds": [
         "render.tree-to-svg"
       ],

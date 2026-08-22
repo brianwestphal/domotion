@@ -122,7 +122,12 @@ Add a dark-mode counterpart to the existing form-control suite — a single page
 - **`color-scheme: light dark`** (CSS lets a page declare it accepts both): we read whichever Chromium actually painted under the requested `prefers-color-scheme`. The output SVG's `color-scheme` attr matches that resolved scheme, not the original `light dark` declaration.
 - **Captures from before this change** (no `rootColorScheme` in the tree): renderer treats them as light, identical to today's behavior. No migration required.
 - **`<input type=color>` swatch in dark mode**: the swatch surface remains the author-color (the `value` attribute). Only the surrounding chrome (border, focus ring) flips dark.
-- **Native scrollbars** (already filed under SK-468 and unrelated to this work): would need their own dark palette when scrollbar emulation lands. Out of scope here.
+- **Native scrollbars** (legacy tracker SK-468): a renderer-owned dark palette
+  is not exact. Blink selects a used overlay/non-overlay scheme and the active
+  platform theme owns the live pixels; standard `scrollbar-color` remains on
+  that native route, while author `::-webkit-scrollbar*` parts are CSS boxes.
+  DM-2368's [ownership audit](165-native-scrollbar-layout-paint-ownership-audit.md)
+  defines the narrow stock raster and custom-vector boundary. Out of scope here.
 - **`accent-color` CSS interaction**: when an author sets `accent-color: …` on a control, that color drives the checked-state fill in both schemes. The dark palette only governs the *background* / border / focus ring of the chrome around an unstyled control.
 - **Color emoji + dark mode**: emoji bitmap rendering is unchanged — emoji are full-color glyphs that don't recolor based on scheme.
 

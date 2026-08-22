@@ -1582,3 +1582,24 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   [doc 163](../163-url-background-image-geometry-audit.md). DM-2477/2478/2479
   plus existing DM-2365 implement the seams, and DM-2480 owns the all-platform
   DPR gate.
+
+<!-- DM-2368 -->
+- Native scrollbar fidelity is **design-only** beyond clipping/layout captured
+  incidentally by Chromium. Never infer paint from a positive scroll offset or
+  synthesize a host-independent 7 px pill. Capture Blink's actual bar
+  existence, overlay/classic route, used width, logical side, frame/part/corner
+  rectangles, ranges, dynamic state/opacity, used scheme, paint phase,
+  overflow-controls clip, and transform. Supported author
+  `::-webkit-scrollbar*` parts are final-cascade anonymous CSS boxes and remain
+  vector; unsupported part effects may raster only their owner. Stock native
+  chrome is a narrow, capture-DPR, precomposited platform raster because macOS
+  depends on its scroller animator, Aura/Fluent on runtime native theme/state,
+  and Windows UXTheme/GDI already produces an offscreen bitmap before Skia.
+  A faded overlay, width:none, hidden/clip/visible axis, or auto axis without
+  overflow emits nothing. The focused overflow/axis/RTL/writing/clip/scheme/
+  zoom/DPR evidence and exact contract are in
+  [doc 165](../165-native-scrollbar-layout-paint-ownership-audit.md); its oracle
+  must run without Playwright's default `--hide-scrollbars` and later be
+  promoted on native macOS/Linux/Windows images. DM-2481 owns capture,
+  DM-2482 custom-vector parts, DM-2483 stock-native strip rasters, and DM-2484
+  the dependent platform gate.

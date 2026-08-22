@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex dm2419_max",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3m1zodl5ecrvbs",
+          "message": {
+            "text": "The hybrid boundary follows the painter that owns each pixel, not the visual resemblance of the result. Blink custom scrollbar parts are anonymous CSS/ObjectPainter boxes and retain vector semantics; stock chrome depends on live platform theme/animator state, with Windows already passing UXTheme/GDI through SkBitmap, so only that narrow strip is frozen as a platform raster while surrounding content stays vector.",
+            "markdown": "The hybrid boundary follows the painter that owns each pixel, not the visual resemblance of the result. Blink custom scrollbar parts are anonymous CSS/ObjectPainter boxes and retain vector semantics; stock chrome depends on live platform theme/animator state, with Windows already passing UXTheme/GDI through SkBitmap, so only that narrow strip is frozen as a platform raster while surrounding content stays vector."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/165-native-scrollbar-layout-paint-ownership-audit.md"
+                },
+                "region": {
+                  "startLine": 28,
+                  "endLine": 55,
+                  "snippet": {
+                    "text": "The exact boundary is hybrid and source-owned:\n\n1. **Capture structured geometry for every scrollbar route.** Preserve the\n   actual horizontal/vertical scrollbar objects, overlay classification, used\n   width, frame and part rectangles, logical-side placement, current/visible/\n   total ranges, scroll-corner rectangle, opacity/visibility, dynamic state,\n   used color scheme, paint phase, overflow-controls clip, and applicable\n   transform. Do not recreate those facts from `scrollWidth/clientWidth`.\n2. **Keep author scrollbar parts vector when supported.** A custom scrollbar\n   is non-overlay in Blink's custom theme. Its scrollbar background, buttons,\n   track pieces, thumb, and corner are anonymous style-bearing layout objects.\n   Capture Chromium's final pseudo styles and source rectangles, then pass the\n   same ordinary background/border/radius/shadow paint machinery used by other\n   CSS boxes. An unsupported effect may raster only its owning part.\n3. **Freeze stock native chrome as a narrow precomposited raster.** Native\n   macOS appearance depends on the OS scroller animator and native theme;\n   Aura/Fluent depends on feature flags, the native theme engine, platform\n   sizes, color provider, hover/minimal state, and scheme; Windows literally\n   sends UXTheme/GDI output through an offscreen bitmap before Skia composites\n   it. A capture made on one platform must preserve that platform's live strip\n   pixels, including current overlay alpha. A generated 7 px black pill is not\n   a portable substitute.\n4. **Preserve the vector document around that raster.** Crop only the live\n   overflow-control frame rectangles/corner after the page reaches the chosen\n   capture frame. The crop is intentionally precomposited when an overlay thumb\n   is translucent. Place it in output/viewport coordinates at Blink's recorded\n   overflow-control phase and clip, without reapplying the element transform.\n   Siblings and scrolled content remain vector."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 5363
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/native-scrollbar-ownership-audit.ts"
+                },
+                "region": {
+                  "startLine": 611
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2368"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "04f6fbce75d91c05a63e0c27020280cf"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3m26ke58x12jfw",
+          "message": {
+            "text": "The focused browser matrix independently catches missing and invented chrome. Live Chromium moved the authored vertical thumb from y=33 to 70 to 109 at top/mid/max, placed RTL chrome at x=40 instead of LTR x=172, scaled both-axis marker bounds exactly at DPR 2, and painted no width:none pixels while the current SVG emitted two legacy pills. These controls prevent a large-canvas score or one host palette from hiding wrong activation/geometry.",
+            "markdown": "The focused browser matrix independently catches missing and invented chrome. Live Chromium moved the authored vertical thumb from y=33 to 70 to 109 at top/mid/max, placed RTL chrome at x=40 instead of LTR x=172, scaled both-axis marker bounds exactly at DPR 2, and painted no width:none pixels while the current SVG emitted two legacy pills. These controls prevent a large-canvas score or one host palette from hiding wrong activation/geometry."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/165-native-scrollbar-layout-paint-ownership-audit.md"
+                },
+                "region": {
+                  "startLine": 424,
+                  "endLine": 429,
+                  "snippet": {
+                    "text": "The strict gate should compare author marker bounds within one device pixel and\nnative strip pixels exactly or under a reviewed platform-specific raster\nenvelope. It must also mutate every activation to its nearest negative, assert\nthat `--hide-scrollbars` causes the expected explicit no-ink state, reject a\nmissing platform fingerprint, reject any native raster crop outside its\nsource-owned frame, and reject any emitted legacy 7 px synthesized thumb."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/native-scrollbar-ownership-audit.ts"
+                },
+                "region": {
+                  "startLine": 673
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2368"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "19466e9f8dacc96c67f067aebdca6c62"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "9f2d058ec77bfce4240a20aa2b8bbd84ff2e05c4",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

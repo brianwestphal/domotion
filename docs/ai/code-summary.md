@@ -419,6 +419,23 @@ shortest possible map:
   owns the exact record and boundary. DM-2477/2478/2479 plus existing DM-2365
   implement it; DM-2480 promotes the observational probe to an all-platform
   DPR gate.
+- **Native scrollbar ownership audit (DM-2368, design-only)** —
+  `tools/native-scrollbar-ownership-audit.ts`
+  (`npm run scrollbars:ownership-audit`) disables Playwright's normally
+  injected `--hide-scrollbars`, records the active platform fingerprint, and
+  compares loud custom track/thumb/corner pixels through the real
+  capture-to-SVG route at DPR 1/2. Negative rows cover visible/hidden/clip,
+  auto without overflow, and `scrollbar-width:none`; positive rows cover
+  always-on/custom axes, top/mid/max, RTL logical-left, vertical writing,
+  borders/ancestor clipping, zoom, standard colors, schemes, and gutters.
+  Pinned Blink proves geometry/phase are structured capture facts, custom
+  WebKit parts are anonymous CSS/ObjectPainter boxes and vector-eligible, and
+  stock native paint is platform-owned. Windows UXTheme/GDI already crosses an
+  offscreen `SkBitmap`; macOS and Aura/Fluent depend on native animator/theme
+  state. [Doc 165](../165-native-scrollbar-layout-paint-ownership-audit.md)
+  defines narrow precomposited stock strips, custom-vector lowering, explicit
+  absence, and the dependency-ordered DM-2481/2482/2483 implementation plus
+  DM-2484 all-platform gate.
 
 ## Upstream source is checked out locally — read it
 

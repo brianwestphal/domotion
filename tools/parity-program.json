@@ -101,6 +101,18 @@
       "nextAction": "Implement capture facts in DM-2477, exact tile geometry in DM-2478, attachment spaces in DM-2479, and existing fragment continuation DM-2365; then promote every row to an all-platform DPR gate in DM-2480."
     },
     {
+      "id": "native-scrollbar-layout-paint-ownership",
+      "domotionSources": ["src/capture/script/index.ts", "src/capture/pseudo-style-cdp.ts", "src/capture/types.ts", "src/render/element-tree-to-svg.ts"],
+      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/paint/paint_layer_scrollable_area.cc", "external/chromium/third_party/blink/renderer/core/paint/scrollable_area_painter.cc", "external/chromium/third_party/blink/renderer/core/scroll", "external/chromium", "external/skia/src/core/SkCanvas.cpp"],
+      "oracle": "tools/native-scrollbar-ownership-audit.ts",
+      "sourceAudit": "audited",
+      "oracleStatus": "visual-only",
+      "generatedCoverage": "23 live Chromium-vs-generated-SVG rows at DPR 1/2 covering visible/hidden/clip/auto negatives, width:none false-positive activation, custom overflow:scroll without overflow, vertical top/mid/max, horizontal and both-axis/corner parts, RTL logical-left, vertical writing, asymmetric border plus ancestor clip, CSS zoom, native light/dark fingerprints, standard width/color, and stable both-edges; the launcher explicitly removes Playwright's default --hide-scrollbars blind spot",
+      "platformCoverage": ["darwin"],
+      "knownGap": "The audit deliberately observes current defects. Capture lacks authoritative existence/frame/part/state/phase/clip/theme/raster facts; render still emits a hard-coded 7px right/bottom thumb from positive offsets, misses every author part, and is not portable across native themes. Pinned macOS, Aura/Fluent, and Windows source defines the platform boundary, but focused Linux/Windows artifacts are not yet persisted.",
+      "nextAction": "Implement authoritative geometry/state capture in DM-2481, custom-part vector paint in DM-2482, and stock-native narrow rasters in DM-2483; then promote this oracle on native macOS/Linux/Windows at DPR 1/2 and delete legacy synthesis in DM-2484."
+    },
+    {
       "id": "transforms-projection-reflection",
       "domotionSources": ["src/capture", "src/render/element-tree-to-svg.ts"],
       "upstreamSources": ["external/chromium/third_party/blink/renderer/core/layout", "external/chromium/third_party/blink/renderer/core/paint", "external/chromium/third_party/blink/renderer/platform/fonts/shaping", "external/harfbuzz/src", "external/skia/src/core"],

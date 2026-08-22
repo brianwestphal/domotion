@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex dm2419_max",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3m1pnmpxt64q9h",
+          "message": {
+            "text": "The oracle must remove Playwright’s default scrollbar suppression or every paint row becomes a false negative. The initial controlled run with the default intact observed zero custom marker pixels even though Chromium reserved the authored 16px/14px gutters; removing only --hide-scrollbars exposed 3,608 source marker pixels in the both-axis row while the generated SVG remained at zero.",
+            "markdown": "The oracle must remove Playwright’s default scrollbar suppression or every paint row becomes a false negative. The initial controlled run with the default intact observed zero custom marker pixels even though Chromium reserved the authored 16px/14px gutters; removing only --hide-scrollbars exposed 3,608 source marker pixels in the both-axis row while the generated SVG remained at zero."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/native-scrollbar-ownership-audit.ts"
+                },
+                "region": {
+                  "startLine": 611,
+                  "endLine": 613,
+                  "snippet": {
+                    "text": "  // Playwright normally adds `--hide-scrollbars`, which would turn every\n  // screenshot into a false negative for the exact thing this probe audits.\n  const browser = await chromium.launch({ headless: true, ignoreDefaultArgs: [\"--hide-scrollbars\"] });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/165-native-scrollbar-layout-paint-ownership-audit.md"
+                },
+                "region": {
+                  "startLine": 324
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2368"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ab4584b7b68c51b6458e6ae1bfb01f5e"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "9f2d058ec77bfce4240a20aa2b8bbd84ff2e05c4",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

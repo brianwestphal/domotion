@@ -26,7 +26,13 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 - [x] float + clear (text wraps correctly around floats via per-line capture)
 - [x] box-sizing, margin, padding, width/height, min/max
 - [x] overflow: hidden/scroll/auto/clip (children clipped to padding box); rounded `overflow-clip-margin` follows Blink's pixel-snapped reference-box outsets and coverage-corrected contour (DM-2419)
-- [~] overflow: scroll/auto — content is clipped but native scrollbar chrome is not yet emulated (tracked SK-468)
+- [~] overflow: scroll/auto — content clipping is retained, but scrollbar
+  chrome is still a 7 px offset-triggered synthesis. It does not preserve
+  Blink's existence/axis/phase/geometry, author custom parts, or the live
+  platform theme; the exact custom-vector / stock-native-raster contract and
+  strict controls are in
+  [doc 165](165-native-scrollbar-layout-paint-ownership-audit.md) (DM-2368;
+  legacy tracker SK-468).
 - [x] CSS resize controls — Blink's exact scroll-container/iframe activation,
   logical-left placement, pixel-snapped corner size, platform dark/light grip,
   scrollbar-only frame, and author `::-webkit-resizer` background/gradient/
