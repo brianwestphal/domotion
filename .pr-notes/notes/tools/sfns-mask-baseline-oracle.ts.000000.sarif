@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3zbo7cf69i5sh9",
+          "message": {
+            "text": "The browser source is made provable without replacing Domotion's production SFNS route. Chromium receives a routed copy of the exact file bytes and must identify it as a custom face; the cloned capture changes only its family lookup back to system-ui, whose provenance must resolve to the same on-disk path and SHA. This avoids the system-ui CDP ambiguity that left the opsz=26 browser image inert during an earlier probe, while retaining captured metrics, transforms, and quarter-pixel origins. Two distinct font URLs/pages and two cache-cleared Domotion runs make the cold/warm assertions meaningful; the classifier (0) refuses mismatched provenance, and the design record (1) documents the boundary.",
+            "markdown": "The browser source is made provable without replacing Domotion's production SFNS route. Chromium receives a routed copy of the exact file bytes and must identify it as a custom face; the cloned capture changes only its family lookup back to system-ui, whose provenance must resolve to the same on-disk path and SHA. This avoids the system-ui CDP ambiguity that left the opsz=26 browser image inert during an earlier probe, while retaining captured metrics, transforms, and quarter-pixel origins. Two distinct font URLs/pages and two cache-cleared Domotion runs make the cold/warm assertions meaningful; [the classifier](0) refuses mismatched provenance, and [the design record](1) documents the boundary."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/sfns-mask-baseline-oracle.ts"
+                },
+                "region": {
+                  "startLine": 393,
+                  "endLine": 532,
+                  "snippet": {
+                    "text": "const fontBytes = readFileSync(FONT_PATH);\nconst fontSha256 = sha256(fontBytes);\nconst swiftSource = new URL(\"./sfns-mask-baseline.swift\", import.meta.url).pathname;\nconst buildDirectory = mkdtempSync(join(tmpdir(), \"domotion-sfns-mask-\"));\nconst nativeBinary = join(buildDirectory, \"sfns-mask-baseline\");\nexecFileSync(\"swiftc\", [\"-O\", swiftSource, \"-o\", nativeBinary], { stdio: \"inherit\" });\n\nconst browser = await launchChromium();\nconst context = await browser.newContext({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: 1 });\nawait context.route(`${BROWSER_FONT_ORIGIN}/**`, (route) => route.fulfill({\n  status: 200, contentType: \"font/ttf\", body: fontBytes,\n}));\nconst page = await context.newPage();\nconst lifecyclePage = await context.newPage();\nconst rasterPage = await context.newPage();\nconst comparePage = await context.newPage();\nconst cdp = await context.newCDPSession(page);\nawait cdp.send(\"DOM.enable\");\nawait cdp.send(\"CSS.enable\");\nsetRenderTextMode(\"paths\");\nsetTextRunProvenanceEnabled(true);\n\nconst pending: PendingRow[] = [];\ntry {\n  for (const scenario of scenarios) {\n    const primaryFontUrl = `${BROWSER_FONT_ORIGIN}/${scenario.id}-cold-a.ttf`;\n    await page.setContent(scenarioHtml(scenario, primaryFontUrl), { waitUntil: \"load\" });\n    await page.evaluate(() => document.fonts.ready);\n    const expectedPath = join(outputDirectory, `${scenario.id}-chromium.png`);\n    const chromiumColdA = await page.screenshot({\n      path: expectedPath, clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT },\n    });\n    const chromiumWarmA = await page.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } });\n\n    const secondFontUrl = `${BROWSER_FONT_ORIGIN}/${scenario.id}-cold-b.ttf`;\n    await lifecyclePage.setContent(scenarioHtml(scenario, secondFontUrl), { waitUntil: \"load\" });\n    await lifecyclePage.evaluate(() => document.fonts.ready);\n    const chromiumColdB = await lifecyclePage.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } });\n    const chromiumWarmB = await lifecyclePage.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } });\n\n    const cssom = await page.evaluate(() => {\n      const element = document.querySelector<HTMLElement>(\"#target\")!;\n      const style = getComputedStyle(element);\n      const range = document.createRange(); range.selectNodeContents(element);\n      const rangeRect = range.getBoundingClientRect();\n      let zoom = 1; let transform = 1;\n      for (let node: Element | null = element; node != null; node = node.parentElement) {\n        const current = getComputedStyle(node);\n        const currentZoom = Number.parseFloat(current.zoom);\n        if (Number.isFinite(currentZoom) && currentZoom > 0) zoom *= currentZoom;\n        if (current.transform !== \"none\") {\n          const matrix = new DOMMatrix(current.transform);\n          transform *= Math.sqrt(Math.abs(matrix.a * matrix.d));\n        }\n      }\n      const logicalSize = Number.parseFloat(style.fontSize);\n      const computedSize = logicalSize * zoom;\n      const paintSize = computedSize * transform;\n      const canvas = document.createElement(\"canvas\").getContext(\"2d\")!;\n      canvas.font = `${style.fontStyle} ${style.fontWeight} ${computedSize}px ${style.fontFamily}`;\n      const measured = canvas.measureText(element.textContent ?? \"\");\n      const chromiumAxes: Record<string, number> = {};\n      for (const match of style.fontVariationSettings.matchAll(/\"([^\"\\n]{4})\"\\s+(-?(?:\\d+(?:\\.\\d*)?|\\.\\d+))/g)) {\n        chromiumAxes[match[1]] = Number(match[2]);\n      }\n      return {\n        rangeTop: rangeRect.top,\n        logicalSize, computedSize, paintSize,\n        canvasAscent: measured.fontBoundingBoxAscent * transform,\n        canvasDescent: measured.fontBoundingBoxDescent * transform,\n        chromiumAxes,\n      };\n    });\n\n    const documentNode = await cdp.send(\"DOM.getDocument\", { depth: -1 });\n    const targetDom = await cdp.send(\"DOM.querySelector\", { nodeId: documentNode.root.nodeId, selector: \"#target\" });\n    const platformFonts = await cdp.send(\"CSS.getPlatformFontsForNode\", { nodeId: targetDom.nodeId });\n    const chromiumPostscriptName = platformFonts.fonts[0]?.postScriptName ?? \"\";\n    const chromiumCustomFont = platformFonts.fonts[0]?.isCustomFont ?? false;\n    if (chromiumPostscriptName === \"\") throw new Error(`Chromium platform face missing for ${scenario.id}`);\n    if (!chromiumCustomFont) throw new Error(`Chromium did not paint routed SFNS bytes for ${scenario.id}`);\n\n    const capturedTree = await captureElementTree(page, \"body\", { x: 0, y: 0, width: WIDTH, height: HEIGHT });\n    const capturedTarget = findText(capturedTree);\n    const segment = capturedTarget.textSegments?.find((candidate) => candidate.text === TEXT);\n    const rawOrigins = segment?.xOffsets;\n    if (rawOrigins == null || rawOrigins.length !== TEXT.length) {\n      throw new Error(`captured origins missing for ${scenario.id}`);\n    }\n    const quarterOrigins = rawOrigins.map(quantizeQuarter);\n    const routedTree = cloneTree(capturedTree);\n    const routedTarget = findText(routedTree);\n    routeDomotionSystemFace(routedTarget);\n    routeQuarterOrigins(routedTarget, quarterOrigins);\n\n    const coldSvgPath = join(outputDirectory, `${scenario.id}-domotion.svg`);\n    const coldA = await renderDomotion(routedTree, scenario.id, coldSvgPath, true);\n    const warmA = await renderDomotion(routedTree, scenario.id, join(outputDirectory, `${scenario.id}-domotion-warm-a.svg`), false);\n    const coldB = await renderDomotion(routedTree, scenario.id, join(outputDirectory, `${scenario.id}-domotion-cold-b.svg`), true);\n    const warmB = await renderDomotion(routedTree, scenario.id, join(outputDirectory, `${scenario.id}-domotion-warm-b.svg`), false);\n    const placement = svgPlacement(coldA.svg);\n    const coldPngPath = join(outputDirectory, `${scenario.id}-domotion.png`);\n    await rasterSvg(rasterPage, coldA.svg, coldPngPath);\n    pending.push({\n      scenario, expectedPath, target: routedTarget,\n      rawOrigins: [...rawOrigins], quarterOrigins,\n      cssom: { ...cssom, chromiumAxes: cssom.chromiumAxes as Partial<SfnsAxes> },\n      chromiumPostscriptName, chromiumCustomFont,\n      chromiumLifecycle: {\n        coldSha256: [sha256(chromiumColdA), sha256(chromiumColdB)],\n        warmSha256: [sha256(chromiumWarmA), sha256(chromiumWarmB)],\n      },\n      domotion: {\n        coldSvg: coldA.svg,\n        coldSha256: [sha256(coldA.svg), sha256(coldB.svg)],\n        warmSha256: [sha256(warmA.svg), sha256(warmB.svg)],\n        coldSvgPath, coldPngPath,\n        provenance: coldA.provenance,\n        emittedOriginsRaw: placement.origins,\n        emittedBaseline: placement.baseline,\n        emittedScale: placement.scale,\n      },\n    });\n  }\n\n  const nativeInputPath = join(outputDirectory, \"native-input.json\");\n  const nativeSamples = pending.map((row) => ({\n    id: row.scenario.id,\n    text: TEXT,\n    pointSize: row.cssom.paintSize,\n    width: WIDTH,\n    height: HEIGHT,\n    axes: row.scenario.axes,\n    glyphIds: row.domotion.provenance.glyphs.map((glyph) => glyph.id),\n    positions: row.quarterOrigins.map((x) => ({ x, baselineY: row.domotion.emittedBaseline })),\n  }));\n  writeFileSync(nativeInputPath, JSON.stringify({ fontPath: FONT_PATH, repeatCount: 1, samples: nativeSamples }));\n  const coldA = runNative(nativeBinary, nativeInputPath, join(outputDirectory, \"native-cold-a\"));\n  const coldB = runNative(nativeBinary, nativeInputPath, join(outputDirectory, \"native-cold-b\"));\n  writeFileSync(nativeInputPath, JSON.stringify({ fontPath: FONT_PATH, repeatCount: 2, samples: nativeSamples }));"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/sfns-mask-baseline-schema.ts"
+                },
+                "region": {
+                  "startLine": 202
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/168-sfns-mask-baseline-oracle.md"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2452"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "55fda8c820466ec7e1aab3de5a47160f"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "warning",
+          "guid": "mt3zbolvpf9re095",
+          "message": {
+            "text": "Coverage and baseline attribution are deliberately two different measurements. Every comparison retains fixed-position coverage, centroid, and a bounded integer-y fit; representation closeness uses only the fitted value, while the path/native stage classification uses same-baseline cross-arm comparisons. This prevents a one-pixel y move from masquerading as a mask result. Direct CoreText composition still does not claim every later Skia gamma/preblend/compositor detail; classification (0) remains diagnostic-only and the documented follow-up boundary (1) preserves that limitation.",
+            "markdown": "Coverage and baseline attribution are deliberately two different measurements. Every comparison retains fixed-position coverage, centroid, and a bounded integer-y fit; representation closeness uses only the fitted value, while the path/native stage classification uses same-baseline cross-arm comparisons. This prevents a one-pixel y move from masquerading as a mask result. Direct CoreText composition still does not claim every later Skia gamma/preblend/compositor detail; [classification](0) remains diagnostic-only and [the documented follow-up boundary](1) preserves that limitation."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/sfns-mask-baseline-oracle.ts"
+                },
+                "region": {
+                  "startLine": 290,
+                  "endLine": 357,
+                  "snippet": {
+                    "text": "async function compareCoverage(page: Page, aPath: string, bPath: string): Promise<CoverageDiff> {\n  const [a, b] = [aPath, bPath].map((path) => `data:image/png;base64,${readFileSync(path).toString(\"base64\")}`);\n  // tsx/esbuild annotates nested functions with its module-scope `__name`\n  // helper. `page.evaluate` serializes only this callback, so provide the\n  // no-op helper explicitly inside the isolated browser world.\n  await page.evaluate(\"globalThis.__name = (value) => value\");\n  return page.evaluate(async ({ aUrl, bUrl, width, height }) => {\n    const load = async (url: string): Promise<HTMLImageElement> => {\n      const image = new Image();\n      image.src = url;\n      await image.decode();\n      return image;\n    };\n    const coverage = async (url: string): Promise<number[]> => {\n      const canvas = document.createElement(\"canvas\");\n      canvas.width = width; canvas.height = height;\n      const context = canvas.getContext(\"2d\", { willReadFrequently: true })!;\n      context.drawImage(await load(url), 0, 0, width, height);\n      const rgba = context.getImageData(0, 0, width, height).data;\n      const result = new Array<number>(width * height);\n      for (let i = 0; i < result.length; i++) {\n        result[i] = Math.max(rgba[i * 4], rgba[i * 4 + 1], rgba[i * 4 + 2]);\n      }\n      return result;\n    };\n    const [aa, bb] = await Promise.all([coverage(aUrl), coverage(bUrl)]);\n    const score = (offsetY: number) => {\n      let absolute = 0;\n      let changed = 0;\n      let max = 0;\n      for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {\n        const by = y - offsetY;\n        const bv = by < 0 || by >= height ? 0 : bb[by * width + x];\n        const delta = Math.abs(aa[y * width + x] - bv);\n        absolute += delta;\n        if (delta > 0) changed++;\n        max = Math.max(max, delta);\n      }\n      return { mean: absolute / (width * height * 255), changed, max: max / 255 };\n    };\n    const centroid = (pixels: number[]) => {\n      let mass = 0; let yMass = 0; let ink = 0;\n      for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {\n        const value = pixels[y * width + x];\n        if (value > 0) ink++;\n        mass += value; yMass += value * y;\n      }\n      return { ink, y: mass === 0 ? null : yMass / mass };\n    };\n    const fixed = score(0);\n    const candidates = [-2, -1, 0, 1, 2].map((offsetY) => ({ offsetY, ...score(offsetY) }));\n    candidates.sort((left, right) => left.mean - right.mean || Math.abs(left.offsetY) - Math.abs(right.offsetY));\n    const ca = centroid(aa); const cb = centroid(bb);\n    return {\n      changedPixels: fixed.changed,\n      meanAbsoluteCoverage: fixed.mean,\n      maxAbsoluteCoverage: fixed.max,\n      inkPixelsA: ca.ink,\n      inkPixelsB: cb.ink,\n      centroidYA: ca.y,\n      centroidYB: cb.y,\n      fixedYOffset: 0 as const,\n      bestIntegerYOffset: candidates[0].offsetY,\n      bestMeanAbsoluteCoverage: candidates[0].mean,\n    };\n  }, { aUrl: a, bUrl: b, width: WIDTH, height: HEIGHT });\n}\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "risk"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/sfns-mask-baseline-schema.ts"
+                },
+                "region": {
+                  "startLine": 223
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/168-sfns-mask-baseline-oracle.md"
+                },
+                "region": {
+                  "startLine": 147
+                }
+              }
+            }
+          ],
+          "rank": 88,
+          "workItemUris": [
+            "DM-2452"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ec8e1fb09f7225aa02fc1db7011c9840"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c8cdcaba01d510b0ad292f4e90c0fdce749d264e",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

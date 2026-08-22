@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3z9rmpz0p8255l",
+          "message": {
+            "text": "The native arm mirrors the pinned CoreText handoff instead of using a convenient font-name lookup or ordinary outline. It opens the physical SFNS.ttf bytes, applies and reports the complete axis dictionary, independently checks cmap gids, draws the supplied positions with CTFontDrawGlyphs, and reproduces Skia's axis-aligned 4x-x/quarter-x path rule. The upstream variation construction is linked at SkTypeface (0), and the subpixel path branch at SkScalerContext (1). Native typographic metrics are emitted separately from both paint arms.",
+            "markdown": "The native arm mirrors the pinned CoreText handoff instead of using a convenient font-name lookup or ordinary outline. It opens the physical SFNS.ttf bytes, applies and reports the complete axis dictionary, independently checks cmap gids, draws the supplied positions with CTFontDrawGlyphs, and reproduces Skia's axis-aligned 4x-x/quarter-x path rule. The upstream variation construction is linked at [SkTypeface](0), and the subpixel path branch at [SkScalerContext](1). Native typographic metrics are emitted separately from both paint arms."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/sfns-mask-baseline.swift"
+                },
+                "region": {
+                  "startLine": 159,
+                  "endLine": 283,
+                  "snippet": {
+                    "text": "func openFont(path: String, pointSize: CGFloat, axes requested: [String: Double]) throws -> CTFont {\n    let url = URL(fileURLWithPath: path) as CFURL\n    guard let provider = CGDataProvider(url: url), let graphics = CGFont(provider) else {\n        throw OracleError.font(\"could not open physical font bytes at \\(path)\")\n    }\n    let base = CTFontCreateWithGraphicsFont(graphics, pointSize, nil, nil)\n    var variations: [CFNumber: CFNumber] = [:]\n    for (tag, value) in requested {\n        let identifier = fourCharTag(tag)\n        guard identifier != 0 else { throw OracleError.input(\"invalid axis tag \\(tag)\") }\n        variations[NSNumber(value: identifier) as CFNumber] = NSNumber(value: value) as CFNumber\n    }\n    let attributes = [kCTFontVariationAttribute: variations as CFDictionary] as CFDictionary\n    let descriptor = CTFontDescriptorCreateWithAttributes(attributes)\n    return CTFontCreateCopyWithAttributes(base, pointSize, nil, descriptor)\n}\n\nfunc fullAxisState(_ font: CTFont) -> [String: Double] {\n    var values: [String: Double] = [:]\n    if let axes = CTFontCopyVariationAxes(font) as? [[String: Any]] {\n        for axis in axes {\n            guard let identifier = (axis[kCTFontVariationAxisIdentifierKey as String] as? NSNumber)?.uint32Value,\n                  let defaultValue = (axis[kCTFontVariationAxisDefaultValueKey as String] as? NSNumber)?.doubleValue\n            else { continue }\n            values[tagString(identifier)] = defaultValue\n        }\n    }\n    if let current = CTFontCopyVariation(font) as? [NSNumber: NSNumber] {\n        for (identifier, value) in current {\n            values[tagString(identifier.uint32Value)] = value.doubleValue\n        }\n    }\n    return values\n}\n\nfunc mappedGlyphs(_ text: String, font: CTFont) -> [UInt16] {\n    let units = Array(text.utf16)\n    var characters = units\n    var glyphs = Array(repeating: CGGlyph(0), count: units.count)\n    _ = CTFontGetGlyphsForCharacters(font, &characters, &glyphs, glyphs.count)\n    return glyphs.map { UInt16($0) }\n}\n\nfunc glyphPathOutputs(_ glyphIds: [UInt16], font: CTFont) -> [GlyphPathOutput] {\n    glyphIds.map { value in\n        var glyph = CGGlyph(value)\n        var advance = CGSize.zero\n        _ = CTFontGetAdvancesForGlyphs(font, .horizontal, &glyph, &advance, 1)\n        let bounds = CTFontGetBoundingRectsForGlyphs(font, .horizontal, &glyph, nil, 1)\n        // `SkScalerContext_Mac::generatePath` does not ask CoreText for the\n        // ordinary point-size path when subpixel positioning is active. At an\n        // axis-aligned horizontal baseline it requests the path at 4x in X,\n        // preserving Y hinting, then scales X back (`kScaleForSubPixelPositionHinting`,\n        // Skia 62efacd3, SkScalerContext_mac_ct.cpp:621-675). Mirror that exact\n        // discriminator instead of treating a plain CoreText path as Skia's.\n        var hintingScale = CGAffineTransform(scaleX: 4, y: 1)\n        guard let hintedPath = CTFontCreatePathForGlyph(font, glyph, &hintingScale) else {\n            return GlyphPathOutput(gid: value, svgPath: \"\", commandCount: 0,\n                                   bounds: RectOutput(bounds), advance: advance.width)\n        }\n        var inverseScale = CGAffineTransform(scaleX: 0.25, y: 1)\n        guard let path = hintedPath.copy(using: &inverseScale) else {\n            return GlyphPathOutput(gid: value, svgPath: \"\", commandCount: 0,\n                                   bounds: RectOutput(bounds), advance: advance.width)\n        }\n        let serialized = svgPath(path)\n        return GlyphPathOutput(gid: value, svgPath: serialized.0,\n                               commandCount: serialized.1,\n                               bounds: RectOutput(bounds), advance: advance.width)\n    }\n}\n\nfunc writeMask(font: CTFont, glyphIds: [UInt16], positions: [PointInput],\n               width: Int, height: Int, output: URL) throws {\n    guard glyphIds.count == positions.count else {\n        throw OracleError.input(\"glyph/position length mismatch\")\n    }\n    let space = CGColorSpaceCreateDeviceRGB()\n    guard let context = CGContext(data: nil, width: width, height: height,\n                                  bitsPerComponent: 8, bytesPerRow: width * 4,\n                                  space: space,\n                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)\n    else { throw OracleError.bitmap(\"could not create CoreGraphics bitmap\") }\n\n    context.setFillColor(CGColor(red: 0, green: 0, blue: 0, alpha: 1))\n    context.fill(CGRect(x: 0, y: 0, width: width, height: height))\n    context.setAllowsFontSubpixelQuantization(false)\n    context.setShouldSubpixelQuantizeFonts(false)\n    context.setAllowsFontSubpixelPositioning(true)\n    context.setShouldSubpixelPositionFonts(true)\n    context.setShouldAntialias(true)\n    context.setShouldSmoothFonts(true)\n    context.setTextDrawingMode(.fill)\n    context.textMatrix = .identity\n    context.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))\n\n    let glyphs = glyphIds.map { CGGlyph($0) }\n    let nativePositions = positions.map { CGPoint(x: $0.x, y: Double(height) - $0.baselineY) }\n    glyphs.withUnsafeBufferPointer { glyphBuffer in\n        nativePositions.withUnsafeBufferPointer { positionBuffer in\n            if let glyphBase = glyphBuffer.baseAddress, let positionBase = positionBuffer.baseAddress {\n                CTFontDrawGlyphs(font, glyphBase, positionBase, glyphs.count, context)\n            }\n        }\n    }\n    guard let image = context.makeImage(),\n          let destination = CGImageDestinationCreateWithURL(\n            output as CFURL, UTType.png.identifier as CFString, 1, nil)\n    else { throw OracleError.output(\"could not create PNG destination \\(output.path)\") }\n    CGImageDestinationAddImage(destination, image, nil)\n    guard CGImageDestinationFinalize(destination) else {\n        throw OracleError.output(\"could not finalize PNG \\(output.path)\")\n    }\n}\n\nfunc metrics(_ font: CTFont) -> MetricsOutput {\n    MetricsOutput(\n        pointSize: CTFontGetSize(font),\n        unitsPerEm: CTFontGetUnitsPerEm(font),\n        ascent: CTFontGetAscent(font),\n        descent: CTFontGetDescent(font),\n        leading: CTFontGetLeading(font),\n        capHeight: CTFontGetCapHeight(font),\n        xHeight: CTFontGetXHeight(font),\n        boundingBox: RectOutput(CTFontGetBoundingBox(font))"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/skia/src/ports/SkTypeface_mac_ct.cpp"
+                },
+                "region": {
+                  "startLine": 1075
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/skia/src/ports/SkScalerContext_mac_ct.cpp"
+                },
+                "region": {
+                  "startLine": 621
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2452"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "717bf902d3b0b17a00cdb0ce5324124f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c8cdcaba01d510b0ad292f4e90c0fdce749d264e",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

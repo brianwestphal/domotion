@@ -1518,6 +1518,21 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   boxes; they never fall back to a primary-face ascent merely because the
   selected physical face is helper-backed.
 
+<!-- DM-2452 -->
+- The macOS SFNS mask/baseline oracle (doc 168) is diagnostic-only. It routes
+  the exact `SFNS.ttf` bytes through Chromium, fixes
+  `wdth=100, opsz=17, GRAD=400, wght=700`, and requires Chromium CSS,
+  CoreText's actual axes, Domotion provenance, gids, cmap mapping, and captured
+  quarter-pixel origins to agree before comparing direct `CTFontDrawGlyphs`,
+  pinned-Skia `CTFontCreatePathForGlyph`, and production Domotion path rasters.
+  Two cold and two warm observations per stage must be stable; an `opsz=26`
+  mutation must move every representation. Native metrics and best integer
+  baseline fits are independent of fixed-position coverage. Current evidence
+  finds a sub-0.017px CoreText-path/Domotion coordinate delta, native-mask-like
+  dominance in four rows, a distinct zoom/transform-cancellation boundary,
+  and no one-pixel y correction. None of those observations defines a visual
+  tolerance or authorizes a renderer change.
+
 <!-- Animated viewBox culling source audit, implementation, and oracle -->
 - Animated viewBox culling's composed-timeline path is implemented (doc 155):
   matching translate/scale/2D-rotate functions interpolate before composition

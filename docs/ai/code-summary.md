@@ -40,6 +40,12 @@ those oracles and emitted glyphs.
 `src/render/text-run-provenance.ts` and
 `tools/renderer-font-route-oracle.ts` close that seam for representative
 production runs without adding overhead unless explicitly enabled (doc 143).
+`tools/sfns-mask-baseline-oracle.ts` plus its Swift helper form the diagnostic
+macOS SFNS stage split (doc 168): exact bytes, four explicit axes, gids, and
+quarter-pixel origins cross Chromium, direct CoreText mask, pinned-Skia
+CoreText path, and production Domotion path arms, while baseline/typographic
+metrics and cold/warm evidence remain separate. It authorizes no renderer or
+tolerance change.
 
 The same orientation lives in `CLAUDE.md` "Code Organization" but the
 shortest possible map:

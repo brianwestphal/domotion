@@ -105,6 +105,7 @@
     "replaced:geometry-oracle": "tsx tools/replaced-geometry-oracle.ts",
     "raster:boundary-oracle": "tsx tools/raster-boundary-oracle.ts",
     "fonts:macos-terminal-raster": "tsx tools/macos-terminal-raster-oracle.ts",
+    "fonts:sfns-mask-baseline": "npm run build:capture-script && tsx tools/sfns-mask-baseline-oracle.ts",
     "stage:evidence:collect": "tsx tools/collect-stage-evidence.ts",
     "stage:evidence:build": "tsx tools/build-stage-evidence.ts",
     "stage:evidence:compare-roll": "tsx tools/compare-roll-evidence.ts",
