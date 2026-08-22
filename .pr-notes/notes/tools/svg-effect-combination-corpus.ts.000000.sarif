@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex dm2452",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4yptficp78daog",
+          "message": {
+            "text": "Use deterministic pairwise generation instead of a hand-picked list or the exponential Cartesian product. The 24 emitted rows cover all 953 value pairs across 18 source-owned SVG effect axes; validation reruns the generator, rejects missing pairs, and preserves higher-order combinations as an explicit boundary rather than implying exhaustive parity.",
+            "markdown": "Use deterministic pairwise generation instead of a hand-picked list or the exponential Cartesian product. The 24 emitted rows cover all 953 value pairs across 18 source-owned SVG effect axes; validation reruns the generator, rejects missing pairs, and preserves higher-order combinations as an explicit boundary rather than implying exhaustive parity."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/svg-effect-combination-corpus.ts"
+                },
+                "region": {
+                  "startLine": 22,
+                  "endLine": 139,
+                  "snippet": {
+                    "text": "export const SVG_EFFECT_DIMENSIONS = [\n  { name: \"shape\", values: [\"rect\", \"circle\", \"path\"] },\n  { name: \"gradientKind\", values: [\"linear\", \"radial\"] },\n  { name: \"gradientUnits\", values: [\"objectBoundingBox\", \"userSpaceOnUse\"] },\n  { name: \"gradientInterpolation\", values: [\"sRGB\", \"linearRGB\"] },\n  { name: \"clipRoute\", values: [\"basic-circle\", \"basic-inset\", \"url\"] },\n  { name: \"clipPathUnits\", values: [\"objectBoundingBox\", \"userSpaceOnUse\"] },\n  { name: \"referenceBox\", values: [\"fill-box\", \"stroke-box\", \"view-box\"] },\n  { name: \"viewport\", values: [\"root\", \"nested\"] },\n  { name: \"markers\", values: [\"none\", \"all\"] },\n  { name: \"vectorEffect\", values: [\"none\", \"non-scaling-stroke\"] },\n  { name: \"transform\", values: [\"none\", \"affine\"] },\n  { name: \"maskUnits\", values: [\"objectBoundingBox\", \"userSpaceOnUse\"] },\n  { name: \"maskContentUnits\", values: [\"objectBoundingBox\", \"userSpaceOnUse\"] },\n  { name: \"maskOrigin\", values: [\"fill-box\", \"stroke-box\", \"view-box\"] },\n  { name: \"maskClip\", values: [\"fill-box\", \"stroke-box\", \"view-box\"] },\n  { name: \"maskSize\", values: [\"auto\", \"50% 80%\", \"cover\"] },\n  { name: \"maskRepeat\", values: [\"no-repeat\", \"repeat-x\", \"space\"] },\n  { name: \"maskComposite\", values: [\"add\", \"subtract\", \"intersect\", \"exclude\"] },\n] as const;\n\nexport type SvgEffectDimension = typeof SVG_EFFECT_DIMENSIONS[number];\nexport type SvgEffectAxis = SvgEffectDimension[\"name\"];\nexport type SvgEffectValues = Record<SvgEffectAxis, string>;\n\nexport interface SvgEffectCombinationCase {\n  id: string;\n  ordinal: number;\n  values: SvgEffectValues;\n  sourceDecisions: Array<keyof typeof SVG_EFFECT_SOURCE_DECISIONS>;\n}\n\nexport interface SvgEffectPairCoverage {\n  expectedPairs: number;\n  coveredPairs: number;\n  missingPairs: string[];\n}\n\nconst pairKey = (leftIndex: number, leftValue: string, rightIndex: number, rightValue: string): string =>\n  `${leftIndex}:${leftValue}|${rightIndex}:${rightValue}`;\n\nfunction allPairKeys(): string[] {\n  const keys: string[] = [];\n  for (let left = 0; left < SVG_EFFECT_DIMENSIONS.length; left++) {\n    for (let right = left + 1; right < SVG_EFFECT_DIMENSIONS.length; right++) {\n      for (const leftValue of SVG_EFFECT_DIMENSIONS[left].values) {\n        for (const rightValue of SVG_EFFECT_DIMENSIONS[right].values) {\n          keys.push(pairKey(left, leftValue, right, rightValue));\n        }\n      }\n    }\n  }\n  return keys;\n}\n\n/**\n * Greedy, deterministic all-pairs construction. Every iteration starts with\n * the lexicographically first uncovered pair, then chooses each remaining\n * value by the number of uncovered pairs it closes against assigned axes.\n */\nexport function generateSvgEffectCombinations(): SvgEffectCombinationCase[] {\n  const uncovered = new Set(allPairKeys());\n  const rows: string[][] = [];\n  while (uncovered.size > 0) {\n    const seed = [...uncovered].sort()[0];\n    const match = /^(\\d+):([^|]+)\\|(\\d+):(.+)$/.exec(seed);\n    if (match == null) throw new Error(`invalid SVG effect pair key: ${seed}`);\n    const row: Array<string | null> = Array(SVG_EFFECT_DIMENSIONS.length).fill(null);\n    row[Number(match[1])] = match[2];\n    row[Number(match[3])] = match[4];\n\n    for (let axis = 0; axis < SVG_EFFECT_DIMENSIONS.length; axis++) {\n      if (row[axis] != null) continue;\n      let best = SVG_EFFECT_DIMENSIONS[axis].values[0] as string;\n      let bestScore = -1;\n      for (const value of SVG_EFFECT_DIMENSIONS[axis].values) {\n        let score = 0;\n        for (let other = 0; other < row.length; other++) {\n          if (row[other] == null) continue;\n          const left = Math.min(axis, other);\n          const right = Math.max(axis, other);\n          const key = axis < other\n            ? pairKey(left, value, right, row[other]!)\n            : pairKey(left, row[other]!, right, value);\n          if (uncovered.has(key)) score++;\n        }\n        if (score > bestScore) {\n          best = value;\n          bestScore = score;\n        }\n      }\n      row[axis] = best;\n    }\n\n    for (let left = 0; left < row.length; left++) {\n      for (let right = left + 1; right < row.length; right++) {\n        uncovered.delete(pairKey(left, row[left]!, right, row[right]!));\n      }\n    }\n    rows.push(row as string[]);\n  }\n\n  return rows.map((row, ordinal) => ({\n    id: `svg-effect-${String(ordinal + 1).padStart(2, \"0\")}`,\n    ordinal,\n    values: Object.fromEntries(SVG_EFFECT_DIMENSIONS.map((dimension, axis) => [dimension.name, row[axis]])) as SvgEffectValues,\n    sourceDecisions: [\n      \"gradientUnits\",\n      \"gradientInterpolation\",\n      \"effectReferenceBox\",\n      \"clipPathUnits\",\n      \"maskUnits\",\n      \"cssMaskLayers\",\n      \"markers\",\n      \"nonScalingStroke\",\n    ],\n  }));\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/svg-effect-combination-corpus.test.ts"
+                },
+                "region": {
+                  "startLine": 10
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/188-generated-svg-effect-combinations.md"
+                },
+                "region": {
+                  "startLine": 27
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2358"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "afd7d5d3a2559477c02714cf98884181"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "1e53867c9bca6e6c6bf0d5b4234cc82d1592cec3",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

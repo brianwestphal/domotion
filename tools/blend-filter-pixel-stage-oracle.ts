@@ -341,8 +341,6 @@ export interface BlendFilterProbeRow {
   mutationMaxChannelDistance: number;
   mutationKind: MutationKind;
   mutationExpectation: "moved" | "stable";
-  knownFinding: "renderer-alpha-serialization" | null;
-  knownFindingMaxChannelError: number | null;
   pass: boolean;
 }
 
@@ -354,7 +352,7 @@ export interface BlendFilterBoundaryRow {
 }
 
 export interface BlendFilterPixelStageReport {
-  schemaVersion: 1;
+  schemaVersion: 2;
   sourcePins: typeof BLEND_FILTER_SOURCE_PINS;
   producer: { chromiumVersion: string; platform: NodeJS.Platform; architecture: string };
   tolerances: { maxChannelCode: 4; mutationMinChannelDistance: 8 };
@@ -370,30 +368,8 @@ export interface BlendFilterPixelStageReport {
   boundaries: BlendFilterBoundaryRow[];
   warnings: string[];
   structuralErrors: string[];
-  findings: Array<{
-    id: "renderer-alpha-serialization";
-    sourceAlpha: 0.65;
-    emittedAlpha: 0.7;
-    affectedRows: string[];
-    source: "src/render/colors.ts::colorStr -> format.r";
-  }>;
   unexpectedFailures: string[];
-  verdict: "source-exact" | "known-source-drift" | "unexpected-drift";
-}
-
-const ALPHA_SERIALIZATION_AFFECTED = new Set([
-  ...blendModes.map((mode) => `blend.${mode}`),
-  "filter.own-source", "filter.opacity-chain", "surface.isolated",
-  "surface.nonisolated", "surface.filter-own-source", "surface.opacity-blend",
-]);
-
-export function knownAlphaSerializationError(
-  id: string,
-  rendered: Pixel,
-  serializedAlphaExpected: Pixel | null,
-): number | null {
-  if (!ALPHA_SERIALIZATION_AFFECTED.has(id) || serializedAlphaExpected == null) return null;
-  return maxDistance(rendered, serializedAlphaExpected);
+  verdict: "source-exact" | "unexpected-drift";
 }
 
 export async function runBlendFilterPixelStageOracle(
@@ -408,7 +384,6 @@ export async function runBlendFilterPixelStageOracle(
   const warnings: string[] = [];
   const fixture = blendFilterFixtureHtml();
   const expected = expectedPixels();
-  const serializedAlphaExpected = expectedPixels({ ...SOURCE, a: .7 });
   let boundaryCaptured = false;
   try {
     for (const dpr of dprs) {
@@ -485,16 +460,6 @@ export async function runBlendFilterPixelStageOracle(
           : mutationDistance <= STAGE_CHANNEL_TOLERANCE;
         const basePass = (modelError == null || modelError <= STAGE_CHANNEL_TOLERANCE)
           && renderedError <= STAGE_CHANNEL_TOLERANCE && mutationPass;
-        const knownFindingError = knownAlphaSerializationError(
-          id, renderedPixel, serializedAlphaExpected.get(id) ?? null,
-        );
-        const knownFinding = !basePass
-          && (modelError == null || modelError <= STAGE_CHANNEL_TOLERANCE)
-          && mutationPass
-          && knownFindingError != null
-          && knownFindingError <= STAGE_CHANNEL_TOLERANCE
-          ? "renderer-alpha-serialization" as const
-          : null;
         rows.push({
           id, dpr, pointCss: point, expected: expectedPixel, source: sourcePixel,
           rendered: renderedPixel, mutation: mutationPixel,
@@ -503,8 +468,6 @@ export async function runBlendFilterPixelStageOracle(
           mutationMaxChannelDistance: mutationDistance,
           mutationKind: spec.mutation,
           mutationExpectation: spec.movement,
-          knownFinding,
-          knownFindingMaxChannelError: knownFindingError,
           pass: basePass,
         });
       }
@@ -521,24 +484,14 @@ export async function runBlendFilterPixelStageOracle(
     await browser.close();
   }
   const failedRows = rows.filter((row) => !row.pass);
-  const knownAlphaRows = failedRows.filter((row) => row.knownFinding === "renderer-alpha-serialization");
   const unexpectedFailures = [
-    ...failedRows.filter((row) => row.knownFinding == null).map((row) => row.id),
+    ...failedRows.map((row) => row.id),
     ...boundaries.filter((row) => !row.pass).map((row) => row.id),
     ...structuralErrors,
   ];
-  const findings: BlendFilterPixelStageReport["findings"] = knownAlphaRows.length === 0 ? [] : [{
-    id: "renderer-alpha-serialization",
-    sourceAlpha: .65,
-    emittedAlpha: .7,
-    affectedRows: [...new Set(knownAlphaRows.map((row) => row.id))],
-    source: "src/render/colors.ts::colorStr -> format.r",
-  }];
-  const verdict = unexpectedFailures.length > 0
-    ? "unexpected-drift"
-    : failedRows.length > 0 ? "known-source-drift" : "source-exact";
+  const verdict = unexpectedFailures.length > 0 ? "unexpected-drift" : "source-exact";
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     sourcePins: BLEND_FILTER_SOURCE_PINS,
     producer: { chromiumVersion, platform: process.platform, architecture: process.arch },
     tolerances: { maxChannelCode: STAGE_CHANNEL_TOLERANCE, mutationMinChannelDistance: MUTATION_MIN_CHANNEL_DISTANCE },
@@ -551,7 +504,6 @@ export async function runBlendFilterPixelStageOracle(
     boundaries,
     warnings,
     structuralErrors,
-    findings,
     unexpectedFailures,
     verdict,
   };
@@ -562,7 +514,6 @@ async function main(): Promise<void> {
   const dprAt = args.indexOf("--dpr");
   const jsonAt = args.indexOf("--json");
   const artifactsAt = args.indexOf("--artifact-dir");
-  const acceptKnownFindings = args.includes("--accept-known-findings");
   const dprs = dprAt >= 0 ? args[dprAt + 1].split(",").map(Number).filter(Number.isFinite) : [1, 2];
   const jsonPath = jsonAt >= 0 ? args[jsonAt + 1] : undefined;
   const artifactDir = artifactsAt >= 0 ? args[artifactsAt + 1] : undefined;
@@ -570,7 +521,7 @@ async function main(): Promise<void> {
   const body = `${JSON.stringify(report, null, 2)}\n`;
   if (jsonPath != null) { mkdirSync(dirname(jsonPath), { recursive: true }); writeFileSync(jsonPath, body); }
   process.stdout.write(body);
-  if (report.verdict === "unexpected-drift" || (report.verdict === "known-source-drift" && !acceptKnownFindings)) process.exitCode = 1;
+  if (report.verdict !== "source-exact") process.exitCode = 1;
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) void main();

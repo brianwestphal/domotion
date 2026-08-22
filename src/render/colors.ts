@@ -9,8 +9,6 @@
  * groove / ridge / inset / outset bevels.
  */
 
-import { r } from "./format.js";
-
 export interface RGBA { r: number; g: number; b: number; a: number }
 
 export function parseColor(css: string): RGBA | null {
@@ -88,8 +86,24 @@ export function parseColor(css: string): RGBA | null {
   return null;
 }
 
+/**
+ * Preserve the precision of captured CSS alpha without applying SVG coordinate
+ * rounding.
+ *
+ * Capture has already applied Blink's form-specific serialization: legacy
+ * colors use the CSSOM 8-bit two/three-decimal rule, while modern `color()`
+ * alpha uses StringBuilder's six-decimal precision (Chromium 7d859f27,
+ * `Color::SerializeLegacyColorAsCSSColor` / `Color::SerializeInternal`). This
+ * shared RGBA representation no longer carries that lexical provenance, so
+ * retaining up to the source maximum is the only lossless common route.
+ */
+function colorAlphaStr(alpha: number): string {
+  const clamped = Math.max(0, Math.min(1, alpha));
+  return Number(clamped.toFixed(6)).toString();
+}
+
 export function colorStr(c: RGBA): string {
-  return c.a < 1 ? `rgba(${c.r},${c.g},${c.b},${r(c.a)})` : `rgb(${c.r},${c.g},${c.b})`;
+  return c.a < 1 ? `rgba(${c.r},${c.g},${c.b},${colorAlphaStr(c.a)})` : `rgb(${c.r},${c.g},${c.b})`;
 }
 
 export function sameColor(a: RGBA, b: RGBA): boolean {

@@ -78,7 +78,7 @@ jobs:
       - name: Run source arithmetic and workflow guards
         run: npx vitest run tests/blend-filter-pixel-stage-oracle.test.ts tests/blend-filter-pixel-stage-workflow.test.ts
       - name: Capture DPR 1/2 named-pixel and mutation evidence
-        run: npm run paint:blend-filter-stage -- --dpr 1,2 --json tests/output/blend-filter/${{ runner.os }}/report.json --artifact-dir tests/output/blend-filter/${{ runner.os }} --accept-known-findings
+        run: npm run paint:blend-filter-stage -- --dpr 1,2 --json tests/output/blend-filter/${{ runner.os }}/report.json --artifact-dir tests/output/blend-filter/${{ runner.os }}
       - name: Upload exact producer and pixel evidence
         if: always()
         uses: actions/upload-artifact@v4

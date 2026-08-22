@@ -350,6 +350,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex dm2452",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4yptes3mls65y9",
+          "message": {
+            "text": "Preserve computed native-SVG paint classes as inline declarations so external CSS remains the cascade winner over an authored XML attribute. Pinned Blink owns marker placement, non-scaling-stroke transforms, and gradient interpolation; this hunk serializes Blink's chosen class without moving geometry into Domotion. The focused capture test deliberately gives XML and CSS opposite values and requires the CSS winner plus namespaced marker URL in the final SVG.",
+            "markdown": "Preserve computed native-SVG paint classes as inline declarations so external CSS remains the cascade winner over an authored XML attribute. Pinned Blink owns marker placement, non-scaling-stroke transforms, and gradient interpolation; this hunk serializes Blink's chosen class without moving geometry into Domotion. The focused capture test deliberately gives XML and CSS opposite values and requires the CSS winner plus namespaced marker URL in the final SVG."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/inline-svg.ts"
+                },
+                "region": {
+                  "startLine": 184,
+                  "endLine": 195,
+                  "snippet": {
+                    "text": "      // DM-2358: these paint decisions are also SVG computed properties, but\n      // unlike fill/stroke they were previously left behind when authored by\n      // an external stylesheet. Preserve the resolved value as an inline\n      // declaration (rather than a presentation attribute) so it remains the\n      // cascade winner even when the source also carried an overridden XML\n      // attribute. The output browser still owns marker placement,\n      // non-scaling-stroke geometry, and gradient interpolation; capture only\n      // makes Blink's chosen class self-contained.\n      const _bakeSvgNativePaintProps = [\n        'marker-start', 'marker-mid', 'marker-end',\n        'vector-effect', 'color-interpolation',\n      ];"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/svg-native-paint-properties.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 25
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2358"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f6ae68ce4bfee6b18852c1d8d73c2449"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "1e53867c9bca6e6c6bf0d5b4234cc82d1592cec3",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

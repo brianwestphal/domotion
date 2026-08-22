@@ -530,7 +530,9 @@
         "linear-gradient",
         "radial-gradient",
         "conic-gradient",
-        "color-interpolation-method"
+        "color-interpolation-method",
+        "SVG gradientUnits",
+        "SVG color-interpolation"
       ],
       "states": [
         "linear -> radial",
@@ -538,6 +540,8 @@
         "non-repeating -> repeating",
         "positive -> negative domain",
         "sRGB -> perceptual color space",
+        "SVG gradient objectBoundingBox -> userSpaceOnUse",
+        "SVG sRGB -> linearRGB interpolation",
         "vector -> Chromium raster tile",
         "legacy endpoint -> modern center line"
       ],
@@ -547,6 +551,8 @@
         "non-repeating -> repeating",
         "positive -> negative domain",
         "sRGB -> perceptual color space",
+        "SVG gradient objectBoundingBox -> userSpaceOnUse",
+        "SVG sRGB -> linearRGB interpolation",
         "vector -> Chromium raster tile"
       ],
       "uncoveredStates": [
@@ -559,20 +565,24 @@
       "productionOwners": [
         "src/render/gradients.ts",
         "src/render/advanced-gradient-raster.ts",
-        "src/render/conic-raster.ts"
+        "src/render/conic-raster.ts",
+        "src/capture/script/walker/inline-svg.ts"
       ],
       "oracles": [
         "tools/paint-geometry-oracle.ts",
         "tools/paint-geometry-browser-oracle.ts",
+        "tools/svg-effect-combination-oracle.ts",
         "tools/raster-boundary-oracle.ts"
       ],
       "metamorphicTests": [
         "src/render/color-hint-interpolation.test.ts",
-        "src/render/color-table-lookup.test.ts"
+        "src/render/color-table-lookup.test.ts",
+        "tests/svg-effect-combination-corpus.test.ts"
       ],
       "visualFixtures": [
         "tests/features.ts#gradient-radial-negative-domain",
-        "tests/features.ts#bg-conic-chromium-zoom-tile"
+        "tests/features.ts#bg-conic-chromium-zoom-tile",
+        "tests/svg-effect-combination-oracle.e2e.test.ts"
       ],
       "coverage": "partial",
       "boundary": "Legacy -webkit-gradient endpoint geometry and one repeating-linear threshold remain unresolved.",
@@ -611,7 +621,8 @@
         "mask-origin equals mask-clip -> mask-origin differs from mask-clip on HTML URL layers",
         "bare URL clip -> invalid URL-plus-geometry-box",
         "HTML URL border/object box -> SVG URL forced fill box",
-        "covered SVG effect combinations -> future SVG effect/property combinations"
+        "curated SVG rows -> generated 18-axis pairwise combinations",
+        "pairwise-covered SVG effects -> higher-order/future combinations"
       ],
       "exactStates": [
         "none -> image/gradient/reference",
@@ -622,10 +633,11 @@
         "center position -> arbitrary position",
         "mask-origin equals mask-clip -> mask-origin differs from mask-clip on HTML URL layers",
         "bare URL clip -> invalid URL-plus-geometry-box",
-        "HTML URL border/object box -> SVG URL forced fill box"
+        "HTML URL border/object box -> SVG URL forced fill box",
+        "curated SVG rows -> generated 18-axis pairwise combinations"
       ],
       "uncoveredStates": [
-        "covered SVG effect combinations -> future SVG effect/property combinations"
+        "pairwise-covered SVG effects -> higher-order/future combinations"
       ],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/css/properties/longhands/longhands_custom.cc",
@@ -644,6 +656,7 @@
         "src/render/svg-inline.ts",
         "src/render/element-tree-to-svg.ts",
         "src/capture/index.ts",
+        "src/capture/script/walker/inline-svg.ts",
         "src/capture/script/walker/masks-clips.ts",
         "src/capture/script/index.ts",
         "src/capture/types.ts"
@@ -654,20 +667,24 @@
         "tests/clip-path-url-reference-box.e2e.test.ts",
         "tests/external-svg-refs.e2e.test.ts",
         "tests/mask-position-contain-cover.e2e.test.ts",
-        "tests/mask-origin-clip.e2e.test.ts"
+        "tests/mask-origin-clip.e2e.test.ts",
+        "tools/svg-effect-combination-oracle.ts",
+        "tests/svg-native-paint-properties.e2e.test.ts"
       ],
       "metamorphicTests": [
         "src/render/mask-position.test.ts",
         "src/render/mask-origin-clip.test.ts",
         "src/mask.test.ts",
-        "src/render/svg-inline.test.ts"
+        "src/render/svg-inline.test.ts",
+        "tests/svg-effect-combination-corpus.test.ts"
       ],
       "visualFixtures": [
         "tests/features.ts#mask-advanced-tiling-composite",
-        "tests/features.ts#clip-path-userspaceonuse-fragment"
+        "tests/features.ts#clip-path-userspaceonuse-fragment",
+        "tests/svg-effect-combination-oracle.e2e.test.ts"
       ],
       "coverage": "partial",
-      "boundary": "Arbitrary URL mask sizing/positioning is exact for Chromium-decoded intrinsic ratios and distinct per-layer HTML mask-origin/mask-clip border/padding/content/no-clip rectangles, including zoomed computed px terms, physical writing modes, cyclic composition, and sliced/cloned fragments. URL clip references additionally preserve Blink's exclusive grammar, HTML border/object-bounding-box map, SVG forced-fill ownership, nested-frame/external resolution, and stale-tree rejection. The open partial boundary is future SVG effect/property combinations, not the HTML URL mask/clip box model.",
+      "boundary": "Arbitrary URL mask sizing/positioning is exact for Chromium-decoded intrinsic ratios and distinct per-layer HTML mask-origin/mask-clip border/padding/content/no-clip rectangles, including zoomed computed px terms, physical writing modes, cyclic composition, and sliced/cloned fragments. URL clip references additionally preserve Blink's exclusive grammar, HTML border/object-bounding-box map, SVG forced-fill ownership, nested-frame/external resolution, and stale-tree rejection. The generated native-SVG gate covers every pair among 18 enumerated axes; higher-order interactions and future effect classes remain the explicit partial boundary.",
       "featureIds": [
         "render.tree-to-svg"
       ],
@@ -979,6 +996,9 @@
         "in-flow -> positioned/floating",
         "normal -> pseudo filter",
         "normal -> blend/backdrop",
+        "document surface -> effect-created Backdrop Root",
+        "target final crop -> Backdrop Root/effect-space surface",
+        "element backdrop -> generated-pseudo backdrop",
         "non-atomic -> atomic",
         "viewport fixed -> trapped fixed"
       ],
@@ -990,12 +1010,19 @@
         "viewport fixed -> trapped fixed"
       ],
       "uncoveredStates": [
-        "normal -> blend/backdrop"
+        "normal -> blend/backdrop",
+        "document surface -> effect-created Backdrop Root",
+        "target final crop -> Backdrop Root/effect-space surface",
+        "element backdrop -> generated-pseudo backdrop"
       ],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/paint/filter_effect_builder.cc",
+        "external/chromium/third_party/blink/renderer/core/paint/paint_layer.cc",
         "external/chromium/third_party/blink/renderer/core/paint/paint_property_tree_builder.cc",
+        "external/chromium/third_party/blink/renderer/core/paint/object_paint_properties.h",
+        "external/chromium/third_party/blink/renderer/platform/graphics/compositing_reasons.h",
         "external/chromium/third_party/blink/renderer/platform/graphics/filters/paint_filter_builder.cc",
+        "external/skia/src/core/SkCanvas.cpp",
         "external/skia/src/core"
       ],
       "productionOwners": [
@@ -1009,7 +1036,8 @@
       "oracles": [
         "tools/paint-order-oracle.ts",
         "tools/raster-boundary-oracle.ts",
-        "tools/blend-filter-pixel-stage-oracle.ts"
+        "tools/blend-filter-pixel-stage-oracle.ts",
+        "tools/backdrop-source-surface-audit.ts"
       ],
       "metamorphicTests": [
         "src/stacking-context.test.ts",
@@ -1019,7 +1047,9 @@
         "src/capture/backdrop-isolation.test.ts",
         "tests/blend-filter-pixel-stage-oracle.test.ts",
         "tests/blend-filter-pixel-stage-oracle.e2e.test.ts",
-        "tests/blend-filter-pixel-stage-workflow.test.ts"
+        "tests/blend-filter-pixel-stage-workflow.test.ts",
+        "tests/backdrop-source-surface-audit.test.ts",
+        "tests/backdrop-source-surface-audit.e2e.test.ts"
       ],
       "visualFixtures": [
         "tests/features.ts#z-index-order",
@@ -1029,7 +1059,7 @@
         "tests/fixtures/html-test/37-blend-filter-pixel-stage.html"
       ],
       "coverage": "partial",
-      "boundary": "Pseudo shorthand filter functions are exact native-vector effects with function-list, mutation, clip/transform/stack-slot, zoom, and DPR evidence. DM-2360 pins and gates the browser pixel stage for all 17 premultiplied blend modes, author-order sRGB shorthand chains, opacity, decal blur, fractional drop-shadow, isolation and reverse-painted background blends at DPR 1/2 on macOS/Linux/Windows. Independent filter/blend/isolation mutations and six ownership rows prevent a wrong source surface from passing an end-image tolerance. The production route remains partial because DM-2485's one-decimal rgba alpha serialization causes classified 8-11-code alpha-sensitive drift; backdrop-filter transitions remain Chromium-raster owned and the upstream mixed reference-linearRGB/shorthand-sRGB seam is not locally emulated.",
+      "boundary": "Pseudo shorthand filter functions are exact native-vector effects with function-list, mutation, clip/transform/stack-slot, zoom, and DPR evidence. DM-2360 pins and gates the browser pixel stage for all 17 premultiplied blend modes, author-order sRGB shorthand chains, opacity, decal blur, fractional drop-shadow, isolation and reverse-painted background blends at DPR 1/2 on macOS/Linux/Windows. Independent filter/blend/isolation mutations and six ownership rows prevent a wrong source surface from passing an end-image tolerance. Computed alpha preserves Blink's legacy two/three-decimal and modern six-decimal forms, so the strict report is source-exact with no known-drift allowance. DM-2357 observationally covers 17 backdrop transitions at DPR 1/2 with exact source-root classification, independent sibling order, raster-before-vector checks, and under/final-crop mutations. Coverage remains partial: viewport-final crops replay ancestor effect/transform space, generated pseudos lack an owner, fixed hoisting reverses one sibling order, and the upstream mixed reference-linearRGB/shorthand-sRGB seam is not locally emulated.",
       "featureIds": [
         "render.tree-to-svg"
       ],
@@ -1595,23 +1625,30 @@
         "view-box",
         "clipPathUnits",
         "maskUnits",
-        "gradientUnits"
+        "gradientUnits",
+        "markers",
+        "vector-effect",
+        "color-interpolation"
       ],
       "states": [
         "objectBoundingBox -> userSpaceOnUse",
         "fill-box -> stroke-box",
         "stroke-box -> view-box",
         "root viewport -> nested viewport",
-        "untransformed -> transformed"
+        "untransformed -> transformed",
+        "curated rows -> generated pairwise native-SVG combinations",
+        "pairwise-covered classes -> higher-order/future combinations"
       ],
       "exactStates": [
         "objectBoundingBox -> userSpaceOnUse",
         "fill-box -> stroke-box",
         "stroke-box -> view-box",
-        "root viewport -> nested viewport"
+        "root viewport -> nested viewport",
+        "untransformed -> transformed",
+        "curated rows -> generated pairwise native-SVG combinations"
       ],
       "uncoveredStates": [
-        "untransformed -> transformed"
+        "pairwise-covered classes -> higher-order/future combinations"
       ],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/layout/svg",
@@ -1625,16 +1662,20 @@
       ],
       "oracles": [
         "tools/paint-geometry-oracle.ts",
-        "tools/paint-geometry-browser-oracle.ts"
+        "tools/paint-geometry-browser-oracle.ts",
+        "tools/svg-effect-combination-oracle.ts",
+        "tests/svg-native-paint-properties.e2e.test.ts"
       ],
       "metamorphicTests": [
-        "src/render/svg-inline.test.ts"
+        "src/render/svg-inline.test.ts",
+        "tests/svg-effect-combination-corpus.test.ts"
       ],
       "visualFixtures": [
-        "tests/features.ts#inline-svg-effect-geometry-boxes"
+        "tests/features.ts#inline-svg-effect-geometry-boxes",
+        "tests/svg-effect-combination-oracle.e2e.test.ts"
       ],
       "coverage": "partial",
-      "boundary": "Generated effect combinations, URL clip origins, and inline-SVG 3D transforms are not exhaustively covered.",
+      "boundary": "The generated gate covers all 953 pairs among 18 enumerated native-SVG effect axes, including affine transforms. Higher-order combinations, future effect classes, and projective SVG ownership remain explicit boundaries.",
       "featureIds": [
         "render.tree-to-svg"
       ],

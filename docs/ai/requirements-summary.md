@@ -73,6 +73,16 @@ the border box (with objectBoundingBox normalized content explicitly mapped
 through it), while SVG-child references force fill-box. Strict capture→SVG DPR
 1/2 controls cover stale trees, transparent hosts, nested frames, and external
 references (DM-2362, doc 39).
+DM-2358/[doc 188](../188-generated-svg-effect-combinations.md) extends that
+contract from curated rows to 24 deterministic cases covering all 953 pairs
+among 18 shape, unit, reference-box, viewport, marker, non-scaling-stroke,
+transform, mask-longhand/composition, and interpolation axes. External CSS
+marker resources, `vector-effect`, and SVG `color-interpolation` are now baked
+as computed declarations without moving their geometry into Domotion. The
+local DPR-1/2 source-versus-final-SVG run is exact on all 48 rows; destructive
+removal of each new transition moves, and the native macOS/Linux/Windows
+workflow records fingerprinted DPR-1/2 reports. Higher-order and future effect
+classes remain the explicit partial boundary.
 
 **Doc 107 routine parity matrix — Shipped.** The synthetic workflow derives a
 deterministic modulo-256 low-byte bucket and complementary coverage focus from
@@ -277,11 +287,14 @@ they describe (see `CLAUDE.md` "Documentation"):
   pixels. Helper-present routing remains live-before-static; Windows retains
   its Chromium-derived hardcoded nomination stage.
 
-- **Doc 126 (`docs/126-backdrop-filter-isolation.md`, DM-2171) — Shipped.**
+- **Doc 126 (`docs/126-backdrop-filter-isolation.md`, DM-2171) — Shipped for
+  direct target isolation; source-surface transitions remain partial.**
   Elements with a non-`none` computed `backdrop-filter` become isolated
   Chromium-composited box-surface boundaries. The captured image includes the
   sampled backdrop and the element's own ordered filter surface; descendant
-  subtrees are excluded from that crop and emitted as vectors above it.
+  subtrees are excluded from that crop and emitted as vectors above it. Doc 187
+  records where a viewport-final crop cannot stand in for Blink's Backdrop Root
+  Image without replaying ancestor effects.
 - **Doc 114 (`docs/114-angled-linear-wipe.md`, DM-2041) — Shipped.** The linear
   `wipe` transition accepts `wipeAngle`, clockwise from its byte-identical
   left-to-right default. Non-axis angles use analytically clipped, fixed-eight-
@@ -1447,11 +1460,14 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   chain includes Blink's preferred STANDARD face before system fallback. The
   trace is observational and adds no routing overrides.
 
-- **Doc 126 (`docs/126-backdrop-filter-isolation.md`) — Shipped.** A computed
+- **Doc 126 (`docs/126-backdrop-filter-isolation.md`) — Shipped narrow
+  boundary.** A computed
   backdrop filter is captured from Chromium as an isolated raster box surface,
   with text and descendants emitted as vectors above it. This preserves backdrop
   sampling and the browser's backdrop-then-element-filter stacking semantics,
-  which SVG cannot reproduce from DOM geometry alone.
+  which SVG cannot reproduce from DOM geometry alone, for the direct target
+  cases established by that implementation. Doc 187 makes ancestor effect-space,
+  generated-pseudo, and fixed sibling-order limitations explicit.
 
 - **Doc 135 (`docs/135-corner-shape-superellipses.md`) — Shipped.** Capture
   Chromium's computed physical `corner-*-shape` longhands and carry Blink's
@@ -1543,10 +1559,25 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   pixels, proves activation with independent filter/blend/isolation mutations,
   and asserts six raster boundaries: shorthand/blend/ordinary URL/native-SVG
   convolution stay vector, while backdrop-filter and HTML URL convolution are
-  Chromium surfaces. The gate currently reports only DM-2485: computed
-  `rgba()` alpha is serialized with the coordinate formatter (`.65 → .7`), so
-  alpha-sensitive blend/filter rows are a known source drift; do not hide it by
-  increasing the fixed four-code stage bound.
+  Chromium surfaces. Computed color alpha now preserves Blink's legacy
+  two/three-decimal and modern six-decimal serialized forms instead of using
+  the one-decimal SVG coordinate formatter. The DPR-1/2 report is
+  `source-exact`; the fixed four-code stage bound and mutation thresholds were
+  not widened, and no known-drift workflow allowance remains.
+
+<!-- DM-2357 -->
+- [Doc 187](../187-backdrop-source-surface-transitions.md) completes the
+  backdrop source-surface investigation without changing production. Pinned
+  Blink/Skia establishes a prior-parent-device Backdrop Root Image and separate
+  backdrop/regular-filter effect surfaces. The local 17-family DPR-1/2 audit
+  gets 34/34 nearest-root classifications, defeats under- and final-crop
+  over-capture mutations for all 32 serialized surfaces, and preserves
+  raster-before-target-vector order. It also proves three implementation gaps:
+  final viewport crops are reprocessed by ancestor effect/transform wrappers,
+  generated pseudos serialize no backdrop owner, and fixed hoisting reverses
+  one independently observed sibling order. DM-2487–DM-2490 own the production,
+  pseudo, order, and diagnostic follow-ups; a native release gate waits for the
+  production representation rather than blessing current drift.
 
 ## What this file is NOT
 

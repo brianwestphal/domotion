@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex dm2452",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4yptk1pkn0x20b",
+          "message": {
+            "text": "The final local DPR-1/2 gate is source-exact on all 48 rows with zero mean channel error, zero changed-pixel fraction, zero ink-bound delta, no raster owner, and no relevant warning. Independent destructive controls moved 5,425/20,951 marker pixels, 1,836/5,742 non-scaling-stroke pixels, and 11,326/45,548 interpolation pixels at DPR 1/2, proving each new capture transition is observable without weakening the fixed pixel bounds.",
+            "markdown": "The final local DPR-1/2 gate is source-exact on all 48 rows with zero mean channel error, zero changed-pixel fraction, zero ink-bound delta, no raster owner, and no relevant warning. Independent destructive controls moved 5,425/20,951 marker pixels, 1,836/5,742 non-scaling-stroke pixels, and 11,326/45,548 interpolation pixels at DPR 1/2, proving each new capture transition is observable without weakening the fixed pixel bounds."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/svg-effect-combination-oracle.ts"
+                },
+                "region": {
+                  "startLine": 245,
+                  "endLine": 342,
+                  "snippet": {
+                    "text": "export async function runSvgEffectCombinationOracle(options: { deviceScaleFactors?: number[] } = {}): Promise<SvgEffectCombinationReport> {\n  const corpusErrors = validateSvgEffectCombinationCorpus();\n  if (corpusErrors.length > 0) throw new Error(`invalid SVG effect corpus: ${corpusErrors.join(\"; \")}`);\n  process.env.DOMOTION_HELPER_NO_SERVE = \"1\";\n  const capture = await import(\"../src/capture/index.js\");\n  const render = await import(\"../src/render/element-tree-to-svg.js\");\n  const dprs = options.deviceScaleFactors ?? [1, 2];\n  const browser = await chromium.launch({ headless: true });\n  const rows: SvgEffectOracleRow[] = [];\n  const mutations: SvgEffectMutationResult[] = [];\n  const structuralErrors: string[] = [];\n  try {\n    const fingerprintPage = await browser.newPage({ viewport: SVG_EFFECT_VIEWPORT });\n    const userAgent = await fingerprintPage.evaluate(() => navigator.userAgent);\n    await fingerprintPage.close();\n    let grammar = { bareUrlSupported: false, urlPlusGeometryBoxRejected: false };\n\n    for (const dpr of dprs) {\n      const context = await browser.newContext({ viewport: SVG_EFFECT_VIEWPORT, deviceScaleFactor: dpr });\n      const source = await context.newPage();\n      const output = await context.newPage();\n      try {\n        await source.setContent(buildSvgEffectCombinationHtml(), { waitUntil: \"load\" });\n        await settle(source);\n        if (dpr === dprs[0]) {\n          grammar = await source.evaluate(() => ({\n            bareUrlSupported: CSS.supports(\"clip-path\", \"url(#clip-0)\"),\n            urlPlusGeometryBoxRejected: [\"fill-box\", \"stroke-box\", \"view-box\"].every((box) =>\n              !CSS.supports(\"clip-path\", `url(#clip-0) ${box}`)\n              && !CSS.supports(\"clip-path\", `${box} url(#clip-0)`)),\n          }));\n        }\n        const sourcePng = await source.screenshot({ type: \"png\" });\n        const captured = await capture.captureElementTreeWithWarnings(source, \"#stage\", { x: 0, y: 0, ...SVG_EFFECT_VIEWPORT });\n        const capturedByCase = capturedSvgByCase(captured.tree);\n        if (capturedByCase.size !== SVG_EFFECT_CASES.length) structuralErrors.push(`dpr${dpr}: expected ${SVG_EFFECT_CASES.length} inline SVG owners, received ${capturedByCase.size}`);\n        const rasterOwners = walk(captured.tree).filter((element) => element.elementRaster != null || element.transformSubtreeRaster != null);\n        if (rasterOwners.length > 0) structuralErrors.push(`dpr${dpr}: ${rasterOwners.length} raster owners replaced native SVG`);\n        const warnings = captured.warnings.map((warning) => typeof warning === \"string\" ? warning : JSON.stringify(warning));\n        const effectWarnings = warnings.filter((warning) => /inline-svg|gradient|clip|mask|marker|vector-effect/i.test(warning));\n        if (effectWarnings.length > 0) structuralErrors.push(`dpr${dpr}: relevant warnings: ${effectWarnings.join(\" | \")}`);\n\n        const svg = render.elementTreeToSvg(captured.tree, SVG_EFFECT_VIEWPORT.width, SVG_EFFECT_VIEWPORT.height, { hiDPIFactor: dpr });\n        if (/<image\\b/.test(svg)) structuralErrors.push(`dpr${dpr}: generated SVG contains an image owner`);\n        await output.setContent(`<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:white}svg{display:block}</style>${svg}`, { waitUntil: \"load\" });\n        await settle(output);\n        const generatedPng = await output.screenshot({ type: \"png\" });\n        const [sourcePixels, generatedPixels] = await Promise.all([decodeRgb(sourcePng), decodeRgb(generatedPng)]);\n        if (sourcePixels.width !== generatedPixels.width || sourcePixels.height !== generatedPixels.height) {\n          throw new Error(`pixel dimensions differ at DPR ${dpr}`);\n        }\n        for (const test of SVG_EFFECT_CASES) {\n          const rowErrors = caseStructuralErrors(test.id, capturedByCase.get(test.id));\n          const pixels = compareTile(sourcePixels, generatedPixels, test.ordinal, dpr);\n          rows.push({ id: test.id, deviceScaleFactor: dpr, structuralErrors: rowErrors, pixels, pass: rowErrors.length === 0 && pixels.pass });\n        }\n\n        for (const mutation of [\n          { id: \"strip-marker-properties\" as const, properties: [\"marker-start\", \"marker-mid\", \"marker-end\"] },\n          { id: \"strip-vector-effect\" as const, properties: [\"vector-effect\"] },\n          { id: \"strip-color-interpolation\" as const, properties: [\"color-interpolation\"] },\n        ]) {\n          const mutationPng = await mutationScreenshot(output, svg, mutation.properties);\n          mutations.push(mutationDelta(generatedPixels, await decodeRgb(mutationPng), mutation.id, dpr));\n        }\n      } finally {\n        await context.close();\n      }\n    }\n\n    if (!grammar.bareUrlSupported) structuralErrors.push(\"Chromium rejected the bare URL clip control\");\n    if (!grammar.urlPlusGeometryBoxRejected) structuralErrors.push(\"Chromium accepted a URL-plus-geometry-box negative control\");\n    const coverage = svgEffectPairCoverage(SVG_EFFECT_CASES);\n    const pass = structuralErrors.length === 0 && rows.every((row) => row.pass) && mutations.every((mutation) => mutation.moved);\n    return {\n      schemaVersion: 1,\n      generatedAt: new Date().toISOString(),\n      sourceRevision: SVG_EFFECT_SOURCE_REVISION,\n      sourceDecisions: SVG_EFFECT_SOURCE_DECISIONS,\n      fingerprint: {\n        chromiumVersion: browser.version(),\n        playwrightVersion,\n        userAgent,\n        os: platform(),\n        osRelease: release(),\n        architecture: arch(),\n        node: process.version,\n        viewport: SVG_EFFECT_VIEWPORT,\n        deviceScaleFactors: dprs,\n        thresholds: SVG_EFFECT_PIXEL_THRESHOLDS,\n      },\n      corpus: { cases: SVG_EFFECT_CASES.length, expectedPairs: coverage.expectedPairs, coveredPairs: coverage.coveredPairs },\n      grammar,\n      rows,\n      mutations,\n      structuralErrors,\n      verdict: pass ? \"source-exact-native-svg-delegation\" : \"svg-effect-combination-drift\",\n    };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/svg-effect-combination-corpus.ts"
+                },
+                "region": {
+                  "startLine": 22
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/svg-effect-combinations.yml"
+                },
+                "region": {
+                  "startLine": 49
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2358"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "05f0bab1385105ab3f334449581fc9f9"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "1e53867c9bca6e6c6bf0d5b4234cc82d1592cec3",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

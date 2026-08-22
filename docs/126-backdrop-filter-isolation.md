@@ -1,6 +1,7 @@
 # 126 — Backdrop-filter isolation via Chromium snapshots
 
-**Status: shipped.**
+**Status: shipped for direct target isolation; Backdrop Root/effect-space
+transitions are partial (DM-2357, [doc 187](187-backdrop-source-surface-transitions.md)).**
 
 ## Requirement
 
@@ -44,8 +45,12 @@ rounded contour, so stamping it over the same already-painted backdrop retains
 the visual contour without synthesizing a second SVG clip.
 
 The raster is emitted where the element subtree would have painted. This keeps
-normal sibling order, opacity ownership, and ancestor clipping around the
-replacement image. Before taking each crop, Domotion captures a Chromium
+ordinary sibling order and ancestor clipping around the replacement image in
+the direct document-root cases covered here. It is not a general proof of
+ancestor opacity/filter/mask/blend/transform ownership: a viewport-final crop
+already contains those effects and the recursively emitted ancestor wrapper can
+apply them again. The DM-2357 matrix in doc 187 records that boundary and the
+fixed-position sibling-order exception. Before taking each crop, Domotion captures a Chromium
 `DOMSnapshot` with layout bounds and paint order. Later-painted, overlapping
 subtrees are temporarily hidden while earlier paint—the backdrop input—remains
 visible. Top-level descendant subtrees are hidden so their pixels can be
@@ -74,6 +79,10 @@ Temporary `data-domotion-backdrop-raster` tokens are removed after the pass.
 - Playwright coverage captures a real blurred backdrop under a later
   overlapping subtree, compares the raster with an isolated Chromium crop,
   and verifies that the live page's visibility and temporary token are restored.
+- DM-2357 adds 17 source-surface families at DPR 1/2, an independent
+  `DOMSnapshot` paint-order comparator, and destructive no-surface/final-crop
+  mutations. It confirms the narrow direct-target route and records the
+  remaining Backdrop Root, generated-pseudo, and fixed-order gaps in doc 187.
 
 The earlier solid body-color approximation remains documented in doc 19 for
 historical context and as a pre-raster fallback when no snapshot is available.

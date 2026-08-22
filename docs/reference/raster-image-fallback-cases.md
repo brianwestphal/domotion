@@ -217,7 +217,14 @@ Emit: `src/render/element-tree-to-svg.ts` emits the raster `<image>` at the
 element's paint position as its filtered box surface, then emits text and
 descendants as vectors above it.
 
-Doc: [126-backdrop-filter-isolation.md](../126-backdrop-filter-isolation.md).
+Boundary: the current PNG is a viewport-final crop, not a serialized Blink
+Backdrop Root Image. Ancestor opacity/filter/mask/blend/transform wrappers can
+therefore reprocess it, generated pseudos do not own this field, and one fixed
+sibling-order transition is known. See the source matrix and follow-up plan in
+[doc 187](../187-backdrop-source-surface-transitions.md).
+
+Docs: [126-backdrop-filter-isolation.md](../126-backdrop-filter-isolation.md)
+and [187-backdrop-source-surface-transitions.md](../187-backdrop-source-surface-transitions.md).
 
 ### C0a. Advanced CSS gradient interpolation
 

@@ -81,7 +81,7 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 - [x] `::before` / `::after` filter function lists on empty, text, raster-glyph, and image generated content — the authoritative computed list stays on a native SVG CSS-filter group, preserving Blink's list order, sRGB operation space, premultiplication, moving-pixel bounds, transform/opacity nesting, clipping, and existing paint slot (DM-2367; [doc 38](38-pseudo-element-paint.md)).
 - [x] mix-blend-mode
 - [x] background-blend-mode — each image layer blends with the background stack below it, including the element's background color, inside an isolated group
-- [x] backdrop-filter — approximated via a frosted-glass background fallback for the transparent-backdrop case (see doc 19); no true backdrop blur (no SVG equivalent in img-rendered SVG)
+- [~] backdrop-filter — active element boxes use an isolated Chromium raster because an img-rendered SVG cannot address the prior backdrop surface. Direct document-root, ordinary stacking/isolation, clip, nested, and overlapping cases retain the narrow boundary; ancestor opacity/filter/mask/blend/transform ownership, generated pseudos, and one fixed sibling order remain explicit gaps from the 17-family DPR-1/2 audit. The legacy “frosted-glass/no true blur” warning is stale on successful raster materialization (DM-2490). See [docs 126](126-backdrop-filter-isolation.md) and [187](187-backdrop-source-surface-transitions.md).
 - [x] clip-path: inset(), circle(), ellipse(), polygon()
 - [x] clip-path: path() — supported (emitted as an SVG `<path>` clip; `src/render/clip-path.ts`)
 - [x] mask (mask-image gradient/url() fragment/element() paint refs) — emitted as SVG `<mask>`. See `20-css-mask-emission.md` / `21` / `22`.

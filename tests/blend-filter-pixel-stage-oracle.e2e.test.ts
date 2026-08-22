@@ -32,11 +32,7 @@ describe("DM-2360 live blend/filter pixel stages", () => {
     expect(report.rows.find((row) => row.id === "filter.color-chain")?.pass).toBe(true);
     expect(report.rows.find((row) => row.id === "filter.blur-edge")?.pass).toBe(true);
     expect(report.rows.find((row) => row.id === "surface.background-stack")?.pass).toBe(true);
-    expect(report.findings).toHaveLength(1);
-    expect(report.findings[0].affectedRows).toContain("blend.normal");
-    expect(report.findings[0].affectedRows).toContain("filter.opacity-chain");
-    expect(report.rows.filter((row) => row.knownFinding != null)
-      .every((row) => row.knownFindingMaxChannelError != null && row.knownFindingMaxChannelError <= 4)).toBe(true);
-    expect(report.verdict).toBe("known-source-drift");
+    expect(report.rows.every((row) => row.pass)).toBe(true);
+    expect(report.verdict).toBe("source-exact");
   }, 360_000);
 });

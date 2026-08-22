@@ -181,6 +181,18 @@ export const captureInlineSvg = (el, cs, warn, sel) => {
       // lost when the SVG is re-embedded outside the original cascade —
       // computed style is resolved against the source DOM, not the clone.
       const _bakeSvgAttrs = ['fill', 'stroke', 'stroke-width', 'stroke-dasharray', 'stroke-linecap', 'stroke-linejoin', 'stroke-opacity', 'fill-opacity', 'opacity'];
+      // DM-2358: these paint decisions are also SVG computed properties, but
+      // unlike fill/stroke they were previously left behind when authored by
+      // an external stylesheet. Preserve the resolved value as an inline
+      // declaration (rather than a presentation attribute) so it remains the
+      // cascade winner even when the source also carried an overridden XML
+      // attribute. The output browser still owns marker placement,
+      // non-scaling-stroke geometry, and gradient interpolation; capture only
+      // makes Blink's chosen class self-contained.
+      const _bakeSvgNativePaintProps = [
+        'marker-start', 'marker-mid', 'marker-end',
+        'vector-effect', 'color-interpolation',
+      ];
       // DM-720: SVG 2 promotes geometry properties (cx/cy/r/rx/ry/x/y/width/
       // height/d) to CSS — modern Chrome resolves them from the cascade. When
       // a fixture sets them entirely from CSS (no XML attrs on the element),
@@ -248,6 +260,10 @@ export const captureInlineSvg = (el, cs, warn, sel) => {
               const preserveCurrent = (attr === "fill" || attr === "stroke") && _usesCurrentColor(camel);
               cloneNode.setAttribute(attr, preserveCurrent ? "currentColor" : val);
             }
+          }
+          for (const prop of _bakeSvgNativePaintProps) {
+            const value = ocs.getPropertyValue(prop).trim();
+            if (value !== '') cloneNode.style.setProperty(prop, value);
           }
           // DM-720 / DM-2414: bake CSS-driven geometry. A presentation
           // attribute participates at the bottom of the author cascade, so a

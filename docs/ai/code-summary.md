@@ -215,7 +215,15 @@ shortest possible map:
   `svg-inline.ts` inlines an `<img src="*.svg">` as a native, id-namespaced
   nested `<svg>` (`prefixSvgIds`/`inlineImgSvg`, DM-1588, doc 96), and namespaces
   captured DOM inline-SVG fragment ids per source document/shadow-root scope — crisp at
-  any zoom instead of a rasterized `<image data:image/svg+xml>`.
+  any zoom instead of a rasterized `<image data:image/svg+xml>`. DM-2358 also
+  makes stylesheet-owned marker start/mid/end resources,
+  `vector-effect:non-scaling-stroke`, and SVG `color-interpolation`
+  self-contained on the atomic clone; native SVG still owns every associated
+  geometry decision. `tools/svg-effect-combination-corpus.ts` generates a
+  deterministic 24-case/953-pair matrix across 18 effect axes, and
+  `tools/svg-effect-combination-oracle.ts` hard-gates structure, exact final
+  pixels, URL grammar, and three destructive transition controls at DPR 1/2
+  ([doc 188](../188-generated-svg-effect-combinations.md)).
 - **`src/animation/`** — multi-frame composition (animator, magic-move) +
   the **caret + selection track** (doc 101): `text-address.ts` (node-side
   `{ target, charOffset }` / range resolution against the captured tree —
@@ -706,9 +714,21 @@ shortest possible map:
   ordinary URL/native-SVG convolution as vector versus backdrop and HTML URL
   convolution as narrow Chromium surfaces. The native workflow runs DPR 1/2 on
   macOS/Linux/Windows and preserves producer/artifact fingerprints. A
-  `known-source-drift` verdict is accepted only for DM-2485's explicitly
-  classified `.65 → .7` color-alpha serialization; unexpected drift still
-  fails and the four-code pixel-stage bound is immutable.
+  source-owned alpha serialization preserving Blink's legacy two/three-decimal
+  and modern six-decimal forms. The DPR-1/2 report is `source-exact`; there is
+  no known-drift allowance, and the four-code pixel-stage bound plus mutation
+  thresholds remain immutable.
+
+- **Backdrop source-surface investigation (DM-2357, doc 187)** —
+  `tools/backdrop-source-surface-audit.ts` derives the nearest Backdrop Root
+  from pinned Blink effect-tree triggers, records an independent pre-capture
+  `DOMSnapshot` sibling order, and compares Chromium with the complete SVG for
+  17 font-free transition families at DPR 1/2. Removing every backdrop raster
+  proves under-capture sensitivity; replacing it with the final Chromium crop
+  proves over-capture sensitivity. The investigation does not alter production:
+  it exposes final-crop replay under ancestor opacity/filter/mask/blend and
+  transforms, missing generated-pseudo ownership, and fixed-target sibling-order
+  drift for DM-2487–DM-2490.
 
 ## Upstream source is checked out locally — read it
 

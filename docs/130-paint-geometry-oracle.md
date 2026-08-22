@@ -146,12 +146,23 @@ observably different, while live and strict visual fixtures exercise the URL
 grammar, HTML/SVG ownership, nested-frame/external routes, and all three basic-
 shape box classes.
 
+DM-2358 adds the generated native-SVG integration leg documented in
+[doc 188](188-generated-svg-effect-combinations.md). Twenty-four deterministic
+cases cover every one of the 953 pairs among 18 shape, gradient, clip, mask,
+viewport, marker, stroke, transform, and interpolation axes. The final SVG is
+pixel-identical to the source in the local DPR-1/2 run, while destructive
+marker, non-scaling-stroke, and interpolation controls prove the newly
+preserved computed-style transitions are active. The matrix delegates all
+resource geometry to native SVG; it does not infer new bounds from pixels.
+
 ## Boundaries and next expansion
 
 This gate does not claim exhaustive paint parity. The covered geometry-box
 classes now have structured, mutation-control, live-browser, capture-contract,
-and strict visual evidence. New SVG effects should extend this matrix rather
-than infer object or stroke bounds from screenshot pixels.
+and strict visual evidence, including complete pairwise coverage of the 18
+enumerated SVG-effect axes. Higher-order combinations and future effect classes
+remain explicit. New SVG effects should extend this matrix rather than infer
+object or stroke bounds from screenshot pixels.
 
 The live-browser leg validates that the pinned source transcription still
 describes the currently installed Chromium; it does not replace the structured

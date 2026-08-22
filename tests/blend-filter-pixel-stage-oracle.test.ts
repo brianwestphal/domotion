@@ -4,11 +4,12 @@ import {
   BLEND_FILTER_SOURCE_PINS,
   BLUR_IDENTITY_SIGMA,
   BLUR_KERNEL_RADIUS_MULTIPLIER,
+  MUTATION_MIN_CHANNEL_DISTANCE,
+  STAGE_CHANNEL_TOLERANCE,
   applyColorFilters,
   blend,
   blendFilterFixtureHtml,
   blendModes,
-  knownAlphaSerializationError,
   premultiply,
 } from "../tools/blend-filter-pixel-stage-oracle.js";
 
@@ -18,6 +19,8 @@ describe("DM-2360 source-derived blend/filter stages", () => {
     expect(BLEND_FILTER_SOURCE_PINS.skiaPinnedByChromium).toBe("62efacd37737505732dbe3d8daa62abd679626a1");
     expect(BLUR_IDENTITY_SIGMA).toBe(.03);
     expect(BLUR_KERNEL_RADIUS_MULTIPLIER).toBe(3);
+    expect(STAGE_CHANNEL_TOLERANCE).toBe(4);
+    expect(MUTATION_MIN_CHANNEL_DISTANCE).toBe(8);
   });
 
   it("transcribes premultiplied source-over and multiply instead of straight-alpha arithmetic", () => {
@@ -65,13 +68,6 @@ describe("DM-2360 source-derived blend/filter stages", () => {
     expect(applyColorFilters(input, [{ type: "opacity", amount: .4 }])).toMatchObject({
       r: input.r, g: input.g, b: input.b, a: .26,
     });
-  });
-
-  it("accepts the known alpha finding only when its independent signature matches", () => {
-    const expected = [85, 144, 169, 255] as const;
-    expect(knownAlphaSerializationError("blend.normal", [...expected], [...expected])).toBe(0);
-    expect(knownAlphaSerializationError("blend.normal", [0, 0, 0, 0], [...expected])).toBe(255);
-    expect(knownAlphaSerializationError("filter.color-chain", [...expected], [...expected])).toBeNull();
   });
 
   it("ships a composed fixture with every blend mode and both raster-boundary controls", () => {

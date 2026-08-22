@@ -1,6 +1,6 @@
 # 185 — Blend-mode and filter-kernel pixel-stage oracle
 
-**Status:** DM-2360 investigation. No production paint behavior changed.
+**Status:** Source-stage oracle and computed-alpha correction shipped.
 
 **Source pins:** Chromium
 `7d859f271cbda744098ac69f44978d4edfa62be3` and the Skia revision named by
@@ -104,8 +104,7 @@ Run:
 npm run paint:blend-filter-stage -- \
   --dpr 1,2 \
   --json tests/output/blend-filter/report.json \
-  --artifact-dir tests/output/blend-filter \
-  --accept-known-findings
+  --artifact-dir tests/output/blend-filter
 ```
 
 The report fingerprints Chromium, OS, and architecture and contains:
@@ -137,29 +136,32 @@ discriminators across 56 named rows:
   stack (0–1 codes); and
 - all six raster-boundary classifications matched.
 
-## Concrete defect: translucent color serialization
+## Resolved defect: translucent color serialization
 
-The run also found one Domotion defect before any tolerance decision. A source
-fill computed as `rgba(38, 171, 224, 0.65)` is emitted as
-`rgba(38,171,224,0.7)`. `src/render/colors.ts::colorStr()` sends alpha through
-`src/render/format.ts::r()`, whose contract is one decimal place for geometry.
-The named source/model pixel still agrees within one code; the final SVG moves
-8–11 codes on alpha-sensitive normal/blend/filter rows. Opaque controls remain
-exact, localizing the failure to representation rather than Skia arithmetic.
+The investigation initially found one Domotion representation defect before
+any tolerance decision. A source fill computed as
+`rgba(38, 171, 224, 0.65)` was emitted as `rgba(38,171,224,0.7)` because
+`src/render/colors.ts::colorStr()` reused `src/render/format.ts::r()`, whose
+one-decimal contract is for SVG geometry. The final SVG consequently moved
+8–11 channel codes on alpha-sensitive normal/blend/filter rows while opaque
+controls stayed exact.
 
-The oracle reports this as `known-source-drift` and lists every affected row.
-`--accept-known-findings` permits CI to preserve and upload the investigation
-evidence; it does not turn those rows into passes. Classification is
-signature-bound: the emitted pixel must independently match the same operation
-modeled with alpha `0.7` inside the unchanged four-code bound. Any arbitrary
-drift on an affected row, different failing row, boundary, structural error,
-inert mutation, or source-model disagreement is `unexpected-drift` and fails
-even with that flag.
+Blink's color serializers do not use coordinate precision. Legacy colors use
+the CSSOM 8-bit two/three-decimal rule
+(`platform/graphics/color.cc:1018-1070`), while modern `color()` alpha uses
+`StringBuilder::AppendNumber` at six-decimal precision (`color.cc:1076-1101`,
+`platform/wtf/text/string_builder.h:174`). Capture has already selected one of
+those forms before `parseColor()` erases the lexical provenance. The color-only
+formatter therefore preserves their union, up to six decimals: `0.65` remains
+`0.65`, and small/near-one modern alpha is not collapsed to transparent or
+opaque. `format.r()` remains one-decimal and unchanged.
 
-Follow-up **DM-2485** owns the production correction. It must introduce a
-color-specific alpha formatter, keep coordinate formatting unchanged, and move
-this report to `source-exact` without increasing the four-code named-pixel
-bound.
+The strict DPR-1/2 run now reports `source-exact` across all 56 named rows.
+The fixed four-code source/final bound, eight-code positive-mutation floor,
+negative-mutation bound, and six ownership classifications are unchanged. The
+temporary `known-source-drift` classification and `--accept-known-findings`
+workflow escape are removed, so any later source/model, SVG, boundary,
+structural, or mutation failure is `unexpected-drift` and fails the gate.
 
 ## Recommended maintenance
 

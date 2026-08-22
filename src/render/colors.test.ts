@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { parseColor, colorStr, sameColor, shadeColor } from "./colors.js";
+import { r } from "./format.js";
 
 describe("parseColor", () => {
   it("parses rgb() and rgba()", () => {
@@ -60,6 +61,18 @@ describe("colorStr", () => {
   it("emits rgb() when opaque and rgba() when translucent", () => {
     expect(colorStr({ r: 1, g: 2, b: 3, a: 1 })).toBe("rgb(1,2,3)");
     expect(colorStr({ r: 1, g: 2, b: 3, a: 0.5 })).toBe("rgba(1,2,3,0.5)");
+  });
+
+  it("preserves computed alpha precision without changing coordinate rounding", () => {
+    expect(colorStr({ r: 38, g: 171, b: 224, a: 0.65 })).toBe("rgba(38,171,224,0.65)");
+    expect(r(0.65)).toBe("0.7");
+  });
+
+  it("retains Blink's six-decimal modern-color range at the transparent and opaque edges", () => {
+    expect(colorStr({ r: 1, g: 2, b: 3, a: 0.000001 })).toBe("rgba(1,2,3,0.000001)");
+    expect(colorStr({ r: 1, g: 2, b: 3, a: 1 / 255 })).toBe("rgba(1,2,3,0.003922)");
+    expect(colorStr({ r: 1, g: 2, b: 3, a: 254 / 255 })).toBe("rgba(1,2,3,0.996078)");
+    expect(colorStr({ r: 1, g: 2, b: 3, a: 0.999999 })).toBe("rgba(1,2,3,0.999999)");
   });
 });
 

@@ -8,7 +8,7 @@ describe("DM-2360 all-platform named-pixel workflow", () => {
   it("exposes the focused source-stage command and both DPRs", () => {
     expect(pkg.scripts["paint:blend-filter-stage"]).toContain("blend-filter-pixel-stage-oracle.ts");
     expect(workflow).toContain("--dpr 1,2");
-    expect(workflow).toContain("--accept-known-findings");
+    expect(workflow).not.toContain("--accept-known-findings");
     expect(workflow).toContain('"tests/blend-filter-pixel-stage-workflow.test.ts"');
   });
 

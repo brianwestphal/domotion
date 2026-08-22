@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex Max",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt4yko9k031l0nnz",
+          "message": {
+            "text": "Capture has already applied Blink's form-specific color serialization: legacy alpha uses CSSOM's two/three-decimal 8-bit form, while modern color() alpha uses six-decimal StringBuilder precision. The shared RGBA representation erases that lexical provenance, so colorAlphaStr preserves the union at up to six decimals rather than re-quantizing; SVG coordinate format.r remains unchanged.",
+            "markdown": "Capture has already applied Blink's form-specific color serialization: legacy alpha uses CSSOM's two/three-decimal 8-bit form, while modern color() alpha uses six-decimal StringBuilder precision. The shared RGBA representation erases that lexical provenance, so colorAlphaStr preserves the union at up to six decimals rather than re-quantizing; SVG coordinate format.r remains unchanged."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/colors.ts"
+                },
+                "region": {
+                  "startLine": 89,
+                  "endLine": 106,
+                  "snippet": {
+                    "text": "/**\n * Preserve the precision of captured CSS alpha without applying SVG coordinate\n * rounding.\n *\n * Capture has already applied Blink's form-specific serialization: legacy\n * colors use the CSSOM 8-bit two/three-decimal rule, while modern `color()`\n * alpha uses StringBuilder's six-decimal precision (Chromium 7d859f27,\n * `Color::SerializeLegacyColorAsCSSColor` / `Color::SerializeInternal`). This\n * shared RGBA representation no longer carries that lexical provenance, so\n * retaining up to the source maximum is the only lossless common route.\n */\nfunction colorAlphaStr(alpha: number): string {\n  const clamped = Math.max(0, Math.min(1, alpha));\n  return Number(clamped.toFixed(6)).toString();\n}\n\nexport function colorStr(c: RGBA): string {\n  return c.a < 1 ? `rgba(${c.r},${c.g},${c.b},${colorAlphaStr(c.a)})` : `rgb(${c.r},${c.g},${c.b})`;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 96,
+          "workItemUris": [
+            "DM-2485"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "3b5cea63910ccc5565eb1b7e2638a5b0"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "1e53867c9bca6e6c6bf0d5b4234cc82d1592cec3",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

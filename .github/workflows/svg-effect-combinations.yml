@@ -1,0 +1,84 @@
+name: Generated SVG effect combinations
+
+on:
+  pull_request:
+    paths:
+      - "src/capture/script/walker/inline-svg.ts"
+      - "src/capture/script.generated.ts"
+      - "src/render/svg-inline.ts"
+      - "src/render/clip-path.ts"
+      - "src/render/mask.ts"
+      - "src/render/gradient-defs.ts"
+      - "tools/svg-effect-combination-corpus.ts"
+      - "tools/svg-effect-combination-oracle.ts"
+      - "tests/svg-effect-combination-corpus.test.ts"
+      - "tests/svg-effect-combination-oracle.e2e.test.ts"
+      - "tests/svg-effect-combination-workflow.test.ts"
+      - "tests/svg-native-paint-properties.e2e.test.ts"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/svg-effect-combinations.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/capture/script/walker/inline-svg.ts"
+      - "src/capture/script.generated.ts"
+      - "src/render/svg-inline.ts"
+      - "src/render/clip-path.ts"
+      - "src/render/mask.ts"
+      - "src/render/gradient-defs.ts"
+      - "tools/svg-effect-combination-corpus.ts"
+      - "tools/svg-effect-combination-oracle.ts"
+      - "tests/svg-effect-combination-corpus.test.ts"
+      - "tests/svg-effect-combination-oracle.e2e.test.ts"
+      - "tests/svg-effect-combination-workflow.test.ts"
+      - "tests/svg-native-paint-properties.e2e.test.ts"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/svg-effect-combinations.yml"
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "22.21.0"
+
+jobs:
+  svg-effects:
+    name: ${{ matrix.label }} native SVG combinations
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            label: macOS
+          - os: ubuntu-latest
+            label: Linux
+          - os: windows-latest
+            label: Windows
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium and Linux system dependencies
+        if: runner.os == 'Linux'
+        run: npx playwright install --with-deps chromium
+      - name: Install Chromium
+        if: runner.os != 'Linux'
+        run: npx playwright install chromium
+      - name: Run deterministic corpus and workflow guards
+        run: npx vitest run tests/svg-effect-combination-corpus.test.ts tests/svg-effect-combination-workflow.test.ts
+      - name: Capture DPR 1/2 native SVG and mutation evidence
+        run: npm run paint:svg-effect-combinations -- --dpr 1,2 --json tests/output/svg-effect-combinations/${{ runner.os }}/report.json
+      - name: Upload source-linked combination evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: svg-effect-combinations-${{ runner.os }}
+          path: tests/output/svg-effect-combinations/${{ runner.os }}
+          if-no-files-found: error
