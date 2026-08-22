@@ -2,10 +2,11 @@
 /**
  * DM-2371 investigation probe.
  *
- * This is intentionally observational. It compares Blink's used affine CTM
- * for an SVG graphics element with the CTM obtained after Domotion clones and
- * re-embeds that inline SVG, and separately records when the existing outer
- * Chromium-surface boundary activates. It does not change capture routing.
+ * This is an observational logical-stage probe. It compares Blink's used
+ * affine CTM for an SVG graphics element with the CTM obtained after Domotion
+ * clones and re-embeds that inline SVG, and separately records whether the
+ * production Chromium-surface boundary selects one reachable outer owner. It
+ * does not replace the independent all-platform raster gate tracked by doc 162.
  */
 import { writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -27,11 +28,8 @@ type Quad = [Point, Point, Point, Point];
 type ExpectedRoute =
   | "clone-equivalent"
   | "clone-gap"
-  | "spurious-raster"
-  | "hidden-spurious-raster-owner"
   | "outer-raster"
-  | "missed-outer-raster"
-  | "hidden-raster-owner";
+  | "promoted-inline-svg-raster";
 
 interface AuditCase {
   id: string;
@@ -143,7 +141,7 @@ const CASES: AuditCase[] = [
   },
   {
     id: "svg-layer-perspective-ignored",
-    expectedRoute: "hidden-spurious-raster-owner",
+    expectedRoute: "clone-gap",
     layerCss: "perspective:180px;perspective-origin:9% 91%;transform-style:preserve-3d",
     targetCss: "transform-box:fill-box;transform-origin:17% 83%;transform:rotateY(43deg) translateZ(22px)",
   },
@@ -166,14 +164,14 @@ const CASES: AuditCase[] = [
     targetCss: "transform-box:fill-box;transform-origin:17% 83%;transform:translateZ(35px) rotateY(31deg)",
   },
   {
-    id: "root-svg-inert-perspective-spurious-raster",
-    expectedRoute: "spurious-raster",
+    id: "root-svg-inert-perspective-vector",
+    expectedRoute: "clone-gap",
     rootCss: "perspective:310px;perspective-origin:13% 86%;transform-style:preserve-3d",
     targetCss: "transform-box:fill-box;transform-origin:17% 83%;transform:rotateY(48deg) translateZ(27px)",
   },
   {
     id: "root-svg-own-projective-transform-raster",
-    expectedRoute: "missed-outer-raster",
+    expectedRoute: "promoted-inline-svg-raster",
     rootCss: "transform:perspective(310px) rotateY(48deg);transform-origin:13% 86%",
   },
   {
@@ -183,8 +181,8 @@ const CASES: AuditCase[] = [
     rootCss: "transform:rotateY(36deg) translateZ(18px);transform-origin:31% 74%",
   },
   {
-    id: "foreign-object-nested-projective-owner-hidden",
-    expectedRoute: "hidden-raster-owner",
+    id: "foreign-object-nested-projective-owner-promoted",
+    expectedRoute: "promoted-inline-svg-raster",
     foreignObject: true,
     foreignHostCss: "perspective:330px;perspective-origin:19% 79%;transform-style:preserve-3d",
     targetCss: "transform:rotateY(44deg) translateZ(24px);transform-origin:21% 76%",
@@ -348,14 +346,8 @@ export async function runInlineSvg3dAudit(): Promise<{
       const transformRaster = raster.count > 0;
       const pass = test.expectedRoute === "outer-raster"
         ? raster.effective === 1
-        : test.expectedRoute === "spurious-raster"
-          ? raster.effective === 1 && quadAffineResidual(source.quad) <= MATRIX_EPSILON
-          : test.expectedRoute === "hidden-spurious-raster-owner"
-            ? raster.count === 1 && raster.effective === 0 && quadAffineResidual(source.quad) <= MATRIX_EPSILON
-            : test.expectedRoute === "hidden-raster-owner"
-              ? raster.count === 1 && raster.effective === 0 && quadAffineResidual(source.quad) > MATRIX_EPSILON
-              : test.expectedRoute === "missed-outer-raster"
-                ? raster.effective === 0 && quadAffineResidual(source.quad) > MATRIX_EPSILON
+        : test.expectedRoute === "promoted-inline-svg-raster"
+          ? raster.count === 1 && raster.effective === 1 && inlineSvg?.transformSubtreeRaster?.dataUri != null
             : test.expectedRoute === "clone-equivalent"
               ? raster.count === 0 && delta <= MATRIX_EPSILON
               : raster.count === 0 && delta > MATRIX_EPSILON;
@@ -409,12 +401,10 @@ export async function runInlineSvg3dAudit(): Promise<{
       everyOuterProjectiveRowHasOneOwner: rows
         .filter((row) => row.expectedRoute === "outer-raster")
         .every((row) => row.effectiveRasterOwnerCount === 1),
-      nestedForeignObjectOwnerIsSuppressed: rows
-        .filter((row) => row.expectedRoute === "hidden-raster-owner")
-        .every((row) => row.rasterOwnerCount === 1 && row.effectiveRasterOwnerCount === 0),
-      inlineSvgProjectiveRootIsMissed: rows
-        .filter((row) => row.expectedRoute === "missed-outer-raster")
-        .every((row) => row.quadAffineResidual > MATRIX_EPSILON && row.effectiveRasterOwnerCount === 0),
+      nestedForeignObjectOwnerIsPromoted: (byId.get("foreign-object-nested-projective-owner-promoted")?.capturedInlineSvg?.ownsTransformRaster) === true,
+      inlineSvgProjectiveRootIsOwned: (byId.get("root-svg-own-projective-transform-raster")?.capturedInlineSvg?.ownsTransformRaster) === true,
+      inertSvgPerspectiveStaysVector: (byId.get("root-svg-inert-perspective-vector")?.rasterOwnerCount) === 0
+        && (byId.get("svg-layer-perspective-ignored")?.rasterOwnerCount) === 0,
     };
     const pass = rows.every((row) => row.pass) && Object.values(controls).every(Boolean);
     return {
@@ -425,7 +415,7 @@ export async function runInlineSvg3dAudit(): Promise<{
       architecture: process.arch,
       rows,
       controls,
-      verdict: pass ? "source-boundary-and-current-inline-svg-gaps-observed" : "probe-expectation-or-source-drift",
+      verdict: pass ? "source-boundary-and-projective-owner-routing-observed" : "probe-expectation-or-source-drift",
     };
   } finally {
     await browser.close();

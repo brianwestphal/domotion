@@ -166,7 +166,10 @@ describeBrowser("DM-2385 perspective capture and fixed containing-block ownershi
         && node.styles.perspective === "420px");
 
       expect(active?.styles.perspectiveOrigin).toBe("30px 84px");
-      expect(active?.transformSubtreeRaster?.dataUri).toMatch(/^data:image\/png;base64,/);
+      // Perspective still establishes the fixed containing block, but property
+      // presence alone does not cross the Chromium raster boundary. With no
+      // transformed descendant plane the measured paint is affine.
+      expect(active?.transformSubtreeRaster).toBeUndefined();
       expect(inactive?.styles.perspectiveOrigin).toBe("30px 84px");
       expect(inactive?.transformSubtreeRaster).toBeUndefined();
       expect(preserve?.styles.transformStyle).toBe("preserve-3d");
@@ -200,10 +203,9 @@ describeBrowser("DM-2385 perspective capture and fixed containing-block ownershi
         "rgb(151, 31, 201)",
         "rgb(31, 151, 201)",
       ]);
-      // Active perspective owns a Chromium-composited subtree image. Its red
-      // fixed child must not be hoisted and painted a second time as a vector.
-      expect(svg).toContain("<image");
-      expect(clipState(svg, "rgb(201, 31, 31)")).toBe("missing");
+      // Active perspective owns fixed positioning and clipping, but remains a
+      // vector route until a measured descendant paint plane is non-affine.
+      expect(clipState(svg, "rgb(201, 31, 31)")).toBe("trapped");
       // perspective:none and origin-only controls stay viewport-fixed and
       // escape the same overflow clip; preserve-3d and will-change:perspective
       // remain fixed to their owning boxes and therefore under that clip.

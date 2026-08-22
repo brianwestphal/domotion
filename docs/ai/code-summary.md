@@ -394,17 +394,22 @@ shortest possible map:
   observable while fixed ownership/projective paint remain rejected.
   Computed preserve-3d is also a fixed CB through grouping-property flattening.
   `transformSubtreeRaster` separately owns projective paint (doc 06).
-- **Cloned inline-SVG 3D audit (DM-2371, design-only)** —
+- **Cloned inline-SVG 3D boundary (doc 162; projective ownership shipped,
+  affine freeze pending)** —
   `tools/inline-svg-3d-audit.ts`
   (`npm run transform:inline-svg-3d-audit`) compares Blink's live
   parent-relative SVG-child CTM with the actual `captureInlineSvg` clone and
-  inventories effective versus clone-suppressed projective owners. Pinned
-  source proves SVG graphics children are deliberately flattened to an affine
-  `LocalToSVGParentTransform`; current capture instead loses true matrix3d,
-  z-origin and non-scaling-stroke cases, misses a projective inline-SVG root,
-  and hides a nested `<foreignObject>` raster below `svgContent`. Doc 162 owns
-  the exact freeze/promote boundary; DM-2473/2474 implement it and DM-2475
-  promotes the observational probe to an all-platform logical/raster gate.
+  inventories effective projective owners. Pinned source proves SVG graphics
+  children are deliberately flattened to an affine
+  `LocalToSVGParentTransform`; their exact matrix3d/z-origin/non-scaling-stroke
+  freeze remains pending. Projective box paint is now source-owned:
+  `src/capture/index.ts` gathers CDP quads without marker mutations,
+  `src/capture/projective-owner.ts` selects and promotes one owner through
+  opaque inline-SVG clones, and the isolated alpha-trimmed post-pass emits that
+  surface once. The focused DPR-2 route/pixel oracle covers nested
+  `<foreignObject>`, zoom/scroll, ancestor rotation/opacity/filter, clipping,
+  off-bounds paint, and a vector-sibling isolation control. DM-2475 promotes the audit to the all-platform two-leg
+  logical/raster gate after the affine-freeze work lands.
 - **URL background geometry audit (DM-2370, design-only)** —
   `tools/url-background-geometry-audit.ts`
   (`npm run background:url-geometry-audit`) paints a deterministic decoded

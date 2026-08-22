@@ -22,6 +22,12 @@ import { captureResolvedControlPseudoStyles } from "./pseudo-style-cdp.js";
 import { ensureSessionGenericFamilyOverrides } from "./generic-font-probe.js";
 import { clipRectForScreenshot } from "./clip-rect.js";
 import {
+  isNonAffineProjectiveQuad,
+  type ProjectivePaintNodeFact,
+  type ProjectivePaintQuad,
+  type ProjectiveSvgRole,
+} from "./projective-owner.js";
+import {
   axisAlignedQuadBounds,
   mapCssRectToSourcePixels,
   mapTranslatedQuadToScreenshot,
@@ -986,6 +992,197 @@ function parseWeightDescriptor(value: string): number {
 // and measures glyph-baseline drift for the per-font ascent table.
 // ────────────────────────────────────────────────────────────────────────
 
+interface ProjectivePaintProbe {
+  key: string;
+  facts: ProjectivePaintNodeFact[];
+  dispose(): Promise<void>;
+}
+
+/**
+ * Read Blink's live paint planes through CDP without appending marker children.
+ *
+ * DOM.getContentQuads works for the outer SVG layout box, SVG graphics
+ * children, and HTML boxes inside <foreignObject>.  Correlation uses a private
+ * page-global array of the actual Element objects, so the probe cannot activate
+ * an author attribute selector or perturb layout.  The in-page capture bundle
+ * consumes the array synchronously and the projective raster post-pass keeps it
+ * alive only long enough to isolate the selected owner.
+ */
+async function measureProjectivePaintQuads(
+  page: Page,
+  selector: string,
+  viewport: { x: number; y: number; width: number; height: number },
+): Promise<ProjectivePaintProbe> {
+  const key = `__domotionProjectivePaintNodes_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  interface PreparedNode {
+    parent: number | null;
+    influenced: boolean;
+    measure: boolean;
+    activationPlane: boolean;
+    inlineSvgRoot: number | null;
+    role: ProjectiveSvgRole;
+  }
+
+  const prepared = await page.evaluate(({ sel, key }): Promise<PreparedNode[]> | PreparedNode[] => {
+    const root = document.querySelector(sel);
+    if (root == null) {
+      (globalThis as typeof globalThis & Record<string, unknown>)[key] = [];
+      return [];
+    }
+
+    const nodes = [root, ...Array.from(root.querySelectorAll("*"))];
+    const indexByNode = new Map<Element, number>();
+    for (let index = 0; index < nodes.length; index++) indexByNode.set(nodes[index], index);
+    const influenced = new Set<Element>();
+    const measure = new Set<Element>();
+    const activationPlanes = new Set<Element>();
+    const SVG_NS = "http://www.w3.org/2000/svg";
+
+    for (const element of nodes) {
+      const style = getComputedStyle(element);
+      const transform = style.transform ?? "none";
+      let has3dMatrix = transform.startsWith("matrix3d(");
+      if (transform !== "" && transform !== "none") {
+        try { has3dMatrix = !new DOMMatrixReadOnly(transform).is2D; } catch { /* serialized fallback above */ }
+      }
+      const translate = style.translate ?? "none";
+      const rotate = style.rotate ?? "none";
+      const scale = style.scale ?? "none";
+      const hasIndependent3d = /\s/.test(translate.trim()) && translate.trim().split(/\s+/).length >= 3
+        || /^(?:x|y)\b/i.test(rotate.trim())
+        || rotate.trim().split(/\s+/).length >= 4
+        || scale.trim().split(/\s+/).length >= 3;
+      const hasPerspective = style.perspective != null
+        && style.perspective !== ""
+        && style.perspective !== "none";
+      const signal = has3dMatrix || hasIndependent3d
+        || style.transformStyle === "preserve-3d"
+        || hasPerspective;
+      if (!signal) continue;
+
+      influenced.add(element);
+      for (const descendant of Array.from(element.querySelectorAll("*"))) influenced.add(descendant);
+    }
+
+    for (const element of nodes) {
+      if (!influenced.has(element)) continue;
+      const style = getComputedStyle(element);
+      const hasTransform = (style.transform != null && style.transform !== "" && style.transform !== "none")
+        || (style.translate != null && style.translate !== "" && style.translate !== "none")
+        || (style.rotate != null && style.rotate !== "" && style.rotate !== "none")
+        || (style.scale != null && style.scale !== "" && style.scale !== "none")
+        || style.backfaceVisibility === "hidden";
+      const rect = element.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) measure.add(element);
+      if (hasTransform && rect.width > 0 && rect.height > 0) activationPlanes.add(element);
+    }
+
+    (globalThis as typeof globalThis & Record<string, unknown>)[key] = nodes;
+    const result: PreparedNode[] = [];
+    for (const element of nodes) {
+      const parent = element === root ? null : (indexByNode.get(element.parentElement!) ?? null);
+      const isSvg = element.namespaceURI === SVG_NS;
+      const role: ProjectiveSvgRole = !isSvg
+        ? "html-box"
+        : element.localName === "svg" && (element as SVGSVGElement).ownerSVGElement == null
+          ? "svg-root-box"
+          : "svg-graphics";
+      let inlineSvgRoot: number | null = null;
+      let cursor: Element | null = element;
+      while (cursor != null) {
+        if (cursor.namespaceURI === SVG_NS && cursor.localName === "svg") {
+          inlineSvgRoot = indexByNode.get(cursor) ?? null;
+        }
+        cursor = cursor.parentElement;
+      }
+      result.push({
+        parent,
+        influenced: influenced.has(element),
+        measure: measure.has(element),
+        activationPlane: activationPlanes.has(element),
+        inlineSvgRoot,
+        role,
+      });
+    }
+    return result;
+  }, { sel: selector, key });
+
+  const quadByIndex = new Map<number, { quad: ProjectivePaintQuad | null; borderQuad: ProjectivePaintQuad | null }>();
+  let cdp: CDPSession | undefined;
+  try {
+    cdp = await page.context().newCDPSession(page);
+    await Promise.all([cdp.send("DOM.enable"), cdp.send("Runtime.enable")]);
+    for (let index = 0; index < prepared.length; index++) {
+      if (!prepared[index].measure) continue;
+      let objectId: string | undefined;
+      try {
+        const evaluated = await cdp.send("Runtime.evaluate", {
+          expression: `globalThis[${JSON.stringify(key)}]?.[${index}]`,
+          returnByValue: false,
+          silent: true,
+        });
+        objectId = evaluated.result.objectId;
+        if (objectId == null) throw new Error("projective paint node detached");
+        const described = await cdp.send("DOM.describeNode", { objectId });
+        const backendNodeId = described.node.backendNodeId;
+        const content = await cdp.send("DOM.getContentQuads", { backendNodeId });
+        const contentQuad = content.quads.length === 1 && content.quads[0].length === 8
+          && content.quads[0].every(Number.isFinite)
+          ? content.quads[0] as unknown as ProjectivePaintQuad
+          : null;
+        let borderQuad: ProjectivePaintQuad | null = null;
+        try {
+          const box = await cdp.send("DOM.getBoxModel", { backendNodeId });
+          const border = box.model.border;
+          if (border.length === 8 && border.every(Number.isFinite)) {
+            borderQuad = border as unknown as ProjectivePaintQuad;
+          }
+        } catch { /* SVG graphics nodes need not expose a CSS box model. */ }
+        const localize = (quad: ProjectivePaintQuad | null): ProjectivePaintQuad | null => quad == null ? null : [
+          quad[0] - viewport.x, quad[1] - viewport.y,
+          quad[2] - viewport.x, quad[3] - viewport.y,
+          quad[4] - viewport.x, quad[5] - viewport.y,
+          quad[6] - viewport.x, quad[7] - viewport.y,
+        ];
+        quadByIndex.set(index, { quad: localize(contentQuad), borderQuad: localize(borderQuad) });
+      } catch {
+        quadByIndex.set(index, { quad: null, borderQuad: null });
+      } finally {
+        if (objectId != null) await cdp.send("Runtime.releaseObject", { objectId }).catch(() => undefined);
+      }
+    }
+  } catch {
+    // Missing CDP is an explicit unknown. Measured planes below become
+    // non-affine so capture crosses the conservative Chromium surface boundary.
+  } finally {
+    await cdp?.detach().catch(() => undefined);
+  }
+
+  const facts: ProjectivePaintNodeFact[] = prepared.map((node, index) => {
+    const measured = quadByIndex.get(index);
+    const quad = measured?.quad ?? null;
+    return {
+      parent: node.parent,
+      influenced: node.influenced,
+      nonAffine: node.activationPlane && (quad == null || isNonAffineProjectiveQuad(quad)),
+      inlineSvgRoot: node.inlineSvgRoot,
+      role: node.role,
+      quad,
+      borderQuad: measured?.borderQuad ?? null,
+    };
+  });
+
+  return {
+    key,
+    facts,
+    dispose: async () => {
+      await page.evaluate((probeKey) => {
+        delete (globalThis as typeof globalThis & Record<string, unknown>)[probeKey];
+      }, key).catch(() => undefined);
+    },
+  };
+}
+
 export interface BlinkPlatformResizerMetrics {
   /** ScrollbarTheme::ScrollbarThickness in CSS viewport pixels. */
   themeThickness: number;
@@ -1347,10 +1544,12 @@ export async function captureElementTreeWithWarnings(
 
   const maskIntrinsicPrime = await primeMaskImageIntrinsics(page);
   let pseudoStyles: Awaited<ReturnType<typeof captureResolvedControlPseudoStyles>> | undefined;
+  let projectiveProbe: ProjectivePaintProbe | undefined;
   let result: unknown;
   try {
     const resizerMetrics = await measureBlinkPlatformResizer(page);
     pseudoStyles = await captureResolvedControlPseudoStyles(page);
+    projectiveProbe = await measureProjectivePaintQuads(page, selector, viewport);
     const captureArgs = {
       sel: selector,
       vp: viewport,
@@ -1359,15 +1558,23 @@ export async function captureElementTreeWithWarnings(
       rs: resizerMetrics.scaleFromDIP,
       pk: pseudoStyles.propertyKey,
       ps: pseudoStyles.stylesByHost,
+      pq: projectiveProbe.facts,
+      pqk: projectiveProbe.key,
     };
     result = await page.evaluate(`(${CAPTURE_SCRIPT})(${JSON.stringify(captureArgs)})`);
   } finally {
     await pseudoStyles?.dispose();
     await maskIntrinsicPrime.dispose();
+    if (result == null) await projectiveProbe?.dispose();
   }
   const typed = result as { tree: CapturedElement[]; warnings: CaptureWarning[] };
   const warnings = typed.warnings ?? [];
   _resetLastCaptureWarnings(warnings);
+  try {
+    await rasterizeProjectiveSurfaces(page, typed.tree, viewport, projectiveProbe?.key);
+  } finally {
+    await projectiveProbe?.dispose();
+  }
   await refineLineClampEllipsisFragments(page, typed.tree, viewport, warnings);
   await rasterizeUrlFilterSurfaces(page, typed.tree, viewport);
   await rasterizeBitmapGlyphs(page, typed.tree, viewport);
@@ -1492,6 +1699,212 @@ const SNAPSHOT_HIDE_CSS = [
   "[data-domotion-snapshot-target]::before, [data-domotion-snapshot-target]::after { visibility: visible !important; }",
   "html, body { background: transparent !important; }",
 ].join("\n");
+
+/**
+ * Snapshot each selected CSS-3D owner as one isolated Chromium surface.
+ *
+ * The capture bundle stores the source node's index in the private live-DOM
+ * correlation array created by measureProjectivePaintQuads.  Isolation hides
+ * every non-descendant through inline visibility (restored exactly afterward),
+ * leaves the owner's transforms/clips/effects and authored descendant
+ * visibility intact, then trims the full capture viewport by real alpha.  This
+ * avoids both sibling double-paint and guessed filter/overflow padding.
+ */
+export async function rasterizeProjectiveSurfaces(
+  page: Page,
+  tree: CapturedElement[],
+  viewport: { x: number; y: number; width: number; height: number },
+  sourceNodeKey?: string,
+): Promise<void> {
+  const targets: NonNullable<CapturedElement["transformSubtreeRaster"]>[] = [];
+  forEachElement(tree, (element) => {
+    if (element.transformSubtreeRaster != null) targets.push(element.transformSubtreeRaster);
+  });
+  if (targets.length === 0) return;
+  if (sourceNodeKey == null) {
+    throw new Error("projective raster owners are missing their Chromium source-node registry");
+  }
+
+  const restoreVisibility = async (): Promise<void> => {
+    await page.evaluate(() => {
+      const host = globalThis as typeof globalThis & {
+        __domotionProjectiveVisibilityRestore?: Array<{
+          element: Element;
+          property: string;
+          value: string;
+          priority: string;
+        }>;
+      };
+      for (const item of host.__domotionProjectiveVisibilityRestore ?? []) {
+        const html = item.element as HTMLElement;
+        if (item.value === "") html.style.removeProperty(item.property);
+        else html.style.setProperty(item.property, item.value, item.priority);
+      }
+      delete host.__domotionProjectiveVisibilityRestore;
+    }).catch(() => undefined);
+  };
+
+  for (const target of targets) {
+    const sourceNodeIndex = target.sourceNodeIndex;
+    if (sourceNodeIndex == null) {
+      throw new Error("projective raster owner is missing its Chromium source-node correlation");
+    }
+    try {
+      const prepared = await page.evaluate(({ index, sourceNodeKey }) => {
+        const host = globalThis as typeof globalThis & {
+          __domotionProjectiveVisibilityRestore?: Array<{
+            element: Element;
+            property: string;
+            value: string;
+            priority: string;
+          }>;
+        };
+        const sourceNodes = (host as typeof host & Record<string, unknown>)[sourceNodeKey] as Element[] | undefined;
+        const sourceOwner = sourceNodes?.[index];
+        if (sourceOwner == null || !sourceOwner.isConnected) return false;
+        const restore: NonNullable<typeof host.__domotionProjectiveVisibilityRestore> = [];
+        // Publish before the first mutation so a mid-preparation exception can
+        // still restore every declaration already recorded by the finally path.
+        host.__domotionProjectiveVisibilityRestore = restore;
+        const ownerVisibility = getComputedStyle(sourceOwner).visibility;
+        for (const element of Array.from(document.querySelectorAll("*"))) {
+          if (element === sourceOwner || sourceOwner.contains(element)) continue;
+          const html = element as HTMLElement;
+          restore.push({
+            element,
+            property: "visibility",
+            value: html.style.getPropertyValue("visibility"),
+            priority: html.style.getPropertyPriority("visibility"),
+          });
+          html.style.setProperty("visibility", "hidden", "important");
+        }
+        // A hidden ancestor's visibility is inherited. Reassert only the
+        // owner's original used value; authored hidden descendants remain hidden.
+        const ownerHtml = sourceOwner as HTMLElement;
+        restore.push({
+          element: sourceOwner,
+          property: "visibility",
+          value: ownerHtml.style.getPropertyValue("visibility"),
+          priority: ownerHtml.style.getPropertyPriority("visibility"),
+        });
+        ownerHtml.style.setProperty("visibility", ownerVisibility, "important");
+
+        // The document canvas background is propagated from html/body even
+        // when those ancestor boxes have visibility:hidden. It is backdrop,
+        // not paint owned by a nested projective surface, and would otherwise
+        // turn an empty/backface-hidden owner into a viewport-sized opaque PNG.
+        // Preserve it only when html/body is itself inside the selected owner.
+        for (const canvasElement of [document.documentElement, document.body]) {
+          if (canvasElement == null
+              || canvasElement === sourceOwner
+              || sourceOwner.contains(canvasElement)) continue;
+          restore.push({
+            element: canvasElement,
+            property: "background",
+            value: canvasElement.style.getPropertyValue("background"),
+            priority: canvasElement.style.getPropertyPriority("background"),
+          });
+          canvasElement.style.setProperty("background", "transparent", "important");
+        }
+
+        // Ancestor effects represented by SVG wrappers must not be baked into
+        // this already-global bitmap and then applied a second time. Rotation /
+        // skew is likewise serialized by the capture walk; pure scale/translate
+        // stays live-baked and is intentionally left in place.
+        let ancestor = sourceOwner.parentElement;
+        while (ancestor != null) {
+          const html = ancestor as HTMLElement;
+          const style = getComputedStyle(ancestor);
+          const neutral: Array<[string, string]> = [];
+          if (style.opacity !== "1") neutral.push(["opacity", "1"]);
+          if (style.filter != null && style.filter !== "" && style.filter !== "none") {
+            neutral.push(["filter", "none"]);
+          }
+          const mask = style.mask || (style as CSSStyleDeclaration & { webkitMask?: string }).webkitMask || "";
+          if (mask !== "" && mask !== "none") {
+            neutral.push(["mask", "none"], ["-webkit-mask", "none"]);
+          }
+          if (style.mixBlendMode !== "normal") neutral.push(["mix-blend-mode", "normal"]);
+
+          const transform = style.transform ?? "none";
+          const matrix2d = /^matrix\(\s*([-.\deE+]+)\s*,\s*([-.\deE+]+)\s*,\s*([-.\deE+]+)\s*,\s*([-.\deE+]+)/.exec(transform);
+          const matrix3d = /^matrix3d\(([^)]+)\)/.exec(transform);
+          const rotatesOrSkews = matrix2d != null
+            ? Math.abs(Number.parseFloat(matrix2d[2])) > 1e-6 || Math.abs(Number.parseFloat(matrix2d[3])) > 1e-6
+            : matrix3d != null
+              ? (() => {
+                  const values = matrix3d[1].split(",").map(Number.parseFloat);
+                  return Math.abs(values[1] ?? 0) > 1e-6 || Math.abs(values[4] ?? 0) > 1e-6;
+                })()
+              : false;
+          const independentRotate = style.rotate != null && style.rotate !== "" && style.rotate !== "none";
+          if (rotatesOrSkews || independentRotate) {
+            neutral.push(
+              ["transform", "none"],
+              ["translate", "none"],
+              ["rotate", "none"],
+              ["scale", "none"],
+            );
+          }
+          for (const [property, value] of neutral) {
+            restore.push({
+              element: ancestor,
+              property,
+              value: html.style.getPropertyValue(property),
+              priority: html.style.getPropertyPriority(property),
+            });
+            html.style.setProperty(property, value, "important");
+          }
+          ancestor = ancestor.parentElement;
+        }
+        return true;
+      }, { index: sourceNodeIndex, sourceNodeKey });
+      if (!prepared) throw new Error("projective raster owner detached before Chromium snapshot");
+
+      const shot = await page.screenshot({
+        clip: viewport,
+        omitBackground: true,
+        type: "png",
+      });
+      const decoded = await sharp(shot).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const { data, info } = decoded;
+      let minX = info.width;
+      let minY = info.height;
+      let maxX = -1;
+      let maxY = -1;
+      for (let y = 0; y < info.height; y++) {
+        for (let x = 0; x < info.width; x++) {
+          if (data[(y * info.width + x) * 4 + 3] === 0) continue;
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+      if (maxX < minX || maxY < minY) {
+        target.empty = true;
+        continue;
+      }
+
+      const pixelWidth = maxX - minX + 1;
+      const pixelHeight = maxY - minY + 1;
+      const cropped = await sharp(shot)
+        .extract({ left: minX, top: minY, width: pixelWidth, height: pixelHeight })
+        .png()
+        .toBuffer();
+      const scaleX = info.width / viewport.width;
+      const scaleY = info.height / viewport.height;
+      target.x = minX / scaleX;
+      target.y = minY / scaleY;
+      target.width = pixelWidth / scaleX;
+      target.height = pixelHeight / scaleY;
+      target.dataUri = `data:image/png;base64,${cropped.toString("base64")}`;
+    } finally {
+      delete target.sourceNodeIndex;
+      await restoreVisibility();
+    }
+  }
+}
 
 /**
  * DM-2415: preserve the final Chromium surface for HTML CSS URL filters whose

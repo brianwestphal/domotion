@@ -589,14 +589,6 @@ export async function rasterizeBitmapGlyphs(
   const candidates: RasterCandidate[] = [];
   const sbixAligns: SbixAlignJob[] = [];
   forEachElement(tree, (el) => {
-      if (el.transformSubtreeRaster != null) {
-        const tr = el.transformSubtreeRaster;
-        candidates.push({
-          rect: { x: tr.x, y: tr.y, width: tr.width, height: tr.height },
-          key: `transform-subtree|${tr.x}|${tr.y}|${tr.width}x${tr.height}`,
-          setDataUri: (uri) => { tr.dataUri = uri; },
-        });
-      }
       if (el.nativeControlRaster != null) {
         const nr = el.nativeControlRaster;
         candidates.push({

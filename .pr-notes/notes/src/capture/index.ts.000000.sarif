@@ -408,6 +408,148 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex Max subagent",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3peupxl7z7dfdb",
+          "message": {
+            "text": "CDP content quads are the authoritative SVG-capable activation fact. Per-capture live object registries avoid marker attributes and appended HTML children, so author selectors and SVG layout stay untouched; a missing quad for a paint-bearing transformed plane fails closed to the Chromium surface boundary. Pinned Blink paintpropertytree_builder.cc lines 1161-1252 and 1330-1490 establish the SVG-child-affine versus layout-box-4x4 split, and the 19-row live audit proves inert SVG perspective remains vector while root and foreignObject projective paint choose one reachable owner.",
+            "markdown": "CDP content quads are the authoritative SVG-capable activation fact. Per-capture live object registries avoid marker attributes and appended HTML children, so author selectors and SVG layout stay untouched; a missing quad for a paint-bearing transformed plane fails closed to the Chromium surface boundary. Pinned Blink paint_property_tree_builder.cc lines 1161-1252 and 1330-1490 establish the SVG-child-affine versus layout-box-4x4 split, and the 19-row live audit proves inert SVG perspective remains vector while root and foreignObject projective paint choose one reachable owner."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/index.ts"
+                },
+                "region": {
+                  "startLine": 1011,
+                  "endLine": 1163,
+                  "snippet": {
+                    "text": "async function measureProjectivePaintQuads(\n  page: Page,\n  selector: string,\n  viewport: { x: number; y: number; width: number; height: number },\n): Promise<ProjectivePaintProbe> {\n  const key = `__domotionProjectivePaintNodes_${Date.now()}_${Math.random().toString(36).slice(2)}`;\n  interface PreparedNode {\n    parent: number | null;\n    influenced: boolean;\n    measure: boolean;\n    activationPlane: boolean;\n    inlineSvgRoot: number | null;\n    role: ProjectiveSvgRole;\n  }\n\n  const prepared = await page.evaluate(({ sel, key }): Promise<PreparedNode[]> | PreparedNode[] => {\n    const root = document.querySelector(sel);\n    if (root == null) {\n      (globalThis as typeof globalThis & Record<string, unknown>)[key] = [];\n      return [];\n    }\n\n    const nodes = [root, ...Array.from(root.querySelectorAll(\"*\"))];\n    const indexByNode = new Map<Element, number>();\n    for (let index = 0; index < nodes.length; index++) indexByNode.set(nodes[index], index);\n    const influenced = new Set<Element>();\n    const measure = new Set<Element>();\n    const activationPlanes = new Set<Element>();\n    const SVG_NS = \"http://www.w3.org/2000/svg\";\n\n    for (const element of nodes) {\n      const style = getComputedStyle(element);\n      const transform = style.transform ?? \"none\";\n      let has3dMatrix = transform.startsWith(\"matrix3d(\");\n      if (transform !== \"\" && transform !== \"none\") {\n        try { has3dMatrix = !new DOMMatrixReadOnly(transform).is2D; } catch { /* serialized fallback above */ }\n      }\n      const translate = style.translate ?? \"none\";\n      const rotate = style.rotate ?? \"none\";\n      const scale = style.scale ?? \"none\";\n      const hasIndependent3d = /\\s/.test(translate.trim()) && translate.trim().split(/\\s+/).length >= 3\n        || /^(?:x|y)\\b/i.test(rotate.trim())\n        || rotate.trim().split(/\\s+/).length >= 4\n        || scale.trim().split(/\\s+/).length >= 3;\n      const hasPerspective = style.perspective != null\n        && style.perspective !== \"\"\n        && style.perspective !== \"none\";\n      const signal = has3dMatrix || hasIndependent3d\n        || style.transformStyle === \"preserve-3d\"\n        || hasPerspective;\n      if (!signal) continue;\n\n      influenced.add(element);\n      for (const descendant of Array.from(element.querySelectorAll(\"*\"))) influenced.add(descendant);\n    }\n\n    for (const element of nodes) {\n      if (!influenced.has(element)) continue;\n      const style = getComputedStyle(element);\n      const hasTransform = (style.transform != null && style.transform !== \"\" && style.transform !== \"none\")\n        || (style.translate != null && style.translate !== \"\" && style.translate !== \"none\")\n        || (style.rotate != null && style.rotate !== \"\" && style.rotate !== \"none\")\n        || (style.scale != null && style.scale !== \"\" && style.scale !== \"none\")\n        || style.backfaceVisibility === \"hidden\";\n      const rect = element.getBoundingClientRect();\n      if (rect.width > 0 && rect.height > 0) measure.add(element);\n      if (hasTransform && rect.width > 0 && rect.height > 0) activationPlanes.add(element);\n    }\n\n    (globalThis as typeof globalThis & Record<string, unknown>)[key] = nodes;\n    const result: PreparedNode[] = [];\n    for (const element of nodes) {\n      const parent = element === root ? null : (indexByNode.get(element.parentElement!) ?? null);\n      const isSvg = element.namespaceURI === SVG_NS;\n      const role: ProjectiveSvgRole = !isSvg\n        ? \"html-box\"\n        : element.localName === \"svg\" && (element as SVGSVGElement).ownerSVGElement == null\n          ? \"svg-root-box\"\n          : \"svg-graphics\";\n      let inlineSvgRoot: number | null = null;\n      let cursor: Element | null = element;\n      while (cursor != null) {\n        if (cursor.namespaceURI === SVG_NS && cursor.localName === \"svg\") {\n          inlineSvgRoot = indexByNode.get(cursor) ?? null;\n        }\n        cursor = cursor.parentElement;\n      }\n      result.push({\n        parent,\n        influenced: influenced.has(element),\n        measure: measure.has(element),\n        activationPlane: activationPlanes.has(element),\n        inlineSvgRoot,\n        role,\n      });\n    }\n    return result;\n  }, { sel: selector, key });\n\n  const quadByIndex = new Map<number, { quad: ProjectivePaintQuad | null; borderQuad: ProjectivePaintQuad | null }>();\n  let cdp: CDPSession | undefined;\n  try {\n    cdp = await page.context().newCDPSession(page);\n    await Promise.all([cdp.send(\"DOM.enable\"), cdp.send(\"Runtime.enable\")]);\n    for (let index = 0; index < prepared.length; index++) {\n      if (!prepared[index].measure) continue;\n      let objectId: string | undefined;\n      try {\n        const evaluated = await cdp.send(\"Runtime.evaluate\", {\n          expression: `globalThis[${JSON.stringify(key)}]?.[${index}]`,\n          returnByValue: false,\n          silent: true,\n        });\n        objectId = evaluated.result.objectId;\n        if (objectId == null) throw new Error(\"projective paint node detached\");\n        const described = await cdp.send(\"DOM.describeNode\", { objectId });\n        const backendNodeId = described.node.backendNodeId;\n        const content = await cdp.send(\"DOM.getContentQuads\", { backendNodeId });\n        const contentQuad = content.quads.length === 1 && content.quads[0].length === 8\n          && content.quads[0].every(Number.isFinite)\n          ? content.quads[0] as unknown as ProjectivePaintQuad\n          : null;\n        let borderQuad: ProjectivePaintQuad | null = null;\n        try {\n          const box = await cdp.send(\"DOM.getBoxModel\", { backendNodeId });\n          const border = box.model.border;\n          if (border.length === 8 && border.every(Number.isFinite)) {\n            borderQuad = border as unknown as ProjectivePaintQuad;\n          }\n        } catch { /* SVG graphics nodes need not expose a CSS box model. */ }\n        const localize = (quad: ProjectivePaintQuad | null): ProjectivePaintQuad | null => quad == null ? null : [\n          quad[0] - viewport.x, quad[1] - viewport.y,\n          quad[2] - viewport.x, quad[3] - viewport.y,\n          quad[4] - viewport.x, quad[5] - viewport.y,\n          quad[6] - viewport.x, quad[7] - viewport.y,\n        ];\n        quadByIndex.set(index, { quad: localize(contentQuad), borderQuad: localize(borderQuad) });\n      } catch {\n        quadByIndex.set(index, { quad: null, borderQuad: null });\n      } finally {\n        if (objectId != null) await cdp.send(\"Runtime.releaseObject\", { objectId }).catch(() => undefined);\n      }\n    }\n  } catch {\n    // Missing CDP is an explicit unknown. Measured planes below become\n    // non-affine so capture crosses the conservative Chromium surface boundary.\n  } finally {\n    await cdp?.detach().catch(() => undefined);\n  }\n\n  const facts: ProjectivePaintNodeFact[] = prepared.map((node, index) => {\n    const measured = quadByIndex.get(index);\n    const quad = measured?.quad ?? null;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/inline-svg-3d-audit.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2474"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "8befa68649dedb7b7075594fa645590d"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3pjdsfv1gl1qm0",
+          "message": {
+            "text": "The isolated projective screenshot excludes both non-owner paint and the propagated document canvas before exact nonzero-alpha trimming. Canvas propagation survives visibility:hidden, and the reverse-facing regression proved it previously turned an empty owner into a viewport-sized white PNG; html/body background declarations are now restored exactly after sampling. The DPR-2 Chromium-versus-generated-SVG oracle keeps all four classified ink bounds inside the fixed four-device-pixel gate through rotation, one opacity composition, drop-shadow, overflow clips, off-bounds paint, zoom, and scroll, while proving the external vector sibling is absent.",
+            "markdown": "The isolated projective screenshot excludes both non-owner paint and the propagated document canvas before exact nonzero-alpha trimming. Canvas propagation survives visibility:hidden, and the reverse-facing regression proved it previously turned an empty owner into a viewport-sized white PNG; html/body background declarations are now restored exactly after sampling. The DPR-2 Chromium-versus-generated-SVG oracle keeps all four classified ink bounds inside the fixed four-device-pixel gate through rotation, one opacity composition, drop-shadow, overflow clips, off-bounds paint, zoom, and scroll, while proving the external vector sibling is absent."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/index.ts"
+                },
+                "region": {
+                  "startLine": 1713,
+                  "endLine": 1905,
+                  "snippet": {
+                    "text": "export async function rasterizeProjectiveSurfaces(\n  page: Page,\n  tree: CapturedElement[],\n  viewport: { x: number; y: number; width: number; height: number },\n  sourceNodeKey?: string,\n): Promise<void> {\n  const targets: NonNullable<CapturedElement[\"transformSubtreeRaster\"]>[] = [];\n  forEachElement(tree, (element) => {\n    if (element.transformSubtreeRaster != null) targets.push(element.transformSubtreeRaster);\n  });\n  if (targets.length === 0) return;\n  if (sourceNodeKey == null) {\n    throw new Error(\"projective raster owners are missing their Chromium source-node registry\");\n  }\n\n  const restoreVisibility = async (): Promise<void> => {\n    await page.evaluate(() => {\n      const host = globalThis as typeof globalThis & {\n        __domotionProjectiveVisibilityRestore?: Array<{\n          element: Element;\n          property: string;\n          value: string;\n          priority: string;\n        }>;\n      };\n      for (const item of host.__domotionProjectiveVisibilityRestore ?? []) {\n        const html = item.element as HTMLElement;\n        if (item.value === \"\") html.style.removeProperty(item.property);\n        else html.style.setProperty(item.property, item.value, item.priority);\n      }\n      delete host.__domotionProjectiveVisibilityRestore;\n    }).catch(() => undefined);\n  };\n\n  for (const target of targets) {\n    const sourceNodeIndex = target.sourceNodeIndex;\n    if (sourceNodeIndex == null) {\n      throw new Error(\"projective raster owner is missing its Chromium source-node correlation\");\n    }\n    try {\n      const prepared = await page.evaluate(({ index, sourceNodeKey }) => {\n        const host = globalThis as typeof globalThis & {\n          __domotionProjectiveVisibilityRestore?: Array<{\n            element: Element;\n            property: string;\n            value: string;\n            priority: string;\n          }>;\n        };\n        const sourceNodes = (host as typeof host & Record<string, unknown>)[sourceNodeKey] as Element[] | undefined;\n        const sourceOwner = sourceNodes?.[index];\n        if (sourceOwner == null || !sourceOwner.isConnected) return false;\n        const restore: NonNullable<typeof host.__domotionProjectiveVisibilityRestore> = [];\n        // Publish before the first mutation so a mid-preparation exception can\n        // still restore every declaration already recorded by the finally path.\n        host.__domotionProjectiveVisibilityRestore = restore;\n        const ownerVisibility = getComputedStyle(sourceOwner).visibility;\n        for (const element of Array.from(document.querySelectorAll(\"*\"))) {\n          if (element === sourceOwner || sourceOwner.contains(element)) continue;\n          const html = element as HTMLElement;\n          restore.push({\n            element,\n            property: \"visibility\",\n            value: html.style.getPropertyValue(\"visibility\"),\n            priority: html.style.getPropertyPriority(\"visibility\"),\n          });\n          html.style.setProperty(\"visibility\", \"hidden\", \"important\");\n        }\n        // A hidden ancestor's visibility is inherited. Reassert only the\n        // owner's original used value; authored hidden descendants remain hidden.\n        const ownerHtml = sourceOwner as HTMLElement;\n        restore.push({\n          element: sourceOwner,\n          property: \"visibility\",\n          value: ownerHtml.style.getPropertyValue(\"visibility\"),\n          priority: ownerHtml.style.getPropertyPriority(\"visibility\"),\n        });\n        ownerHtml.style.setProperty(\"visibility\", ownerVisibility, \"important\");\n\n        // The document canvas background is propagated from html/body even\n        // when those ancestor boxes have visibility:hidden. It is backdrop,\n        // not paint owned by a nested projective surface, and would otherwise\n        // turn an empty/backface-hidden owner into a viewport-sized opaque PNG.\n        // Preserve it only when html/body is itself inside the selected owner.\n        for (const canvasElement of [document.documentElement, document.body]) {\n          if (canvasElement == null\n              || canvasElement === sourceOwner\n              || sourceOwner.contains(canvasElement)) continue;\n          restore.push({\n            element: canvasElement,\n            property: \"background\",\n            value: canvasElement.style.getPropertyValue(\"background\"),\n            priority: canvasElement.style.getPropertyPriority(\"background\"),\n          });\n          canvasElement.style.setProperty(\"background\", \"transparent\", \"important\");\n        }\n\n        // Ancestor effects represented by SVG wrappers must not be baked into\n        // this already-global bitmap and then applied a second time. Rotation /\n        // skew is likewise serialized by the capture walk; pure scale/translate\n        // stays live-baked and is intentionally left in place.\n        let ancestor = sourceOwner.parentElement;\n        while (ancestor != null) {\n          const html = ancestor as HTMLElement;\n          const style = getComputedStyle(ancestor);\n          const neutral: Array<[string, string]> = [];\n          if (style.opacity !== \"1\") neutral.push([\"opacity\", \"1\"]);\n          if (style.filter != null && style.filter !== \"\" && style.filter !== \"none\") {\n            neutral.push([\"filter\", \"none\"]);\n          }\n          const mask = style.mask || (style as CSSStyleDeclaration & { webkitMask?: string }).webkitMask || \"\";\n          if (mask !== \"\" && mask !== \"none\") {\n            neutral.push([\"mask\", \"none\"], [\"-webkit-mask\", \"none\"]);\n          }\n          if (style.mixBlendMode !== \"normal\") neutral.push([\"mix-blend-mode\", \"normal\"]);\n\n          const transform = style.transform ?? \"none\";\n          const matrix2d = /^matrix\\(\\s*([-.\\deE+]+)\\s*,\\s*([-.\\deE+]+)\\s*,\\s*([-.\\deE+]+)\\s*,\\s*([-.\\deE+]+)/.exec(transform);\n          const matrix3d = /^matrix3d\\(([^)]+)\\)/.exec(transform);\n          const rotatesOrSkews = matrix2d != null\n            ? Math.abs(Number.parseFloat(matrix2d[2])) > 1e-6 || Math.abs(Number.parseFloat(matrix2d[3])) > 1e-6\n            : matrix3d != null\n              ? (() => {\n                  const values = matrix3d[1].split(\",\").map(Number.parseFloat);\n                  return Math.abs(values[1] ?? 0) > 1e-6 || Math.abs(values[4] ?? 0) > 1e-6;\n                })()\n              : false;\n          const independentRotate = style.rotate != null && style.rotate !== \"\" && style.rotate !== \"none\";\n          if (rotatesOrSkews || independentRotate) {\n            neutral.push(\n              [\"transform\", \"none\"],\n              [\"translate\", \"none\"],\n              [\"rotate\", \"none\"],\n              [\"scale\", \"none\"],\n            );\n          }\n          for (const [property, value] of neutral) {\n            restore.push({\n              element: ancestor,\n              property,\n              value: html.style.getPropertyValue(property),\n              priority: html.style.getPropertyPriority(property),\n            });\n            html.style.setProperty(property, value, \"important\");\n          }\n          ancestor = ancestor.parentElement;\n        }\n        return true;\n      }, { index: sourceNodeIndex, sourceNodeKey });\n      if (!prepared) throw new Error(\"projective raster owner detached before Chromium snapshot\");\n\n      const shot = await page.screenshot({\n        clip: viewport,\n        omitBackground: true,\n        type: \"png\",\n      });\n      const decoded = await sharp(shot).ensureAlpha().raw().toBuffer({ resolveWithObject: true });\n      const { data, info } = decoded;\n      let minX = info.width;\n      let minY = info.height;\n      let maxX = -1;\n      let maxY = -1;\n      for (let y = 0; y < info.height; y++) {\n        for (let x = 0; x < info.width; x++) {\n          if (data[(y * info.width + x) * 4 + 3] === 0) continue;\n          if (x < minX) minX = x;\n          if (x > maxX) maxX = x;\n          if (y < minY) minY = y;\n          if (y > maxY) maxY = y;\n        }\n      }\n      if (maxX < minX || maxY < minY) {\n        target.empty = true;\n        continue;\n      }\n\n      const pixelWidth = maxX - minX + 1;\n      const pixelHeight = maxY - minY + 1;\n      const cropped = await sharp(shot)\n        .extract({ left: minX, top: minY, width: pixelWidth, height: pixelHeight })\n        .png()\n        .toBuffer();\n      const scaleX = info.width / viewport.width;\n      const scaleY = info.height / viewport.height;\n      target.x = minX / scaleX;\n      target.y = minY / scaleY;\n      target.width = pixelWidth / scaleX;\n      target.height = pixelHeight / scaleY;\n      target.dataUri = `data:image/png;base64,${cropped.toString(\"base64\")}`;\n    } finally {\n      delete target.sourceNodeIndex;\n      await restoreVisibility();\n    }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/inline-svg-projective-ownership.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 77
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 4778
+                }
+              }
+            }
+          ],
+          "rank": 99,
+          "workItemUris": [
+            "DM-2474"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b76f68b234f552cb8282aba767685af7"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "916b0433370613481f912a6c6abcaf9c72eb77d5",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

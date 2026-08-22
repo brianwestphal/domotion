@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex Max subagent",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3pev3folrk2lm5",
+          "message": {
+            "text": "The owner selector promotes through the outermost opaque inline-SVG clone, not merely the nearest 3D node. Blink has already flattened SVG graphics children, while paintInlineSvg makes captured svgContent atomic; leaving a foreignObject raster under any such clone creates valid bytes that the renderer never visits. Unit controls cover ancestor retention, nested coalescing, affine and property-only negatives, and independent contexts.",
+            "markdown": "The owner selector promotes through the outermost opaque inline-SVG clone, not merely the nearest 3D node. Blink has already flattened SVG graphics children, while paintInlineSvg makes captured svgContent atomic; leaving a foreignObject raster under any such clone creates valid bytes that the renderer never visits. Unit controls cover ancestor retention, nested coalescing, affine and property-only negatives, and independent contexts."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/projective-owner.ts"
+                },
+                "region": {
+                  "startLine": 80,
+                  "endLine": 108,
+                  "snippet": {
+                    "text": "export function selectProjectiveRasterOwnerIndexes(\n  nodes: readonly ProjectiveOwnershipNode[],\n): number[] {\n  const candidates = new Set<number>();\n\n  for (let index = 0; index < nodes.length; index++) {\n    const node = nodes[index];\n    if (node == null || !node.nonAffine) continue;\n\n    let owner = index;\n    let parent = node.parent;\n    while (parent != null && nodes[parent]?.influenced === true) {\n      owner = parent;\n      parent = nodes[parent]?.parent ?? null;\n    }\n\n    const inlineSvgRoot = node.inlineSvgRoot;\n    if (inlineSvgRoot != null && isAncestor(nodes, inlineSvgRoot, owner)) {\n      owner = inlineSvgRoot;\n    }\n    candidates.add(owner);\n  }\n\n  return [...candidates]\n    .filter((candidate) => ![...candidates].some(\n      (other) => other !== candidate && isAncestor(nodes, other, candidate),\n    ))\n    .sort((a, b) => a - b);\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 4778
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2474"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "42b31b81df66f8ca14709672a80958e2"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "916b0433370613481f912a6c6abcaf9c72eb77d5",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

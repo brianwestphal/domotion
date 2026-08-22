@@ -1454,6 +1454,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex Max subagent",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt3peva6hm0bbk0z",
+          "message": {
+            "text": "A promoted inline-SVG block participates in both box and inline paint passes, but its Chromium surface is atomic. Emission is limited to the clone content position, which prevents duplicate payloads and suppresses svgContent plus every reconstructed or raster descendant. The unit mutation deliberately leaves a raster below svgContent and proves it is unreachable; the production promotion route emits the same payload exactly once.",
+            "markdown": "A promoted inline-SVG block participates in both box and inline paint passes, but its Chromium surface is atomic. Emission is limited to the clone content position, which prevents duplicate payloads and suppresses svgContent plus every reconstructed or raster descendant. The unit mutation deliberately leaves a raster below svgContent and proves it is unreachable; the production promotion route emits the same payload exactly once."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 4778,
+                  "endLine": 4789,
+                  "snippet": {
+                    "text": "  const transformRaster = el.transformSubtreeRaster;\n  // A promoted inline-SVG root can be an ordinary in-flow block, so Appendix E\n  // visits it once for box decorations and again for inline/replaced content.\n  // The Chromium surface is atomic and belongs at the clone's content paint\n  // position; emitting it in the box pass too duplicates the same bitmap.\n  if (transformRaster != null && phase === \"box\") return;\n  if (transformRaster?.empty === true) return;\n  if (transformRaster?.dataUri != null) {\n    svgParts.push(`${indent}<image href=\"${transformRaster.dataUri}\" x=\"${r(transformRaster.x)}\" y=\"${r(transformRaster.y)}\" width=\"${r(transformRaster.width)}\" height=\"${r(transformRaster.height)}\" preserveAspectRatio=\"none\"/>`);\n    appendBoxReflection(state, el, reflectionFragmentStart, depth);\n    return;\n  }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/projective-transform.test.ts"
+                },
+                "region": {
+                  "startLine": 38
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/projective-owner.ts"
+                },
+                "region": {
+                  "startLine": 80
+                }
+              }
+            }
+          ],
+          "rank": 97,
+          "workItemUris": [
+            "DM-2474"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c7d1997e6b143bbadae5fd55bfed9ced"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "916b0433370613481f912a6c6abcaf9c72eb77d5",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

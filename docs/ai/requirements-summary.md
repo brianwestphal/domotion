@@ -115,6 +115,21 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
+- **Projective inline-SVG raster ownership (doc 162) — Shipped.** Chromium CDP
+  content/border quads now distinguish actual non-affine paint from inert
+  `perspective`/`preserve-3d` property presence without appending HTML markers
+  to SVG. A projective root, an owning HTML ancestor, or HTML 3D inside
+  `<foreignObject>` crosses one effective outer Chromium surface; any owner
+  hidden under an atomic `svgContent` clone is promoted to the outermost
+  suppressing inline-SVG root. The isolated full-viewport snapshot is trimmed
+  by real alpha, retains DPR, excludes vector siblings, and emits once at the
+  clone's content paint position. Affine matrices, planar matrix3d, and
+  source-flattened SVG graphics remain vector. The focused DPR-2 oracle covers
+  nested foreignObject, zoom, scroll, ancestor rotation/opacity/filter,
+  overflow/border clipping, off-bounds paint, and a vector sibling within four
+  device pixels. Exact SVG-child used
+  affine freezing remains the separate follow-up documented by doc 162.
+
 - **Arbitrary contain/cover mask positions (DM-2379, doc 20) — Shipped.**
   Chromium-decoded per-layer intrinsic dimensions and effective-zoom-adjusted
   computed positions feed a Blink LayoutUnit transcription: concrete

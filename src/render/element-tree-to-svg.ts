@@ -4776,6 +4776,12 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // Emit that bitmap once at the context root and suppress the flattened box,
   // text, and descendants that would otherwise double-paint beneath it.
   const transformRaster = el.transformSubtreeRaster;
+  // A promoted inline-SVG root can be an ordinary in-flow block, so Appendix E
+  // visits it once for box decorations and again for inline/replaced content.
+  // The Chromium surface is atomic and belongs at the clone's content paint
+  // position; emitting it in the box pass too duplicates the same bitmap.
+  if (transformRaster != null && phase === "box") return;
+  if (transformRaster?.empty === true) return;
   if (transformRaster?.dataUri != null) {
     svgParts.push(`${indent}<image href="${transformRaster.dataUri}" x="${r(transformRaster.x)}" y="${r(transformRaster.y)}" width="${r(transformRaster.width)}" height="${r(transformRaster.height)}" preserveAspectRatio="none"/>`);
     appendBoxReflection(state, el, reflectionFragmentStart, depth);

@@ -1262,7 +1262,17 @@ export interface CapturedElement {
    * composited result is captured at the root of the 3D rendering context and
    * stamped as one image instead of flattening every child to a 2D matrix.
    */
-  transformSubtreeRaster?: { x: number; y: number; width: number; height: number; dataUri?: string };
+  transformSubtreeRaster?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    dataUri?: string;
+    /** Chromium proved that the isolated owner paints no pixels. */
+    empty?: boolean;
+    /** Private live-DOM correlation consumed and deleted by the raster post-pass. */
+    sourceNodeIndex?: number;
+  };
   /** Chromium-painted snapshot of an OS-native (`appearance` != `none`) form control. */
   nativeControlRaster?: { x: number; y: number; width: number; height: number; dataUri?: string };
   /** Chromium-composited snapshot for a backdrop-filter isolation subtree. */

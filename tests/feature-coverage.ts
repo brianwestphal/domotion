@@ -76,6 +76,15 @@ export const FEATURES: FeatureEntry[] = [
     exports: [],
     tests: ["src/capture/emoji.test.ts", "src/capture/script/emoji-detect.test.ts"],
   },
+  {
+    id: "capture.inline-svg-projective-owner",
+    behavior: "Chromium-measured non-affine paint involving inline SVG crosses one reachable outer raster owner; affine/property-only controls remain vector and foreignObject descendants promote through opaque clones.",
+    doc: "docs/162-inline-svg-3d-transform-audit.md",
+    tests: [
+      "src/capture/projective-owner.test.ts",
+      "tests/inline-svg-projective-ownership.e2e.test.ts",
+    ],
+  },
 
   // ── Render (DOM tree → SVG) ────────────────────────────────────────────
   {

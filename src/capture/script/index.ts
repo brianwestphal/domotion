@@ -48,6 +48,7 @@ import { createResizeHandleHandler } from "./walker/resize-handle.js";
 import { createLineClampHandler } from "./line-clamp.js";
 import { resolveElementCursor, extractCssUrl, sideWidths, isOutsideCaptureViewport } from "./utils.js";
 import { parseCrossOriginAllowlist, frameHostAllowed } from "./cross-origin.js";
+import { selectProjectiveRasterOwnerIndexes } from "../projective-owner.js";
 
 const captureDocumentTree =
 (args) => {
@@ -194,7 +195,13 @@ const captureDocumentTree =
       const _rx = Math.max(vp.x, _left), _ry = Math.max(vp.y, _top);
       const _rright = Math.min(vp.x + vp.width, _right), _rbottom = Math.min(vp.y + vp.height, _bottom);
       if (_rright > _rx && _rbottom > _ry) {
-        transformSubtreeRaster = { x: _rx - vp.x, y: _ry - vp.y, width: _rright - _rx, height: _rbottom - _ry };
+        transformSubtreeRaster = {
+          x: _rx - vp.x,
+          y: _ry - vp.y,
+          width: _rright - _rx,
+          height: _rbottom - _ry,
+          sourceNodeIndex: _projectiveNodeIndex.get(el),
+        };
       }
     }
     // DM-513: when an element's rect is outside the viewport, normally skip the
@@ -1624,75 +1631,38 @@ const captureDocumentTree =
     }
   }
 
-  // CSS 3D is ultimately a projective mapping of each painted element plane.
-  // Blink does not expose Element.getBoxQuads(), so measure the four border-box
-  // corners with zero-sized positioned descendants while the live transform
-  // tree is still intact. This observes perspective, flattening, origins, and
-  // nested preserve-3d directly, without fitting any fixture-specific matrix.
-  const _projectiveInfluenced = new Set();
-  for (let _pi = 0; _pi < _ownershipEls.length; _pi++) {
-    const _pel = _ownershipEls[_pi];
-    const _pcs = getComputedStyle(_pel);
-    // A CSS matrix3d remains applicable to SVG layout objects, which never own
-    // HTML fixed descendants. Only the box-only perspective/preserve-3d arms
-    // use the fixed-container applicability fact.
-    const _hasMatrix3d = (_pcs.transform || '').startsWith('matrix3d(');
-    const _is3d = _hasMatrix3d || (_transformRelatedBox.get(_pel) !== false
-      && (_pcs.transformStyle === 'preserve-3d'
-        || (_pcs.perspective != null && _pcs.perspective !== '' && _pcs.perspective !== 'none')));
-    if (!_is3d) continue;
-    _projectiveInfluenced.add(_pel);
-    const _pdescs = _pel.getElementsByTagName('*');
-    for (let _pj = 0; _pj < _pdescs.length; _pj++) _projectiveInfluenced.add(_pdescs[_pj]);
-  }
+  // DM-2474: CSS 3D ownership comes from Chromium's live paint quads, gathered
+  // by the Node/CDP prepass before capture mutates transforms.  DOM object
+  // correlation is held in a private page-global array, so no marker attribute
+  // or appended HTML child can change SVG layout.  SVG graphics children are
+  // source-flattened affine and deliberately do not receive a general box
+  // homography; outer SVG roots and HTML boxes may.
+  const _projectiveFacts = Array.isArray(args.pq) ? args.pq : [];
+  const _projectiveDomNodes = typeof args.pqk === 'string' && Array.isArray(globalThis[args.pqk])
+    ? globalThis[args.pqk]
+    : [];
+  const _projectiveNodeIndex = new WeakMap();
   const _projectedQuads = new WeakMap();
   const _projectiveAbsH = new WeakMap();
-  const _measureProjectedQuad = (_el) => {
-    const _cs = getComputedStyle(_el);
-    const _oldPosition = _el.style.position;
-    if (_cs.position === 'static') _el.style.position = 'relative';
-    const _bl = parseFloat(_cs.borderLeftWidth) || 0;
-    const _bt = parseFloat(_cs.borderTopWidth) || 0;
-    const _w = _el.offsetWidth;
-    const _h = _el.offsetHeight;
-    const _points = [[-_bl, -_bt], [_w - _bl, -_bt], [_w - _bl, _h - _bt], [-_bl, _h - _bt]];
-    const _quad = [];
-    for (let _qi = 0; _qi < 4; _qi++) {
-      const _marker = document.createElement('i');
-      _marker.setAttribute('aria-hidden', 'true');
-      _marker.style.cssText = 'position:absolute;display:block;width:0;height:0;margin:0;padding:0;border:0;pointer-events:none;';
-      _marker.style.left = _points[_qi][0] + 'px';
-      _marker.style.top = _points[_qi][1] + 'px';
-      _el.appendChild(_marker);
-      const _mr = _marker.getBoundingClientRect();
-      _quad.push({ x: _mr.left - vp.x, y: _mr.top - vp.y });
-      _marker.remove();
-    }
-    _el.style.position = _oldPosition;
-    return _quad;
-  };
-  for (const _pel of _projectiveInfluenced) {
-    if (_pel.offsetWidth > 0 && _pel.offsetHeight > 0) _projectedQuads.set(_pel, _measureProjectedQuad(_pel));
+  for (let _pi = 0; _pi < _projectiveFacts.length; _pi++) {
+    const _fact = _projectiveFacts[_pi];
+    const _pel = _projectiveDomNodes[_pi];
+    if (_pel == null || _fact == null) continue;
+    _projectiveNodeIndex.set(_pel, _pi);
+    if (_fact.role === 'svg-graphics') continue;
+    const _values = _fact.borderQuad || _fact.quad;
+    if (!Array.isArray(_values) || _values.length !== 8) continue;
+    _projectedQuads.set(_pel, [
+      { x: _values[0], y: _values[1] },
+      { x: _values[2], y: _values[3] },
+      { x: _values[4], y: _values[5] },
+      { x: _values[6], y: _values[7] },
+    ]);
   }
-  // A planar quad is affine exactly when q2 = q1 + q3 - q0. Promote every
-  // non-affine plane to the outermost containing 3D context so capture stamps
-  // the composited context once, while affine matrix3d cases stay vectorized.
   const _nonAffineProjectiveRoots = new Set();
-  for (const _pel of _projectiveInfluenced) {
-    const _style = getComputedStyle(_pel);
-    if (_style.perspective != null && _style.perspective !== '' && _style.perspective !== 'none') {
-      let _root = _pel;
-      while (_root.parentElement != null && _projectiveInfluenced.has(_root.parentElement)) _root = _root.parentElement;
-      _nonAffineProjectiveRoots.add(_root);
-    }
-    const _q = _projectedQuads.get(_pel);
-    if (_q == null) continue;
-    const _rx = _q[2].x - (_q[1].x + _q[3].x - _q[0].x);
-    const _ry = _q[2].y - (_q[1].y + _q[3].y - _q[0].y);
-    if (Math.hypot(_rx, _ry) <= 0.02) continue;
-    let _root = _pel;
-    while (_root.parentElement != null && _projectiveInfluenced.has(_root.parentElement)) _root = _root.parentElement;
-    _nonAffineProjectiveRoots.add(_root);
+  for (const _ownerIndex of selectProjectiveRasterOwnerIndexes(_projectiveFacts)) {
+    const _owner = _projectiveDomNodes[_ownerIndex];
+    if (_owner != null) _nonAffineProjectiveRoots.add(_owner);
   }
 
   const _invertH = (m) => {
@@ -1982,7 +1952,7 @@ const captureDocumentTree =
       break;
     }
   }
-  if (rootHasBorder || rootHasBg || rootHasDirectText) {
+  if (rootHasBorder || rootHasBg || rootHasDirectText || _nonAffineProjectiveRoots.has(root)) {
     const c = capture(root);
     if (c) result.push(c);
   } else {

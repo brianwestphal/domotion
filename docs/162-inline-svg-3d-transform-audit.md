@@ -1,6 +1,7 @@
 # Cloned inline-SVG 3D transform audit
 
-**Status:** investigation and design only; production routing is unchanged
+**Status:** projective raster promotion shipped; SVG-child affine freezing and
+the all-platform two-leg gate remain follow-ups
 
 **Ticket:** DM-2371
 
@@ -13,16 +14,15 @@ sound only if every transform inside the clone is frozen into valid 2D SVG, or
 the complete non-representable paint is promoted to one raster owner that the
 renderer actually visits.
 
-The current implementation satisfies neither condition for all 3D inputs. A
+The projective ownership half now satisfies that boundary. A
 true SVG-graphics-child 3D transform is not projective in Blink's SVG layout
 model: Blink deliberately resolves its complete CSS transform, reference box,
 and three-dimensional origin, then flattens the result to an affine
 `LocalToSVGParentTransform`. Domotion instead copies the computed
 `matrix3d()` into an SVG `transform` attribute. Chromium rejects that attribute
-on re-embed, so the element becomes identity. At the other boundary, a truly
-projective transform on the root inline SVG is missed by the HTML marker probe,
-while a correct raster recorded under `<foreignObject>` is hidden below the
-atomic `svgContent` owner.
+on re-embed, so the element becomes identity. Non-affine root and
+`<foreignObject>` paint, however, now crosses one reachable outer Chromium
+surface instead of entering that invalid vector fallback.
 
 ## Verdict
 
@@ -55,7 +55,7 @@ The source-derived boundary is:
    ambiguous owner must warn and cross the declared outer boundary. It must
    never fall back to the 2D submatrix in `cssTransformToSvg`.
 
-## Current information loss
+## Remaining information loss
 
 `src/capture/script/walker/inline-svg.ts` reads `getComputedStyle().transform`,
 parses only the first two components of `transform-origin`, approximates
@@ -74,23 +74,24 @@ independent failures:
   reapply a transform after the baked matrix unless the resolved owner is
   normalized once.
 
-The projective prepass in `src/capture/script/index.ts` is HTML-shaped. It
-requires `offsetWidth`/`offsetHeight`, appends absolutely positioned HTML `<i>`
-markers to the candidate, and unconditionally promotes any non-`none`
-`perspective`. SVG graphics elements do not supply the assumed box metrics, and
-HTML markers appended to an SVG root do not expose its transformed corners.
-Consequently:
+The former HTML marker prepass has been removed. `src/capture/index.ts` now
+correlates live DOM objects without attributes, asks Chromium CDP for content
+quads and box-model border quads, and passes those facts into the capture
+bundle. `src/capture/projective-owner.ts` classifies the held-out fourth corner,
+selects the outer 3D context, promotes any owner beneath an atomic inline-SVG
+clone to the outermost suppressing SVG root, and removes nested duplicate
+owners. Property-only perspective with affine resulting paint stays vector.
 
-- a directly projective inline-SVG root is not marked for raster;
-- an inert perspective on an SVG `<g>` can create a spurious serialized raster
-  owner below `svgContent`;
-- an inert perspective on the root can create an unnecessary effective raster;
-  and
-- a genuinely projective HTML context inside `<foreignObject>` gets a correct
-  descendant `transformSubtreeRaster`, but the renderer suppresses it when it
-  emits the ancestor's cloned markup.
+`rasterizeProjectiveSurfaces` isolates the selected live owner without forcing
+authored hidden descendants visible, excludes the propagated document canvas,
+screenshots the complete viewport, trims by real alpha, and preserves the PNG's
+DPR. The renderer emits that surface in
+the inline/replaced-content phase exactly once; `svgContent`, reconstructed
+descendants, and nested replaced snapshots are thereby suppressed together.
+Missing CDP geometry is treated as an explicit unknown and promotes a measured
+paint-bearing plane rather than selecting six matrix entries.
 
-The renderer's last fallback is also unsafe for a missed root. If no
+The renderer's last fallback remains unsafe for a vector SVG-child route. If no
 `transformSubtreeRaster` is present, `src/render/transforms.ts` projects a
 computed `matrix3d()` by selecting only m11, m12, m21, m22, m41, and m42. That
 is neither Blink's SVG-child affine flattening nor perspective division; it is
@@ -174,9 +175,11 @@ records CDP content quads, their held-out fourth-corner affine residual, every
 serialized raster owner, and whether that owner is reachable before
 `paintInlineSvg` suppresses descendants.
 
-The tool exits zero when the complete set of expected source controls **and
-current gaps** is observed. It is not a production parity gate; DM-2475 will
-turn it into one after the two implementation tickets land.
+The tool exits zero when the complete set of expected source controls,
+remaining SVG-child freeze gaps, and shipped projective-owner routes is
+observed. It is not yet the all-platform production parity gate; DM-2475 turns
+it into the required logical-plus-raster gate after the affine-freeze work
+lands.
 
 | Control | Live Chromium fact | Current captured/re-embedded fact |
 | --- | --- | --- |
@@ -187,19 +190,19 @@ turn it into one after the two implementation tickets land.
 | `rotateY(47deg)`, fill/stroke/view boxes | Source-flattened affine; fourth-corner residual 0 | Literal `matrix3d()` attribute is rejected; identity; deltas 18.3678 / 17.1848 / 12.6883 |
 | `rotateY` with z origin 31 px | Z origin moves the used affine translation | Z is discarded and attribute is rejected; delta 4.3042 |
 | `perspective(260px) rotateY(43deg) translateZ(22px)` on rect | Source-flattened affine; residual 0 | Literal `matrix3d()` rejected; identity; delta 19.5627 |
-| Perspective on SVG `<g>` vs flat control | Identical source affine CTMs; perspective is inert | One spurious raster is recorded below the clone but is unreachable; both clones still lose matrix3d |
+| Perspective on SVG `<g>` vs flat control | Identical source affine CTMs; perspective is inert | No raster owner; both clones still lose matrix3d |
 | SVG-child preserve-3d vs opacity grouping | Identical source affine CTMs | Both clones lose matrix3d; delta 7.9529 |
-| Perspective on root with only flattened SVG graphics | Final target quad remains affine, residual 0 | One unnecessary effective root raster |
-| Projective transform on inline-SVG root | Non-affine target quad, residual 30.9282 px | No raster owner, no stored projective matrix, root transform disappears |
+| Perspective on root with only flattened SVG graphics | Final target quad remains affine, residual 0 | No raster owner; vector clone remains active |
+| Projective transform on inline-SVG root | Non-affine target quad, residual 30.9282 px | One effective raster on the inline-SVG root |
 | HTML ancestor perspective + transformed root SVG | Non-affine target quad, residual 36.4226 px | One effective outer raster (positive control) |
-| HTML perspective context inside `<foreignObject>` | Non-affine target quad, residual 21.9539 px | One raster at `/div/svg/g/foreignobject/div`, suppressed by ancestor `svgContent` |
+| HTML perspective context inside `<foreignObject>` | Non-affine target quad, residual 21.9539 px | One effective raster promoted to `/div/svg` before `paintInlineSvg` |
 
 Activation controls also prove that the static transform path is live, all
 three reference boxes move, non-scaling stroke selects fill-box, the z origin
 moves Blink's answer, SVG perspective/preserve-3d are source-flat, a normal
-HTML projective owner emits exactly once, the root-SVG projective case is
-missed, and the nested `<foreignObject>` owner is unreachable. No fixture-fit
-constant or screenshot tolerance selects these decisions.
+HTML projective owner emits exactly once, and root-SVG plus nested
+`<foreignObject>` paint each has one reachable owner. No fixture-fit constant
+or screenshot tolerance selects these decisions.
 
 ## Exact capture design
 
@@ -230,7 +233,7 @@ affine. It also deletes the need to reproduce `StrokeBoundingBox`,
 non-scaling-stroke aliases, z-origin composition, or effective-zoom math in
 JavaScript.
 
-### Raster promotion
+### Raster promotion — implemented
 
 Classify root SVG and HTML layout boxes from authoritative live quads/paint
 facts rather than `offsetWidth` plus appended HTML markers. When a final plane
@@ -248,6 +251,17 @@ cannot be frozen into native SVG:
 An affine fourth corner is a required negative control. Property strings alone
 must not force this route, and a raster stored below `svgContent` must fail the
 ownership gate even if its PNG bytes exist.
+
+Focused production coverage lives in
+`tests/inline-svg-projective-ownership.e2e.test.ts`. Its route matrix covers a
+direct root projective transform, an owning HTML ancestor, ordinary and nested
+`<foreignObject>` promotion, inert SVG root/child perspective, opacity plus
+overflow used flattening, and 2D/planar-matrix3d negatives. Its independent
+DPR-2 Chromium-versus-generated-SVG ink leg combines zoom, scroll, an outer
+ancestor's rotation/opacity/filter, border/overflow clips, transformed
+off-bounds paint, and a vector sibling; all four classified color bounds must
+agree within four device pixels, the sibling must be absent from the owner PNG,
+and the raster payload must occur once.
 
 ## Required implementation and gate controls
 
@@ -279,8 +293,9 @@ ownership gate even if its PNG bytes exist.
   graphics.** Owns the exact local matrix, clone normalization, fail-closed
   vector boundary, and focused capture tests.
 - **DM-2474 — Promote projective inline SVG paint to one effective outer raster
-  owner.** Owns SVG-capable classification, root/ancestor promotion,
-  `<foreignObject>` atomicity, used flattening, bounds, and one-owner emission.
+  owner — shipped.** CDP paint quads now own SVG-capable classification,
+  root/ancestor promotion, `<foreignObject>` atomicity, used flattening,
+  alpha-trimmed bounds, and one-owner emission.
 - **DM-2475 — Gate inline SVG 3D freeze and raster ownership against Chromium.**
   Depends on DM-2473 and DM-2474; promotes this probe to exact logical plus
   independent raster gates on all supported platforms.

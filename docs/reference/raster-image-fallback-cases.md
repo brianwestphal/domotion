@@ -82,21 +82,26 @@ Why: SVG transforms are affine and cannot represent perspective projection or
 3D depth ordering. Chromium composites the projective context before Domotion
 captures that surface.
 
-Capture and emit: the capture walker records `transformSubtreeRaster` on the
-outer projective context; the Node raster pass fills its PNG and
-`src/render/element-tree-to-svg.ts` emits that image once in place of the
-otherwise double-painted subtree. The affine/non-affine boundary is gated by
-`npm run transform:geometry-oracle` and `npm run raster:boundary-oracle`.
+Capture and emit: `src/capture/index.ts` asks Chromium CDP for live content and
+border-box quads correlated to the actual DOM objects; it never appends HTML
+corner markers to the candidate. `src/capture/projective-owner.ts` activates on
+the measured non-affine fourth corner, climbs to the outer 3D context, and
+promotes a context below opaque `svgContent` to the outermost inline-SVG clone
+that would otherwise suppress it. Property-only perspective on source-flattened
+SVG graphics, 2D matrices, and planar `matrix3d()` remain vector.
 
-**Audited gap for captured DOM inline SVG (DM-2371):** this trigger is not yet
-reliable across an opaque `svgContent` clone. A projective transform on the SVG
-root can evade the HTML marker probe, while a projective HTML context under
-`<foreignObject>` can receive raster bytes on a descendant that
-`paintInlineSvg` never visits. Conversely, property-only perspective on
-source-flattened SVG graphics can raster unnecessarily. The design in
-[doc 162](../162-inline-svg-3d-transform-audit.md) requires promotion to one
-effective outer owner (DM-2474); do not treat a nested serialized owner as a
-live fallback until that ships.
+`rasterizeProjectiveSurfaces` isolates the selected live owner, retains authored
+descendant visibility, excludes the propagated html/body canvas backdrop,
+screenshots the complete capture viewport, and trims by real alpha so
+overflow/effect ink and DPR are not bounded by a guessed pad.
+`src/render/element-tree-to-svg.ts` emits the image once at the inline/replaced
+content paint position, before `paintInlineSvg`, and suppresses the clone plus
+all nested reconstructed/raster descendants. A projective inline-SVG root, an
+HTML ancestor, and HTML 3D under `<foreignObject>` therefore each have one
+effective outer owner. See [doc 162](../162-inline-svg-3d-transform-audit.md).
+The affine/non-affine boundary is also covered by
+`npm run transform:geometry-oracle`, `npm run raster:boundary-oracle`, and the
+focused inline-SVG route/pixel oracle.
 
 ---
 
