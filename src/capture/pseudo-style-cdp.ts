@@ -25,6 +25,7 @@
 
 import { randomUUID } from "node:crypto";
 import type { CDPSession, Page } from "@playwright/test";
+import type { CapturedScrollbarPseudoStyle } from "./types.js";
 
 export const CONTROL_PSEUDO_KINDS = [
   "track",
@@ -40,21 +41,17 @@ export const CONTROL_PSEUDO_KINDS = [
   "inner-spin-button",
   "search-cancel-button",
   "resizer",
+  "scrollbar",
+  "scrollbar-button",
+  "scrollbar-thumb",
+  "scrollbar-track",
+  "scrollbar-track-piece",
+  "scrollbar-corner",
 ] as const;
 
 export type ControlPseudoKind = typeof CONTROL_PSEUDO_KINDS[number];
 
-export interface ResolvedControlPseudoStyle {
-  matched: true;
-  width: string;
-  height: string;
-  backgroundColor: string;
-  backgroundImage: string;
-  borderRadius: string;
-  border: string;
-  padding: string;
-  boxShadow: string;
-}
+export interface ResolvedControlPseudoStyle extends CapturedScrollbarPseudoStyle {}
 
 export type ResolvedControlPseudoStyles = Record<
   string,
@@ -90,6 +87,24 @@ const PSEUDO_ID_TO_KIND: Readonly<Record<string, ControlPseudoKind>> = {
   "-webkit-color-swatch-wrapper": "color-swatch-wrapper",
   "-webkit-inner-spin-button": "inner-spin-button",
   "-webkit-search-cancel-button": "search-cancel-button",
+};
+
+const SCROLLBAR_PSEUDO_TYPE_TO_KIND: Readonly<Record<string, ControlPseudoKind>> = {
+  scrollbar: "scrollbar",
+  "scrollbar-button": "scrollbar-button",
+  "scrollbar-thumb": "scrollbar-thumb",
+  "scrollbar-track": "scrollbar-track",
+  "scrollbar-track-piece": "scrollbar-track-piece",
+  "scrollbar-corner": "scrollbar-corner",
+};
+
+const SCROLLBAR_KIND_TO_SELECTOR: Readonly<Partial<Record<ControlPseudoKind, string>>> = {
+  scrollbar: "::-webkit-scrollbar",
+  "scrollbar-button": "::-webkit-scrollbar-button",
+  "scrollbar-thumb": "::-webkit-scrollbar-thumb",
+  "scrollbar-track": "::-webkit-scrollbar-track",
+  "scrollbar-track-piece": "::-webkit-scrollbar-track-piece",
+  "scrollbar-corner": "::-webkit-scrollbar-corner",
 };
 
 function attributesOf(node: CdpNode): Record<string, string> {
@@ -197,14 +212,26 @@ export function resolvedControlPseudoStyle(
   ]);
   return {
     matched: true,
+    display: propertyValue(computed, "display"),
+    visibility: propertyValue(computed, "visibility"),
+    opacity: propertyValue(computed, "opacity"),
     width: propertyValue(computed, "width"),
     height: propertyValue(computed, "height"),
+    minWidth: propertyValue(computed, "min-width"),
+    minHeight: propertyValue(computed, "min-height"),
+    maxWidth: propertyValue(computed, "max-width"),
+    maxHeight: propertyValue(computed, "max-height"),
+    marginTop: propertyValue(computed, "margin-top"),
+    marginRight: propertyValue(computed, "margin-right"),
+    marginBottom: propertyValue(computed, "margin-bottom"),
+    marginLeft: propertyValue(computed, "margin-left"),
     backgroundColor: propertyValue(computed, "background-color"),
     backgroundImage: backgroundImage === "none" ? "" : backgroundImage,
     borderRadius: resolvedBorderRadius(computed),
     border: resolvedBorder(computed),
     padding,
     boxShadow: boxShadow === "none" ? "" : boxShadow,
+    filter: propertyValue(computed, "filter"),
   };
 }
 
@@ -228,6 +255,24 @@ function resizerMatchedOrigins(matched: unknown): string[] {
     .filter(({ pseudoType }) => pseudoType === "resizer")
     .flatMap(({ matches }) => (matches ?? []).map(({ rule }) => rule?.origin))
     .filter((origin): origin is string => typeof origin === "string");
+}
+
+function scrollbarPseudoEntries(matched: unknown): Array<{ kind: ControlPseudoKind; origins: string[] }> {
+  if (matched == null || typeof matched !== "object" || !("pseudoElements" in matched)) return [];
+  const pseudos = (matched as {
+    pseudoElements?: Array<{
+      pseudoType?: string;
+      matches?: Array<{ rule?: { origin?: string } }>;
+    }>;
+  }).pseudoElements ?? [];
+  return pseudos.flatMap(({ pseudoType, matches }) => {
+    const kind = pseudoType == null ? undefined : SCROLLBAR_PSEUDO_TYPE_TO_KIND[pseudoType];
+    if (kind == null) return [];
+    const origins = (matches ?? [])
+      .map(({ rule }) => rule?.origin)
+      .filter((origin): origin is string => typeof origin === "string");
+    return [{ kind, origins }];
+  });
 }
 
 async function collectResizableRemoteObjects(session: CDPSession, objectGroup: string): Promise<string[]> {
@@ -263,6 +308,92 @@ async function collectResizableRemoteObjects(session: CDPSession, objectGroup: s
   return properties.result
     .filter(({ name, value }) => /^\d+$/.test(name) && value?.objectId != null)
     .map(({ value }) => value!.objectId!);
+}
+
+async function collectScrollbarRemoteObjects(session: CDPSession, objectGroup: string): Promise<string[]> {
+  const evaluated = await session.send("Runtime.evaluate", {
+    expression: `(() => {
+      const result = [];
+      const seen = new Set();
+      const walk = (root) => {
+        if (root == null || seen.has(root)) return;
+        seen.add(root);
+        const elements = [];
+        if (root instanceof Element) elements.push(root);
+        if (root.querySelectorAll) elements.push(...root.querySelectorAll('*'));
+        for (const element of elements) {
+          try {
+            const style = getComputedStyle(element);
+            const rootScroller = element === document.scrollingElement;
+            const rootRange = rootScroller && (
+              (style.overflowX !== 'hidden' && style.overflowX !== 'clip' && element.scrollWidth > element.clientWidth)
+              || (style.overflowY !== 'hidden' && style.overflowY !== 'clip' && element.scrollHeight > element.clientHeight)
+              || style.scrollbarGutter !== 'auto'
+            );
+            const candidate = ['auto', 'scroll'].includes(style.overflowX)
+              || ['auto', 'scroll'].includes(style.overflowY)
+              || rootRange;
+            if (candidate) result.push(element);
+          } catch (_error) {}
+          if (element.shadowRoot != null) walk(element.shadowRoot);
+          if (element.tagName === 'IFRAME') {
+            try { if (element.contentDocument != null) walk(element.contentDocument); } catch (_error) {}
+          }
+        }
+      };
+      walk(document.documentElement);
+      return result;
+    })()`,
+    objectGroup,
+    returnByValue: false,
+  });
+  if (evaluated.result.objectId == null) return [];
+  const properties = await session.send("Runtime.getProperties", {
+    objectId: evaluated.result.objectId,
+    ownProperties: true,
+  });
+  return properties.result
+    .filter(({ name, value }) => /^\d+$/.test(name) && value?.objectId != null)
+    .map(({ value }) => value!.objectId!);
+}
+
+async function computedScrollbarProperties(
+  session: CDPSession,
+  objectId: string,
+  kind: ControlPseudoKind,
+): Promise<ComputedProperty[]> {
+  const selector = SCROLLBAR_KIND_TO_SELECTOR[kind];
+  if (selector == null) return [];
+  const response = await session.send("Runtime.callFunctionOn", {
+    objectId,
+    functionDeclaration: `function(selector) {
+      const style = getComputedStyle(this, selector);
+      const names = [
+        'display', 'visibility', 'opacity',
+        'width', 'height', 'min-width', 'min-height', 'max-width', 'max-height',
+        'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+        'background-color', 'background-image',
+        'border-top-width', 'border-top-style', 'border-top-color',
+        'border-right-width', 'border-right-style', 'border-right-color',
+        'border-bottom-width', 'border-bottom-style', 'border-bottom-color',
+        'border-left-width', 'border-left-style', 'border-left-color',
+        'border-top-left-radius', 'border-top-right-radius',
+        'border-bottom-right-radius', 'border-bottom-left-radius',
+        'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+        'box-shadow', 'filter'
+      ];
+      return names.map((name) => ({ name, value: style.getPropertyValue(name) }));
+    }`,
+    arguments: [{ value: selector }],
+    returnByValue: true,
+  });
+  return Array.isArray(response.result.value)
+    ? response.result.value.filter((entry): entry is ComputedProperty => (
+        entry != null && typeof entry === "object"
+        && typeof (entry as { name?: unknown }).name === "string"
+        && typeof (entry as { value?: unknown }).value === "string"
+      ))
+    : [];
 }
 
 async function computedResizerProperties(session: CDPSession, objectId: string): Promise<ComputedProperty[]> {
@@ -391,6 +522,33 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
         await computedResizerProperties(session, objectId),
         objectId,
       );
+    }
+
+    // Scrollbar parts are anonymous Blink layout objects rather than UA-shadow
+    // DOM nodes. CDP exposes their matched pseudo metadata on the scroll host;
+    // getComputedStyle(host, unqualified-pseudo) then returns Blink's final
+    // computed longhands. Orientation/start/end-only instances are not exposed
+    // by this protocol and are intentionally left for the marker probe to flag.
+    const scrollbarObjectIds = await collectScrollbarRemoteObjects(session, objectGroup);
+    for (const objectId of scrollbarObjectIds) {
+      // One detached/cross-document host must not erase authoritative styles
+      // already captured for the rest of the live frame.
+      try {
+        const requested = await session.send("DOM.requestNode", { objectId });
+        if (requested.nodeId === 0) continue;
+        const matched = await session.send("CSS.getMatchedStylesForNode", { nodeId: requested.nodeId });
+        for (const { kind, origins } of scrollbarPseudoEntries(matched)) {
+          if (!hasAuthorPseudoOrigin(origins)) continue;
+          await store(
+            requested.nodeId,
+            kind,
+            await computedScrollbarProperties(session, objectId, kind),
+            objectId,
+          );
+        }
+      } catch {
+        continue;
+      }
     }
   } catch (error) {
     await session.send("Runtime.releaseObjectGroup", { objectGroup }).catch(() => undefined);

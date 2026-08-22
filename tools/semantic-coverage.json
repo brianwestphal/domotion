@@ -67,6 +67,58 @@
       ]
     },
     {
+      "id": "text.macos-sfns-mask-baseline",
+      "parityAreas": [
+        "macos-sfns-mask-baseline"
+      ],
+      "subjects": [
+        "SFNS glyph path",
+        "Skia mask raster",
+        "CoreText baseline metrics",
+        "opsz variation"
+      ],
+      "states": [
+        "default optical size -> explicit opsz 26",
+        "cold glyph lookup -> warm glyph lookup",
+        "CoreText path mask -> Chromium Skia glyph mask"
+      ],
+      "exactStates": [
+        "default optical size -> explicit opsz 26",
+        "cold glyph lookup -> warm glyph lookup"
+      ],
+      "uncoveredStates": [
+        "CoreText path mask -> Chromium Skia glyph mask"
+      ],
+      "upstreamSources": [
+        "external/chromium/third_party/skia",
+        "external/chromium/third_party/blink/renderer/platform/fonts",
+        "external/skia/src/core",
+        "external/skia/src/ports"
+      ],
+      "productionOwners": [
+        "src/render/font-resolution.ts",
+        "src/render/glyph-helper.ts",
+        "src/render/text-to-path.ts"
+      ],
+      "oracles": [
+        "tools/sfns-mask-baseline-oracle.ts",
+        "tools/sfns-mask-baseline.swift"
+      ],
+      "metamorphicTests": [
+        "tests/sfns-mask-baseline-oracle.test.ts"
+      ],
+      "visualFixtures": [],
+      "coverage": "partial",
+      "boundary": "DM-2452/doc 168 pins macOS Chromium Skia mask bytes against CoreText path and mask routes at shared gids/quarter-pixel origins, separately records native metrics/baselines, proves cold/warm stability, and activates explicit opsz. The observed masks are discriminative but do not yet authorize a renderer tolerance or route change.",
+      "featureIds": [
+        "render.text",
+        "fonts.glyph-helper"
+      ],
+      "verifiedPlatforms": [
+        "darwin"
+      ]
+    },
+    {
       "id": "text.emoji-presentation",
       "parityAreas": [
         "font-selection",
@@ -615,6 +667,7 @@
         "background-origin",
         "background-clip",
         "background-attachment",
+        "image-set selected candidate and natural sizing",
         "box-decoration-break"
       ],
       "states": [
@@ -625,13 +678,17 @@
         "scroll -> fixed/local attachment",
         "padding origin -> independent content origin/padding clip",
         "single layer -> cyclic multiple layers",
+        "direct URL -> DPR/type-selected image-set candidate",
+        "loaded dimensions -> delayed/failed/unreadable natural sizing",
         "unzoomed/untransformed -> zoomed/transformed",
         "clone fragment -> sliced stitched fragment"
       ],
       "exactStates": [
         "explicit size -> natural auto/ratio",
         "contain -> cover",
-        "padding origin -> independent content origin/padding clip"
+        "padding origin -> independent content origin/padding clip",
+        "direct URL -> DPR/type-selected image-set candidate",
+        "loaded dimensions -> delayed/failed/unreadable natural sizing"
       ],
       "uncoveredStates": [
         "length/percentage -> calculated size/position",
@@ -652,17 +709,23 @@
         "external/skia"
       ],
       "productionOwners": [
+        "src/capture/background-image-sizing.ts",
+        "src/capture/index.ts",
         "src/capture/script/walker/borders-backgrounds.ts",
+        "src/capture/types.ts",
         "src/render/image-pattern.ts",
         "src/render/element-tree-to-svg.ts"
       ],
       "oracles": [
-        "tools/url-background-geometry-audit.ts"
+        "tools/url-background-geometry-audit.ts",
+        "tests/background-image-sizing.e2e.test.ts"
       ],
-      "metamorphicTests": [],
+      "metamorphicTests": [
+        "src/capture/background-image-sizing.test.ts"
+      ],
       "visualFixtures": [],
       "coverage": "partial",
-      "boundary": "DM-2370 proves the ordinary URL background remains vector-composable but current geometry is only exact for held-out integer explicit-repeat, intrinsic auto/auto, cover/percentage, origin/clip, and clone-fragment controls. DM-2477/2478/2479 plus existing DM-2365 implement the source-owned record; DM-2480 adds the all-platform DPR gate.",
+      "boundary": "DM-2477 source-derives candidate selection and independent natural-sizing/load facts at the live DPR, including zoom/orientation and aligned non-URL layer slots. DM-2370 proves ordinary URL backgrounds remain vector-composable, but tile, attachment, cyclic-longhand, and slice-fragment geometry still require DM-2478/2479 and DM-2365; DM-2480 adds the all-platform DPR gate.",
       "featureIds": [
         "render.tree-to-svg"
       ],
@@ -1101,18 +1164,22 @@
       ],
       "productionOwners": [
         "src/capture/pseudo-style-cdp.ts",
+        "src/capture/scrollbar-capture.ts",
+        "src/capture/types.ts",
         "src/capture/script/pseudo-rules.ts",
         "src/render/form-controls.ts",
         "src/render/element-tree-to-svg.ts"
       ],
       "oracles": [
         "tests/pseudo-cascade.e2e.test.ts",
+        "tests/scrollbar-capture.e2e.test.ts",
         "tools/replaced-geometry-oracle.ts",
         "tools/raster-boundary-oracle.ts",
         "tools/native-scrollbar-ownership-audit.ts"
       ],
       "metamorphicTests": [
         "src/capture/pseudo-style-cdp.test.ts",
+        "src/capture/scrollbar-capture.test.ts",
         "src/render/form-controls.test.ts"
       ],
       "visualFixtures": [
@@ -1121,7 +1188,7 @@
         "external/html-test/25-scrollbar-gutter.html"
       ],
       "coverage": "partial",
-      "boundary": "Author control-pseudo activation/final cascade is Chromium-resolved (doc 158). DM-2368/doc 165 now source-audits scrollbar ownership and supplies a strict observational browser oracle: Blink geometry/state/phase must be captured, supported custom scrollbar parts are vector CSS boxes, and stock native chrome is a narrow per-platform precomposited raster. Production still uses a 7px offset-triggered synthesis and has none of those exact routes.",
+      "boundary": "Author control-pseudo activation/final cascade is Chromium-resolved (doc 158). DM-2368/doc 165 source-audits scrollbar ownership; DM-2481/doc 169 now captures live Chromium marker-owned axis/part/corner geometry, ranges, RTL/logical side, zoom/DPR, forced-colors/used styling and explicit absence/unknowns, and deletes the 7px offset synthesis. Stable CDP still lacks anonymous dynamic scrollbar pseudo instances and native animator/full-frame/subpart/overlay-phase facts; non-axis transform correlation also fails closed by name. DM-2482 custom vector paint and DM-2483 native narrow rasters remain uncovered.",
       "featureIds": [
         "render.tree-to-svg"
       ],

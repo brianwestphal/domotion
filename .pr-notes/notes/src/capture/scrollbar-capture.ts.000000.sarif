@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt41w4y8okfwshxx",
+          "message": {
+            "text": "The live-frame marker pass keeps Blink as the geometry owner. A just-prior screenshot removes coincidental page colors, the marker declarations alter paint rather than layout, device pixels are normalized exactly once, and the finally block restores the page even when decoding fails. The root-only visible-to-used-auto invalidation is restored synchronously before measurement and is covered by the default viewport-scroller contract.",
+            "markdown": "The live-frame marker pass keeps Blink as the geometry owner. A just-prior screenshot removes coincidental page colors, the marker declarations alter paint rather than layout, device pixels are normalized exactly once, and the finally block restores the page even when decoding fails. The root-only visible-to-used-auto invalidation is restored synchronously before measurement and is covered by the default viewport-scroller contract."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/scrollbar-capture.ts"
+                },
+                "region": {
+                  "startLine": 655,
+                  "endLine": 755,
+                  "snippet": {
+                    "text": "      const baselinePng = await page.screenshot({ type: \"png\" });\n      const token = `${candidate.index}-${randomUUID().replaceAll(\"-\", \"\")}`;\n      await page.evaluate(({\n        nodesKey,\n        index,\n        markerAttribute,\n        token,\n        route,\n        css,\n        thumb,\n        track,\n        rootScroller,\n        overflowX,\n        overflowY,\n      }) => {\n        const nodes = (globalThis as typeof globalThis & Record<string, unknown>)[nodesKey] as Element[] | undefined;\n        const element = nodes?.[index];\n        if (!(element instanceof HTMLElement || element instanceof SVGElement)) return;\n        const state = {\n          hadAttribute: element.hasAttribute(markerAttribute),\n          attributeValue: element.getAttribute(markerAttribute),\n          scrollbarColor: (element as HTMLElement).style.getPropertyValue(\"scrollbar-color\"),\n          scrollbarColorPriority: (element as HTMLElement).style.getPropertyPriority(\"scrollbar-color\"),\n          style: null as HTMLStyleElement | null,\n        };\n        if (route === \"author-custom\") {\n          element.setAttribute(markerAttribute, token);\n          const style = element.ownerDocument.createElement(\"style\");\n          style.textContent = css;\n          const owner = element.getRootNode();\n          if (owner instanceof ShadowRoot) owner.append(style);\n          else (element.ownerDocument.head ?? element.ownerDocument.documentElement).append(style);\n          state.style = style;\n        } else {\n          (element as HTMLElement).style.setProperty(\"scrollbar-color\", `${thumb} ${track}`, \"important\");\n        }\n        // Blink propagates `visible` root overflow to the viewport as used\n        // `auto`, but a newly inserted root pseudo rule does not invalidate\n        // that already-built scrollbar. Flip only those visible longhands to\n        // their equivalent used value and restore them synchronously; the\n        // measured animation frame therefore retains the source declarations.\n        if (rootScroller) {\n          const html = element as HTMLElement;\n          const previousX = html.style.getPropertyValue(\"overflow-x\");\n          const previousXPriority = html.style.getPropertyPriority(\"overflow-x\");\n          const previousY = html.style.getPropertyValue(\"overflow-y\");\n          const previousYPriority = html.style.getPropertyPriority(\"overflow-y\");\n          try {\n            if (overflowX === \"visible\") html.style.setProperty(\"overflow-x\", \"auto\", \"important\");\n            if (overflowY === \"visible\") html.style.setProperty(\"overflow-y\", \"auto\", \"important\");\n            void html.clientWidth;\n          } finally {\n            if (previousX !== \"\") html.style.setProperty(\"overflow-x\", previousX, previousXPriority);\n            else html.style.removeProperty(\"overflow-x\");\n            if (previousY !== \"\") html.style.setProperty(\"overflow-y\", previousY, previousYPriority);\n            else html.style.removeProperty(\"overflow-y\");\n            void html.clientWidth;\n          }\n        }\n        (globalThis as typeof globalThis & Record<string, unknown>)[`${nodesKey}_marker`] = state;\n      }, {\n        nodesKey,\n        index: candidate.index,\n        markerAttribute,\n        token,\n        route,\n        css: customMarkerCss(markerAttribute, token),\n        thumb: cssColor(SCROLLBAR_MARKERS.find(({ kind }) => kind === \"thumb\")!.rgb),\n        track: cssColor(SCROLLBAR_MARKERS.find(({ kind }) => kind === \"track\")!.rgb),\n        rootScroller: candidate.rootScroller,\n        overflowX: candidate.overflowX,\n        overflowY: candidate.overflowY,\n      });\n      let components: ClassifiedComponent[] = [];\n      try {\n        await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));\n        const png = await page.screenshot({ type: \"png\" });\n        const decoded = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });\n        const baseline = await sharp(baselinePng).ensureAlpha().raw().toBuffer({ resolveWithObject: true });\n        const surfaceWidth = viewportSize?.width ?? decoded.info.width / Math.max(1, candidate.devicePixelRatio);\n        const surfaceHeight = viewportSize?.height ?? decoded.info.height / Math.max(1, candidate.devicePixelRatio);\n        const scaleX = decoded.info.width / surfaceWidth;\n        const scaleY = decoded.info.height / surfaceHeight;\n        const restriction = {\n          x: Math.max(0, candidate.screenRect.x * scaleX),\n          y: Math.max(0, candidate.screenRect.y * scaleY),\n          width: Math.max(0, candidate.screenRect.width * scaleX),\n          height: Math.max(0, candidate.screenRect.height * scaleY),\n        };\n        components = scrollbarMarkerComponents(\n          decoded.data,\n          decoded.info.width,\n          decoded.info.height,\n          restriction,\n          baseline.info.width === decoded.info.width && baseline.info.height === decoded.info.height\n            ? baseline.data\n            : undefined,\n        ).map((component) => classifyComponent(component, scaleX, scaleY, candidate, viewport))\n          .filter((component): component is ClassifiedComponent => component != null);\n      } finally {\n        await restoreMarkerPaint(page, { nodesKey, index: candidate.index, markerAttribute });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/scrollbar-capture.test.ts"
+                },
+                "region": {
+                  "startLine": 25
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/scrollbar-capture.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 37
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2481"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ea4ff258282380d17dd9f88652ec5254"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "6e8a00b62c75168c9e1373ff2f1386373b4fd3d2",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -1699,6 +1699,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt41iqt9dx3eggbo",
+          "message": {
+            "text": "The legacy 7px rgba scrollbar pill is intentionally gone, so partial or unavailable capture records cannot become confident but false chrome. The seven-case focused browser contract verifies that fill is absent; the 23-row ownership audit reports zero generic thumbs for every DPR and route; and the full suite passes 4,196 tests with 37 skipped.",
+            "markdown": "The legacy 7px rgba scrollbar pill is intentionally gone, so partial or unavailable capture records cannot become confident but false chrome. The seven-case focused browser contract verifies that fill is absent; the 23-row ownership audit reports zero generic thumbs for every DPR and route; and the full suite passes 4,196 tests with 37 skipped."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 5284,
+                  "endLine": 5289,
+                  "snippet": {
+                    "text": "  // DM-2481 removes the offset-triggered 7px scrollbar estimator. Captured\n  // scrollbar records are deliberately fail-closed until DM-2482 lowers\n  // author parts and DM-2483 composites native source-frame strips.\n  // PaintOverflowControls orders scrollbars / scroll corner before the\n  // resizer, and the controls overlay scrolled descendants.\n  svgParts.push(...paintResizeHandle(paintCtx, captureViewport, el, indent));"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/scrollbar-capture.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 102
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/native-scrollbar-ownership-audit.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2481"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "9452b50fecad26380c2072bd428f91c5"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "6e8a00b62c75168c9e1373ff2f1386373b4fd3d2",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

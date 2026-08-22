@@ -49,6 +49,12 @@ import { createLineClampHandler } from "./line-clamp.js";
 import { resolveElementCursor, extractCssUrl, sideWidths, isOutsideCaptureViewport } from "./utils.js";
 import { parseCrossOriginAllowlist, frameHostAllowed } from "./cross-origin.js";
 import { selectProjectiveRasterOwnerIndexes } from "../projective-owner.js";
+import {
+  appearanceNeedsAuthorStyleFacts,
+  autoAppearanceForControl,
+  effectiveAppearanceForControl,
+  isWholeHostNativeAppearance,
+} from "../effective-appearance.js";
 
 const captureDocumentTree =
 (args) => {
@@ -111,6 +117,8 @@ const captureDocumentTree =
     resolvePlaceholderShownBg: _resolvePlaceholderShownBg,
     resolveCornerRadius: _resolveCornerRadius,
     effectiveZoomFor: (el) => _effectiveZoomFor(el),
+    warn,
+    shortSelector,
     vp,
   });
   const { capturePseudoContent } = createPseudoContentHandler({
@@ -307,6 +315,39 @@ const captureDocumentTree =
     // these short and actionable — consumers (CLI, tests, demo scripts) log
     // them so the fidelity gaps are self-documenting.
     const sel = shortSelector(el);
+    const _nativeControlTag = tag === 'input' || tag === 'select' || tag === 'textarea'
+      || tag === 'button' || tag === 'progress' || tag === 'meter';
+    const _specifiedAppearance = cs.webkitAppearance || cs.appearance || 'auto';
+    const _autoAppearanceDescriptor = {
+      tag,
+      type: tag === 'input' ? (el.type || 'text') : undefined,
+      multiple: tag === 'select' ? !!el.multiple : undefined,
+      selectSize: tag === 'select' ? +el.size : undefined,
+      selectHasSizeAttribute: tag === 'select' ? el.hasAttribute('size') : undefined,
+    };
+    const _appearanceFacts = typeof args.eak === 'string' && args.eak !== ''
+      ? el[args.eak]
+      : undefined;
+    const _effectiveAppearance = _nativeControlTag
+      ? effectiveAppearanceForControl(
+          _specifiedAppearance,
+          _autoAppearanceDescriptor,
+          _appearanceFacts,
+          cs.boxShadow != null && cs.boxShadow !== '' && cs.boxShadow !== 'none',
+        )
+      : 'none';
+    if (_nativeControlTag && _effectiveAppearance == null) {
+      const _autoAppearance = _specifiedAppearance === 'auto'
+        ? autoAppearanceForControl(_autoAppearanceDescriptor)
+        : _specifiedAppearance;
+      if (appearanceNeedsAuthorStyleFacts(_autoAppearance)) {
+        const _reason = _appearanceFacts && _appearanceFacts.reason
+          ? _appearanceFacts.reason
+          : (args.ear || 'no correlated Chromium matched-style facts');
+        warn(sel, 'effective-appearance-cascade',
+          'author background/border origin unavailable (' + _reason + '); preserving a conservative Chromium host raster');
+      }
+    }
     if (cs.transform && cs.transform.startsWith('matrix3d')) {
       warn(sel, 'transform-3d', 'static 3D plane projected to vector SVG from Chromium-measured corners');
     }
@@ -347,11 +388,9 @@ const captureDocumentTree =
         warn(sel, '<iframe>', 'cross-origin / inaccessible frame rendered as a static raster snapshot; same-origin frames recurse to native SVG');
       }
     }
-    // Scrollbars appear when content overflows a non-visible overflow container.
-    if ((cs.overflowX === 'auto' || cs.overflowX === 'scroll' || cs.overflowY === 'auto' || cs.overflowY === 'scroll')
-        && (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1)) {
-      warn(sel, 'scrollbar', 'native scrollbar chrome not emulated yet (SK-468); content is clipped but no scroll indicator');
-    }
+    // DM-2481: the Node-side live-frame probe owns scrollbar warnings. Do not
+    // infer object existence from overflow plus scroll/client sizes: that
+    // loses width:none, overlay fade, always-on custom bars and RTL state.
     // DM-547/549/550/2327: conic-gradient layers are painted into PNG tiles by
     // the live Chromium capture pre-pass and emitted as
     // <pattern><image> via buildConicGradientDef. The previous unconditional
@@ -579,6 +618,18 @@ const captureDocumentTree =
       width: _fsBox.width, height: _fsBox.height,
       fieldsetLegendNotch: _fsBox.fieldsetLegendNotch,
       resizeHandle: captureResizeHandle(el, cs, tag, rect),
+      // DM-2481: populated by the Node-side live Chromium marker probe.  The
+      // serialized record is already in capture-viewport coordinates and may
+      // be explicitly partial/unavailable; the renderer must never infer a
+      // replacement from scrollWidth/clientWidth or scroll offsets.
+      scrollbars: (function () {
+        const _record = typeof args.sk === 'string' && args.sk !== '' ? el[args.sk] : undefined;
+        if (_record == null && (cs.overflowX === 'auto' || cs.overflowX === 'scroll'
+            || cs.overflowY === 'auto' || cs.overflowY === 'scroll')) {
+          warn(sel, 'scrollbar-capture', 'live Chromium scrollbar probe did not correlate this scroll host; legacy synthesis is disabled');
+        }
+        return _record;
+      })(),
       animId: _animId,
       magicKey: _magicKey,
       svgReferenceScope,
@@ -696,6 +747,11 @@ const captureDocumentTree =
         // input border tinting deliberately stay inline (entangled with
         // text-shaping and border-color emission respectively).
         ...captureFormControls(el, cs, tag),
+        // ComputedStyle::EffectiveAppearance after Blink's author-style
+        // adjustment. This is distinct from the computed `appearance`
+        // longhand and lets later decoration ownership split at the exact
+        // menulist-button boundary (DM-2455).
+        effectiveAppearance: _effectiveAppearance || undefined,
         textShadow: cs.textShadow,
         ...threadFrozenTransform(cs, frozenTransform, frozenTransformOrigin),
         transformRelatedBox: _transformRelatedBox.get(el),
@@ -894,53 +950,17 @@ const captureDocumentTree =
       // Old-capture compatibility field. Current textarea and vertical text
       // capture is fully vector; see walker/text-segments.ts.
       elementRaster: computeElementRaster(el, cs, tag, rect, vp),
-      // DM-2149: `appearance:auto` controls are painted by Blink's platform
-      // LayoutTheme (including native shadow-DOM parts), so a single hardcoded
-      // SVG geometry/palette cannot match macOS, Windows, and Linux. Preserve
-      // author-owned `appearance:none` controls as vectors; snapshot only the
-      // native-themed host rectangle from the same Chromium doing capture.
+      // DM-2149 / DM-2453: snapshot only appearances for which Blink's
+      // ThemePainter owns the complete host. EffectiveAppearance is derived
+      // above from the actual auto mapping and cascade-origin author flags.
+      // menulist-button/listbox/base states keep their author-owned host box
+      // structural; native decoration splitting is owned by DM-2455.
       nativeControlRaster: (function () {
-        const nativeTag = tag === 'input' || tag === 'select' || tag === 'textarea'
-          || tag === 'button' || tag === 'progress' || tag === 'meter';
-        if (!nativeTag || cs.appearance === 'none' || rect.width <= 0 || rect.height <= 0) return undefined;
-        // `appearance:auto` does not mean that LayoutTheme owns the complete
-        // surface. In particular, ordinary author CSS can replace a button's
-        // background/border/type while leaving appearance at its initial
-        // value. Detect that ownership from matching author declarations so
-        // interactive colors and text remain vector content. Inputs/selects
-        // still use their native shadow-DOM internals unless the author opts
-        // out with appearance:none; this narrower exception is for buttons,
-        // whose surface and label are normal author-styleable paint.
-        if (tag === 'button') {
-          const ownsButtonPaint = function () {
-            const paintProp = /^(appearance|background(?:-.+)?|border(?:-.+)?|box-shadow|color|font(?:-.+)?|padding(?:-.+)?|text-shadow)$/;
-            const hasPaintDecl = function (decl) {
-              if (!decl) return false;
-              for (let i = 0; i < decl.length; i++) if (paintProp.test(decl[i])) return true;
-              return false;
-            };
-            if (hasPaintDecl(el.style)) return true;
-            const visit = function (rules) {
-              if (!rules) return false;
-              for (let i = 0; i < rules.length; i++) {
-                const rule = rules[i];
-                if (rule.cssRules && visit(rule.cssRules)) return true;
-                if (!rule.selectorText || !hasPaintDecl(rule.style)) continue;
-                const selectors = rule.selectorText.split(',');
-                for (let j = 0; j < selectors.length; j++) {
-                  try { if (el.matches(selectors[j].trim())) return true; } catch (e) { /* unsupported selector */ }
-                }
-              }
-              return false;
-            };
-            const sheets = el.ownerDocument.styleSheets;
-            for (let i = 0; i < sheets.length; i++) {
-              try { if (visit(sheets[i].cssRules)) return true; } catch (e) { /* cross-origin stylesheet */ }
-            }
-            return false;
-          };
-          if (ownsButtonPaint()) return undefined;
-        }
+        if (!_nativeControlTag || rect.width <= 0 || rect.height <= 0) return undefined;
+        if (_effectiveAppearance != null && !isWholeHostNativeAppearance(_effectiveAppearance)) return undefined;
+        // null is the explicit fail-closed state: the cascade origin was not
+        // available, so preserve Chromium's source paint rather than guessing
+        // that the author or theme owns the box.
         // Author outlines and validation-state focus rings paint outside the
         // host border box even though the themed control itself is native.
         // Blink's outline visual overflow is width + positive offset; include
@@ -2015,6 +2035,11 @@ const captureDocumentTree =
   // transparent-root case (DM-554 wires up the second consumer).
   if (result.length > 0) {
     try {
+      var _rootScrollbarOwner = document.scrollingElement;
+      var _rootScrollbarRecord = _rootScrollbarOwner != null && typeof args.sk === 'string' && args.sk !== ''
+        ? _rootScrollbarOwner[args.sk]
+        : undefined;
+      if (_rootScrollbarRecord != null) result[0].rootScrollbars = _rootScrollbarRecord;
       var _isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       result[0].styles.rootColorScheme = _isDark ? 'dark' : 'light';
       var _docCs = window.getComputedStyle(document.documentElement);

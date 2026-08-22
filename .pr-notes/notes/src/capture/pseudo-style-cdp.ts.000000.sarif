@@ -143,6 +143,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "warning",
+          "guid": "mt41wag38hqzyvcd",
+          "message": {
+            "text": "Stable CDP proves final unqualified scrollbar pseudo longhands but does not expose the anonymous orientation, start/end, hover, or active layout-part instance. The capture therefore records dynamic-scrollbar-pseudo-cascade as missing and blocks vector paint; reconstructing stylesheet order here would silently lose origins, layers, scopes, specificity, and runtime pseudo state.",
+            "markdown": "Stable CDP proves final unqualified scrollbar pseudo longhands but does not expose the anonymous orientation, start/end, hover, or active layout-part instance. The capture therefore records dynamic-scrollbar-pseudo-cascade as missing and blocks vector paint; reconstructing stylesheet order here would silently lose origins, layers, scopes, specificity, and runtime pseudo state."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/pseudo-style-cdp.ts"
+                },
+                "region": {
+                  "startLine": 527,
+                  "endLine": 552,
+                  "snippet": {
+                    "text": "    // Scrollbar parts are anonymous Blink layout objects rather than UA-shadow\n    // DOM nodes. CDP exposes their matched pseudo metadata on the scroll host;\n    // getComputedStyle(host, unqualified-pseudo) then returns Blink's final\n    // computed longhands. Orientation/start/end-only instances are not exposed\n    // by this protocol and are intentionally left for the marker probe to flag.\n    const scrollbarObjectIds = await collectScrollbarRemoteObjects(session, objectGroup);\n    for (const objectId of scrollbarObjectIds) {\n      // One detached/cross-document host must not erase authoritative styles\n      // already captured for the rest of the live frame.\n      try {\n        const requested = await session.send(\"DOM.requestNode\", { objectId });\n        if (requested.nodeId === 0) continue;\n        const matched = await session.send(\"CSS.getMatchedStylesForNode\", { nodeId: requested.nodeId });\n        for (const { kind, origins } of scrollbarPseudoEntries(matched)) {\n          if (!hasAuthorPseudoOrigin(origins)) continue;\n          await store(\n            requested.nodeId,\n            kind,\n            await computedScrollbarProperties(session, objectId, kind),\n            objectId,\n          );\n        }\n      } catch {\n        continue;\n      }\n    }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "risk"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/scrollbar-capture.ts"
+                },
+                "region": {
+                  "startLine": 309
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/169-authoritative-scrollbar-capture.md"
+                },
+                "region": {
+                  "startLine": 64
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2481"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "02b161d34a909465dff7d76bc218f187"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "6e8a00b62c75168c9e1373ff2f1386373b4fd3d2",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

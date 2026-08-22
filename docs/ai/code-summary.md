@@ -61,6 +61,13 @@ shortest possible map:
   overlap-free source crop atomically or fail closed. Invalid clips/frames add
   `native-control-raster` warnings; renderer presence is fail-closed and never
   authorizes sampled form chrome (doc 167).
+  `effective-appearance-cdp.ts` obtains Blink's matched cascade and active
+  interpolation facts without CSSOM; `effective-appearance.ts` reconstructs
+  author background/border flags after origin, importance, layers, logical
+  mapping and rollback, then applies LayoutTheme's exact auto/author-style
+  switch. The adjusted value is captured separately from the computed
+  longhand; unavailable facts warn and retain a conservative Chromium owner
+  (DM-2453, doc 170).
 - **`src/render/`** — pure node-side renderers that convert a captured
   element tree into SVG markup. `element-tree-to-svg.ts` is the big one;
   `culling-geometry.ts` is its fail-closed geometry preflight: it exposes the
@@ -444,7 +451,7 @@ shortest possible map:
   `<foreignObject>`, zoom/scroll, ancestor rotation/opacity/filter, clipping,
   off-bounds paint, and a vector-sibling isolation control. The logical audit
   is 26/26; DM-2475 adds the all-platform independent raster leg.
-- **URL background geometry audit (DM-2370, design-only)** —
+- **URL background geometry audit + authoritative capture (DM-2370/2477)** —
   `tools/url-background-geometry-audit.ts`
   (`npm run background:url-geometry-audit`) paints a deterministic decoded
   color tile in live Chromium and through the actual capture→generated-SVG
@@ -454,11 +461,15 @@ shortest possible map:
   and slice-fragment gaps. Pinned Blink proves natural sizing plus
   snapped/unsnapped destination/phase/spacing are owned by
   `BackgroundImageGeometry` before Skia consumes the image matrix; ordinary
-  URL backgrounds remain vector-composable. [Doc 163](../163-url-background-image-geometry-audit.md)
-  owns the exact record and boundary. DM-2477/2478/2479 plus existing DM-2365
-  implement it; DM-2480 promotes the observational probe to an all-platform
-  DPR gate.
-- **Native scrollbar ownership audit (DM-2368, design-only)** —
+  URL backgrounds remain vector-composable. The async
+  `src/capture/background-image-sizing.ts` prepass now mirrors pinned Blink
+  MIME/density selection at the live DPR, awaits decode, and records candidate,
+  independent natural dimensions/ratio, orientation, zoom, and explicit load
+  state per aligned layer. The walker serializes it and the renderer consumes
+  the selected URL instead of guessing DPR 1. [Doc 163](../163-url-background-image-geometry-audit.md)
+  owns the exact boundary. DM-2478/2479 plus existing DM-2365 finish geometry;
+  DM-2480 promotes the observational probe to an all-platform DPR gate.
+- **Native scrollbar ownership and capture (DM-2368 / DM-2481)** —
   `tools/native-scrollbar-ownership-audit.ts`
   (`npm run scrollbars:ownership-audit`) disables Playwright's normally
   injected `--hide-scrollbars`, records the active platform fingerprint, and
@@ -467,14 +478,21 @@ shortest possible map:
   auto without overflow, and `scrollbar-width:none`; positive rows cover
   always-on/custom axes, top/mid/max, RTL logical-left, vertical writing,
   borders/ancestor clipping, zoom, standard colors, schemes, and gutters.
-  Pinned Blink proves geometry/phase are structured capture facts, custom
+  `src/capture/scrollbar-capture.ts` now asks the same live Chromium frame to
+  repaint existing parts with reserved colors, stores marker-owned axes,
+  frames/parts/corner, ranges, RTL/logical side, used width/colors/scheme,
+  zoom/DPR, clip/phase/state facts, and attaches explicit absent/partial/
+  unavailable records. `pseudo-style-cdp.ts` captures final unqualified
+  scrollbar pseudo winners; stable CDP's missing anonymous dynamic instances
+  and native animator/phase facts stay named warnings. The renderer has no
+  offset-triggered 7 px fallback. Pinned Blink proves geometry/phase are structured capture facts, custom
   WebKit parts are anonymous CSS/ObjectPainter boxes and vector-eligible, and
   stock native paint is platform-owned. Windows UXTheme/GDI already crosses an
   offscreen `SkBitmap`; macOS and Aura/Fluent depend on native animator/theme
   state. [Doc 165](../165-native-scrollbar-layout-paint-ownership-audit.md)
-  defines narrow precomposited stock strips, custom-vector lowering, explicit
-  absence, and the dependency-ordered DM-2481/2482/2483 implementation plus
-  DM-2484 all-platform gate.
+  and [doc 169](../169-authoritative-scrollbar-capture.md) define the capture
+  record, narrow precomposited stock strips, custom-vector lowering, explicit
+  absence, and remaining DM-2482/2483 paint seams plus the DM-2484 gate.
 
 - **Pseudo-element filter effects (DM-2367)** —
   `src/render/pseudo-filter.ts` is the shared empty/text/image generated-paint

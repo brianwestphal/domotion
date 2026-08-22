@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt41urtujlq85gj7",
+          "message": {
+            "text": "The live Chromium matrix proves both activation and failure ownership without fixture-derived pixels. It covers the complete LayoutTheme switch, font/color/padding/text-shadow negatives, interaction states, explicit none/base/base-select, accent, schemes/forced colors, zoom/DPR, writing modes/directions, and the named unavailable-fact warning. Focused evidence: the new spec passes 3/3, neighboring native-control specs pass 13/13, and the required 06-deep-color-scheme-forms fixture is clean at 0 regions / 0.00%; the spec is wired into macOS, Linux, and Windows visual-test jobs.",
+            "markdown": "The live Chromium matrix proves both activation and failure ownership without fixture-derived pixels. It covers the complete LayoutTheme switch, font/color/padding/text-shadow negatives, interaction states, explicit none/base/base-select, accent, schemes/forced colors, zoom/DPR, writing modes/directions, and the named unavailable-fact warning. Focused evidence: the new spec passes 3/3, neighboring native-control specs pass 13/13, and the required 06-deep-color-scheme-forms fixture is clean at 0 regions / 0.00%; the spec is wired into macOS, Linux, and Windows visual-test jobs."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/effective-appearance.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 31,
+                  "endLine": 207,
+                  "snippet": {
+                    "text": "describeBrowser(\"Blink EffectiveAppearance native-control ownership\", () => {\n  it(\"warns and chooses the conservative Chromium owner when cascade facts are inaccessible\", async () => {\n    const viewport = { width: 260, height: 150 };\n    const page = await env!.browser.newPage({ viewport, deviceScaleFactor: 1 });\n    try {\n      await page.setContent(`<button id=\"unknown\" style=\"margin:30px;width:140px;height:42px\">unknown origin</button>`);\n      const args = {\n        sel: \"body\",\n        vp: { x: 0, y: 0, ...viewport },\n        cof: \"\",\n        rt: 15,\n        rs: 1,\n        pk: \"\",\n        ps: {},\n        eak: \"__deliberately_missing_effective_appearance_facts__\",\n        ear: \"forced inaccessible author stylesheet\",\n        sk: \"\",\n        pq: [],\n        pqk: \"\",\n      };\n      const result = await page.evaluate(`(${CAPTURE_SCRIPT})(${JSON.stringify(args)})`) as {\n        tree: CapturedElement[];\n        warnings: Array<{ feature: string; detail: string }>;\n      };\n      const warning = result.warnings.find(({ feature }) => feature === \"effective-appearance-cascade\");\n      expect(warning?.detail).toContain(\"forced inaccessible author stylesheet\");\n      expect(warning?.detail).toContain(\"conservative Chromium host raster\");\n      expect(controls(result.tree)[0].nativeControlRaster).toBeDefined();\n      expect(controls(result.tree)[0].styles.effectiveAppearance).toBeUndefined();\n    } finally {\n      await page.close();\n    }\n  });\n\n  it(\"routes every source switch and preserves negative author-style controls\", async () => {\n    const viewport = { width: 900, height: 760 };\n    const page = await env!.browser.newPage({ viewport, deviceScaleFactor: 2 });\n    try {\n      await page.setContent(`<style>\n        html,body{margin:0;background:white}\n        .grid{display:grid;grid-template-columns:repeat(4,190px);gap:9px;padding:12px}\n        .control{width:160px;height:30px}\n        .font-only{font:700 18px serif}\n        .color-padding{color:rgb(140,20,60);padding:4px 19px;text-shadow:1px 1px #ccc}\n        .background{background:rgb(22,130,201)}\n        .border{border:4px solid rgb(210,33,84)}\n        .shadow{box-shadow:0 0 0 4px rgb(37,180,91)}\n        .vertical{writing-mode:vertical-rl;direction:rtl;zoom:1.25}\n        .sideways{writing-mode:sideways-lr;direction:ltr;zoom:.8}\n      </style><div class=\"grid\">\n        <button class=\"control\">default</button>\n        <button class=\"control\" disabled>disabled</button>\n        <button class=\"control font-only\">font</button>\n        <button class=\"control color-padding\">color-padding</button>\n        <button class=\"control shadow\">button-shadow</button>\n        <button class=\"control background\">button-background</button>\n        <button class=\"control border\">button-border</button>\n        <input class=\"control font-only\" type=\"button\" value=\"input-font\">\n        <input class=\"control background\" type=\"submit\" value=\"input-background\">\n        <progress class=\"control\"></progress>\n        <progress class=\"control shadow\" value=\".4\"></progress>\n        <progress class=\"control border\" value=\".4\"></progress>\n        <meter class=\"control\" min=\"0\" max=\"1\" value=\".6\"></meter>\n        <meter class=\"control background\" min=\"0\" max=\"1\" value=\".6\"></meter>\n        <select class=\"control\"><option>native menu</option></select>\n        <select class=\"control shadow\"><option>shadow menu</option></select>\n        <input class=\"control\" type=\"search\" value=\"native search\">\n        <input class=\"control shadow\" type=\"search\" value=\"shadow search\">\n        <input class=\"control border\" type=\"text\" value=\"border text\">\n        <textarea class=\"control background\">background textarea</textarea>\n        <input class=\"control background\" type=\"checkbox\" checked>\n        <input class=\"control border\" type=\"radio\" checked style=\"accent-color:rgb(210,33,84)\">\n        <input class=\"control shadow vertical\" type=\"range\" value=\"40\">\n        <input class=\"control sideways\" type=\"checkbox\">\n        <button class=\"control\" style=\"appearance:none\">none</button>\n        <button class=\"control\" style=\"appearance:base\">base</button>\n        <select class=\"control\" style=\"appearance:base-select\"><option>base select</option></select>\n      </div>`);\n\n      const capture = await captureElementTreeWithWarnings(\n        page, \"body\", { x: 0, y: 0, ...viewport },\n      );\n      expect(capture.warnings.filter((warning) => warning.feature === \"effective-appearance-cascade\")).toEqual([]);\n\n      const actual = controls(capture.tree).map((node) => ({\n        tag: node.tag,\n        type: node.styles.inputType,\n        effective: node.styles.effectiveAppearance,\n        raster: node.nativeControlRaster != null,\n      }));\n      expect(actual).toEqual([\n        { tag: \"button\", type: undefined, effective: \"button\", raster: true },\n        { tag: \"button\", type: undefined, effective: \"button\", raster: true },\n        { tag: \"button\", type: undefined, effective: \"button\", raster: true },\n        { tag: \"button\", type: undefined, effective: \"button\", raster: true },\n        { tag: \"button\", type: undefined, effective: \"button\", raster: true },\n        { tag: \"button\", type: undefined, effective: \"none\", raster: false },\n        { tag: \"button\", type: undefined, effective: \"none\", raster: false },\n        { tag: \"input\", type: \"button\", effective: \"push-button\", raster: true },\n        { tag: \"input\", type: \"submit\", effective: \"none\", raster: false },\n        { tag: \"progress\", type: undefined, effective: \"progress-bar\", raster: true },\n        { tag: \"progress\", type: undefined, effective: \"progress-bar\", raster: true },\n        { tag: \"progress\", type: undefined, effective: \"none\", raster: false },\n        { tag: \"meter\", type: undefined, effective: \"meter\", raster: true },\n        { tag: \"meter\", type: undefined, effective: \"none\", raster: false },\n        { tag: \"select\", type: undefined, effective: \"menulist\", raster: true },\n        { tag: \"select\", type: undefined, effective: \"menulist-button\", raster: false },\n        { tag: \"input\", type: \"search\", effective: \"searchfield\", raster: true },\n        { tag: \"input\", type: \"search\", effective: \"none\", raster: false },\n        { tag: \"input\", type: \"text\", effective: \"none\", raster: false },\n        { tag: \"textarea\", type: undefined, effective: \"none\", raster: false },\n        { tag: \"input\", type: \"checkbox\", effective: \"checkbox\", raster: true },\n        { tag: \"input\", type: \"radio\", effective: \"radio\", raster: true },\n        { tag: \"input\", type: \"range\", effective: \"slider-horizontal\", raster: true },\n        { tag: \"input\", type: \"checkbox\", effective: \"checkbox\", raster: true },\n        { tag: \"button\", type: undefined, effective: \"none\", raster: false },\n        { tag: \"button\", type: undefined, effective: \"base\", raster: false },\n        { tag: \"select\", type: undefined, effective: \"base-select\", raster: false },\n      ]);\n    } finally {\n      await page.close();\n    }\n  }, 90_000);\n\n  it(\"keeps default button ownership across interaction, scheme, forced colors, zoom, DPR, writing mode, and direction\", async () => {\n    const rows = [\n      { colorScheme: \"light\" as const, forcedColors: \"none\" as const, dpr: 1, writing: \"horizontal-tb\", direction: \"ltr\" },\n      { colorScheme: \"dark\" as const, forcedColors: \"none\" as const, dpr: 2, writing: \"vertical-rl\", direction: \"rtl\" },\n      { colorScheme: \"light\" as const, forcedColors: \"active\" as const, dpr: 1, writing: \"sideways-lr\", direction: \"ltr\" },\n    ];\n    for (const row of rows) {\n      const context = await env!.browser.newContext({\n        viewport: { width: 320, height: 190 },\n        deviceScaleFactor: row.dpr,\n        colorScheme: row.colorScheme,\n        forcedColors: \"none\",\n      });\n      const page = await context.newPage();\n      try {\n        // Measure the platform corner outside forced-colors. That independent\n        // resizer probe uses a color discriminator which forced-colors is\n        // allowed to replace; this ticket's matrix then changes media state\n        // while retaining the same BrowserContext/platform metrics.\n        await measureBlinkPlatformResizer(page);\n        await page.emulateMedia({ forcedColors: row.forcedColors });\n        await page.setContent(`<style>\n          html,body{margin:0;color-scheme:light dark}\n          button{position:absolute;left:70px;top:55px;width:150px;height:52px;\n            writing-mode:${row.writing};direction:${row.direction};zoom:1.25;\n            font:700 16px sans-serif;color:ButtonText;padding:5px 14px;text-shadow:none}\n        </style><button id=\"state\">state</button>`);\n\n        const assertNative = async () => {\n          const capture = await captureElementTreeWithWarnings(\n            page, \"body\", { x: 0, y: 0, width: 320, height: 190 },\n          );\n          expect(capture.warnings.filter((warning) => warning.feature === \"effective-appearance-cascade\")).toEqual([]);\n          const button = controls(capture.tree).find((node) => node.tag === \"button\")!;\n          expect(button.styles.effectiveAppearance).toBe(\"button\");\n          expect(button.nativeControlRaster).toBeDefined();\n        };\n\n        await assertNative();\n        await page.focus(\"#state\");\n        await assertNative();\n        await page.hover(\"#state\");\n        await assertNative();\n        await page.mouse.down();\n        await assertNative();\n        await page.mouse.up();\n      } finally {\n        await page.mouse.up().catch(() => undefined);\n        await context.close();\n      }\n    }\n  }, 120_000);\n});"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/visual-tests.yml"
+                },
+                "region": {
+                  "startLine": 182
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/effective-appearance.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 91,
+          "workItemUris": [
+            "DM-2453"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "578e5b9d4a5c8cefa9d52e1e64bfaffe"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "6e8a00b62c75168c9e1373ff2f1386373b4fd3d2",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

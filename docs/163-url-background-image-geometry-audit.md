@@ -1,20 +1,22 @@
 # URL background image geometry audit
 
-**Status:** investigation and design only; production rendering is unchanged
+**Status:** DM-2477 capture seam implemented; tile, attachment, and fragment geometry remain partial
 
 **Ticket:** DM-2370
 
-**Implementation follow-ups:** DM-2477, DM-2478, DM-2479, existing DM-2365,
-and gate DM-2480
+**Implemented seam:** DM-2477 authoritative selected-image/natural-sizing capture
 
-Domotion currently turns each CSS `url()` background layer into one SVG
+**Remaining follow-ups:** DM-2478, DM-2479, existing DM-2365, and gate DM-2480
+
+Domotion turns each CSS `url()` background layer into one SVG
 `<pattern><image>`. That is the right representation boundary, but the numbers
-inside the pattern are not yet Blink's numbers. The current path independently
-parses computed strings, treats one captured width/height pair as the complete
-natural-sizing record, and approximates repeat modes with a large pattern cell.
-Blink instead carries a source-selected image plus snapped and unsnapped
-positioning areas through `BackgroundImageGeometry`, then gives an explicit
-destination, phase, spacing, and scale to Skia.
+inside the pattern are not all Blink's numbers yet. DM-2477 now captures the
+selected candidate and complete natural-sizing state before the synchronous
+tree walk. The remaining renderer still projects that state to a width/height
+pair and approximates repeat modes with a large pattern cell. Blink carries the
+source-selected image plus snapped and unsnapped positioning areas through
+`BackgroundImageGeometry`, then gives an explicit destination, phase, spacing,
+and scale to Skia.
 
 ## Verdict
 
@@ -52,13 +54,11 @@ lists, and sliced fragments.
 
 ## Current information loss
 
-### Capture
+### Capture (resolved by DM-2477)
 
-`computeBackgroundIntrinsic` in
-`src/capture/script/walker/borders-backgrounds.ts:226-264` splits the computed
-image list, takes the first URL inside `image-set()`, constructs a new `Image`,
-and reads `naturalWidth`/`naturalHeight` synchronously. It records either
-`{w,h}` or `null`. This loses:
+Before DM-2477, `computeBackgroundIntrinsic` split the computed image list,
+took the first URL inside `image-set()`, constructed a new `Image`, and read
+`naturalWidth`/`naturalHeight` synchronously. Its `{w,h}` or `null` result lost:
 
 - which candidate Blink selected for the current device scale and supported
   type;
@@ -68,10 +68,23 @@ and reads `naturalWidth`/`naturalHeight` synchronously. It records either
 - delayed decode versus permanent failure; and
 - any independent dimension-presence state.
 
-The renderer independently chooses the lowest-density `image-set()` candidate
-at `src/render/element-tree-to-svg.ts:5425-5458`, assuming DPR 1. That can select
-different bytes and a different concrete size from the Chromium session that
-produced the source paint.
+`src/capture/background-image-sizing.ts` now performs an async live-frame
+prepass. It preserves one slot per computed image layer, transcribes pinned
+Blink MIME filtering/stable density selection at the session DPR, awaits the
+chosen resource, records independent natural dimensions/ratio, orientation,
+effective zoom, candidate resolution/type, and load state, then removes its
+temporary DOM markers after capture. Gradients remain `null` slots, so shorter
+background longhands can later expand without re-indexing URL layers.
+
+The synchronous walker serializes that record and derives `backgroundIntrinsic`
+only as a compatibility projection. The renderer consumes the captured URL for
+`image-set()` and no longer guesses the lowest-density candidate. Failed,
+timed-out, unsupported, or unreadable resources warn and remain explicitly
+unavailable. A readable SVG root supplies independently present absolute
+`width`/`height` and its dimensions-or-`viewBox` ratio. A CORS-opaque resource
+whose actual bitmap-versus-SVG response kind cannot be observed retains loaded
+bytes but explicitly lacks representable dimension-presence facts; URL suffixes
+and `type()` descriptors are not substituted for Blink's decoded-image kind.
 
 ### Tile sizing and phase
 
@@ -236,8 +249,8 @@ row must have at least 4% classified-label mismatch or at least two device
 pixels of bound movement. The bounds condition remains independent of area,
 so a large canvas cannot dilute a translated edge. The probe exits zero only
 when all positive controls stay tight and every expected current gap is still
-discriminated. The expected-gap local row retains the existing `scrollbar: native scrollbar chrome not emulated yet (SK-468)` warning; this is observational evidence, not a release gate.
-DM-2480 owns promotion and makes any warning a failure after implementation.
+discriminated. This is observational evidence, not a release gate; DM-2480 owns
+promotion and makes any warning a failure after implementation.
 
 | Row | Expected route | Label mismatch | Maximum color-bound delta |
 | --- | --- | ---: | ---: |
@@ -275,7 +288,7 @@ is separately discriminated.
 
 ## Exact representation design
 
-### Capture record (DM-2477)
+### Capture record (DM-2477, implemented)
 
 For each CSS image layer, capture an immutable record after source selection
 and decode:
@@ -286,9 +299,14 @@ and decode:
 - image orientation and effective zoom used for sizing; and
 - the layer index before cyclic longhand expansion.
 
-The async prepass must finish before the synchronous tree walk reads the
-record. A failed or still-unknown asset must warn and use an explicit
-unsupported state; it must not be indistinguishable from a dimensionless image.
+The async prepass finishes before the synchronous tree walk reads the record.
+A failed or still-unknown asset warns and uses an explicit unavailable state;
+it is not indistinguishable from a dimensionless image. Focused pure tests cover
+CSS layer/token parsing, MIME filtering, stable density de-duplication, and DPR
+selection. Six live-Chromium cases cover PNG/JPEG/SVG (including ratio-only and
+one-dimension SVG), 1x/2x/3x at DPR 1/2, effective zoom, EXIF orientation,
+delayed decode, failure, multilayer slot alignment, mutation, cleanup, and the
+renderer consuming the selected candidate.
 
 ### Geometry record (DM-2478)
 
@@ -333,7 +351,7 @@ ink, missing pattern ownership, or warnings fail rather than skip.
 
 ## Follow-up ordering
 
-- **DM-2477** — authoritative natural sizing and selected-layer capture.
+- **DM-2477** — implemented: authoritative natural sizing and selected-layer capture.
 - **DM-2478** — exact pure tile geometry and SVG lowering; blocked by DM-2477.
 - **DM-2479** — exact normal/fixed/local/root attachment positioning areas.
 - **DM-2365** — existing slice/clone background-image continuation ticket;
@@ -341,6 +359,7 @@ ink, missing pattern ownership, or warnings fail rather than skip.
 - **DM-2480** — all-platform/DPR parity gate; blocked by all four implementation
   tickets above.
 
-No production code was changed by DM-2370. Until these tickets land, URL
-background geometry remains partial and the observational probe's expected-gap
-routes are not accepted parity.
+DM-2477 changes production capture and removes renderer-side candidate guessing.
+Until the remaining tickets land, URL background tile/attachment/fragment
+geometry remains partial and the observational probe's expected-gap routes are
+not accepted parity.

@@ -62,7 +62,7 @@ import { cssTransformToSvg } from "./transforms.js";
 import { parseCssUrl, splitTopLevelCommas } from "./css-tokens.js";
 import { buildLinearGradientDef as buildExactLinearGradientDef, parseLegacyWebkitLinearGradient } from "./gradients.js";
 import { blinkSymbolMarkerGeometry, disclosureTriangle, pixelSnapRect, type SymbolMarkerType } from "./list-marker-geometry.js";
-import type { CapturedElement, TextSegment, MaskFragmentDef, MaskRasterRef, ClipPathFragmentDef, CaptureWarning } from "../capture/types.js";
+import type { CapturedBackgroundImage, CapturedElement, TextSegment, MaskFragmentDef, MaskRasterRef, ClipPathFragmentDef, CaptureWarning } from "../capture/types.js";
 import {
   _dataUriCache,
   _resizedDataUriCache,
@@ -2113,6 +2113,7 @@ function paintBackgroundImageLayers(
     const clipLayers = splitTopLevelCommas(el.styles.backgroundClip ?? "border-box");
     const originLayers = splitTopLevelCommas(el.styles.backgroundOrigin ?? "padding-box");
     const attachmentLayers = splitTopLevelCommas(el.styles.backgroundAttachment ?? "scroll");
+    const selectedImageLayers = el.styles.backgroundImages ?? [];
     const intrinsicLayers = el.styles.backgroundIntrinsic ?? [];
     // DM-817: background-blend-mode per CSS Compositing 2 §6.1 — each layer
     // blends with the composite below using its mode. Single value applies
@@ -2150,6 +2151,7 @@ function paintBackgroundImageLayers(
       const layerClip = (clipLayers[li] ?? clipLayers[0] ?? "border-box").trim();
       const layerOrigin = (originLayers[li] ?? originLayers[0] ?? "padding-box").trim();
       const layerIntrinsic = intrinsicLayers[li] ?? null;
+      const selectedImage = selectedImageLayers[li] ?? null;
       const layerAttachment = (attachmentLayers[li] ?? attachmentLayers[0] ?? "scroll").trim();
       const originBox = boxFor(layerOrigin);
       const clipBox = boxFor(layerClip);
@@ -2173,7 +2175,7 @@ function paintBackgroundImageLayers(
       // Pattern is positioned + sized relative to the origin box (where the image starts)
       // then painted into a rect clipped to the clip box. For fixed attachment
       // the origin is the viewport instead.
-      const out = buildBackgroundLayerDef(defId, layer, posOriginX, posOriginY, posOriginW, posOriginH, layerSize, layerPos, layerRepeat, layerIntrinsic, layerAttachment, captureViewport);
+      const out = buildBackgroundLayerDef(defId, layer, posOriginX, posOriginY, posOriginW, posOriginH, layerSize, layerPos, layerRepeat, layerIntrinsic, layerAttachment, captureViewport, selectedImage);
       if (out.def === "") continue;
       ctx.defsParts.push(out.def);
       // DM-462: when this layer's clip is `text`, do NOT paint a rect over
@@ -2226,6 +2228,7 @@ function paintBackgroundImageLayers(
     const posLayers = splitTopLevelCommas(el.styles.backgroundPosition ?? "0% 0%");
     const repeatLayers = splitTopLevelCommas(el.styles.backgroundRepeat ?? "repeat");
     const attachmentLayers = splitTopLevelCommas(el.styles.backgroundAttachment ?? "scroll");
+    const selectedImageLayers = el.styles.backgroundImages ?? [];
     const intrinsicLayers = el.styles.backgroundIntrinsic ?? [];
     for (let li = layers.length - 1; li >= 0; li--) {
       const layerClip = (clipLayers[li] ?? clipLayers[0] ?? "border-box").trim();
@@ -2236,8 +2239,9 @@ function paintBackgroundImageLayers(
       const layerRepeat = (repeatLayers[li] ?? repeatLayers[0] ?? "repeat").trim();
       const layerAttachment = (attachmentLayers[li] ?? attachmentLayers[0] ?? "scroll").trim();
       const layerIntrinsic = intrinsicLayers[li] ?? null;
+      const selectedImage = selectedImageLayers[li] ?? null;
       const defId = ctx.nextClipId("bg");
-      const out = buildBackgroundLayerDef(defId, layer, el.x, el.y, el.width, el.height, layerSize, layerPos, layerRepeat, layerIntrinsic, layerAttachment, captureViewport);
+      const out = buildBackgroundLayerDef(defId, layer, el.x, el.y, el.width, el.height, layerSize, layerPos, layerRepeat, layerIntrinsic, layerAttachment, captureViewport, selectedImage);
       if (out.def === "") continue;
       ctx.defsParts.push(out.def);
       textBgClipFills[li] = `url(#${defId})`;
@@ -2271,7 +2275,7 @@ function paintBackgroundImageLayers(
           const fid = ctx.nextClipId("bg");
           const gx = clone ? fr.x : fr.x - cumW;
           const gw = clone ? fr.width : totalW;
-          const fout = buildBackgroundLayerDef(fid, layer, gx, fr.y, gw, fr.height, layerSize, layerPos, layerRepeat, layerIntrinsic, layerAttachment, captureViewport);
+          const fout = buildBackgroundLayerDef(fid, layer, gx, fr.y, gw, fr.height, layerSize, layerPos, layerRepeat, layerIntrinsic, layerAttachment, captureViewport, selectedImage);
           cumW += fr.width;
           if (fout.def === "") { perFrag.push(textBgClipFills[li]!); continue; } // fall back to union fill
           ctx.defsParts.push(fout.def);
@@ -3565,6 +3569,7 @@ interface InlineFragmentCtx {
   bgPosLayers: string[];
   bgRepeatLayers: string[];
   bgClipLayers: string[];
+  bgSelectedImageLayers: Array<CapturedBackgroundImage | null>;
   bgIntrinsicLayers: Array<{ w: number; h: number } | null>;
   bgAttachmentLayers: string[];
 }
@@ -3587,7 +3592,7 @@ function paintInlineFragment(
     clone, fragsAxisIsBlock, hasBgImage, shadows, bgColor,
     sbt, sbr, sbb, sbl,
     bgImageLayers, bgSizeLayers, bgPosLayers, bgRepeatLayers, bgClipLayers,
-    bgIntrinsicLayers, bgAttachmentLayers,
+    bgSelectedImageLayers, bgIntrinsicLayers, bgAttachmentLayers,
   } = ctx;
 
     // Outset box-shadow. Clone applies shadow to each fragment; slice
@@ -3637,13 +3642,14 @@ function paintInlineFragment(
         const layerPos = (bgPosLayers[li] ?? bgPosLayers[0] ?? "0% 0%").trim();
         const layerRepeat = (bgRepeatLayers[li] ?? bgRepeatLayers[0] ?? "repeat").trim();
         const layerClip = (bgClipLayers[li] ?? bgClipLayers[0] ?? "border-box").trim();
+        const selectedImage = bgSelectedImageLayers[li] ?? null;
         const layerIntrinsic = bgIntrinsicLayers[li] ?? null;
         const layerAttachment = (bgAttachmentLayers[li] ?? bgAttachmentLayers[0] ?? "scroll").trim();
         if (layerClip === "text") continue;
         const defId = paintCtx.nextClipId("bgf");
         const out = buildBackgroundLayerDef(
           defId, layer, f.x, f.y, f.width, f.height,
-          layerSize, layerPos, layerRepeat, layerIntrinsic, layerAttachment, captureViewport,
+          layerSize, layerPos, layerRepeat, layerIntrinsic, layerAttachment, captureViewport, selectedImage,
         );
         if (out.def === "") continue;
         defsParts.push(out.def);
@@ -3802,13 +3808,14 @@ function renderInlineFragments(
   const bgClipLayers = splitTopLevelCommas(el.styles.backgroundClip ?? "border-box");
   const bgOriginLayers = splitTopLevelCommas(el.styles.backgroundOrigin ?? "padding-box");
   const bgAttachmentLayers = splitTopLevelCommas(el.styles.backgroundAttachment ?? "scroll");
+  const bgSelectedImageLayers = el.styles.backgroundImages ?? [];
   const bgIntrinsicLayers = el.styles.backgroundIntrinsic ?? [];
 
   const fragmentCtx: InlineFragmentCtx = {
     clone, fragsAxisIsBlock, hasBgImage, shadows, bgColor,
     sbt, sbr, sbb, sbl,
     bgImageLayers, bgSizeLayers, bgPosLayers, bgRepeatLayers, bgClipLayers,
-    bgIntrinsicLayers, bgAttachmentLayers,
+    bgSelectedImageLayers, bgIntrinsicLayers, bgAttachmentLayers,
   };
   for (let fi = 0; fi < frags.length; fi++) {
     const f = frags[fi];
@@ -5274,14 +5281,9 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
     }
   }
 
-  // Scrollbar thumb indicator — only painted when the element has an
-  // actual scroll offset (scrollTop > 0 or scrollLeft > 0). Chromium macOS
-  // uses overlay scrollbars that are invisible at rest (verified: Playwright
-  // captures show no scrollbar chrome for non-scrolled static frames), so
-  // rendering one by default actually makes diffs worse. When content IS
-  // scrolled, the thumb gives a useful visual cue.
-  const scrollbarMarkup = renderScrollbarChrome(el, indent);
-  if (scrollbarMarkup !== "") svgParts.push(scrollbarMarkup);
+  // DM-2481 removes the offset-triggered 7px scrollbar estimator. Captured
+  // scrollbar records are deliberately fail-closed until DM-2482 lowers
+  // author parts and DM-2483 composites native source-frame strips.
   // PaintOverflowControls orders scrollbars / scroll corner before the
   // resizer, and the controls overlay scrolled descendants.
   svgParts.push(...paintResizeHandle(paintCtx, captureViewport, el, indent));
@@ -5343,47 +5345,6 @@ export function elementTreeToSvg(
 }
 
 
-/**
- * Emit a macOS-style overlay scrollbar thumb when the captured element has
- * been scrolled (scrollTop > 0 or scrollLeft > 0). Chromium macOS uses
- * overlay scrollbars that are invisible at rest — a screenshot capture of a
- * non-scrolled page shows no scrollbar chrome at all. So we ONLY paint the
- * thumb when the captured state reflects an active scroll; this matches
- * Chromium's captured appearance during/after a scroll gesture, and avoids
- * noise when the capture is a fresh page at scrollTop=0.
- *
- * Thumb: ~7px rounded-rect with rgba(0,0,0,0.4) fill. Positioned on the
- * inside-right edge (Y axis) / inside-bottom edge (X axis) of the element.
- */
-function renderScrollbarChrome(el: CapturedElement, indent: string): string {
-  const s = el.styles;
-  const THUMB = 7;
-  const THUMB_COLOR = "rgba(0,0,0,0.40)";
-
-  const overflowYScroll = s.overflowY === "auto" || s.overflowY === "scroll";
-  const overflowXScroll = s.overflowX === "auto" || s.overflowX === "scroll";
-  const scrolledY = overflowYScroll && (s.scrollTop ?? 0) > 0 && s.scrollHeight != null && s.clientHeight != null && s.scrollHeight > s.clientHeight;
-  const scrolledX = overflowXScroll && (s.scrollLeft ?? 0) > 0 && s.scrollWidth != null && s.clientWidth != null && s.scrollWidth > s.clientWidth;
-
-  if (!scrolledY && !scrolledX) return "";
-
-  const parts: string[] = [];
-  if (scrolledY) {
-    const trackH = el.height;
-    const thumbH = Math.max(20, (trackH * s.clientHeight!) / s.scrollHeight!);
-    const thumbY = el.y + ((trackH - thumbH) * s.scrollTop!) / Math.max(1, s.scrollHeight! - s.clientHeight!);
-    parts.push(`${indent}<rect x="${r(el.x + el.width - THUMB - 2)}" y="${r(thumbY)}" width="${r(THUMB)}" height="${r(thumbH)}" rx="${r(THUMB / 2)}" fill="${THUMB_COLOR}" />`);
-  }
-  if (scrolledX) {
-    const trackW = el.width;
-    const thumbW = Math.max(20, (trackW * s.clientWidth!) / s.scrollWidth!);
-    const thumbX = el.x + ((trackW - thumbW) * s.scrollLeft!) / Math.max(1, s.scrollWidth! - s.clientWidth!);
-    parts.push(`${indent}<rect x="${r(thumbX)}" y="${r(el.y + el.height - THUMB - 2)}" width="${r(thumbW)}" height="${r(THUMB)}" rx="${r(THUMB / 2)}" fill="${THUMB_COLOR}" />`);
-  }
-  return parts.join("\n");
-}
-
-
 // Stacking-context analysis (establishesStackingContext / gatherStackingContextChildren / isOverflowOnlySC / isFlexOrGridContainerDisplay) moved to ./stacking.ts (DM-1305).
 
 // isFixedContainingBlock / sortChildrenByPaintOrder moved to ./stacking.ts (DM-1742 — the cursor hit-test reuses them for true paint-order hit-testing).
@@ -5405,41 +5366,17 @@ function buildBackgroundLayerDef(
   intrinsic: { w: number; h: number } | null = null,
   attachment: string = "scroll",
   fixedViewport: { w: number; h: number } | null = null,
+  selectedImage: CapturedBackgroundImage | null = null,
 ): { def: string } {
-  // DM-717: `image-set(...)` / `-webkit-image-set(...)` resolution. Chrome's
-  // computed-style serializer returns the FULL image-set string rather than
-  // the single chosen candidate, so we have to pick one ourselves. Strategy:
-  // prefer the lowest-density candidate (1dppx) since the offscreen capture
-  // runs at deviceScaleFactor 1; among same-density candidates, prefer
-  // `type("image/webp")` then `png` then `jpeg` then `gif`, matching what
-  // Chrome would pick on a standard-density display. Falls back to the first
-  // url(...) it finds if no density/type metadata is present.
+  // Computed style deliberately serializes the complete image-set. The live
+  // capture record—not this renderer—owns Blink's DPR/type candidate choice.
   const imageSet = /^(?:-webkit-)?image-set\((.+)\)$/i.exec(layer);
   if (imageSet != null) {
-    const args = splitTopLevelCommas(imageSet[1]);
-    type Cand = { url: string; dppx: number; type: string };
-    const cands: Cand[] = [];
-    for (const a of args) {
-      const t = a.trim();
-      // The arg shape is `url(...) [<resolution>] [type(...)]` in any order
-      // (per CSS Images 4); pull each piece out independently.
-      const urlBlob = /url\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^)\s]+))\s*\)/i.exec(t);
-      if (urlBlob == null) continue;
-      const rawUrl = (urlBlob[1] ?? urlBlob[2] ?? urlBlob[3]).replace(/\\(.)/g, "$1");
-      const dppxMatch = /(?<![a-z])([0-9.]+)\s*(?:dppx|x)\b/i.exec(t);
-      const typeMatch = /type\(\s*["']?([^"')]+?)["']?\s*\)/i.exec(t);
-      cands.push({
-        url: `url("${rawUrl}")`,
-        dppx: dppxMatch != null ? parseFloat(dppxMatch[1]) : 1,
-        type: typeMatch != null ? typeMatch[1].toLowerCase() : "",
-      });
+    if (selectedImage?.source !== "image-set" || selectedImage.selectedUrl == null
+        || selectedImage.loadState !== "loaded") {
+      console.warn("[domotion] image-set background omitted: authoritative selected candidate was unavailable");
+      return { def: "" };
     }
-    const TYPE_RANK: Record<string, number> = {
-      "image/webp": 4, "image/png": 3, "image/jpeg": 2, "image/jpg": 2, "image/gif": 1, "": 0,
-    };
-    cands.sort((a, b) => a.dppx - b.dppx || (TYPE_RANK[b.type] ?? 0) - (TYPE_RANK[a.type] ?? 0));
-    if (cands.length > 0) layer = cands[0].url;
-    else return { def: "" };
   }
   // DM-695: `background-attachment: fixed` anchors the bg image (gradient or
   // raster) to the viewport rather than the element. For gradients this
@@ -5490,7 +5427,11 @@ function buildBackgroundLayerDef(
   if (/^(?:repeating-)?conic-gradient\(/i.test(layer)) {
     return { def: buildConicGradientDef(id, layer, elX, elY, w, h, sizeCss, posCss) };
   }
-  const urlContent = parseCssUrl(layer);
+  if (selectedImage != null && selectedImage.loadState !== "loaded") {
+    console.warn(`[domotion] URL background omitted: selected image ${selectedImage.loadState} at capture time`);
+    return { def: "" };
+  }
+  const urlContent = selectedImage?.selectedUrl ?? parseCssUrl(layer);
   if (urlContent != null) {
     return { def: buildImagePatternDef(id, urlContent, elX, elY, w, h, sizeCss, posCss, repeatCss, intrinsic, attachment, fixedViewport) };
   }

@@ -121,7 +121,7 @@ export const tableGridRectFromCaptions = (tableRect, writingMode, captions) => {
   };
 };
 
-export const createBordersBackgroundsHandler = ({ normColor, normGradientColors, resolvePlaceholderShownBg, resolveCornerRadius, effectiveZoomFor = () => 1, vp = { x: 0, y: 0 } }) => {
+export const createBordersBackgroundsHandler = ({ normColor, normGradientColors, resolvePlaceholderShownBg, resolveCornerRadius, effectiveZoomFor = () => 1, warn = () => {}, shortSelector = () => "", vp = { x: 0, y: 0 } }) => {
   const isUaColorBorder = (tag, el, cs, side) =>
     tag === 'input' && el.type === 'color'
     && normColor(cs[side], cs.color).replace(/\s+/g, '') === 'rgb(0,0,0)';
@@ -223,45 +223,26 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
     return bodyA <= 0.1 ? 'rgb(255,255,255)' : bodyBg;
   };
 
-  const computeBackgroundIntrinsic = (cs) => {
+  const computeBackgroundImages = (el, cs) => {
     const bgImage = cs.backgroundImage;
     if (bgImage == null || bgImage === 'none' || bgImage === '') return undefined;
-    // Split on top-level commas respecting nested parens.
-    const layers = [];
-    let depth = 0, start = 0;
-    for (let i = 0; i < bgImage.length; i++) {
-      const c = bgImage[i];
-      if (c === '(') depth++;
-      else if (c === ')') depth--;
-      else if (c === ',' && depth === 0) { layers.push(bgImage.slice(start, i)); start = i + 1; }
+    const records = el && el.__domotionBackgroundImages;
+    if (!Array.isArray(records)) {
+      warn(shortSelector(el), 'background-image', 'capture-time selected-image sizing record was unavailable');
+      return undefined;
     }
-    layers.push(bgImage.slice(start));
-
-    return layers.map((layer) => {
-      // DM-759: `image-set(url(...) 1x, url(...) 2x, ...)` layers wrap their
-      // url() candidates inside the function call; the top-level regex
-      // below only matches a bare `url(...)` at layer start. Probe the
-      // FIRST url() inside the image-set instead so the renderer's `cover`
-      // / `contain` math has the right aspect ratio. Picking any candidate
-      // works because Chrome's image-set candidates are conventionally the
-      // SAME image at different resolutions / formats, so the intrinsic
-      // aspect is consistent across them; the absolute scale may differ
-      // by the 1x/2x factor but `cover` / `contain` are aspect-driven.
-      let searchLayer = layer;
-      const imgSet = /^\s*(?:-webkit-)?image-set\(\s*([\s\S]+)\s*\)\s*$/i.exec(layer);
-      if (imgSet != null) searchLayer = imgSet[1];
-      // Match all three url() forms ("...", '...', bare), unescaping escaped
-      // quotes so a data: URL with embedded HTML attribute quotes isn't
-      // truncated (DM-308). For image-set candidates the url() may appear
-      // anywhere in the inner string, so search the whole SEARCH LAYER.
-      const url = extractCssUrl(searchLayer);
-      if (url == null) return null;
-      const img = new Image();
-      img.src = url;
-      const w = img.naturalWidth || 0;
-      const h = img.naturalHeight || 0;
-      return w > 0 && h > 0 ? { w, h } : null;
-    });
+    const recordWarnings = [];
+    for (const record of records) {
+      if (record == null || record.warning == null) continue;
+      recordWarnings.push('layer ' + record.layerIndex + ': ' + record.warning);
+    }
+    if (recordWarnings.length > 0) {
+      // The warning buffer de-duplicates by selector + feature. Preserve every
+      // failing layer in one diagnostic instead of letting the first one hide
+      // later loading/opaque/unsupported states.
+      warn(shortSelector(el), 'background-image', recordWarnings.join('; '));
+    }
+    return records;
   };
 
   const computeBorderImageIntrinsic = (cs, dim) => {
@@ -554,7 +535,9 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
   const isCollapsedStructural = (tag, cs) => cs.borderCollapse === 'collapse'
     && (tag === 'table' || tag === 'tr' || tag === 'thead' || tag === 'tbody' || tag === 'tfoot' || tag === 'colgroup' || tag === 'col');
 
-  const captureBordersBackgrounds = (el, cs, tag, rect, isPlaceholderCapture, effectiveZoom = 1) => ({
+  const captureBordersBackgrounds = (el, cs, tag, rect, isPlaceholderCapture, effectiveZoom = 1) => {
+    const backgroundImages = computeBackgroundImages(el, cs);
+    return ({
     tableGridRect: resolveTableGridRect(el, cs, tag, rect),
     backgroundColor: (function () {
       if (isPlaceholderCapture) {
@@ -687,7 +670,15 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
     paintOrder: cs.paintOrder || undefined,
     backgroundOrigin: cs.backgroundOrigin,
     backgroundAttachment: cs.backgroundAttachment,
-    backgroundIntrinsic: computeBackgroundIntrinsic(cs),
+    backgroundImages,
+    // Compatibility projection only. The selected candidate and complete
+    // natural-sizing state live in backgroundImages.
+    backgroundIntrinsic: (() => {
+      return backgroundImages?.map((record) => record != null
+        && record.naturalWidth != null && record.naturalHeight != null
+        ? { w: record.naturalWidth, h: record.naturalHeight }
+        : null);
+    })(),
     borderImageSource: cs.borderImageSource,
     borderImageSlice: cs.borderImageSlice,
     borderImageWidth: cs.borderImageWidth,
@@ -703,7 +694,8 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
     // box-decoration-break: 'slice' (default) vs 'clone'. Drives per-fragment
     // paint of wrapped inline elements; see CapturedElement.inlineFragments.
     boxDecorationBreak: cs.boxDecorationBreak || cs.webkitBoxDecorationBreak || 'slice',
-  });
+    });
+  };
 
   return { captureBordersBackgrounds, isTableCellHiddenByEmptyCells };
 };

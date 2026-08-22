@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt40ydtwmc70x6mw",
+          "message": {
+            "text": "Six live-Chromium cases prove the capture seam and renderer handoff. They cover stable 1x, 2x, and 3x selection at DPR 1 and 2, zoom-density correction, PNG and JPEG, ratio-only and one-dimension SVG, aligned non-URL slots, delayed CORS-readable decode, failed and CORS-opaque explicit states with combined warnings, EXIF orientation under nested zoom, mutation reselection, marker cleanup, and emission of only the selected candidate; the focused run passes 6 of 6.",
+            "markdown": "Six live-Chromium cases prove the capture seam and renderer handoff. They cover stable 1x, 2x, and 3x selection at DPR 1 and 2, zoom-density correction, PNG and JPEG, ratio-only and one-dimension SVG, aligned non-URL slots, delayed CORS-readable decode, failed and CORS-opaque explicit states with combined warnings, EXIF orientation under nested zoom, mutation reselection, marker cleanup, and emission of only the selected candidate; the focused run passes 6 of 6."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/background-image-sizing.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 59,
+                  "endLine": 219,
+                  "snippet": {
+                    "text": "describeBrowser(\"authoritative URL background image sizing capture\", () => {\n  for (const row of [\n    { dpr: 1, selectedUrl: PNG_1X, decodedWidth: 20, naturalWidth: 25, resolution: 1 },\n    { dpr: 2, selectedUrl: PNG_2X, decodedWidth: 80, naturalWidth: 50, resolution: 2 },\n  ]) {\n    it(`uses Blink's image-set candidate and density at DPR ${row.dpr}`, async () => {\n      const context = await env!.browser.newContext({ viewport: { width: 220, height: 140 }, deviceScaleFactor: row.dpr });\n      const page = await context.newPage();\n      try {\n        await page.setContent(`<style>\n          #target { width:120px; height:80px; zoom:1.25; background-image:${IMAGE_SET}; background-size:auto; }\n        </style><div id=\"target\"></div>`);\n        const result = await captureElementTreeWithWarnings(page, \"#target\", { x: 0, y: 0, width: 220, height: 140 });\n        const [record] = selected(result);\n        expect(record).toMatchObject({\n          source: \"image-set\",\n          selectedUrl: row.selectedUrl,\n          selectedResolution: row.resolution,\n          selectedType: \"image/png\",\n          decodedNaturalWidth: row.decodedWidth,\n          naturalWidth: row.naturalWidth,\n          effectiveZoom: 1.25,\n          loadState: \"loaded\",\n          naturalSizingState: \"resolved\",\n        });\n        expect(record.naturalHeight).toBe(row.naturalWidth / 2);\n        expect(result.tree[0].styles.backgroundIntrinsic).toEqual([\n          { w: row.naturalWidth, h: row.naturalWidth / 2 },\n        ]);\n        const svg = elementTreeToSvg(result.tree, 220, 140);\n        expect(svg).toContain(row.selectedUrl);\n        expect(svg).not.toContain(row.dpr === 1 ? PNG_2X : PNG_1X);\n      } finally {\n        await context.close();\n      }\n    }, 60_000);\n  }\n\n  it(\"records bitmap, ratio-only SVG, independent dimension, orientation, and aligned layers\", async () => {\n    const page = await env!.browser.newPage({ viewport: { width: 260, height: 160 }, deviceScaleFactor: 1 });\n    try {\n      await page.setContent(`<div id=\"target\" style=\"width:160px;height:100px;zoom:1.25;image-orientation:none;\n        background-image:url('${PNG_DIRECT}'),linear-gradient(red,blue),url('${JPEG_DIRECT}'),url('${SVG_RATIO}'),url('${SVG_WIDTH_AND_RATIO}');\n        background-size:10px,20px\"></div>`);\n      const result = await captureElementTreeWithWarnings(page, \"#target\", { x: 0, y: 0, width: 260, height: 160 });\n      const layers = result.tree[0].styles.backgroundImages!;\n      expect(layers).toHaveLength(5);\n      expect(layers[1]).toBeNull();\n      expect(layers.map((entry) => entry?.layerIndex ?? null)).toEqual([0, null, 2, 3, 4]);\n      expect(layers[0]).toMatchObject({\n        decodedNaturalWidth: 30, decodedNaturalHeight: 20,\n        naturalWidth: 37.5, naturalHeight: 25,\n        hasNaturalWidth: true, hasNaturalHeight: true,\n        imageOrientation: \"none\", effectiveZoom: 1.25,\n      });\n      expect(layers[2]).toMatchObject({\n        decodedNaturalWidth: 44, decodedNaturalHeight: 22,\n        naturalWidth: 55, naturalHeight: 27.5,\n      });\n      expect(layers[3]).toMatchObject({\n        decodedNaturalWidth: null, decodedNaturalHeight: null,\n        naturalWidth: null, naturalHeight: null,\n        hasNaturalWidth: false, hasNaturalHeight: false,\n        naturalAspectRatio: { width: 3, height: 7 },\n      });\n      expect(layers[4]).toMatchObject({\n        decodedNaturalWidth: 80, decodedNaturalHeight: null,\n        naturalWidth: 100, naturalHeight: null,\n        hasNaturalWidth: true, hasNaturalHeight: false,\n        naturalAspectRatio: { width: 4, height: 2 },\n      });\n      expect(result.warnings.filter((warning) => warning.feature === \"background-image\")).toEqual([]);\n    } finally {\n      await page.close();\n    }\n  }, 60_000);\n\n  it(\"awaits delayed decode and preserves explicit failed-resource state\", async () => {\n    const context = await env!.browser.newContext({ viewport: { width: 220, height: 140 }, deviceScaleFactor: 1 });\n    const page = await context.newPage();\n    const delayedBytes = Buffer.from(PNG_DIRECT.slice(PNG_DIRECT.indexOf(\",\") + 1), \"base64\");\n    await page.route(\"http://background.test/**\", async (route) => {\n      if (route.request().url().endsWith(\"delayed.png\")) {\n        await new Promise((resolve) => setTimeout(resolve, 150));\n        await route.fulfill({ status: 200, contentType: \"image/png\", body: delayedBytes });\n      } else {\n        await route.abort(\"failed\");\n      }\n    });\n    try {\n      await page.setContent(`<div id=\"target\" style=\"width:120px;height:80px;\n        background-image:url('http://background.test/delayed.png'),url('http://background.test/failed.png')\"></div>`, {\n        waitUntil: \"domcontentloaded\",\n      });\n      const result = await captureElementTreeWithWarnings(page, \"#target\", { x: 0, y: 0, width: 220, height: 140 });\n      expect(result.tree[0].styles.backgroundImages).toMatchObject([\n        { loadState: \"loaded\", naturalSizingState: \"resolved\", decodedNaturalWidth: 30, decodedNaturalHeight: 20 },\n        { loadState: \"failed\", naturalSizingState: \"unavailable\", naturalWidth: null, naturalHeight: null },\n      ]);\n      expect(result.warnings).toEqual(expect.arrayContaining([\n        expect.objectContaining({ feature: \"background-image\", detail: expect.stringContaining(\"failed\") }),\n      ]));\n    } finally {\n      await context.close();\n    }\n  }, 60_000);\n\n  it(\"applies the captured image-orientation to decoded natural dimensions\", async () => {\n    const page = await env!.browser.newPage({ viewport: { width: 220, height: 140 }, deviceScaleFactor: 1 });\n    try {\n      await page.setContent(`<section style=\"zoom:1.2\"><div id=\"target\" style=\"width:120px;height:80px;zoom:1.25;image-orientation:from-image;background-image:url('${ORIENTED_JPEG}')\"></div></section>`);\n      const oriented = await captureElementTreeWithWarnings(page, \"#target\", { x: 0, y: 0, width: 220, height: 140 });\n      expect(selected(oriented)[0]).toMatchObject({\n        imageOrientation: \"from-image\",\n        effectiveZoom: 1.5,\n        decodedNaturalWidth: 20,\n        decodedNaturalHeight: 40,\n        naturalWidth: 30,\n        naturalHeight: 60,\n      });\n\n      await page.locator(\"#target\").evaluate((element) => {\n        (element as HTMLElement).style.imageOrientation = \"none\";\n      });\n      const unoriented = await captureElementTreeWithWarnings(page, \"#target\", { x: 0, y: 0, width: 220, height: 140 });\n      expect(selected(unoriented)[0]).toMatchObject({\n        imageOrientation: \"none\",\n        effectiveZoom: 1.5,\n        decodedNaturalWidth: 40,\n        decodedNaturalHeight: 20,\n        naturalWidth: 60,\n        naturalHeight: 30,\n      });\n    } finally {\n      await page.close();\n    }\n  }, 60_000);\n\n  it(\"reselects after mutation and removes every temporary page marker\", async () => {\n    const context = await env!.browser.newContext({ viewport: { width: 220, height: 140 }, deviceScaleFactor: 2 });\n    const page = await context.newPage();\n    try {\n      await page.setContent(`<style>\n        #target { width:120px; height:80px; background-image:${IMAGE_SET}; }\n      </style><div id=\"target\"></div>`);\n      const first = await captureElementTreeWithWarnings(page, \"#target\", { x: 0, y: 0, width: 220, height: 140 });\n      expect(selected(first)[0].selectedUrl).toBe(PNG_2X);\n      await page.locator(\"#target\").evaluate((element, url) => {\n        (element as HTMLElement).style.backgroundImage = `url(\"${url}\")`;\n      }, JPEG_DIRECT);\n      const second = await captureElementTreeWithWarnings(page, \"#target\", { x: 0, y: 0, width: 220, height: 140 });\n      expect(selected(second)[0]).toMatchObject({ source: \"url\", selectedUrl: JPEG_DIRECT, selectedResolution: 1 });\n      expect(await page.evaluate(() => ({\n        host: \"__domotionBackgroundImageTargets\" in globalThis,\n        key: \"__domotionBackgroundImageKey\" in document.querySelector(\"#target\")!,\n        record: \"__domotionBackgroundImages\" in document.querySelector(\"#target\")!,\n      }))).toEqual({ host: false, key: false, record: false });\n    } finally {\n      await context.close();\n    }\n  }, 60_000);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/background-image-sizing.test.ts"
+                },
+                "region": {
+                  "startLine": 9
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2477"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "d4196ea08b531d14ca7b535cc70374c7"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "6e8a00b62c75168c9e1373ff2f1386373b4fd3d2",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

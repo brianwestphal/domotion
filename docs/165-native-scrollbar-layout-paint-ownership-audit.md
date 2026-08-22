@@ -1,15 +1,19 @@
 # Native scrollbar layout and paint ownership audit
 
-**Status:** investigation and design only; production rendering is unchanged
+**Status:** source audit plus DM-2481 capture implemented; scrollbar paint is
+still fail-closed pending DM-2482/DM-2483
 
 **Ticket:** DM-2368
 
-**Implementation follow-ups:** DM-2481 (authoritative capture), DM-2482
-(custom-vector paint), DM-2483 (stock-native raster), and DM-2484
-(all-platform gate)
+**Implementation follow-ups:** DM-2482 (custom-vector paint), DM-2483
+(stock-native raster), and DM-2484 (all-platform gate). See
+[doc 169](169-authoritative-scrollbar-capture.md) for the implemented live
+marker protocol, explicit stable-CDP unknowns, and removal of the 7 px
+synthesis.
 
-Domotion currently emits one synthetic, macOS-shaped scrollbar thumb whenever
-a captured scroll offset is positive. That is not Chromium's scrollbar model
+Before DM-2481, Domotion emitted one synthetic, macOS-shaped scrollbar thumb
+whenever a captured scroll offset was positive. That is not Chromium's
+scrollbar model
 and cannot become one by tuning the thumb width or alpha. Blink owns scrollbar
 existence, layout reservation, physical placement, part geometry, state, and
 paint phase. The active platform theme owns stock pixels. Author
@@ -58,12 +62,16 @@ The exact boundary is hybrid and source-owned:
    or an invisible/throttled owner emits no chrome. A nonzero `scrollTop` is
    neither necessary nor sufficient for paint.
 
-The initial exact implementation should fail or warn if the authoritative
-geometry/raster record is missing. It must not silently call the current host-
-independent synthesis, because that produces confidently wrong pixels and can
-invent an indicator which Chromium did not paint.
+The capture implementation now fails or warns if the authoritative geometry/
+raster record is missing. It does not silently call the former host-independent
+synthesis, because that produces confidently wrong pixels and can invent an
+indicator which Chromium did not paint.
 
-## Current information loss
+## Pre-DM-2481 information loss (historical baseline)
+
+The capture/renderer findings below describe the baseline audited by DM-2368.
+DM-2481/doc 169 now supplies structured marker-owned records and removes the
+7 px fallback; the custom/native paint gaps remain.
 
 ### Capture
 

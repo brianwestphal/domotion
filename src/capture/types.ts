@@ -288,6 +288,36 @@ export interface TextSegment {
  * Extracted from the inline `CapturedElement.styles` object type (DM-1371) so
  * it can be named + referenced (e.g. the emoji raster pass casts to it).
  */
+export type BackgroundImageLoadState = "loaded" | "loading" | "failed" | "unsupported";
+
+/**
+ * Capture-frame equivalent of Blink's selected `StyleImage` plus
+ * `NaturalSizingInfo`. Dimensions in `naturalWidth` / `naturalHeight` already
+ * include the selected image-set resolution (for bitmap candidates), image
+ * orientation, and the element's effective CSS zoom—the exact multiplier
+ * passed to `StyleImage::GetNaturalSizingInfo` by BackgroundImageGeometry.
+ */
+export interface CapturedBackgroundImage {
+  layerIndex: number;
+  source: "url" | "image-set";
+  selectedUrl: string | null;
+  selectedCandidateIndex: number | null;
+  selectedResolution: number;
+  selectedType: string | null;
+  decodedNaturalWidth: number | null;
+  decodedNaturalHeight: number | null;
+  naturalWidth: number | null;
+  naturalHeight: number | null;
+  hasNaturalWidth: boolean | null;
+  hasNaturalHeight: boolean | null;
+  naturalAspectRatio: { width: number; height: number } | null;
+  imageOrientation: "from-image" | "none";
+  effectiveZoom: number;
+  loadState: BackgroundImageLoadState;
+  naturalSizingState: "resolved" | "unavailable";
+  warning?: string;
+}
+
 export interface CapturedStyles {
   backgroundColor: string;
   borderColor: string;
@@ -373,7 +403,7 @@ export interface CapturedStyles {
    */
   overflowClipMargin?: string;
   scrollbarGutter: string;
-  /** el.scrollHeight / scrollWidth vs client* — used to decide whether to paint a scrollbar. */
+  /** DOM scroll ranges retained for content positioning; never scrollbar-paint activation. */
   scrollWidth: number;
   scrollHeight: number;
   clientWidth: number;
@@ -506,7 +536,18 @@ export interface CapturedStyles {
   marginRight?: string;
   marginBottom?: string;
   marginLeft?: string;
-  /** Intrinsic dimensions per background-image layer (same order as splitTopLevelCommas). */
+  /**
+   * Blink-owned selected image and natural-sizing facts for every
+   * `background-image` layer. `null` keeps a non-URL layer (for example a
+   * gradient) in the same layer slot so all shorter background longhands can
+   * continue to repeat cyclically without re-indexing this record.
+   */
+  backgroundImages?: Array<CapturedBackgroundImage | null>;
+  /**
+   * Legacy two-number projection of `backgroundImages`. New captures derive
+   * this from the authoritative record; retained for old renderer callers
+   * until the exact BackgroundImageGeometry lowering consumes the full shape.
+   */
   backgroundIntrinsic?: Array<{ w: number; h: number } | null>;
   borderImageSource: string;
   borderImageSlice: string;
@@ -547,6 +588,8 @@ export interface CapturedStyles {
    *  rect (background / border / border-radius) show through and only
    *  overlay the :checked indicator. DM-285. */
   inputAppearance?: string;
+  /** Blink ComputedStyle::EffectiveAppearance after author-style adjustment. */
+  effectiveAppearance?: string;
   checked?: boolean;
   indeterminate?: boolean;
   disabled?: boolean;
@@ -1036,6 +1079,131 @@ export interface CapturedResizeHandle {
   };
 }
 
+/** A physical rectangle measured from Chromium's completed capture frame. */
+export interface CapturedScrollbarRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export type CapturedScrollbarPartKind =
+  | "background"
+  | "back-button"
+  | "forward-button"
+  | "track"
+  | "back-track"
+  | "forward-track"
+  | "thumb"
+  | "corner";
+
+/**
+ * Blink's final computed box/paint values for an author scrollbar pseudo.
+ * These values come from the live Chromium pseudo cascade; they are never
+ * reconstructed by walking CSSStyleSheet rules in source order.
+ */
+export interface CapturedScrollbarPseudoStyle {
+  matched: true;
+  display: string;
+  visibility: string;
+  opacity: string;
+  width: string;
+  height: string;
+  minWidth: string;
+  minHeight: string;
+  maxWidth: string;
+  maxHeight: string;
+  marginTop: string;
+  marginRight: string;
+  marginBottom: string;
+  marginLeft: string;
+  backgroundColor: string;
+  backgroundImage: string;
+  borderRadius: string;
+  border: string;
+  padding: string;
+  boxShadow: string;
+  filter: string;
+}
+
+export interface CapturedScrollbarPart {
+  kind: CapturedScrollbarPartKind;
+  /** Capture-viewport coordinates, snapped outward at the live capture DPR. */
+  rect: CapturedScrollbarRect;
+  /** Final unqualified pseudo winner. Dynamic-only winners remain explicit missing facts. */
+  finalPseudoStyle?: CapturedScrollbarPseudoStyle;
+  /** DM-2482 may raster only an unsupported author part; DM-2483 owns native strips. */
+  raster?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    dataUri?: string;
+    empty?: boolean;
+  };
+}
+
+export interface CapturedScrollbar {
+  orientation: "horizontal" | "vertical";
+  route: "author-custom" | "native-raster";
+  frameRect: CapturedScrollbarRect;
+  usedWidth: "auto" | "thin";
+  logicalSide: "left" | "right" | "bottom";
+  visibleSize: number;
+  totalSize: number;
+  /** Raw live DOM offset; RTL horizontal scrollers deliberately retain negative scrollLeft. */
+  currentPosition: number;
+  enabled: boolean;
+  hoveredPart: CapturedScrollbarPartKind | null | "unknown";
+  pressedPart: CapturedScrollbarPartKind | null | "unknown";
+  hiddenIfOverlay: boolean | "unknown";
+  /** The live animator/object opacity, or null when Chromium exposes no stable value. */
+  opacity: number | null;
+  usedColorScheme: "light" | "dark";
+  standardColors: { thumb: string; track: string } | null;
+  parts: CapturedScrollbarPart[];
+  /** Named browser-internal facts which the stable capture surface could not prove. */
+  missingFacts: string[];
+  nativeRaster?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    captureDpr: number;
+    dataUri?: string;
+    empty?: boolean;
+  };
+}
+
+/**
+ * Source-frame scrollbar ownership. `partial` and `unavailable` are deliberate
+ * fail-closed states: the renderer must not estimate paint from scroll ranges.
+ */
+export interface CapturedScrollbarSet {
+  status: "captured" | "partial" | "absent" | "unavailable";
+  source: "blink-live-marker-probe-v1";
+  rootScroller: boolean;
+  horizontal?: CapturedScrollbar;
+  vertical?: CapturedScrollbar;
+  corner?: CapturedScrollbarPart;
+  overlay: boolean | null;
+  paintPhase: "background" | "foreground" | "overlay-overflow-controls" | "unknown";
+  overflowControlsClip: CapturedScrollbarRect | null;
+  /** Marker rectangles are already in capture-viewport output coordinates. */
+  outputTransform: {
+    space: "capture-viewport";
+    matrix: [number, number, number, number, number, number];
+  };
+  resizerOverlap?: {
+    rect: CapturedScrollbarRect;
+    paintOrder: "corner-before-resizer";
+  };
+  effectiveZoom: number;
+  captureDpr: number;
+  forcedColors: boolean;
+  missingFacts: string[];
+}
+
 export interface CapturedElement {
   tag: string;
   text: string;
@@ -1045,6 +1213,10 @@ export interface CapturedElement {
   height: number;
   /** Source-derived platform/custom resizer geometry and paint ownership. */
   resizeHandle?: CapturedResizeHandle;
+  /** Blink-owned scrollbar existence, geometry, state, and paint ownership. */
+  scrollbars?: CapturedScrollbarSet;
+  /** Viewport scrollbar owner when the selected capture root omits <html>. */
+  rootScrollbars?: CapturedScrollbarSet;
   /** Force captured clamp-owned fragments even when only one (or zero) source lines remain. */
   lineClampTextFragments?: boolean;
   /**

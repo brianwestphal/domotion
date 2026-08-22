@@ -159,6 +159,19 @@ they describe (see `CLAUDE.md` "Documentation"):
   outline overflow, viewport clipping, scroll, fractional zoom/DPR, and forced
   screenshot failure.
 
+- **Blink EffectiveAppearance ownership (DM-2453, doc 170) — Shipped.**
+  Native-control routing now uses the pinned LayoutTheme auto mapping and
+  author-style switch instead of host tags or a CSSOM declaration scan.
+  Chromium CDP matched-rule facts preserve UA/user/author origin, shorthand,
+  logical sides, importance, layers/scopes and rollback keywords; active
+  animation/transition origins participate before the author background and
+  border flags are collected. Font/color/padding/text-shadow alone retain a
+  native button; author background/border deactivate button/progress/meter,
+  shadow additionally deactivates text controls and turns menulist into
+  menulist-button, while checkbox/radio/range stay native. Partial or
+  substitution-ambiguous data emits a named warning and keeps a conservative
+  Chromium host raster. The focused activation matrix runs on all three OSes.
+
 - **Replaced/control/generated geometry (doc 133) — Shipped.** A live
   11-row Chromium oracle gates every object-fit mode, exact percentage/calc
   object-position, native-vs-author control ownership, and positioned
@@ -1642,26 +1655,29 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   all-platform independent raster gate.
 
 <!-- DM-2370 -->
-- URL background image geometry remains **design-only** outside the exact
-  focused controls. Blink selects a CSS image and natural sizing at effective
-  zoom, tracks snapped and unsnapped positioning/painting areas, resolves
+- URL background image geometry remains **partial** outside the exact focused
+  controls. DM-2477 now captures Blink-equivalent selected CSS image/natural
+  sizing at effective zoom, including DPR/type/density, independent dimensions
+  and ratio, orientation, aligned layer index, and explicit decode/failure
+  state; the renderer consumes that selected URL instead of a DPR-1 guess.
+  Blink then tracks snapped and unsnapped positioning/painting areas, resolves
   auto/contain/cover/calc, then owns destination, phase, repeat spacing,
   attachment, and stitched-fragment offsets before Skia sampling. Capture must
-  preserve the selected candidate/density/dimensions/ratio/orientation/decode
-  state; render must lower one source-derived geometry record to vector SVG
+  preserve the captured candidate/density/dimensions/ratio/orientation/decode
+  state; remaining render work must lower one source-derived geometry record to vector SVG
   instead of reconstructing it with parseFloat and oversized pattern cells.
   Unknown sizing fails explicitly. Fixed under a transformed ancestor becomes
   scroll; local subtracts the real scroll offset; shorter longhand lists repeat
   cyclically; slice continues through one stitched box while clone restarts.
   The strict 21-row inline-and-multicol evidence and exact contract are in
-  [doc 163](../163-url-background-image-geometry-audit.md). DM-2477/2478/2479
-  plus existing DM-2365 implement the seams, and DM-2480 owns the all-platform
-  DPR gate.
+  [doc 163](../163-url-background-image-geometry-audit.md). DM-2478/2479 plus
+  existing DM-2365 implement the remaining seams, and DM-2480 owns the
+  all-platform DPR gate.
 
 <!-- DM-2368 -->
-- Native scrollbar fidelity is **design-only** beyond clipping/layout captured
-  incidentally by Chromium. Never infer paint from a positive scroll offset or
-  synthesize a host-independent 7 px pill. Capture Blink's actual bar
+- Native scrollbar **capture is source-owned; paint is still pending**. Never
+  infer paint from a positive scroll offset or synthesize a host-independent
+  7 px pill. The live marker protocol captures Blink's actual bar
   existence, overlay/classic route, used width, logical side, frame/part/corner
   rectangles, ranges, dynamic state/opacity, used scheme, paint phase,
   overflow-controls clip, and transform. Supported author
@@ -1670,11 +1686,14 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   chrome is a narrow, capture-DPR, precomposited platform raster because macOS
   depends on its scroller animator, Aura/Fluent on runtime native theme/state,
   and Windows UXTheme/GDI already produces an offscreen bitmap before Skia.
-  A faded overlay, width:none, hidden/clip/visible axis, or auto axis without
-  overflow emits nothing. The focused overflow/axis/RTL/writing/clip/scheme/
+  Missing dynamic anonymous-pseudo or native animator/phase facts are explicit
+  partial/unavailable warnings, never reconstructed cascade/layout. A faded
+  overlay, width:none, hidden/clip/visible axis, or auto axis without overflow
+  emits nothing. The focused overflow/axis/RTL/writing/clip/scheme/
   zoom/DPR evidence and exact contract are in
   [doc 165](../165-native-scrollbar-layout-paint-ownership-audit.md); its oracle
   must run without Playwright's default `--hide-scrollbars` and later be
-  promoted on native macOS/Linux/Windows images. DM-2481 owns capture,
-  DM-2482 custom-vector parts, DM-2483 stock-native strip rasters, and DM-2484
-  the dependent platform gate.
+  promoted on native macOS/Linux/Windows images. DM-2481's implementation and
+  stable-CDP limits are in [doc 169](../169-authoritative-scrollbar-capture.md).
+  DM-2482 owns custom-vector parts, DM-2483 stock-native strip rasters, and
+  DM-2484 the dependent platform gate.

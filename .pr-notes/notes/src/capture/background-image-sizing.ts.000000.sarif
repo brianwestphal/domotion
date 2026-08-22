@@ -1,0 +1,223 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt40ydjepwbxyabu",
+          "message": {
+            "text": "Candidate selection deliberately mirrors pinned Blink instead of asking the renderer to infer a density. CSSImageSetValue filters unsupported MIME descriptors, stable-sorts and keeps the first candidate at duplicate densities, then selects the first resolution at or above Document::DevicePixelRatio or the largest; CSS zoom is intentionally absent from this choice and enters only natural sizing. Non-URL CSS image candidates remain in the selection order, so a selected gradient fails explicitly at this URL-only seam instead of being skipped in favor of different bytes.",
+            "markdown": "Candidate selection deliberately mirrors pinned Blink instead of asking the renderer to infer a density. CSSImageSetValue filters unsupported MIME descriptors, stable-sorts and keeps the first candidate at duplicate densities, then selects the first resolution at or above Document::DevicePixelRatio or the largest; CSS zoom is intentionally absent from this choice and enters only natural sizing. Non-URL CSS image candidates remain in the selection order, so a selected gradient fails explicitly at this URL-only seam instead of being skipped in favor of different bytes."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/background-image-sizing.ts"
+                },
+                "region": {
+                  "startLine": 196,
+                  "endLine": 240,
+                  "snippet": {
+                    "text": "/** Mirror CSSImageSetValue::GetBestOption at the pinned Chromium revision. */\nexport function selectBackgroundCandidate(\n  layer: string,\n  deviceScaleFactor: number,\n): SelectedBackgroundCandidate | null {\n  const candidates = parseImageSetCandidates(layer);\n  if (candidates == null) {\n    const url = extractUrl(layer);\n    return url == null ? null : {\n      source: \"url\",\n      selectedUrl: url,\n      selectedCandidateIndex: null,\n      selectedResolution: 1,\n      selectedType: null,\n    };\n  }\n\n  const supported = candidates\n    .filter((candidate) => candidate.resolution > 0\n      && (candidate.type == null || isBlinkSupportedImageMimeType(candidate.type)))\n    .sort((left, right) => left.resolution - right.resolution || left.index - right.index);\n  const unique: ParsedImageSetCandidate[] = [];\n  for (const candidate of supported) {\n    if (unique.some((prior) => prior.resolution === candidate.resolution)) continue;\n    unique.push(candidate);\n  }\n  const selected = unique.find((candidate) => candidate.resolution >= deviceScaleFactor)\n    ?? unique.at(-1);\n  if (selected == null) {\n    return {\n      source: \"image-set\",\n      selectedUrl: null,\n      selectedCandidateIndex: null,\n      selectedResolution: 1,\n      selectedType: null,\n      warning: \"image-set has no Blink-supported positive-resolution URL candidate\",\n    };\n  }\n  return {\n    source: \"image-set\",\n    selectedUrl: selected.url,\n    selectedCandidateIndex: selected.index,\n    selectedResolution: selected.resolution,\n    selectedType: selected.type,\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/css/css_image_set_value.cc"
+                },
+                "region": {
+                  "startLine": 46
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/style/style_resolver_state.cc"
+                },
+                "region": {
+                  "startLine": 1087
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2477"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "854c58aa4b6dcab70e52d7d20e913724"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "warning",
+          "guid": "mt40ydonsjr0ofd2",
+          "message": {
+            "text": "Unknown decoded image kind fails explicitly instead of trusting URL suffixes, type descriptors, or HTMLImageElement dimensions. Chromium gives ratio-only SVGs a concrete HTML replaced-element size, which erases NaturalSizingInfo dimension-presence; readable SVG roots are parsed for independent width, height, and viewBox facts, while CORS-opaque or otherwise unobservable media retain loaded state plus an unavailable-sizing warning. Bitmap orientation is measured with offset dimensions so ancestor zoom and transforms are not applied twice.",
+            "markdown": "Unknown decoded image kind fails explicitly instead of trusting URL suffixes, type descriptors, or HTMLImageElement dimensions. Chromium gives ratio-only SVGs a concrete HTML replaced-element size, which erases NaturalSizingInfo dimension-presence; readable SVG roots are parsed for independent width, height, and viewBox facts, while CORS-opaque or otherwise unobservable media retain loaded state plus an unavailable-sizing warning. Bitmap orientation is measured with offset dimensions so ancestor zoom and transforms are not applied twice."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/background-image-sizing.ts"
+                },
+                "region": {
+                  "startLine": 420,
+                  "endLine": 454,
+                  "snippet": {
+                    "text": "        const source = await fetchSvg(url, declaredType);\n        if (source.kind === \"svg\") {\n          const sizing = source.text == null ? null : svgSizing(source.text);\n          if (sizing == null) {\n            return {\n              loadState: \"loaded\", naturalSizingState: \"unavailable\", kind: \"svg\",\n              width: null, height: null, hasWidth: null, hasHeight: null, ratio: null,\n              warning: \"loaded SVG background natural dimensions were not readable at capture time\",\n            };\n          }\n          return { loadState: \"loaded\", ...sizing };\n        }\n        if (source.kind === \"unknown\") {\n          return {\n            loadState: \"loaded\", naturalSizingState: \"unavailable\", kind: \"unknown\",\n            width: null, height: null, hasWidth: null, hasHeight: null, ratio: null,\n            warning: \"loaded background image type was not observable; natural dimension presence is unknown\",\n          };\n        }\n\n        (document.body || document.documentElement).appendChild(image);\n        // offsetWidth/offsetHeight retain image-orientation's used intrinsic\n        // axes while excluding ancestor zoom/transforms. A client rect would\n        // already contain the document's zoom and then be scaled a second time\n        // by target.effectiveZoom below.\n        const orientedWidth = image.offsetWidth;\n        const orientedHeight = image.offsetHeight;\n        image.remove();\n        const width = orientedWidth > 0 && Number.isFinite(orientedWidth) ? orientedWidth : image.naturalWidth;\n        const height = orientedHeight > 0 && Number.isFinite(orientedHeight) ? orientedHeight : image.naturalHeight;\n        return {\n          loadState: \"loaded\", naturalSizingState: \"resolved\", kind: \"bitmap\",\n          width, height, hasWidth: true, hasHeight: true,\n          ratio: width > 0 && height > 0 ? { width, height } : null,\n        };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "risk"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/style/style_fetched_image.cc"
+                },
+                "region": {
+                  "startLine": 141
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/layout/natural_sizing_info.h"
+                },
+                "region": {
+                  "startLine": 17
+                }
+              }
+            }
+          ],
+          "rank": 88,
+          "workItemUris": [
+            "DM-2477"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "53c86d48989e4910026e2317bd202c9b"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt415v62rx29c7au",
+          "message": {
+            "text": "The page-evaluation wrapper is required for the repository CLI path, not just test tooling. tsx/esbuild serializes named inner helpers with module-scoped __name calls; Playwright re-evaluates the callback in Chromium without that module helper, silently collapsing the prepass into its fail-closed warning path. The lexical helper preserves normal function-name semantics without mutating page globals, and the 21/21 URL geometry audit plus marker-cleanup browser assertion exercise both execution and cleanup.",
+            "markdown": "The page-evaluation wrapper is required for the repository CLI path, not just test tooling. tsx/esbuild serializes named inner helpers with module-scoped __name calls; Playwright re-evaluates the callback in Chromium without that module helper, silently collapsing the prepass into its fail-closed warning path. The lexical helper preserves normal function-name semantics without mutating page globals, and the 21/21 URL geometry audit plus marker-cleanup browser assertion exercise both execution and cleanup."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/background-image-sizing.ts"
+                },
+                "region": {
+                  "startLine": 68,
+                  "endLine": 93,
+                  "snippet": {
+                    "text": "/**\n * tsx/esbuild's keep-names transform can leave `__name(...)` calls inside a\n * callback's serialized source. Playwright evaluates that source in the page,\n * where the module-scoped helper does not exist. Wrap the callback in a local\n * equivalent so CLI audits and built consumers execute the identical prepass\n * without leaving a helper on the inspected page's global object.\n */\nfunction evaluateFrameFunction<Result>(\n  frame: Frame,\n  callback: () => Result | Promise<Result>,\n): Promise<Result>;\nfunction evaluateFrameFunction<Argument, Result>(\n  frame: Frame,\n  callback: (argument: Argument) => Result | Promise<Result>,\n  argument: Argument,\n): Promise<Result>;\nfunction evaluateFrameFunction<Argument, Result>(\n  frame: Frame,\n  callback: ((argument: Argument) => Result | Promise<Result>) | (() => Result | Promise<Result>),\n  argument?: Argument,\n): Promise<Result> {\n  const serializedArgument = arguments.length >= 3 ? JSON.stringify(argument) : \"\";\n  const invocation = arguments.length >= 3 ? `(${serializedArgument})` : \"()\";\n  const expression = `((__name) => (${callback.toString()})${invocation})(function(target, value) { try { Object.defineProperty(target, \"name\", { value: value, configurable: true }); } catch {} return target; })`;\n  return frame.evaluate(expression) as Promise<Result>;\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/url-background-geometry-audit.ts"
+                },
+                "region": {
+                  "startLine": 518
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/background-image-sizing.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 197
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2477"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f736dffd1bb577a58be9b0ceae3ff380"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "6e8a00b62c75168c9e1373ff2f1386373b4fd3d2",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

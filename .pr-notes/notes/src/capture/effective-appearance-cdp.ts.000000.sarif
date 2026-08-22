@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt41urnx5jyvrdqe",
+          "message": {
+            "text": "CDP is the authoritative cross-origin-safe bridge for Blink's hidden author flags. Page CSSOM cannot read cross-origin sheets and selector replay would lose cascade layers, scopes, origins, and rollback; the pre-pass instead attaches non-selector expandos from Chromium's matched/computed/animated style agents. Any protocol or correlation failure stays observable and routes through the capture warning plus conservative source-raster branch.",
+            "markdown": "CDP is the authoritative cross-origin-safe bridge for Blink's hidden author flags. Page CSSOM cannot read cross-origin sheets and selector replay would lose cascade layers, scopes, origins, and rollback; the pre-pass instead attaches non-selector expandos from Chromium's matched/computed/animated style agents. Any protocol or correlation failure stays observable and routes through the capture warning plus conservative source-raster branch."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/effective-appearance-cdp.ts"
+                },
+                "region": {
+                  "startLine": 48,
+                  "endLine": 147,
+                  "snippet": {
+                    "text": "/**\n * Capture origin-sensitive style facts without ever falling back to CSSOM.\n * A per-node/protocol failure is stored as an unavailable fact; the in-page\n * classifier then warns and keeps a conservative Chromium-owned host raster.\n */\nexport async function captureEffectiveAppearanceFacts(page: Page): Promise<EffectiveAppearanceFactCapture> {\n  const session = await page.context().newCDPSession(page);\n  const propertyKey = `__domotionEffectiveAppearance_${randomUUID().replaceAll(\"-\", \"\")}`;\n  const objectGroup = `${propertyKey}_objects`;\n  const hostObjectIds = new Set<string>();\n  let setupFailure: string | undefined;\n\n  const attach = async (nodeId: number, facts: AuthorControlStyleFacts): Promise<void> => {\n    const resolved = await session.send(\"DOM.resolveNode\", { nodeId, objectGroup });\n    const objectId = resolved.object.objectId;\n    if (objectId == null) throw new Error(`Chromium did not expose control node ${nodeId}`);\n    await session.send(\"Runtime.callFunctionOn\", {\n      objectId,\n      functionDeclaration: `function(key, value) {\n        Object.defineProperty(this, key, { value, configurable: true });\n      }`,\n      arguments: [{ value: propertyKey }, { value: facts }],\n    });\n    hostObjectIds.add(objectId);\n  };\n\n  try {\n    await session.send(\"DOM.enable\");\n    await session.send(\"CSS.enable\");\n    const documentResult = await session.send(\"DOM.getDocument\", { depth: -1, pierce: true });\n    const visited = new Set<number>();\n\n    const visit = async (node: CdpNode): Promise<void> => {\n      if (visited.has(node.nodeId)) return;\n      visited.add(node.nodeId);\n\n      if (CONTROL_NODE_NAMES.has(node.nodeName)) {\n        let facts: AuthorControlStyleFacts;\n        try {\n          const [matched, computed, animated] = await Promise.all([\n            session.send(\"CSS.getMatchedStylesForNode\", { nodeId: node.nodeId }),\n            session.send(\"CSS.getComputedStyleForNode\", { nodeId: node.nodeId }),\n            session.send(\"CSS.getAnimatedStylesForNode\", { nodeId: node.nodeId }),\n          ]);\n          const computedStyle = computedMap(computed.computedStyle);\n          facts = authorControlStyleFactsFromMatchedStyles(\n            {\n              ...(matched as CdpMatchedStylesLike),\n              animationStyles: animated.animationStyles,\n              transitionsStyle: animated.transitionsStyle,\n            },\n            {\n              direction: computedStyle.get(\"direction\"),\n              writingMode: computedStyle.get(\"writing-mode\"),\n            },\n          );\n        } catch (error) {\n          facts = {\n            available: false,\n            hasAuthorBackground: false,\n            hasAuthorBorder: false,\n            reason: `matched styles unavailable: ${errorText(error)}`,\n          };\n        }\n        // If a node detached between the CSS query and attachment, the page\n        // walk cannot see it either. Other controls retain their exact facts.\n        await attach(node.nodeId, facts).catch(() => undefined);\n      }\n\n      for (const child of node.children ?? []) await visit(child);\n      if (node.contentDocument != null) await visit(node.contentDocument);\n      for (const shadow of node.shadowRoots ?? []) {\n        // Native UA-shadow parts have independent appearance values but are\n        // not capture-tree hosts. Author shadow roots may contain real hosts.\n        if (shadow.shadowRootType !== \"user-agent\") await visit(shadow);\n      }\n    };\n\n    await visit(documentResult.root as CdpNode);\n  } catch (error) {\n    // Capture itself remains possible. Every control that needs these facts\n    // will take the explicit warning + conservative source-raster route.\n    setupFailure = `Chromium matched-style pre-pass unavailable: ${errorText(error)}`;\n  }\n\n  return {\n    propertyKey,\n    setupFailure,\n    async dispose(): Promise<void> {\n      await Promise.all([...hostObjectIds].map(async (objectId) => {\n        await session.send(\"Runtime.callFunctionOn\", {\n          objectId,\n          functionDeclaration: \"function(key) { delete this[key]; }\",\n          arguments: [{ value: propertyKey }],\n        }).catch(() => undefined);\n      }));\n      await session.send(\"Runtime.releaseObjectGroup\", { objectGroup }).catch(() => undefined);\n      await session.detach().catch(() => undefined);\n    },\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/index.ts"
+                },
+                "region": {
+                  "startLine": 318
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/effective-appearance.ts"
+                },
+                "region": {
+                  "startLine": 408
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2453"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "28d2204f53042888b8e8ca0f3d02968f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "6e8a00b62c75168c9e1373ff2f1386373b4fd3d2",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

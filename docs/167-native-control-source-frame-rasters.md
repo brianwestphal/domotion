@@ -113,5 +113,6 @@ macOS, Linux, and Windows and covers:
 The existing activation and pixel-content controls remain in
 `npm run raster:boundary-oracle`, `npm run replaced:geometry-oracle`, and
 `tests/raster-fallback-content.e2e.test.ts`. `appearance:none` and author-owned
-button paint remain vector negatives; effective-appearance classification and
-subcontrol splitting are owned by their separate follow-ups.
+button paint remain vector negatives. Blink-exact effective-appearance
+classification is now shipped in [doc 170](170-blink-effective-appearance-routing.md);
+native subcontrol splitting remains the separate DM-2455 follow-up.

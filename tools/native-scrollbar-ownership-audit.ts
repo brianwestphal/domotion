@@ -34,7 +34,7 @@ const MARKERS = [
 type ExpectedRoute =
   | "marker-free-control"
   | "custom-vector-current-gap"
-  | "suppressed-current-false-positive"
+  | "suppressed-captured-absence"
   | "native-platform-fingerprint";
 
 interface AuditCase {
@@ -107,7 +107,12 @@ interface CapturedFacts {
   scrollHeight: number;
   scrollLeft: number;
   scrollTop: number;
-  omittedOwnershipFacts: string[];
+  scrollbarStatus: NonNullable<CapturedElement["scrollbars"]>["status"] | null;
+  horizontalRoute: string | null;
+  verticalRoute: string | null;
+  horizontalParts: string[];
+  verticalParts: string[];
+  missingFacts: string[];
 }
 
 interface EdgeFingerprint {
@@ -183,7 +188,7 @@ const CASES: AuditCase[] = [
   {
     id: "width-none-scrolled",
     axis: "scrollbar-width:none suppresses chrome at a nonzero offset",
-    expectedRoute: "suppressed-current-false-positive",
+    expectedRoute: "suppressed-captured-absence",
     targetCss: "overflow:auto;scrollbar-width:none",
     contentCss: "width:260px;height:250px",
     mutation: { left: 51, top: 67 },
@@ -415,11 +420,7 @@ function findCapturedScroller(elements: CapturedElement[]): CapturedElement | nu
 function capturedFacts(element: CapturedElement | null): CapturedFacts | null {
   if (element == null) return null;
   const style = element.styles;
-  const record = style as unknown as Record<string, unknown>;
-  const ownershipFields = [
-    "scrollbarWidth", "scrollbarColor", "scrollbarOverlay", "scrollbarVisible",
-    "scrollbarFrameRects", "scrollbarPartRects", "scrollbarPaintPhase", "scrollbarRaster",
-  ];
+  const scrollbars = element.scrollbars;
   return {
     rect: { x: element.x, y: element.y, width: element.width, height: element.height },
     overflowX: style.overflowX,
@@ -431,7 +432,12 @@ function capturedFacts(element: CapturedElement | null): CapturedFacts | null {
     scrollHeight: style.scrollHeight,
     scrollLeft: style.scrollLeft,
     scrollTop: style.scrollTop,
-    omittedOwnershipFacts: ownershipFields.filter((field) => !(field in record)),
+    scrollbarStatus: scrollbars?.status ?? null,
+    horizontalRoute: scrollbars?.horizontal?.route ?? null,
+    verticalRoute: scrollbars?.vertical?.route ?? null,
+    horizontalParts: scrollbars?.horizontal?.parts.map(({ kind }) => kind) ?? [],
+    verticalParts: scrollbars?.vertical?.parts.map(({ kind }) => kind) ?? [],
+    missingFacts: scrollbars?.missingFacts ?? [],
   };
 }
 
@@ -557,10 +563,15 @@ function rowPass(row: Omit<AuditRow, "pass">): boolean {
       // overflow:scroll creates disabled track chrome even when there is no
       // scroll range; Blink correctly has no thumb in that activation row.
       && (row.id === "custom-scroll-no-overflow" || row.sourcePixels.markers.thumb != null)
-      && row.generatedPixels.markerPixels <= 4;
+      && row.generatedPixels.markerPixels <= 4
+      && row.generatedGenericThumbs === 0
+      && row.captured?.scrollbarStatus === "partial"
+      && [row.captured.horizontalRoute, row.captured.verticalRoute].includes("author-custom");
   }
-  if (row.expectedRoute === "suppressed-current-false-positive") {
-    return row.sourcePixels.markerPixels === 0 && row.generatedGenericThumbs > 0;
+  if (row.expectedRoute === "suppressed-captured-absence") {
+    return row.sourcePixels.markerPixels === 0
+      && row.generatedGenericThumbs === 0
+      && row.captured?.scrollbarStatus === "absent";
   }
   if (row.id === "native-stable-both-edges") {
     return row.sourcePixels.edges.left.changedPixels === 0
@@ -571,11 +582,13 @@ function rowPass(row: Omit<AuditRow, "pass">): boolean {
   if (row.id === "native-thin-colors") {
     return (row.sourcePixels.markers.thumb?.pixels ?? 0) >= 100
       && row.generatedPixels.markerPixels <= 4
-      && row.generatedGenericThumbs === 2;
+      && row.generatedGenericThumbs === 0
+      && row.captured?.scrollbarStatus === "partial";
   }
   return row.sourcePixels.edges.right.changedPixels >= 100
     && row.sourcePixels.edges.bottom.changedPixels >= 100
-    && row.generatedGenericThumbs === 2;
+    && row.generatedGenericThumbs === 0
+    && row.captured?.scrollbarStatus === "partial";
 }
 
 function cssBounds(bounds: Bounds | null, dpr: number): Bounds | null {
@@ -698,7 +711,7 @@ export async function runNativeScrollbarOwnershipAudit(): Promise<{
     everyNativeFingerprintIsDiscriminated: rows
       .filter((candidate) => candidate.expectedRoute === "native-platform-fingerprint")
       .every((candidate) => candidate.pass),
-    hiddenWidthExposesCurrentFalsePositive: rows
+    hiddenWidthCapturesExplicitAbsence: rows
       .filter((candidate) => candidate.id === "width-none-scrolled")
       .every((candidate) => candidate.pass),
     sourceThumbMovesTopMidMax: top != null && mid != null && max != null
@@ -725,8 +738,11 @@ export async function runNativeScrollbarOwnershipAudit(): Promise<{
         !== row("native-auto-dark")!.sourcePixels.edges.right.topColors[0].rgb,
     standardWidthAndColorRecorded: row("native-thin-colors")?.source.scrollbarWidth === "thin"
       && row("native-thin-colors")?.source.scrollbarColor.includes("rgb(25, 85, 209)"),
-    captureContractOmitsOwnershipFacts: rows.every((candidate) =>
-      candidate.captured != null && candidate.captured.omittedOwnershipFacts.length === 8),
+    captureContractCarriesOwnershipFacts: rows.every((candidate) => {
+      if (candidate.captured == null) return false;
+      if (candidate.expectedRoute === "marker-free-control") return true;
+      return candidate.captured.scrollbarStatus != null;
+    }),
   };
   const platformFingerprints = rows
     .filter((candidate) => candidate.expectedRoute === "native-platform-fingerprint")
@@ -750,7 +766,7 @@ export async function runNativeScrollbarOwnershipAudit(): Promise<{
     rows,
     controls,
     platformFingerprints,
-    verdict: pass ? "source-boundary-and-current-scrollbar-gaps-observed" : "probe-expectation-or-source-drift",
+    verdict: pass ? "authoritative-capture-and-dependent-paint-gaps-observed" : "probe-expectation-or-source-drift",
   };
 }
 
@@ -767,7 +783,7 @@ async function main(): Promise<number> {
     );
   }
   console.log(`controls: ${JSON.stringify(report.controls)}`);
-  return report.verdict === "source-boundary-and-current-scrollbar-gaps-observed" ? 0 : 1;
+  return report.verdict === "authoritative-capture-and-dependent-paint-gaps-observed" ? 0 : 1;
 }
 
 if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) {

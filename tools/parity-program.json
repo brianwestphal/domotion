@@ -102,27 +102,28 @@
     },
     {
       "id": "url-background-image-geometry",
-      "domotionSources": ["src/capture/script/walker/borders-backgrounds.ts", "src/render/image-pattern.ts", "src/render/element-tree-to-svg.ts"],
+      "domotionSources": ["src/capture/background-image-sizing.ts", "src/capture/index.ts", "src/capture/script/walker/borders-backgrounds.ts", "src/capture/types.ts", "src/render/image-pattern.ts", "src/render/element-tree-to-svg.ts"],
       "upstreamSources": ["external/chromium/third_party/blink/renderer/core/css/css_image_set_value.cc", "external/chromium/third_party/blink/renderer/core/style/style_image_set.cc", "external/chromium/third_party/blink/renderer/core/style/style_fetched_image.cc", "external/chromium/third_party/blink/renderer/core/style/fill_layer.cc", "external/chromium/third_party/blink/renderer/core/paint/background_image_geometry.cc", "external/chromium/third_party/blink/renderer/core/paint/box_background_paint_context.cc", "external/chromium/third_party/blink/renderer/platform/graphics/image.cc", "external/skia"],
       "oracle": "tools/url-background-geometry-audit.ts",
+      "browserOracle": "tests/background-image-sizing.e2e.test.ts",
       "sourceAudit": "audited",
       "oracleStatus": "visual-only",
-      "generatedCoverage": "21 live Chromium-vs-generated-SVG color-marker rows covering intrinsic auto/ratio, explicit/percentage/calc/contain/cover sizing and positioning, no-repeat/repeat/round/space, independent origin/clip, fixed/local/scroll attachment, transformed fixed ownership, effective zoom, affine transforms, cyclic multilayers, and wrapped-inline plus multicol-block slice/clone activation; exact rows require <=1 device-pixel marker-bound delta",
+      "generatedCoverage": "Four pure candidate-selection rows plus six live Chromium capture/renderer cases cover MIME filtering, stable density de-duplication, 1x/2x/3x image-set selection at DPR 1/2, PNG/JPEG/SVG independent natural sizing and ratio-only SVG, effective zoom, EXIF orientation, delayed/failure state, multilayer slot alignment, mutation, cleanup, and selected-URL rendering. The existing 21 Chromium-vs-generated-SVG color-marker rows cover tile/attachment/fragment geometry; exact rows require <=1 device-pixel marker-bound delta.",
       "platformCoverage": ["darwin"],
-      "knownGap": "The audit is observational and deliberately expects current defects. Natural sizing/image-set selection, auto ratio, calc, contain snapping, round/space, fixed/local, transformed phase, zoom, cyclic longhand lists, and sliced fragments are not yet source-equivalent.",
-      "nextAction": "Implement capture facts in DM-2477, exact tile geometry in DM-2478, attachment spaces in DM-2479, and existing fragment continuation DM-2365; then promote every row to an all-platform DPR gate in DM-2480."
+      "knownGap": "DM-2477 makes selected-image and natural-sizing capture source-derived. The observational geometry audit still expects defects in auto-ratio lowering, calc, contain snapping, round/space, fixed/local, transformed phase, cyclic longhand expansion, and sliced fragments.",
+      "nextAction": "Implement exact tile geometry in DM-2478, attachment spaces in DM-2479, and existing fragment continuation DM-2365; then promote every row to an all-platform DPR gate in DM-2480."
     },
     {
       "id": "native-scrollbar-layout-paint-ownership",
-      "domotionSources": ["src/capture/script/index.ts", "src/capture/pseudo-style-cdp.ts", "src/capture/types.ts", "src/render/element-tree-to-svg.ts"],
+      "domotionSources": ["src/capture/scrollbar-capture.ts", "src/capture/script/index.ts", "src/capture/pseudo-style-cdp.ts", "src/capture/types.ts", "src/render/element-tree-to-svg.ts"],
       "upstreamSources": ["external/chromium/third_party/blink/renderer/core/paint/paint_layer_scrollable_area.cc", "external/chromium/third_party/blink/renderer/core/paint/scrollable_area_painter.cc", "external/chromium/third_party/blink/renderer/core/scroll", "external/chromium", "external/skia/src/core/SkCanvas.cpp"],
       "oracle": "tools/native-scrollbar-ownership-audit.ts",
       "sourceAudit": "audited",
-      "oracleStatus": "visual-only",
-      "generatedCoverage": "23 live Chromium-vs-generated-SVG rows at DPR 1/2 covering visible/hidden/clip/auto negatives, width:none false-positive activation, custom overflow:scroll without overflow, vertical top/mid/max, horizontal and both-axis/corner parts, RTL logical-left, vertical writing, asymmetric border plus ancestor clip, CSS zoom, native light/dark fingerprints, standard width/color, and stable both-edges; the launcher explicitly removes Playwright's default --hide-scrollbars blind spot",
+      "oracleStatus": "partial-stage-gate",
+      "generatedCoverage": "23/23 live Chromium-vs-generated-SVG rows at DPR 1/2 now require source-owned CapturedScrollbarSet facts and zero legacy synthesized thumbs: explicit visible/hidden/clip/auto/width:none negatives, custom overflow:scroll without overflow, vertical top/mid/max, horizontal and both-axis/corner parts, RTL negative offset/logical-left, vertical writing, asymmetric border plus ancestor clip, CSS zoom, native light/dark fingerprints, standard width/color, and stable both-edges. Focused unit/browser contracts add pre-marker-frame subtraction, connected marker classification, final unqualified pseudo winners, forced-colors/dark context, named non-axis transform failure, and an explicit Playwright --hide-scrollbars unavailable negative.",
       "platformCoverage": ["darwin"],
-      "knownGap": "The audit deliberately observes current defects. Capture lacks authoritative existence/frame/part/state/phase/clip/theme/raster facts; render still emits a hard-coded 7px right/bottom thumb from positive offsets, misses every author part, and is not portable across native themes. Pinned macOS, Aura/Fluent, and Windows source defines the platform boundary, but focused Linux/Windows artifacts are not yet persisted.",
-      "nextAction": "Implement authoritative geometry/state capture in DM-2481, custom-part vector paint in DM-2482, and stock-native narrow rasters in DM-2483; then promote this oracle on native macOS/Linux/Windows at DPR 1/2 and delete legacy synthesis in DM-2484."
+      "knownGap": "DM-2481 captures marker-owned axes/parts/corner/ranges/RTL/side/zoom/DPR and final unqualified pseudo styles, records absence, and removed the 7px renderer synthesis. Stable CDP does not expose anonymous orientation/start/end pseudo computed styles or native animator opacity/full frames/subparts/overlay phase, so those records warn as partial/unavailable. Custom vector paint and native strip composition are not implemented; focused Linux/Windows artifacts are not yet persisted.",
+      "nextAction": "Implement custom-part vector paint with explicit dynamic-only fallback in DM-2482 and same-frame stock-native narrow rasters plus missing platform/phase facts in DM-2483; then promote this oracle on native macOS/Linux/Windows at DPR 1/2 in DM-2484."
     },
     {
       "id": "transforms-projection-reflection",

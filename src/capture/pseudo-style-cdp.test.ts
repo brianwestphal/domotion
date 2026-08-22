@@ -69,14 +69,26 @@ describe("Chromium-resolved control pseudo capture", () => {
 
     expect(style).toEqual({
       matched: true,
+      display: "",
+      visibility: "",
+      opacity: "",
       width: "21px",
       height: "17px",
+      minWidth: "",
+      minHeight: "",
+      maxWidth: "",
+      maxHeight: "",
+      marginTop: "",
+      marginRight: "",
+      marginBottom: "",
+      marginLeft: "",
       backgroundColor: "rgb(1, 2, 3)",
       backgroundImage: "linear-gradient(rgb(4, 5, 6), rgb(7, 8, 9))",
       borderRadius: "1px 2px 3px 4px / 5px 6px 7px 8px",
       border: "3px solid rgb(10, 11, 12)",
       padding: "1px 2px 3px",
       boxShadow: "rgb(13, 14, 15) 0px 0px 0px 2px",
+      filter: "",
     });
   });
 

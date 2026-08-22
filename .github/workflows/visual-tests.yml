@@ -179,7 +179,7 @@ jobs:
       - name: Verify raster fallback pixel content
         if: matrix.shard == 1
         continue-on-error: true
-        run: npx vitest run --config vitest.e2e.config.ts tests/raster-fallback-content.e2e.test.ts tests/native-control-source-frame.e2e.test.ts tests/conic-chromium-raster.e2e.test.ts src/capture/backdrop-isolation.e2e.test.ts
+        run: npx vitest run --config vitest.e2e.config.ts tests/raster-fallback-content.e2e.test.ts tests/native-control-source-frame.e2e.test.ts tests/effective-appearance.e2e.test.ts tests/conic-chromium-raster.e2e.test.ts src/capture/backdrop-isolation.e2e.test.ts
       - name: Run shard ${{ matrix.shard }}/${{ needs.setup.outputs.macos_total }}
         shell: bash
         env:
@@ -279,7 +279,7 @@ jobs:
       - name: Verify raster fallback pixel content
         if: matrix.shard == 1
         continue-on-error: true
-        run: npx vitest run --config vitest.e2e.config.ts tests/raster-fallback-content.e2e.test.ts tests/native-control-source-frame.e2e.test.ts tests/conic-chromium-raster.e2e.test.ts src/capture/backdrop-isolation.e2e.test.ts
+        run: npx vitest run --config vitest.e2e.config.ts tests/raster-fallback-content.e2e.test.ts tests/native-control-source-frame.e2e.test.ts tests/effective-appearance.e2e.test.ts tests/conic-chromium-raster.e2e.test.ts src/capture/backdrop-isolation.e2e.test.ts
       - name: Run shard ${{ matrix.shard }}/${{ needs.setup.outputs.linux_total }}
         shell: bash
         env:
@@ -354,7 +354,7 @@ jobs:
       - name: Verify raster fallback pixel content
         if: matrix.shard == 1
         continue-on-error: true
-        run: npx vitest run --config vitest.e2e.config.ts tests/raster-fallback-content.e2e.test.ts tests/native-control-source-frame.e2e.test.ts tests/conic-chromium-raster.e2e.test.ts src/capture/backdrop-isolation.e2e.test.ts
+        run: npx vitest run --config vitest.e2e.config.ts tests/raster-fallback-content.e2e.test.ts tests/native-control-source-frame.e2e.test.ts tests/effective-appearance.e2e.test.ts tests/conic-chromium-raster.e2e.test.ts src/capture/backdrop-isolation.e2e.test.ts
       - name: Run shard ${{ matrix.shard }}/${{ needs.setup.outputs.windows_total }}
         shell: bash
         env:

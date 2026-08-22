@@ -26,14 +26,20 @@ Chromium paints the 20×20 slice of the sprite at `(0, 0)` of the element and re
 > ordinary URL background. [Doc 163](163-url-background-image-geometry-audit.md)
 > proves that ordinary tile geometry remains vector-representable and specifies
 > the authoritative natural-sizing and `BackgroundImageGeometry` replacement
-> tracked by DM-2477/DM-2478. The synchronous intrinsic probe described below
-> is therefore both the historical sprite failure and an active general URL
-> background gap.
+> tracked by DM-2477/DM-2478. DM-2477 replaced the synchronous intrinsic probe
+> with selected-image, awaited natural-sizing capture; the description below is
+> the historical root cause. Exact sprite tile/subset geometry remains DM-2478,
+> while this document's complete image-replacement idiom may still require its
+> raster ownership boundary.
 
 Two things go wrong:
 
-**1. Intrinsic dimensions of `url()` background-images are unreliable.**
-`CAPTURE_SCRIPT` (`src/capture/script/` ~2279) reads intrinsic width/height by constructing a fresh `new Image(); img.src = url;` and reading `naturalWidth` *synchronously* in the same tick. The `<img>` resource cache is not the same cache the page uses for CSS background-images, so the load is asynchronous and `naturalWidth` is `0` at read time. When `intrinsic` is `null`, `buildImagePatternDef` falls back to `tileW = basisW` (the element box), squishing the entire sprite into the 20×20 cell — which makes the negative `background-position` math meaningless and hides the icon entirely.
+**1. Intrinsic dimensions of `url()` background-images were unreliable (resolved by DM-2477).**
+The old `CAPTURE_SCRIPT` constructed a fresh `Image` and read `naturalWidth`
+in the same synchronous tick. DM-2477 moved selection and decode into an async
+prepass and records the chosen candidate's natural-sizing state before the
+walker. `buildImagePatternDef` still needs DM-2478's exact tile/subset geometry;
+it no longer receives a silent zero solely because the resource decoded later.
 
 **2. Off-screen author text is captured and rendered.**
 The element carries `text === "RSS"` and a captured `textLeft` of `~-9970`. The renderer emits the glyph paths at that absolute SVG coordinate. The output SVG's `viewBox` does not extend that far left, so most demos render as if blank — but per `overflow: hidden` Chromium would have clipped the text. We don't apply that clip, so any consumer that re-mounts the SVG inside a wider canvas (or any case where the element's own `overflow: hidden` *should* apply) leaks glyphs into the icon area.

@@ -20,7 +20,10 @@ import { rasterizeBitmapGlyphs } from "./emoji.js";
 import { rasterizeNativeControlSurfaces } from "./native-control-raster.js";
 import { refineLineClampEllipsisFragments } from "./line-clamp.js";
 import { captureResolvedControlPseudoStyles } from "./pseudo-style-cdp.js";
+import { captureEffectiveAppearanceFacts } from "./effective-appearance-cdp.js";
+import { finalizeScrollbarResizerOverlap, prepareCapturedScrollbarSets } from "./scrollbar-capture.js";
 import { ensureSessionGenericFamilyOverrides } from "./generic-font-probe.js";
+import { primeBackgroundImageSizing } from "./background-image-sizing.js";
 import { clipRectForScreenshot } from "./clip-rect.js";
 import {
   isNonAffineProjectiveQuad,
@@ -1545,13 +1548,20 @@ export async function captureElementTreeWithWarnings(
   // session is the only authority. See `src/capture/generic-font-probe.ts`.
   await ensureSessionGenericFamilyOverrides(page);
 
-  const maskIntrinsicPrime = await primeMaskImageIntrinsics(page);
+  const [maskIntrinsicPrime, backgroundImagePrime] = await Promise.all([
+    primeMaskImageIntrinsics(page),
+    primeBackgroundImageSizing(page),
+  ]);
   let pseudoStyles: Awaited<ReturnType<typeof captureResolvedControlPseudoStyles>> | undefined;
+  let effectiveAppearance: Awaited<ReturnType<typeof captureEffectiveAppearanceFacts>> | undefined;
+  let scrollbarCapture: Awaited<ReturnType<typeof prepareCapturedScrollbarSets>> | undefined;
   let projectiveProbe: ProjectivePaintProbe | undefined;
   let result: unknown;
   try {
     const resizerMetrics = await measureBlinkPlatformResizer(page);
     pseudoStyles = await captureResolvedControlPseudoStyles(page);
+    effectiveAppearance = await captureEffectiveAppearanceFacts(page);
+    scrollbarCapture = await prepareCapturedScrollbarSets(page, selector, viewport, pseudoStyles);
     projectiveProbe = await measureProjectivePaintQuads(page, selector, viewport);
     const captureArgs = {
       sel: selector,
@@ -1561,17 +1571,25 @@ export async function captureElementTreeWithWarnings(
       rs: resizerMetrics.scaleFromDIP,
       pk: pseudoStyles.propertyKey,
       ps: pseudoStyles.stylesByHost,
+      eak: effectiveAppearance.propertyKey,
+      ear: effectiveAppearance.setupFailure,
+      sk: scrollbarCapture.propertyKey,
       pq: projectiveProbe.facts,
       pqk: projectiveProbe.key,
     };
     result = await page.evaluate(`(${CAPTURE_SCRIPT})(${JSON.stringify(captureArgs)})`);
   } finally {
+    await scrollbarCapture?.dispose();
+    await effectiveAppearance?.dispose();
     await pseudoStyles?.dispose();
     await maskIntrinsicPrime.dispose();
+    await backgroundImagePrime.dispose();
     if (result == null) await projectiveProbe?.dispose();
   }
   const typed = result as { tree: CapturedElement[]; warnings: CaptureWarning[] };
   const warnings = typed.warnings ?? [];
+  warnings.push(...(scrollbarCapture?.warnings ?? []));
+  finalizeScrollbarResizerOverlap(typed.tree);
   _resetLastCaptureWarnings(warnings);
   try {
     // DM-2456: materialize native controls first, while their platform state is

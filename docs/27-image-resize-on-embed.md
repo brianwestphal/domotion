@@ -132,7 +132,10 @@ A new test fixture `src/tree-ops/resize-embedded-images.test.ts` covers:
 
 - **Image format conversion to WebP / AVIF**. PNG is the only output format. If a future ticket revisits this for size-critical use cases, it should land as an additional `embedRemoteImagesFormat: "png" | "webp"` option.
 - **Animated GIF preservation**. The first frame is what gets emitted today.
-- **CSS `image-set()`** — not currently parsed by the capture; if it lands later, the largest-dpr entry should feed into the same resize pipeline.
+- **CSS `image-set()` resize optimization** — capture now records the
+  Blink-selected candidate for the session DPR (DM-2477), but the optional
+  resize-on-embed pass does not yet consume that record. Any future integration
+  must resize the captured candidate, not substitute the largest-density entry.
 
 ## Follow-ups
 
