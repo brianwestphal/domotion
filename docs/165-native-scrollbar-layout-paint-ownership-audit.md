@@ -5,11 +5,13 @@ still fail-closed pending DM-2482/DM-2483
 
 **Ticket:** DM-2368
 
-**Implementation follow-ups:** DM-2482 (custom-vector paint), DM-2483
-(stock-native raster), and DM-2484 (all-platform gate). See
+**Implementation follow-ups:** DM-2482 (custom-vector paint) and DM-2483
+(stock-native raster). DM-2484's strict all-platform adjudicator/workflow is
+implemented but intentionally red pending those paint routes. See
 [doc 169](169-authoritative-scrollbar-capture.md) for the implemented live
 marker protocol, explicit stable-CDP unknowns, and removal of the 7 px
-synthesis.
+synthesis, and [doc 173](173-native-scrollbar-release-gate.md) for the release
+evidence contract.
 
 Before DM-2481, Domotion emitted one synthetic, macOS-shaped scrollbar thumb
 whenever a captured scroll offset was positive. That is not Chromium's

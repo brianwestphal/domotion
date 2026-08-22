@@ -1173,9 +1173,12 @@
       "oracles": [
         "tests/pseudo-cascade.e2e.test.ts",
         "tests/scrollbar-capture.e2e.test.ts",
+        "tests/native-scrollbar-release-gate.test.ts",
+        "tests/native-scrollbar-parity-workflow.test.ts",
         "tools/replaced-geometry-oracle.ts",
         "tools/raster-boundary-oracle.ts",
-        "tools/native-scrollbar-ownership-audit.ts"
+        "tools/native-scrollbar-ownership-audit.ts",
+        "tools/native-scrollbar-release-gate.ts"
       ],
       "metamorphicTests": [
         "src/capture/pseudo-style-cdp.test.ts",
@@ -1188,7 +1191,7 @@
         "external/html-test/25-scrollbar-gutter.html"
       ],
       "coverage": "partial",
-      "boundary": "Author control-pseudo activation/final cascade is Chromium-resolved (doc 158). DM-2368/doc 165 source-audits scrollbar ownership; DM-2481/doc 169 now captures live Chromium marker-owned axis/part/corner geometry, ranges, RTL/logical side, zoom/DPR, forced-colors/used styling and explicit absence/unknowns, and deletes the 7px offset synthesis. Stable CDP still lacks anonymous dynamic scrollbar pseudo instances and native animator/full-frame/subpart/overlay-phase facts; non-axis transform correlation also fails closed by name. DM-2482 custom vector paint and DM-2483 native narrow rasters remain uncovered.",
+      "boundary": "Author control-pseudo activation/final cascade is Chromium-resolved (doc 158). DM-2368/doc 165 source-audits ownership; DM-2481/doc 169 captures marker-owned geometry/state and deletes the 7px synthesis. DM-2484/doc 173 adds a strict schema-v2 macOS/Linux/Windows × DPR/zoom release adjudicator, lossless artifact verification, and adversarial mutations, but it intentionally rejects the current capture-only producer. Stable CDP dynamic-pseudo/native animator/frame/phase facts, DM-2482 custom vector paint, DM-2483 native narrow rasters/schema-v2 output, and fresh platform artifacts remain uncovered.",
       "featureIds": [
         "render.tree-to-svg"
       ],

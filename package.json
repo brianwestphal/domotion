@@ -101,6 +101,7 @@
     "transform:inline-svg-3d-audit": "tsx tools/inline-svg-3d-audit.ts",
     "background:url-geometry-audit": "tsx tools/url-background-geometry-audit.ts",
     "scrollbars:ownership-audit": "tsx tools/native-scrollbar-ownership-audit.ts",
+    "scrollbars:parity-gate": "tsx tools/check-native-scrollbar-release.ts",
     "paint:order-oracle": "tsx tools/paint-order-oracle.ts",
     "replaced:geometry-oracle": "tsx tools/replaced-geometry-oracle.ts",
     "raster:boundary-oracle": "tsx tools/raster-boundary-oracle.ts",

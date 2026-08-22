@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "warning",
+          "guid": "mt455q1iyv6p8ynm",
+          "message": {
+            "text": "The workflow is dispatch-only because the strict aggregate is correctly red on the current capture-only implementation. Enabling automatic triggers before DM-2482 and DM-2483 produce schema-v2 complete artifacts would create a permanently failing required check; enabling them after READY is the explicit final promotion step.",
+            "markdown": "The workflow is dispatch-only because the strict aggregate is correctly red on the current capture-only implementation. Enabling automatic triggers before DM-2482 and DM-2483 produce schema-v2 complete artifacts would create a permanently failing required check; enabling them after READY is the explicit final promotion step."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/native-scrollbar-parity.yml"
+                },
+                "region": {
+                  "startLine": 3,
+                  "endLine": 8,
+                  "snippet": {
+                    "text": "# DM-2484: this workflow is deliberately dispatch-only while DM-2482/DM-2483\n# remain open. The aggregate is already strict and therefore red on the current\n# capture-only implementation. Add pull_request/push triggers only after the\n# three native reports adjudicate READY; never soften the gate to merge them.\non:\n  workflow_dispatch:"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "risk"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2484"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "2d6800dfbaf2eba4cd7a0be723817524"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "aeca0ee4f82f2c2e4e3b16f3159a51e9f469695b",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

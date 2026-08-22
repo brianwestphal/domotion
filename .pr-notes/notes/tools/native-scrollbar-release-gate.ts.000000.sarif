@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt455q1lxvn1acub",
+          "message": {
+            "text": "A native pixel mismatch can be admitted only by an exact reviewed SHA pair keyed to the full platform and runner fingerprint. This mirrors Blink platform-theme ownership: a macOS pair cannot authorize Linux or Windows pixels, and an image or Chromium revision rotation invalidates the review automatically.",
+            "markdown": "A native pixel mismatch can be admitted only by an exact reviewed SHA pair keyed to the full platform and runner fingerprint. This mirrors Blink platform-theme ownership: a macOS pair cannot authorize Linux or Windows pixels, and an image or Chromium revision rotation invalidates the review automatically."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/native-scrollbar-release-gate.ts"
+                },
+                "region": {
+                  "startLine": 184,
+                  "endLine": 211,
+                  "snippet": {
+                    "text": "}\n\nfunction envelopeMatches(\n  report: NativeScrollbarAuditReport,\n  row: NativeScrollbarAuditRow,\n  source: NativeScrollbarAuditRow[\"artifacts\"][number],\n  generated: NativeScrollbarAuditRow[\"artifacts\"][number],\n  envelope: NativeScrollbarRasterEnvelope,\n): boolean {\n  const environment = report.environment;\n  return envelope.reviewed\n    && envelope.platform === environment.platform\n    && envelope.architecture === environment.architecture\n    && envelope.runnerImage === environment.runnerImage\n    && envelope.runnerImageVersion === environment.runnerImageVersion\n    && envelope.chromiumRevision === environment.chromiumRevision\n    && envelope.rowId === row.id\n    && envelope.deviceScaleFactor === row.deviceScaleFactor\n    && envelope.cssZoom === row.cssZoom\n    && envelope.part === source.part\n    && envelope.allowedPairs.some((pair) => pair.sourceSha256 === source.sha256\n      && pair.generatedSha256 === generated.sha256);\n}\n\nfunction validateArtifactPair(\n  report: NativeScrollbarAuditReport,\n  row: NativeScrollbarAuditRow,\n  source: NativeScrollbarAuditRow[\"artifacts\"][number],"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2484"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f33207edcf789fcf6eaa91d45c1c171f"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt455q1vhrmlgff9",
+          "message": {
+            "text": "The release adjudicator intentionally rejects every observational gap route and every non-captured paint row. DM-2481 proves ownership but does not paint custom parts or native strips; accepting its 23 observational passes here would convert explicit unknowns into a false release claim. DM-2482 and DM-2483 must change the producer facts, never this condition.",
+            "markdown": "The release adjudicator intentionally rejects every observational gap route and every non-captured paint row. DM-2481 proves ownership but does not paint custom parts or native strips; accepting its 23 observational passes here would convert explicit unknowns into a false release claim. DM-2482 and DM-2483 must change the producer facts, never this condition."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/native-scrollbar-release-gate.ts"
+                },
+                "region": {
+                  "startLine": 273,
+                  "endLine": 289,
+                  "snippet": {
+                    "text": "\n  if (row.expectedRoute === \"custom-vector\") {\n    const sourceClasses = Object.entries(row.sourcePixels.markers)\n      .filter(([, bounds]) => bounds != null).map(([name]) => name).sort();\n    const generatedClasses = Object.entries(row.generatedPixels.markers)\n      .filter(([, bounds]) => bounds != null).map(([name]) => name).sort();\n    if (sourceClasses.join(\"|\") !== generatedClasses.join(\"|\")) {\n      blockers.push(`${key}: custom marker classification differs (${sourceClasses} vs ${generatedClasses})`);\n    }\n    for (const name of sourceClasses) {\n      const source = row.sourcePixels.markers[name];\n      const generated = row.generatedPixels.markers[name];\n      if (source != null && generated != null && boundsDelta(source, generated) > 1) {\n        blockers.push(`${key}: ${name} bound delta exceeds 1 device pixel`);\n      }\n    }\n  }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 100,
+          "workItemUris": [
+            "DM-2484"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c4e4c6ffb0c992827060b85804d7d6c9"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "aeca0ee4f82f2c2e4e3b16f3159a51e9f469695b",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

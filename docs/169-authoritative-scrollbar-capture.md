@@ -123,5 +123,8 @@ npm run scrollbars:ownership-audit -- --json /tmp/dm2481-scrollbar-audit.json
 - DM-2483 must materialize stock native frame/corner strips from the same
   compositor frame and fill the animator opacity, platform fingerprint, phase,
   clip, and root-transform facts that stable CDP cannot expose.
-- DM-2484 still owns native macOS/Linux/Windows DPR/zoom promotion and the
-  final assertion that no legacy synthesis can reappear.
+- DM-2484 now supplies the strict schema/adjudicator and dispatch-only native
+  macOS/Linux/Windows artifact workflow in [doc 173](173-native-scrollbar-release-gate.md).
+  It deliberately rejects this capture-only report until DM-2482 and DM-2483
+  supply complete paint records and lossless strips; the legacy synthesis is a
+  named mutation blocker.
