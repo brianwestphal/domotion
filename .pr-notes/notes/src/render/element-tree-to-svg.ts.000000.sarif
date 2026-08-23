@@ -2129,6 +2129,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5k26oakw74yume",
+          "message": {
+            "text": "Record the capture owner at the early return because reaching this image is the terminal decision. The transform raster intentionally bypasses both text emitters, so demanding a selected-run record here would reshape text and misclassify Chromium-owned paint; the separate oracle probe supplies pre-terminal selection evidence through the same renderer. The segment and legacy element early returns use the same transition contract.",
+            "markdown": "Record the capture owner at the early return because reaching this image is the terminal decision. The transform raster intentionally bypasses both text emitters, so demanding a selected-run record here would reshape text and misclassify Chromium-owned paint; the separate oracle probe supplies pre-terminal selection evidence through the same renderer. The segment and legacy element early returns use the same transition contract."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 5303,
+                  "endLine": 5312,
+                  "snippet": {
+                    "text": "  if (transformRaster?.dataUri != null) {\n    recordTextEmitterTransition({\n      kind: \"capture-raster\",\n      sourceText: el.text,\n      reason: \"transform-subtree-raster\",\n    });\n    const image = `<image href=\"${transformRaster.dataUri}\" x=\"${r(transformRaster.x)}\" y=\"${r(transformRaster.y)}\" width=\"${r(transformRaster.width)}\" height=\"${r(transformRaster.height)}\" preserveAspectRatio=\"none\"/>`;\n    svgParts.push(`${indent}${wrapAtomicRasterTimeline(el, image)}`);\n    appendBoxReflection(state, el, reflectionFragmentStart, depth);\n    return;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text.ts"
+                },
+                "region": {
+                  "startLine": 1457
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-run-provenance.ts"
+                },
+                "region": {
+                  "startLine": 61
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2511"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c8f1f33ebe88a0100ded3c478a911027"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "fa2d01a434d5ab575b4b3d83254442cb952c9cb6",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

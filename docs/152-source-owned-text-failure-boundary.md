@@ -103,3 +103,13 @@ macOS, Linux, and Windows rather than fitting a host font.
 Production provenance now records decline reasons and degraded spans. Future
 emitters must extend this classification table and add an independent
 activation row; they must not restore a raw-family terminal.
+
+DM-2511 extends the same transition stream to capture-owned terminals that
+return before either text emitter. A materialized `transformSubtreeRaster`,
+whole `TextSegment.rasterDataUri`, or legacy text `elementRaster` records
+`kind: "capture-raster"` with its exact ownership reason. It is valid for that
+terminal to have zero selected runs because selection already happened in
+Chromium; it is not valid for the transition stream itself to be empty. The
+MathML oracle proves the pre-terminal face/source/glyph record separately by
+passing a raster-metadata-free clone through the same production renderer, then
+requires exactly one final owner on the unchanged captured node.

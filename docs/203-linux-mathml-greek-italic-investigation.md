@@ -1,6 +1,6 @@
 # Linux MathML Greek-italic residual investigation
 
-Status: **Investigated; logical proof follow-ups open**
+Status: **Logical oracle repaired; independent raster ratification pending**
 
 The historical `mathml-mi-greek-italic` Linux failure is no longer an active
 feature-gate failure on the pinned Playwright noble image. A focused
@@ -40,7 +40,7 @@ face, gid, advance, offset, and geometry agree. This is the same terminal
 boundary documented by the authenticated paths/native-raster matrix; it is not
 a license to accept a logical mismatch.
 
-## Current renderer and remaining proof gap
+## Current renderer and repaired logical proof
 
 The older diagnosis in docs 42 and 45 assumed the mathematical-italic glyphs
 reached the SVG path terminal from upright FreeSans. The current production
@@ -54,7 +54,18 @@ suite's region classifier.
 
 The repaired logical oracle consumes DM-2512's token-only pre-terminal
 projection instead of demanding paths provenance from a capture-owned raster
-terminal. DM-2512 also implements an isolated Linux supplement for the exact
+terminal. Production provenance now records that early owner as
+`capture-raster` (`transform-subtree-raster`, `text-segment-raster`, or the
+legacy `element-raster`) so a zero paths-run result cannot pass vacuously. The
+oracle then removes only that terminal metadata from a clone and re-enters the
+same production paths renderer to join CDP PostScript face/cut to exact selected
+source bytes, face index, gid, cluster and source spans, advances/offsets, and
+outline identity. Helper-enabled and helper-disabled arms prove availability
+changes from true to false while preserving those physical facts and the
+captured terminal; the Linux system resolver may retain the same FreeSans
+route because Fontconfig exposes the identical source without the helper.
+
+DM-2512 also implements an isolated Linux supplement for the exact
 Noble FreeSans package, mathematical-Greek gids/outlines/subsets, captured
 baselines, native/paths PNGs, and an active no-hint control; see doc 210. Its
 checked-in envelope remains deliberately empty until two independent

@@ -66,6 +66,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5k26um5kamtm2o",
+          "message": {
+            "text": "The raster-free clone is a pre-terminal observation seam, not a production ownership change. The unchanged node must first prove one non-vacuous final terminal; only then does this clone re-enter the identical production renderer to join CDP face to source SHA, face index, gid, cluster, spans, advances, offsets, and outline. The canonical four-token projection passed the DM-2512 exact validator in the pinned Playwright v1.59.1 noble container (pueue task 88, 2/2 tests), while helper availability moved true to false without changing physical FreeSans facts.",
+            "markdown": "The raster-free clone is a pre-terminal observation seam, not a production ownership change. The unchanged node must first prove one non-vacuous final terminal; only then does this clone re-enter the identical production renderer to join CDP face to source SHA, face index, gid, cluster, spans, advances, offsets, and outline. The canonical four-token projection passed the DM-2512 exact validator in the pinned Playwright v1.59.1 noble container (pueue task 88, 2/2 tests), while helper availability moved true to false without changing physical FreeSans facts."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/mathml-italic-token.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 159,
+                  "endLine": 170,
+                  "snippet": {
+                    "text": "function preterminalEvidence(\n  node: CapturedElement,\n  width: number,\n  height: number,\n  transformed: string,\n  face: PlatformFace,\n): RenderEvidence & { run: TextRunProvenanceDiagnostic } {\n  const evidence = renderEvidence(withoutCaptureTextTerminal(node), width, height);\n  const runs = evidence.runs.filter((run) => run.sourceText === transformed);\n  expect(runs, `${node.magicKey}: exact pre-terminal selected run`).toHaveLength(1);\n  assertSelectedRun(runs[0]!, transformed, face, node.magicKey ?? transformed);\n  return { ...evidence, run: runs[0]! };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/mathml-italic-token.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 112
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/linux-mathml-greek-raster-contract.ts"
+                },
+                "region": {
+                  "startLine": 183
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2511"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "d65eb0779be0cce4beb05ea56df6faf9"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "fa2d01a434d5ab575b4b3d83254442cb952c9cb6",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

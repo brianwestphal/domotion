@@ -63,6 +63,11 @@ those oracles and emitted glyphs.
 `src/render/text-run-provenance.ts` and
 `tools/renderer-font-route-oracle.ts` close that seam for representative
 production runs without adding overhead unless explicitly enabled (doc 143).
+DM-2511 extends the transition stream to early transform-subtree, text-segment,
+and legacy element capture rasters. The MathML oracle grades that terminal on
+the unchanged capture and obtains exact pre-terminal selection by rerunning a
+raster-metadata-free clone through the same renderer; it consumes DM-2512's
+pure Linux FreeSans token validator rather than inventing another shaper.
 `tools/sfns-mask-baseline-oracle.ts` plus its Swift helper form the diagnostic
 macOS SFNS stage split (doc 168): exact bytes, four explicit axes, gids, and
 quarter-pixel origins cross Chromium, direct CoreText mask, pinned-Skia

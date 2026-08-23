@@ -11,6 +11,7 @@ import type { FontSynthesisAllowance } from "./text-to-path.js";
 import { r, esc } from "./format.js";
 import { wrapPseudoPaintEffects } from "./pseudo-filter.js";
 import type { CapturedElement, TextSegment } from "../capture/types.js";
+import { recordTextEmitterTransition } from "./text-run-provenance.js";
 
 // ── Rendering helpers ──
 
@@ -1454,6 +1455,11 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   // anchored at the position Chromium painted from.
   const ssSeg = (el.textSegments != null && el.textSegments.length === 1) ? el.textSegments[0] : undefined;
   if (ssSeg != null && ssSeg.rasterDataUri != null && ssSeg.rasterRect != null) {
+    recordTextEmitterTransition({
+      kind: "capture-raster",
+      sourceText: ssSeg.text,
+      reason: "text-segment-raster",
+    });
     const rr = ssSeg.rasterRect;
     // DM-1271: skip the line-box clip when the rect was grown to a color emoji's
     // overflowing painted square (see the multi-segment path for the rationale).
@@ -1682,6 +1688,11 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     // to the full line box, so y/height here use that same rect so the image
     // lands exactly where Chrome painted it.
     if (seg.rasterDataUri != null && seg.rasterRect != null) {
+      recordTextEmitterTransition({
+        kind: "capture-raster",
+        sourceText: seg.text,
+        reason: "text-segment-raster",
+      });
       // DM-1271: when the rect was grown to a color emoji's painted square (its
       // advance overflows the line box), skip the line-box clip — an inline
       // pseudo doesn't clip overflow, so Chrome paints the emoji past the line
@@ -1897,6 +1908,7 @@ export function renderInputText(opts: RenderTextOpts): string {
   // Compatibility for captured trees produced before textarea/vertical text
   // gained vector line/run geometry. Current captures never set this field.
   if (el.elementRaster != null && el.elementRaster.dataUri != null) {
+    recordTextEmitterTransition({ kind: "capture-raster", sourceText: el.text, reason: "element-raster" });
     const er = el.elementRaster;
     // DM-924: snap raster <image> position to integer CSS pixels. The
     // screenshot inside is captured at integer pixel dimensions; emitting

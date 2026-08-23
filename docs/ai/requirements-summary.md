@@ -1851,7 +1851,11 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   focused run has zero significant regions without a threshold change. The
   logical grading now has a token-only pre-terminal contract for exact
   FreeSans face/gid/advance/offset/outline and captured baseline facts, without
-  demanding paths provenance from a raster-owned terminal. Doc 210 adds a
+  demanding paths provenance from a raster-owned terminal. Production
+  provenance classifies transform-subtree, text-segment, and legacy element
+  rasters as `capture-raster`; the canonical fixture requires a non-vacuous
+  final terminal plus an active helper-enabled/disabled availability control
+  before validating the live Linux token projection. Doc 210 adds a
   separate authenticated Noble FreeSans native/paths/no-hint Linux collector
   and proposal/validation gate; its envelope remains explicitly unratified
   until independent runner evidence is reviewed. The 348-cell core and every

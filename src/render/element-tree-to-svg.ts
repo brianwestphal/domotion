@@ -12,6 +12,7 @@ import { renderVerticalSegments, hasVerticalSegments } from "./vertical-text.js"
 import { renderPseudoFragmentSlot, type PseudoFragmentPaintSlot } from "./pseudo-fragments.js";
 import { getEmbeddedFontFaceCss, getGlyphDefs, renderRadicalGlyph, renderSourceOwnedTextBoundary, pushBaselineSnapSuppression, popBaselineSnapSuppression } from "./text-to-path.js";
 import { beginCharacterFallbackDocument, endCharacterFallbackDocument, withSessionGenericFamilyOverrides, type SessionGenericFamilyOverrides } from "./font-resolution.js";
+import { recordTextEmitterTransition } from "./text-run-provenance.js";
 import { profAccum, profNow } from "./render-profile.js";
 import type { DefCtx } from "./form-controls.js";
 import { renderFileSelectorOutsetShadow, renderFormControl } from "./form-controls.js";
@@ -905,6 +906,7 @@ function paintListMarker(
 function emitVerticalRasterText(ctx: PaintCtx, el: CapturedElement, indent: string): void {
   const er = el.elementRaster!;
   const dataUri = er.dataUri!;
+  recordTextEmitterTransition({ kind: "capture-raster", sourceText: el.text, reason: "element-raster" });
   const erCid = ctx.nextClipId("ct");
   ctx.defsParts.push(`<clipPath id="${erCid}"><rect x="${r(er.x)}" y="${r(er.y)}" width="${r(er.width)}" height="${r(er.height)}" /></clipPath>`);
   ctx.svgParts.push(`${indent}<image href="${dataUri}" x="${r(er.x)}" y="${r(er.y)}" width="${r(er.width)}" height="${r(er.height)}" preserveAspectRatio="none" clip-path="url(#${erCid})"/>`);
@@ -5299,6 +5301,11 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   if (transformRaster != null && phase === "box") return;
   if (transformRaster?.empty === true) return;
   if (transformRaster?.dataUri != null) {
+    recordTextEmitterTransition({
+      kind: "capture-raster",
+      sourceText: el.text,
+      reason: "transform-subtree-raster",
+    });
     const image = `<image href="${transformRaster.dataUri}" x="${r(transformRaster.x)}" y="${r(transformRaster.y)}" width="${r(transformRaster.width)}" height="${r(transformRaster.height)}" preserveAspectRatio="none"/>`;
     svgParts.push(`${indent}${wrapAtomicRasterTimeline(el, image)}`);
     appendBoxReflection(state, el, reflectionFragmentStart, depth);
