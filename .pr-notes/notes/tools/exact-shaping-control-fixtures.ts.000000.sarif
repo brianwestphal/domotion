@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt57ebtdye5iirol",
+          "message": {
+            "text": "These rows target omission, not arbitrary parameter motion. The two Open Sans baselines start at truthful non-default wght and wdth locations before dropping all axes to defaults, while the HarfBuzz upstream golden starts at ptem 9 before unsetting ptem. That makes a missing setVariations or setPtem call causal; a clamped coordinate perturbation cannot create a false pass. Every row is in-memory and pre-raster.",
+            "markdown": "These rows target omission, not arbitrary parameter motion. The two Open Sans baselines start at truthful non-default wght and wdth locations before dropping all axes to defaults, while the HarfBuzz upstream golden starts at ptem 9 before unsetting ptem. That makes a missing setVariations or setPtem call causal; a clamped coordinate perturbation cannot create a false pass. Every row is in-memory and pre-raster."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/exact-shaping-control-fixtures.ts"
+                },
+                "region": {
+                  "startLine": 161,
+                  "endLine": 198,
+                  "snippet": {
+                    "text": "const VARIABLE_SPECS: ControlSpec[] = [\n  {\n    id: \"open-sans-wght-800-to-default\",\n    control: \"axes\",\n    text: \"Hamburgefonstiv\",\n    baselineFontSizePx: 48,\n    baselineAxes: { wght: 800, wdth: 100 },\n    baselineGlyphs: OPEN_SANS_WGHT_800,\n    mutationFontSizePx: 48,\n    mutationAxes: null,\n    mutationGlyphs: OPEN_SANS_DEFAULT,\n  },\n  {\n    id: \"open-sans-wdth-75-to-default\",\n    control: \"axes\",\n    text: \"Hamburgefonstiv\",\n    baselineFontSizePx: 48,\n    baselineAxes: { wght: 400, wdth: 75 },\n    baselineGlyphs: OPEN_SANS_WDTH_75,\n    mutationFontSizePx: 48,\n    mutationAxes: null,\n    mutationGlyphs: OPEN_SANS_DEFAULT,\n  },\n];\n\nconst TRACKING_SPECS: ControlSpec[] = [\n  {\n    id: \"harfbuzz-trak-ptem-9-to-unset\",\n    control: \"ptem\",\n    text: \"ABC\",\n    baselineFontSizePx: 9,\n    baselineAxes: null,\n    baselineGlyphs: TRAK_PTEM_9,\n    mutationFontSizePx: null,\n    mutationAxes: null,\n    mutationGlyphs: TRAK_PTEM_UNSET,\n  },\n];"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/exact-shaping-oracle.ts"
+                },
+                "region": {
+                  "startLine": 154
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2500"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f7adea2e2df5f6b4794ebf0c35c21123"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "ef732b6d541441b9bbaaf4e0651ad6f4473be2d9",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

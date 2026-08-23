@@ -63,7 +63,8 @@ After acquisition succeeds, the workflow runs eight independently named legs:
 - helper-in-renderer-loop activation;
 - exact ICU classification;
 - a deterministic synthetic-stack font-selection slice;
-- exact logical shaping with movement controls;
+- exact logical shaping with host movement controls plus pinned, source-owned
+  variable-axis and `ptem` applicability rows (doc 199);
 - decoration geometry;
 - the complete source-transcribed paint corpus plus the live browser source
   discriminator;
@@ -81,6 +82,17 @@ Logical gates are exact. The HTML/Unicode legs retain the repository's existing
 Linux native-raster acceptance floor and fixture classifications; this work
 does not add a threshold, widen a tolerance, or fit pixels. A logical mismatch
 cannot be reclassified as raster noise.
+
+Run `32611751700` proved the first workflow reached the shaping leg and compared
+686 host face/sample pairs, but its static installed faces yielded `axes: 0` and
+`ptem: 0`; schema 2 therefore withheld, as designed. The current gate passes
+the repository-owned Open Sans variable subset and pinned HarfBuzz `TRAK.ttf`
+explicitly, requires their omission mutations to change only exact logical
+advances, and records inapplicable, non-moving, and unexpected mutations
+separately in schema 3. The workflow also supplies pinned source revisions to
+the fingerprint. These changes activate the logical inputs; they do not add
+fixture rows to the host comparison corpus or alter any raster threshold. A
+fresh retained native artifact is still required after integration.
 
 ## Maintainer commands
 

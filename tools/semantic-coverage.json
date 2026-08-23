@@ -13,18 +13,24 @@
         "font-weight",
         "font-style",
         "font-stretch",
+        "font-variation-settings",
+        "font-size/ptem",
         "lang"
       ],
       "states": [
         "declared face covers cluster -> declared face",
         "declared face misses cluster -> platform fallback",
         "generic family -> browser preference",
+        "non-default variable coordinates -> omitted/default coordinates",
+        "ptem 9 tracking -> unset ptem",
         "helper available -> helper absent"
       ],
       "exactStates": [
         "declared face covers cluster -> declared face",
         "declared face misses cluster -> platform fallback",
-        "generic family -> browser preference"
+        "generic family -> browser preference",
+        "non-default variable coordinates -> omitted/default coordinates",
+        "ptem 9 tracking -> unset ptem"
       ],
       "uncoveredStates": [
         "helper available -> helper absent"
@@ -46,6 +52,7 @@
       "oracles": [
         "tools/font-conformance.ts",
         "tools/exact-shaping-oracle.ts",
+        "tools/exact-shaping-control-fixtures.ts",
         "tools/unified-shaping-oracle.ts",
         "tools/renderer-font-route-oracle.ts",
         "tools/generic-family-preference-oracle.ts",
@@ -63,6 +70,9 @@
         "tests/generic-family-preference-workflow.test.ts",
         ".github/workflows/generic-family-preference-parity.yml",
         "tests/linux-arm64-release-evidence.test.ts",
+        "tests/exact-shaping-control-fixtures.test.ts",
+        "tests/fixtures/variable-axis/variable-axis.html",
+        "tests/fixtures/exact-shaping/TRAK.ttf.base64",
         "tests/linux-arm64-release-parity-workflow.test.ts",
         ".github/workflows/linux-arm64-release-parity.yml"
       ],
@@ -71,7 +81,7 @@
         "tests/html-test-suite.tsx"
       ],
       "coverage": "partial",
-      "boundary": "Unified face/shaping evidence and a production per-run route ledger exist. Generic-family preferences are exact for the captured Page/tree contract: every capture re-probes live Common/script settings, serialized A/B roots render in order-independent scoped state, and the strict native workflow crosses pinned/full Chrome headed/headless with dynamically derived mutations and system-ui separation controls. Isolated profile-to-WebPreferences propagation, per-target OOPIF divergence, promoted descendants, shadow/header-only language facts, and system-ui platform routing remain explicit separate boundaries. The dispatch-only Linux arm64 gate consumes fingerprinted published helpers from a clean cache and requires exact logical plus selected visual evidence, with its first retained native run still required after integration. The renderer-route corpus is representative rather than exhaustive, and helper-absent behavior is intentionally degraded.",
+      "boundary": "Unified face/shaping evidence and a production per-run route ledger exist. Generic-family preferences are exact for the captured Page/tree contract: every capture re-probes live Common/script settings, serialized A/B roots render in order-independent scoped state, and the strict native workflow crosses pinned/full Chrome headed/headless with dynamically derived mutations and system-ui separation controls. Isolated profile-to-WebPreferences propagation, per-target OOPIF divergence, promoted descendants, shadow/header-only language facts, and system-ui platform routing remain explicit separate boundaries. The dispatch-only Linux arm64 gate consumes fingerprinted published helpers from a clean cache and requires exact logical plus selected visual evidence, with its first retained native run still required after integration. Source-owned Open Sans wght/wdth omission rows and HarfBuzz ptem=9-to-unset now make axes and ptem applicable independently of the installed host inventory, with complete logical-stream invariants and no raster tolerance. The renderer-route corpus is representative rather than exhaustive, and helper-absent behavior is intentionally degraded.",
       "featureIds": [
         "render.text",
         "fonts.glyph-helper"

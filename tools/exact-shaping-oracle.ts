@@ -12,6 +12,11 @@ import { versionString, BufferFlag, ClusterLevel } from "../vendor/harfbuzzjs/di
 import { harfbuzzShapeRun, harfbuzzGlyphQuery, type ShapeResult } from "../src/render/harfbuzz-shaper.js";
 import { getFontInstance, platformFontKeys, shapingFaceFor } from "../src/render/font-resolution.js";
 import { SHAPE_SAMPLES } from "./shape-agreement-samples.js";
+import {
+  DEFAULT_TRACKING_FIXTURE,
+  DEFAULT_VARIABLE_FIXTURE,
+  runApplicableShapingControls,
+} from "./exact-shaping-control-fixtures.js";
 import { fingerprintComplete, parityEnvironment } from "./parity-environment.js";
 
 interface OracleGlyph {
@@ -31,6 +36,8 @@ const faceFilter = value("--face")?.toLowerCase();
 const sizePx = Number(value("--size") ?? "16");
 const zoom = Number(value("--zoom") ?? "1");
 const deviceScaleFactor = Number(value("--device-scale") ?? "1");
+const variableControlFixture = value("--variable-control-fixture") ?? DEFAULT_VARIABLE_FIXTURE;
+const trackingControlFixture = value("--tracking-control-fixture") ?? DEFAULT_TRACKING_FIXTURE;
 const skipNegativeControl = argv.includes("--skip-negative-control");
 
 function sourceEnd(text: string, cluster: number, clusters: number[]): number {
@@ -140,17 +147,58 @@ if (records.length > 0) {
   }
 }
 
+// The host inventory remains the production corpus, but no supported platform
+// is required to install a variable face or a modern AAT tracking face. Keep
+// those applicability controls source-owned and portable instead of treating a
+// static host inventory as evidence that the two parameters moved.
+const hostControlHits = { ...controlHits };
+const applicableControls = runApplicableShapingControls({
+  variableFixture: variableControlFixture,
+  trackingFixture: trackingControlFixture,
+});
+for (const control of ["axes", "ptem"] as const) controlHits[control] += applicableControls.controlHits[control];
+
 const required = ["face", "axes", "ptem", "features", "direction", "script", "language", "bufferFlags", "clusterLevel"] as const;
 const missed = required.filter((k) => controlHits[k] === 0);
 const completeEnvironment = records.every((r) => fingerprintComplete((r as { environment: unknown }).environment));
-const movementProven = !skipNegativeControl && missed.length === 0;
+const movementProven = !skipNegativeControl
+  && missed.length === 0
+  && applicableControls.failedControls.length === 0;
 const verdict = !completeEnvironment || !movementProven ? "verdict-withheld"
   : pairs > 0 ? "exact-logical-agreement" : "logical-mismatch";
-const report = { schemaVersion: 2, stage: "shaping", mode, verdict, completeEnvironment, movementProven, pairs, controlHits, missedControls: missed, records };
+const report = {
+  schemaVersion: 3,
+  stage: "shaping",
+  mode,
+  verdict,
+  completeEnvironment,
+  movementProven,
+  pairs,
+  controlHits,
+  hostControlHits,
+  applicableControlHits: applicableControls.controlHits,
+  missedControls: missed,
+  missedApplicableControls: applicableControls.missedControls,
+  controlRows: applicableControls.controlRows,
+  inapplicableControls: applicableControls.inapplicableControls,
+  nonMovingControls: applicableControls.nonMovingControls,
+  unexpectedControls: applicableControls.unexpectedControls,
+  failedControls: applicableControls.failedControls,
+  records,
+};
 if (output != null) writeFileSync(output, JSON.stringify(report, null, 2));
-console.log(`Exact shaping oracle: ${pairs} face×sample pairs; controls ${JSON.stringify(controlHits)}`);
+console.log(`Exact shaping oracle: ${pairs} face×sample pairs; controls ${JSON.stringify(controlHits)}; portable ${JSON.stringify(applicableControls.controlHits)}`);
 if (output != null) console.log(`wrote ${output}`);
 if (pairs === 0 || !completeEnvironment || !movementProven) {
-  console.error(`Oracle sensitivity failure: ${pairs === 0 ? "no comparable pairs" : `no delta for ${missed.join(", ")}`}`);
+  const reasons = [
+    pairs === 0 ? "no comparable pairs" : null,
+    !completeEnvironment ? "incomplete source/runtime fingerprint" : null,
+    missed.length > 0 ? `no delta for ${missed.join(", ")}` : null,
+    applicableControls.failedControls.length > 0
+      ? `portable control failure: ${applicableControls.failedControls.join(", ")}`
+      : null,
+    skipNegativeControl ? "negative controls were skipped" : null,
+  ].filter((reason): reason is string => reason != null);
+  console.error(`Oracle sensitivity failure: ${reasons.join("; ")}`);
   process.exitCode = 1;
 }

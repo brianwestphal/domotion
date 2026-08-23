@@ -29,15 +29,15 @@
     },
     {
       "id": "shaping-clusters-glyphs",
-      "domotionSources": ["src/render/text-to-path.ts", "src/render/embedded-font-builder.ts"],
+      "domotionSources": ["src/render/text-to-path.ts", "src/render/embedded-font-builder.ts", "src/render/harfbuzz-shaper.ts", "tools/exact-shaping-oracle.ts", "tools/exact-shaping-control-fixtures.ts", "tools/unified-shaping-oracle.ts", "tests/exact-shaping-control-fixtures.test.ts", "tests/fixtures/variable-axis/variable-axis.html", "tests/fixtures/exact-shaping/TRAK.ttf.base64", "tests/linux-arm64-release-parity-workflow.test.ts", ".github/workflows/linux-arm64-release-parity.yml"],
       "upstreamSources": ["external/harfbuzz/src", "external/chromium/third_party/blink/renderer/platform/fonts/shaping"],
       "oracle": "tools/unified-shaping-oracle.ts",
       "sourceAudit": "audited",
       "oracleStatus": "exact-stage-gate",
-      "generatedCoverage": "derived run corpus plus discriminating cluster fixtures and negative controls",
+      "generatedCoverage": "derived host run corpus plus discriminating cluster fixtures and nine aggregate negative controls; schema-v3 portable applicability evidence adds two pinned Open Sans omission rows (wght=800 and wdth=75 to default axes) and the upstream HarfBuzz STAT+trak ptem=9-to-unset golden, requiring complete expected logical arrays/digests and changedFields exactly [xAdvance] while classifying inapplicable, non-moving, and unexpected controls separately",
       "platformCoverage": ["darwin", "linux", "win32"],
-      "knownGap": "CDP does not expose Chromium glyph IDs. The unified record preserves that boundary, while the production ledger records the actual selected source, mechanism, shaped glyph data, emitter identity, and embedded-to-path transition for representative runs.",
-      "nextAction": "Extend the production route corpus and independent controls whenever a new assignment owner, shaping input, or emitter transition is added."
+      "knownGap": "CDP does not expose Chromium glyph IDs. The unified record preserves that boundary, while the production ledger records the actual selected source, mechanism, shaped glyph data, emitter identity, and embedded-to-path transition for representative runs. The source-owned axes/ptem controls are exact locally; a fresh retained native arm64 artifact is still required after integration.",
+      "nextAction": "Keep the omission-shaped portable controls and native arm64 gate green, and extend the production route corpus plus independent controls whenever a new assignment owner, shaping input, or emitter transition is added."
     },
     {
       "id": "text-layout-placement",

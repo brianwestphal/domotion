@@ -52,6 +52,13 @@ cache reuse, then pass the font-selection, ICU, shaping, decoration, paint,
 HTML, and Unicode gates under one runner/font/browser fingerprint. The gate
 does not build helpers or widen native-raster envelopes; its first remote
 `exact-arm64-release-parity` artifact remains required after integration.
+Run 32611751700 reached 686 exact host shaping pairs but correctly withheld
+because the static image supplied no moving axes or ptem input. Doc 199 closes
+that activation gap with repository-owned Open Sans `wght`/`wdth` omission rows
+and pinned HarfBuzz `TRAK.ttf` `ptem=9`→unset, while schema 3 requires the full
+expected logical arrays and only `xAdvance` movement. Invalid, inert, or
+unexpected fixture rows withhold independently; pixels and raster thresholds
+remain outside this gate.
 
 Doc 197 defines the paths-mode native-raster floor as an evidence/ratification
 matrix, not a percentage exception. Every row must first match exact face bytes,

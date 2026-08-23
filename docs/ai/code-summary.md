@@ -30,7 +30,12 @@ producer is `tools/collect-stage-evidence.ts` plus
 `tests/review-server.tsx` and `tests/review-client.tsx`.
 `tools/unified-shaping-oracle.ts` is the face→glyph→painted-origin logical record
 consumed by those stage-evidence artifacts; its lower-level exact glyph leg is
-`tools/exact-shaping-oracle.ts`.
+`tools/exact-shaping-oracle.ts`. `tools/exact-shaping-control-fixtures.ts`
+supplies doc 199's platform-independent applicability rows: two pinned Open Sans
+non-default-axis→default omissions and HarfBuzz's `TRAK.ttf` `ptem=9`→unset
+golden. Schema 3 requires complete expected glyph streams and exactly one
+changed field (`xAdvance`), and distinguishes missing, inert, and unexpectedly
+mutating fixtures without aborting the evidence artifact.
 `tools/pingfang-live-descriptor-oracle.mjs` and its macOS workflow capture the
 otherwise-ephemeral CoreText fallback descriptor, reopen arms, and matching CDP
 font/Range evidence for the PingFang Extension-B discriminator (doc 153).
@@ -195,7 +200,8 @@ shortest possible map:
   `.github/workflows/linux-arm64-release-parity.yml` (doc 196): no checkout
   build is accepted, and acquisition, ELF identity, pinned/sidecar/GitHub
   digests, live helper protocols, cache reuse, runner/font/browser fingerprint,
-  exact logical stages, and selected visual corpora must form one artifact;
+  exact logical stages, source-owned axes/ptem applicability controls, and
+  selected visual corpora must form one artifact;
   `unicode-classification.ts` owns the Unicode predicates;
   `synthesis-decision.ts` owns WHETHER a resolved face needs synthetic bold /
   oblique (`faceNeedsSyntheticBold` / `faceNeedsSyntheticOblique` — three
