@@ -26,7 +26,7 @@ geometry, not on aggregate pixel difference.
 
 - **C vs R — "transcription"** (always gates): validates the transcription and
   the oracle's own measurement against Chrome's paint. If this leg fails, the
-  oracle must not be trusted to judge anything. Current status: **106/106**
+  oracle must not be trusted to judge anything. Current status: **109/109**
   cases pass on macOS across families (Helvetica / Times / Menlo) × sizes
   (12–48, incl. fractional 32.5) × lines (underline / line-through / overline)
   × styles (solid / double) × thickness (`auto` / `from-font` / px / % / em) ×
@@ -35,7 +35,7 @@ geometry, not on aggregate pixel difference.
 - **C vs S — "skip-ink"** (gates by default; `--no-gate-skip-ink` to demote):
   compares the PAINTED SEGMENTS of the decoration (positive space — see below)
   between Chrome's paint and the emitted SVG, per edge. Current status:
-  **29/29** across skip-ink and patterned-style rows since
+  **30/30** across skip-ink and patterned-style rows since
   the decoration-geometry transcription landed. (At the oracle's landing it
   was 4/7 — the 3 failures were precisely attributed to the renderer's
   then-empirical constants: dilation driven by a `ceil(fontSize/20)`
@@ -43,7 +43,7 @@ geometry, not on aggregate pixel difference.
   than Blink's. Correcting the constants greened them, as predicted.)
 - **R vs S — "svg-geometry"** (gates by default; `--no-gate-svg-geometry` to
   demote): the acceptance gate for the renderer's decoration geometry.
-  Status: **106/106** — `getDecorationMetrics` + `emitDecorationLine` emit
+  Status: **109/109** — `getDecorationMetrics` + `emitDecorationLine` emit
   Blink's transcribed rules exactly (fragment-top anchoring on the captured
   FloatAscent, per-style paint snap at emit). While the renderer carried its
   empirical constants this leg failed 61/84 by design and was off by
@@ -149,7 +149,7 @@ device-scale-qualified fragment states, not a renderer defect.
 
 The full gate now binds both pages to DPR 4 and emits a
 `blink-physical-text-fragment-same-dpr-v1` ownership record. The Linux arm64
-finalizer rejects a cross-DPR report, a missing gate, an incomplete 106/29-row
+finalizer rejects a cross-DPR report, a missing gate, an incomplete 109/30-row
 matrix, or any change to the `0.3px` SVG-geometry envelope. The focused browser
 test separately exercises coherent DPR-1 and DPR-4 capture/render lanes so the
 default-DPR production path remains covered. See [doc 200](200-linux-arm64-decoration-coordinate-ownership.md).
@@ -186,17 +186,22 @@ whole-fixture pixel-diff inverted.
   smaller than itself; at auto thickness, fonts ≤ ~18px cannot discriminate a
   halved pad on their own (the explicit 5px/8px-thickness cases exist to
   discriminate hard).
-- **Scope** — CJK and vertical writing modes, decorating-box propagation
-  (decorations inherited from an ancestor box), and wrapped multi-fragment
-  runs are not exercised; every case is a single fragment decorated on its
-  own span.
+- **Scope** — vertical writing modes, decorating-box propagation, and wrapped
+  multi-fragment runs are not exercised; every case is a single fragment
+  decorated on its own span. The DM-2345 source audit identified the vertical
+  renderer's empirical thickness/offset and simplified side rules as a
+  separate logical divergence requiring a central-baseline, script-sensitive
+  oracle rather than a wider envelope.
 - **Platform** — the C/R/S gate is exact on macOS and pinned Linux arm64 with
-  coherent device scale. Windows remains unverified by this oracle.
+  coherent device scale. A Windows DPR-1/4 workflow now emits fingerprinted
+  exact-gate artifacts; those artifacts remain to be ratified from an
+  integrated revision (doc 207).
 
 ## Usage
 
 ```sh
-npm run decorations:oracle                     # full grid (~3s), gates: transcription + skip-ink + svg-geometry
+npm run decorations:oracle                     # full grid, gates: transcription + skip-ink + svg-geometry
+npm run decorations:oracle -- --device-scale-factor 1 --json report-dpr1.json
 npx tsx tools/decoration-oracle.ts --only helvetica.24   # substring case filter
 npx tsx tools/decoration-oracle.ts --json report.json    # full per-case JSON dump
 npx tsx tools/decoration-oracle.ts --keep out/           # keep per-case 4x PNGs + chunk SVGs
@@ -212,6 +217,19 @@ Unit coverage for the pure pieces (rule algebra, SVG parsing, segment
 comparison, and scale ownership) lives in `tests/decoration-oracle.test.ts`.
 `tests/decoration-coordinate-ownership.e2e.test.ts` pins same-page fragment,
 font-metric, capture, and emitted-SVG agreement at DPR 1 and DPR 4.
+
+## CSS zoom ownership
+
+Three activation rows cross `zoom: 0.8`, `1.25`, and `2` with auto, explicit,
+double, and skip-ink geometry. Blink's used font size and absolute decoration
+lengths both carry effective zoom: a computed `3px` thickness under `zoom:
+1.25` reaches `ComputeDecorationThickness` as `3.75px` and rounds to `4px`.
+Capture already serializes the used font size separately from its logical CSS
+size; the renderer derives their ratio and applies it only to absolute `px`
+thickness/offset values. Percent and `em` already resolve against the used
+font size and must not be scaled twice. The Linux zoom discriminator caught
+the former missing absolute-length multiplier as a 1–2 px logical geometry
+error while the unzoomed 106-row matrix stayed exact.
 
 Related: the font-selection analogue is `tools/font-conformance.ts`
 ([107](107-font-conformance-oracle.md)); the shaping analogue is

@@ -50,11 +50,11 @@ Chrome reports one x per **source character**; we report one per **glyph**. When
 
 ## Corpus
 
-**Derived, not authored.** `--extract-runs` walks the fixture corpus, and for every text node records `(text, fontFamily, fontSize, fontWeight, fontStyle, fontVariationSettings, fontStretch, fontFeatureSettings, letterSpacing, textRendering, fontVariantLigatures)` from the element's **computed** style. A hand-written list of "interesting" strings is precisely the sampled artifact this tool replaces — it would contain only the cases someone already thought of.
+**Derived, not authored.** `--extract-runs` walks the fixture corpus, and for every text node records `(text, fontFamily, fontSize, fontWeight, fontStyle, fontVariationSettings, fontStretch, fontFeatureSettings, fontVariantAlternates, letterSpacing, textRendering, fontVariantLigatures)` from the element's **computed** style. For a named alternate it also carries the relevant family-scoped `@font-feature-values` table and its exact resolved OpenType feature list. A hand-written list of "interesting" strings is precisely the sampled artifact this tool replaces — it would contain only the cases someone already thought of.
 
 Runs are filtered to non-empty, ≤24 characters, and **whitespace-free**. The last is not cosmetic: Chrome's `glyphCount` includes the space glyphs HarfBuzz produced, while our renderer usually emits no position for them (no ink) — but **does** on at least one path (measured: the emoji path emits one entry per character, spaces included). Normalizing by subtracting the whitespace count papers over that with an assumption that is false somewhere, so the corpus excludes the question instead. Nothing is lost for shaping: ligatures, joining, reordering and mark attachment are all *within-word* phenomena, and a space is a word boundary.
 
-A run whose family is defined by an **`@font-face` rule** is dropped as well, and for the same reason rather than a new one. No `@font-face` travels with a run: `chromeShaping` re-declares the run's font *properties* on a synthesized page, so the family name resolves through the stack to whatever the probe page can find, and our side falls through too. The two then agree about a font the fixture never painted — agreement that reads as coverage while measuring nothing. Measured on the corpus's own `20-font-face.html`, whose rules are `src: local(...)` only: the fixture paints `TestSerif` as **Georgia** and `TestMono` as **Menlo**, the probe page paints them as **Times** and **Courier**, and the 32 runs scored 28 `agree-exact` / 4 `agree-count`. Excluding them costs nothing today — the default corpus contained **0** such runs, because all of that fixture's text is multi-word and the whitespace rule had already dropped it — and it keeps the corpus honest the moment either the whitespace split widens or a real webfont fixture lands. Pinned by `tests/shaping-corpus-fontface-exclusion.e2e.test.ts`, which asserts the exclusion **and** a control fixture identical but for the rule, so a extractor that harvested nothing could not pass.
+A run whose family is defined by an **unretained `@font-face` rule** is dropped as well. The exact exception is one self-contained base64 data-URL face: those bytes travel into Chrome's synthesized page and are registered with Domotion. `local()`, remote/file URLs, and multiple declarations for one family still cannot travel faithfully and remain excluded. Otherwise both sides can fall through and agree about a font the fixture never painted. Measured on `20-font-face.html` (`local(...)` only), the fixture paints Georgia/Menlo while the probe page paints Times/Courier, yet the 32 runs scored 28 `agree-exact` / 4 `agree-count`. `tests/shaping-corpus-fontface-exclusion.e2e.test.ts` pins that refusal and its no-`@font-face` positive control; doc 204's real WPT face pins the retained data-URL path.
 
 ### letter-spacing and text-rendering are SHAPING inputs, not layout ones
 
@@ -196,12 +196,15 @@ Pinned by `tests/variable-axis-oracle-pair.e2e.test.ts`.
 - **Glyph IDs are not compared** — neither side exposes them. A run could agree on count and position while painting the wrong glyph. Closing this needs a signal Chrome does not currently offer.
 - **Advances are compared only via positions.** A per-glyph advance is inferred from adjacent positions, so the final glyph's advance is unchecked.
 - **macOS only**, like the face oracle. Shaping is HarfBuzz on every platform so the results should travel better than face selection does, but that is an expectation, not a measurement.
-- Corpus is `external/html-test` only; the unicode fixture set is not yet swept. Deliberately: a re-extraction including `../html-test/unicode` yields **312,822 runs** against the current 2,454, which is a change to the tool's runtime character rather than a coverage tweak, so it is left as its own decision.
+- The default local corpus remains `external/html-test`. The **312,822-run**
+  Unicode extraction is now owned by the deterministic representative/scheduled
+  exhaustive runner in [doc 205](205-unicode-shaping-conformance-corpus.md), so
+  it does not make the ordinary local command unusable.
 - **`font-stretch` is now in the committed corpus.** The field had been modelled by the schema, extractor, probe page and our-side call for a while, but `tools/shaping-conformance-runs.json` predated it and so carried no stretch at all. Re-extraction picked it up: the corpus is now **2,454 runs, 8 of them carrying a non-`100%` stretch** (and 32 axis-bearing, unchanged).
-- **Webfont runs still cannot be swept**, and the corpus contains none to sweep. `chromeShaping` synthesizes its probe page with `setContent` and no `@font-face`, and our side has no webfont registered because there is no capture step. Rather than sweep them wrongly the extractor now **excludes** `@font-face`-resolved families outright (see [Corpus](#corpus)). `tests/fixtures/variable-axis/variable-axis.html` is driven by `tools/variable-axis-oracle-pair.ts` instead. Re-measured against the corpus as it stands — see [Webfont sweeping](#webfont-sweeping--measured-and-declined) below: **0** of 8,880 text-bearing elements across all 296 fixtures render in a custom face, so building the plumbing would add coverage for zero runs.
+- **Only a single self-contained data-URL webfont face is sweepable.** That exact face is carried to both parties and CDP must report it custom. Local/remote/file sources and multi-declaration descriptor selection remain excluded rather than scored against a fallback. The broad historical corpus still contains zero custom-face runs; the doc 204 WPT fixture is the non-vacuous dedicated path.
 - **Only axis- and feature-bearing text nodes are split on whitespace.** Every other node must be whitespace-free as a whole or it is dropped, so multi-word runs are unswept. Splitting universally grows the corpus 10.65× — **measured, and declined**; see [Universal whitespace splitting](#universal-whitespace-splitting--measured-and-declined) below. The `--split-words` switch keeps the measurement reproducible.
 - **Positions of letter-spaced runs are unchecked.** They score `agree-count` by construction — the oracle's probe page applies the spacing and our side does not, because the renderer takes spacing as captured `xOffsets` and there is no capture step here. The glyph count still grades correctly, which is what the letter-spacing ligature veto moves. Closing it would mean re-deriving Blink's spacing application inside the oracle, i.e. a second derivation of the kind this tool exists to avoid.
-- ~~**Feature DISABLES on webfont-buffer runs remain unexpressed.**~~ **Fixed (DM-1964)** — the reroute no longer needs an on-disk file: `hb.Blob` takes an ArrayBuffer, so the retained `@font-face` bytes travel on `FontInstance.webfontBuffer` and are opened through `registerHbBufferSource`. Measured on a single-face ligating face registered as a webfont, "office waffle affix flight": `"liga" 0` shaped 19 glyphs before and 26 after, one per character. Pinned by `src/render/webfont-feature-disable.test.ts`. **This oracle still cannot grade it** — the gap that remains is the one above (the probe page has no `@font-face`, our side has no registered buffer), so the fix is verified by a unit test against the shaped glyph count rather than by a sweep.
+- ~~**Feature DISABLES on webfont-buffer runs remain unexpressed.**~~ **Fixed (DM-1964), and now gradeable for retained data-URL faces (doc 204).** `hb.Blob` takes the retained buffer and the synthesized page declares the same bytes. Local/remote/multiple-face sources retain the refusal above.
 
 ## Universal whitespace splitting — measured, and declined
 
@@ -241,7 +244,7 @@ The extra glyphs sit at width 0 on the same x as their neighbor, and the painted
 
 **Decision: declined.** A 7.6× longer sweep buys 97.23% restatement, a position tier tighter than the one already reported, and six mismatches that are artifacts of the filter's own known blind spot rather than defects. The switch stays so the measurement can be re-run when the fixture corpus changes character.
 
-## Webfont sweeping — measured, and declined
+## Broad-corpus webfont sweeping — measured and declined; exact retained faces now supported
 
 The other half of the same corpus-breadth question: should the oracle carry `@font-face` into the probe page and register the matching buffer on our side, so webfont runs become sweepable?
 
@@ -257,9 +260,9 @@ A zero from a freshly written probe is the shape that hides a dead instrument, s
 
 The zero is also fully explained rather than merely observed. Exactly one fixture in the corpus declares `@font-face` at all — `20-font-face.html` — and its rules are `src: local(...)` only, no binary download, by its own design ("No binary font download — these `@font-face` rules resolve via `local()` to common system fonts"). Chrome therefore reports `isCustomFont: false`, correctly: the face really is a system face and the rule is only an aliasing layer.
 
-**Decision: declined.** The work the ticket describes — carrying rule text into the probe page (~37 KB of base64 for the one purpose-built fixture) or reworking extraction to navigate fixtures in place and give up the batching that makes the sweep run in seconds — would add coverage for **0** runs in the corpus it sweeps. The one webfont fixture that exists is already driven end-to-end by `tools/variable-axis-oracle-pair.ts` and pinned by `tests/variable-axis-oracle-pair.e2e.test.ts`.
+**Historical decision for the broad corpus: declined.** Carrying every arbitrary face source would have added coverage for **0** runs in the corpus it swept. The variable-axis fixture remains driven separately by `tools/variable-axis-oracle-pair.ts`.
 
-What the measurement *did* justify is the cheap half: the `@font-face`-family **exclusion** described under [Corpus](#corpus). The gap that actually exists in this corpus is not an unsweepable webfont buffer but an `@font-face`-declared family name that fails to survive to the probe page — and the honest response to a question the instrument cannot ask faithfully is to drop the question, not to record a confident wrong answer. This calculus changes the moment a fixture lands that downloads a real font.
+Doc 204 supplies the changed calculus: a licensed, pinned WPT face with real named-feature substitutions. The extractor now retains the narrow case it can authenticate completely — one base64 data-URL declaration — and keeps the original exclusion for every source/descriptor environment it cannot reproduce.
 
 ## `font-feature-settings` — the property this oracle owns, and a negative result with a control
 
@@ -281,8 +284,30 @@ So the zero is real: the fixtures ask for features from fonts that do not have t
 
 One reporting wart noticed while measuring, recorded so it is not mistaken for a finding: `ChromeShaping.width` reads `getBoundingClientRect().width` on a block-level `<div>`, so it reports the viewport width rather than the run's. It is carried in the report but not used by `compareShaping`, which compares glyph counts and positions.
 
+## Named `@font-feature-values` — exact document-scoped feature ownership
+
+Doc 204 closes the computed-token-only gap for `stylistic()`, `styleset()`,
+`character-variant()`, `swash()`, `ornaments()`, and `annotation()`.
+The extractor fuses ordinary document-scoped rules by family, persists the exact
+resolved list, and the probe page re-emits that environment. The report retains
+that list and, for an authenticated webfont, every HarfBuzz gid, cluster,
+source span, advance, offset, glyph flag, and unsafe-to-break bit.
+
+The anti-vacuity matrix uses Chromium WPT's
+`FontWithFancyFeatures.otf` (SHA-256
+`0f7e550009d5d7348fdbaf79365e9cdbe010feb04e3af00bacc49f825e1f93f2`).
+For all six functions the named form must equal the direct OpenType form in
+Chrome and Domotion, while removing the matching rule must change both the
+same-browser raster and the exact logical record. CDP must identify the face as
+custom. No position or raster tolerance changed.
+
+Layered rule fusion is conservatively refused rather than approximated with
+source order, and shadow-tree scoping remains outside this claim. The complete
+source chain and matrix are in [doc 204](204-font-feature-values-shaping-conformance.md).
+
 ## Related
 
 - [107 — font conformance oracle](107-font-conformance-oracle.md) — the face half
+- [204 — named font-feature values](204-font-feature-values-shaping-conformance.md) — exact alias tables, feature lists, clusters, and the WPT webfont matrix
 - [106 — Blink font parity inventory](106-blink-font-parity-inventory.md) — what Blink runs, per platform
 - [font-resolution-diagram.md](font-resolution-diagram.md) — the resolution flow both oracles measure

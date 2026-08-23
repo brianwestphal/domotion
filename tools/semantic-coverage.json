@@ -93,6 +93,83 @@
       ]
     },
     {
+      "id": "text.unicode-shaping-corpus",
+      "parityAreas": ["shaping-clusters-glyphs"],
+      "subjects": ["Unicode shaping corpus", "deterministic sharding", "resumable evidence", "mismatch reduction"],
+      "states": ["representative profile -> exhaustive profile", "fresh shard -> digest-identical resume", "raw mismatches -> logical signature reductions", "darwin profile -> linux profile", "linux profile -> win32 profile"],
+      "exactStates": ["representative profile -> exhaustive profile", "fresh shard -> digest-identical resume", "raw mismatches -> logical signature reductions", "darwin profile -> linux profile", "linux profile -> win32 profile"],
+      "uncoveredStates": [],
+      "upstreamSources": ["external/chromium/third_party/blink/renderer/platform/fonts/shaping", "external/harfbuzz/src"],
+      "productionOwners": ["tools/shaping-conformance.ts", "tools/shaping-unicode-corpus.ts"],
+      "oracles": ["tools/shaping-conformance.ts"],
+      "metamorphicTests": ["tests/shaping-unicode-corpus.test.ts", "tests/shaping-unicode-workflow.test.ts"],
+      "visualFixtures": ["external/html-test/unicode"],
+      "coverage": "exact",
+      "featureIds": ["render.text"],
+      "verifiedPlatforms": ["darwin", "linux", "win32"]
+    },
+    {
+      "id": "text.font-feature-values-shaping",
+      "parityAreas": [
+        "shaping-clusters-glyphs"
+      ],
+      "subjects": [
+        "font-variant-alternates",
+        "@font-feature-values",
+        "font-family-scoped aliases",
+        "OpenType feature list",
+        "HarfBuzz glyph clusters"
+      ],
+      "states": [
+        "matching family rule -> named feature enabled",
+        "missing family rule -> named feature inert",
+        "named feature -> direct OpenType feature",
+        "retained data-URL webfont -> exact custom face",
+        "unretained font source -> excluded run",
+        "ordinary document rule -> layered or shadow-scoped rule"
+      ],
+      "exactStates": [
+        "matching family rule -> named feature enabled",
+        "missing family rule -> named feature inert",
+        "named feature -> direct OpenType feature",
+        "retained data-URL webfont -> exact custom face",
+        "unretained font source -> excluded run"
+      ],
+      "uncoveredStates": [
+        "ordinary document rule -> layered or shadow-scoped rule"
+      ],
+      "upstreamSources": [
+        "external/chromium/third_party/blink/renderer/core/css",
+        "external/chromium/third_party/blink/renderer/platform/fonts",
+        "external/harfbuzz/src"
+      ],
+      "productionOwners": [
+        "src/capture/script/font-feature-values.ts",
+        "src/render/text.ts",
+        "src/render/harfbuzz-shaper.ts"
+      ],
+      "oracles": [
+        "tools/shaping-conformance.ts",
+        "tools/shaping-font-feature-values.ts"
+      ],
+      "metamorphicTests": [
+        "tests/shaping-font-feature-values.test.ts",
+        "tests/shaping-font-feature-values.e2e.test.ts",
+        "tests/shaping-corpus-fontface-exclusion.e2e.test.ts"
+      ],
+      "visualFixtures": [
+        "tests/fixtures/shaping/FontWithFancyFeatures.otf.base64"
+      ],
+      "coverage": "partial",
+      "boundary": "Ordinary document-scoped stylistic, styleset, character-variant, swash, ornaments, and annotation aliases are exact: one pinned WPT webfont, CDP custom-face ownership, resolved feature lists, complete HarfBuzz logical records, direct-feature equivalence, missing-rule movement, and stale-record rejection. No tolerance changed. Cascade-layer fusion and shadow-tree rule scoping are refused rather than approximated; local/remote/file and multiple-face source environments remain excluded unless their exact bytes and descriptor selection can travel with the run.",
+      "featureIds": [
+        "render.text"
+      ],
+      "verifiedPlatforms": [
+        "darwin"
+      ]
+    },
+    {
       "id": "text.paths-native-raster-floor",
       "parityAreas": ["paths-native-raster-floor"],
       "subjects": ["paths mode", "native Skia mask", "face/glyph/layout identity", "platform raster envelope"],
@@ -265,9 +342,9 @@
         "normal palette -> named base palette",
         "base palette -> ordered color overrides",
         "invalid rule or index -> palette-zero fallback"
+        ,"palette A first -> palette B first in captured raster cache"
       ],
       "uncoveredStates": [
-        "palette A first -> palette B first in captured raster cache",
         "static palette -> palette-mix or animated palette"
       ],
       "upstreamSources": [
@@ -301,7 +378,7 @@
         ".github/workflows/font-palette-ownership-audit.yml"
       ],
       "coverage": "partial",
-      "boundary": "DM-2350/doc 202 proves source-owned static palette selection and exact native CPAL colors on macOS, and provides a fingerprinted DPR-1/2 three-OS investigation workflow. Production capture currently omits resolved palette identity and the color-glyph screenshot cache reuses the first PNG for the same face/gid/representation (DM-2509); palette-mix and animation are deferred, and DM-2510 owns strict gate promotion. Raster activation remains exact and no tolerance changes.",
+      "boundary": "DM-2350/doc 202 proves source-owned static palette selection and exact native CPAL colors. DM-2509 captures resolved rule/base/override identity plus selected face/gid/representation and keys Chromium-owned raster PNGs by that complete record; forward/reverse order are byte-exact. Palette-mix and animation remain deferred, and DM-2510 owns strict three-platform gate promotion. Raster activation remains exact and no tolerance changes.",
       "featureIds": [
         "capture.emoji-detect",
         "render.text"

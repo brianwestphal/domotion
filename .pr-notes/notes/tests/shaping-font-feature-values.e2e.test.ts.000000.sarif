@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5fh94nyvz023bx",
+          "message": {
+            "text": "The six-function matrix is anti-vacuous at both logical and raster boundaries. Chromium reports a custom OTS-owned WPT face; each named alias equals its direct OpenType list, removing the matching rule changes the same-browser screenshot and HarfBuzz record, and the final feature list plus clusters are exact. The focused browser suite passes 15/15 with no tolerance change.",
+            "markdown": "The six-function matrix is anti-vacuous at both logical and raster boundaries. Chromium reports a custom OTS-owned WPT face; each named alias equals its direct OpenType list, removing the matching rule changes the same-browser screenshot and HarfBuzz record, and the final feature list plus clusters are exact. The focused browser suite passes 15/15 with no tolerance change."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/shaping-font-feature-values.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 139,
+                  "endLine": 180,
+                  "snippet": {
+                    "text": "  it.each(CASES)(\"makes Chromium's %s alias identical to its low-level feature list\", async (css, features) => {\n    const spec = corpus.runs.find((row) => row.fontVariantAlternates === css)!;\n    const direct = directSpec(spec, features);\n    const [aliasLogical, directLogical] = await chromeShaping(page, [spec, direct]);\n    expect(aliasLogical).toEqual(directLogical);\n    expect(aliasLogical.glyphCount).toBe(TEXT.length);\n    // OTS deliberately rewrites the WPT fixture's display name to\n    // `OTS-derived-font`; CDP's authoritative ownership bit proves it did not\n    // fall through to a platform font.\n    expect(aliasLogical.customFaces).toEqual([true]);\n    expect(aliasLogical.faces.join(\" \")).toContain(\"OTS-derived-font\");\n\n    const aliasRaster = await raster(page, spec);\n    const directRaster = await raster(page, direct);\n    const missingRaster = await raster(page, missingRuleSpec(spec));\n    expect(aliasRaster.equals(directRaster)).toBe(true);\n    expect(aliasRaster.equals(missingRaster)).toBe(false);\n  });\n\n  it.each(CASES)(\"carries %s through the renderer and exact HarfBuzz cluster record\", (css, features) => {\n    const spec = corpus.runs.find((row) => row.fontVariantAlternates === css)!;\n    const direct = directSpec(spec, features);\n    const aliasShaping = ourShaping(spec);\n    const directShaping = ourShaping(direct);\n    // HarfBuzz accepts both `salt` and `salt=1`; retain Blink's explicit\n    // alias-derived value in evidence while comparing the painted result.\n    expect({ glyphCount: aliasShaping.glyphCount, xs: aliasShaping.xs, ok: aliasShaping.ok })\n      .toEqual({ glyphCount: directShaping.glyphCount, xs: directShaping.xs, ok: directShaping.ok });\n    expect(aliasShaping.featureList).toEqual(features);\n    expect(aliasShaping.logicalRecord?.features).toEqual(features);\n    expect(aliasShaping.logicalRecord?.clusters)\n      .toEqual(Array.from({ length: TEXT.length }, (_, index) => index));\n    expect(exactFeatureValueSignature(aliasShaping.logicalRecord!))\n      .toBe(exactFeatureValueSignature(directShaping.logicalRecord!));\n\n    const aliasRecord = exactWebfontFeatureRecord(bytes, TEXT, [...spec.resolvedFontFeatures!]);\n    const directRecord = exactWebfontFeatureRecord(bytes, TEXT, [...features]);\n    const missingRecord = exactWebfontFeatureRecord(bytes, TEXT, []);\n    expect(aliasRecord.features).toEqual(features);\n    expect(aliasRecord.clusters).toEqual(Array.from({ length: TEXT.length }, (_, index) => index));\n    expect(exactFeatureValueSignature(aliasRecord)).toBe(exactFeatureValueSignature(directRecord));\n    expect(exactFeatureValueSignature(aliasRecord)).not.toBe(exactFeatureValueSignature(missingRecord));"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/shaping-conformance.ts"
+                },
+                "region": {
+                  "startLine": 739
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/shaping-font-feature-values.ts"
+                },
+                "region": {
+                  "startLine": 97
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2349"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "bc972a3af02978e258b6b022a13c51a9"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "b48db4e07b2745b477e31652e9653365503b761a",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

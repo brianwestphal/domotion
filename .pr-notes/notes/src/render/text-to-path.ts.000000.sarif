@@ -1404,6 +1404,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5fyt00vg2de1o6",
+          "message": {
+            "text": "Absolute decoration lengths must carry Blink effective zoom exactly once. The used font size already scales em and percentage values, but computed px values remain logical CSSOM lengths; lengthScale closes only that branch. The pinned Linux zoom=1.25 discriminator changed from 108/109 SVG geometry to 109/109 without changing the 0.3px envelope.",
+            "markdown": "Absolute decoration lengths must carry Blink effective zoom exactly once. The used font size already scales em and percentage values, but computed px values remain logical CSSOM lengths; lengthScale closes only that branch. The pinned Linux zoom=1.25 discriminator changed from 108/109 SVG geometry to 109/109 without changing the 0.3px envelope."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 3521,
+                  "endLine": 3528,
+                  "snippet": {
+                    "text": "function decorationLengthPx(spec: string, fontSize: number, lengthScale = 1): number | null {\n  const m = /^(-?[\\d.]+)(px|em|%)?$/.exec(spec.trim());\n  if (m == null) return null;\n  const v = parseFloat(m[1]);\n  if (Number.isNaN(v)) return null;\n  if (m[2] === \"em\") return v * fontSize;\n  if (m[2] === \"%\") return (v / 100) * fontSize;\n  return v * lengthScale;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text.ts"
+                },
+                "region": {
+                  "startLine": 913
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/tree-ops/decoration-propagation.ts"
+                },
+                "region": {
+                  "startLine": 128
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2345"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "876660523f821fdbce12bc9dca183787"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "eae6904ae929781d45bd00aaac03841244ec1f93",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

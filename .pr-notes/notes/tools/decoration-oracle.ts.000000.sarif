@@ -90,6 +90,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5fyt00yxhuimwo",
+          "message": {
+            "text": "The zoom rows discriminate used-state ownership rather than raster tolerance. On pinned Noble arm64, the explicit 3px/2px Times double underline at zoom 1.25 first exposed a 1-2px SVG logical mismatch; after scaling absolute lengths once, all exact legs pass: 109/109 transcription, 30/30 skip-ink, 109/109 SVG geometry.",
+            "markdown": "The zoom rows discriminate used-state ownership rather than raster tolerance. On pinned Noble arm64, the explicit 3px/2px Times double underline at zoom 1.25 first exposed a 1-2px SVG logical mismatch; after scaling absolute lengths once, all exact legs pass: 109/109 transcription, 30/30 skip-ink, 109/109 SVG geometry."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/decoration-oracle.ts"
+                },
+                "region": {
+                  "startLine": 331,
+                  "endLine": 336,
+                  "snippet": {
+                    "text": "  // 16. CSS zoom controls. These cross auto geometry, explicit geometry, and\n  // skip-ink at non-integral/integral scales; zoom=1 is the entire matrix's\n  // neutral arm rather than a duplicate row.\n  push({ family: \"Helvetica\", fontSize: 24, lines: \"underline\", style: \"solid\", zoom: 0.8 });\n  push({ family: \"Times\", fontSize: 24, lines: \"underline\", style: \"double\", thickness: \"3px\", underlineOffset: \"2px\", zoom: 1.25 });\n  push({ family: \"Helvetica\", fontSize: 16, lines: \"underline\", style: \"solid\", skipInk: true, text: \"jumping gaps\", zoom: 2 });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 3521
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2345"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "630ba7712a888ccb17325cd883b54a99"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "eae6904ae929781d45bd00aaac03841244ec1f93",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

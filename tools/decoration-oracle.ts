@@ -141,7 +141,9 @@
  * Exit codes: 0 all armed gates pass; 1 an armed gate failed; 2 setup error.
  */
 import { chromium, type Browser, type Page } from "@playwright/test";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { release as osRelease, type as osType } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { captureElementTree, elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
@@ -222,6 +224,9 @@ interface CaseSpec {
   /** skip-ink:none control — must measure ZERO gaps. */
   expectNoGaps?: boolean;
   text?: string;
+  /** CSS zoom. Blink resolves decoration geometry in the zoomed physical
+   * CSS-pixel state even though computed font-size remains unzoomed. */
+  zoom?: number;
 }
 
 function buildCases(): CaseSpec[] {
@@ -237,6 +242,7 @@ function buildCases(): CaseSpec[] {
       c.underlinePosition != null ? `p=${c.underlinePosition}` : null,
       c.skipInk ? "skipink" : null,
       c.expectNoGaps ? "noskipink-ctrl" : null,
+      c.zoom != null ? `zoom=${c.zoom}` : null,
     ].filter((b) => b != null);
     cases.push({ id: bits.join("."), ...c });
   };
@@ -322,7 +328,17 @@ function buildCases(): CaseSpec[] {
     push({ family: "Helvetica", fontSize: 32.5, lines: "underline", style, skipInk: true, text: "jumping gaps" });
   }
   push({ family: "Helvetica", fontSize: 32.5, lines: "underline", style: "dashed", thickness: "5px", skipInk: true, text: "jumping gaps" });
+  // 16. CSS zoom controls. These cross auto geometry, explicit geometry, and
+  // skip-ink at non-integral/integral scales; zoom=1 is the entire matrix's
+  // neutral arm rather than a duplicate row.
+  push({ family: "Helvetica", fontSize: 24, lines: "underline", style: "solid", zoom: 0.8 });
+  push({ family: "Times", fontSize: 24, lines: "underline", style: "double", thickness: "3px", underlineOffset: "2px", zoom: 1.25 });
+  push({ family: "Helvetica", fontSize: 16, lines: "underline", style: "solid", skipInk: true, text: "jumping gaps", zoom: 2 });
   return cases;
+}
+
+export function decorationCorpusSha256(cases: readonly CaseSpec[] = buildCases()): string {
+  return createHash("sha256").update(JSON.stringify(cases)).digest("hex");
 }
 
 // ── Sample HTML ─────────────────────────────────────────────────────────
@@ -343,6 +359,7 @@ function caseHtml(c: CaseSpec, idx: number): string {
     c.underlineOffset != null ? `text-underline-offset: ${c.underlineOffset}` : null,
     c.underlinePosition != null ? `text-underline-position: ${c.underlinePosition}` : null,
     "white-space: pre",
+    c.zoom != null ? `zoom: ${c.zoom}` : null,
   ].filter((d) => d != null).join("; ");
   // Adjacent case margins COLLAPSE, so the effective separation between two
   // cases is max(marginA, marginB). Keep it comfortably larger than the
@@ -379,6 +396,8 @@ interface PageMeasure {
   ascF: number;
   descF: number;
   fragments: number;
+  /** Used font size in the page's physical CSS-pixel paint state. */
+  effectiveFontSize: number;
 }
 
 async function measureChunk(page: Page): Promise<PageMeasure[]> {
@@ -400,7 +419,9 @@ async function measureChunk(page: Page): Promise<PageMeasure[]> {
       const rects = span.getClientRects();
       const r = rects[0];
       const cs = getComputedStyle(span);
-      g.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+      const zoom = Number.parseFloat(cs.zoom) || 1;
+      const effectiveFontSize = (Number.parseFloat(cs.fontSize) || 0) * zoom;
+      g.font = `${cs.fontStyle} ${cs.fontWeight} ${effectiveFontSize}px ${cs.fontFamily}`;
       const m = g.measureText("x");
       out.push({
         rect: { x: r.x, y: r.y, w: r.width, h: r.height },
@@ -408,6 +429,7 @@ async function measureChunk(page: Page): Promise<PageMeasure[]> {
         ascF: m.fontBoundingBoxAscent,
         descF: m.fontBoundingBoxDescent,
         fragments: rects.length,
+        effectiveFontSize,
       });
     }
     return out;
@@ -462,17 +484,18 @@ function normalizedTypoDescent(
 }
 
 /** CSS length value in px (em resolved against fs); null for keywords. */
-function lengthPx(spec: string, fs: number): number | null {
+function lengthPx(spec: string, fs: number, zoom = 1): number | null {
   const m = /^(-?[\d.]+)(px|em|%)$/.exec(spec.trim());
   if (m == null) return null;
   const v = parseFloat(m[1]);
-  if (m[2] === "px") return v;
+  if (m[2] === "px") return v * zoom;
   if (m[2] === "em") return v * fs;
   return (v / 100) * fs; // % of font size for both thickness and offset
 }
 
 function predictCase(c: CaseSpec, meas: PageMeasure): Prediction {
-  const fs = c.fontSize;
+  const fs = meas.effectiveFontSize;
+  const zoom = c.zoom ?? 1;
   const ascF = meas.ascF;
   const ascI = Math.round(ascF); // lroundf — ascents are positive
   const notes: string[] = [];
@@ -494,13 +517,13 @@ function predictCase(c: CaseSpec, meas: PageMeasure): Prediction {
   const thSpec = c.thickness ?? "auto";
   if (thSpec === "auto") t = fs / 10;
   else if (thSpec === "from-font") t = fkThickPx ?? fs / 10;
-  else t = roundHalfAway(lengthPx(thSpec, fs) ?? 0);
+  else t = roundHalfAway(lengthPx(thSpec, fs, zoom) ?? 0);
   t = Math.max(1, t);
 
   // text-underline-offset in px (auto -> 0) — text_decoration_offset.cc:123-135.
   const offSpec = c.underlineOffset ?? "auto";
   const offIsAuto = offSpec === "auto";
-  const extra = offIsAuto ? 0 : (lengthPx(offSpec, fs) ?? 0);
+  const extra = offIsAuto ? 0 : (lengthPx(offSpec, fs, zoom) ?? 0);
 
   const bars: Bar[] = [];
   const snap = (top: number) => ({ top: meas.rect.y + Math.floor(top + 0.5), height: Math.max(Math.floor(t), 1) });
@@ -1069,11 +1092,12 @@ async function main(): Promise<number> {
   const only = opt("--only");
   const jsonPath = opt("--json");
   const keepDir = opt("--keep");
+  const requestedDsf = opt("--device-scale-factor");
   // Default-armed since the decoration-geometry transcription landed
   // (`--gate-svg-geometry` still accepted as a no-op for older invocations).
   const gateSvgGeometry = !flag("--no-gate-svg-geometry");
   const gateSkipInk = !flag("--no-gate-skip-ink");
-  const scalePlan = decorationOracleScalePlan();
+  const scalePlan = decorationOracleScalePlan(requestedDsf == null ? DSF : Number(requestedDsf));
   const scalePlanErrors = decorationOracleScalePlanErrors(scalePlan);
   if (scalePlanErrors.length > 0) {
     for (const error of scalePlanErrors) console.error(`decoration-oracle: ${error}`);
@@ -1135,7 +1159,7 @@ async function main(): Promise<number> {
       for (let i = 0; i < chunk.length; i++) {
         const c = chunk[i];
         const meas = measures[i];
-        const pad = Math.ceil(c.fontSize * 1.2) + 8;
+        const pad = Math.ceil(meas.effectiveFontSize * 1.2) + 8;
         const clip = {
           x: Math.max(0, Math.floor(meas.rect.x) - 8),
           y: Math.max(0, Math.floor(meas.rect.y) - pad),
@@ -1226,6 +1250,15 @@ async function main(): Promise<number> {
       platform: process.platform,
       architecture: process.arch,
       chromiumVersion,
+      environment: {
+        schema: "decoration-environment-v1",
+        osType: osType(),
+        osRelease: osRelease(),
+        node: process.version,
+        icu: process.versions.icu ?? "unknown",
+        playwrightChromiumExecutableSha256: createHash("sha256").update(readFileSync(chromium.executablePath())).digest("hex"),
+        corpusSha256: decorationCorpusSha256(cases),
+      },
       coordinateOwnership: {
         source: "blink-physical-text-fragment-same-dpr-v1",
         chromePaintDeviceScaleFactor: scalePlan.chromePaint,

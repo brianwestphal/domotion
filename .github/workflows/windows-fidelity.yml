@@ -118,6 +118,37 @@ jobs:
             tests/output/features-results.json
           if-no-files-found: error
 
+  decoration-geometry:
+    name: Windows decoration geometry
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - name: Install Chromium
+        run: npx playwright install chromium
+      - name: Build the DirectWrite helper
+        shell: pwsh
+        run: ./tools/win32-glyph-extractor/build.ps1
+      - name: Exact decoration geometry at DPR 1
+        run: >
+          node --import tsx tools/decoration-oracle.ts
+          --device-scale-factor 1
+          --json tests/output/decoration-windows-dpr1.json
+      - name: Exact decoration geometry at DPR 4
+        run: >
+          node --import tsx tools/decoration-oracle.ts
+          --device-scale-factor 4
+          --json tests/output/decoration-windows-dpr4.json
+      - name: Upload fingerprinted decoration evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: decoration-geometry-windows
+          path: tests/output/decoration-windows-dpr*.json
+          if-no-files-found: error
+
   # Declared-family match conformance oracle (doc 111): scores the DirectWrite
   # family/style matcher transcription in the win32 helper against what
   # Chrome-on-this-runner actually paints, over CDP, gated REGRESSION-RELATIVE

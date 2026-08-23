@@ -51,10 +51,20 @@ import { chromium, type Browser } from "@playwright/test";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { renderTextAsPath } from "../src/render/text-to-path.js";
-import { clearFontResolutionCaches } from "../src/render/font-resolution.js";
 import {
-  parseFontFeatureSettings, parseFontVariationSettings, resolveFontVariantFeatures, mergeFeatureLists,
+  clearFontResolutionCaches, registerWebfont,
+} from "../src/render/font-resolution.js";
+import {
+  parseFontFeatureSettings, parseFontVariationSettings, resolveFontVariantFeatures,
+  mergeFeatureLists,
 } from "../src/render/text.js";
+import {
+  exactWebfontFeatureRecord,
+  resolvedFeatureValueList,
+  serializeFontFeatureValues,
+  type ExactFeatureValueRecord,
+  type FontFeatureValueTables,
+} from "./shaping-font-feature-values.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -128,6 +138,35 @@ export interface RunSpec {
    */
   fontFeatureSettings?: string;
   /**
+   * Computed `font-variant-alternates` plus the effective family-scoped alias
+   * storage that made its named functions meaningful in the fixture.
+   *
+   * The computed property alone is not enough: `stylistic(fancy)` is only an
+   * author-facing token. Blink resolves it for the candidate family in
+   * `CSSFontSelector::GetFontData`, using the document's fused
+   * `FontFeatureValuesStorage`, and gives HarfBuzz `salt=<index>` (likewise
+   * `ssNN`, `cvNN`, `swsh`+`cswh`, `ornm`, and `nalt`). The synthetic probe
+   * page must carry the same storage or both sides silently shape with the
+   * named feature disabled.
+   */
+  fontVariantAlternates?: string;
+  fontFeatureValues?: FontFeatureValueTables;
+  /** Exact alias-derived list, persisted to make stale/corrupt corpus rows fail. */
+  resolvedFontFeatures?: string[];
+  /**
+   * A self-contained webfont face retained by the extractor. Only data-URL
+   * sources are accepted: a local()/remote/file URL that cannot travel with
+   * the probe remains excluded rather than being scored against a fallback.
+   */
+  webfont?: {
+    family: string;
+    mime: string;
+    dataBase64: string;
+    weightDescriptor: string;
+    styleDescriptor: string;
+    stretchDescriptor: string;
+  };
+  /**
    * The run's computed `letter-spacing` and `text-rendering` (DM-1983).
    *
    * Both are SHAPING inputs, not just layout ones. Blink's feature emission
@@ -194,6 +233,8 @@ interface ChromeShaping {
   glyphCount: number;
   /** Per-face `postScriptName × glyphCount`, in Chrome's own order. */
   faces: string[];
+  /** Browser ownership proof for retained @font-face rows. */
+  customFaces?: boolean[];
   /** Distinct x positions of the source characters, ascending. */
   xs: number[];
   /** Painted width of the run. */
@@ -206,6 +247,10 @@ interface OurShaping {
   xs: number[];
   /** null when the renderer declined the run (no resolvable font). */
   ok: boolean;
+  /** Exact final HarfBuzz feature list, including resolved named alternates. */
+  featureList?: string[];
+  /** Complete pre-raster logical record for a retained webfont run. */
+  logicalRecord?: ExactFeatureValueRecord;
 }
 
 type Verdict =
@@ -286,11 +331,9 @@ export async function extractRuns(
     const found = await page.evaluate((splitEvery: boolean) => {
       const out: string[] = [];
       // Families this document defines with `@font-face`. A run in such a family
-      // CANNOT be swept, because no `@font-face` rule travels with it: the probe
-      // page re-declares the family name alone, so Chrome falls through the
-      // stack to a system face and shapes something the fixture never painted.
-      // Our side falls through too, so the two agree — and the agreement is
-      // vacuous, which is worse than a mismatch because it reads as coverage.
+      // can only be swept when the exact bytes can travel with it. A retained
+      // base64 data URL is self-contained; local(), file and remote URLs are not
+      // and remain excluded rather than being scored against a fallback.
       //
       // Measured on `20-font-face.html`, whose rules are `src: local(...)` only:
       // the fixture paints `TestSerif` as Georgia and `TestMono` as Menlo, while
@@ -298,25 +341,84 @@ export async function extractRuns(
       // 28 agree-exact / 4 agree-count — a clean-looking result about the wrong
       // fonts.
       //
-      // So they are EXCLUDED rather than swept, which is the same move the
-      // whitespace rule makes: when the instrument cannot ask the question
-      // faithfully, drop the question instead of recording a confident wrong
-      // answer. Sweeping them properly means carrying the `@font-face` into the
-      // probe page and registering the same face on our side; until then this
-      // keeps the corpus honest about what it covers.
+      // This is the same refusal principle as the whitespace rule: when the
+      // instrument cannot ask the fixture's question faithfully, drop it. The
+      // data-URL exception is intentionally narrow and source-owned: the same
+      // bytes are re-declared to Chrome and registered with Domotion.
       const fontFaceFamilies = new Set<string>();
+      const harvestableFaces = new Map<string, {
+        family: string; mime: string; dataBase64: string;
+        weightDescriptor: string; styleDescriptor: string; stretchDescriptor: string;
+      }>();
+      const disqualifiedFaceFamilies = new Set<string>();
+      // Layer order is not ordinary source order. Refuse an alternates-bearing
+      // run whose family has a layered rule until the corpus models Blink's
+      // FontFeatureValuesStorage layer-priority fusion exactly.
+      const layeredFeatureValueFamilies = new Set<string>();
+      const featureTables: Record<string, Record<string, Record<string, number[]>>> = {};
+      const pendingRules: Array<{ rule: CSSRule; inLayer: boolean }> = [];
       for (const sheet of Array.from(document.styleSheets)) {
-        let rules: CSSRuleList | null = null;
         try {
-          rules = sheet.cssRules;
+          pendingRules.push(...Array.from(sheet.cssRules).map((rule) => ({ rule, inLayer: false })));
         } catch {
           // Cross-origin stylesheet — unreadable by design. Nothing to add.
+        }
+      }
+      while (pendingRules.length > 0) {
+        const { rule, inLayer } = pendingRules.shift()!;
+        if (rule.constructor.name === "CSSFontFaceRule") {
+          const style = (rule as CSSFontFaceRule).style;
+          const rawFamily = style.getPropertyValue("font-family").trim();
+          const family = rawFamily.replace(/^["']|["']$/g, "");
+          const key = family.toLowerCase();
+          if (key === "") continue;
+          fontFaceFamilies.add(key);
+          const src = style.getPropertyValue("src");
+          const data = /^\s*url\(\s*["']?(data:([^;,]+)?;base64,([A-Za-z0-9+/=]+))["']?\s*\)/i.exec(src);
+          // Multiple declarations for one family involve Blink's descriptor
+          // matching and source order. Do not pretend one retained face owns
+          // that question; the dedicated fixture deliberately has one.
+          if (data == null || harvestableFaces.has(key) || disqualifiedFaceFamilies.has(key)) {
+            harvestableFaces.delete(key);
+            disqualifiedFaceFamilies.add(key);
+            continue;
+          }
+          harvestableFaces.set(key, {
+            family,
+            mime: data[2] || "font/otf",
+            dataBase64: data[3],
+            weightDescriptor: style.getPropertyValue("font-weight") || "400",
+            styleDescriptor: style.getPropertyValue("font-style") || "normal",
+            stretchDescriptor: style.getPropertyValue("font-stretch") || "100%",
+          });
           continue;
         }
-        for (const rule of Array.from(rules ?? [])) {
-          if (rule.constructor.name !== "CSSFontFaceRule") continue;
-          const fam = (rule as CSSFontFaceRule).style.getPropertyValue("font-family").trim();
-          if (fam !== "") fontFaceFamilies.add(fam.replace(/^["']|["']$/g, "").toLowerCase());
+        const featureRule = rule as CSSRule & {
+          fontFamily?: string;
+          annotation?: Map<string, number[]>; ornaments?: Map<string, number[]>;
+          stylistic?: Map<string, number[]>; swash?: Map<string, number[]>;
+          characterVariant?: Map<string, number[]>; styleset?: Map<string, number[]>;
+        };
+        if (typeof featureRule.fontFamily === "string" && featureRule.stylistic != null) {
+          const families = featureRule.fontFamily.match(/(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^,])+/g) ?? [];
+          for (const rawFamily of families) {
+            const family = rawFamily.trim().replace(/^["']|["']$/g, "").toLowerCase();
+            if (family === "") continue;
+            if (inLayer) layeredFeatureValueFamilies.add(family);
+            const table = featureTables[family] || (featureTables[family] = {});
+            for (const category of ["annotation", "ornaments", "stylistic", "swash", "characterVariant", "styleset"] as const) {
+              const map = featureRule[category];
+              if (map == null) continue;
+              const aliases = table[category] || (table[category] = {});
+              for (const [name, values] of Array.from(map.entries())) aliases[name] = Array.from(values);
+            }
+          }
+          continue;
+        }
+        const nested = (rule as CSSRule & { cssRules?: CSSRuleList }).cssRules;
+        if (nested != null) {
+          const nestedInLayer = inLayer || rule.constructor.name === "CSSLayerBlockRule";
+          pendingRules.unshift(...Array.from(nested).map((child) => ({ rule: child, inLayer: nestedInLayer })));
         }
       }
       for (const el of Array.from(document.querySelectorAll("*"))) {
@@ -327,11 +429,25 @@ export async function extractRuns(
         // page. Written inline rather than as a named helper on purpose — this
         // body is serialized into the page, where the `__name` wrapper that
         // tsx/esbuild emits for a named function binding does not exist.
-        if (cs.fontFamily.split(",").some((f) =>
-          fontFaceFamilies.has(f.trim().replace(/^["']|["']$/g, "").toLowerCase()))) continue;
+        const stackFamilies = (cs.fontFamily.match(/(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^,])+/g) ?? [])
+          .map((family) => family.trim().replace(/^["']|["']$/g, "").toLowerCase());
+        const declaredFaces = stackFamilies.filter((family) => fontFaceFamilies.has(family));
+        if (declaredFaces.some((family) => !harvestableFaces.has(family))) continue;
+        // More than one retained face would require preserving the complete
+        // descriptor-selection set. Refuse it rather than pick a convenient one.
+        if (declaredFaces.length > 1) continue;
+        const webfont = declaredFaces.length === 1 ? harvestableFaces.get(declaredFaces[0]) : undefined;
         const fvs = cs.fontVariationSettings === "" ? "normal" : cs.fontVariationSettings;
         const stretch = cs.fontStretch === "" ? "100%" : cs.fontStretch;
         const ffs = cs.fontFeatureSettings === "" ? "normal" : cs.fontFeatureSettings;
+        const fva = cs.fontVariantAlternates === "" ? "normal" : cs.fontVariantAlternates;
+        if (fva !== "normal" && stackFamilies.some((family) => layeredFeatureValueFamilies.has(family))) continue;
+        const relevantFeatureTables: Record<string, Record<string, Record<string, number[]>>> = {};
+        if (fva !== "normal") {
+          for (const family of stackFamilies) {
+            if (featureTables[family] != null) relevantFeatureTables[family] = featureTables[family];
+          }
+        }
         const ls = cs.letterSpacing === "" ? "normal" : cs.letterSpacing;
         const tr = cs.textRendering === "" ? "auto" : cs.textRendering;
         const fvl = cs.fontVariantLigatures === "" ? "normal" : cs.fontVariantLigatures;
@@ -384,7 +500,8 @@ export async function extractRuns(
           // exclude, leaking back in because /\s/ does not match an ignorable.
           // See docs/108, "Universal whitespace splitting", for the tier diff;
           // the switch exists so the measurement stays reproducible.
-          const texts = splitEvery || fvs !== "normal" || ffs !== "normal" ? raw.split(/\s+/) : [raw];
+          const texts = splitEvery || fvs !== "normal" || ffs !== "normal" || fva !== "normal"
+            ? raw.split(/\s+/) : [raw];
           for (const text of texts) {
             if (text === "" || text.length > 24 || /\s/.test(text)) continue;
             out.push(JSON.stringify({
@@ -396,6 +513,9 @@ export async function extractRuns(
               fontVariationSettings: fvs,
               fontStretch: stretch,
               fontFeatureSettings: ffs,
+              fontVariantAlternates: fva,
+              fontFeatureValues: Object.keys(relevantFeatureTables).length > 0 ? relevantFeatureTables : undefined,
+              webfont,
               letterSpacing: ls,
               textRendering: tr,
               fontVariantLigatures: fvl,
@@ -407,8 +527,16 @@ export async function extractRuns(
     }, splitWords);
     for (const s of found) {
       const spec = JSON.parse(s) as Omit<RunSpec, "fixtures" | "example">;
-      const hit = tally.get(s);
-      if (hit == null) tally.set(s, { spec, fixtures: 1, example: label });
+      if (spec.fontVariantAlternates != null && spec.fontVariantAlternates !== "normal") {
+        spec.resolvedFontFeatures = resolvedFeatureValueList(
+          spec.fontVariantAlternates,
+          spec.fontFamily,
+          spec.fontFeatureValues,
+        );
+      }
+      const key = JSON.stringify(spec);
+      const hit = tally.get(key);
+      if (hit == null) tally.set(key, { spec, fixtures: 1, example: label });
       else hit.fixtures++;
     }
   }
@@ -428,8 +556,46 @@ export async function extractRuns(
 const esc = (s: string): string =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-export async function chromeShaping(page: import("@playwright/test").Page, specs: RunSpec[]): Promise<ChromeShaping[]> {
-  const html = `<html lang="en"><body style="margin:0">${
+function probeEnvironmentKey(spec: RunSpec): string {
+  return JSON.stringify([spec.webfont ?? null, spec.fontFeatureValues ?? null]);
+}
+
+export function resolvedFeaturesForRun(spec: RunSpec): string[] {
+  const resolved = resolvedFeatureValueList(
+    spec.fontVariantAlternates,
+    spec.fontFamily,
+    spec.fontFeatureValues,
+  );
+  if (spec.resolvedFontFeatures != null
+      && JSON.stringify(spec.resolvedFontFeatures) !== JSON.stringify(resolved)) {
+    throw new Error(`stale font-feature-values row for ${spec.fontFamily}: expected `
+      + `${JSON.stringify(spec.resolvedFontFeatures)}, resolved ${JSON.stringify(resolved)}`);
+  }
+  return resolved;
+}
+
+function webfontFaceCss(spec: RunSpec): string {
+  const face = spec.webfont;
+  if (face == null) return "";
+  if (!/^[a-z0-9.+-]+\/[a-z0-9.+-]+$/i.test(face.mime)
+      || !/^[A-Za-z0-9+/=]+$/.test(face.dataBase64)) {
+    throw new Error(`invalid retained webfont data for ${face.family}`);
+  }
+  return `@font-face{font-family:${JSON.stringify(face.family)};`
+    + `src:url(data:${face.mime};base64,${face.dataBase64});`
+    + `font-weight:${face.weightDescriptor};font-style:${face.styleDescriptor};`
+    + `font-stretch:${face.stretchDescriptor};}`;
+}
+
+/** Serialize the exact document-scoped environment used by one probe batch. */
+export function shapingProbePageHtml(specs: RunSpec[]): string {
+  if (new Set(specs.map(probeEnvironmentKey)).size > 1) {
+    throw new Error("shaping probe batch mixes distinct font-feature-values environments");
+  }
+  for (const spec of specs) resolvedFeaturesForRun(spec);
+  const prelude = specs.length === 0 ? "" : webfontFaceCss(specs[0])
+    + serializeFontFeatureValues(specs[0].fontFeatureValues);
+  return `<html lang="en"><head><meta charset="utf-8"><style>${prelude}</style></head><body style="margin:0">${
     specs.map((s, i) =>
       `<div id="r${i}" style="font-family:${esc(s.fontFamily)};font-size:${s.fontSize}px;`
       + `font-weight:${s.fontWeight};font-style:${s.fontStyle};white-space:pre`
@@ -454,6 +620,10 @@ export async function chromeShaping(page: import("@playwright/test").Page, specs
       // terminates the style attribute and silently drops the declaration.
       + `${s.fontFeatureSettings != null && s.fontFeatureSettings !== "normal"
         ? `;font-feature-settings:${esc(s.fontFeatureSettings)}` : ""}`
+      // A named alternate is inert without the document-scoped alias table in
+      // the <style> prelude above. Carry both halves of Blink's question.
+      + `${s.fontVariantAlternates != null && s.fontVariantAlternates !== "normal"
+        ? `;font-variant-alternates:${esc(s.fontVariantAlternates)}` : ""}`
       // Re-declare letter-spacing and text-rendering (DM-1983). Both change
       // which FEATURES Chrome shapes with, so a probe page that omits them
       // shapes a ligature the fixture did not have — and then compares that
@@ -467,6 +637,25 @@ export async function chromeShaping(page: import("@playwright/test").Page, specs
         ? `;font-variant-ligatures:${esc(s.fontVariantLigatures)}` : ""}`
       + `">${esc(s.text)}</div>`).join("")
   }</body></html>`;
+}
+
+export async function chromeShaping(page: import("@playwright/test").Page, specs: RunSpec[]): Promise<ChromeShaping[]> {
+  const groups = new Map<string, Array<{ index: number; spec: RunSpec }>>();
+  for (let index = 0; index < specs.length; index++) {
+    const key = probeEnvironmentKey(specs[index]);
+    const group = groups.get(key) ?? [];
+    group.push({ index, spec: specs[index] });
+    groups.set(key, group);
+  }
+  if (groups.size > 1) {
+    const ordered = new Array<ChromeShaping>(specs.length);
+    for (const group of groups.values()) {
+      const rows = await chromeShaping(page, group.map((entry) => entry.spec));
+      for (let i = 0; i < group.length; i++) ordered[group[i].index] = rows[i];
+    }
+    return ordered;
+  }
+  const html = shapingProbePageHtml(specs);
   await page.setContent(html, { waitUntil: "load" });
   await page.evaluate(() => document.fonts.ready);
 
@@ -498,11 +687,12 @@ export async function chromeShaping(page: import("@playwright/test").Page, specs
   for (let i = 0; i < specs.length; i++) {
     const { nodeId } = await client.send("DOM.querySelector", { nodeId: root.nodeId, selector: `#r${i}` }) as { nodeId: number };
     const { fonts } = await client.send("CSS.getPlatformFontsForNode", { nodeId }) as {
-      fonts: Array<{ postScriptName?: string; familyName?: string; glyphCount: number }>;
+      fonts: Array<{ postScriptName?: string; familyName?: string; glyphCount: number; isCustomFont: boolean }>;
     };
     res.push({
       glyphCount: fonts.reduce((a, f) => a + f.glyphCount, 0),
       faces: fonts.map((f) => `${f.postScriptName ?? f.familyName}×${f.glyphCount}`),
+      customFaces: fonts.map((f) => f.isCustomFont),
       xs: geom[i].xs,
       width: geom[i].width,
     });
@@ -515,6 +705,9 @@ export async function chromeShaping(page: import("@playwright/test").Page, specs
 // Our side
 // ---------------------------------------------------------------------------
 
+/** Registration is modeled state; keep one retained face per exact declaration. */
+const installedRunWebfonts = new Set<string>();
+
 /**
  * The glyphs the renderer actually emits, read back off its own output.
  *
@@ -525,6 +718,42 @@ export async function chromeShaping(page: import("@playwright/test").Page, specs
  * question than the renderer asks (`resolveFontSpec` vs `getFontInstance`).
  */
 export function ourShaping(spec: RunSpec): OurShaping {
+  if (spec.webfont != null) {
+    const face = spec.webfont;
+    const key = JSON.stringify(face);
+    if (!installedRunWebfonts.has(key)) {
+      const weight = parseInt(face.weightDescriptor, 10) || 400;
+      registerWebfont(
+        face.family,
+        weight,
+        face.styleDescriptor,
+        Buffer.from(face.dataBase64, "base64"),
+        undefined,
+        face.stretchDescriptor,
+        face.weightDescriptor,
+        face.styleDescriptor,
+      );
+      installedRunWebfonts.add(key);
+    }
+  }
+  const alternateFeatures = resolvedFeaturesForRun(spec);
+  const features = mergeFeatureLists(
+    mergeFeatureLists(alternateFeatures, parseFontFeatureSettings(spec.fontFeatureSettings)),
+    resolveFontVariantFeatures(
+      undefined,
+      undefined,
+      spec.fontVariantLigatures,
+      spec.letterSpacing,
+      spec.textRendering,
+    ),
+  );
+  const featureList = features ?? [];
+  const logicalRecord = spec.webfont == null ? undefined : exactWebfontFeatureRecord(
+    Buffer.from(spec.webfont.dataBase64, "base64"),
+    spec.text,
+    featureList,
+    spec.fontSize,
+  );
   const svg = renderTextAsPath(spec.text, 0, spec.fontSize * 2, {
     fontSize: spec.fontSize, fontFamily: spec.fontFamily,
     fontWeight: String(spec.fontWeight), fill: "#000", fontStyle: spec.fontStyle,
@@ -548,13 +777,9 @@ export function ourShaping(spec: RunSpec): OurShaping {
     // the letter-spacing / optimizeSpeed vetoes enter: they push `-liga`,
     // `-clig` and `-calt`, which is what stops a ligature from forming and
     // therefore what the glyph-count comparison can see.
-    features: mergeFeatureLists(
-      parseFontFeatureSettings(spec.fontFeatureSettings),
-      resolveFontVariantFeatures(undefined, undefined, spec.fontVariantLigatures,
-        spec.letterSpacing, spec.textRendering),
-    ),
+    features,
   });
-  if (svg == null) return { glyphCount: 0, xs: [], ok: false };
+  if (svg == null) return { glyphCount: 0, xs: [], ok: false, featureList, logicalRecord };
   // EVERY `<text>` element, not the first: a run spanning more than one font
   // emits one element per font (`font-family="dmf0"`, `dmf1`, …). Reading only
   // the first made a mixed-font run look truncated — measured on "FIXED → trapped"
@@ -569,8 +794,8 @@ export function ourShaping(spec: RunSpec): OurShaping {
       if (tok !== "" && Number.isFinite(v)) xs.push(v);
     }
   }
-  if (!found) return { glyphCount: 0, xs: [], ok: false };
-  return { glyphCount: xs.length, xs, ok: true };
+  if (!found) return { glyphCount: 0, xs: [], ok: false, featureList, logicalRecord };
+  return { glyphCount: xs.length, xs, ok: true, featureList, logicalRecord };
 }
 
 // ---------------------------------------------------------------------------
@@ -698,6 +923,15 @@ async function main(): Promise<number> {
       "mismatch-count": 0, "mismatch-unrendered": 0,
     };
     const rows: MismatchRow[] = [];
+    const featureValueRecords: Array<{
+      text: string;
+      fontFamily: string;
+      fontVariantAlternates: string;
+      featureList: string[];
+      chromeFaces: string[];
+      chromeCustomFaces: boolean[];
+      logicalRecord: ExactFeatureValueRecord | null;
+    }> = [];
     const routes = new Map<string, number>();
     let allowlisted = 0;
     const posDeltas: number[] = [];
@@ -710,6 +944,17 @@ async function main(): Promise<number> {
         const spec = batch[j];
         const ours = ourShaping(spec);
         const { verdict, maxDelta } = compareShaping(chrome[j], ours, opts.tolerance);
+        if (spec.fontVariantAlternates != null && spec.fontVariantAlternates !== "normal") {
+          featureValueRecords.push({
+            text: spec.text,
+            fontFamily: spec.fontFamily,
+            fontVariantAlternates: spec.fontVariantAlternates,
+            featureList: ours.featureList ?? [],
+            chromeFaces: chrome[j].faces,
+            chromeCustomFaces: chrome[j].customFaces ?? [],
+            logicalRecord: ours.logicalRecord ?? null,
+          });
+        }
         if (verdict.startsWith("mismatch") && allow.has(`${spec.text}\0${spec.fontFamily}`)) {
           allowlisted++;
           continue;
@@ -761,6 +1006,8 @@ async function main(): Promise<number> {
     lines.push(`node splitting     ${corpus.splitWords === true ? "EVERY node on whitespace (--split-words)" : "axis- / feature-bearing nodes only (default)"}`);
     lines.push(`wall               ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     lines.push(`tolerance          ${opts.tolerance}px`);
+    lines.push(`feature values     ${featureValueRecords.length.toLocaleString()} runs; `
+      + `${featureValueRecords.filter((row) => row.logicalRecord != null).length.toLocaleString()} exact webfont records`);
     lines.push("");
     lines.push(`agree exact        ${counts["agree-exact"].toLocaleString()}  ${pct(counts["agree-exact"])}`);
     lines.push(`agree count-only   ${counts["agree-count"].toLocaleString()}  ${pct(counts["agree-count"])}   (same glyph count, comparable positions DIFFER)`);
@@ -800,7 +1047,15 @@ async function main(): Promise<number> {
         sources: corpus.sources, splitWords: corpus.splitWords === true,
         tolerance: opts.tolerance, wallMs: Date.now() - t0,
       },
-      summary: { ...counts, mismatchTotal, allowlisted, distinctRoutes: routes.size },
+      summary: {
+        ...counts,
+        mismatchTotal,
+        allowlisted,
+        distinctRoutes: routes.size,
+        featureValueRuns: featureValueRecords.length,
+        exactFeatureValueRecords: featureValueRecords.filter((row) => row.logicalRecord != null).length,
+      },
+      featureValueRecords,
       topRoutes: [...routes.entries()].sort((a, b) => b[1] - a[1]).slice(0, 200).map(([route, count]) => ({ route, count })),
       mismatches: rows,
     }, null, 2)}\n`);

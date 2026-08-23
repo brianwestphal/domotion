@@ -24,6 +24,7 @@ import { createFontMetrics } from "./font-metrics.js";
 import { createPlaceholderShown } from "./placeholder-shown.js";
 import { createFontFamilyDefault } from "./font-family-default.js";
 import { collectFontFeatureValues } from "./font-feature-values.js";
+import { createFontPaletteResolver } from "./font-palette.js";
 import { createPseudoRules } from "./pseudo-rules.js";
 import { createWarnings } from "./warnings.js";
 import { createCounterStyleResolver } from "./walker/counter-style-resolver.js";
@@ -136,6 +137,7 @@ const captureDocumentTree =
   const { measureFontMetrics: _measureFontMetrics, substituteAliasedFamilies: _substituteAliasedFamilies } = createFontMetrics();
   const { resolvePlaceholderShownBg: _resolvePlaceholderShownBg } = createPlaceholderShown();
   const { familyIsUADefault: _familyIsUADefault } = createFontFamilyDefault();
+  const { resolveFontPalette: _resolveFontPalette } = createFontPaletteResolver();
   const _fontFeatureValuesByDocument = new WeakMap();
   const _fontFeatureValuesFor = (doc) => {
     let tables = _fontFeatureValuesByDocument.get(doc);
@@ -1224,6 +1226,8 @@ const captureDocumentTree =
         // the glyph lookups). The renderer threads it into the per-codepoint
         // resolver and the raster-emoji overlay routing.
         fontVariantEmoji: cs.fontVariantEmoji,
+        fontPalette: cs.fontPalette,
+        fontPaletteIdentity: _resolveFontPalette(el, cs),
         direction: cs.direction,
         // `unicode-bidi` decides whether the characters' OWN bidi types are
         // honored or overridden. `bidi-override` / `isolate-override` tell the

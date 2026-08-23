@@ -168,6 +168,71 @@
           "branch": "validation/dm-2330"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5fankl9jibksqk",
+          "message": {
+            "text": "The raster cache identity now includes every paint-selecting dimension: resolved CPAL base/valid overrides plus the selected physical face path/member, glyph IDs, and representation. The pinned COLR/CPAL browser audit passes in both forward and reverse DOM order with two distinct captured PNGs, each byte-equal to its corresponding Chromium screenshot; no raster tolerance participates.",
+            "markdown": "The raster cache identity now includes every paint-selecting dimension: resolved CPAL base/valid overrides plus the selected physical face path/member, glyph IDs, and representation. The pinned COLR/CPAL browser audit passes in both forward and reverse DOM order with two distinct captured PNGs, each byte-equal to its corresponding Chromium screenshot; no raster tolerance participates."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/emoji.ts"
+                },
+                "region": {
+                  "startLine": 198,
+                  "endLine": 212,
+                  "snippet": {
+                    "text": "type ColorSpanIdentity = { fontKey: string; glyphIds: number[]; representation: string; paletteEntryCount?: number; paletteCount?: number; paletteTypes?: number[] };\nexport function resolvedPaletteIdentity(styles: Pick<CapturedElement[\"styles\"], \"fontPalette\" | \"fontPaletteIdentity\">, span: ColorSpanIdentity) {\n  const source = styles.fontPaletteIdentity ?? { token: styles.fontPalette ?? \"normal\", ruleFamily: null, basePalette: styles.fontPalette ?? \"normal\", overrides: [] };\n  const requested = source.basePalette;\n  const themed = requested === \"light\" ? span.paletteTypes?.findIndex((type) => type === 1) : requested === \"dark\" ? span.paletteTypes?.findIndex((type) => type === 2) : -1;\n  const numeric = /^\\d+$/.test(requested) ? Number(requested) : 0;\n  const resolvedBasePalette = themed != null && themed >= 0 ? themed : numeric < (span.paletteCount ?? Infinity) ? numeric : 0;\n  return { ...source, resolvedBasePalette, overrides: source.overrides.filter((item) => span.paletteEntryCount == null || item.index < span.paletteEntryCount) };\n}\nexport function colorGlyphRasterIdentity(\n  styles: Pick<CapturedElement[\"styles\"], \"fontPalette\" | \"fontPaletteIdentity\">,\n  spans: ColorSpanIdentity[],\n): string {\n  if (spans.length === 0) return JSON.stringify(styles.fontPaletteIdentity ?? { token: styles.fontPalette ?? \"normal\" });\n  return spans.map((span) => `${JSON.stringify(resolvedPaletteIdentity(styles, span))}|${span.fontKey}:${span.glyphIds.join(\",\")}:${span.representation}`).join(\";\");"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 96,
+          "workItemUris": [
+            "DM-2509"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "571ed99cc8587ad368e863f75b81138d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "7a21635debf333c9ff544ddf266c4e694a66e97a",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

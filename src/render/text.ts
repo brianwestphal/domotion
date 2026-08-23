@@ -340,6 +340,8 @@ interface TextDecorationOptions {
   thicknessOverride?: string;
   /** CSS `text-underline-offset` (e.g. `6px` or `auto`). DM-431. */
   underlineOffset?: string;
+  /** Effective CSS zoom applied to absolute decoration lengths. */
+  lengthScale?: number;
   /** CSS `text-underline-position` (`auto` / `from-font` / `under` / `left` /
    *  `right`). DM-1819: horizontal text ignored this entirely, so `under` drew
    *  through the descenders. */
@@ -732,7 +734,7 @@ function renderTextDecoration(opts: TextDecorationOptions): string {
   const m = getDecorationMetrics(
     { fontFamily: mFontFamily, fontSize: mFontSize, fontWeight: mFontWeight, fontStyle: mFontStyle, fontStretch },
     { thicknessOverride, underlineOffsetCss: underlineOffset, underlinePositionCss: underlinePosition,
-      fontAscent: opts.fontAscent, fontDescent: opts.fontDescent });
+      fontAscent: opts.fontAscent, fontDescent: opts.fontDescent, lengthScale: opts.lengthScale });
   const lines: string[] = [];
   const has = (k: string) => textDecorationLine.includes(k);
   // Skip-ink is style-AGNOSTIC in Blink. `TextDecorationPainter` calls
@@ -886,6 +888,7 @@ function renderAppliedTextDecorations(
       // box's too in every case capture can currently represent.
       fontStretch: el.styles.fontStretch,
       thicknessOverride: pd.thickness, underlineOffset: pd.underlineOffset,
+      lengthScale: pd.lengthScale,
       // `PropagatedDecoration` carries no position of its own, so the
       // decorated element's value applies.
       underlinePosition: el.styles.textUnderlinePosition,
@@ -907,6 +910,12 @@ function renderAppliedTextDecorations(
       fontSize: run.fontSize, fontFamily: run.fontFamily, fontWeight: run.fontWeight, fontStyle: el.styles.fontStyle,
       fontStretch: el.styles.fontStretch,
       thicknessOverride: el.styles.textDecorationThickness, underlineOffset: el.styles.textUnderlineOffset,
+      lengthScale: (() => {
+        const logical = parseFloat(el.styles.fontLogicalSize ?? el.styles.fontSize);
+        const effective = parseFloat(el.styles.fontSize);
+        return Number.isFinite(logical) && logical > 0 && Number.isFinite(effective)
+          ? effective / logical : 1;
+      })(),
       underlinePosition: el.styles.textUnderlinePosition,
       runText: run.runText, skipInk: el.styles.textDecorationSkipInk, features: run.features,
       runXOffsets: run.runXOffsets,

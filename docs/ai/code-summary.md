@@ -40,6 +40,20 @@ non-default-axis→default omissions and HarfBuzz's `TRAK.ttf` `ptem=9`→unset
 golden. Schema 3 requires complete expected glyph streams and exactly one
 changed field (`xAdvance`), and distinguishes missing, inert, and unexpectedly
 mutating fixtures without aborting the evidence artifact.
+`tools/shaping-conformance.ts` and
+`tools/shaping-font-feature-values.ts` own doc 204's named-alternate gate:
+they harvest ordinary document-scoped `@font-feature-values` tables, retain a
+single authenticated data-URL webfont, partition synthetic pages by rule/face
+environment, and record the exact resolved feature list plus complete HarfBuzz
+cluster record. The real WPT face exercises stylistic/styleset/character-
+variant/swash/ornaments/annotation against direct-feature and missing-rule
+controls; layered fusion is refused rather than approximated.
+`tools/shaping-unicode-corpus.ts` (doc 205) makes the full ~312,822-run Unicode
+corpus usable: canonical SHA-256 identities drive bounded representative and
+eight-way exhaustive shards, resumable manifests carry doc-120 fingerprints,
+and mismatch reductions retain one ticket-sized example per logical signature.
+The native workflow runs both profiles on macOS, Linux, and Windows without
+changing the shaping oracle's tolerance.
 `tools/pingfang-live-descriptor-oracle.mjs` and its macOS workflow capture the
 otherwise-ephemeral CoreText fallback descriptor, reopen arms, and matching CDP
 font/Range evidence for the PingFang Extension-B discriminator (doc 153).
@@ -195,11 +209,11 @@ shortest possible map:
   gid. `tools/font-palette-ownership-audit.ts` (DM-2350/doc 202) pins a WPT
   COLR/CPAL face, derives expected colors from its source tables, and proves
   normal/theme/named/override/fallback selection at DPR 1/2. Its A/B plus
-  reverse-order full-capture control currently reports
-  `confirmed-palette-identity-gap`: `CapturedStyles` and the emoji screenshot
-  cache omit palette identity, so the first PNG is reused. The selected-glyph
-  Chromium raster boundary remains correct; production closure is follow-up
-  work and must not vectorize COLR paint or add a tolerance.
+  reverse-order full-capture control is now `source-exact`. Capture joins the
+  computed token to its family-matched rule/base/ordered overrides, then adds
+  selected face/gid/representation to the durable record and PNG cache key.
+  Both palette rasters remain byte-equal in either order without vectorizing
+  COLR paint or adding a tolerance.
   `script-iso15924.generated.ts` maps UCD script names to the ISO 15924 tags
   passed to `hb_buffer_set_script` (derived from HarfBuzz's
   `hb-script-list.h`);

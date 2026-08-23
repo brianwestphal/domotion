@@ -2,18 +2,18 @@
  * The shaping oracle's run corpus must not contain a run it cannot sweep
  * faithfully (docs/108).
  *
- * `chromeShaping` synthesizes its probe page with `setContent` and re-declares
- * only the run's font PROPERTIES — no `@font-face` rule travels with it. So a
- * run whose fixture resolved its family through `@font-face` gets shaped on the
- * probe page by whatever the stack falls through to, and our side falls through
- * as well. The two then agree about a font the fixture never painted, which
- * reads as coverage while measuring nothing.
+ * `chromeShaping` can now carry one exact self-contained data-URL face. Local,
+ * remote, file-backed, and multi-face descriptor sets still cannot travel with
+ * a run, so a fixture resolved through one of those sources would be shaped on
+ * the probe page by whatever the stack falls through to. Our side would fall
+ * through as well, and the two could agree about a font the fixture never
+ * painted — apparent coverage that measures nothing.
  *
  * Measured on the fixture corpus's own `@font-face` file (rules that are
  * `src: local(...)` only): the page paints Georgia and Menlo, the probe page
  * paints Times and Courier, and the runs scored 28 agree-exact / 4 agree-count.
  *
- * The extractor therefore drops those nodes. This pins that, and pins it
+ * The extractor therefore drops those unretained nodes. This pins that, and pins it
  * NON-VACUOUSLY: the control fixture is identical except that it declares no
  * `@font-face`, and its run must still be harvested. A test that only asserted
  * the absence would also pass if the extractor stopped harvesting the family
@@ -69,7 +69,7 @@ afterAll(async () => {
   if (dir !== "") rmSync(dir, { recursive: true, force: true });
 });
 
-describe("the run corpus excludes @font-face-resolved families", () => {
+describe("the run corpus excludes unretained @font-face-resolved families", () => {
   it("harvests the run when the family is NOT declared by @font-face", () => {
     // The non-vacuity control. Without this, an extractor that harvested
     // nothing — or that had simply stopped seeing this family — would pass the

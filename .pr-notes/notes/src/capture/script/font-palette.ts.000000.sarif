@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5fanffd2klh0mj",
+          "message": {
+            "text": "Computed style exposes only the requested font-palette token, so capture reconstructs Blink’s rule ownership by joining the CSSOM rule name to the requested family before recording base and ordered overrides. This follows cssfontselector.cc and stylerulefontpalettevalues.cc at Chromium 7d859f27; a same-name rule for another family deliberately collapses to normal.",
+            "markdown": "Computed style exposes only the requested font-palette token, so capture reconstructs Blink’s rule ownership by joining the CSSOM rule name to the requested family before recording base and ordered overrides. This follows css_font_selector.cc and style_rule_font_palette_values.cc at Chromium 7d859f27; a same-name rule for another family deliberately collapses to normal."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/font-palette.ts"
+                },
+                "region": {
+                  "startLine": 3,
+                  "endLine": 44,
+                  "snippet": {
+                    "text": "/**\n * Capture Blink's author-facing palette ownership record. Computed style keeps\n * only the requested token, so named palettes must be joined back to the\n * matching CSSFontPaletteValuesRule and requested family (Chromium\n * css_font_selector.cc:50-74,166-190; style_rule_font_palette_values.cc:43-140).\n */\nexport const createFontPaletteResolver = () => {\n  const cache = new WeakMap();\n  const rulesFor = (doc) => {\n    const hit = cache.get(doc);\n    if (hit != null) return hit;\n    const rows = [];\n    for (const sheet of Array.from(doc.styleSheets ?? [])) {\n      let rules;\n      try { rules = sheet.cssRules; } catch { continue; }\n      for (const rule of Array.from(rules ?? [])) {\n        if (rule.constructor?.name !== \"CSSFontPaletteValuesRule\") continue;\n        rows.push({\n          name: rule.name,\n          fontFamily: rule.fontFamily,\n          basePalette: rule.basePalette,\n          overrideColors: rule.overrideColors,\n        });\n      }\n    }\n    cache.set(doc, rows);\n    return rows;\n  };\n  const families = (value) => value.split(\",\").map((part) => part.trim().replace(/^[\"']|[\"']$/g, \"\").toLowerCase());\n  const resolveFontPalette = (el, cs) => {\n    const token = cs.fontPalette || \"normal\";\n    const record = { token, ruleFamily: null, basePalette: token, overrides: [] };\n    if (!token.startsWith(\"--\")) return record;\n    const requested = families(cs.fontFamily || \"\");\n    const rule = rulesFor(el.ownerDocument).find((row) => row.name === token\n      && families(row.fontFamily || \"\").some((family) => requested.includes(family)));\n    if (rule == null) return { ...record, basePalette: \"normal\" };\n    const overrides = [];\n    const re = /(\\d+)\\s+([^,]+)(?:,|$)/g;\n    let match;\n    while ((match = re.exec(rule.overrideColors || \"\")) != null) overrides.push({ index: Number(match[1]), color: match[2].trim() });\n    return { token, ruleFamily: rule.fontFamily, basePalette: rule.basePalette || \"normal\", overrides };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2509"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "d90a8c58ab0761b1e151105fe94406a0"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "7a21635debf333c9ff544ddf266c4e694a66e97a",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

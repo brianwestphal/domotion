@@ -411,10 +411,10 @@ they describe (see `CLAUDE.md` "Documentation"):
   DM-2350/doc 202 separately audits palette choice within one already selected
   COLR gid. A pinned WPT CPAL fixture produces 22 exact native DPR-1/2 rows for
   normal, theme, named, override, and invalid-rule transitions with no pixel
-  envelope. The production A/B and reverse-order controls confirm that current
-  capture omits resolved `font-palette` identity and reuses the first raster
-  PNG. This is a named partial paint-content state; selected-glyph raster
-  activation remains exact and the investigation makes no production change.
+  envelope. Production now captures the family-matched rule/base/override
+  identity and selected face/gid/representation in the color-glyph cache key.
+  The A/B and reverse-order controls retain two byte-exact PNGs; selected-glyph
+  raster activation remains exact.
 - **Doc 112 (`docs/112-decoration-geometry-oracle.md`, DM-2009)** —
   **Shipped.** `tools/decoration-oracle.ts` (`npm run decorations:oracle`)
   grades text-decoration GEOMETRY against Chrome's paint and Blink's
@@ -424,8 +424,15 @@ they describe (see `CLAUDE.md` "Documentation"):
   `getDecorationMetrics` / `emitDecorationLine` emit Blink's rules exactly —
   fragment-top anchoring on the captured FloatAscent, fs/10 auto thickness,
   gap `max(1, ceil(t/2))` zeroed by an explicit offset, per-style paint snap
-  — and ALL THREE legs pass and gate by default (transcription 106/106,
-  skip-ink/pattern 29/29, rule-vs-SVG 106/106). DM-2501 (doc 200) additionally
+  — and ALL THREE legs pass and gate by default. DM-2345 (doc 207) adds
+  effective-zoom ownership and fingerprinted cross-platform evidence: its
+  `zoom: 1.25` absolute-length discriminator exposed and closed a missing
+  renderer multiplier, and the pinned Linux arm64 run is exact at
+  109/109 transcription, 30/30 skip-ink/pattern, and 109/109 rule-vs-SVG.
+  A Windows DPR-1/4 workflow builds the DirectWrite helper and retains exact
+  fingerprinted reports; vertical writing's separate central-baseline and
+  script-sensitive side transcription is tracked rather than hidden by an
+  envelope. DM-2501 (doc 200) additionally
   binds Chrome paint and Domotion capture to one DPR-qualified Blink fragment
   state: the original Linux arm64 run compared DPR 4 with DPR 1 and produced
   a false uniform `+1px`. Coherent DPR-1/DPR-4 regressions and the native-arm64
@@ -1478,7 +1485,20 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   `"liga" 0` runs that discriminate (12 mismatch-count pre-fix →
   12 agree-exact). Two properties that *are* selection
   inputs — `font-variant-alternates` and `font-variant-emoji`, both in the
-  cache key — remain unextracted by the oracle corpora. The renderer now
+  cache key — are modeled end to end. Doc 204 closes the shaping
+  corpus's named-alternate blind spot: it now harvests ordinary document-scoped
+  `@font-feature-values` aliases, retains one authenticated data-URL webfont,
+  re-emits both into environment-partitioned Chrome probes, and records exact
+  resolved feature lists plus complete HarfBuzz cluster records. A pinned WPT
+  font proves all six named functions against direct-feature and missing-rule
+  mutations without a pixel tolerance; layered/shadow-scoped fusion remains an
+  explicit refusal. Doc 205 extends the shaping evidence to the roughly
+  312,822-run Unicode corpus through deterministic SHA-256 sharding. Pull
+  requests gate a bounded representative profile on macOS/Linux/Windows;
+  scheduled and manual runs cover eight exhaustive shards per platform.
+  Resumable manifests retain full environment/corpus fingerprints and nonzero
+  outcomes, while reductions group logical signatures without allowlisting
+  them or changing a tolerance. The renderer
   models **both** end to end: `font-variant-alternates` captures the computed
   functions plus family-scoped CSSOM `@font-feature-values` aliases and
   resolves Blink's exact `salt`/`ssNN`/`cvNN`/`swsh`+`cswh`/`ornm`/`nalt`/

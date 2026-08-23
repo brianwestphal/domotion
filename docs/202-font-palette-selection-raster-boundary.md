@@ -1,23 +1,23 @@
 # Font-palette selection and raster-boundary investigation
 
-DM-2350 is an investigation, not a production change. It traces the complete
+DM-2350 traces the complete
 `font-palette` ownership chain, replaces a platform-font visual with a pinned
 COLR/CPAL webfont discriminator, and records a reproducible Domotion cache
-identity defect. No pixel tolerance is introduced or changed.
+identity defect; DM-2509 closes that defect. No pixel tolerance is introduced
+or changed.
 
 ## Verdict
 
 Palette selection is a distinct paint identity within an already selected
 face and glyph. Chromium owns the color-glyph paint and Domotion correctly
-keeps that glyph on its browser-raster boundary. Domotion does not currently
-capture the computed/resolved palette identity, however, and
-`src/capture/emoji.ts` keys its raster screenshot cache without palette, face,
-gid, or selected representation. Two copies of the same COLR glyph using two
-different palettes consequently reuse the first screenshot.
+keeps that glyph on its browser-raster boundary. Capture now records the
+computed token and its family-matched `@font-palette-values` rule (base palette
+and ordered overrides). The selected-glyph pass adds face key, glyph IDs, and
+representation to that record and to `src/capture/emoji.ts`'s PNG cache key.
+Two copies of the same COLR glyph using different palettes therefore retain two
+distinct Chromium-owned rasters.
 
-The investigation verdict is therefore
-`confirmed-palette-identity-gap`. It is a successful source diagnosis, not an
-exact production-paint verdict.
+The production verdict is `source-exact` for both DOM orders.
 
 ## Pinned fixture and anti-vacuity
 
@@ -101,31 +101,25 @@ envelope. Mutation tests separately reject a wrong computed token, source gid,
 custom-face flag, glyph count, source colors, inert expected color, CSSOM rule,
 and CSSOM family.
 
-The production discriminator then captures the same gid twice with base 2 and
-base 3, followed by the reversed DOM order. Native screenshots differ in both
-orders. Current Domotion output contains two PNG uses but only one unique PNG;
-reversing the order changes which PNG is duplicated. The captured tree has no
-`fontPalette` fact, the selected representation remains `colr`, and capture
-emits no warning. This order-sensitive first-raster signature isolates the
-cache key and rules out source-table, face-selection, gid-selection, and
-raster-activation explanations.
+The production discriminator captures the same gid twice with base 2 and base
+3, followed by the reversed DOM order. Native screenshots differ in both
+orders. Domotion now contains two PNG uses and two unique PNGs, each byte-equal
+to its corresponding native screenshot regardless of which palette appears
+first. The captured tree retains the resolved palette and selected
+face/gid/`colr` record, and capture emits no warning.
 
 The local DPR-1/2 report has 22/22 native rows exact and both production orders
-at `confirmed-palette-identity-gap`. The three-OS workflow records browser,
+at `source-exact`. The three-OS workflow records browser,
 runner, fixture, and executable fingerprints and uploads lossless source and
 captured PNG/SVG artifacts on every outcome.
 
 ## Required follow-ups
 
-1. **DM-2509** captures a durable palette record: computed token plus resolved
-   rule family, base palette, ordered valid overrides, and selected
-   face/gid/representation. Include that record in color-glyph raster cache
-   identity and retain the A/B plus reverse-order mutation as the regression.
-2. **DM-2510**, after that production fix, promotes this investigation to a
+1. **DM-2510** promotes this investigation to a
    strict macOS/Linux/Windows paint gate. Add a deterministic COLRv1 row to
    cover the all-platform Fontations backend while retaining COLRv0 for the
    Windows DirectWrite split.
-3. Keep `palette-mix()`, palette animation, and Blink's documented shadow-tree
+2. Keep `palette-mix()`, palette animation, and Blink's documented shadow-tree
    palette-rule scoping limitation as later, separately adjudicated work.
 
 The follow-up must not vectorize COLR paint or widen a raster threshold.
