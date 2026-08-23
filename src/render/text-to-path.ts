@@ -3159,7 +3159,7 @@ export function selectedGlyphRasterSpans(
   text: string,
   candidates: Array<{ start: number; end: number }>,
   options: TextFontOptions,
-): Array<{ start: number; end: number; representation: GlyphRasterRepresentation }> {
+): Array<{ start: number; end: number; representation: GlyphRasterRepresentation; fontKey: string; faceId: string; glyphIds: number[]; paletteEntryCount?: number; paletteCount?: number; paletteTypes?: number[] }> {
   if (text.length === 0 || candidates.length === 0) return [];
   const fontSize = options.fontSize;
   const fontFamily = options.fontFamily;
@@ -3176,7 +3176,7 @@ export function selectedGlyphRasterSpans(
     stackPrimaryIsSystemUi(fontFamily, options.lang), stretch,
     options.fontVariantEmoji, fontFamily, options.features,
   );
-  const out: Array<{ start: number; end: number; representation: GlyphRasterRepresentation }> = [];
+  const out: Array<{ start: number; end: number; representation: GlyphRasterRepresentation; fontKey: string; faceId: string; glyphIds: number[]; paletteEntryCount?: number; paletteCount?: number; paletteTypes?: number[] }> = [];
   for (const candidate of candidates) {
     const run = runs.find((r) => candidate.start >= r.startIdx && candidate.start < r.endIdx);
     if (run == null) continue;
@@ -3188,11 +3188,14 @@ export function selectedGlyphRasterSpans(
     const fontWithColr = run.font as FontInstance & {
       COLR?: { baseGlyphRecord?: Array<{ gid: number }> };
       directory?: { tables?: Record<string, unknown> };
+      CPAL?: { numPaletteEntries?: number; numPalettes?: number; offsetPaletteTypeArray?: number[] };
     };
     const representation = glyphs.map((glyph) => glyphRasterRepresentation(
       fontWithColr, run.fontKey, glyph, fontSize, weight, slant,
     )).find((kind) => kind != null);
-    if (representation != null) out.push({ ...candidate, representation });
+    const sourceInfo = getFontSourceInfo(run.font);
+    const faceId = sourceInfo == null ? run.fontKey : `${sourceInfo.path}#${sourceInfo.faceIndex ?? 0}`;
+    if (representation != null) out.push({ ...candidate, representation, fontKey: run.fontKey, faceId, glyphIds: glyphs.map((glyph) => glyph.id), paletteEntryCount: fontWithColr.CPAL?.numPaletteEntries, paletteCount: fontWithColr.CPAL?.numPalettes, paletteTypes: fontWithColr.CPAL?.offsetPaletteTypeArray });
   }
   return out;
 }
