@@ -411,10 +411,10 @@ they describe (see `CLAUDE.md` "Documentation"):
   DM-2350/doc 202 separately audits palette choice within one already selected
   COLR gid. A pinned WPT CPAL fixture produces 22 exact native DPR-1/2 rows for
   normal, theme, named, override, and invalid-rule transitions with no pixel
-  envelope. The production A/B and reverse-order controls confirm that current
-  capture omits resolved `font-palette` identity and reuses the first raster
-  PNG. This is a named partial paint-content state; selected-glyph raster
-  activation remains exact and the investigation makes no production change.
+  envelope. Production now captures the family-matched rule/base/override
+  identity and selected face/gid/representation in the color-glyph cache key.
+  The A/B and reverse-order controls retain two byte-exact PNGs; selected-glyph
+  raster activation remains exact.
 - **Doc 112 (`docs/112-decoration-geometry-oracle.md`, DM-2009)** —
   **Shipped.** `tools/decoration-oracle.ts` (`npm run decorations:oracle`)
   grades text-decoration GEOMETRY against Chrome's paint and Blink's
@@ -1478,7 +1478,20 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   `"liga" 0` runs that discriminate (12 mismatch-count pre-fix →
   12 agree-exact). Two properties that *are* selection
   inputs — `font-variant-alternates` and `font-variant-emoji`, both in the
-  cache key — remain unextracted by the oracle corpora. The renderer now
+  cache key — are modeled end to end. Doc 204 closes the shaping
+  corpus's named-alternate blind spot: it now harvests ordinary document-scoped
+  `@font-feature-values` aliases, retains one authenticated data-URL webfont,
+  re-emits both into environment-partitioned Chrome probes, and records exact
+  resolved feature lists plus complete HarfBuzz cluster records. A pinned WPT
+  font proves all six named functions against direct-feature and missing-rule
+  mutations without a pixel tolerance; layered/shadow-scoped fusion remains an
+  explicit refusal. Doc 205 extends the shaping evidence to the roughly
+  312,822-run Unicode corpus through deterministic SHA-256 sharding. Pull
+  requests gate a bounded representative profile on macOS/Linux/Windows;
+  scheduled and manual runs cover eight exhaustive shards per platform.
+  Resumable manifests retain full environment/corpus fingerprints and nonzero
+  outcomes, while reductions group logical signatures without allowlisting
+  them or changing a tolerance. The renderer
   models **both** end to end: `font-variant-alternates` captures the computed
   functions plus family-scoped CSSOM `@font-feature-values` aliases and
   resolves Blink's exact `salt`/`ssNN`/`cvNN`/`swsh`+`cswh`/`ornm`/`nalt`/

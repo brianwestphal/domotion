@@ -84,6 +84,7 @@
     "fonts:inventory": "node tools/font-inventory.mjs",
     "fonts:shaping": "tsx tools/shaping-conformance.ts",
     "fonts:shaping:runs": "tsx tools/shaping-conformance.ts --extract-runs",
+    "fonts:shaping:unicode": "tsx tools/shaping-unicode-corpus.ts",
     "fonts:shaper-ab": "tsx tools/shape-agreement.ts",
     "fonts:shaping:exact": "tsx tools/exact-shaping-oracle.ts",
     "fonts:shaping:unified": "tsx tools/unified-shaping-oracle.ts",
