@@ -230,9 +230,18 @@ function directWriteVariableFaceEvidence(
       || Object.values(result.resolvedAxes).some((value) => typeof value !== "number" || !Number.isFinite(value))) {
     throw new Error(`DirectWrite identity helper returned incomplete evidence: ${raw}`);
   }
+  const platformResolvedAxes = result.resolvedAxes as Record<string, number>;
+  const resolvedAxes = Object.fromEntries(Object.keys(variationAxes).map((tag) => {
+    const value = platformResolvedAxes[tag];
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new Error(`DirectWrite identity helper omitted requested ${tag} axis: ${raw}`);
+    }
+    return [tag, value];
+  }));
   const evidence: PathsNativeHelperFaceEvidence = {
     postscriptDisplayName: result.postscriptName,
-    resolvedAxes: result.resolvedAxes as Record<string, number>,
+    resolvedAxes,
+    platformResolvedAxes,
     sourceSha256: loaded.sha256,
     faceIndex: result.faceIndex as number,
     helperSha256,
