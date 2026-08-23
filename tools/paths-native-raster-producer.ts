@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { assertCompletePathsRasterMatrix } from "./paths-native-raster-corpus.js";
 import { pathsRasterRowSchema, type PathsRasterRow } from "./paths-native-raster-gate.js";
@@ -63,7 +64,7 @@ function arg(name: string): string {
   return process.argv[index + 1];
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] != null && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const observations = resolve(arg("--observations"));
   const rows = await producePathsRasterRows(JSON.parse(readFileSync(observations, "utf8")), dirname(observations), {
     requireComplete: !process.argv.includes("--allow-partial"),
