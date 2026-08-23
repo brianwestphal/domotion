@@ -62,7 +62,10 @@ After acquisition succeeds, the workflow runs eight independently named legs:
 
 - helper-in-renderer-loop activation;
 - exact ICU classification;
-- a deterministic synthetic-stack font-selection slice;
+- the synthetic corpus's deterministic 351-stack prefix: every CSS-initial
+  generic-family row plus every single-axis weight/stretch/style/spelling/
+  language departure (the corpus's source-defined slice, not a runtime cap on
+  mismatch evidence);
 - exact logical shaping with host movement controls plus pinned, source-owned
   variable-axis and `ptem` applicability rows (doc 199);
 - coherent-DPR decoration geometry with the unchanged source-owned `0.3px`

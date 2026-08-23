@@ -35,6 +35,10 @@ describe("DM-2353 Linux arm64 release parity workflow", () => {
       workflow.indexOf("font-conformance.ts"),
     );
     expect(workflow).toContain("font-conformance-stacks.synthetic.json");
+    // The synthetic corpus defines this prefix as all CSS-initial rows plus
+    // every single-axis departure. Without the cap the release job expands to
+    // all 50,544 stacks; --max-rows limits report examples, not execution.
+    expect(workflow).toContain("--max-stacks 351");
     expect(workflow).toContain("--variable-control-fixture tests/fixtures/variable-axis/variable-axis.html");
     expect(workflow).toContain("--tracking-control-fixture tests/fixtures/exact-shaping/TRAK.ttf.base64");
     expect(workflow).toMatch(/name: Same-DPR decoration geometry oracle[\s\S]*node --import tsx tools\/decoration-oracle\.ts[\s\S]*--json "\$EVIDENCE_DIR\/decoration\.json"/);

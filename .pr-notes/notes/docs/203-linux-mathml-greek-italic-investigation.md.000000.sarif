@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5f31i2qyafs48t",
+          "message": {
+            "text": "The former significant Linux residual is inactive without a threshold change. The pinned noble helper-enabled focused run produced diffPct 0.2705746, 548 scattered changed pixels, zero significant regions, and coveragePct 0; inspection of the emitted SVG found exactly six capture-owned images for the six mi tokens and source paths for the five operators.",
+            "markdown": "The former significant Linux residual is inactive without a threshold change. The pinned noble helper-enabled focused run produced diffPct 0.2705746, 548 scattered changed pixels, zero significant regions, and coveragePct 0; inspection of the emitted SVG found exactly six capture-owned images for the six mi tokens and source paths for the five operators."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/203-linux-mathml-greek-italic-investigation.md"
+                },
+                "region": {
+                  "startLine": 5,
+                  "endLine": 13,
+                  "snippet": {
+                    "text": "The historical `mathml-mi-greek-italic` Linux failure is no longer an active\nfeature-gate failure on the pinned Playwright noble image. A focused\nhelper-enabled run on 2026-08-23 reported `diffPct 0.2705746`, 548 changed\npixels, **zero significant regions**, and `coveragePct 0`; the fixture passed.\nThis does not justify changing a pixel threshold. The generated SVG paints the\nsix `<mi>` tokens as capture-owned raster images and paints the five operators\nas source paths, so the remaining changed pixels are terminal mask differences,\nnot evidence for changing MathML substitution, font fallback, shaping, or\nplacement."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2346"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "451e60bf0df3d72ebc40a386a94ac90b"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "warning",
+          "guid": "mt5f31nggsgmblrt",
+          "message": {
+            "text": "The visual pass is not being promoted to logical proof. The existing Linux oracle fails on its first row because it assumes a paths provenance run; DM-2511 repairs that ownership assumption and DM-2512 adds an independently ratified exact FreeSans cell before this can be called raster-only by the project logical-first standard.",
+            "markdown": "The visual pass is not being promoted to logical proof. The existing Linux oracle fails on its first row because it assumes a paths provenance run; DM-2511 repairs that ownership assumption and DM-2512 adds an independently ratified exact FreeSans cell before this can be called raster-only by the project logical-first standard."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/203-linux-mathml-greek-italic-investigation.md"
+                },
+                "region": {
+                  "startLine": 55,
+                  "endLine": 64,
+                  "snippet": {
+                    "text": "The existing `fonts:mathml-italic` logical oracle cannot yet ratify this Linux\nclassification. On the same image it fails at its first `ascii` row because it\nassumes exactly one paths-provenance run, while Linux reaches the source-owned\nraster boundary and records none. DM-2511 tracks repairing that oracle so face,\nsource bytes, gid, advance, offsets, and transition ownership are proved before\npixels. DM-2512 tracks adding the exact runner FreeSans mathematical-Greek cell\nto the authenticated native/path raster matrix. Until those land, the honest\nclassification is: **the visual residual is inactive and consistent with a\nsource-owned raster terminal; the complete current Linux logical join is not\nyet ratified**."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "risk"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2346"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4ab3edd8654b0a246921319d90afd1f9"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "80f8bece120a65e2ef6ea0aa81ff21516e31097d",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

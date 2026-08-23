@@ -188,16 +188,17 @@ the macOS fixture moves from one region at `diffPct 0.24` to zero regions at
 Blink dictionary; this change only fixes placement after an operator is already
 classified as stretchy.
 
-**Known residual (Linux only, DM-876)**: `mathml-mi-greek-italic` still fails
-~0.41 % on Linux — but it **passes on macOS**, so there is no `msup` / layout
-defect, and CDP confirms both Chromium and the renderer paint its letters with
-**FreeSans** (same face). The residual is small per-glyph shape / anti-aliasing
-differences between domotion's glyph-path emission and Chromium's native
-FreeSans rasterization — most visibly on `𝑟` — i.e. the glyph-path-vs-native
-floor for this lower-quality hinted face, not a font-selection or layout bug.
-Closing it would need a bundled pixel-faithful math font (bundled-fonts work,
-DM-261) or matching Chromium's exact FreeSans `𝑟` glyph/hinting; marginal
-(legible, Linux-only, anti-alias-level).
+**Historical residual (Linux only, re-audited 2026-08-23)**:
+`mathml-mi-greek-italic` formerly failed at ~0.41%. On the current pinned noble
+image a focused helper-enabled run is clean by the region gate (`diffPct
+0.2705746`, 548 scattered changed pixels, zero significant regions). The six
+`<mi>` tokens now retain capture-owned raster overlays when their selected
+outlines reach the source-owned failure boundary; operators remain source
+paths. Therefore the old claim that the live output is a FreeSans SVG-outline
+versus native-mask comparison is stale. The remaining pixels are consistent
+with a terminal raster difference, but the current Linux logical oracle also
+assumes a paths run and fails vacuously; exact face/gid/metric ratification is
+tracked separately. See [doc 203](203-linux-mathml-greek-italic-investigation.md).
 
 ### Windows: superseded by Blink's own hardcoded stage
 
