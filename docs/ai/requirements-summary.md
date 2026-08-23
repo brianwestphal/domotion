@@ -1857,9 +1857,10 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   final terminal plus an active helper-enabled/disabled availability control
   before validating the live Linux token projection. Doc 210 adds a
   separate authenticated Noble FreeSans native/paths/no-hint Linux collector
-  and proposal/validation gate; its envelope remains explicitly unratified
-  until independent runner evidence is reviewed. The 348-cell core and every
-  scalar visual threshold are unchanged.
+  and proposal/validation gate. Independent Linux evidence in workflow run
+  `32628749740` ratifies that terminal raster boundary with distinct boot
+  identities and validation residuals no greater than proposal; the 348-cell
+  core and every scalar visual threshold are unchanged.
 
 <!-- DM-2452 -->
 - The macOS SFNS mask/baseline oracle (doc 168) is diagnostic-only. It routes

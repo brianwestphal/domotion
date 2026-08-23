@@ -91,7 +91,8 @@ the exact Noble FreeSans package and one-file Fontconfig inventory, records
 four live `math-auto` Greek tokens through CDP/source outlines/capture-owned
 baselines, and produces native, production-path, and no-hint PNG arms. Its pure
 token validator is reusable by the MathML logical oracle; its separate envelope
-remains unratified until independent Linux evidence is reviewed.
+is ratified from independent Linux proposal/validation evidence in workflow run
+`32628749740` without changing a scalar threshold.
 
 The same orientation lives in `CLAUDE.md` "Code Organization" but the
 shortest possible map:

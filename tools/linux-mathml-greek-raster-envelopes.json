@@ -1,4 +1,30 @@
 {
   "schemaVersion": 1,
-  "entries": []
+  "entries": [
+    {
+      "cellSha256": "af16295838647da894e71a009aa27b03df56d74478124c39383744ece42d21e5",
+      "fingerprintSha256": "4158b334a1223adb6885bcd880e62d86f087cd2129cdce9389d13e8619bc8045",
+      "proposalHashes": {
+        "native": "5827594d847f87e634e5f66bfabaefa6bcd5ff492b6ca5c4800b85e7ae7d07f7",
+        "paths": "88e123e88cda6801fdd3e60c02f9e7171db3eb48530bb5253e1ffbd445eb6d98",
+        "hintingOff": "b3ba7ef0f52eab85c35341a1036ccb48142253b8cc2d6d51b769d6ae811377ab"
+      },
+      "validationHashes": {
+        "native": "5827594d847f87e634e5f66bfabaefa6bcd5ff492b6ca5c4800b85e7ae7d07f7",
+        "paths": "88e123e88cda6801fdd3e60c02f9e7171db3eb48530bb5253e1ffbd445eb6d98",
+        "hintingOff": "b3ba7ef0f52eab85c35341a1036ccb48142253b8cc2d6d51b769d6ae811377ab"
+      },
+      "maxima": {
+        "changedPixels": 400,
+        "area": 3,
+        "width": 0,
+        "height": 1,
+        "maxEdgeDistance": 1,
+        "severity": 47.75588235294118,
+        "totalChannelDelta": 48711
+      },
+      "reviewer": "Independent proposal/validation artifact review",
+      "reviewedAt": "2026-08-23T08:38:00.000Z"
+    }
+  ]
 }

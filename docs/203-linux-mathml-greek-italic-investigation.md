@@ -1,6 +1,6 @@
 # Linux MathML Greek-italic residual investigation
 
-Status: **Logical oracle repaired; independent raster ratification pending**
+Status: **Logical oracle repaired; Linux raster supplement ratified**
 
 The historical `mathml-mi-greek-italic` Linux failure is no longer an active
 feature-gate failure on the pinned Playwright noble image. A focused
@@ -65,10 +65,12 @@ changes from true to false while preserving those physical facts and the
 captured terminal; the Linux system resolver may retain the same FreeSans
 route because Fontconfig exposes the identical source without the helper.
 
-DM-2512 also implements an isolated Linux supplement for the exact
+Doc 210 also defines an isolated Linux supplement for the exact
 Noble FreeSans package, mathematical-Greek gids/outlines/subsets, captured
 baselines, native/paths PNGs, and an active no-hint control; see doc 210. Its
-checked-in envelope remains deliberately empty until two independent
-`ubuntu-24.04` collections are reviewed. The honest classification is:
-**source/logical collection is implemented without a threshold change, while
-terminal raster ratification remains pending independent Linux evidence**.
+independent `ubuntu-24.04` proposal and validation collections in workflow run
+`32628749740` agreed on every authenticated logical fact and artifact hash, used
+different boot identities, and kept every validation residual within the
+proposal maximum. The reviewed supplemental envelope classifies only this
+terminal FreeType mask boundary as `ratified-rasterization-only`; no feature or
+scalar threshold changed.

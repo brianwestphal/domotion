@@ -1,12 +1,12 @@
 # Linux FreeSans MathML native-raster supplement
 
-Status: **source/logical collector implemented; independent envelope review pending**
+Status: **source/logical exact; independent Linux envelope ratified**
 
-DM-2512 adds one Linux-only, source-owned `mathml-mi-greek-italic` cell beside
+This supplement adds one Linux-only, source-owned `mathml-mi-greek-italic` cell beside
 the ratified paths/native-raster floor. It does not add a seventh technology to
 the existing corpus: the six-technology matrix remains exactly 348 cells per
 run, and `tools/paths-native-raster-envelopes.json` is unchanged. The new cell
-has its own contract, collector, lossless artifacts, gate, empty envelope file,
+has its own contract, collector, lossless artifacts, gate, reviewed envelope,
 and proposal/validation workflow.
 
 ## Authenticated source and logical ownership
@@ -69,9 +69,17 @@ and records a hashed Linux boot identity to prove they are independent. An
 unreviewed but exact pair produces `logical-exact-unratified` plus a candidate
 envelope. Ratification requires the exact two role-hash sets, complete
 environment fingerprint, canonical cell hash, reviewed proposal maxima, and
-validation no greater than proposal in every scalar residual dimension. The
-checked-in supplemental envelope is intentionally empty until that independent
-collection and human review occur.
+validation no greater than proposal in every scalar residual dimension.
+
+Workflow run `32628749740` supplied that independent pair with distinct boot
+identities. Both roles produced the same authenticated native, paths, and
+no-hint artifact hashes; every validation residual was no greater than its
+proposal value. The reviewed envelope is keyed by canonical cell SHA-256
+`af16295838647da894e71a009aa27b03df56d74478124c39383744ece42d21e5`
+and environment fingerprint SHA-256
+`4158b334a1223adb6885bcd880e62d86f087cd2129cdce9389d13e8619bc8045`.
+The strict aggregate returns `ratified-rasterization-only`. No global percentage
+or scalar threshold changed.
 
 ## Source boundary
 
