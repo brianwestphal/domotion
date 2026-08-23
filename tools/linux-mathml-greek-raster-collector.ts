@@ -1,5 +1,5 @@
 #!/usr/bin/env tsx
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { arch, platform, release } from "node:os";
@@ -109,7 +109,13 @@ function isolatedFontconfig(fontBytes: Buffer, fontSource: string, artifactDir: 
   const configPath = resolve(root, "fonts.conf"); writeFileSync(configPath, config);
   const env = { ...process.env, FONTCONFIG_FILE: configPath, FONTCONFIG_PATH: root };
   execFileSync("fc-cache", ["-f", fontDir], { env, stdio: "pipe" });
-  const version = execFileSync("fc-list", ["--version"], { env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+  // Fontconfig writes its version to stderr on Ubuntu Noble even though the
+  // command succeeds. Authenticate the non-empty combined stream rather than
+  // silently recording an empty fingerprint from stdout alone.
+  const versionResult = spawnSync("fc-list", ["--version"], { env, encoding: "utf8" });
+  if (versionResult.status !== 0) throw new Error(`fc-list --version failed: ${versionResult.stderr}`);
+  const version = `${versionResult.stdout}${versionResult.stderr}`.trim();
+  if (version.length === 0) throw new Error("fc-list --version returned no fingerprint");
   const lines = execFileSync("fc-list", ["-f", "%{file}\t%{family[0]}\t%{postscriptname}\t%{index}\n"], { env, encoding: "utf8" })
     .split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   if (lines.length !== 1) throw new Error(`isolated Fontconfig inventory has ${lines.length} entries, expected one: ${JSON.stringify(lines)}`);
