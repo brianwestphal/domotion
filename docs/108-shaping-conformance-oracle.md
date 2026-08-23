@@ -22,11 +22,11 @@ It also gates the shaping work: replacing fontkit's `layout()` with harfbuzzjs a
 | | source |
 | --- | --- |
 | **Chrome** | CDP `CSS.getPlatformFontsForNode` → glyph count per face; `Range.getClientRects()` per source character → geometry |
-| **Ours** | the `<text x="x0 x1 …">` list `renderTextAsPath` emits — one entry per glyph we actually paint, at the x we paint it |
+| **Ours** | production-selected run provenance before paint suppression → logical gids/clusters/source spans/count; the `<text x="x0 x1 …">` list remains the painted-origin leg |
 
-**Neither side exposes glyph IDs.** There is no glyph-level CDP domain (checked against `Schema.getDomains`), and `getPlatformFontsForNode` carries only `familyName` / `postScriptName` / `isCustomFont` / `glyphCount`. So this compares what both sides *do* expose — which is strictly more than the face oracle, and enough for the classes above: a ligature that fails to form changes the count, and a mark attached wrong changes a position.
+**CDP does not expose glyph IDs.** There is no glyph-level CDP domain (checked against `Schema.getDomains`), and `getPlatformFontsForNode` carries only `familyName` / `postScriptName` / `isCustomFont` / `glyphCount`. Domotion's side records the exact gid/cluster/source span from the production-selected concrete face. For a standalone default-ignorable, a fail-closed source-equivalent control additionally requires that gid to equal the selected face's U+0020 gid, with zero advance and offsets, matching pinned HarfBuzz's `hb_ot_hide_default_ignorables` branch.
 
-Our side is read back off the renderer's **real output** rather than from a fresh shaping call. That is deliberate: the face oracle's own instrument bug was asking a different question than the renderer asks (`resolveFontSpec` vs `getFontInstance`), and reading the emitted markup makes that class of divergence impossible here.
+Our side still comes from the renderer's **real production route**, not a parallel resolver: opt-in provenance records selected runs before the paint-only inkless filter, and emitted markup supplies painted positions. When embedded emission declines to paths, only the terminal paths record is counted, so the retry cannot duplicate the logical stream.
 
 ## Tiers
 
@@ -231,7 +231,7 @@ Two controls first, because the comparison is worthless without them. The split 
 - **509 new `agree-count-clustered`** rows, whose positions are unchecked by construction.
 - **6 new `mismatch-count`** rows across 5 routes the default corpus never sees — and **all six are instrument artifacts, not shaping defects.**
 
-That last point is the finding, and it is what settles the question. The six are `de{U+00AD}spite`, `hand{U+00AD}ling`, `prov{U+00AD}a{U+00AD}tion`, `situa{U+00AD}tion`, `{U+202E}ABCDEFG{U+202C}` and `{U+202D}ABCDEFG{U+202C}` — every one a **Unicode default-ignorable** that Chrome counts a glyph for and we correctly paint nothing for. HarfBuzz retains rather than deletes them: unless `HB_BUFFER_FLAG_REMOVE_DEFAULT_IGNORABLES` is set, `hb_ot_hide_default_ignorables` *replaces* each with a **zero-advance invisible glyph** (`hb-ot-shape.cc:824-847`, checkout `4de187d`), and Blink never calls `hb_buffer_set_flags` at all, so the default applies. Confirmed by probe rather than by reading alone:
+That last point exposed an oracle boundary later closed by DM-2521. The six are `de{U+00AD}spite`, `hand{U+00AD}ling`, `prov{U+00AD}a{U+00AD}tion`, `situa{U+00AD}tion`, `{U+202E}ABCDEFG{U+202C}` and `{U+202D}ABCDEFG{U+202C}` — every one a **Unicode default-ignorable** that Chrome counts logically while both renderers correctly paint nothing. HarfBuzz retains rather than deletes them: unless `HB_BUFFER_FLAG_REMOVE_DEFAULT_IGNORABLES` is set, `hb_ot_hide_default_ignorables` *replaces* each with a **zero-advance invisible glyph** (`hb-ot-shape.cc:824-847`, checkout `4de187d`), and Blink never calls `hb_buffer_set_flags` at all, so the default applies. The oracle formerly equated an absent painted `<text x>` entry with an absent logical glyph; it now counts production provenance and keeps paint suppression separate. Confirmed by probe rather than by reading alone:
 
 | run | Chrome glyphs | ink width |
 | --- | ---: | ---: |
@@ -240,7 +240,7 @@ That last point is the finding, and it is what settles the question. The six are
 | `ABCDEFG` | 7 | 67.69 |
 | `{U+202E}ABCDEFG{U+202C}` | 9 | **67.69** |
 
-The extra glyphs sit at width 0 on the same x as their neighbor, and the painted ink is identical. This is precisely the disagreement the whitespace-free rule was invented to exclude — Chrome counts an invisible glyph, we emit no position — leaking back in through a filter whose `/\s/` test does not match default-ignorables. It is **latent, not live**: the default corpus holds exactly one ignorable-bearing run (`☁️`, whose U+FE0F is consumed into the emoji presentation) and that run's `mismatch-unrendered` is a genuine finding, so a blanket ignorable exclusion would *hide* a real result and is deliberately not applied.
+The extra glyphs sit at width 0 on the same x as their neighbor, and the painted ink is identical. They are now ordinary logical rows rather than excluded artifacts. A blanket ignorable exclusion remains forbidden because selectors attached to a base participate in presentation and fallback.
 
 **Decision: declined.** A 7.6× longer sweep buys 97.23% restatement, a position tier tighter than the one already reported, and six mismatches that are artifacts of the filter's own known blind spot rather than defects. The switch stays so the measurement can be re-run when the fixture corpus changes character.
 

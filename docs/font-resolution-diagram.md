@@ -62,7 +62,7 @@ flowchart TD
 
   subgraph REN["Render time — src/render/text.ts → text-to-path.ts"]
     B0["renderTextAsPath(text, ...)<br/>(one call per text segment)"] --> B1{"currentRenderTextMode"}
-    B1 -->|"embedded-font (DEFAULT)"| B2["splitTextIntoFontRuns()<br/>→ splitTextIntoFontRunsShaped() (cluster-fallback.ts, DEFAULT)<br/>shape-then-requeue at shaped-cluster granularity (docs/113):<br/>segmentForShaping independently computes bidi/script and<br/>SymbolsIterator source-priority ranges, intersects by min end,<br/>then per item hb-shapes queued ranges with full-text context +<br/>resolved features and requeues only .notdef clusters;<br/>font-variant-emoji applies after the source split and declared<br/>families stay before the one-shot priority face.<br/>resolveFontForCodepoint = kSystemFonts, asked for<br/>ChooseHintIndex once per hint. Dotted circles + canonical<br/>decomposition belong to the selected candidate shape; source<br/>text is never pre-committed. An unopenable candidate stays<br/>queued (no legacy restart). Assembly never merges across a<br/>shaping item and carries its resolved direction + ISO script.<br/>→ harfbuzzShapedRunOverride() per assembled run<br/>(ALL runs when glyph + pinned-ICU companions validate;<br/>outlines stay with the base engine).<br/>DOMOTION_CLUSTER_FALLBACK=0 → explicit degraded legacy walk.<br/>→ layout(run.text, …, run.shapingScript, …)<br/>→ trackGlyphInEmbedFont()<br/>subset TTF + &lt;text&gt; w/ PUA cps"]
+    B1 -->|"embedded-font (DEFAULT)"| B2["splitTextIntoFontRuns()<br/>→ splitTextIntoFontRunsShaped() (cluster-fallback.ts, DEFAULT)<br/>shape-then-requeue at shaped-cluster granularity (docs/113):<br/>segmentForShaping independently computes bidi/script<br/>(primary Script from Chromium-pinned ICU; helper-absent<br/>unicode-properties is best-effort only) and SymbolsIterator<br/>source-priority ranges, intersects by min end, then per item<br/>hb-shapes queued ranges with full-text context + resolved<br/>features and requeues only .notdef clusters;<br/>font-variant-emoji applies after the source split and declared<br/>families stay before the one-shot priority face.<br/>resolveFontForCodepoint = kSystemFonts, asked for<br/>ChooseHintIndex once per hint (also pinned-ICU Script).<br/>Dotted circles + canonical decomposition belong to the selected<br/>candidate shape; source text is never pre-committed. An<br/>unopenable candidate stays queued (no legacy restart). Assembly<br/>never merges across a shaping item and carries its resolved<br/>direction + ISO script.<br/>→ harfbuzzShapedRunOverride() per assembled run<br/>(ALL runs when glyph + pinned-ICU companions validate;<br/>outlines stay with the base engine).<br/>DOMOTION_CLUSTER_FALLBACK=0 → explicit degraded legacy walk.<br/>→ layout(run.text, …, run.shapingScript, …)<br/>→ trackGlyphInEmbedFont()<br/>subset TTF + &lt;text&gt; w/ PUA cps"]
     B1 -->|"paths"| B3["textToPathMarkup()<br/>→ splitTextIntoGlyphPathRuns()<br/>→ splitTextIntoFontRunsShaped(…, mode:'paths') (SAME splitter, DEFAULT)<br/>raster emoji follow the ordinary Chromium face/terminal;<br/>the captured image overlay owns paint only<br/>+ authored source range preserved through selected shaping<br/>+ shaping-item boundary/direction preserved like embedded mode<br/>+ harfbuzzShapedRunOverride() per assembled run (same as embedded).<br/>DOMOTION_CLUSTER_FALLBACK=0 → explicit legacy per-cp walk.<br/>→ per-glyph &lt;path&gt;/&lt;use&gt; defs<br/>(ensureGlyphDef registry)"]
     B2 --> C0
     B3 --> C0
@@ -2595,6 +2595,15 @@ same-face assembly and writes its resolved direction to
 `FontRun.shapingScript`; the embedded, unanchored-path, provenance, and ink
 metric consumers use those values directly. Legacy per-codepoint runs do not
 carry the fields and retain the source lookup fallback.
+
+The RunSegmenter primary Script property comes from one batched
+`queryIcuCodepoints` call over the text item, matching Blink's
+`uscript_getScript` source. `unicode-properties` is consulted only if the
+pinned companion cannot answer. This ordering is load-bearing for scripts
+added after that dependency's Unicode table: Gukh / Tutg / Diak select
+HarfBuzz's USE machinery, while the stale `Zyyy` mutation produces a different
+glyph stream. Blink's Katakana-to-Hiragana normalization is applied before the
+merge-set walk as well (`script_run_iterator.cc:26-35`).
 
 The paths branch with per-character anchors still slices the whole-line level
 array to each run (`bidiLevels.subarray(run.startIdx, run.endIdx)`) before its

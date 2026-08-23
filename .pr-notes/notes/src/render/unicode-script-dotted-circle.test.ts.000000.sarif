@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5jgutvdp6yaqdt",
+          "message": {
+            "text": "The logical oracle discriminates both upstream gates and every required record field. Production-selected Arial Unicode MS yields exact gid, cluster, UTF-16 span, and codepoint span records; forcing Zyyy or removing the selected face nominal U+25CC independently collapses each target to one gid-zero glyph. The focused gate passed 66 of 66 tests, and the five-scalar Playwright rerun at the unchanged 0.5 tolerance matched Chromium counts 2, 1, 2, 2, 2 exactly.",
+            "markdown": "The logical oracle discriminates both upstream gates and every required record field. Production-selected Arial Unicode MS yields exact gid, cluster, UTF-16 span, and codepoint span records; forcing Zyyy or removing the selected face nominal U+25CC independently collapses each target to one gid-zero glyph. The focused gate passed 66 of 66 tests, and the five-scalar Playwright rerun at the unchanged 0.5 tolerance matched Chromium counts 2, 1, 2, 2, 2 exactly."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/unicode-script-dotted-circle.test.ts"
+                },
+                "region": {
+                  "startLine": 113,
+                  "endLine": 157,
+                  "snippet": {
+                    "text": "  it.each(CASES)(\"emits exact gid/cluster/source spans for U+$cp\", ({ cp, script, ids, width }) => {\n    const run = renderRecord(cp);\n    const expected = expectedGlyphs(ids, width);\n    const actual = exactGlyphs(run.glyphs);\n    expect(run).toMatchObject({\n      sourceText: String.fromCodePoint(cp),\n      sourceSpan: [0, width],\n      sourceCodepointSpan: [0, 1],\n      mechanism: \"first-candidate-notdef\",\n      request: { script, direction: \"ltr\" },\n      selected: { shapesWithHarfbuzz: true },\n    });\n    expect(actual).toEqual(expected);\n\n    // Negative controls prove the oracle is sensitive to each logical field,\n    // rather than merely reasserting the two-glyph count from CDP.\n    const gidMutation = structuredClone(actual);\n    gidMutation[0].id = gidMutation[0].id === 0 ? 1 : 0;\n    expect(gidMutation).not.toEqual(expected);\n    const clusterMutation = structuredClone(actual);\n    clusterMutation[0].cluster = 1;\n    expect(clusterMutation).not.toEqual(expected);\n    const spanMutation = structuredClone(actual);\n    spanMutation[0].sourceSpan = [0, width === 1 ? 2 : 1];\n    expect(spanMutation).not.toEqual(expected);\n  });\n\n  it.each(CASES)(\"loses the inserted glyph under the stale Zyyy-script mutation for U+$cp\", ({ cp, ids, width }) => {\n    const text = String.fromCodePoint(cp);\n    const mutated = harfbuzzShapeRun(ARIAL_UNICODE, 0, text, \"ltr\", 32, null, undefined, { script: \"Zyyy\" });\n    expect(mutated).not.toBeNull();\n    const logical = mutated!.glyphs.map((glyph, index) => ({\n      id: glyph.id,\n      cluster: mutated!.clusters[index],\n      sourceSpan: [0, width] as [number, number],\n      sourceCodepointSpan: [0, 1] as [number, number],\n    }));\n    expect(logical).toEqual(expectedGlyphs([0], width));\n    expect(logical).not.toEqual(expectedGlyphs(ids, width));\n  });\n\n  it.each(CASES)(\"loses the inserted glyph when the selected face has no nominal U+25CC for U+$cp\", ({ cp, width }) => {\n    const run = renderRecord(cp, NO_CIRCLE_FAMILY);\n    expect(exactGlyphs(run.glyphs)).toEqual(expectedGlyphs([0], width));\n  });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/script-segmentation.ts"
+                },
+                "region": {
+                  "startLine": 112
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/144-dotted-circle-shaping-evidence.md"
+                },
+                "region": {
+                  "startLine": 83
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2522"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "57cfb2c9696a07d11f59ffee8696b7a4"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "42186d0f08d1c434c91fbd9a3987b1db902bb9ba",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

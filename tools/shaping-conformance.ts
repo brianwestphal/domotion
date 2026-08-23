@@ -12,8 +12,9 @@
  *   Chrome's answer  CDP `CSS.getPlatformFontsForNode` glyph counts (how many
  *                    glyphs Chrome's HarfBuzz produced, per face) plus the
  *                    per-source-character geometry from `Range.getClientRects()`.
- *   Our answer       the `<text x="…">` position list `renderTextAsPath` emits —
- *                    one entry per glyph we actually paint, at the x we paint it.
+ *   Our answer       production selected-run provenance for logical glyph count
+ *                    and identity, joined to the `<text x="…">` positions
+ *                    `renderTextAsPath` actually paints.
  *
  * Neither side exposes glyph IDs: there is no glyph-level CDP domain, and
  * `getPlatformFontsForNode` carries only familyName / postScriptName /
@@ -54,10 +55,19 @@ import { renderTextAsPath } from "../src/render/text-to-path.js";
 import {
   clearFontResolutionCaches, registerWebfont,
 } from "../src/render/font-resolution.js";
+import { harfbuzzGlyphQuery } from "../src/render/harfbuzz-shaper.js";
 import {
   parseFontFeatureSettings, parseFontVariationSettings, resolveFontVariantFeatures,
   mergeFeatureLists,
 } from "../src/render/text.js";
+import {
+  getTextRunProvenance,
+  resetTextRunProvenance,
+  setTextRunProvenanceEnabled,
+  textRunProvenanceEnabled,
+  type TextRunProvenanceDiagnostic,
+} from "../src/render/text-run-provenance.js";
+import { isHarfbuzzDefaultIgnorable } from "../src/render/unicode-classification.js";
 import {
   exactWebfontFeatureRecord,
   resolvedFeatureValueList,
@@ -242,7 +252,7 @@ interface ChromeShaping {
 }
 
 /** What we did with the same run. */
-interface OurShaping {
+export interface OurShaping {
   glyphCount: number;
   xs: number[];
   /** null when the renderer declined the run (no resolvable font). */
@@ -251,6 +261,67 @@ interface OurShaping {
   featureList?: string[];
   /** Complete pre-raster logical record for a retained webfont run. */
   logicalRecord?: ExactFeatureValueRecord;
+  /** The terminal production emitter's pre-paint glyph stream. Inkless glyphs
+   * remain here even when final SVG paint correctly contains no outline. */
+  logicalGlyphs: TextRunProvenanceDiagnostic["glyphs"];
+  logicalRuns: TextRunProvenanceDiagnostic[];
+}
+
+/** Fail-closed source-equivalent control for the standalone default-ignorable
+ * rows. CDP exposes the count and selected face but not gids; the gid oracle is
+ * therefore the pinned HarfBuzz nominal-space lookup on those selected bytes. */
+export function assertStandaloneDefaultIgnorableRecord(
+  text: string,
+  logicalRuns: TextRunProvenanceDiagnostic[],
+): void {
+  const scalars = [...text];
+  if (scalars.length !== 1 || !isHarfbuzzDefaultIgnorable(scalars[0].codePointAt(0)!)) return;
+  if (logicalRuns.length !== 1) throw new Error(`standalone default-ignorable produced ${logicalRuns.length} terminal runs`);
+  const run = logicalRuns[0];
+  if (run.sourceText !== text || run.emittedText !== text
+      || JSON.stringify(run.sourceSpan) !== JSON.stringify([0, text.length])
+      || JSON.stringify(run.sourceCodepointSpan) !== "[0,1]"
+      || run.selected.shapesWithHarfbuzz !== true) {
+    throw new Error(`standalone default-ignorable scalar/run record disagrees with source: ${JSON.stringify(run)}`);
+  }
+  const path = run.selected.sourcePath;
+  const member = run.selected.faceIndex;
+  if (path == null || member == null) throw new Error("standalone default-ignorable selected no source face");
+  const expectedGid = harfbuzzGlyphQuery(path, member)?.nominalGlyph(0x20) ?? 0;
+  // HarfBuzz deletes the ignorable when the selected face has no invisible or
+  // U+0020 glyph. That is the other source-owned branch, not an omission.
+  if (expectedGid === 0) {
+    if (run.glyphs.length !== 0) throw new Error("standalone default-ignorable face lacks U+0020 but retained a glyph");
+    return;
+  }
+  if (run.glyphs.length !== 1) throw new Error(`standalone default-ignorable produced ${run.glyphs.length} logical glyphs`);
+  const glyph = run.glyphs[0];
+  const expectedSpan: [number, number] = [0, text.length];
+  if (glyph.id !== expectedGid
+      || JSON.stringify(glyph.sourceSpan) !== JSON.stringify(expectedSpan)
+      || JSON.stringify(glyph.sourceCodepointSpan) !== "[0,1]"
+      || glyph.cluster !== 0
+      || glyph.xAdvance !== 0 || glyph.yAdvance !== 0
+      || glyph.xOffset !== 0 || glyph.yOffset !== 0
+      || glyph.sourceOutline !== null) {
+    throw new Error(`standalone default-ignorable logical record disagrees with HarfBuzz source: ${JSON.stringify(glyph)}`);
+  }
+}
+
+export function assertStandaloneDefaultIgnorableFace(
+  text: string,
+  logicalRuns: TextRunProvenanceDiagnostic[],
+  chromeFaces: string[],
+): void {
+  const scalars = [...text];
+  if (scalars.length !== 1 || !isHarfbuzzDefaultIgnorable(scalars[0].codePointAt(0)!)) return;
+  const normalize = (value: string): string => value.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const selected = logicalRuns[0]?.selected.instantiatedPostscriptName
+    ?? logicalRuns[0]?.selected.postscriptName;
+  const chrome = chromeFaces.map((face) => face.replace(/×\d+$/, ""));
+  if (selected == null || !chrome.some((face) => normalize(face) === normalize(selected))) {
+    throw new Error(`standalone default-ignorable selected face ${selected ?? "(none)"} != Chromium ${chrome.join(",") || "(none)"}`);
+  }
 }
 
 type Verdict =
@@ -708,15 +779,9 @@ export async function chromeShaping(page: import("@playwright/test").Page, specs
 /** Registration is modeled state; keep one retained face per exact declaration. */
 const installedRunWebfonts = new Set<string>();
 
-/**
- * The glyphs the renderer actually emits, read back off its own output.
- *
- * `renderTextAsPath` emits `<text x="x0 x1 x2 …">` with ONE entry per painted
- * glyph, so the list length is our glyph count and the entries are our glyph
- * positions. Reading the real output rather than re-running a shaping call is
- * deliberate: the face oracle's own instrument bug was asking a different
- * question than the renderer asks (`resolveFontSpec` vs `getFontInstance`).
- */
+/** The renderer's production-selected logical glyphs plus its painted origins.
+ * The split is intentional: HarfBuzz retains hidden default-ignorables as
+ * zero-advance space glyphs, while SVG correctly emits no ink for them. */
 export function ourShaping(spec: RunSpec): OurShaping {
   if (spec.webfont != null) {
     const face = spec.webfont;
@@ -754,9 +819,15 @@ export function ourShaping(spec: RunSpec): OurShaping {
     featureList,
     spec.fontSize,
   );
-  const svg = renderTextAsPath(spec.text, 0, spec.fontSize * 2, {
-    fontSize: spec.fontSize, fontFamily: spec.fontFamily,
-    fontWeight: String(spec.fontWeight), fill: "#000", fontStyle: spec.fontStyle,
+  const provenanceWasEnabled = textRunProvenanceEnabled();
+  resetTextRunProvenance();
+  setTextRunProvenanceEnabled(true);
+  let svg: string | null;
+  let provenance: ReturnType<typeof getTextRunProvenance>;
+  try {
+    svg = renderTextAsPath(spec.text, 0, spec.fontSize * 2, {
+      fontSize: spec.fontSize, fontFamily: spec.fontFamily,
+      fontWeight: String(spec.fontWeight), fill: "#000", fontStyle: spec.fontStyle,
     // The run's axis location, parsed with the SAME function the renderer uses
     // on a real capture (`src/render/text.ts`), so the oracle exercises the
     // shipped parse rather than a second one that could drift from it.
@@ -777,9 +848,25 @@ export function ourShaping(spec: RunSpec): OurShaping {
     // the letter-spacing / optimizeSpeed vetoes enter: they push `-liga`,
     // `-clig` and `-calt`, which is what stops a ligature from forming and
     // therefore what the glyph-count comparison can see.
-    features,
-  });
-  if (svg == null) return { glyphCount: 0, xs: [], ok: false, featureList, logicalRecord };
+      features,
+    });
+    provenance = getTextRunProvenance();
+  } finally {
+    setTextRunProvenanceEnabled(provenanceWasEnabled);
+    resetTextRunProvenance();
+  }
+  // A classified embedded decline retries the same selected runs through the
+  // paths emitter. Count only that terminal attempt; otherwise every fallback
+  // would duplicate the logical glyph stream. This is the renderer's real
+  // selected/shaped record, captured before the paint-only inkless filter.
+  const terminalEmitter = provenance.runs.some((run) => run.emitter === "paths")
+    ? "paths" : "embedded-font";
+  const logicalGlyphs = provenance.runs
+    .filter((run) => run.emitter === terminalEmitter)
+    .flatMap((run) => run.glyphs);
+  const logicalRuns = provenance.runs.filter((run) => run.emitter === terminalEmitter);
+  assertStandaloneDefaultIgnorableRecord(spec.text, logicalRuns);
+  if (svg == null) return { glyphCount: logicalGlyphs.length, xs: [], ok: logicalGlyphs.length > 0, featureList, logicalRecord, logicalGlyphs, logicalRuns };
   // EVERY `<text>` element, not the first: a run spanning more than one font
   // emits one element per font (`font-family="dmf0"`, `dmf1`, …). Reading only
   // the first made a mixed-font run look truncated — measured on "FIXED → trapped"
@@ -794,8 +881,24 @@ export function ourShaping(spec: RunSpec): OurShaping {
       if (tok !== "" && Number.isFinite(v)) xs.push(v);
     }
   }
-  if (!found) return { glyphCount: 0, xs: [], ok: false, featureList, logicalRecord };
-  return { glyphCount: xs.length, xs, ok: true, featureList, logicalRecord };
+  // Blink/CDP counts hidden default-ignorables as logical glyphs even though
+  // HarfBuzz gives them no ink and zero advance. When the complete terminal
+  // stream is such a zero vector, its exact origins are all the run origin;
+  // retain those logical positions without forcing empty glyphs into SVG.
+  const logicalXs = logicalGlyphs.length > 0
+    && logicalGlyphs.every((glyph) => glyph.xAdvance === 0 && glyph.yAdvance === 0
+      && glyph.xOffset === 0 && glyph.yOffset === 0)
+    ? logicalGlyphs.map(() => 0)
+    : xs;
+  return {
+    glyphCount: logicalGlyphs.length,
+    xs: logicalXs,
+    ok: found || logicalGlyphs.length > 0,
+    featureList,
+    logicalRecord,
+    logicalGlyphs,
+    logicalRuns,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -932,6 +1035,13 @@ async function main(): Promise<number> {
       chromeCustomFaces: boolean[];
       logicalRecord: ExactFeatureValueRecord | null;
     }> = [];
+    const defaultIgnorableRecords: Array<{
+      scalars: number[];
+      utf16Span: [number, number];
+      chromeGlyphs: number;
+      chromeFaces: string[];
+      logicalRuns: TextRunProvenanceDiagnostic[];
+    }> = [];
     const routes = new Map<string, number>();
     let allowlisted = 0;
     const posDeltas: number[] = [];
@@ -943,7 +1053,18 @@ async function main(): Promise<number> {
       for (let j = 0; j < batch.length; j++) {
         const spec = batch[j];
         const ours = ourShaping(spec);
+        assertStandaloneDefaultIgnorableFace(spec.text, ours.logicalRuns, chrome[j].faces);
         const { verdict, maxDelta } = compareShaping(chrome[j], ours, opts.tolerance);
+        const scalars = [...spec.text].map((character) => character.codePointAt(0)!);
+        if (scalars.length > 0 && scalars.every(isHarfbuzzDefaultIgnorable)) {
+          defaultIgnorableRecords.push({
+            scalars,
+            utf16Span: [0, spec.text.length],
+            chromeGlyphs: chrome[j].glyphCount,
+            chromeFaces: chrome[j].faces,
+            logicalRuns: ours.logicalRuns,
+          });
+        }
         if (spec.fontVariantAlternates != null && spec.fontVariantAlternates !== "normal") {
           featureValueRecords.push({
             text: spec.text,
@@ -1056,6 +1177,7 @@ async function main(): Promise<number> {
         exactFeatureValueRecords: featureValueRecords.filter((row) => row.logicalRecord != null).length,
       },
       featureValueRecords,
+      defaultIgnorableRecords,
       topRoutes: [...routes.entries()].sort((a, b) => b[1] - a[1]).slice(0, 200).map(([route, count]) => ({ route, count })),
       mismatches: rows,
     }, null, 2)}\n`);

@@ -4,8 +4,8 @@
 // (incl. `-webkit-` prefix) and routes the mask source into one of three
 // emission paths:
 //
-//   1. Same-document fragment ref (`mask-image: url("#id")`) — collected
-//      into the `maskDefs` map keyed by id; the renderer emits the
+//   1. TreeScope-local fragment ref (`mask-image: url("#id")`) — collected
+//      into the `maskDefs` map keyed by `(scope,id)`; the renderer emits the
 //      referenced inline `<mask>` element's outerHTML into the output SVG.
 //
 //   2. Same-document element ref (`mask-image: element(#id)`) — the
@@ -24,10 +24,10 @@
 //      here they look like case 1; a warning here means that pre-pass couldn't
 //      resolve it (fetch failed / non-http / missing fragment).
 //
-// The pass-through CSS mask properties (mask, maskImage, maskMode,
-// maskSize, maskPosition, maskRepeat, maskComposite) live in the captured
-// style sub-object and are emitted by the renderer separately — that's
-// handled inline by captureInner, not here.
+// The pass-through CSS mask properties live in the captured style sub-object.
+// For ordinary image/gradient layers the renderer consumes their geometry;
+// for an SVG mask-source fragment Blink ignores size/position/repeat/origin/
+// clip and only the layer's mode/composite remain relevant.
 //
 // clip-path: only the "skip the whole subtree" inset(>=50%) short-circuit
 // is handled in captureInner alongside the other early-return predicates
@@ -42,11 +42,37 @@
 
 import { extractCssUrl } from "../utils.js";
 
-export const createMasksClipsHandler = ({ vp, warn }) => {
+export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
   const maskDefs = new Map();
   const maskRasters = new Map();
   const clipPathDefs = new Map();
   let maskRasterIdx = 0;
+
+  // DOM ids are TreeScope-local. In particular, an outer document and a
+  // recursed same-origin iframe can both define `#m` without sharing an SVG
+  // resource. Keep the author id for diagnostics/serialization, but key the
+  // capture maps by the same deterministic scope carried by each consumer.
+  const scopedKey = (scope, id) => String(scope) + '\u0000' + id;
+  const fragmentTarget = (el, id) => {
+    const root = el.getRootNode ? el.getRootNode() : el.ownerDocument;
+    if (root != null && typeof root.getElementById === 'function') {
+      return root.getElementById(id);
+    }
+    return (el.ownerDocument || document).getElementById(id);
+  };
+  const svgUnit = (animatedEnumeration, attr) => {
+    const current = animatedEnumeration && animatedEnumeration.baseVal;
+    if (current === 2 || String(attr || '').toLowerCase() === 'objectboundingbox') return 'objectBoundingBox';
+    return 'userSpaceOnUse';
+  };
+  const svgLengthString = (animatedLength, fallback) => {
+    const value = animatedLength && animatedLength.baseVal && animatedLength.baseVal.valueAsString;
+    return typeof value === 'string' && value !== '' ? value : fallback;
+  };
+  const svgLengthValue = (animatedLength) => {
+    const value = animatedLength && animatedLength.baseVal && animatedLength.baseVal.value;
+    return Number.isFinite(value) ? value : 0;
+  };
 
   // DM-2379: Blink's contain/cover sizing consumes StyleImage natural sizing
   // before resolving mask-position against the remaining space. Capture the
@@ -83,10 +109,9 @@ export const createMasksClipsHandler = ({ vp, warn }) => {
 
   const discoverMasks = (el, cs, sel) => {
     if (!cs.mask || cs.mask === 'none' || cs.mask === '') return;
-    // DM-1446: resolve same-document fragment refs against the element's OWN
-    // document so a mask/clip/filter def living inside a recursed same-origin
-    // <iframe> is found. For top-document elements this is `document` (no
-    // behavior change).
+    // DM-1446/DM-2338: element() remains document-local. Fragment URL refs
+    // below are narrower still: Blink resolves them in the originating
+    // TreeScope, so a ShadowRoot miss must not fall through to this document.
     const doc = el.ownerDocument || document;
 
     // DM-470: only warn for mask sources we can't emit. Gradient and url()
@@ -102,15 +127,40 @@ export const createMasksClipsHandler = ({ vp, warn }) => {
     const fragMatch = /^url\(\s*(?:"|')?#([^"')\s]+)(?:"|')?\s*\)$/i.exec(miSrc);
     if (fragMatch != null) {
       const fragId = fragMatch[1];
-      if (!maskDefs.has(fragId)) {
-        const target = doc.getElementById(fragId);
+      const scope = referenceScopeFor(el);
+      const key = scopedKey(scope, fragId);
+      if (!maskDefs.has(key)) {
+        const target = fragmentTarget(el, fragId);
         if (target != null && target.tagName.toLowerCase() === 'mask') {
-          maskDefs.set(fragId, { id: fragId, outerHTML: target.outerHTML });
+          const maskUnits = svgUnit(target.maskUnits, target.getAttribute('maskUnits'));
+          const maskContentUnits = svgUnit(target.maskContentUnits, target.getAttribute('maskContentUnits'));
+          const targetView = target.ownerDocument && target.ownerDocument.defaultView;
+          const computedMaskType = targetView != null ? targetView.getComputedStyle(target).maskType : '';
+          maskDefs.set(key, {
+            id: fragId,
+            scope,
+            outerHTML: target.outerHTML,
+            maskUnits,
+            maskContentUnits,
+            maskType: computedMaskType === 'alpha' ? 'alpha' : 'luminance',
+            region: {
+              x: svgLengthString(target.x, '-10%'),
+              y: svgLengthString(target.y, '-10%'),
+              width: svgLengthString(target.width, '120%'),
+              height: svgLengthString(target.height, '120%'),
+            },
+            userSpaceRegion: {
+              x: svgLengthValue(target.x),
+              y: svgLengthValue(target.y),
+              width: svgLengthValue(target.width),
+              height: svgLengthValue(target.height),
+            },
+          });
         } else {
           warn(sel, 'mask', 'mask-image fragment "#' + fragId + '" did not resolve to an inline <mask> element');
         }
       }
-      return;
+      return scope;
     }
 
     // External-file fragment refs (url("./file.svg#id")) — resolved before this
@@ -220,15 +270,18 @@ export const createMasksClipsHandler = ({ vp, warn }) => {
     const fragMatch = /^url\(\s*(?:"|')?#([^"')\s]+)(?:"|')?\s*\)$/i.exec(cpShape);
     if (fragMatch != null) {
       const fragId = fragMatch[1];
-      if (!clipPathDefs.has(fragId)) {
-        const target = doc.getElementById(fragId);
+      const scope = referenceScopeFor(el);
+      const key = scopedKey(scope, fragId);
+      if (!clipPathDefs.has(key)) {
+        const target = fragmentTarget(el, fragId);
         if (target != null && target.tagName.toLowerCase() === 'clippath') {
           // SVG default for clipPathUnits is userSpaceOnUse (DM-828). The
           // renderer translates that per consumer and materializes an
           // objectBoundingBox def through each HTML border rect (DM-2362).
           const units = (target.getAttribute('clipPathUnits') || 'userSpaceOnUse').toLowerCase();
-          clipPathDefs.set(fragId, {
+          clipPathDefs.set(key, {
             id: fragId,
+            scope,
             outerHTML: target.outerHTML,
             clipPathUnits: units === 'objectboundingbox' ? 'objectBoundingBox' : 'userSpaceOnUse',
           });
@@ -236,7 +289,7 @@ export const createMasksClipsHandler = ({ vp, warn }) => {
           warn(sel, 'clip-path', 'clip-path fragment "#' + fragId + '" did not resolve to an inline <clipPath> element');
         }
       }
-      return;
+      return scope;
     }
     const extFragMatch = /^url\(\s*(?:"|')?[^"')#]+#[^"')\s]+(?:"|')?\s*\)$/i.exec(cpShape);
     if (extFragMatch != null) {

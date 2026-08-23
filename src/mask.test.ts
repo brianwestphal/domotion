@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildMaskDef, maskPaintAreas, positionFragmentMaskDef, rewriteFragmentMaskDef } from "./render/element-tree-to-svg.js";
-import { positionObjectBoundingBoxClipPathDef } from "./render/mask.js";
+import { positionFragmentClipPathDef, positionObjectBoundingBoxClipPathDef } from "./render/mask.js";
 
 // Locks the SVG <mask> emission for the cases exercised by the html-test
 // suite's 23-mask.html fixture (DM-395).
@@ -181,6 +181,14 @@ describe("objectBoundingBox clip-path materialization (DM-2362)", () => {
     expect(out).toContain(`transform="rotate(8) translate(5, 7) scale(40, 60)"`);
     expect(out).toContain(`clipPathUnits="userSpaceOnUse"`);
   });
+
+  it("scales HTML userSpaceOnUse coordinates by the consumer's effective zoom", () => {
+    const out = positionFragmentClipPathDef(
+      `<clipPath id="c" clipPathUnits="userSpaceOnUse"><rect x="10" width="20" height="30"/></clipPath>`,
+      40, 55, 2,
+    );
+    expect(out).toContain(`transform="translate(40, 55) scale(2)"`);
+  });
 });
 
 describe("positionFragmentMaskDef — DM-493 per-element mask placement", () => {
@@ -211,6 +219,67 @@ describe("positionFragmentMaskDef — DM-493 per-element mask placement", () => 
     );
     expect(out).toContain('maskUnits="userSpaceOnUse"');
     expect(out).not.toContain('maskUnits="objectBoundingBox"');
+  });
+
+  it("materializes objectBoundingBox region and content units against the exact consumer box", () => {
+    const out = positionFragmentMaskDef(
+      `<mask id="m" maskUnits="objectBoundingBox" maskContentUnits="objectBoundingBox"><rect x="0" y="0" width=".5" height="1" fill="white"/></mask>`,
+      70, 45, 120, 80,
+      {
+        maskUnits: "objectBoundingBox",
+        maskContentUnits: "objectBoundingBox",
+        maskType: "luminance",
+        region: { x: "-10%", y: "0", width: "1.2", height: "100%" },
+      },
+    );
+    expect(out).toContain('x="58"');
+    expect(out).toContain('y="45"');
+    expect(out).toContain('width="144"');
+    expect(out).toContain('height="80"');
+    expect(out).toContain('transform="translate(70, 45) scale(120, 80)"');
+    expect(out).toContain('style="mask-type:luminance"');
+    expect(out).not.toContain('maskContentUnits="objectBoundingBox"');
+  });
+
+  it("uses source-viewport-resolved userSpaceOnUse bounds and bakes an alpha override", () => {
+    const out = positionFragmentMaskDef(
+      `<mask id="m" maskUnits="userSpaceOnUse" style="color-interpolation:sRGB;mask-type:luminance"><rect width="80" height="60" fill="black"/></mask>`,
+      31, 47, 80, 60,
+      {
+        maskUnits: "userSpaceOnUse",
+        maskContentUnits: "userSpaceOnUse",
+        maskType: "alpha",
+        region: { x: "10%", y: "5", width: "50%", height: "40" },
+        userSpaceRegion: { x: 16, y: 5, width: 80, height: 40 },
+      },
+    );
+    expect(out).toContain('x="47"');
+    expect(out).toContain('y="52"');
+    expect(out).toContain('width="80"');
+    expect(out).toContain('height="40"');
+    expect(out).toContain('transform="translate(31, 47)"');
+    expect(out).toContain('style="color-interpolation:sRGB;mask-type:alpha"');
+    expect(out).not.toContain('mask-type:luminance');
+  });
+
+  it("scales user-space mask region and content by effective zoom exactly once", () => {
+    const out = positionFragmentMaskDef(
+      `<mask id="m"><rect width="40" height="30" fill="black"/></mask>`,
+      30, 40, 80, 60,
+      {
+        maskUnits: "userSpaceOnUse",
+        maskContentUnits: "userSpaceOnUse",
+        maskType: "alpha",
+        effectiveZoom: 2,
+        region: { x: "10", y: "0", width: "20", height: "30" },
+        userSpaceRegion: { x: 10, y: 0, width: 20, height: 30 },
+      },
+    );
+    expect(out).toContain('x="50"');
+    expect(out).toContain('y="40"');
+    expect(out).toContain('width="40"');
+    expect(out).toContain('height="60"');
+    expect(out).toContain('transform="translate(30, 40) scale(2)"');
   });
 });
 

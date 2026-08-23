@@ -20,6 +20,7 @@ import {
   resolveFont, resolveFontKey, resolveFontKeyChain, registerWebfont, clearWebfonts,
   type FontVariantEmojiOverride,
 } from "./font-resolution.js";
+import { isIcuHelperAvailable } from "./icu-helper.js";
 import { hbSubsetRetainGids } from "./hb-subset.js";
 import * as fontkit from "fontkit";
 
@@ -54,6 +55,13 @@ describe("chooseHintIndex (FontFallbackIterator::ChooseHintIndex port)", () => {
     expect(chooseHintIndex([0x094D, 0x0915])).toBe(1);
     // A truly Inherited mark at index 1 (combining acute) falls back to 0.
     expect(chooseHintIndex([0x0915, 0x0301])).toBe(0);
+  });
+
+  it.skipIf(!isIcuHelperAvailable())("applies Blink's stable Common/Inherited block inference", () => {
+    // U+0964 is Script=Common but the Devanagari-block special case gives it a
+    // likely script. U+2211 is Common in an unlisted block and remains neutral.
+    expect(chooseHintIndex([0x0020, 0x0964])).toBe(1);
+    expect(chooseHintIndex([0x0020, 0x2211])).toBe(0);
   });
 });
 

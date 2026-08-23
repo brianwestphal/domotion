@@ -14,6 +14,15 @@ Khmer, and Myanmar shapers call that common operation after their generated
 machines have assigned syllable types. Blink hands each resolved face and
 script run to HarfBuzz; it does not maintain a parallel codepoint-range list.
 
+That script run is itself part of the decision. Blink's
+`ICUScriptData::GetScripts` starts with pinned ICU `uscript_getScript`, and
+`ShapeRange` writes the resolved script to the HarfBuzz buffer
+(`script_run_iterator.cc:26-35,118-120` and `harfbuzz_shaper.cc:339-341`,
+Chromium rev `7d859f27`). HarfBuzz places Dives Akuru, Gurung Khema, and
+Tulu-Tigalari in its USE-shaper selection branch (`hb-ot-shaper.hh:345-414`,
+rev `4de187d`). A stale Unicode table that labels their marks Common therefore
+changes the shaper—it is not harmless metadata drift.
+
 ## Domotion decision boundary
 
 - Capture considers every Unicode Mark, Lo, and Lm scalar as a possible probe
@@ -40,6 +49,11 @@ script run to HarfBuzz; it does not maintain a parallel codepoint-range list.
   consume that script. This is observable for a lone Vedic mark: dropping
   `Deva` makes HarfBuzz guess Common and bypass the syllabic shaper even though
   the correct Mukta face was already selected.
+- `segmentForShaping` now obtains each primary Script value from that same
+  batched pinned-ICU companion. `unicode-properties` is retained only for the
+  explicitly best-effort helper-absent path. This is what keeps Unicode 16+
+  scripts from being itemized as `Zyyy` merely because a JavaScript dependency
+  predates their assignment.
 
 This remains separate from font fallback: fallback selects the concrete face;
 the selected face and its HarfBuzz glyph stream decide dotted-circle behavior.
@@ -65,6 +79,14 @@ circle, shape a retained-gid subset that lacks nominal U+25CC, and disable shape
 cluster fallback to prove that the orphan's inserted base disappears. These
 names and codepoints are oracle expectations for that runner image only; they
 are not renderer routing inputs.
+
+The DM-2522 logical control retains Arial Unicode MS and asserts the exact
+production records for U+16120, U+1CF7 (transposed as U+1D77 in the original
+ticket), U+113C8, U+11930, and U+11941: glyph ids, cluster zero, UTF-16 source
+span, and codepoint span. Mutating the itemized script to `Zyyy` removes the
+inserted glyph; retaining the correct script while removing nominal U+25CC from
+the selected face does the same. Thus neither the codepoint samples nor the
+two-glyph count are production predicates.
 
 The production route oracle adds a paired Thai control: bare U+0E48 and explicit
 U+25CC+U+0E48 both retain their authored source spans, but Chromium and Domotion

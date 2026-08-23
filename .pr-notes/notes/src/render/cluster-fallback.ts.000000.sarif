@@ -955,6 +955,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5jgo7cyva2twqx",
+          "message": {
+            "text": "The fallback hint predicate now follows the complete pinned Chromium branch. HasLikelyScript uses pinned ICU Script and, because ScriptBasedOnUnicodeBlock is stable at the same Chromium revision, promotes exactly the eleven blocks in GetScriptBasedOnUnicodeBlock for Common or Inherited characters; U+0964 and unpromoted U+2211 are the discriminating controls.",
+            "markdown": "The fallback hint predicate now follows the complete pinned Chromium branch. HasLikelyScript uses pinned ICU Script and, because ScriptBasedOnUnicodeBlock is stable at the same Chromium revision, promotes exactly the eleven blocks in GetScriptBasedOnUnicodeBlock for Common or Inherited characters; U+0964 and unpromoted U+2211 are the discriminating controls."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/cluster-fallback.ts"
+                },
+                "region": {
+                  "startLine": 147,
+                  "endLine": 179,
+                  "snippet": {
+                    "text": "/** Blocks promoted by Blink's stable `ScriptBasedOnUnicodeBlock` feature when\n * `uscript_getScript` returns Common or Inherited. This is the complete switch\n * in `Character::GetScriptBasedOnUnicodeBlock` (`character.cc:321-351`, rev\n * 7d859f27); the feature is `status: \"stable\"` at\n * `runtime_enabled_features.json5:5267-5271` in that same revision. */\nconst LIKELY_SCRIPT_BLOCKS = new Set([\n  \"CJK_Symbols_And_Punctuation\",\n  \"Hiragana\",\n  \"Katakana\",\n  \"Arabic\",\n  \"Thai\",\n  \"Greek_And_Coptic\",\n  \"Devanagari\",\n  \"Armenian\",\n  \"Georgian\",\n  \"Kannada\",\n  \"Gothic\",\n]);\n\n/** Exact `Character::HasLikelyScript` predicate (`character.cc:298-317`, rev\n * 7d859f27): Chromium's pinned ICU Script property first, then stable block\n * inference for Common/Inherited. The regex is helper-absent degradation only;\n * JavaScript Unicode tables can lag Chromium's pinned ICU and misclassify newly\n * assigned scripts. */\nconst RE_COMMON_OR_INHERITED = /^[\\p{Script=Common}\\p{Script=Inherited}]$/u;\nfunction hasLikelyScript(cp: number): boolean {\n  const properties = icuCodepointProperties(cp);\n  if (properties != null) {\n    const script = properties.scriptLongName;\n    if (script !== \"Common\" && script !== \"Inherited\") return true;\n    return LIKELY_SCRIPT_BLOCKS.has(properties.blockName);\n  }\n  return !RE_COMMON_OR_INHERITED.test(String.fromCodePoint(cp));"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/cluster-fallback.test.ts"
+                },
+                "region": {
+                  "startLine": 59
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2522"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "989567bbf693e3f7b23b6225fb3be43e"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "42186d0f08d1c434c91fbd9a3987b1db902bb9ba",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

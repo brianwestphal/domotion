@@ -2265,6 +2265,16 @@ export interface CapturedElement {
   /** Deterministic document/shadow-root scope owning fragment IDs in `svgContent`. */
   svgReferenceScope?: number;
   /**
+   * Deterministic document/shadow-root scope owning same-document CSS
+   * `url(#id)` mask and clip-path references. DOM ids are TreeScope-local:
+   * an outer document and a recursed iframe may both define `#shape` without
+   * sharing a resource. The renderer pairs this scope with each captured def
+   * instead of treating the author id as globally unique. DM-2338.
+   */
+  fragmentReferenceScope?: number;
+  /** Effective zoom of this HTML fragment-reference consumer. */
+  fragmentReferenceZoom?: number;
+  /**
    * <fieldset> with a top-aligned <legend>: Chrome's UA paints the fieldset's
    * top border at the legend's vertical center (not at fs.y) and notches the
    * border across the legend's horizontal extent. The captured x/y/width/
@@ -2277,21 +2287,20 @@ export interface CapturedElement {
   /**
    * Top-level (root only) collection of `<mask>` definitions referenced by
    * fragment URLs (`mask-image: url("#id")`) anywhere in the captured tree.
-   * CAPTURE_SCRIPT resolves each fragment id to the corresponding inline
-   * `<mask>` element via `document.getElementById` and serialises its
-   * `outerHTML` here. The renderer copies these into the output `<defs>`
-   * with id rewriting so a captured `<mask id="m1">` becomes a
-   * domotion-prefixed mask def referenced by elements that point at `#m1`.
-   * Same-document only — external `.svg#fragment` refs are deferred (DM-496).
+   * CAPTURE_SCRIPT resolves each fragment in its originating document or
+   * shadow-root TreeScope and serialises both that scope and the `<mask>`'s
+   * geometry/channel facts. The renderer copies these into output `<defs>`
+   * with per-output id rewriting. External `.svg#fragment` refs first become
+   * hidden local definitions in the consumer document (DM-496).
    * See `docs/21-mask-fragment-references.md`.
    */
   maskDefs?: MaskFragmentDef[];
   /**
    * DM-826: Top-level (root only) collection of `<clipPath>` definitions
    * referenced by fragment URLs (`clip-path: url("#id")`) anywhere in the
-   * captured tree. CAPTURE_SCRIPT resolves each fragment id via
-   * `document.getElementById` and serialises the `<clipPath>` element's
-   * `outerHTML` here. The renderer copies these into the output `<defs>`
+   * captured tree. CAPTURE_SCRIPT resolves each fragment in the consumer's
+   * originating TreeScope and serialises its scope plus the `<clipPath>`
+   * element's `outerHTML`. The renderer copies these into the output `<defs>`
    * with id rewriting so a captured `<clipPath id="hex">` becomes a
    * domotion-prefixed clip-path def referenced by elements that point at
    * `#hex`. Same-document only — external `.svg#fragment` refs are
@@ -2404,13 +2413,33 @@ export interface PseudoBox {
 export interface MaskFragmentDef {
   /** Original DOM id of the captured `<mask>` element. */
   id: string;
+  /** Document/shadow-root scope in which `id` was resolved. */
+  scope?: number;
   /** Verbatim `outerHTML` of the captured `<mask>` element. */
   outerHTML: string;
+  /** Resolved SVG coordinate systems (the SVG defaults are object/user). */
+  maskUnits?: "userSpaceOnUse" | "objectBoundingBox";
+  maskContentUnits?: "userSpaceOnUse" | "objectBoundingBox";
+  /** Computed mask-type, including stylesheet-owned alpha/luminance rules. */
+  maskType?: "alpha" | "luminance";
+  /**
+   * Authored/default mask region tokens. Object-bounding-box percentages and
+   * numbers must be materialized against each consumer's reference box.
+   */
+  region?: { x: string; y: string; width: string; height: string };
+  /**
+   * The same region resolved in the source SVG viewport. Used only for
+   * userSpaceOnUse, whose percentages belong to the defining document rather
+   * than the generated output SVG viewport.
+   */
+  userSpaceRegion?: { x: number; y: number; width: number; height: number };
 }
 
 export interface ClipPathFragmentDef {
   /** Original DOM id of the captured `<clipPath>` element. */
   id: string;
+  /** Document/shadow-root scope in which `id` was resolved. */
+  scope?: number;
   /** Verbatim `outerHTML` of the captured `<clipPath>` element. */
   outerHTML: string;
   /** Resolved `clipPathUnits` — `"userSpaceOnUse"` (the SVG default) or

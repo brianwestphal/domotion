@@ -156,6 +156,14 @@ shortest possible map:
   namespaces both presentation refs and outerHTML-encoded computed-style refs,
   so a stale `url(&quot;#id&quot;)` cannot override the rewritten clip (DM-2362,
   docs 39/130).
+  Local CSS mask/clip fragment refs additionally carry Blink's originating
+  TreeScope through capture, renderer lookup, and output-cache identity; each
+  emitted definition owns a descendant-id namespace. HTML user-space facts
+  retain source-viewport resolution plus EffectiveZoom, object-box facts map
+  through the border rect, and the effective mask alpha/luminance channel is
+  baked into the copied definition (DM-2338, doc 208). The strict DPR-1/2
+  discriminator lives in `tests/iframe-inner-defs.e2e.test.ts`; multi-layer
+  fragment-mask composition is the explicit DM-2520 boundary.
   `culling-geometry.ts` is its fail-closed geometry preflight: it exposes the
   generated subtree's exact fill/stroke/view reference boxes separately from
   bounded visual ink, applies frozen affine wrappers and emitted overflow

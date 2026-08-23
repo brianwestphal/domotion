@@ -104,9 +104,48 @@
 import bidiFactory from "bidi-js";
 import { getScript } from "unicode-properties";
 import { sourcePriorityItems, type SourceFallbackPriority } from "./emoji-presentation-priority.js";
+import { queryIcuCodepoints, type IcuCodepointProperties } from "./icu-helper.js";
 import { SCRIPT_EXTENSIONS_RANGES, type ScriptExtensionsRange } from "./script-extensions.generated.js";
 
 const _bidi = bidiFactory();
+
+/**
+ * Blink's primary Script property for one scalar.
+ *
+ * `ScriptRunIterator::ICUScriptData::GetScripts` starts with
+ * `uscript_getScript` from Chromium's ICU (`script_run_iterator.cc:26-35,
+ * :118-120`, rev 7d859f27). `unicode-properties` remains the helper-absent
+ * degradation only: its bundled table predates Unicode 16, so it reports the
+ * Gurung Khema / Tulu-Tigalari / Dives Akuru characters as Common and thereby
+ * sends HarfBuzz `Zyyy` instead of `Gukh` / `Tutg` / `Diak`. That changes the
+ * selected complex shaper and suppresses broken-syllable U+25CC insertion.
+ *
+ * Blink also folds Katakana into Hiragana before the merge-set walk because
+ * both resolve to the same OpenType `kana` shaping system (`:26-35`). Keep
+ * that source-level normalization here rather than preserving a dependency's
+ * spelling accident.
+ */
+function primaryScriptFor(
+  cp: number,
+  pinned: ReadonlyMap<number, IcuCodepointProperties>,
+): string {
+  const script = pinned.get(cp)?.scriptLongName ?? getScript(cp);
+  return script === "Katakana" || script === "Katakana_Or_Hiragana"
+    ? "Hiragana"
+    : script;
+}
+
+/** One native IPC query per text item, never one process launch per scalar. */
+function pinnedScriptsForText(text: string): Map<number, IcuCodepointProperties> {
+  const codepoints: number[] = [];
+  for (const ch of text) codepoints.push(ch.codePointAt(0)!);
+  return queryIcuCodepoints(codepoints);
+}
+
+function isLatin1Text(text: string): boolean {
+  for (let i = 0; i < text.length; i++) if (text.charCodeAt(i) > 0xff) return false;
+  return true;
+}
 
 /**
  * Cheap test for any strong-RTL or bidi-control character.
@@ -427,7 +466,15 @@ type ScriptSegment = Omit<ShapingSegment, "sourcePriority">;
 /** Compute only Blink's independent bidi/script iterator ranges. */
 function scriptSegmentsForShaping(text: string, levels?: ArrayLike<number>): ScriptSegment[] {
   if (text.length === 0) return [];
+  // Blink bypasses RunSegmenter for 8-bit text and supplies one Latin item
+  // (`harfbuzz_shaper.cc:1157-1161`). Preserve that hot path before consulting
+  // the native ICU companion; CSS bidi override can still make its one level
+  // odd, so direction remains an input even though script cannot split.
+  if (isLatin1Text(text)) {
+    return [{ start: 0, end: text.length, script: "Latin", rtl: ((levels?.[0] ?? 0) & 1) === 1 }];
+  }
 
+  const pinnedScripts = pinnedScriptsForText(text);
   const segments: ScriptSegment[] = [];
   let segStart = 0;
   // The run's accumulated script constraint — the wildcard sentinel while the
@@ -442,7 +489,7 @@ function scriptSegmentsForShaping(text: string, levels?: ArrayLike<number>): Scr
     const cp = text.codePointAt(i)!;
     const width = cp > 0xffff ? 2 : 1;
     const level = levels?.[i] ?? 0;
-    const primary = getScript(cp);
+    const primary = primaryScriptFor(cp, pinnedScripts);
     const charSet = scriptSetFor(cp, primary);
     if (openSet === ANY_SCRIPT) preferred ??= preferredNeutralScript(cp, primary);
 
@@ -514,8 +561,7 @@ export function segmentForShaping(text: string, levels?: ArrayLike<number>): Sha
  * The fast path, and it mirrors one Blink has: `HarfBuzzShaper::Shape` skips
  * segmentation entirely for 8-bit text, shaping it as a single `USCRIPT_LATIN`
  * range (`harfbuzz_shaper.cc:1157-1161`), because Latin-1 cannot contain a
- * script or direction boundary. Most runs answer false here and cost one
- * `getScript` per character and nothing else.
+ * script boundary. Most runs answer false here without consulting ICU.
  *
  * Mirrors the same merge-set walk as `segmentForShaping` (not a separate,
  * looser approximation of it) — a Common character with a multi-member
@@ -528,12 +574,14 @@ export function needsSegmentation(text: string, levels?: ArrayLike<number>): boo
   // The 8-bit fast path remains valid: SymbolsIterator has no non-text source
   // token in Latin-1, and Blink bypasses RunSegmenter for these strings.
   if (sourcePriorityItems(text).length > 1) return true;
+  if (isLatin1Text(text)) return false;
+  const pinnedScripts = pinnedScriptsForText(text);
   const level0 = levels?.[0] ?? 0;
   let openSet: ScriptSet = ANY_SCRIPT;
   for (let i = 0; i < text.length;) {
     const cp = text.codePointAt(i)!;
     if ((levels?.[i] ?? 0) !== level0) return true;
-    const charSet = scriptSetFor(cp, getScript(cp));
+    const charSet = scriptSetFor(cp, primaryScriptFor(cp, pinnedScripts));
     if (charSet !== ANY_SCRIPT) {
       const merged = mergeScriptSets(openSet, charSet);
       if (merged === null) return true;

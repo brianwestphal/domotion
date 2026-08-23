@@ -86,22 +86,25 @@ export function rewriteFragmentMaskDef(
 }
 
 /**
- * Reposition a (previously rewritten) `<mask>` outerHTML so its content lives
- * in the masked element's absolute user-space. CSS `mask-image: url("#id")`
- * positions the mask source at the masked element's content-box origin, but
- * SVG `<mask>` with `maskUnits="userSpaceOnUse"` interprets its content
- * absolutely against the root SVG — so the captured mask coords (which are
- * relative to the original `<mask>` element) need shifting by `(elX, elY)`.
- * We do this by:
- *   1. Forcing `maskUnits="userSpaceOnUse"` on the outer `<mask>`.
- *   2. Replacing the mask's `x/y/width/height` with the masked element's
- *      absolute box (so the mask region matches the element).
- *   3. Wrapping the mask's children in `<g transform="translate(elX, elY)">`.
- * DM-493.
+ * Materialize a captured `<mask>` into the generated SVG's root user space.
+ * Blink supplies an HTML consumer's border box and EffectiveZoom to its SVG
+ * mask-source path. Object-bounding-box region/content values map through that
+ * border box; user-space values retain their source-viewport resolution and
+ * scale by zoom. The output `<mask>` therefore has absolute user-space bounds
+ * and a content transform, while preserving the effective alpha/luminance
+ * channel. Records predating DM-2338 retain DM-493's element-sized behavior.
  */
 export function positionFragmentMaskDef(
   rewrittenOuterHTML: string,
   elX: number, elY: number, elW: number, elH: number,
+  options: {
+    maskUnits?: "userSpaceOnUse" | "objectBoundingBox";
+    maskContentUnits?: "userSpaceOnUse" | "objectBoundingBox";
+    maskType?: "alpha" | "luminance";
+    effectiveZoom?: number;
+    region?: { x: string; y: string; width: string; height: string };
+    userSpaceRegion?: { x: number; y: number; width: number; height: number };
+  } = {},
 ): string {
   // Find the opening <mask …> tag (anchored at start of string, since
   // rewriteFragmentMaskDef preserves the outerHTML structure of the captured
@@ -111,7 +114,10 @@ export function positionFragmentMaskDef(
   const closeIdx = rewrittenOuterHTML.lastIndexOf("</mask>");
   if (closeIdx < 0) return rewrittenOuterHTML;
   const inner = rewrittenOuterHTML.slice(openMatch[0].length, closeIdx);
-  // Strip existing maskUnits / x / y / width / height — we replace them.
+  // Strip existing mask coordinate attributes — source values have already
+  // been captured as resolved facts and are materialized below. This keeps
+  // percentages tied to the defining iframe/object bbox instead of letting the
+  // generated root SVG reinterpret them against its own viewport.
   let attrs = openMatch[1]
     .replace(/\smaskUnits\s*=\s*"[^"]*"/gi, "")
     .replace(/\smaskUnits\s*=\s*'[^']*'/gi, "")
@@ -125,29 +131,84 @@ export function positionFragmentMaskDef(
     .replace(/\swidth\s*=\s*'[^']*'/gi, "")
     .replace(/\sheight\s*=\s*"[^"]*"/gi, "")
     .replace(/\sheight\s*=\s*'[^']*'/gi, "");
-  attrs += ` maskUnits="userSpaceOnUse" x="${r(elX)}" y="${r(elY)}" width="${r(elW)}" height="${r(elH)}"`;
-  return `<mask${attrs}><g transform="translate(${r(elX)}, ${r(elY)})">${inner}</g></mask>`;
+
+  const bboxTerm = (token: string | undefined, span: number, fallback: number): number => {
+    const source = (token ?? "").trim();
+    const parsed = Number.parseFloat(source);
+    if (!Number.isFinite(parsed)) return fallback * span;
+    return source.endsWith("%") ? parsed / 100 * span : parsed * span;
+  };
+  const defaultRegion = { x: "-10%", y: "-10%", width: "120%", height: "120%" };
+  const region = options.region ?? defaultRegion;
+  let regionX: number;
+  let regionY: number;
+  let regionW: number;
+  let regionH: number;
+  const hasCapturedRegion = options.maskUnits != null || options.region != null || options.userSpaceRegion != null;
+  if (!hasCapturedRegion) {
+    // Backward compatibility for serialized trees predating DM-2338: their
+    // def record carried no unit/region facts and the historical contract was
+    // an element-sized user-space mask.
+    regionX = elX;
+    regionY = elY;
+    regionW = elW;
+    regionH = elH;
+  } else if (options.maskUnits === "userSpaceOnUse") {
+    const resolved = options.userSpaceRegion;
+    const zoom = options.effectiveZoom ?? 1;
+    regionX = elX + (resolved?.x ?? (Number.parseFloat(region.x) || 0)) * zoom;
+    regionY = elY + (resolved?.y ?? (Number.parseFloat(region.y) || 0)) * zoom;
+    regionW = Math.max(0, (resolved?.width ?? (Number.parseFloat(region.width) || 0)) * zoom);
+    regionH = Math.max(0, (resolved?.height ?? (Number.parseFloat(region.height) || 0)) * zoom);
+  } else {
+    regionX = elX + bboxTerm(region.x, elW, -0.1);
+    regionY = elY + bboxTerm(region.y, elH, -0.1);
+    regionW = Math.max(0, bboxTerm(region.width, elW, 1.2));
+    regionH = Math.max(0, bboxTerm(region.height, elH, 1.2));
+  }
+
+  // The CSS layer's explicit mask-mode overrides the referenced mask's
+  // computed mask-type; match-source retains the captured value. Normalize it
+  // into inline style so author stylesheet rules from the source document are
+  // not required in the generated SVG.
+  if (options.maskType != null) {
+    attrs = attrs
+      .replace(/\smask-type\s*=\s*"[^"]*"/gi, "")
+      .replace(/\smask-type\s*=\s*'[^']*'/gi, "");
+    let style = "";
+    attrs = attrs.replace(/\sstyle\s*=\s*(?:"([^"]*)"|'([^']*)')/i, (_full, dq, sq) => {
+      style = dq ?? sq ?? "";
+      return "";
+    });
+    style = style.replace(/(?:^|;)\s*mask-type\s*:[^;]*/gi, "").replace(/^;+|;+$/g, "").trim();
+    attrs += ` style="${esc(`${style}${style === "" ? "" : ";"}mask-type:${options.maskType}`)}"`;
+  }
+
+  attrs += ` maskUnits="userSpaceOnUse" x="${r(regionX)}" y="${r(regionY)}" width="${r(regionW)}" height="${r(regionH)}"`;
+  const contentTransform = options.maskContentUnits === "objectBoundingBox"
+    ? `translate(${r(elX)}, ${r(elY)}) scale(${r(elW)}, ${r(elH)})`
+    : `translate(${r(elX)}, ${r(elY)})${(options.effectiveZoom ?? 1) === 1 ? "" : ` scale(${r(options.effectiveZoom ?? 1)})`}`;
+  return `<mask${attrs}><g transform="${contentTransform}">${inner}</g></mask>`;
 }
 
 /**
  * DM-828: position a `clipPathUnits="userSpaceOnUse"` fragment clipPath for an
- * HTML element at absolute (elX, elY). A userSpaceOnUse clipPath's coordinates
- * are element-local — origin at the element's border-box top-left (verified
- * against Chrome) — but Domotion draws the element's content at absolute
- * (elX, elY) with no positioning transform, so the clip geometry must be
- * shifted by (elX, elY) to land on it. `<clipPath>` can't wrap its children in
+ * HTML element at absolute (elX, elY). Blink maps its coordinates from the
+ * element's border-box origin and applies the consumer's EffectiveZoom, but
+ * Domotion draws the element at root coordinates. `<clipPath>` can't wrap its children in
  * a `<g>` (not a permitted clipPath child in SVG 1.1), but it *does* accept a
  * `transform` attribute that maps its content into user space (Chrome honors
- * it), so we add `translate(elX, elY)` there — composing with any transform the
- * captured clipPath already carried (ours outermost, applied after theirs).
+ * it), so we add `translate(elX, elY) scale(effectiveZoom)` there — composing
+ * with any transform the captured clipPath already carried (ours outermost).
  */
 export function positionFragmentClipPathDef(
   rewrittenOuterHTML: string,
   elX: number, elY: number,
+  effectiveZoom = 1,
 ): string {
   const openMatch = /^<clipPath\b([^>]*)>/i.exec(rewrittenOuterHTML);
   if (openMatch == null) return rewrittenOuterHTML;
-  const translate = `translate(${r(elX)}, ${r(elY)})`;
+  const translate = `translate(${r(elX)}, ${r(elY)})${effectiveZoom === 1 ? "" : ` scale(${r(effectiveZoom)})`}`;
   let attrs = openMatch[1];
   const existing = /\stransform\s*=\s*"([^"]*)"/i.exec(attrs) ?? /\stransform\s*=\s*'([^']*)'/i.exec(attrs);
   if (existing != null) {

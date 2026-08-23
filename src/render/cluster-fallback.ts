@@ -72,6 +72,7 @@ import {
 } from "./emoji-presentation-priority.js";
 import { STANDARDIZED_VARIATION_SEQUENCES } from "./standardized-variation-sequences.generated.js";
 import { SCRIPT_NAME_TO_ISO15924 } from "./script-iso15924.generated.js";
+import { icuCodepointProperties } from "./icu-helper.js";
 import { isHarfbuzzDefaultIgnorable } from "./unicode-classification.js";
 
 /** Flag gate. Read per call so tests can toggle via env. Default ON;
@@ -143,11 +144,38 @@ export interface ShapedSplitOptions {
   fallbackOrientation?: number;
 }
 
-/** Common/Inherited have no "likely script" — `Character::HasLikelyScript` is
- *  `uscript_hasScript` beyond USCRIPT_COMMON/INHERITED; the practical test
- *  Blink's hint selection needs is exactly "not Common, not Inherited". */
+/** Blocks promoted by Blink's stable `ScriptBasedOnUnicodeBlock` feature when
+ * `uscript_getScript` returns Common or Inherited. This is the complete switch
+ * in `Character::GetScriptBasedOnUnicodeBlock` (`character.cc:321-351`, rev
+ * 7d859f27); the feature is `status: "stable"` at
+ * `runtime_enabled_features.json5:5267-5271` in that same revision. */
+const LIKELY_SCRIPT_BLOCKS = new Set([
+  "CJK_Symbols_And_Punctuation",
+  "Hiragana",
+  "Katakana",
+  "Arabic",
+  "Thai",
+  "Greek_And_Coptic",
+  "Devanagari",
+  "Armenian",
+  "Georgian",
+  "Kannada",
+  "Gothic",
+]);
+
+/** Exact `Character::HasLikelyScript` predicate (`character.cc:298-317`, rev
+ * 7d859f27): Chromium's pinned ICU Script property first, then stable block
+ * inference for Common/Inherited. The regex is helper-absent degradation only;
+ * JavaScript Unicode tables can lag Chromium's pinned ICU and misclassify newly
+ * assigned scripts. */
 const RE_COMMON_OR_INHERITED = /^[\p{Script=Common}\p{Script=Inherited}]$/u;
 function hasLikelyScript(cp: number): boolean {
+  const properties = icuCodepointProperties(cp);
+  if (properties != null) {
+    const script = properties.scriptLongName;
+    if (script !== "Common" && script !== "Inherited") return true;
+    return LIKELY_SCRIPT_BLOCKS.has(properties.blockName);
+  }
   return !RE_COMMON_OR_INHERITED.test(String.fromCodePoint(cp));
 }
 

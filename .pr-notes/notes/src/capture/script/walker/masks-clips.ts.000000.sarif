@@ -66,6 +66,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5hvflxtne2k9pm",
+          "message": {
+            "text": "TreeScope is part of Blink's SVG resource identity, so raw author ids cannot safely key a capture-wide map. The consumer and definition carry the same deterministic scope, and a ShadowRoot miss intentionally does not fall through to ownerDocument; renderer lookup and caches use the same pair. Pinned Chromium resolves mask/clip resources through OriginatingTreeScope SVGTreeScopedResources before geometry or Skia paint.",
+            "markdown": "TreeScope is part of Blink's SVG resource identity, so raw author ids cannot safely key a capture-wide map. The consumer and definition carry the same deterministic scope, and a ShadowRoot miss intentionally does not fall through to ownerDocument; renderer lookup and caches use the same pair. Pinned Chromium resolves mask/clip resources through OriginatingTreeScope SVGTreeScopedResources before geometry or Skia paint."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/masks-clips.ts"
+                },
+                "region": {
+                  "startLine": 51,
+                  "endLine": 60,
+                  "snippet": {
+                    "text": "  // DOM ids are TreeScope-local. In particular, an outer document and a\n  // recursed same-origin iframe can both define `#m` without sharing an SVG\n  // resource. Keep the author id for diagnostics/serialization, but key the\n  // capture maps by the same deterministic scope carried by each consumer.\n  const scopedKey = (scope, id) => String(scope) + '\\u0000' + id;\n  const fragmentTarget = (el, id) => {\n    const root = el.getRootNode ? el.getRootNode() : el.ownerDocument;\n    if (root != null && typeof root.getElementById === 'function') {\n      return root.getElementById(id);\n    }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 3300
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/208-iframe-fragment-reference-ownership.md"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2338"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "da0680528a0da795e1910ce8ff6c3d72"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "ee9e799e238f94dacfb9a0b2c2f169068bba9a03",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

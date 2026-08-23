@@ -159,15 +159,24 @@ pre-passes — the outer path is the hot path every fixture exercises, so it sta
 byte-identical and the inner-iframe code is isolated. Regression guard:
 `tests/iframe-inner-prepasses.e2e.test.ts`.
 
-### Inner mask / clip-path / filter `<defs>` (DM-1446 — Fixed for `url(#id)`)
+### Inner mask / clip-path / filter `<defs>` (DM-1446/DM-2338)
 
-A `mask-image: url(#id)` / `clip-path: url(#id)` / `filter: url(#id)` reference
-from inside a recursed iframe now resolves the fragment against the element's own
-document (`el.ownerDocument`, in `masks-clips.ts`) instead of the outer
-`document`, so the inner `<mask>` / `<clipPath>` / `<filter>` def is collected and
-hoisted into the output SVG. For top-document elements `el.ownerDocument ===
-document`, so the outer path is unchanged. Validated by the visual fixture
-`iframe-inner-clip-mask` (0.00%) and `tests/iframe-inner-defs.e2e.test.ts`.
+Inner URL resources are collected rather than resolving against the outer
+document. DM-2338 makes the mask/clip path exact: Blink's originating TreeScope
+owns a fragment id, so capture definitions and consumers carry `(scope,id)` and
+renderer lookup/cache never first-win a same-named outer or sibling resource.
+Object-bounding-box coordinates map through the HTML border box; user-space
+coordinates retain the source viewport and consumer EffectiveZoom. Mask region,
+content units, computed alpha/luminance, and explicit mode overrides are
+materialized into the generated definition, while the SVG-mask special path
+ignores ordinary mask origin/clip/size/position/repeat geometry.
+
+The strict DPR-1/2 discriminator uses opposing same-id outer/iframe resources,
+definition-local descendant ids, asymmetric borders/padding, zoom, and binary
+channel probes. `iframe-inner-clip-mask` remains 0.00% with no
+`relaxedDiffPct`. See [doc 208](208-iframe-fragment-reference-ownership.md) and
+`tests/iframe-inner-defs.e2e.test.ts`. Inline filter collection retains its
+existing document-local DM-1446 path.
 
 ### Canvas background fill (DM-1448 — Fixed)
 

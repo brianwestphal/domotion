@@ -1085,7 +1085,6 @@ export const tests: FeatureTest[] = [
     html: `<div style="padding:16px;"><iframe srcdoc="<html><body style='margin:0;background:#fff'><svg width='0' height='0'><defs><clipPath id='innerClip' clipPathUnits='objectBoundingBox'><circle cx='0.5' cy='0.5' r='0.5'/></clipPath><mask id='innerMask'><rect width='120' height='120' fill='white'/><rect x='30' y='30' width='60' height='60' fill='black'/></mask></defs></svg><div style='width:120px;height:120px;background:#e11d48;clip-path:url(#innerClip)'></div><div style='width:120px;height:120px;background:#0ea5e9;-webkit-mask-image:url(#innerMask);mask-image:url(#innerMask)'></div></body></html>" width="160" height="240" style="display:block;border:0;"></iframe></div>`,
     width: 220,
     height: 280,
-    relaxedDiffPct: 0.5,
   },
   {
     // DM-1448: recursed iframe TALLER than its inner content. Chrome fills the
