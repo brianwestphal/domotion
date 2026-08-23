@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex-dm2351",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt56mmvzko3koaca",
+          "message": {
+            "text": "The gate proves logical ownership without pixel fitting: each pinned/full-Chrome headed/headless arm compares 99 live face-identity rows, derives its mutation only from faces that exact run painted, requires every settings row to move, keeps system-ui separate, checks quoted-serif classification, then deliberately reproduces the old global contamination and requires captured A scope to recover all rows and restore prior state. Focused browser capture passed 4/4 locally; the standalone four-launch retry was recorded unavailable because macOS denied Chromium Mach rendezvous registration, so the strict native workflow is the authoritative final matrix.",
+            "markdown": "The gate proves logical ownership without pixel fitting: each pinned/full-Chrome headed/headless arm compares 99 live face-identity rows, derives its mutation only from faces that exact run painted, requires every settings row to move, keeps system-ui separate, checks quoted-serif classification, then deliberately reproduces the old global contamination and requires captured A scope to recover all rows and restore prior state. Focused browser capture passed 4/4 locally; the standalone four-launch retry was recorded unavailable because macOS denied Chromium Mach rendezvous registration, so the strict native workflow is the authoritative final matrix."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/generic-family-preference-oracle.ts"
+                },
+                "region": {
+                  "startLine": 446,
+                  "endLine": 533,
+                  "snippet": {
+                    "text": "    browser = await chromium.launch(mode.options);\n    context = await browser.newContext({ viewport: { width: 900, height: 700 }, locale: \"en-US\" });\n    const browserCdp = await browser.newBrowserCDPSession();\n    const browserVersion = await browserCdp.send(\"Browser.getVersion\");\n    await browserCdp.detach();\n\n    const defaultPage = await context.newPage();\n    await defaultPage.setContent(\"<!doctype html><meta charset=utf-8><body>DM-2351 default</body>\");\n    const defaultCdp = await context.newCDPSession(defaultPage);\n    await defaultCdp.send(\"DOM.enable\");\n    await defaultCdp.send(\"CSS.enable\");\n    const defaultState = await collectState(defaultPage, defaultCdp, \"default\", null);\n\n    const mutation = buildPreferenceMutation(defaultState.sourceRows);\n    const mutationPage = await context.newPage();\n    mutationSession = await context.newCDPSession(mutationPage);\n    await mutationSession.send(\"Page.setFontFamilies\", {\n      fontFamilies: mutation.fontFamilies,\n      forScripts: mutation.forScripts,\n    });\n    await mutationPage.setContent(\"<!doctype html><meta charset=utf-8><body>DM-2351 mutation</body>\");\n    const mutationCdp = await context.newCDPSession(mutationPage);\n    await mutationCdp.send(\"DOM.enable\");\n    await mutationCdp.send(\"CSS.enable\");\n    const mutationState = await collectState(mutationPage, mutationCdp, \"mutation\", mutation);\n\n    const defaultMap = rowsByKey(defaultState.sourceRows);\n    const mutationMap = rowsByKey(mutationState.sourceRows);\n    const genericKeys = [...defaultMap].filter(([, row]) => isSettingsGeneric(row.generic)).map(([key]) => key);\n    const systemUiKeys = [...defaultMap].filter(([, row]) => row.generic === \"system-ui\").map(([key]) => key);\n    const quotedLiteralKeys = [...defaultMap].filter(([, row]) => row.generic === \"quoted-serif\").map(([key]) => key);\n    const mutatedGenericRows = genericKeys.filter((key) =>\n      normFace(face(defaultMap.get(key)!)) !== normFace(face(mutationMap.get(key)!))).length;\n    const systemUiNegativeControlStable = systemUiKeys.every((key) =>\n      normFace(face(defaultMap.get(key)!)) === normFace(face(mutationMap.get(key)!)));\n    const quotedLiteralControlExact = mutationState.report.rows\n      .filter((row) => row.generic === \"quoted-serif\")\n      .every((row) => row.exact);\n\n    // Deterministic discriminator for the retired ownership: if state B is\n    // installed process-globally, resolving A reads B. The scoped callback\n    // recovers A and restores B afterward. Production capture no longer calls\n    // this setter; captured trees carry A/B explicitly.\n    const prior = getSessionGenericFamilyOverrides();\n    setSessionGenericFamilyOverrides(mutationState.probe);\n    const contaminatedExact = resolveAgainstCurrentGlobal(defaultState.sourceRows);\n    const scopedExact = withSessionGenericFamilyOverrides(\n      defaultState.probe,\n      () => resolveAgainstCurrentGlobal(defaultState.sourceRows),\n    );\n    const restored = getSessionGenericFamilyOverrides() === mutationState.probe;\n    setSessionGenericFamilyOverrides(prior);\n    const legacyProcessGlobalContaminatedRows = defaultState.sourceRows.length - contaminatedExact;\n\n    const navigator = await mutationPage.evaluate(() => ({\n      userAgent: globalThis.navigator.userAgent,\n      language: globalThis.navigator.language,\n      languages: [...globalThis.navigator.languages],\n      platform: globalThis.navigator.platform,\n    }));\n    await Promise.all([defaultCdp.detach(), mutationCdp.detach()]);\n    const pass = defaultState.report.pass\n      && mutationState.report.pass\n      && mutatedGenericRows === genericKeys.length\n      && systemUiNegativeControlStable\n      && quotedLiteralControlExact\n      && legacyProcessGlobalContaminatedRows > 0\n      && scopedExact === defaultState.sourceRows.length\n      && restored;\n    return {\n      id: mode.id,\n      engine: mode.engine,\n      headless: mode.headless,\n      browserVersion: browser.version(),\n      protocolVersion: browserVersion.protocolVersion,\n      product: browserVersion.product,\n      revision: browserVersion.revision,\n      userAgent: browserVersion.userAgent,\n      jsVersion: browserVersion.jsVersion,\n      navigator,\n      default: defaultState.report,\n      mutation: mutationState.report,\n      mutatedGenericRows,\n      systemUiNegativeControlRows: systemUiKeys.length,\n      systemUiNegativeControlStable,\n      quotedLiteralControlRows: quotedLiteralKeys.length,\n      quotedLiteralControlExact,\n      legacyProcessGlobalContaminatedRows,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/generic-font-probe.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/generic-family-preference-parity.yml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "id": 2,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/198-live-generic-family-preference-parity.md"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2351"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "722424226cedc2d3d6b1aef0f36cb4f5"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "787f6eae00ffcad8aca20c9e1573b33c08e8e77f",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

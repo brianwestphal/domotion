@@ -41,8 +41,8 @@
 // Static routes remain only as a degraded fallback when probing fails or is
 // explicitly disabled.
 
-import type { BrowserContext, Page } from "@playwright/test";
-import { setSessionGenericFamilyOverrides } from "../render/font-resolution.js";
+import type { BrowserContext, CDPSession, Page } from "@playwright/test";
+import type { CapturedSessionGenericFamilies } from "./types.js";
 import { localeToScriptCodeForFontSelection } from "../render/generic-script-families.js";
 
 /** Browser settings families that participate in Blink's declared-family
@@ -57,6 +57,14 @@ const SCRIPT_PROBES = [
   { lang: "ru", text: "A" },
   { lang: "ar", text: "A" },
   { lang: "el", text: "A" },
+  // Full Chrome profile preferences are not limited to Playwright's four
+  // macOS/seven Windows table entries. These three are standing controls for
+  // ordinary Latin plus two settings scripts absent from Playwright's table;
+  // every additional language actually present in the captured page is added
+  // dynamically below.
+  { lang: "en", text: "A" },
+  { lang: "he", text: "A" },
+  { lang: "hi", text: "A" },
 ] as const;
 const SCRIPT_PROBED_GENERICS = PROBED_GENERICS;
 
@@ -64,6 +72,29 @@ export interface SessionGenericFamilyProbe {
   common: ReadonlyMap<string, string>;
   /** UScriptCode name → generic keyword → painted family. */
   byScript: ReadonlyMap<string, ReadonlyMap<string, string>>;
+}
+
+export function serializeSessionGenericFamilyProbe(
+  probe: SessionGenericFamilyProbe,
+): CapturedSessionGenericFamilies {
+  return {
+    source: "chromium-platform-fonts-v1",
+    common: Object.fromEntries(probe.common),
+    byScript: Object.fromEntries(
+      [...probe.byScript].map(([script, families]) => [script, Object.fromEntries(families)]),
+    ),
+  };
+}
+
+export function deserializeSessionGenericFamilyProbe(
+  probe: CapturedSessionGenericFamilies,
+): SessionGenericFamilyProbe {
+  return {
+    common: new Map(Object.entries(probe.common)),
+    byScript: new Map(
+      Object.entries(probe.byScript).map(([script, families]) => [script, new Map(Object.entries(families))]),
+    ),
+  };
 }
 
 interface ProbeTarget {
@@ -74,11 +105,15 @@ interface ProbeTarget {
   script: string | null;
 }
 
-export function genericFamilyProbeTargets(): ProbeTarget[] {
+export function genericFamilyProbeTargets(additionalLanguages: readonly string[] = []): ProbeTarget[] {
   const common = PROBED_GENERICS.map((generic, i) => ({
     id: `gc${i}`, generic, text: "Regna", lang: null, script: null,
   }));
-  const scripted = SCRIPT_PROBES.flatMap(({ lang, text }, scriptIndex) =>
+  const scriptedInputs = [...SCRIPT_PROBES, ...additionalLanguages.map((lang) => ({ lang, text: "A" }))]
+    .filter(({ lang }) => lang.trim() !== "")
+    .filter((entry, index, entries) => entries.findIndex((candidate) =>
+      localeToScriptCodeForFontSelection(candidate.lang) === localeToScriptCodeForFontSelection(entry.lang)) === index);
+  const scripted = scriptedInputs.flatMap(({ lang, text }, scriptIndex) =>
     SCRIPT_PROBED_GENERICS.map((generic, genericIndex) => ({
       id: `gs${scriptIndex}-${genericIndex}`,
       generic,
@@ -93,10 +128,140 @@ export function genericProbeArmed(): boolean {
   return process.env.DOMOTION_GENERIC_PROBE !== "0";
 }
 
-/** One shared task per browser context. Concurrent captures await the same
- *  probe, and later captures reinstall that context's cached answer in case a
- *  different context has since replaced the process-global renderer state. */
-const contextProbeTasks = new WeakMap<BrowserContext, Promise<SessionGenericFamilyProbe | null>>();
+let probeDocumentSequence = 0;
+
+async function readPageGenericFamilies(
+  page: Page,
+  cdp: CDPSession,
+  targets: ProbeTarget[],
+): Promise<SessionGenericFamilyProbe | null> {
+  const containerId = `__domotion_generic_probe_${++probeDocumentSequence}`;
+  const rootStyles = await page.evaluate(({ id, rows }) => {
+    const prior = {
+      html: document.documentElement.getAttribute("style"),
+      body: document.body?.getAttribute("style") ?? null,
+      bodyPresent: document.body != null,
+    };
+    for (const root of [document.documentElement, document.body]) {
+      if (root == null) continue;
+      root.style.setProperty("display", "block", "important");
+      root.style.setProperty("visibility", "visible", "important");
+      root.style.setProperty("content-visibility", "visible", "important");
+    }
+    document.getElementById(id)?.remove();
+    const container = document.createElement("div");
+    container.id = id;
+    container.setAttribute("aria-hidden", "true");
+    container.setAttribute("data-domotion-generic-probe", "");
+    for (const [property, value] of Object.entries({
+      all: "initial",
+      position: "fixed",
+      left: "-100000px",
+      top: "0",
+      display: "block",
+      visibility: "visible",
+      "content-visibility": "visible",
+      "white-space": "normal",
+      contain: "strict",
+      width: "4000px",
+      height: "4000px",
+      "pointer-events": "none",
+    })) container.style.setProperty(property, value, "important");
+    for (const row of rows) {
+      const span = document.createElement("span");
+      span.id = `${id}_${row.id}`;
+      if (row.lang != null) span.lang = row.lang;
+      // Inline author-important declarations beat any hostile page author
+      // rule, including `* { font-family: ... !important }`. A user-origin
+      // important rule remains allowed to win because that is part of the
+      // launched session we are deliberately measuring.
+      span.style.setProperty("all", "initial", "important");
+      span.style.setProperty("display", "block", "important");
+      span.style.setProperty("font-size", "32px", "important");
+      span.style.setProperty("line-height", "normal", "important");
+      if (row.generic !== "standard") span.style.setProperty("font-family", row.generic, "important");
+      span.textContent = row.text;
+      container.appendChild(span);
+    }
+    (document.documentElement ?? document).appendChild(container);
+    return prior;
+  }, { id: containerId, rows: targets });
+
+  try {
+    await page.evaluate(() => document.fonts.ready);
+    const { root } = await cdp.send("DOM.getDocument", { depth: -1, pierce: true });
+    const common = new Map<string, string>();
+    const byScript = new Map<string, Map<string, string>>();
+    for (const target of targets) {
+      const { nodeId } = await cdp.send("DOM.querySelector", {
+        nodeId: root.nodeId,
+        selector: `#${containerId}_${target.id}`,
+      });
+      if (nodeId === 0) continue;
+      const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
+      const primary = fonts.reduce(
+        (best, font) => (best == null || font.glyphCount > best.glyphCount ? font : best),
+        null as (typeof fonts)[number] | null,
+      );
+      if (primary == null || primary.familyName === "") continue;
+      const faceName = primary.postScriptName || primary.familyName;
+      if (target.script == null) common.set(target.generic, faceName);
+      else {
+        let scriptMap = byScript.get(target.script);
+        if (scriptMap == null) {
+          scriptMap = new Map();
+          byScript.set(target.script, scriptMap);
+        }
+        scriptMap.set(target.generic, faceName);
+      }
+    }
+    return common.size > 0 ? { common, byScript } : null;
+  } finally {
+    await page.evaluate(({ id, prior }) => {
+      document.getElementById(id)?.remove();
+      if (prior.html == null) document.documentElement.removeAttribute("style");
+      else document.documentElement.setAttribute("style", prior.html);
+      if (prior.bodyPresent && document.body != null) {
+        if (prior.body == null) document.body.removeAttribute("style");
+        else document.body.setAttribute("style", prior.body);
+      }
+    }, { id: containerId, prior: rootStyles }).catch(() => {});
+  }
+}
+
+/** Probe the exact page that will be captured. This observes profile defaults,
+ * Playwright's injected table, and any later per-page CDP preference mutation
+ * without navigating or replacing the caller's document. */
+export async function probePageGenericFamilies(
+  page: Page,
+): Promise<SessionGenericFamilyProbe | null> {
+  let cdp: CDPSession | null = null;
+  try {
+    const languages = (await Promise.all(page.frames().map(async (frame) => {
+      try {
+        return await frame.evaluate(() => [
+          document.documentElement?.lang ?? "",
+          ...Array.from(document.querySelectorAll("[lang]"), (element) => (element as HTMLElement).lang),
+        ]);
+      } catch {
+        return [] as string[];
+      }
+    }))).flat();
+    const targets = genericFamilyProbeTargets(languages);
+    cdp = await page.context().newCDPSession(page);
+    await cdp.send("DOM.enable");
+    await cdp.send("CSS.enable");
+    const first = await readPageGenericFamilies(page, cdp, targets);
+    const second = await readPageGenericFamilies(page, cdp, targets);
+    if (probeResultsEqual(first, second)) return second;
+    const third = await readPageGenericFamilies(page, cdp, targets);
+    return probeResultsEqual(second, third) ? third : null;
+  } catch {
+    return null;
+  } finally {
+    await cdp?.detach().catch(() => {});
+  }
+}
 
 /**
  * Ask THIS capture session which family each CSS generic keyword paints.
@@ -111,59 +276,8 @@ export async function probeSessionGenericFamilies(
   let page: Page | null = null;
   try {
     page = await context.newPage();
-    const targets = genericFamilyProbeTargets();
-    const spans = targets.map(
-      (target) => `<span id="${target.id}"${target.lang == null ? "" : ` lang="${target.lang}"`}`
-        + ` style="${target.generic === "standard" ? "" : `font-family: ${target.generic}; `}font-size: 32px;">${target.text}</span>`,
-    ).join("<br>");
-    const cdp = await context.newCDPSession(page);
-    await cdp.send("DOM.enable");
-    await cdp.send("CSS.enable");
-    const read = async (): Promise<SessionGenericFamilyProbe | null> => {
-      await page!.setContent(`<!DOCTYPE html><meta charset="utf-8"><body>${spans}</body>`);
-      await page!.evaluate(() => document.fonts.ready);
-      const { root } = await cdp.send("DOM.getDocument");
-      const common = new Map<string, string>();
-      const byScript = new Map<string, Map<string, string>>();
-      for (const target of targets) {
-        const { nodeId } = await cdp.send("DOM.querySelector", {
-          nodeId: root.nodeId,
-          selector: `#${target.id}`,
-        });
-        if (nodeId === 0) continue;
-        const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
-        const primary = fonts.reduce(
-          (best, font) => (best == null || font.glyphCount > best.glyphCount ? font : best),
-          null as (typeof fonts)[number] | null,
-        );
-        if (primary == null || primary.familyName === "") continue;
-        // Family names can collapse distinct Chromium cuts. In particular,
-        // CoreText reports family "Hiragino Kaku Gothic ProN" while Blink has
-        // selected HiraKakuProN-W3; feeding only the family back through our
-        // matcher re-selected the unrelated HiraginoSans-W4 face. Preserve
-        // Chromium's concrete face identity whenever CDP supplies it.
-        const faceName = primary.postScriptName ?? primary.familyName;
-        if (target.script == null) common.set(target.generic, faceName);
-        else {
-          let scriptMap = byScript.get(target.script);
-          if (scriptMap == null) {
-            scriptMap = new Map();
-            byScript.set(target.script, scriptMap);
-          }
-          scriptMap.set(target.generic, faceName);
-        }
-      }
-      return common.size > 0 ? { common, byScript } : null;
-    };
-
-    // Playwright's Page.setFontFamilies update can race the first layout on a
-    // loaded runner. Require two consecutive identical paints; a third pass
-    // lets the settled Playwright values win over a constructor-default first.
-    const first = await read();
-    const second = await read();
-    if (probeResultsEqual(first, second)) return second;
-    const third = await read();
-    return probeResultsEqual(second, third) ? third : null;
+    await page.setContent("<!DOCTYPE html><meta charset=utf-8><body></body>");
+    return await probePageGenericFamilies(page);
   } catch {
     return null;
   } finally {
@@ -185,27 +299,19 @@ function probeResultsEqual(
 }
 
 /**
- * Default-on entry point called from the capture funnel: probe the page's
- * browser context once and install the result as the session generic-family
- * overrides consulted by `matchFamilyNameToKey`. No-op unless
- * `DOMOTION_GENERIC_PROBE=0`; never throws; never re-probes a context.
+ * Default-on entry point called from the capture funnel: probe the exact Page
+ * being captured and return the result for serialization on the captured tree.
+ * No process-global renderer state is changed. No-op when
+ * `DOMOTION_GENERIC_PROBE=0`; never throws; deliberately re-probes every
+ * capture because another CDP session can mutate Page settings at any time.
  */
-export async function ensureSessionGenericFamilyOverrides(page: Page): Promise<void> {
-  if (!genericProbeArmed()) return;
-  let context: BrowserContext;
-  try {
-    context = page.context();
-  } catch {
-    return;
-  }
-  const existing = contextProbeTasks.get(context);
-  if (existing != null) {
-    const result = await existing;
-    if (result != null) setSessionGenericFamilyOverrides(result);
-    return;
-  }
-  const task = probeSessionGenericFamilies(context);
-  contextProbeTasks.set(context, task);
-  const result = await task;
-  if (result != null) setSessionGenericFamilyOverrides(result);
+export async function ensureSessionGenericFamilyOverrides(
+  page: Page,
+): Promise<SessionGenericFamilyProbe | null> {
+  if (!genericProbeArmed()) return null;
+  // Do not cache by Page: Page.setFontFamilies is guarded once per
+  // InspectorPageAgent SESSION, so another CDP session can legitimately
+  // mutate the same page between two captures. Re-probing is the only source-
+  // honest invalidation policy available through the public protocol.
+  return await probePageGenericFamilies(page);
 }

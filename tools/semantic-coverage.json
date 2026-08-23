@@ -23,10 +23,10 @@
       ],
       "exactStates": [
         "declared face covers cluster -> declared face",
-        "declared face misses cluster -> platform fallback"
+        "declared face misses cluster -> platform fallback",
+        "generic family -> browser preference"
       ],
       "uncoveredStates": [
-        "generic family -> browser preference",
         "helper available -> helper absent"
       ],
       "upstreamSources": [
@@ -34,7 +34,11 @@
         "external/harfbuzz/src"
       ],
       "productionOwners": [
+        "src/capture/generic-font-probe.ts",
+        "src/capture/index.ts",
+        "src/capture/types.ts",
         "src/render/font-resolution.ts",
+        "src/render/element-tree-to-svg.ts",
         "src/render/cluster-fallback.ts",
         "src/render/glyph-helper.ts",
         "src/render/text-run-provenance.ts"
@@ -44,12 +48,20 @@
         "tools/exact-shaping-oracle.ts",
         "tools/unified-shaping-oracle.ts",
         "tools/renderer-font-route-oracle.ts",
+        "tools/generic-family-preference-oracle.ts",
         "tools/linux-arm64-release-evidence.ts"
       ],
       "metamorphicTests": [
         "src/render/font-stack-availability.test.ts",
         "src/render/cluster-fallback-features.test.ts",
         "src/render/text-run-provenance.test.ts",
+        "src/capture/generic-font-probe.test.ts",
+        "src/render/session-generic-overrides.test.ts",
+        "src/render/captured-generic-family-ownership.test.ts",
+        "tests/generic-font-probe.e2e.test.ts",
+        "tests/generic-family-preference-oracle.test.ts",
+        "tests/generic-family-preference-workflow.test.ts",
+        ".github/workflows/generic-family-preference-parity.yml",
         "tests/linux-arm64-release-evidence.test.ts",
         "tests/linux-arm64-release-parity-workflow.test.ts",
         ".github/workflows/linux-arm64-release-parity.yml"
@@ -59,7 +71,7 @@
         "tests/html-test-suite.tsx"
       ],
       "coverage": "partial",
-      "boundary": "Unified face/shaping evidence and a production per-run route ledger exist; the dispatch-only Linux arm64 gate consumes fingerprinted published helpers from a clean cache and requires exact logical plus selected visual evidence, with its first retained native run still required after integration. Generic preference profiles remain incomplete, the renderer-route corpus is representative rather than exhaustive, and helper-absent behavior is intentionally degraded.",
+      "boundary": "Unified face/shaping evidence and a production per-run route ledger exist. Generic-family preferences are exact for the captured Page/tree contract: every capture re-probes live Common/script settings, serialized A/B roots render in order-independent scoped state, and the strict native workflow crosses pinned/full Chrome headed/headless with dynamically derived mutations and system-ui separation controls. Isolated profile-to-WebPreferences propagation, per-target OOPIF divergence, promoted descendants, shadow/header-only language facts, and system-ui platform routing remain explicit separate boundaries. The dispatch-only Linux arm64 gate consumes fingerprinted published helpers from a clean cache and requires exact logical plus selected visual evidence, with its first retained native run still required after integration. The renderer-route corpus is representative rather than exhaustive, and helper-absent behavior is intentionally degraded.",
       "featureIds": [
         "render.text",
         "fonts.glyph-helper"

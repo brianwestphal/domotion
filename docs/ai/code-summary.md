@@ -471,6 +471,17 @@ shortest possible map:
   `tests/font-conformance-baseline.test.ts`; see
   `docs/107-font-conformance-oracle.md`. `tools/chrome-font-agreement.ts` is its
   single-shot `FONTAGREE:` diagnostic sibling.
+- **Live generic-family preference ownership** —
+  `src/capture/generic-font-probe.ts` re-probes the exact capture Page and
+  serializes Common plus script-keyed painted faces on the captured top-level
+  roots. `elementTreeToSvgInner` scopes that record to one synchronous render;
+  no production capture writes the legacy process-global oracle slot. This
+  closes the deterministic A-capture/B-capture/A-render contamination and the
+  fresh-CDP-session mutation invalidation gap. `tools/generic-family-preference-oracle.ts`
+  (`npm run fonts:generic-preferences`) crosses pinned Chromium and full Chrome,
+  headless and headed, controlled live mutations, 77 settings rows, 11
+  `system-ui` separation controls, and 11 quoted-literal controls. The strict native three-platform workflow is
+  `.github/workflows/generic-family-preference-parity.yml`; see doc 198.
 - **Synthetic stack corpus** — `tools/font-conformance-synthetic-stacks.ts`
   generates a SECOND corpus for the same oracle from a stated rule (the 13 CSS
   generic-family keywords × the 9-rung weight ladder × the 9 stretch keywords ×

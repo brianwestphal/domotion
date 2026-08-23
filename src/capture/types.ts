@@ -1716,6 +1716,18 @@ export interface CapturedBrokenImageFallback {
 }
 
 export interface CapturedElement {
+  /**
+   * DM-2351: generic-family settings observed from the same Chromium page as
+   * this capture. The probe records concrete painted faces rather than a
+   * browser/profile snapshot table; the renderer installs this record only
+   * for the synchronous render of this tree. It is repeated only on
+   * top-level roots so serialized multi-root captures retain their session
+   * authority without copying the map onto every descendant. A consumer that
+   * promotes a descendant to a new render root must retain/reattach the
+   * originating root record; a bare descendant intentionally takes the
+   * legacy/static fallback rather than guessing its former Page.
+   */
+  sessionGenericFamilies?: CapturedSessionGenericFamilies;
   tag: string;
   text: string;
   x: number;
@@ -2305,6 +2317,14 @@ export interface CapturedElement {
    * on the final captured tree handed to the renderer.
    */
   scrollMarkerGroup?: CapturedElement;
+}
+
+/** Serializable form of the live Page generic-family probe. */
+export interface CapturedSessionGenericFamilies {
+  source: "chromium-platform-fonts-v1";
+  common: Record<string, string>;
+  /** Blink UScriptCode name -> generic keyword -> concrete painted face. */
+  byScript: Record<string, Record<string, string>>;
 }
 
 export interface PseudoBox {

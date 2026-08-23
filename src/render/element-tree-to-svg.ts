@@ -11,7 +11,7 @@ import { renderSingleLineText, renderMultiSegmentText, renderMultiLineText, rend
 import { renderVerticalSegments, hasVerticalSegments } from "./vertical-text.js";
 import { renderPseudoFragmentSlot, type PseudoFragmentPaintSlot } from "./pseudo-fragments.js";
 import { getEmbeddedFontFaceCss, getGlyphDefs, renderRadicalGlyph, renderSourceOwnedTextBoundary, pushBaselineSnapSuppression, popBaselineSnapSuppression } from "./text-to-path.js";
-import { beginCharacterFallbackDocument, endCharacterFallbackDocument } from "./font-resolution.js";
+import { beginCharacterFallbackDocument, endCharacterFallbackDocument, withSessionGenericFamilyOverrides, type SessionGenericFamilyOverrides } from "./font-resolution.js";
 import { profAccum, profNow } from "./render-profile.js";
 import type { DefCtx } from "./form-controls.js";
 import { renderFileSelectorOutsetShadow, renderFormControl } from "./form-controls.js";
@@ -65,7 +65,7 @@ import { cssTransformToSvg } from "./transforms.js";
 import { parseCssUrl, splitTopLevelCommas } from "./css-tokens.js";
 import { buildLinearGradientDef as buildExactLinearGradientDef, parseLegacyWebkitLinearGradient } from "./gradients.js";
 import { blinkPhysicalSymbolMarkerRect, blinkSymbolMarkerGeometry, disclosureTriangle, pixelSnapRect, type SymbolMarkerType } from "./list-marker-geometry.js";
-import type { CapturedBackgroundImage, CapturedElement, TextSegment, MaskFragmentDef, MaskRasterRef, ClipPathFragmentDef, CaptureWarning } from "../capture/types.js";
+import type { CapturedBackgroundImage, CapturedElement, CapturedSessionGenericFamilies, TextSegment, MaskFragmentDef, MaskRasterRef, ClipPathFragmentDef, CaptureWarning } from "../capture/types.js";
 import {
   _dataUriCache,
   _resizedDataUriCache,
@@ -3575,12 +3575,50 @@ function elementTreeToSvgInnerImpl(
 export function elementTreeToSvgInner(
   ...args: Parameters<typeof elementTreeToSvgInnerImpl>
 ): string {
-  beginCharacterFallbackDocument();
-  try {
-    return elementTreeToSvgInnerImpl(...args);
-  } finally {
-    endCharacterFallbackDocument();
+  const render = (): string => {
+    beginCharacterFallbackDocument();
+    try {
+      return elementTreeToSvgInnerImpl(...args);
+    } finally {
+      endCharacterFallbackDocument();
+    }
+  };
+  const captured = capturedSessionGenericFamilies(args[0]);
+  return captured == null
+    ? render()
+    : withSessionGenericFamilyOverrides(captured, render);
+}
+
+export function capturedSessionGenericFamilies(
+  elements: CapturedElement[],
+): SessionGenericFamilyOverrides | null {
+  const records = elements
+    .map((element) => element.sessionGenericFamilies)
+    .filter((record): record is CapturedSessionGenericFamilies => record != null);
+  if (records.length === 0) return null;
+  if (records.length !== elements.length) {
+    throw new Error("Cannot mix captured roots with and without generic-family preference authority");
   }
+  const signature = (record: CapturedSessionGenericFamilies): string => JSON.stringify({
+    source: record.source,
+    common: Object.entries(record.common).sort(([a], [b]) => a.localeCompare(b)),
+    byScript: Object.entries(record.byScript)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([script, families]) => [
+        script,
+        Object.entries(families).sort(([a], [b]) => a.localeCompare(b)),
+      ]),
+  });
+  const firstSignature = signature(records[0]);
+  if (records.some((record) => signature(record) !== firstSignature)) {
+    throw new Error("Cannot render roots captured from different generic-family preference sessions in one tree");
+  }
+  return {
+    common: new Map(Object.entries(records[0].common)),
+    byScript: new Map(
+      Object.entries(records[0].byScript).map(([script, families]) => [script, new Map(Object.entries(families))]),
+    ),
+  };
 }
 
 // DM-1342: render functions lifted out of `elementTreeToSvgInner` to module

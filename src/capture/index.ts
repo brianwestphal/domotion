@@ -23,7 +23,7 @@ import { refineLineClampEllipsisFragments } from "./line-clamp.js";
 import { captureResolvedControlPseudoStyles } from "./pseudo-style-cdp.js";
 import { captureEffectiveAppearanceFacts } from "./effective-appearance-cdp.js";
 import { finalizeScrollbarResizerOverlap, prepareCapturedScrollbarSets } from "./scrollbar-capture.js";
-import { ensureSessionGenericFamilyOverrides } from "./generic-font-probe.js";
+import { ensureSessionGenericFamilyOverrides, serializeSessionGenericFamilyProbe } from "./generic-font-probe.js";
 import { primeBackgroundImageSizing } from "./background-image-sizing.js";
 import { captureBrokenImageFallbackFacts } from "./broken-image-fallback.js";
 import { captureSummaryMarkerGeometry } from "./summary-marker-cdp.js";
@@ -1661,13 +1661,15 @@ export async function captureElementTreeWithWarnings(
   // warns as before.
   await inlineExternalSvgRefs(page);
 
-  // Default-on (DOMOTION_GENERIC_PROBE=0 disables): probe THIS capture
-  // session's painted generic families once per browser context and install
-  // them as the renderer's generic-keyword routes — the concrete family
+  // Default-on (DOMOTION_GENERIC_PROBE=0 disables): probe THIS capture Page's
+  // painted generic families and serialize them on its captured root(s) — the
+  // concrete family
   // behind `serif` / `monospace` / ... is a property of the launched session
   // (Playwright applies its own table via CDP `Page.setFontFamilies`), so the
-  // session is the only authority. See `src/capture/generic-font-probe.ts`.
-  await ensureSessionGenericFamilyOverrides(page);
+  // Page is the only authority. The renderer scopes that record to this tree,
+  // so independently captured pages cannot contaminate one another. See
+  // `src/capture/generic-font-probe.ts`.
+  const sessionGenericFamilies = await ensureSessionGenericFamilyOverrides(page);
 
   const [maskIntrinsicPrime, backgroundImagePrime] = await Promise.all([
     primeMaskImageIntrinsics(page),
@@ -1816,6 +1818,10 @@ export async function captureElementTreeWithWarnings(
   await rasterizeReplacedElements(page, typed.tree, viewport, { sourceImagePath: opts?.rasterizeFromImagePath });
   await rasterizeMaskSources(page, typed.tree, viewport);
   await rasterizeAdvancedGradients(typed.tree, page);
+  if (sessionGenericFamilies != null) {
+    const captured = serializeSessionGenericFamilyProbe(sessionGenericFamilies);
+    for (const root of typed.tree) root.sessionGenericFamilies = captured;
+  }
   return { tree: typed.tree, warnings };
   } finally {
     await textPaintProbe?.dispose();
