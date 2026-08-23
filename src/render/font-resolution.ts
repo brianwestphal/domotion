@@ -130,8 +130,9 @@ export interface FontInstance {
     /** sTypoAscender / sTypoDescender (font units; descender stored negative).
      *  Feed the normalized-typo-descent rule for `text-underline-position:
      *  under` (`platform/fonts/simple_font_data.cc:360-415`, rev 7d859f27).
-     *  Present on fontkit-backed instances; native-helper instances omit them
-     *  and the rule falls back to FloatAscent/FloatDescent normalization. */
+     *  Present on fontkit-backed instances and native helpers that expose the
+     *  selected face's OS/2 table; older helpers fall back to
+     *  FloatAscent/FloatDescent normalization. */
     typoAscender?: number; typoDescender?: number;
   };
   /** Glyph-coverage probe. `id === 0` is `.notdef` (no coverage). Both backing

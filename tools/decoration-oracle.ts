@@ -1067,7 +1067,9 @@ function reconstructSnappedBars(bars: readonly MeasuredBar[]): MeasuredBar[] {
  * source-owned centerline; amplitude remains exact on rule-vs-SVG. */
 function compareBarCenters(a: Bar[], b: Bar[], tol: number, aName: string, bName: string): LegResult {
   return compareBars(
-    a.map((bar) => ({ top: bar.top + bar.height / 2, height: 0 })),
+    // ComputeWavyPatternRect expands the path with floor(top)/ceil(bottom);
+    // its DPR-1 tile therefore has a half-pixel-centered integer-height band.
+    a.map((bar) => ({ top: Math.floor(bar.top + bar.height / 2) + 0.5, height: 0 })),
     b.map((bar) => ({ top: bar.top + bar.height / 2, height: 0 })),
     tol, `${aName}-center`, `${bName}-center`,
   );

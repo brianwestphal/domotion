@@ -1024,6 +1024,33 @@ static std::string runMetaQuery(const JsonValue& query, std::map<std::string, Fo
     return SUCCEEDED(hr) && exists && size > 0;
   };
 
+  // Blink's `text-underline-position: under` reads the selected face's raw
+  // OS/2 sTypoAscender/sTypoDescender before normalizing them to the em. These
+  // are not part of DWRITE_FONT_METRICS, so preserve the SFNT table values in
+  // the helper's metadata contract (OS/2 offsets 68 and 70, signed big-endian).
+  INT16 typoAscender = 0;
+  INT16 typoDescender = 0;
+  bool hasTypoMetrics = false;
+  {
+    const void* data = nullptr;
+    UINT32 size = 0;
+    void* context = nullptr;
+    BOOL exists = FALSE;
+    const HRESULT hr = it->second.face->TryGetFontTable(
+        DWRITE_MAKE_OPENTYPE_TAG('O','S','/','2'), &data, &size, &context, &exists);
+    if (SUCCEEDED(hr) && exists && data && size >= 72) {
+      const auto* bytes = static_cast<const BYTE*>(data);
+      auto readI16BE = [bytes](UINT32 offset) {
+        return static_cast<INT16>((static_cast<UINT16>(bytes[offset]) << 8) |
+                                  static_cast<UINT16>(bytes[offset + 1]));
+      };
+      typoAscender = readI16BE(68);
+      typoDescender = readI16BE(70);
+      hasTypoMetrics = typoAscender > 0;
+    }
+    if (context) it->second.face->ReleaseFontTable(context);
+  }
+
   std::ostringstream out;
   out << "{\"type\":\"meta\""
       << ",\"unitsPerEm\":" << static_cast<int>(m.designUnitsPerEm)
@@ -1035,6 +1062,10 @@ static std::string runMetaQuery(const JsonValue& query, std::map<std::string, Fo
       << ",\"underlineThickness\":" << static_cast<int>(m.underlineThickness)
       << ",\"strikeoutPosition\":" << static_cast<int>(m.strikethroughPosition)
       << ",\"strikeoutThickness\":" << static_cast<int>(m.strikethroughThickness);
+  if (hasTypoMetrics) {
+    out << ",\"typoAscender\":" << static_cast<int>(typoAscender)
+        << ",\"typoDescender\":" << static_cast<int>(typoDescender);
+  }
   out << ",\"supportedColorTables\":[";
   bool firstTable = true;
   struct TaggedTable { const char* name; UINT32 tag; };

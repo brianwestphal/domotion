@@ -15,4 +15,15 @@ describe("DM-2345 cross-platform decoration evidence", () => {
     expect(job).toContain("steps.decoration_dpr4.outcome");
     expect(job).toContain("throw 'One or more exact decoration geometry lanes failed");
   });
+
+  it("carries the selected DirectWrite face's OS/2 typo metrics into decoration geometry", () => {
+    const helper = readFileSync("tools/win32-glyph-extractor/src/main.cpp", "utf8");
+    const adapter = readFileSync("src/render/glyph-helper.ts", "utf8");
+    expect(helper).toContain("TryGetFontTable");
+    expect(helper).toContain("readI16BE(68)");
+    expect(helper).toContain("readI16BE(70)");
+    expect(helper).toContain("\\\"typoAscender\\\"");
+    expect(adapter).toContain("typoAscender: metaResp.typoAscender");
+    expect(adapter).toContain("typoDescender: metaResp.typoDescender");
+  });
 });
