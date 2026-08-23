@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex DM-2501",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt580aklcxo8jxvb",
+          "message": {
+            "text": "The comparison must own one DPR-qualified Blink fragment state. Run 32611751700 measured Chrome/rules on DPR 4 but captured SVG input on implicit DPR 1; pinned Linux arm64 placed the same span at y=122 versus y=123 with ascent 11 in both contexts. Keeping both legs on one explicit scale fixes the oracle without subtracting a platform pixel or touching production geometry.",
+            "markdown": "The comparison must own one DPR-qualified Blink fragment state. Run 32611751700 measured Chrome/rules on DPR 4 but captured SVG input on implicit DPR 1; pinned Linux arm64 placed the same span at y=122 versus y=123 with ascent 11 in both contexts. Keeping both legs on one explicit scale fixes the oracle without subtracting a platform pixel or touching production geometry."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/decoration-oracle.ts"
+                },
+                "region": {
+                  "startLine": 176,
+                  "endLine": 206,
+                  "snippet": {
+                    "text": "const CASES_PER_CHUNK = 6;\nconst DSF = 4;\n\nexport interface DecorationOracleScalePlan {\n  chromePaint: number;\n  domotionCapture: number;\n}\n\n/**\n * Both geometry authorities must observe one Blink paint state. Device scale\n * is a layout/font input on Linux: the same source can expose a different\n * physical text-fragment top at DPR 1 and DPR 4. Keep the plan explicit and\n * exported so a logical gate can reject the cross-DPR comparison that caused\n * the uniform arm64 +1 CSS-px false failure in run 32611751700 (DM-2501).\n */\nexport function decorationOracleScalePlan(deviceScaleFactor = DSF): DecorationOracleScalePlan {\n  if (!Number.isFinite(deviceScaleFactor) || deviceScaleFactor <= 0) {\n    throw new Error(\"decoration oracle deviceScaleFactor must be finite and positive\");\n  }\n  return { chromePaint: deviceScaleFactor, domotionCapture: deviceScaleFactor };\n}\n\nexport function decorationOracleScalePlanErrors(plan: DecorationOracleScalePlan): string[] {\n  const errors: string[] = [];\n  if (!Number.isFinite(plan.chromePaint) || plan.chromePaint <= 0) errors.push(\"Chrome paint deviceScaleFactor is invalid\");\n  if (!Number.isFinite(plan.domotionCapture) || plan.domotionCapture <= 0) errors.push(\"Domotion capture deviceScaleFactor is invalid\");\n  if (plan.chromePaint !== plan.domotionCapture) {\n    errors.push(`cross-DPR decoration geometry comparison is invalid: Chrome=${plan.chromePaint}, capture=${plan.domotionCapture}`);\n  }\n  return errors;\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/decoration-coordinate-ownership.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 30
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/200-linux-arm64-decoration-coordinate-ownership.md"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2501"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "1e118ea1788dc30eb76758871592a79a"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "84fa5b2683f26a8a7cf92747c8fddfbba092770b",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

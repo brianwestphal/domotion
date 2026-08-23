@@ -99,7 +99,7 @@ jobs:
             --tracking-control-fixture tests/fixtures/exact-shaping/TRAK.ttf.base64 \
             --json "$EVIDENCE_DIR/shaping.json" 2>&1 | tee "$EVIDENCE_DIR/logs/shaping.log"
 
-      - name: Decoration geometry oracle
+      - name: Same-DPR decoration geometry oracle
         id: decoration
         if: steps.acquisition.outcome == 'success'
         continue-on-error: true

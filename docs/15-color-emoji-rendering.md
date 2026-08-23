@@ -127,6 +127,23 @@ predicate is exactly `sbix || (COLR && CPAL) || (CBDT && CBLC)`; SVG is a
 separate selected-glyph output capability. See
 [145-renderer-owned-color-glyph-boundary.md](145-renderer-owned-color-glyph-boundary.md).
 
+## Source-priority shaping-item boundary (DM-2502 / DM-2507)
+
+The downstream selected-glyph predicate above is exact. The cluster fallback
+itemizer formerly omitted Blink's source-owned
+`SymbolsIterator` priority boundary. Native Linux arm64 run `32611751700`
+exposed the consequence: a text-priority FreeSans selection for U+2717 leaked
+into emoji-presentation U+2757. DM-2507 now computes maximal source priorities
+independently, intersects them with bidi/script ranges, and creates a fresh
+fallback iterator per intersection. CSS applies only after the source split;
+explicit VS15/VS16 priorities and declared-family precedence remain intact.
+
+[Doc 201](201-emoji-presentation-item-ownership.md) records the pinned source,
+artifact, production closure, and strict native discriminator. Both symbol
+orders now select Noto Color Emoji for U+2757 and the unchanged HTML fixture is
+clean. DM-2508 will promote that resolved evidence into the arm64 aggregate.
+No raster tolerance is involved.
+
 ## Known gaps
 
 - **Non-sbix formats use screenshots.** COLR, OpenType SVG, custom color

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5a123j1en10p17",
+          "message": {
+            "text": "The corpus is a finite deconfounded 348-cell union per run, not a diagonal fit matrix. Every technology covers sizes, weights, all sixteen quarter-pixel phases, every transform and DPR1/2; hinted glyf also crosses phase with rotate/affine. A canonical cell hash binds text, source bytes, axes, concrete matrix, paint plan and metric version so an envelope cannot migrate between superficially similar dimensions.",
+            "markdown": "The corpus is a finite deconfounded 348-cell union per run, not a diagonal fit matrix. Every technology covers sizes, weights, all sixteen quarter-pixel phases, every transform and DPR1/2; hinted glyf also crosses phase with rotate/affine. A canonical cell hash binds text, source bytes, axes, concrete matrix, paint plan and metric version so an envelope cannot migrate between superficially similar dimensions."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/paths-native-raster-corpus.ts"
+                },
+                "region": {
+                  "startLine": 28,
+                  "endLine": 50,
+                  "snippet": {
+                    "text": "/**\n * Pinned, tiny HarfBuzz test fonts keep the raster question independent of the\n * host's mutable font inventory. The unhinted glyf face is derived from the\n * hinted Open Sans bytes with the repository's pinned hb-subset build; both\n * browser and path arms receive the resulting bytes.\n */\nexport const PATHS_NATIVE_RASTER_FIXTURES: readonly PathsRasterFixture[] = [\n  {\n    technology: \"glyf-hinted\",\n    upstreamPath: \"OpenSans-Regular.ttf\",\n    upstreamSha256: \"e64e508b2aa2880f907e470c4550980ec4c0694d103a43f36150ac3f93189bee\",\n    text: \"ABC\",\n    requiredTables: [\"glyf\", \"cvt \", \"fpgm\", \"prep\"],\n  },\n  {\n    technology: \"glyf-unhinted\",\n    upstreamPath: \"OpenSans-Regular.ttf\",\n    upstreamSha256: \"e64e508b2aa2880f907e470c4550980ec4c0694d103a43f36150ac3f93189bee\",\n    text: \"ABC\",\n    requiredTables: [\"glyf\"],\n    forbiddenTables: [\"cvt \", \"fpgm\", \"prep\"],\n    derive: \"drop-glyf-hinting\",\n    derivedSha256: \"07fbf77e59c09ff807da12fc388ce41ecb0f73e5525729d11e4708227bf5dbd1\","
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 94,
+          "workItemUris": [
+            "DM-2499"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "2d45c6fb6aad015ded8e3f55a09ecd25"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2b1bf3ebe3efea427ad57b4346de9074c95b653a",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

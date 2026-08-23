@@ -65,7 +65,8 @@ After acquisition succeeds, the workflow runs eight independently named legs:
 - a deterministic synthetic-stack font-selection slice;
 - exact logical shaping with host movement controls plus pinned, source-owned
   variable-axis and `ptem` applicability rows (doc 199);
-- decoration geometry;
+- coherent-DPR decoration geometry with the unchanged source-owned `0.3px`
+  rule-to-SVG envelope (doc 200);
 - the complete source-transcribed paint corpus plus the live browser source
   discriminator;
 - known-exact Linux HTML font/text fixtures; and
@@ -93,6 +94,29 @@ separately in schema 3. The workflow also supplies pinned source revisions to
 the fingerprint. These changes activate the logical inputs; they do not add
 fixture rows to the host comparison corpus or alter any raster threshold. A
 fresh retained native artifact is still required after integration.
+
+The same retained run also exposed a decoration-oracle ownership defect rather
+than a renderer defect. Its Chrome paint/rule legs used DPR 4, while its
+Domotion SVG leg captured a separately laid-out DPR-1 fragment; pinned Linux
+arm64 placed that fragment at y=122 and y=123 respectively. DM-2501 binds both
+full-matrix legs to DPR 4 and records the scales in `decoration.json`; the
+aggregate finalizer refuses a cross-DPR report, a widened `0.3px` envelope, or
+anything short of the full 106-row/29-pattern-row matrix. The pinned Noble
+arm64 container now passes 106/106 transcription, 29/29 skip-ink/pattern, and
+106/106 SVG geometry. A focused browser gate also passes coherent DPR 1 and
+DPR 4. No capture or renderer behavior changed. See [doc 200](200-linux-arm64-decoration-coordinate-ownership.md).
+
+The same run's sole significant HTML region was a separate logical ownership
+finding, not native raster noise. DM-2507 now intersects pinned Chromium's
+`SymbolsIterator` source-priority ranges with independently resolved
+bidi/script ranges before per-item fallback allocation. The strict native
+matrix is order-invariant for `✗ ❗` / `❗ ✗`, preserves opposite-CSS VS15/VS16
+and declared-family precedence, and routes bare U+2757 to Noto Color Emoji.
+The unchanged `02-text-emoji` fixture is clean with zero significant regions.
+`.github/workflows/emoji-presentation-ownership-audit.yml` gates the exact
+source partition and native route without a pixel threshold. See
+[doc 201](201-emoji-presentation-item-ownership.md); DM-2508 owns only aggregate
+activation of this resolved evidence.
 
 ## Maintainer commands
 

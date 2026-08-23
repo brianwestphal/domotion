@@ -557,17 +557,61 @@ function readJson(relative: string, root: string): unknown {
   return JSON.parse(readFileSync(path.join(root, relative), "utf8"));
 }
 
+interface DecorationEvidenceReport {
+  platform?: string;
+  architecture?: string;
+  coordinateOwnership?: {
+    source?: string;
+    chromePaintDeviceScaleFactor?: number;
+    domotionCaptureDeviceScaleFactor?: number;
+  };
+  tolerances?: { svgGeometry?: number };
+  gates?: Record<string, boolean>;
+  results?: Array<Record<string, { ok?: boolean } | null>>;
+}
+
+/** Fail closed on the coherent-DPR decoration evidence fixed by DM-2501. */
+export function decorationEvidenceErrors(decoration: DecorationEvidenceReport): string[] {
+  const errors: string[] = [];
+  const ownership = decoration.coordinateOwnership;
+  if (decoration.platform !== "linux" || decoration.architecture !== "arm64") {
+    errors.push("decoration report is not native linux/arm64 evidence");
+  }
+  if (ownership?.source !== "blink-physical-text-fragment-same-dpr-v1"
+    || ownership.chromePaintDeviceScaleFactor !== 4
+    || ownership.domotionCaptureDeviceScaleFactor !== 4) {
+    errors.push("decoration report does not bind Chrome paint and Domotion capture to the required DPR 4 Blink state");
+  }
+  if (decoration.tolerances?.svgGeometry !== 0.3) {
+    errors.push("decoration SVG geometry tolerance is not the source-owned 0.3 CSS px envelope");
+  }
+  if (decoration.gates?.transcription !== true
+    || decoration.gates.skipInk !== true
+    || decoration.gates.svgGeometry !== true) {
+    errors.push("decoration report does not arm every logical gate");
+  }
+  if (!Array.isArray(decoration.results) || decoration.results.length !== 106) {
+    errors.push("decoration report is not the complete 106-row matrix");
+  } else {
+    const skipInkRows = decoration.results.filter((row) => row.skipInk != null);
+    if (skipInkRows.length !== 29) errors.push("decoration report is not the complete 29-row skip-ink/pattern matrix");
+    if (decoration.results.some((row) => row.transcription?.ok !== true
+      || row.svgGeometry?.ok !== true
+      || (row.skipInk != null && row.skipInk.ok !== true))) {
+      errors.push("decoration report contains a gated mismatch");
+    }
+  }
+  return errors;
+}
+
 function semanticArtifactErrors(root: string): string[] {
   const errors: string[] = [];
   const font = readJson("font-selection/report.json", root) as { summary?: { verdict?: string; mismatchTotal?: number } };
   if (font.summary?.verdict !== "exact-logical-agreement" || font.summary.mismatchTotal !== 0) errors.push("font selection report is not exact logical agreement");
   const shaping = readJson("shaping.json", root) as { verdict?: string; movementProven?: boolean; pairs?: number };
   if (shaping.verdict !== "exact-logical-agreement" || shaping.movementProven !== true || !(Number(shaping.pairs) > 0)) errors.push("shaping report is not exact and sensitivity-proven");
-  const decoration = readJson("decoration.json", root) as { gates?: Record<string, boolean>; results?: Array<Record<string, { ok?: boolean } | null>> };
-  if (!Array.isArray(decoration.results) || decoration.results.length === 0) errors.push("decoration report is empty");
-  else if (decoration.results.some((row) => row.transcription?.ok !== true
-    || (decoration.gates?.skipInk === true && row.skipInk != null && row.skipInk.ok !== true)
-    || (decoration.gates?.svgGeometry === true && row.svgGeometry?.ok !== true))) errors.push("decoration report contains a gated mismatch");
+  const decoration = readJson("decoration.json", root) as DecorationEvidenceReport;
+  errors.push(...decorationEvidenceErrors(decoration));
   const paint = readJson("paint-geometry.json", root) as { verdict?: string; movementProven?: boolean; rows?: unknown[] };
   if (paint.verdict !== "exact-logical-agreement" || paint.movementProven !== true || !Array.isArray(paint.rows) || paint.rows.length < 100) errors.push("paint source geometry report is not the full exact corpus");
   const paintBrowser = readJson("paint-browser.json", root) as { verdict?: string; architecture?: string; platform?: string; probes?: unknown[] };

@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex DM-2496",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt58g7uit9saeu3f",
+          "message": {
+            "text": "This upgrade intentionally changes only the kerfjs dependency and lock resolution. The published 4.4.0 tarball adds the opt-in kerfjs/router subpath; every implementation and declaration file Domotion currently imports, plus both vendored AI bundle checksums, is byte-identical to 4.3.0. The package manager also proposed removing platform libc selectors from 26 unrelated optional dependencies, so those changes were excluded from the lockfile.",
+            "markdown": "This upgrade intentionally changes only the kerfjs dependency and lock resolution. The published 4.4.0 tarball adds the opt-in kerfjs/router subpath; every implementation and declaration file Domotion currently imports, plus both vendored AI bundle checksums, is byte-identical to 4.3.0. The package manager also proposed removing platform libc selectors from 26 unrelated optional dependencies, so those changes were excluded from the lockfile."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                },
+                "region": {
+                  "startLine": 155,
+                  "endLine": 155,
+                  "snippet": {
+                    "text": "    \"kerfjs\": \"^4.4.0\","
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package-lock.json"
+                },
+                "region": {
+                  "startLine": 3414
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/kerfjs-imports.test.tsx"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "id": 2,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/kerf-client-uis.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 69
+                }
+              }
+            }
+          ],
+          "rank": 85,
+          "workItemUris": [
+            "DM-2496"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e952596ff3ac23cabe8da22c0d3de957"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "611ed147285577bebd51b94cf506366cace07c4c",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

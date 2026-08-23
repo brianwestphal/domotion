@@ -80,7 +80,9 @@ interface AxisPosition {
   origin: EdgeOrigin;
 }
 
-function raw(value: number): RawLayoutUnit {
+/** Convert CSS px to Blink's integer raw LayoutUnit storage. This is numeric
+ * geometry, not Kerf's trusted-markup `raw()` escape hatch. */
+function toRawLayoutUnit(value: number): RawLayoutUnit {
   // LayoutUnit(float/double) truncates toward zero to the 1/64 px domain.
   return Math.trunc(value * LAYOUT_UNIT_SCALE);
 }
@@ -197,7 +199,7 @@ export function parseBackgroundLength(value: string): LengthPercentage | null {
 
 function resolveLength(value: LengthPercentage, basis: RawLayoutUnit): RawLayoutUnit {
   // MinimumValueForLength converts the final float result to LayoutUnit once.
-  return raw(cssPx(basis) * value.percent / 100 + value.px);
+  return toRawLayoutUnit(cssPx(basis) * value.percent / 100 + value.px);
 }
 
 function parseRepeat(value: string): { x: AxisRepeat; y: AxisRepeat } | null {
@@ -424,16 +426,16 @@ export function resolveBlinkBackgroundImageGeometry(
   if (parsedRepeat == null || position == null) return null;
 
   const unsnappedPositioning: RawRect = {
-    x: raw(input.positioningArea.x),
-    y: raw(input.positioningArea.y),
-    width: Math.max(0, raw(input.positioningArea.width)),
-    height: Math.max(0, raw(input.positioningArea.height)),
+    x: toRawLayoutUnit(input.positioningArea.x),
+    y: toRawLayoutUnit(input.positioningArea.y),
+    width: Math.max(0, toRawLayoutUnit(input.positioningArea.width)),
+    height: Math.max(0, toRawLayoutUnit(input.positioningArea.height)),
   };
   const unsnappedPainting: RawRect = {
-    x: raw(input.paintingArea.x),
-    y: raw(input.paintingArea.y),
-    width: Math.max(0, raw(input.paintingArea.width)),
-    height: Math.max(0, raw(input.paintingArea.height)),
+    x: toRawLayoutUnit(input.paintingArea.x),
+    y: toRawLayoutUnit(input.paintingArea.y),
+    width: Math.max(0, toRawLayoutUnit(input.paintingArea.width)),
+    height: Math.max(0, toRawLayoutUnit(input.paintingArea.height)),
   };
   const snappedPositioning = snapRect(unsnappedPositioning);
   const snappedPainting = snapRect(unsnappedPainting);
@@ -458,8 +460,8 @@ export function resolveBlinkBackgroundImageGeometry(
   if (tile == null) return null;
   let tileWidth = tile.width;
   let tileHeight = tile.height;
-  const offsetX = raw(input.offsetInBackground?.x ?? 0);
-  const offsetY = raw(input.offsetInBackground?.y ?? 0);
+  const offsetX = toRawLayoutUnit(input.offsetInBackground?.x ?? 0);
+  const offsetY = toRawLayoutUnit(input.offsetInBackground?.y ?? 0);
   let repeatX = parsedRepeat.x;
   let repeatY = parsedRepeat.y;
   let phaseX = 0;

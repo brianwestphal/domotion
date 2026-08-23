@@ -168,6 +168,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt58oi3gjonb3lo7",
+          "message": {
+            "text": "The eleven warnings were a callee-name collision, not trusted-markup injection. The Kerf rule deliberately flags any function named raw without binding analysis, while this local helper accepts only numbers and truncates them into Blink LayoutUnits. Renaming it instead of suppressing eleven sites preserves the searchable audit trail for real Kerf raw calls; the signed-fraction unit case (0) and browser geometry suite prove the numeric path is unchanged.",
+            "markdown": "The eleven warnings were a callee-name collision, not trusted-markup injection. The Kerf rule deliberately flags any function named raw without binding analysis, while this local helper accepts only numbers and truncates them into Blink LayoutUnits. Renaming it instead of suppressing eleven sites preserves the searchable audit trail for real Kerf raw calls; the [signed-fraction unit case](0) and browser geometry suite prove the numeric path is unchanged."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/image-pattern.ts"
+                },
+                "region": {
+                  "startLine": 83,
+                  "endLine": 87,
+                  "snippet": {
+                    "text": "/** Convert CSS px to Blink's integer raw LayoutUnit storage. This is numeric\n * geometry, not Kerf's trusted-markup `raw()` escape hatch. */\nfunction toRawLayoutUnit(value: number): RawLayoutUnit {\n  // LayoutUnit(float/double) truncates toward zero to the 1/64 px domain.\n  return Math.trunc(value * LAYOUT_UNIT_SCALE);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/image-pattern.test.ts"
+                },
+                "region": {
+                  "startLine": 54
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2506"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "9d2f707729b0ee645cadc3551c597a57"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "e0beeb43d571112c70db7057aa5488584b54b86c",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

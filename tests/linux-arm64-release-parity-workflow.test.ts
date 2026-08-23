@@ -37,6 +37,8 @@ describe("DM-2353 Linux arm64 release parity workflow", () => {
     expect(workflow).toContain("font-conformance-stacks.synthetic.json");
     expect(workflow).toContain("--variable-control-fixture tests/fixtures/variable-axis/variable-axis.html");
     expect(workflow).toContain("--tracking-control-fixture tests/fixtures/exact-shaping/TRAK.ttf.base64");
+    expect(workflow).toMatch(/name: Same-DPR decoration geometry oracle[\s\S]*node --import tsx tools\/decoration-oracle\.ts[\s\S]*--json "\$EVIDENCE_DIR\/decoration\.json"/);
+    expect(workflow).not.toMatch(/decoration-oracle\.ts[^\n]*(--no-gate|--tolerance)/);
     expect(workflow).toContain("paint-geometry-browser-oracle.ts");
     expect(workflow).toContain("tests/html-test-suite.tsx");
     expect(workflow).not.toMatch(/--tolerance|--threshold|--max-diff|TOLERANCE\s*=/i);

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5a18m6hsmf78ac",
+          "message": {
+            "text": "Observation JSON is not authoritative for raster measurements. The producer resolves real paths inside the bundle, rejects artifact reuse, decodes every PNG, checks dimensions, recomputes hashes and exact integer/role-specific residual facts, and authenticates the complete canonical cell matrix; the aggregate repeats this and rejects mixed fingerprints, runs, platforms or runner provenance.",
+            "markdown": "Observation JSON is not authoritative for raster measurements. The producer resolves real paths inside the bundle, rejects artifact reuse, decodes every PNG, checks dimensions, recomputes hashes and exact integer/role-specific residual facts, and authenticates the complete canonical cell matrix; the aggregate repeats this and rejects mixed fingerprints, runs, platforms or runner provenance."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/paths-native-raster-producer.ts"
+                },
+                "region": {
+                  "startLine": 17,
+                  "endLine": 50,
+                  "snippet": {
+                    "text": "export async function producePathsRasterRows(\n  rawInput: unknown,\n  observationRoot: string,\n  options: { requireComplete?: boolean } = {},\n): Promise<PathsRasterRow[]> {\n  if (!Array.isArray(rawInput)) throw new Error(\"paths/native observations must be an array\");\n  const root = resolve(observationRoot);\n  const rows: PathsRasterRow[] = [];\n  for (const raw of rawInput) {\n    const candidate = structuredClone(raw) as Record<string, any>;\n    const id = typeof candidate.id === \"string\" ? candidate.id : \"row\";\n    const bytes: Partial<Record<\"nativeArtifact\" | \"pathsArtifact\", Buffer>> = {};\n    for (const role of [\"nativeArtifact\", \"pathsArtifact\"] as const) {\n      const artifact = candidate[role];\n      if (artifact?.path == null) throw new Error(`${id}: missing ${role}.path`);\n      const file = artifactFile(root, id, role, artifact.path);\n      const image = readFileSync(file);\n      if (image.length < 24 || image.subarray(0, 8).toString(\"hex\") !== \"89504e470d0a1a0a\") throw new Error(`${id}: ${role} is not a PNG`);\n      const decoded = await decodePathsRasterPng(image);\n      if (artifact.width !== decoded.width || artifact.height !== decoded.height) {\n        throw new Error(`${id}: ${role} dimensions ${artifact.width}x${artifact.height} do not match PNG ${decoded.width}x${decoded.height}`);\n      }\n      artifact.sha256 = createHash(\"sha256\").update(image).digest(\"hex\");\n      bytes[role] = image;\n    }\n    candidate.residual = await measurePathsRasterResidual(bytes.nativeArtifact!, bytes.pathsArtifact!);\n    rows.push(pathsRasterRowSchema.parse(candidate));\n  }\n  const ids = new Set<string>();\n  for (const row of rows) {\n    if (ids.has(row.id)) throw new Error(`duplicate paths/native raster row id: ${row.id}`);\n    ids.add(row.id);\n  }\n  if (options.requireComplete !== false) assertCompletePathsRasterMatrix(rows);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 98,
+          "workItemUris": [
+            "DM-2499"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "8a4c7485d684b4b35e36376fa3c195fe"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2b1bf3ebe3efea427ad57b4346de9074c95b653a",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

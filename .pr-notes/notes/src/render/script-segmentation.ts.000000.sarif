@@ -66,6 +66,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex /root/dm2452_sfns_oracle",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt59qtywsprrhjbi",
+          "message": {
+            "text": "The min-end walk is intentional: Chromium resolves ScriptRunIterator and SymbolsIterator independently, then intersects their maximal ranges. Splitting inside the script loop would reset the Common U+2757 state and incorrectly label the priority-only fragment instead of inheriting the surrounding Latin script.",
+            "markdown": "The min-end walk is intentional: Chromium resolves ScriptRunIterator and SymbolsIterator independently, then intersects their maximal ranges. Splitting inside the script loop would reset the Common U+2757 state and incorrectly label the priority-only fragment instead of inheriting the surrounding Latin script."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/script-segmentation.ts"
+                },
+                "region": {
+                  "startLine": 486,
+                  "endLine": 510,
+                  "snippet": {
+                    "text": "  // RunSegmenter advances ScriptRunIterator and SymbolsIterator independently,\n  // then emits the range ending at the lesser limit (run_segmenter.cc:48-69).\n  // Intersect complete ranges instead of resetting script state at an emoji\n  // boundary: a Common emoji inside a Latin script run must inherit Latin.\n  while (scriptIndex < scriptSegments.length && priorityIndex < priorityItems.length) {\n    const script = scriptSegments[scriptIndex];\n    const priority = priorityItems[priorityIndex];\n    const start = Math.max(script.start, priority.start);\n    const end = Math.min(script.end, priority.end);\n    if (start < end) {\n      segments.push({\n        start,\n        end,\n        script: script.script,\n        rtl: script.rtl,\n        sourcePriority: priority.priority,\n      });\n    }\n    if (script.end === end) scriptIndex++;\n    if (priority.end === end) priorityIndex++;\n  }\n\n  return segments;\n}\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/emoji-presentation-priority.ts"
+                },
+                "region": {
+                  "startLine": 62
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/cluster-fallback.ts"
+                },
+                "region": {
+                  "startLine": 538
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2507"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b44571896cd58dc98591ff2f318a16b5"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2b1bf3ebe3efea427ad57b4346de9074c95b653a",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

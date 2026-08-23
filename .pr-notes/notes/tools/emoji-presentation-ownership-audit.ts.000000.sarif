@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex /root/dm2452_sfns_oracle",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt59qtz3czor2en7",
+          "message": {
+            "text": "The authenticated Linux arm64 closure matrix passed all eleven checks, and the unchanged 02-text-emoji fixture passed with zero significant regions. Both symbol orders select Noto Color Emoji bitmap ownership; opposite-CSS VS15/VS16, CSS-text, text-symbol, and declared-family controls remain exact, with no tolerance change.",
+            "markdown": "The authenticated Linux arm64 closure matrix passed all eleven checks, and the unchanged 02-text-emoji fixture passed with zero significant regions. Both symbol orders select Noto Color Emoji bitmap ownership; opposite-CSS VS15/VS16, CSS-text, text-symbol, and declared-family controls remain exact, with no tolerance change."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/emoji-presentation-ownership-audit.ts"
+                },
+                "region": {
+                  "startLine": 253,
+                  "endLine": 301,
+                  "snippet": {
+                    "text": "    fixturePromotesU2757ToEmojiBitmap: !nativeApplicable || (\n      isRaster(\"fixture-order\")\n      && isEmojiFace(\"fixture-order\")\n      && byId.get(\"fixture-order\")?.routeMechanism === \"priority-emoji\"\n      && (byId.get(\"fixture-order\")?.priorityAsked ?? 0) > 0\n    ),\n    orderMutationIsInvariant: !nativeApplicable || (\n      isRaster(\"text-before-emoji\")\n      && isRaster(\"emoji-before-text\")\n      && isEmojiFace(\"text-before-emoji\")\n      && isEmojiFace(\"emoji-before-text\")\n      && byId.get(\"text-before-emoji\")?.routeMechanism === \"priority-emoji\"\n      && byId.get(\"emoji-before-text\")?.routeMechanism === \"priority-emoji\"\n      && (byId.get(\"text-before-emoji\")?.priorityAsked ?? 0) > 0\n      && (byId.get(\"emoji-before-text\")?.priorityAsked ?? 0) > 0\n    ),\n    explicitVs16BeatsCssText: !nativeApplicable || (\n      isRaster(\"explicit-vs16\")\n      && isEmojiFace(\"explicit-vs16\")\n      && (byId.get(\"explicit-vs16\")?.priorityAsked ?? 0) > 0\n    ),\n    explicitVs15BeatsCssEmoji: !nativeApplicable || (\n      !isRaster(\"explicit-vs15\")\n      && isFreeSans(\"explicit-vs15\")\n      && (byId.get(\"explicit-vs15\")?.priorityAsked ?? 0) > 0\n    ),\n    textSymbolNegativeStillOutline: !nativeApplicable || (\n      !isRaster(\"text-negative\")\n      && isFreeSans(\"text-negative\")\n      && byId.get(\"text-negative\")?.priorityAsked === 0\n    ),\n    cssTextNegativeStillOutline: !nativeApplicable || (\n      !isRaster(\"css-text-negative\")\n      && isFreeSans(\"css-text-negative\")\n      && byId.get(\"css-text-negative\")?.priorityAsked === 0\n    ),\n    declaredFacePrecedesPriority: !nativeApplicable || (\n      !isRaster(\"declared-face-precedes-priority\")\n      && isFreeSans(\"declared-face-precedes-priority\")\n      && byId.get(\"declared-face-precedes-priority\")?.routeMechanism === \"declared-family\"\n      && byId.get(\"declared-face-precedes-priority\")?.priorityAsked === 0\n    ),\n    declaredFaceCssEmojiRequeuesToColor: !nativeApplicable || (\n      isRaster(\"declared-face-css-emoji\")\n      && isEmojiFace(\"declared-face-css-emoji\")\n      && byId.get(\"declared-face-css-emoji\")?.routeMechanism === \"priority-emoji\"\n      && (byId.get(\"declared-face-css-emoji\")?.priorityAsked ?? 0) > 0\n    ),\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/emoji-presentation-ownership-audit.test.ts"
+                },
+                "region": {
+                  "startLine": 37
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/201-emoji-presentation-item-ownership.md"
+                },
+                "region": {
+                  "startLine": 69
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2507"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4d9c3ee2ed1750e9ed7c847292b7ceef"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2b1bf3ebe3efea427ad57b4346de9074c95b653a",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

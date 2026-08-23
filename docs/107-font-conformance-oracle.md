@@ -318,7 +318,13 @@ The instrument is only worth its exit code if its blind spots are written down r
 
   **No fixture in either corpus declares it today**, so the column is `normal` throughout and it currently moves no answer. It is recorded so that a fixture which starts using it is swept under the question it actually asks. Because the corpus cannot supply the usual "at least one non-normal value exists" anti-vacuity guard for this property, the check that the extractor reads it from the right place lives in a browser-backed test that supplies its own fixture (`tests/font-conformance-extraction.e2e.test.ts`).
 
-  **The renderer does not yet honor it.** `isEmojiPresentationCp` (`src/render/font-resolution.ts`) derives presentation from the codepoint's Unicode properties alone and has no path for the CSS override, so a page using `font-variant-emoji` would render with the presentation the codepoint defaults to. That gap is tracked separately.
+  **The renderer honors it after source itemization.** DM-2507's
+  `sourcePriorityItems()` first preserves Blink's independent text/emoji/VS
+  boundaries. `applyFontVariantEmojiToPriority()` then applies the computed CSS
+  override per complete source item, with explicit VS15/VS16 priority winning;
+  it never merges two source iterators or derives their priority from a queued
+  hint. The strict native route matrix in [doc 201](201-emoji-presentation-item-ownership.md)
+  covers opposite-CSS selectors, bare CSS text, and declared-family precedence.
 - **`font-palette` is deliberately NOT extracted, though it is in the same cache key.** It is passed to `FontCacheKey` alongside the other two (`font_description.cc:330`) and hashes/compares like them, so it is a legitimate candidate. It is excluded because neither oracle can see its effect: it selects a color palette *within* a face, so — measured on macOS — it moves neither the reported face nor the painted width, and the shaping oracle compares glyph counts and positions rather than color. Adding it would grow the corpus identity and force a baseline re-seed in exchange for a column that cannot change a verdict.
 - **One face per cell.** When a codepoint decomposes across two faces the oracle compares the one with the most glyphs; the full list survives in `chromeAllFaces`.
 - **Synthetic vs real cuts are compared by face, not by synthesis.** If Chrome synthesizes bold from a regular face it reports the regular face, so our picking a real bold sibling shows up — correctly — as a mismatch. That is the intended reading, but it means a `same-family-different-cut` row can mean either "we took the wrong cut" or "Chrome faked one".

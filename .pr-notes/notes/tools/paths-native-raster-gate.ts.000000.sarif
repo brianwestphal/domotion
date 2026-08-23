@@ -26,8 +26,8 @@
           "level": "none",
           "guid": "mt55m28v184u4u6b",
           "message": {
-            "text": "The native-raster floor is terminal-stage evidence only. Adjudication rejects warnings/inert arms, then compares exact face bytes/index/axes, gid/cluster/advance/offset stream, baseline and affine matrix before reading any residual envelope. Envelopes are keyed by the complete environment fingerprint and dimensions, require reviewed artifact hashes and reviewer/time provenance, and remain deliberately unratified so existing scalar harness caps cannot change.",
-            "markdown": "The native-raster floor is terminal-stage evidence only. Adjudication rejects warnings/inert arms, then compares exact face bytes/index/axes, gid/cluster/advance/offset stream, baseline and affine matrix before reading any residual envelope. Envelopes are keyed by the complete environment fingerprint and dimensions, require reviewed artifact hashes and reviewer/time provenance, and remain deliberately unratified so existing scalar harness caps cannot change."
+            "text": "Raster envelopes are terminal-stage evidence only and stay unratified. Adjudication rejects warnings/inert arms and every exact logical mismatch first; envelopes bind an authenticated browser/toolchain fingerprint plus canonical cell hash and retain proposal/validation and native/paths roles, so a symmetric arm swap or second-run exceedance cannot be accepted.",
+            "markdown": "Raster envelopes are terminal-stage evidence only and stay unratified. Adjudication rejects warnings/inert arms and every exact logical mismatch first; envelopes bind an authenticated browser/toolchain fingerprint plus canonical cell hash and retain proposal/validation and native/paths roles, so a symmetric arm swap or second-run exceedance cannot be accepted."
           },
           "locations": [
             {
@@ -53,7 +53,7 @@
           },
           "rank": 95,
           "workItemUris": [
-            "DM-2352"
+            "DM-2499"
           ],
           "partialFingerprints": {
             "prNoteAnchor/v1": "c1914d3c833ff63e283e80a266371958"

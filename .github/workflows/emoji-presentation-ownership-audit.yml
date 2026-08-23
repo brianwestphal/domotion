@@ -1,0 +1,81 @@
+name: Emoji presentation source-priority gate
+
+on:
+  pull_request:
+    paths:
+      - "src/render/cluster-fallback.ts"
+      - "src/render/script-segmentation.ts"
+      - "src/render/emoji-presentation-priority.ts"
+      - "src/render/emoji-presentation-priority.test.ts"
+      - "src/render/font-resolution.ts"
+      - "src/render/text-to-path.ts"
+      - "src/capture/script/emoji-detect.ts"
+      - "tools/emoji-presentation-ownership-audit.ts"
+      - "tests/emoji-presentation-ownership-audit.test.ts"
+      - "tests/emoji-presentation-ownership-workflow.test.ts"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/emoji-presentation-ownership-audit.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/render/cluster-fallback.ts"
+      - "src/render/script-segmentation.ts"
+      - "src/render/emoji-presentation-priority.ts"
+      - "src/render/emoji-presentation-priority.test.ts"
+      - "src/render/font-resolution.ts"
+      - "src/render/text-to-path.ts"
+      - "src/capture/script/emoji-detect.ts"
+      - "tools/emoji-presentation-ownership-audit.ts"
+      - "tests/emoji-presentation-ownership-audit.test.ts"
+      - "tests/emoji-presentation-ownership-workflow.test.ts"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/emoji-presentation-ownership-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-ownership:
+    runs-on: ubuntu-22.04-arm
+    timeout-minutes: 25
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble
+    env:
+      DOMOTION_CHROMIUM_REVISION: 7d859f271cbda744098ac69f44978d4edfa62be3
+      DOMOTION_HARFBUZZ_REVISION: 4de187dd0a915d13c976fa8bd474c084229f3aab
+      DOMOTION_SKIA_REVISION: 62efacd37737505732dbe3d8daa62abd679626a1
+      DOMOTION_ICU_SOURCE_REVISION: d578f2e8b7bd5938e21cfb6bf15c079e0aa5b738
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.21.0
+          cache: npm
+      - run: npm ci
+      - name: Allocate fresh authenticated helper and evidence roots
+        run: |
+          EVIDENCE_DIR="$RUNNER_TEMP/domotion-emoji-ownership-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          CACHE_ROOT="$RUNNER_TEMP/domotion-emoji-helper-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "EVIDENCE_DIR=$EVIDENCE_DIR" >> "$GITHUB_ENV"
+          mkdir -p "$EVIDENCE_DIR"
+          node --import tsx tools/linux-arm64-release-evidence.ts acquire \
+            --cache-root "$CACHE_ROOT" \
+            --json "$EVIDENCE_DIR/acquisition.json" \
+            --run-env "$EVIDENCE_DIR/run-env.json" \
+            --github-env "$GITHUB_ENV"
+      - name: Validate source-priority intersection and exact arm64 face ownership
+        run: npm run fonts:emoji-presentation-ownership-audit -- --require-linux-arm64 --json "$EVIDENCE_DIR/emoji-presentation-ownership.json"
+      - name: Upload authenticated source and route evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: emoji-presentation-ownership-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.EVIDENCE_DIR }}/
+          if-no-files-found: error
+          retention-days: 30

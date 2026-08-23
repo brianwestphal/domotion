@@ -111,3 +111,20 @@ advances, and the two selected `sbix` spans appear in one artifact. Its paired
 and change the raster-span result; that negative arm proves the passing default
 record traversed the whole-sequence route rather than an unconditional common
 path. The `text-font-variant-emoji` visual fixture is the final placement gate.
+
+## Upstream itemization boundary closed by DM-2507
+
+Renderer-owned raster classification begins only after face selection, so it
+cannot repair an incorrectly shared fallback iterator. The retained native
+arm64 `02-text-emoji` artifact exposed that historical upstream gap. DM-2507
+now mirrors Blink: independent bidi/script and `SymbolsIterator` ranges are
+intersected before fallback, so U+2717's text iterator cannot lend FreeSans to
+emoji-presentation U+2757.
+
+The six other color glyphs in the same artifact traverse this document's
+selected-glyph raster boundary exactly. The resolved order pair `✗ ❗` / `❗ ✗`
+and opposite-CSS VS15/VS16, CSS-text, and declared-FreeSans controls prove the
+logical correction before `selectedGlyphRasterSpans()`. See
+[doc 201](201-emoji-presentation-item-ownership.md). DM-2508 owns release-gate
+promotion only; this fix does not alter this boundary or authorize a pixel
+tolerance.

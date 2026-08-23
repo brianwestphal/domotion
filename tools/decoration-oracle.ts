@@ -31,7 +31,8 @@
  *                        baseline — `core/html/canvas/text_metrics.cc:133-138`).
  *                        Only `from-font` and `under` cases read font tables
  *                        through fontkit (see Blind spots).
- *   S  SVG-emitted       Domotion's decoration geometry parsed ANALYTICALLY
+ *   S  SVG-emitted       Domotion's decoration geometry captured at the SAME
+ *                        deviceScaleFactor as C, then parsed ANALYTICALLY
  *                        out of the emitted SVG markup (`<line>` y/stroke-width
  *                        under accumulated translate transforms). Our side is
  *                        never rasterized — that is the point: the consumer's
@@ -126,9 +127,12 @@
  *     (decoration inherited from an ancestor), and multi-fragment
  *     (wrapped) runs are out of scope; every case here is a single
  *     fragment decorated on its own span.
- *   - platform: rules are platform-generic but validated against macOS
- *     paint; Linux/Windows metrics flow through the same formulas yet have
- *     not been measured by this tool.
+ *   - platform: rules are platform-generic and this tool runs on every host
+ *     where Playwright Chromium is available. The Chrome and Domotion legs
+ *     deliberately share one device-scale factor: Linux font/line-fragment
+ *     layout can select a different CSS-pixel fragment top at DPR 1 and DPR 4.
+ *     Comparing C at DPR 4 with S captured at DPR 1 is therefore a comparison
+ *     of two different Blink paint states, not renderer evidence (DM-2501).
  *
  * Usage:
  *   npx tsx tools/decoration-oracle.ts [--only <substr>] [--json <path>]
@@ -171,6 +175,35 @@ const MIN_SEGMENT_WIDTH = 1.0;
 const PAGE_WIDTH = 900;
 const CASES_PER_CHUNK = 6;
 const DSF = 4;
+
+export interface DecorationOracleScalePlan {
+  chromePaint: number;
+  domotionCapture: number;
+}
+
+/**
+ * Both geometry authorities must observe one Blink paint state. Device scale
+ * is a layout/font input on Linux: the same source can expose a different
+ * physical text-fragment top at DPR 1 and DPR 4. Keep the plan explicit and
+ * exported so a logical gate can reject the cross-DPR comparison that caused
+ * the uniform arm64 +1 CSS-px false failure in run 32611751700 (DM-2501).
+ */
+export function decorationOracleScalePlan(deviceScaleFactor = DSF): DecorationOracleScalePlan {
+  if (!Number.isFinite(deviceScaleFactor) || deviceScaleFactor <= 0) {
+    throw new Error("decoration oracle deviceScaleFactor must be finite and positive");
+  }
+  return { chromePaint: deviceScaleFactor, domotionCapture: deviceScaleFactor };
+}
+
+export function decorationOracleScalePlanErrors(plan: DecorationOracleScalePlan): string[] {
+  const errors: string[] = [];
+  if (!Number.isFinite(plan.chromePaint) || plan.chromePaint <= 0) errors.push("Chrome paint deviceScaleFactor is invalid");
+  if (!Number.isFinite(plan.domotionCapture) || plan.domotionCapture <= 0) errors.push("Domotion capture deviceScaleFactor is invalid");
+  if (plan.chromePaint !== plan.domotionCapture) {
+    errors.push(`cross-DPR decoration geometry comparison is invalid: Chrome=${plan.chromePaint}, capture=${plan.domotionCapture}`);
+  }
+  return errors;
+}
 
 // ── Case grid ───────────────────────────────────────────────────────────
 interface CaseSpec {
@@ -1040,6 +1073,12 @@ async function main(): Promise<number> {
   // (`--gate-svg-geometry` still accepted as a no-op for older invocations).
   const gateSvgGeometry = !flag("--no-gate-svg-geometry");
   const gateSkipInk = !flag("--no-gate-skip-ink");
+  const scalePlan = decorationOracleScalePlan();
+  const scalePlanErrors = decorationOracleScalePlanErrors(scalePlan);
+  if (scalePlanErrors.length > 0) {
+    for (const error of scalePlanErrors) console.error(`decoration-oracle: ${error}`);
+    return 2;
+  }
   if (keepDir != null) mkdirSync(keepDir, { recursive: true });
 
   let cases = buildCases();
@@ -1048,12 +1087,25 @@ async function main(): Promise<number> {
 
   const t0 = Date.now();
   let browser: Browser | null = null;
+  let chromiumVersion = "unknown";
   const results: CaseResult[] = [];
   try {
     browser = await chromium.launch();
-    const ctxHi = await browser.newContext({ viewport: { width: PAGE_WIDTH, height: 800 }, deviceScaleFactor: DSF });
+    chromiumVersion = browser.version();
+    const ctxHi = await browser.newContext({
+      viewport: { width: PAGE_WIDTH, height: 800 },
+      deviceScaleFactor: scalePlan.chromePaint,
+    });
     const pageHi = await ctxHi.newPage();
-    const ctxLo = await browser.newContext({ viewport: { width: PAGE_WIDTH, height: 800 } });
+    // DM-2501: this was implicitly DPR 1 while the Chrome paint leg above was
+    // DPR 4. Linux arm64 selected a text-fragment top one CSS px lower at DPR
+    // 1, so 74 correct SVG bars appeared uniformly +1 against an unrelated
+    // DPR-4 paint state. Capture at the exact same device scale; SVG geometry
+    // remains expressed in CSS px and needs no rescaling.
+    const ctxLo = await browser.newContext({
+      viewport: { width: PAGE_WIDTH, height: 800 },
+      deviceScaleFactor: scalePlan.domotionCapture,
+    });
     const pageLo = await ctxLo.newPage();
     const analysisPage = await ctxLo.newPage();
     setRenderTextMode("paths");
@@ -1072,7 +1124,7 @@ async function main(): Promise<number> {
       await pageHi.setViewportSize({ width: PAGE_WIDTH, height: Math.min(Math.max(docHeight, 400), 6000) });
       const measures = await measureChunk(pageHi);
 
-      // Leg S: capture + render the same chunk at 1x, once.
+      // Leg S: capture + render the same chunk at the same DPR, once.
       await pageLo.setViewportSize({ width: PAGE_WIDTH, height: Math.min(Math.max(docHeight, 400), 6000) });
       await pageLo.setContent(html, { waitUntil: "load" });
       const tree = await captureElementTree(pageLo, "body", { x: 0, y: 0, width: PAGE_WIDTH, height: docHeight });
@@ -1096,7 +1148,13 @@ async function main(): Promise<number> {
         // coverage profile is not a bar); solid/double keep the
         // coverage-weighted profile and its tighter tolerance.
         const isExtent = c.style === "dashed" || c.style === "dotted" || c.style === "wavy";
-        const chromeBars = await analyzeClip(analysisPage, png.toString("base64"), clip, DSF, isExtent ? "extent" : "profile");
+        const chromeBars = await analyzeClip(
+          analysisPage,
+          png.toString("base64"),
+          clip,
+          scalePlan.chromePaint,
+          isExtent ? "extent" : "profile",
+        );
         const pred = predictCase(c, meas);
         const winTop = clip.y, winBottom = clip.y + clip.height;
         const sBars = svgBarsInWindow(svgLines, { top: winTop, bottom: winBottom });
@@ -1166,6 +1224,13 @@ async function main(): Promise<number> {
     writeFileSync(jsonPath, JSON.stringify({
       generatedAt: new Date().toISOString(),
       platform: process.platform,
+      architecture: process.arch,
+      chromiumVersion,
+      coordinateOwnership: {
+        source: "blink-physical-text-fragment-same-dpr-v1",
+        chromePaintDeviceScaleFactor: scalePlan.chromePaint,
+        domotionCaptureDeviceScaleFactor: scalePlan.domotionCapture,
+      },
       tolerances: { transcription: TOL_TRANSCRIPTION, svgGeometry: TOL_SVG_GEOMETRY, gapEdge: TOL_GAP_EDGE, minSegmentWidth: MIN_SEGMENT_WIDTH },
       gates: { transcription: true, skipInk: gateSkipInk, svgGeometry: gateSvgGeometry },
       results,

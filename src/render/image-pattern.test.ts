@@ -51,6 +51,27 @@ describe("Blink BackgroundImageGeometry transcription", () => {
     });
   });
 
+  it("truncates signed CSS geometry once into Blink's raw LayoutUnit domain", () => {
+    const result = geometry({
+      positioningArea: { x: -0.02, y: 0.02, width: 12.02, height: 9.02 },
+      paintingArea: { x: -0.04, y: 0.04, width: 12.04, height: 9.04 },
+      size: "1px 1px",
+    });
+
+    expect(result.unsnappedPositioningArea).toEqual({
+      x: -0.015625,
+      y: 0.015625,
+      width: 12.015625,
+      height: 9.015625,
+    });
+    expect(result.unsnappedDestination).toEqual({
+      x: -0.03125,
+      y: 0.03125,
+      width: 12.03125,
+      height: 9.03125,
+    });
+  });
+
   it("resolves percentage-plus-length sizes against the positioning area", () => {
     expect(geometry({
       size: "calc(37% + 9px) calc(24% + 5px)",

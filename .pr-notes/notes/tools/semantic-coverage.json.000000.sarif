@@ -131,6 +131,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex /root/dm2452_sfns_oracle",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt59rta38mhgl5s9",
+          "message": {
+            "text": "Emoji-presentation source ownership is exact at the named transition. The production itemizer now carries Blink's independent source-priority boundaries, the authenticated Linux arm64 matrix proves order/selector/CSS/family face ownership, and the unchanged HTML fixture has zero significant regions; DM-2508 is aggregate activation rather than an uncovered renderer state.",
+            "markdown": "Emoji-presentation source ownership is exact at the named transition. The production itemizer now carries Blink's independent source-priority boundaries, the authenticated Linux arm64 matrix proves order/selector/CSS/family face ownership, and the unchanged HTML fixture has zero significant regions; DM-2508 is aggregate activation rather than an uncovered renderer state."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/semantic-coverage.json"
+                },
+                "region": {
+                  "startLine": 165,
+                  "endLine": 232,
+                  "snippet": {
+                    "text": "      \"id\": \"text.emoji-presentation\",\n      \"parityAreas\": [\n        \"font-selection\",\n        \"shaping-clusters-glyphs\",\n        \"raster-fallback-boundary\"\n      ],\n      \"subjects\": [\n        \"font-variant-emoji\",\n        \"variation selectors\",\n        \"Unicode emoji properties\",\n        \"SymbolsIterator source-priority item boundaries\"\n      ],\n      \"states\": [\n        \"normal -> text\",\n        \"normal -> emoji\",\n        \"text -> emoji\",\n        \"emoji -> text\",\n        \"VS15 -> VS16\",\n        \"monochrome face -> color face\",\n        \"text-priority miss before bare emoji -> isolated emoji priority\"\n      ],\n      \"exactStates\": [\n        \"normal -> text\",\n        \"normal -> emoji\",\n        \"text -> emoji\",\n        \"emoji -> text\",\n        \"VS15 -> VS16\",\n        \"monochrome face -> color face\",\n        \"text-priority miss before bare emoji -> isolated emoji priority\"\n      ],\n      \"uncoveredStates\": [],\n      \"upstreamSources\": [\n        \"external/chromium/third_party/blink/renderer/platform/fonts\",\n        \"external/chromium/third_party/blink/renderer/platform/text\"\n      ],\n      \"productionOwners\": [\n        \"src/capture/script/emoji-detect.ts\",\n        \"src/render/emoji-presentation-priority.ts\",\n        \"src/render/script-segmentation.ts\",\n        \"src/render/cluster-fallback.ts\",\n        \"src/render/font-resolution.ts\",\n        \"src/capture/emoji.ts\",\n        \"src/render/text-to-path.ts\",\n        \"src/render/glyph-helper.ts\"\n      ],\n      \"oracles\": [\n        \"tools/font-conformance.ts\",\n        \"tools/raster-boundary-oracle.ts\",\n        \"tools/renderer-font-route-oracle.ts\",\n        \"tools/emoji-presentation-ownership-audit.ts\"\n      ],\n      \"metamorphicTests\": [\n        \"src/render/emoji-presentation-fallback.test.ts\",\n        \"src/render/emoji-presentation-priority.test.ts\",\n        \"src/capture/script/emoji-detect.test.ts\",\n        \"src/render/cluster-fallback.test.ts\",\n        \"src/render/emoji-raster-kind.test.ts\",\n        \"src/render/text.test.ts\",\n        \"tests/alchemical-symbols-not-rastered.e2e.test.ts\",\n        \"tests/raster-fallback-content.e2e.test.ts\",\n        \"tests/emoji-presentation-ownership-audit.test.ts\",\n        \"tests/emoji-presentation-ownership-workflow.test.ts\"\n      ],\n      \"visualFixtures\": [\n        \"tests/features.ts#text-font-variant-emoji\",\n        \".github/workflows/emoji-presentation-ownership-audit.yml\"\n      ],\n      \"coverage\": \"exact\","
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/emoji-presentation-priority.ts"
+                },
+                "region": {
+                  "startLine": 62
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/emoji-presentation-ownership-audit.ts"
+                },
+                "region": {
+                  "startLine": 242
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2507"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f0cfab1dcc44c063a5fecb7edbd13f65"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2b1bf3ebe3efea427ad57b4346de9074c95b653a",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

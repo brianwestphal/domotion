@@ -96,18 +96,18 @@
       "id": "text.paths-native-raster-floor",
       "parityAreas": ["paths-native-raster-floor"],
       "subjects": ["paths mode", "native Skia mask", "face/glyph/layout identity", "platform raster envelope"],
-      "states": ["logical mismatch -> gate failure", "logical exact -> unratified envelope", "unratified envelope -> reviewed platform envelope"],
-      "exactStates": ["logical mismatch -> gate failure", "logical exact -> unratified envelope"],
+      "states": ["declared source-owned cell -> authenticated native/paths observation", "logical mismatch -> gate failure", "logical exact -> unratified envelope", "unratified envelope -> reviewed platform envelope"],
+      "exactStates": ["declared source-owned cell -> authenticated native/paths observation", "logical mismatch -> gate failure", "logical exact -> unratified envelope"],
       "uncoveredStates": ["unratified envelope -> reviewed platform envelope"],
-      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/layout/inline", "external/chromium/third_party/blink/renderer/platform/fonts/shaping", "external/harfbuzz/src", "external/skia/src/core"],
+      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/layout/inline", "external/chromium/third_party/blink/renderer/platform/fonts/shaping", "external/harfbuzz/src", "external/skia/src/core", "external/skia/src/ports/SkFontHost_FreeType.cpp", "external/skia/src/ports/SkScalerContext_mac_ct.cpp", "external/skia/src/ports/SkScalerContext_win_dw.cpp"],
       "productionOwners": ["src/render/text.ts", "src/render/text-to-path.ts", "src/render/text-run-provenance.ts"],
-      "oracles": ["tools/paths-native-raster-gate.ts", "tools/paths-native-raster-producer.ts", "tools/paths-native-raster-aggregate.ts"],
-      "metamorphicTests": ["tests/paths-native-raster-gate.test.ts", "tests/paths-native-raster-workflow.test.ts"],
+      "oracles": ["tools/paths-native-raster-collector.ts", "tools/paths-native-raster-corpus.ts", "tools/paths-native-raster-metrics.ts", "tools/paths-native-raster-gate.ts", "tools/paths-native-raster-producer.ts", "tools/paths-native-raster-aggregate.ts"],
+      "metamorphicTests": ["tests/paths-native-raster-collector.test.ts", "tests/paths-native-raster-gate.test.ts", "tests/paths-native-raster-workflow.test.ts"],
       "visualFixtures": [".github/workflows/paths-native-raster-floor.yml"],
       "coverage": "partial",
-      "boundary": "Face/gid/cluster/advance/offset/baseline/matrix mismatches fail before raster evidence, and unratified envelopes withhold. No three-platform fingerprint/dimension envelope has been reviewed, so scalar visual-harness caps remain unchanged.",
+      "boundary": "The self-contained collector runs a canonical 348-cell union per proposal/validation arm and requires CDP custom face, source-table gid/advance/outline facts, selected production bytes/axes/glyph stream/source outlines, and emitted baseline/matrix/synthetic paint plan before pixels; producer and aggregate resolve confined real paths, reopen PNG bytes, and recompute hashes/residuals. Local macOS arm64 DPR1 is 174/174 exact with zero warnings. DPR2 and no two-run three-platform fingerprint/cell envelope have been reviewed, so unratified rows withhold and scalar visual-harness caps remain unchanged.",
       "featureIds": ["render.text"],
-      "verifiedPlatforms": ["darwin", "linux", "win32"]
+      "verifiedPlatforms": ["darwin"]
     },
     {
       "id": "text.macos-sfns-mask-baseline",
@@ -165,12 +165,14 @@
       "id": "text.emoji-presentation",
       "parityAreas": [
         "font-selection",
+        "shaping-clusters-glyphs",
         "raster-fallback-boundary"
       ],
       "subjects": [
         "font-variant-emoji",
         "variation selectors",
-        "Unicode emoji properties"
+        "Unicode emoji properties",
+        "SymbolsIterator source-priority item boundaries"
       ],
       "states": [
         "normal -> text",
@@ -178,7 +180,8 @@
         "text -> emoji",
         "emoji -> text",
         "VS15 -> VS16",
-        "monochrome face -> color face"
+        "monochrome face -> color face",
+        "text-priority miss before bare emoji -> isolated emoji priority"
       ],
       "exactStates": [
         "normal -> text",
@@ -186,7 +189,8 @@
         "text -> emoji",
         "emoji -> text",
         "VS15 -> VS16",
-        "monochrome face -> color face"
+        "monochrome face -> color face",
+        "text-priority miss before bare emoji -> isolated emoji priority"
       ],
       "uncoveredStates": [],
       "upstreamSources": [
@@ -195,6 +199,8 @@
       ],
       "productionOwners": [
         "src/capture/script/emoji-detect.ts",
+        "src/render/emoji-presentation-priority.ts",
+        "src/render/script-segmentation.ts",
         "src/render/cluster-fallback.ts",
         "src/render/font-resolution.ts",
         "src/capture/emoji.ts",
@@ -204,19 +210,24 @@
       "oracles": [
         "tools/font-conformance.ts",
         "tools/raster-boundary-oracle.ts",
-        "tools/renderer-font-route-oracle.ts"
+        "tools/renderer-font-route-oracle.ts",
+        "tools/emoji-presentation-ownership-audit.ts"
       ],
       "metamorphicTests": [
         "src/render/emoji-presentation-fallback.test.ts",
+        "src/render/emoji-presentation-priority.test.ts",
         "src/capture/script/emoji-detect.test.ts",
         "src/render/cluster-fallback.test.ts",
         "src/render/emoji-raster-kind.test.ts",
         "src/render/text.test.ts",
         "tests/alchemical-symbols-not-rastered.e2e.test.ts",
-        "tests/raster-fallback-content.e2e.test.ts"
+        "tests/raster-fallback-content.e2e.test.ts",
+        "tests/emoji-presentation-ownership-audit.test.ts",
+        "tests/emoji-presentation-ownership-workflow.test.ts"
       ],
       "visualFixtures": [
-        "tests/features.ts#text-font-variant-emoji"
+        "tests/features.ts#text-font-variant-emoji",
+        ".github/workflows/emoji-presentation-ownership-audit.yml"
       ],
       "coverage": "exact",
       "featureIds": [
@@ -420,16 +431,27 @@
         "local -> propagated decoration"
       ],
       "upstreamSources": [
-        "external/chromium/third_party/blink/renderer/core/paint"
+        "external/chromium/third_party/blink/renderer/core/layout/text_decoration_offset.cc",
+        "external/chromium/third_party/blink/renderer/core/paint/text_decoration_info.cc",
+        "external/chromium/third_party/blink/renderer/core/paint/text_decoration_painter.cc",
+        "external/chromium/third_party/blink/renderer/core/paint/text_fragment_painter.cc",
+        "external/chromium/third_party/blink/renderer/platform/fonts/font_metrics.cc",
+        "external/chromium/third_party/blink/renderer/platform/fonts/font_platform_data.cc",
+        "external/chromium/ui/gfx/font_render_params_linux.cc"
       ],
       "productionOwners": [
         "src/render/text.ts",
         "src/tree-ops/decoration-propagation.ts"
       ],
       "oracles": [
-        "tools/decoration-oracle.ts"
+        "tools/decoration-oracle.ts",
+        ".github/workflows/linux-arm64-release-parity.yml"
       ],
       "metamorphicTests": [
+        "tests/decoration-oracle.test.ts",
+        "tests/decoration-coordinate-ownership.e2e.test.ts",
+        "tests/linux-arm64-release-evidence.test.ts",
+        "tests/linux-arm64-release-parity-workflow.test.ts",
         "src/render/skip-ink-geometry.test.ts",
         "src/tree-ops/decoration-propagation.test.ts"
       ],
@@ -437,12 +459,13 @@
         "tests/features.ts#text-decorations"
       ],
       "coverage": "partial",
-      "boundary": "Exact geometry is macOS-only and propagated wavy phase retains an empirical decision.",
+      "boundary": "Local single-fragment geometry is exact on macOS and pinned Linux arm64 with Chrome paint and capture bound to one DPR-qualified Blink state; the unchanged 0.3 CSS-px envelope rejects a one-pixel mutation. Windows and propagated wavy/multi-fragment/vertical ownership remain uncovered.",
       "featureIds": [
         "render.text"
       ],
       "verifiedPlatforms": [
-        "darwin"
+        "darwin",
+        "linux"
       ]
     },
     {

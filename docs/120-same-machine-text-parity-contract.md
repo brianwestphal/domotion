@@ -80,6 +80,18 @@ The existing font-conformance oracle ([doc 107](107-font-conformance-oracle.md))
 is the face-selection instrument. Cluster, layout, and visual instruments must
 report their own stage; a visual score can never override an earlier failure.
 
+The paths/native terminal-raster instrument ([doc 197](197-paths-native-raster-floor.md))
+uses a pinned `@font-face` corpus so host fallback cannot contaminate the
+comparison. Its one-glyph-per-scalar samples disable shaping substitutions, so
+authenticated sfnt tables own the expected gid/advance/outline facts without
+pretending CDP exposes Chromium's internal HarfBuzz stream. The collector
+records the native custom painted face beside production selected bytes,
+axes, provenance, emitted baseline/matrix/paint plan, then a second stage
+reopens both lossless PNGs and recomputes residuals. Only complete proposal and
+independent-validation 348-cell sets for the exact OS/browser-binary/toolchain
+fingerprint can receive `accepted-rasterization-only`; no global percentage
+participates.
+
 Every native helper or oracle route used by a gate needs a negative control:
 disable that route and require at least one declared discriminator to move. An
 unchanged answer means the mechanism was not proven to be in the loop and the

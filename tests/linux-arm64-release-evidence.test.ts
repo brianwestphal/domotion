@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildFinalReport,
+  decorationEvidenceErrors,
   parseElfIdentity,
   REQUIRED_OUTCOMES,
   stableFingerprint,
@@ -56,6 +57,31 @@ describe("DM-2353 Linux arm64 release evidence", () => {
     const moved = { nested: { fonts: ["A", "C"], arch: "arm64" }, platform: "linux" };
     expect(stableFingerprint(left)).toBe(stableFingerprint(same));
     expect(stableFingerprint(left)).not.toBe(stableFingerprint(moved));
+  });
+
+  it("requires the complete coherent-DPR decoration matrix without widening its envelope", () => {
+    const exact = {
+      platform: "linux",
+      architecture: "arm64",
+      coordinateOwnership: {
+        source: "blink-physical-text-fragment-same-dpr-v1",
+        chromePaintDeviceScaleFactor: 4,
+        domotionCaptureDeviceScaleFactor: 4,
+      },
+      tolerances: { svgGeometry: 0.3 },
+      gates: { transcription: true, skipInk: true, svgGeometry: true },
+      results: Array.from({ length: 106 }, (_, index) => ({
+        transcription: { ok: true },
+        svgGeometry: { ok: true },
+        skipInk: index < 29 ? { ok: true } : null,
+      })),
+    };
+    expect(decorationEvidenceErrors(exact)).toEqual([]);
+    expect(decorationEvidenceErrors({
+      ...exact,
+      coordinateOwnership: { ...exact.coordinateOwnership, domotionCaptureDeviceScaleFactor: 1 },
+      tolerances: { svgGeometry: 1.3 },
+    }).join("\n")).toMatch(/required DPR 4[\s\S]*0\.3 CSS px/);
   });
 
   it("emits an exact verdict only for the complete arm64 outcome and artifact set", () => {
