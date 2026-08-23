@@ -96,18 +96,18 @@
       "id": "text.paths-native-raster-floor",
       "parityAreas": ["paths-native-raster-floor"],
       "subjects": ["paths mode", "native Skia mask", "face/glyph/layout identity", "platform raster envelope"],
-      "states": ["declared source-owned cell -> authenticated native/paths observation", "logical mismatch -> gate failure", "logical exact -> unratified envelope", "unratified envelope -> reviewed platform envelope"],
-      "exactStates": ["declared source-owned cell -> authenticated native/paths observation", "logical mismatch -> gate failure", "logical exact -> unratified envelope"],
-      "uncoveredStates": ["unratified envelope -> reviewed platform envelope"],
+      "states": ["declared source-owned cell -> authenticated native/paths observation", "logical mismatch -> gate failure", "logical exact -> unratified envelope", "unratified envelope -> reviewed platform envelope", "substitution-free source-table stream -> browser HarfBuzz substitution stream"],
+      "exactStates": ["declared source-owned cell -> authenticated native/paths observation", "logical mismatch -> gate failure", "logical exact -> unratified envelope", "unratified envelope -> reviewed platform envelope"],
+      "uncoveredStates": ["substitution-free source-table stream -> browser HarfBuzz substitution stream"],
       "upstreamSources": ["external/chromium/third_party/blink/renderer/core/layout/inline", "external/chromium/third_party/blink/renderer/platform/fonts/shaping", "external/harfbuzz/src", "external/skia/src/core", "external/skia/src/ports/SkFontHost_FreeType.cpp", "external/skia/src/ports/SkScalerContext_mac_ct.cpp", "external/skia/src/ports/SkScalerContext_win_dw.cpp"],
       "productionOwners": ["src/render/text.ts", "src/render/text-to-path.ts", "src/render/text-run-provenance.ts"],
       "oracles": ["tools/paths-native-raster-collector.ts", "tools/paths-native-raster-corpus.ts", "tools/paths-native-raster-metrics.ts", "tools/paths-native-raster-gate.ts", "tools/paths-native-raster-producer.ts", "tools/paths-native-raster-aggregate.ts"],
       "metamorphicTests": ["tests/paths-native-raster-collector.test.ts", "tests/paths-native-raster-gate.test.ts", "tests/paths-native-raster-workflow.test.ts"],
       "visualFixtures": [".github/workflows/paths-native-raster-floor.yml"],
       "coverage": "partial",
-      "boundary": "The self-contained collector runs a canonical 348-cell union per proposal/validation arm and requires CDP custom face, source-table gid/advance/outline facts, selected production bytes/axes/glyph stream/source outlines, and emitted baseline/matrix/synthetic paint plan before pixels; producer and aggregate resolve confined real paths, reopen PNG bytes, and recompute hashes/residuals. Local macOS arm64 DPR1 is 174/174 exact with zero warnings. DPR2 and no two-run three-platform fingerprint/cell envelope have been reviewed, so unratified rows withhold and scalar visual-harness caps remain unchanged.",
+      "boundary": "The self-contained collector runs a canonical 348-cell union per proposal/validation arm and requires CDP custom face, source-table gid/advance/outline facts, selected production bytes/axes/glyph stream/source outlines, and emitted baseline/matrix/synthetic paint plan before pixels; producer and aggregate resolve confined real paths, reopen PNG bytes, and recompute hashes/residuals. Run 32621059647 reviewed and ratified 2,088 rows across macOS/Linux/Windows at DPR1/2 with exact logical identity, zero warnings, active arms, and every independent validation residual inside its proposal value. Browser shaping substitutions remain deliberately outside this one-glyph-per-scalar source-table corpus.",
       "featureIds": ["render.text"],
-      "verifiedPlatforms": ["darwin"]
+      "verifiedPlatforms": ["darwin", "linux", "win32"]
     },
     {
       "id": "text.macos-sfns-mask-baseline",

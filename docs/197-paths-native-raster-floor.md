@@ -98,23 +98,25 @@ producer JSON. Missing platform/run artifacts, a non-homogeneous fingerprint,
 or any incomplete 348-row matrix fails closed; no external observation bundle
 is accepted.
 
-The committed `tools/paths-native-raster-envelopes.json` remains deliberately
-`ratified: false` until all six workflow artifacts are reviewed. Ratification
-must list the exact fingerprint/canonical cell hash, all four proposal and
-validation native/path hashes, the proposal maxima, reviewer, and UTC review
-time. The envelope maxima must equal the authenticated proposal residual, and
+The committed `tools/paths-native-raster-envelopes.json` is ratified from
+GitHub Actions run `32621059647`. It lists the exact fingerprint/canonical cell
+hash, all four proposal and validation native/path role hashes, the proposal
+maxima, reviewer, and UTC review time for 1,044 platform/cell identities. Same-
+role hashes may be byte-identical across independent runners (reproducibility);
+native and paths hashes must differ within each run. The envelope maxima equal
+the authenticated proposal residual, and
 the independent validation run must remain inside those values;
 if it exceeds one, proposal evidence must be recollected rather than widening
 an already-reviewed envelope in place. A logical mismatch,
 warning, inert pair, missing artifact, or unreviewed hash is never an envelope
-candidate. Until review lands, the adjudicator returns `envelope-unratified`
-and the existing scalar visual-harness caps remain unchanged.
+candidate. Existing scalar visual-harness caps remain unchanged.
 
-Local macOS arm64 evidence on 2026-08-23 produced 174/174 exact logical DPR1
-rows, zero warnings, and active non-identical raster arms after the expanded
-source-owned matrix and provenance hardening. DPR2, independent-validation,
-and the three native CI platforms remain intentionally unratified. This is a
-collector proof, not an envelope ratification.
+The reviewed matrix contains 2,088 rows: 348 proposal plus 348 independent
+validation rows on each of macOS, Linux, and Windows at DPR1/2. All rows have
+exact logical identity, zero warnings, active non-identical raster arms, and
+validation residuals no greater than their proposal values. Representative
+worst-residual native/path pairs were visually reviewed as aligned glyph
+geometry with terminal antialiasing/hinting differences only.
 
 Source boundary: authenticated sfnt cmap/HVAR/outline tables own this corpus's
 substitution-free glyph IDs, clusters, advances, and outlines; renderer

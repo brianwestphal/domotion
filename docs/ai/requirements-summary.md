@@ -82,11 +82,10 @@ The producer and aggregate reopen the lossless PNGs and recompute hashes and
 residuals; supplied metrics and external observation bundles are not trusted.
 Only then may a reviewed envelope keyed by the authenticated browser/toolchain
 fingerprint and canonical cell hash classify the residual as rasterization-
-only. Proposal and independent validation runs must both be reviewed and the
-second must stay inside the first maxima. Local macOS arm64 DPR1 is 174/174
-logically exact with active raster arms; the committed envelopes remain
-unratified until DPR2 and the two-run three-OS review, so the aggregate
-withholds and scalar harness caps stay intact.
+only. GitHub Actions run `32621059647` ratifies 2,088 exact logical rows: 348
+proposal plus 348 independent-validation cells on each of macOS, Linux, and
+Windows at DPR1/2. Every validation residual remains inside its exact proposal
+value; scalar harness caps stay unchanged.
 
 The doc-116 text-layout stage is an exact CI gate: a declarative multi-valued
 covering array proves every pair across Blink's bidi, writing, wrapping,

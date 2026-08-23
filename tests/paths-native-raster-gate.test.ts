@@ -69,5 +69,16 @@ describe("paths-mode native-raster gate", () => {
     });
   });
   it("retains run/role identity so swapping symmetric raster arms cannot pass", () => { const r = row(); [r.nativeArtifact, r.pathsArtifact] = [r.pathsArtifact, r.nativeArtifact]; expect(adjudicatePathsRasterRows(pair(r), envelopes(row())).rows[0]).toEqual({ id: r.id, verdict: "missing-envelope", reason: "unreviewed-artifact-role" }); });
+  it("accepts byte-identical same-role reruns but rejects an inert arm within either run", () => {
+    const r = row();
+    const repeated = pair(r);
+    repeated[1].nativeArtifact.sha256 = r.nativeArtifact.sha256;
+    repeated[1].pathsArtifact.sha256 = r.pathsArtifact.sha256;
+    const reviewed = envelopes(r);
+    reviewed.envelopes[0].reviewedArtifacts.validation = structuredClone(reviewed.envelopes[0].reviewedArtifacts.proposal);
+    expect(adjudicatePathsRasterRows(repeated, reviewed).pass).toBe(true);
+    reviewed.envelopes[0].reviewedArtifacts.validation.paths = reviewed.envelopes[0].reviewedArtifacts.validation.native;
+    expect(() => adjudicatePathsRasterRows(repeated, reviewed)).toThrow(/validation native and paths artifact hashes must differ/);
+  });
   it("rejects widened proposal maxima and same-runner validation", () => { const r = row(); const widened = envelopes(r); widened.envelopes[0].max.changedPixels++; expect(() => adjudicatePathsRasterRows(pair(r), widened)).toThrow(/must equal.*proposal/); const sameRunner = pair(r); sameRunner[1].runProvenance.runnerName = sameRunner[0].runProvenance.runnerName; expect(() => adjudicatePathsRasterRows(sameRunner, envelopes(r))).toThrow(/independent validation/); });
 });

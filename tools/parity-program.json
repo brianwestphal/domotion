@@ -33,7 +33,7 @@
       "upstreamSources": ["external/harfbuzz/src", "external/chromium/third_party/blink/renderer/platform/fonts/shaping"],
       "oracle": "tools/unified-shaping-oracle.ts",
       "sourceAudit": "audited",
-      "oracleStatus": "partial-stage-gate",
+      "oracleStatus": "exact-stage-gate",
       "generatedCoverage": "derived host run corpus plus discriminating cluster fixtures and nine aggregate negative controls; schema-v3 portable applicability evidence adds two pinned Open Sans omission rows (wght=800 and wdth=75 to default axes) and the upstream HarfBuzz STAT+trak ptem=9-to-unset golden, requiring complete expected logical arrays/digests and changedFields exactly [xAdvance] while classifying inapplicable, non-moving, and unexpected controls separately. DM-2507 closes DM-2502's mixed-symbol gap with exact independent source-priority × bidi/script itemization and a strict native Linux arm64 order/selector/CSS/family discriminator for bare U+2757, VS15, and VS16 without a pixel tolerance.",
       "platformCoverage": ["darwin", "linux", "win32"],
       "knownGap": "CDP does not expose Chromium glyph IDs. The unified record preserves that boundary, while the production ledger records the actual selected source, mechanism, shaped glyph data, emitter identity, and embedded-to-path transition for representative runs. The source-owned axes/ptem controls and SymbolsIterator source-priority ownership are exact locally; a fresh retained native arm64 aggregate artifact is still required after integration.",
@@ -60,8 +60,8 @@
       "oracleStatus": "partial-stage-gate",
       "generatedCoverage": "self-contained SHA-pinned six-technology corpus; every technology independently covers 12/20/32 px, weights 400/600/800, all sixteen quarter X/Y phases, none/translate/scale/rotate/affine and DPR 1/2 in a canonical 348-cell union per run, with hinted-glyf phase×rotate/affine interactions; one-glyph-per-scalar samples disable substitutions so source sfnt tables own gids/advances/outlines; exact CDP custom face, selected production bytes/axes/glyph stream/source outlines and emitted baseline/matrix/paint plan precede byte-reauthenticated residual envelopes; three-platform proposal/validation collector/producer/aggregate workflow",
       "platformCoverage": ["darwin", "linux", "win32"],
-      "knownGap": "Local macOS arm64 DPR1 collection is 174/174 logically exact with zero warnings and active raster arms, but DPR2 and no two-run three-platform envelope are ratified. The workflow intentionally withholds rasterization-only acceptance, and existing scalar visual-harness caps remain unchanged.",
-      "nextAction": "Run the self-contained proposal/validation workflow, review every lossless pair on macOS/Linux/Windows, and ratify only exact browser-binary/toolchain fingerprint plus canonical-cell identities with all four run/role artifact hashes and reviewer/time provenance; validation must remain within proposal maxima."
+      "knownGap": "None in the declared substitution-free native-raster matrix. Browser HarfBuzz substitutions remain outside this source-table-owned corpus by design; scalar visual-harness caps are unchanged.",
+      "nextAction": "Recollect proposal/validation evidence whenever an authenticated environment fingerprint or canonical corpus cell changes; never carry envelopes across that boundary."
     },
     {
       "id": "macos-sfns-mask-baseline",

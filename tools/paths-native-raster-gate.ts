@@ -106,8 +106,15 @@ export const envelopeFileSchema = z.object({ schemaVersion: z.literal(2), ratifi
     const identity = `${envelope.fingerprintSha256}|${envelope.cellSha256}`;
     if (identities.has(identity)) ctx.addIssue({ code: "custom", message: "duplicate fingerprint/dimensions envelope", path: ["envelopes", i] });
     identities.add(identity);
-    const reviewed = Object.values(envelope.reviewedArtifacts).flatMap((run) => [run.native, run.paths]);
-    if (new Set(reviewed).size !== reviewed.length) ctx.addIssue({ code: "custom", message: "reviewed artifact hashes must be unique", path: ["envelopes", i, "reviewedArtifacts"] });
+    for (const [label, reviewed] of Object.entries(envelope.reviewedArtifacts)) {
+      // Independent runs may be byte-identical; that is reproducibility, not
+      // reuse.  What must remain distinct is each run's native-vs-path arm.
+      if (reviewed.native === reviewed.paths) ctx.addIssue({
+        code: "custom",
+        message: `${label} native and paths artifact hashes must differ`,
+        path: ["envelopes", i, "reviewedArtifacts", label],
+      });
+    }
   }
 });
 
