@@ -418,6 +418,7 @@ static void safeRelease(T*& p) {
 struct FontEntry {
   IDWriteFontFace* face = nullptr;
   int unitsPerEm = 0;
+  UINT32 faceIndex = 0;
 };
 
 // ─────────────────── Skia's simulation stripping, transcribed ───────────────
@@ -811,6 +812,7 @@ static bool openFont(IDWriteFactory* factory, const JsonValue& spec, FontEntry& 
 
   out.face = face;
   out.unitsPerEm = static_cast<int>(metrics.designUnitsPerEm);
+  out.faceIndex = faceIndex;
   return true;
 }
 
@@ -1001,6 +1003,8 @@ static std::string runGlyphsQuery(const JsonValue& query, IDWriteFactory* factor
   return out.str();
 }
 
+static std::string faceResolvedAxesJson(IDWriteFontFace* face);
+
 static std::string runMetaQuery(const JsonValue& query, std::map<std::string, FontEntry>& fonts) {
   std::string ref = query.at("fontRef").asString();
   auto it = fonts.find(ref);
@@ -1046,6 +1050,10 @@ static std::string runMetaQuery(const JsonValue& query, std::map<std::string, Fo
     out << "\"" << table.name << "\"";
   }
   out << "]";
+  out << ",\"postscriptName\":\"" << jsonEscape(facePostScriptName(it->second.face)) << "\""
+      << ",\"faceIndex\":" << it->second.faceIndex;
+  const std::string resolvedAxes = faceResolvedAxesJson(it->second.face);
+  if (!resolvedAxes.empty()) out << ",\"resolvedAxes\":" << resolvedAxes;
   // Exact source of DWriteFontTypeface::fontStyle().slant() in Chromium's
   // pinned Skia: IDWriteFontFace3::GetStyle() (SkTypeface_win_dw.cpp:39-58).
   // Omit the optional field when older DirectWrite lacks Face3 so Node keeps

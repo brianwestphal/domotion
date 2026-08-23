@@ -66,6 +66,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5c5rsamh9bmaz8",
+          "message": {
+            "text": "DirectWrite's reported Roboto names are presentation aliases, not named-instance identity. The Windows evidence used wdth=90, while every source fvar named tuple is wdth=75 or 100; even Roboto-Medium corresponded to a different weight/width tuple. This route therefore accepts no name prefix or style whitelist: a fingerprinted same-runtime helper must reopen the exact source SHA/face, return the identical informational string, and report the exact requested axes. The existing SHA/face/axis/glyph/outline checks remain independently mandatory.",
+            "markdown": "DirectWrite's reported Roboto names are presentation aliases, not named-instance identity. The Windows evidence used wdth=90, while every source fvar named tuple is wdth=75 or 100; even Roboto-Medium corresponded to a different weight/width tuple. This route therefore accepts no name prefix or style whitelist: a fingerprinted same-runtime helper must reopen the exact source SHA/face, return the identical informational string, and report the exact requested axes. The existing SHA/face/axis/glyph/outline checks remain independently mandatory."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/paths-native-raster-collector.ts"
+                },
+                "region": {
+                  "startLine": 142,
+                  "endLine": 183,
+                  "snippet": {
+                    "text": "/**\n * Canonicalize CDP's painted face without treating a backend presentation name\n * as a different source face. DirectWrite creates an IDWriteFontFace5 at the\n * requested axis values, but its informational PostScript string can be an\n * arbitrary WSS presentation alias rather than name ID 6 (and need not denote\n * an exact fvar named instance). Such an alias is accepted only when the native\n * helper independently reopens the same source SHA/face on the same runtime,\n * resolves the exact axis tuple, and reports the identical string. Source SHA,\n * face index, axes, glyph stream, and outlines stay mandatory logical facts.\n */\nexport function logicalPaintedPostscriptName(identity: PaintedPostscriptIdentity): {\n  logical: string;\n  sourceMatch: boolean;\n  match: PaintedPostscriptMatch;\n} {\n  const {\n    sourcePostscript,\n    sourceSha256,\n    faceIndex,\n    variationAxes,\n    paintedPostscript,\n    isCustomFont,\n    isVariable,\n    platform: targetPlatform,\n    fingerprintHelperSha256,\n    directWrite,\n  } = identity;\n  const logical = sourcePostscript ?? paintedPostscript;\n  if (paintedPostscript === logical) return { logical, sourceMatch: true, match: \"source-postscript\" };\n  if (sourcePostscript != null && paintedPostscript.startsWith(`${logical}_`)) {\n    return { logical, sourceMatch: true, match: \"blink-coordinate-suffix\" };\n  }\n  if (targetPlatform === \"win32\" && isVariable && isCustomFont && directWrite != null\n      && fingerprintHelperSha256 != null\n      && directWrite.helperSha256 === fingerprintHelperSha256\n      && directWrite.sourceSha256 === sourceSha256\n      && directWrite.faceIndex === faceIndex\n      && canonical(directWrite.resolvedAxes) === canonical(variationAxes)\n      && directWrite.postscriptName === paintedPostscript) {\n    return { logical, sourceMatch: true, match: \"directwrite-variable-face\" };\n  }\n  return { logical, sourceMatch: false, match: \"mismatch\" };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/win32-glyph-extractor/src/main.cpp"
+                },
+                "region": {
+                  "startLine": 1006
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2499"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "699c774139c25e1b3433a1fe6fe1d8b7"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "3220411c5490635fd5574402f9e4ca57d1383597",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

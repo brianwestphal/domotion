@@ -35,6 +35,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Build DirectWrite identity helper
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./tools/win32-glyph-extractor/build.ps1
       - name: Install pinned Chromium with Linux system dependencies
         if: runner.os == 'Linux'
         run: npx playwright install --with-deps chromium

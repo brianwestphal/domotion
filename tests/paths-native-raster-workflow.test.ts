@@ -13,6 +13,8 @@ describe("paths/native raster workflow", () => {
     expect(workflow).toContain("evidence: [proposal, validation]");
     expect(workflow).toContain("--run-label ${{ matrix.evidence }}");
     expect(workflow).toContain("npx playwright install --with-deps chromium");
+    expect(workflow).toContain("Build DirectWrite identity helper");
+    expect(workflow).toContain("./tools/win32-glyph-extractor/build.ps1");
     expect(workflow).not.toContain("observation_bundle_base_url");
   });
   it("acquires the exact source-owned corpus instead of downloading preauthored observations", () => {

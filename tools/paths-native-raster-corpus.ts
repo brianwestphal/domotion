@@ -227,6 +227,7 @@ export interface LoadedPathsRasterFixture {
   fixture: PathsRasterFixture;
   bytes: Buffer;
   sha256: string;
+  sourcePath: string;
   familyName: string;
   postscriptName: string | null;
   unitsPerEm: number;
@@ -236,7 +237,8 @@ export interface LoadedPathsRasterFixture {
 
 export function loadPathsRasterFixtures(fontRoot: string): LoadedPathsRasterFixture[] {
   return PATHS_NATIVE_RASTER_FIXTURES.map((fixture) => {
-    const upstream = readFileSync(join(fontRoot, fixture.upstreamPath));
+    const sourcePath = join(fontRoot, fixture.upstreamPath);
+    const upstream = readFileSync(sourcePath);
     const upstreamHash = sha256(upstream);
     if (upstreamHash !== fixture.upstreamSha256) {
       throw new Error(`${fixture.technology}: upstream fixture sha256 ${upstreamHash} != ${fixture.upstreamSha256}`);
@@ -262,6 +264,7 @@ export function loadPathsRasterFixtures(fontRoot: string): LoadedPathsRasterFixt
       fixture,
       bytes,
       sha256: sha256(bytes),
+      sourcePath,
       familyName: opened.familyName,
       postscriptName: opened.postscriptName ?? null,
       unitsPerEm: opened.unitsPerEm,

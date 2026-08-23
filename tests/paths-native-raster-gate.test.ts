@@ -34,6 +34,12 @@ describe("paths-mode native-raster gate", () => {
   it("withholds unratified, cross-fingerprint, warning, inert and outside-envelope evidence", () => { const r = row(); expect(adjudicatePathsRasterRows([r], envelopes(r, false)).rows[0].verdict).toBe("envelope-unratified"); const wrong = envelopes(r); wrong.envelopes[0].fingerprintSha256 = sha("e"); expect(adjudicatePathsRasterRows(pair(r), wrong).rows[0].verdict).toBe("missing-envelope"); r.warnings.push("capture partial"); expect(adjudicatePathsRasterRows(pair(r), envelopes(row())).rows[0].verdict).toBe("invalid-evidence"); const outsidePair = pair(row()); outsidePair[1].residual.changedPixels++; expect(adjudicatePathsRasterRows(outsidePair, envelopes(row())).rows[1].verdict).toBe("envelope-violation"); });
   it("rejects a nominal ratification without reviewer provenance", () => { const r = row(); const e = envelopes(r); delete e.reviewer; expect(() => adjudicatePathsRasterRows([r], e)).toThrow(/reviewer/); });
   it("rejects ambiguous duplicate envelopes instead of accepting last-write-wins", () => { const r = row(); const e = envelopes(r); e.envelopes.push(structuredClone(e.envelopes[0])); expect(() => adjudicatePathsRasterRows([r], e)).toThrow(/duplicate/); });
+  it("requires a fingerprinted native identity helper for Windows observations", () => {
+    const r = row(); r.fingerprint.platform = "win32";
+    expect(() => adjudicatePathsRasterRows([r], envelopes(r, false))).toThrow(/identity-helper fingerprint/);
+    r.fingerprint.nativeIdentityHelperSha256 = sha("7");
+    expect(adjudicatePathsRasterRows([r], envelopes(r, false)).rows[0].verdict).toBe("envelope-unratified");
+  });
   it("retains run/role identity so swapping symmetric raster arms cannot pass", () => { const r = row(); [r.nativeArtifact, r.pathsArtifact] = [r.pathsArtifact, r.nativeArtifact]; expect(adjudicatePathsRasterRows(pair(r), envelopes(row())).rows[0]).toEqual({ id: r.id, verdict: "missing-envelope", reason: "unreviewed-artifact-role" }); });
   it("rejects widened proposal maxima and same-runner validation", () => { const r = row(); const widened = envelopes(r); widened.envelopes[0].max.changedPixels++; expect(() => adjudicatePathsRasterRows(pair(r), widened)).toThrow(/must equal.*proposal/); const sameRunner = pair(r); sameRunner[1].runProvenance.runnerName = sameRunner[0].runProvenance.runnerName; expect(() => adjudicatePathsRasterRows(sameRunner, envelopes(r))).toThrow(/independent validation/); });
 });

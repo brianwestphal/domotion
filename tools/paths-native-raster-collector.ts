@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { arch, platform, release } from "node:os";
-import { createReadStream, mkdirSync, writeFileSync } from "node:fs";
+import { createReadStream, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { chromium, type Browser, type Page } from "@playwright/test";
@@ -106,19 +106,88 @@ function fontFaceCss(family: string, loaded: LoadedPathsRasterFixture): string {
   return `@font-face{font-family:'${family}';src:url(data:${fontMime(loaded)};base64,${loaded.bytes.toString("base64")}) format('${fontFormat(loaded)}');font-style:normal;font-weight:${range};font-display:block}`;
 }
 
-export function logicalPaintedPostscriptName(sourcePostscript: string | null, paintedPostscript: string): { logical: string; sourceMatch: boolean } {
+export type PaintedPostscriptMatch =
+  | "source-postscript"
+  | "blink-coordinate-suffix"
+  | "directwrite-variable-face"
+  | "mismatch";
+
+export interface DirectWriteVariableFaceEvidence {
+  postscriptName: string;
+  resolvedAxes: Record<string, number>;
+  sourceSha256: string;
+  faceIndex: number;
+  helperSha256: string;
+}
+
+export interface PaintedPostscriptIdentity {
+  sourcePostscript: string | null;
+  sourceSha256: string;
+  faceIndex: number;
+  variationAxes: Record<string, number>;
+  paintedPostscript: string;
+  isCustomFont: boolean;
+  isVariable: boolean;
+  platform: NodeJS.Platform;
+  fingerprintHelperSha256?: string;
+  directWrite?: DirectWriteVariableFaceEvidence;
+}
+
+const canonical = (value: unknown): string => JSON.stringify(
+  value != null && typeof value === "object" && !Array.isArray(value)
+    ? Object.fromEntries(Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)))
+    : value,
+);
+
+/**
+ * Canonicalize CDP's painted face without treating a backend presentation name
+ * as a different source face. DirectWrite creates an IDWriteFontFace5 at the
+ * requested axis values, but its informational PostScript string can be an
+ * arbitrary WSS presentation alias rather than name ID 6 (and need not denote
+ * an exact fvar named instance). Such an alias is accepted only when the native
+ * helper independently reopens the same source SHA/face on the same runtime,
+ * resolves the exact axis tuple, and reports the identical string. Source SHA,
+ * face index, axes, glyph stream, and outlines stay mandatory logical facts.
+ */
+export function logicalPaintedPostscriptName(identity: PaintedPostscriptIdentity): {
+  logical: string;
+  sourceMatch: boolean;
+  match: PaintedPostscriptMatch;
+} {
+  const {
+    sourcePostscript,
+    sourceSha256,
+    faceIndex,
+    variationAxes,
+    paintedPostscript,
+    isCustomFont,
+    isVariable,
+    platform: targetPlatform,
+    fingerprintHelperSha256,
+    directWrite,
+  } = identity;
   const logical = sourcePostscript ?? paintedPostscript;
-  return {
-    logical,
-    sourceMatch: paintedPostscript === logical || paintedPostscript.startsWith(`${logical}_`),
-  };
+  if (paintedPostscript === logical) return { logical, sourceMatch: true, match: "source-postscript" };
+  if (sourcePostscript != null && paintedPostscript.startsWith(`${logical}_`)) {
+    return { logical, sourceMatch: true, match: "blink-coordinate-suffix" };
+  }
+  if (targetPlatform === "win32" && isVariable && isCustomFont && directWrite != null
+      && fingerprintHelperSha256 != null
+      && directWrite.helperSha256 === fingerprintHelperSha256
+      && directWrite.sourceSha256 === sourceSha256
+      && directWrite.faceIndex === faceIndex
+      && canonical(directWrite.resolvedAxes) === canonical(variationAxes)
+      && directWrite.postscriptName === paintedPostscript) {
+    return { logical, sourceMatch: true, match: "directwrite-variable-face" };
+  }
+  return { logical, sourceMatch: false, match: "mismatch" };
 }
 
 function documentFor(body: string, family: string, loaded: LoadedPathsRasterFixture): string {
   return `<!doctype html><style>html,body{margin:0;width:${VIEWPORT.width}px;height:${VIEWPORT.height}px;overflow:hidden;background:#fff}${fontFaceCss(family, loaded)}</style>${body}`;
 }
 
-async function paintedPostscriptName(page: Page): Promise<{ postscriptName: string; glyphCount: number; isCustomFont: boolean }> {
+async function paintedPostscriptName(page: Page): Promise<{ familyName: string; postscriptName: string; glyphCount: number; isCustomFont: boolean }> {
   const cdp = await page.context().newCDPSession(page);
   try {
     await cdp.send("DOM.enable"); await cdp.send("CSS.enable");
@@ -129,10 +198,64 @@ async function paintedPostscriptName(page: Page): Promise<{ postscriptName: stri
     if (painted.length !== 1 || painted[0].postScriptName.trim() === "") {
       throw new Error(`native arm painted ${painted.length} concrete faces: ${JSON.stringify(painted)}`);
     }
-    return { postscriptName: painted[0].postScriptName, glyphCount: painted[0].glyphCount, isCustomFont: painted[0].isCustomFont };
+    return { familyName: painted[0].familyName, postscriptName: painted[0].postScriptName, glyphCount: painted[0].glyphCount, isCustomFont: painted[0].isCustomFont };
   } finally {
     await cdp.detach();
   }
+}
+
+const directWriteEvidenceCache = new Map<string, DirectWriteVariableFaceEvidence>();
+
+function win32IdentityHelperPath(): string {
+  return resolve(
+    process.env.DOMOTION_WIN32_GLYPH_HELPER?.trim()
+      || process.env.DOMOTION_HELPER_PATH?.trim()
+      || "tools/win32-glyph-extractor/domotion-glyph-paths.exe",
+  );
+}
+
+function directWriteVariableFaceEvidence(
+  loaded: LoadedPathsRasterFixture,
+  variationAxes: Record<string, number>,
+  helperSha256: string,
+): DirectWriteVariableFaceEvidence {
+  const key = `${helperSha256}|${loaded.sha256}|0|${canonical(variationAxes)}`;
+  const cached = directWriteEvidenceCache.get(key);
+  if (cached != null) return cached;
+  const helper = win32IdentityHelperPath();
+  const request = {
+    fonts: [{
+      ref: "source",
+      fontPath: loaded.sourcePath,
+      postscriptName: loaded.postscriptName ?? "",
+      size: loaded.unitsPerEm,
+      variations: variationAxes,
+    }],
+    queries: [{ type: "meta", fontRef: "source" }],
+  };
+  const raw = execFileSync(helper, [], {
+    input: JSON.stringify(request),
+    encoding: "utf8",
+    maxBuffer: 4 * 1024 * 1024,
+  });
+  const parsed = JSON.parse(raw) as { results?: Array<Record<string, unknown>> };
+  const result = parsed.results?.[0];
+  if (result?.type !== "meta" || typeof result.postscriptName !== "string"
+      || result.postscriptName.trim() === "" || !Number.isInteger(result.faceIndex)
+      || result.resolvedAxes == null || typeof result.resolvedAxes !== "object"
+      || Array.isArray(result.resolvedAxes)
+      || Object.values(result.resolvedAxes).some((value) => typeof value !== "number" || !Number.isFinite(value))) {
+    throw new Error(`DirectWrite identity helper returned incomplete evidence: ${raw}`);
+  }
+  const evidence: DirectWriteVariableFaceEvidence = {
+    postscriptName: result.postscriptName,
+    resolvedAxes: result.resolvedAxes as Record<string, number>,
+    sourceSha256: loaded.sha256,
+    faceIndex: result.faceIndex as number,
+    helperSha256,
+  };
+  directWriteEvidenceCache.set(key, evidence);
+  return evidence;
 }
 
 async function rasterize(page: Page, markup: string, family: string, loaded: LoadedPathsRasterFixture): Promise<Buffer> {
@@ -301,11 +424,24 @@ async function collectCell(
     if (painted.glyphCount !== expected.length) warnings.push(`painted glyph count ${painted.glyphCount} != HarfBuzz ${expected.length}`);
     if (!painted.isCustomFont) warnings.push("native arm did not report the pinned data-URL face as a custom font");
     if (actual.postscriptName === "") warnings.push("production path run omitted PostScript identity");
-    // Blink gives some variable instances a generated PostScript suffix whose
-    // encoded coordinates are already represented exactly by variationAxes.
-    // The logical face name stays the source face's PostScript name; require
-    // the painted name to be that name or a Blink-generated instance of it.
-    const paintedIdentity = logicalPaintedPostscriptName(loaded.postscriptName, painted.postscriptName);
+    // Keep name ID 6 as metadata, not the face-instance identity. Blink may
+    // append encoded coordinates; DirectWrite may instead expose a WSS alias
+    // unrelated to an exact fvar named tuple. The latter is accepted only when
+    // the same-runtime helper reopens these bytes and confirms its exact axes.
+    const paintedIdentity = logicalPaintedPostscriptName({
+      sourcePostscript: loaded.postscriptName,
+      sourceSha256: loaded.sha256,
+      faceIndex: 0,
+      variationAxes: cell.variationAxes,
+      paintedPostscript: painted.postscriptName,
+      isCustomFont: painted.isCustomFont,
+      isVariable: loaded.fixture.technology.startsWith("variable-"),
+      platform: fingerprint.platform,
+      fingerprintHelperSha256: fingerprint.nativeIdentityHelperSha256,
+      ...(fingerprint.platform === "win32" && loaded.fixture.technology.startsWith("variable-")
+        ? { directWrite: directWriteVariableFaceEvidence(loaded, cell.variationAxes, fingerprint.nativeIdentityHelperSha256!) }
+        : {}),
+    });
     const logicalPostscript = paintedIdentity.logical;
     if (!paintedIdentity.sourceMatch) {
       warnings.push(`painted PostScript ${painted.postscriptName} is not source face ${logicalPostscript}`);
@@ -372,6 +508,13 @@ export async function collectPathsNativeRaster(options: CollectPathsRasterOption
     const browserVersion = await browserCdp.send("Browser.getVersion");
     await browserCdp.detach();
     const executableSha256 = await sha256File(chromium.executablePath());
+    const identityHelperSha256 = platform() === "win32"
+      ? await (async () => {
+          const helper = win32IdentityHelperPath();
+          if (!existsSync(helper)) throw new Error(`Windows DirectWrite identity helper is missing: ${helper}`);
+          return sha256File(helper);
+        })()
+      : undefined;
     const locale = Intl.DateTimeFormat().resolvedOptions().locale || "en-US";
     const fingerprint: PathsRasterRow["fingerprint"] = {
       platform: platform() as PathsRasterRow["fingerprint"]["platform"],
@@ -382,6 +525,7 @@ export async function collectPathsNativeRaster(options: CollectPathsRasterOption
       chromium: browser.version(),
       chromiumRevision: browserVersion.revision,
       browserExecutableSha256: executableSha256,
+      ...(identityHelperSha256 == null ? {} : { nativeIdentityHelperSha256: identityHelperSha256 }),
       skia: `browser-binary:${executableSha256}`,
       harfbuzz: `browser-binary:${executableSha256}`,
       oracleSkiaRevision: PATHS_NATIVE_RASTER_SKIA_SOURCE,
