@@ -25,8 +25,8 @@
           "level": "none",
           "guid": "mt5e7y1evzcdwb1g",
           "message": {
-            "text": "GitHub Actions run 32621059647 produced 2,088 authenticated rows: 348 proposal plus 348 independent validation cells on macOS, Linux, and Windows. All logical facts were exact, all raster arms active, warnings were empty, and every validation residual was less than or equal to its exact proposal value; representative worst-residual pairs were visually reviewed as aligned geometry with terminal rasterization differences only.",
-            "markdown": "GitHub Actions run 32621059647 produced 2,088 authenticated rows: 348 proposal plus 348 independent validation cells on macOS, Linux, and Windows. All logical facts were exact, all raster arms active, warnings were empty, and every validation residual was less than or equal to its exact proposal value; representative worst-residual pairs were visually reviewed as aligned geometry with terminal rasterization differences only."
+            "text": "GitHub Actions run 32621780121 produced 2,088 authenticated rows under non-circular renderer/oracle source hashes: 348 proposal plus 348 independent validation cells on macOS, Linux, and Windows. All logical facts were exact, all raster arms active, warnings were empty, and every validation residual was less than or equal to its exact proposal value; representative worst-residual pairs were visually reviewed as aligned geometry with terminal rasterization differences only.",
+            "markdown": "GitHub Actions run 32621780121 produced 2,088 authenticated rows under non-circular renderer/oracle source hashes: 348 proposal plus 348 independent validation cells on macOS, Linux, and Windows. All logical facts were exact, all raster arms active, warnings were empty, and every validation residual was less than or equal to its exact proposal value; representative worst-residual pairs were visually reviewed as aligned geometry with terminal rasterization differences only."
           },
           "locations": [
             {
