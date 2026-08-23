@@ -28,6 +28,10 @@ Demo-review evidence is resolved by `src/review/stage-evidence.ts`; the CI
 producer is `tools/collect-stage-evidence.ts` plus
 `tools/build-stage-evidence.ts`, and the server/client integration lives in
 `tests/review-server.tsx` and `tests/review-client.tsx`.
+Dependency-roll evidence is adjudicated by `src/review/roll-differential.ts`;
+`src/review/source-drift-gate.ts` adds the fail-closed ICU/HarfBuzz boundary and
+`tools/source-drift-evidence.ts` fingerprints the source pins, ICU data, native
+helpers, and generated classifiers for representative or exhaustive profiles.
 `tools/unified-shaping-oracle.ts` is the face→glyph→painted-origin logical record
 consumed by those stage-evidence artifacts; its lower-level exact glyph leg is
 `tools/exact-shaping-oracle.ts`. `tools/exact-shaping-control-fixtures.ts`

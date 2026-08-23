@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5ejyrj3ahalhem",
+          "message": {
+            "text": "The roll gate treats evidence comparability as a precondition, not a regression result. ICU property rows and HarfBuzz shaping rows use stable IDs so any changed upstream branch must be paired with a source citation and the exact updated oracle rows; incomplete fingerprints or mixed sampling profiles withhold the verdict.",
+            "markdown": "The roll gate treats evidence comparability as a precondition, not a regression result. ICU property rows and HarfBuzz shaping rows use stable IDs so any changed upstream branch must be paired with a source citation and the exact updated oracle rows; incomplete fingerprints or mixed sampling profiles withhold the verdict."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/review/source-drift-gate.ts"
+                },
+                "region": {
+                  "startLine": 40,
+                  "endLine": 55,
+                  "snippet": {
+                    "text": "/** Fail-closed adjudication for the ICU/HarfBuzz boundary Chromium consumes. */\nexport function compareSourceDrift(before: SourceDriftEvidence, after: SourceDriftEvidence, review?: SourceDriftReview) {\n  const fingerprintComplete = complete(before.fingerprint) && complete(after.fingerprint);\n  const profileComparable = before.mode === after.mode;\n  const unicodeChanges = changedRows(before.unicodeProperties, after.unicodeProperties);\n  const shapingChanges = changedRows(before.shapingDecisions, after.shapingDecisions);\n  const rollChanged = digest(before.fingerprint) !== digest(after.fingerprint);\n  const reviewed = review != null && review.sourceRefs.length > 0\n    && unicodeChanges.every((id) => review.updatedPropertyRows.includes(id))\n    && shapingChanges.every((id) => review.updatedShapingRows.includes(id));\n  const blockers = [\n    ...(!fingerprintComplete ? [\"incomplete-source-fingerprint\"] : []),\n    ...(!profileComparable ? [\"incomparable-conformance-mode\"] : []),\n    ...(rollChanged && (unicodeChanges.length > 0 || shapingChanges.length > 0) && !reviewed ? [\"changed-branches-require-source-review-and-updated-oracle-rows\"] : []),\n  ];\n  return { schemaVersion: 1, verdict: blockers.length === 0 ? \"comparable\" : \"verdict-withheld\", rollChanged, unicodeChanges, shapingChanges, blockers };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2347"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "aa77e4de72abd33d664239539fec526f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "69d11cde8519d1794d2036c6ee91d7af708337be",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

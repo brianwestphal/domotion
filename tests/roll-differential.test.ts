@@ -4,4 +4,5 @@ describe("roll differential",()=>{
  it("requires source review and updated rows",()=>{expect(compareRollArtifacts(artifact("old",1),artifact("new",2)).missingReviews).toEqual(["paint"]);expect(compareRollArtifacts(artifact("old",1),artifact("new",2),{reviewedAreas:{paint:{sourceRefs:["chromium/x.cc:10"],updatedRows:["row"],classification:"upstream-drift"}}}).pass).toBe(true)});
  it("rejects incomparable environments",()=>{const n=artifact("new",1);(n.environmentFingerprint.host as Record<string,unknown>).os="darwin";expect(compareRollArtifacts(artifact("old",1),n).pass).toBe(false)});
  it("allows reviewed representation-only changes",()=>expect(compareRollArtifacts(artifact("old",1),artifact("new",2),{reviewedAreas:{paint:{sourceRefs:["skia/x.cc:1"],updatedRows:[],classification:"no-semantic-change"}}}).pass).toBe(true));
+ it("withholds when only one side carries source-drift evidence",()=>{const n=artifact("new",1);n.reportPayloads!["icu-harfbuzz-source-drift"]={};expect(compareRollArtifacts(artifact("old",1),n).pass).toBe(false)});
 });

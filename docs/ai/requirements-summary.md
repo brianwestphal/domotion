@@ -44,6 +44,14 @@ representative production-funnel gate and the broader unified report pass;
 every new assignment owner or emitter transition requires its own route case
 and independent mutation control.
 
+Doc 160 makes ICU/HarfBuzz dependency rolls fail closed. Comparable evidence
+includes Chromium's HarfBuzz pin, independent HarfBuzz/ICU revisions, bundled
+ICU-data bytes, helper binaries, and generated classifier bytes. Exact ICU
+property and HarfBuzz glyph/cluster/advance/offset row changes require upstream
+source citations plus named updated oracle rows. Representative and exhaustive
+profiles run independently; missing fingerprints or mixed profiles withhold a
+regression verdict.
+
 Doc 196 adds the release-consumer leg missing from Linux arm64 coverage. A
 native `ubuntu-22.04-arm` job must acquire the pinned glyph and ICU assets via
 the public production APIs into a never-used cache, prove AArch64 ELF identity,
@@ -82,7 +90,7 @@ The producer and aggregate reopen the lossless PNGs and recompute hashes and
 residuals; supplied metrics and external observation bundles are not trusted.
 Only then may a reviewed envelope keyed by the authenticated browser/toolchain
 fingerprint and canonical cell hash classify the residual as rasterization-
-only. GitHub Actions run `32621059647` ratifies 2,088 exact logical rows: 348
+only. GitHub Actions run `32621780121` ratifies 2,088 exact logical rows: 348
 proposal plus 348 independent-validation cells on each of macOS, Linux, and
 Windows at DPR1/2. Every validation residual remains inside its exact proposal
 value; scalar harness caps stay unchanged.
