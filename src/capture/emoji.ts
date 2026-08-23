@@ -195,6 +195,23 @@ interface RasterCandidate {
   snapRectToClip?: boolean;
 }
 
+type ColorSpanIdentity = { fontKey: string; faceId: string; glyphIds: number[]; representation: string; paletteEntryCount?: number; paletteCount?: number; paletteTypes?: number[] };
+export function resolvedPaletteIdentity(styles: Pick<CapturedElement["styles"], "fontPalette" | "fontPaletteIdentity">, span: ColorSpanIdentity) {
+  const source = styles.fontPaletteIdentity ?? { token: styles.fontPalette ?? "normal", ruleFamily: null, basePalette: styles.fontPalette ?? "normal", overrides: [] };
+  const requested = source.basePalette;
+  const themed = requested === "light" ? span.paletteTypes?.findIndex((type) => type === 1) : requested === "dark" ? span.paletteTypes?.findIndex((type) => type === 2) : -1;
+  const numeric = /^\d+$/.test(requested) ? Number(requested) : 0;
+  const resolvedBasePalette = themed != null && themed >= 0 ? themed : numeric < (span.paletteCount ?? Infinity) ? numeric : 0;
+  return { ...source, resolvedBasePalette, overrides: source.overrides.filter((item) => span.paletteEntryCount == null || item.index < span.paletteEntryCount) };
+}
+export function colorGlyphRasterIdentity(
+  styles: Pick<CapturedElement["styles"], "fontPalette" | "fontPaletteIdentity">,
+  spans: ColorSpanIdentity[],
+): string {
+  if (spans.length === 0) return JSON.stringify(styles.fontPaletteIdentity ?? { token: styles.fontPalette ?? "normal" });
+  return spans.map((span) => `${JSON.stringify(resolvedPaletteIdentity(styles, span))}|${span.faceId}:${span.glyphIds.join(",")}:${span.representation}`).join(";");
+}
+
 type RasterTextSeg = NonNullable<CapturedElement["textSegments"]>[number];
 type RasterGlyph = NonNullable<RasterTextSeg["rasterGlyphs"]>[number];
 
@@ -249,6 +266,7 @@ function queueRasterGlyph(
   el: CapturedElement,
   candidates: RasterCandidate[],
   sbixAligns: SbixAlignJob[],
+  identity: string,
 ): void {
   // DM-989: ::first-letter chars get a zero-rect rasterGlyph entry whose only
   // role is to suppress the body-text glyph at that index (the styled-first-
@@ -297,7 +315,7 @@ function queueRasterGlyph(
   const h = Math.round(g.rect.height);
   candidates.push({
     rect: g.rect,
-    key: `glyph|${cluster}|${seg.color ?? ""}|${seg.fontSize ?? ""}|${seg.fontWeight ?? ""}|${w}x${h}`,
+    key: `glyph|${cluster}|${seg.color ?? ""}|${seg.fontSize ?? ""}|${seg.fontWeight ?? ""}|${w}x${h}|${identity}`,
     setDataUri: (uri) => { g.dataUri = uri; },
     snapRectToClip: true,
   });
@@ -780,7 +798,7 @@ export async function rasterizeBitmapGlyphs(
             } else {
               candidates.push({
                 rect: seg.rasterRect,
-                key: `seg|${seg.text}|${seg.color ?? ""}|${seg.fontSize ?? ""}|${seg.fontWeight ?? ""}`,
+                key: `seg|${seg.text}|${seg.color ?? ""}|${seg.fontSize ?? ""}|${seg.fontWeight ?? ""}|${colorGlyphRasterIdentity(el.styles, [])}`,
                 setDataUri: (uri) => { seg.rasterDataUri = uri; },
               });
             }
@@ -809,10 +827,11 @@ export async function rasterizeBitmapGlyphs(
             if (selected.some((span) => span.representation === "bitmap")) {
               const rect = { x: seg.x, y: seg.y, width: seg.width, height: seg.height };
               seg.rasterRect = rect;
+              seg.colorGlyphIdentities = selected.map((span) => ({ palette: resolvedPaletteIdentity(el.styles, span), fontKey: span.fontKey, faceId: span.faceId, glyphIds: span.glyphIds, representation: span.representation }));
               seg.rasterGlyphs = structural.length > 0 ? structural : undefined;
               candidates.push({
                 rect,
-                key: `seg-bitmap|${seg.text}|${seg.color ?? ""}|${seg.fontSize ?? ""}|${seg.fontWeight ?? ""}|${rect.width}x${rect.height}`,
+                key: `seg-bitmap|${seg.text}|${seg.color ?? ""}|${seg.fontSize ?? ""}|${seg.fontWeight ?? ""}|${rect.width}x${rect.height}|${colorGlyphRasterIdentity(el.styles, selected)}`,
                 setDataUri: (uri) => { seg.rasterDataUri = uri; },
                 snapRectToClip: true,
               });
@@ -825,7 +844,19 @@ export async function rasterizeBitmapGlyphs(
             });
             const retained = [...structural, ...raster];
             seg.rasterGlyphs = retained.length > 0 ? retained : undefined;
-            for (const g of raster) queueRasterGlyph(g, seg, el, candidates, sbixAligns);
+            for (const g of raster) {
+              const end = g.charIndex + (g.charLength ?? (seg.text.codePointAt(g.charIndex)! > 0xFFFF ? 2 : 1));
+              const span = selected.find((item) => item.start === g.charIndex && item.end === end);
+              if (span != null) g.colorGlyphIdentity = {
+                palette: resolvedPaletteIdentity(el.styles, span),
+                fontKey: span.fontKey,
+                faceId: span.faceId,
+                glyphIds: span.glyphIds,
+                representation: span.representation,
+              };
+              const identity = colorGlyphRasterIdentity(el.styles, span == null ? [] : [span]);
+              queueRasterGlyph(g, seg, el, candidates, sbixAligns, identity);
+            }
           }
         }
       }

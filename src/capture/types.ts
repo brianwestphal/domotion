@@ -222,11 +222,27 @@ export interface TextSegment {
     charLength?: number;
     rect: { x: number; y: number; width: number; height: number };
     dataUri?: string;
+    /** Resolved palette plus selected face/gid/representation owning the PNG. */
+    colorGlyphIdentity?: {
+      palette: NonNullable<CapturedStyles["fontPaletteIdentity"]>;
+      fontKey: string;
+      faceId: string;
+      glyphIds: number[];
+      representation: string;
+    };
     /** When true, the underlying text-path emit for this charIndex must be
      *  suppressed: the raster image is the ONLY paint for this codepoint
      *  (e.g. ::first-letter drop caps where the styled big-letter raster
      *  would otherwise sit on top of the body-size path glyph). DM-439. */
     suppressGlyph?: boolean;
+  }>;
+  /** Selected identities for a segment-level color-bitmap raster. */
+  colorGlyphIdentities?: Array<{
+    palette: NonNullable<CapturedStyles["fontPaletteIdentity"]>;
+    fontKey: string;
+    faceId: string;
+    glyphIds: number[];
+    representation: string;
   }>;
   /**
    * DM-1126: UTF-16 indices (into `text`) of orphaned complex-shaper combining
@@ -584,6 +600,17 @@ export interface CapturedMaskBoxInsets {
 }
 
 export interface CapturedStyles {
+  /** Computed CSS font-palette token; part of color-glyph raster identity. */
+  fontPalette?: string;
+  /** Named-palette rule joined to the requested family; computed style alone
+   * serializes only the token and cannot distinguish rule ownership. */
+  fontPaletteIdentity?: {
+    token: string;
+    ruleFamily: string | null;
+    basePalette: string;
+    resolvedBasePalette?: number;
+    overrides: Array<{ index: number; color: string }>;
+  };
   backgroundColor: string;
   borderColor: string;
   borderWidth: string;

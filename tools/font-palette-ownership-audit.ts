@@ -180,6 +180,7 @@ export interface ProductionOrderEvidence {
   capturedUniquePngCount: number;
   svgImageCount: number;
   captureHasFontPaletteFact: boolean;
+  capturedPaletteRecords: unknown[];
   selectedRepresentation: string | null;
   warnings: string[];
   svg: string;
@@ -200,7 +201,8 @@ export function classifyPaletteAudit(
       || row.sourcePngSha256[0] === row.sourcePngSha256[1] || row.selectedRepresentation !== "colr"
       || row.svgImageCount !== 2)) return "invalid-evidence";
   const exact = orders.every((row) => row.capturedPngCount === 2 && row.capturedUniquePngCount === 2
-    && row.captureHasFontPaletteFact && row.capturedPngSha256.every((hash, index) => hash === row.sourcePngSha256[index]));
+    && row.captureHasFontPaletteFact && row.capturedPaletteRecords.length === 2
+    && row.capturedPngSha256.every((hash, index) => hash === row.sourcePngSha256[index]));
   if (exact) return "source-exact";
   const contaminated = orders.every((row) => row.capturedPngCount === 2 && row.capturedUniquePngCount === 1
       && !row.captureHasFontPaletteFact && row.capturedPngSha256.every((hash) => hash === row.sourcePngSha256[0]))
@@ -265,6 +267,14 @@ function collectDataUris(value: unknown, out: string[] = []): string[] {
 function hasKey(value: unknown, wanted: string): boolean {
   if (value == null || typeof value !== "object") return false;
   return Object.entries(value as Record<string, unknown>).some(([key, entry]) => key === wanted || hasKey(entry, wanted));
+}
+
+function valuesForKey(value: unknown, wanted: string, out: unknown[] = []): unknown[] {
+  if (value == null || typeof value !== "object") return out;
+  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    if (key === wanted) out.push(entry); else valuesForKey(entry, wanted, out);
+  }
+  return out;
 }
 
 async function nativeRows(browser: Browser, fontUrl: string, facts: PaletteSourceFacts, dpr: 1 | 2, artifactDir?: string): Promise<NativePaletteRow[]> {
@@ -340,6 +350,7 @@ async function productionOrder(browser: Browser, fontUrl: string, order: Product
       capturedUniquePngCount: new Set(capturedPngs.map(sha256)).size,
       svgImageCount: (svg.match(/<image\b/g) ?? []).length,
       captureHasFontPaletteFact: hasKey(capture.tree, "fontPalette"),
+      capturedPaletteRecords: valuesForKey(capture.tree, "colorGlyphIdentity"),
       selectedRepresentation: selected?.representation ?? null,
       warnings: capture.warnings.map((warning) => `${warning.feature}:${warning.status}`),
       svg,
@@ -397,10 +408,13 @@ export async function runFontPaletteOwnershipAudit(options: { dprs?: Array<1 | 2
   try {
     const dprs = options.dprs ?? [1, 2];
     const native = (await Promise.all(dprs.map((dpr) => nativeRows(browser, hosted.url, facts, dpr, artifactDir)))).flat();
-    const orders = await Promise.all([
-      productionOrder(browser, hosted.url, ["base2", "base3"], artifactDir),
-      productionOrder(browser, hosted.url, ["base3", "base2"], artifactDir),
-    ]);
+    // Production font registries/caches are process-global. Run the two order
+    // arms serially so the reverse-order mutation changes only DOM order, not
+    // an interleaved clear/register race between two captures.
+    const orders = [
+      await productionOrder(browser, hosted.url, ["base2", "base3"], artifactDir),
+      await productionOrder(browser, hosted.url, ["base3", "base2"], artifactDir),
+    ];
     const verdict = classifyPaletteAudit(native, orders, dprs);
     const browserCdp = await browser.newBrowserCDPSession();
     const browserVersion = await browserCdp.send("Browser.getVersion");
@@ -421,7 +435,8 @@ export async function runFontPaletteOwnershipAudit(options: { dprs?: Array<1 | 2
       productionOrders: orders,
       followUps: verdict === "confirmed-palette-identity-gap" ? [
         "DM-2509: capture resolved font-palette ownership and add palette/face/gid/representation to browser-raster cache identity.",
-        "DM-2510: promote this audit to a strict COLRv1/COLRv0 three-platform paint gate after production consumes the source-owned record.",
+      ] : verdict === "source-exact" ? [
+        "DM-2510: promote this audit to a strict COLRv1/COLRv0 three-platform paint gate.",
       ] : [],
     };
     if (artifactDir != null) writeFileSync(resolve(artifactDir, "font-palette-ownership-report.json"), JSON.stringify({ ...report, productionOrders: report.productionOrders.map(({ svg: _svg, ...row }) => row) }, null, 2));
