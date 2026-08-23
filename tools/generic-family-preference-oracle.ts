@@ -391,13 +391,17 @@ async function collectState(
     .filter((row) => isSettingsGeneric(row.generic))
     .filter((row) => normFace(face(row)) === normFace(mutation.expectedFaceByTarget[targetKey(row)]))
     .length;
-  const exactRows = rows.filter((row) => row.exact).length;
+  // `system-ui` is owned by the separate platform route, not Page's generic
+  // preference maps. Keep those rows in the report as mandatory stability
+  // controls, but never grade their face identity as generic-map parity.
+  const gradedRows = rows.filter((row) => row.generic !== "system-ui");
+  const exactRows = gradedRows.filter((row) => row.exact).length;
   const productionMatches = probeMatchesRows(productionProbe, second);
   const repeatStable = rowsStable(first, second);
   const pass = repeatStable
     && globalUntouched
     && productionMatches
-    && exactRows === rows.length
+    && exactRows === gradedRows.length
     && (expectedMutationRows == null || expectedMutationMatches === expectedMutationRows);
   return {
     sourceRows: second,
@@ -413,7 +417,7 @@ async function collectState(
       repeatStable,
       rows,
       exactRows,
-      mismatches: rows.length - exactRows,
+      mismatches: gradedRows.length - exactRows,
       expectedMutationRows,
       expectedMutationMatches,
       pass,
@@ -487,15 +491,16 @@ async function runMode(mode: LaunchMode): Promise<ModeReport> {
     // recovers A and restores B afterward. Production capture no longer calls
     // this setter; captured trees carry A/B explicitly.
     const prior = getSessionGenericFamilyOverrides();
+    const scopedRows = defaultState.sourceRows.filter((row) => isSettingsGeneric(row.generic));
     setSessionGenericFamilyOverrides(mutationState.probe);
-    const contaminatedExact = resolveAgainstCurrentGlobal(defaultState.sourceRows);
+    const contaminatedExact = resolveAgainstCurrentGlobal(scopedRows);
     const scopedExact = withSessionGenericFamilyOverrides(
       defaultState.probe,
-      () => resolveAgainstCurrentGlobal(defaultState.sourceRows),
+      () => resolveAgainstCurrentGlobal(scopedRows),
     );
     const restored = getSessionGenericFamilyOverrides() === mutationState.probe;
     setSessionGenericFamilyOverrides(prior);
-    const legacyProcessGlobalContaminatedRows = defaultState.sourceRows.length - contaminatedExact;
+    const legacyProcessGlobalContaminatedRows = scopedRows.length - contaminatedExact;
 
     const navigator = await mutationPage.evaluate(() => ({
       userAgent: globalThis.navigator.userAgent,
@@ -510,7 +515,7 @@ async function runMode(mode: LaunchMode): Promise<ModeReport> {
       && systemUiNegativeControlStable
       && quotedLiteralControlExact
       && legacyProcessGlobalContaminatedRows > 0
-      && scopedExact === defaultState.sourceRows.length
+      && scopedExact === scopedRows.length
       && restored;
     return {
       id: mode.id,

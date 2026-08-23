@@ -85,12 +85,14 @@ stable default state, then applies a controlled `Page.setFontFamilies` mutation
 whose replacement faces come only from that exact run's observed installed
 faces. It crosses seven settings generics over Common plus ten scripts (77
 settings rows), adds Common/script `system-ui` separation controls (11 rows)
-and quoted `"serif"` keyword-classification controls (11 rows), and compares
-all 99 rows directly with the production Page probe and Domotion resolver.
+and quoted `"serif"` keyword-classification controls (11 rows). Each state
+therefore observes 99 rows: 88 exact preference/classification rows plus 11
+mandatory stable `system-ui` separation controls.
 
 The report also runs the old process-global ownership as a destructive
-discriminator: B must contaminate at least one A row, the captured A scope must
-recover all rows, and the prior explicit global must be restored. It records
+discriminator: B must contaminate at least one A settings row, the captured A
+scope must recover all 77 settings rows, and the prior explicit global must be
+restored. It records
 browser/product/protocol revisions, launch engine/headful state, locale,
 OS/architecture, Node and Playwright versions, source revisions, and a native
 font-inventory digest. No tolerance or snapshot can turn a face mismatch green.
