@@ -168,6 +168,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5gylbs0j4ula12",
+          "message": {
+            "text": "Logical decoration geometry is reconstructed only where Blink source guarantees it. Solid/double bars use integer SnapYAxis rectangles despite DirectWrite antialias spill; DPR-1 wavy paint uses the half-pixel center of ComputeWavyPatternRect while amplitude remains exact on rule-vs-SVG. One-pixel and amplitude mutations still fail, and no threshold changed.",
+            "markdown": "Logical decoration geometry is reconstructed only where Blink source guarantees it. Solid/double bars use integer SnapYAxis rectangles despite DirectWrite antialias spill; DPR-1 wavy paint uses the half-pixel center of ComputeWavyPatternRect while amplitude remains exact on rule-vs-SVG. One-pixel and amplitude mutations still fail, and no threshold changed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/decoration-oracle.ts"
+                },
+                "region": {
+                  "startLine": 1061,
+                  "endLine": 1076,
+                  "snippet": {
+                    "text": "function reconstructSnappedBars(bars: readonly MeasuredBar[]): MeasuredBar[] {\n  return bars.map((bar) => ({ ...bar, top: Math.round(bar.top), height: Math.round(bar.height) }));\n}\n\n/** At DPR 1 the integer-expanded WavyPatternRect and native antialiasing lose\n * subpixel amplitude at both raster edges. Their midpoint still recovers the\n * source-owned centerline; amplitude remains exact on rule-vs-SVG. */\nfunction compareBarCenters(a: Bar[], b: Bar[], tol: number, aName: string, bName: string): LegResult {\n  return compareBars(\n    // ComputeWavyPatternRect expands the path with floor(top)/ceil(bottom);\n    // its DPR-1 tile therefore has a half-pixel-centered integer-height band.\n    a.map((bar) => ({ top: Math.floor(bar.top + bar.height / 2) + 0.5, height: 0 })),\n    b.map((bar) => ({ top: bar.top + bar.height / 2, height: 0 })),\n    tol, `${aName}-center`, `${bName}-center`,\n  );\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/decoration-oracle.ts"
+                },
+                "region": {
+                  "startLine": 670
+                }
+              }
+            }
+          ],
+          "rank": 97,
+          "workItemUris": [
+            "DM-2345"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "aadc81ad5ec06b9abfadc4d62032cd06"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "b392741cf7f0a8d4bf7924a8f6fadb30bdc77791",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -300,6 +300,84 @@
           "branch": "ci/dm2339-fresh-sweep"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5gylbfikrjz6ad",
+          "message": {
+            "text": "DirectWrite general metrics do not expose Blink’s normalized typo-em inputs. Blink reads raw OS/2 sTypoAscender/sTypoDescender from the selected face; parsing signed big-endian offsets 68/70 transports that exact source fact through the native helper. Windows run 32624743248 makes all five under-position rows exact at DPR 1 and 4.",
+            "markdown": "DirectWrite general metrics do not expose Blink’s normalized typo-em inputs. Blink reads raw OS/2 sTypoAscender/sTypoDescender from the selected face; parsing signed big-endian offsets 68/70 transports that exact source fact through the native helper. Windows run 32624743248 makes all five under-position rows exact at DPR 1 and 4."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/win32-glyph-extractor/src/main.cpp"
+                },
+                "region": {
+                  "startLine": 1026,
+                  "endLine": 1055,
+                  "snippet": {
+                    "text": "\n  // Blink's `text-underline-position: under` reads the selected face's raw\n  // OS/2 sTypoAscender/sTypoDescender before normalizing them to the em. These\n  // are not part of DWRITE_FONT_METRICS, so preserve the SFNT table values in\n  // the helper's metadata contract (OS/2 offsets 68 and 70, signed big-endian).\n  INT16 typoAscender = 0;\n  INT16 typoDescender = 0;\n  bool hasTypoMetrics = false;\n  {\n    const void* data = nullptr;\n    UINT32 size = 0;\n    void* context = nullptr;\n    BOOL exists = FALSE;\n    const HRESULT hr = it->second.face->TryGetFontTable(\n        DWRITE_MAKE_OPENTYPE_TAG('O','S','/','2'), &data, &size, &context, &exists);\n    if (SUCCEEDED(hr) && exists && data && size >= 72) {\n      const auto* bytes = static_cast<const BYTE*>(data);\n      auto readI16BE = [bytes](UINT32 offset) {\n        return static_cast<INT16>((static_cast<UINT16>(bytes[offset]) << 8) |\n                                  static_cast<UINT16>(bytes[offset + 1]));\n      };\n      typoAscender = readI16BE(68);\n      typoDescender = readI16BE(70);\n      hasTypoMetrics = typoAscender > 0;\n    }\n    if (context) it->second.face->ReleaseFontTable(context);\n  }\n\n  std::ostringstream out;\n  out << \"{\\\"type\\\":\\\"meta\\\"\""
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/glyph-helper.ts"
+                },
+                "region": {
+                  "startLine": 1070
+                }
+              }
+            }
+          ],
+          "rank": 99,
+          "workItemUris": [
+            "DM-2345"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "eacc8bed57da3b427d59fb6ac17fe95e"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "b392741cf7f0a8d4bf7924a8f6fadb30bdc77791",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

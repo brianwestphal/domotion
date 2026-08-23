@@ -132,11 +132,15 @@ jobs:
         shell: pwsh
         run: ./tools/win32-glyph-extractor/build.ps1
       - name: Exact decoration geometry at DPR 1
+        id: decoration_dpr1
+        continue-on-error: true
         run: >
           node --import tsx tools/decoration-oracle.ts
           --device-scale-factor 1
           --json tests/output/decoration-windows-dpr1.json
       - name: Exact decoration geometry at DPR 4
+        id: decoration_dpr4
+        continue-on-error: true
         run: >
           node --import tsx tools/decoration-oracle.ts
           --device-scale-factor 4
@@ -148,6 +152,13 @@ jobs:
           name: decoration-geometry-windows
           path: tests/output/decoration-windows-dpr*.json
           if-no-files-found: error
+      - name: Enforce exact decoration gates
+        if: always()
+        shell: pwsh
+        run: |
+          if ('${{ steps.decoration_dpr1.outcome }}' -ne 'success' -or '${{ steps.decoration_dpr4.outcome }}' -ne 'success') {
+            throw 'One or more exact decoration geometry lanes failed; inspect the retained artifacts.'
+          }
 
   # Declared-family match conformance oracle (doc 111): scores the DirectWrite
   # family/style matcher transcription in the win32 helper against what

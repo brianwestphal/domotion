@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildCases,
   compareBars,
+  compareBarCenters,
   compareSegments,
   decorationCorpusSha256,
   decorationOracleScalePlan,
@@ -10,6 +11,7 @@ import {
   lengthPx,
   parseSvgDecorations,
   predictCase,
+  reconstructSnappedBars,
   svgBarsInWindow,
   type CaseSpec,
   type PageMeasure,
@@ -20,6 +22,21 @@ describe("DM-2501 decoration coordinate ownership", () => {
     expect(decorationOracleScalePlan()).toEqual({ chromePaint: 4, domotionCapture: 4 });
     expect(decorationOracleScalePlan(2)).toEqual({ chromePaint: 2, domotionCapture: 2 });
     expect(decorationOracleScalePlanErrors(decorationOracleScalePlan())).toEqual([]);
+  });
+
+  it("reconstructs source-owned snapped bars from platform raster coverage", () => {
+    const raster = [{ top: 655.903, height: 1.213, x0: 0, x1: 10, segments: [] }];
+    expect(reconstructSnappedBars(raster)).toMatchObject([{ top: 656, height: 1 }]);
+    expect(compareBars([{ top: 656, height: 1 }], reconstructSnappedBars(raster), 0.2, "rule", "chrome").ok).toBe(true);
+    expect(compareBars([{ top: 657, height: 1 }], reconstructSnappedBars(raster), 0.2, "mutant", "chrome").ok).toBe(false);
+  });
+
+  it("uses the DPR-1 wavy centerline without hiding SVG amplitude mutations", () => {
+    const rule = [{ top: 190.4255354137804, height: 13.748929172439201 }];
+    const raster = [{ top: 191, height: 13 }];
+    expect(compareBarCenters(rule, raster, 0.2, "rule", "chrome").ok).toBe(true);
+    expect(compareBarCenters([{ top: rule[0].top + 1, height: rule[0].height }], raster, 0.2, "mutant", "chrome").ok).toBe(false);
+    expect(compareBars(rule, [{ top: rule[0].top, height: rule[0].height - 1 }], 0.3, "rule", "svg").ok).toBe(false);
   });
 
   it("rejects the cross-DPR comparison that produced the arm64 +1 CSS-px false failure", () => {

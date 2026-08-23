@@ -193,9 +193,9 @@ whole-fixture pixel-diff inverted.
   separate logical divergence requiring a central-baseline, script-sensitive
   oracle rather than a wider envelope.
 - **Platform** — the C/R/S gate is exact on macOS and pinned Linux arm64 with
-  coherent device scale. A Windows DPR-1/4 workflow now emits fingerprinted
-  exact-gate artifacts; those artifacts remain to be ratified from an
-  integrated revision (doc 207).
+  coherent device scale. Windows run 32624743248 ratifies the same 109/30/109
+  exact gates at coherent DPR 1 and DPR 4 with fingerprinted artifacts (doc
+  207); no logical or raster tolerance changed.
 
 ## Usage
 
