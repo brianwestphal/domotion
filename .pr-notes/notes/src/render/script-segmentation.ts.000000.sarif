@@ -155,6 +155,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5jgjaxipb3mvnn",
+          "message": {
+            "text": "Pinned ICU is the source decision, not a fitted list of affected scalars. Chromium ScriptRunIterator starts with uscript_getScript and explicitly supplies that resolved script to HarfBuzz; the legacy JavaScript table reports the three newer scripts as Common, selecting Zyyy and suppressing the broken-syllable dotted-circle branch. The batch query preserves that upstream decision while keeping helper absence explicitly best-effort.",
+            "markdown": "Pinned ICU is the source decision, not a fitted list of affected scalars. Chromium ScriptRunIterator starts with uscript_getScript and explicitly supplies that resolved script to HarfBuzz; the legacy JavaScript table reports the three newer scripts as Common, selecting Zyyy and suppressing the broken-syllable dotted-circle branch. The batch query preserves that upstream decision while keeping helper absence explicitly best-effort."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/script-segmentation.ts"
+                },
+                "region": {
+                  "startLine": 112,
+                  "endLine": 142,
+                  "snippet": {
+                    "text": "/**\n * Blink's primary Script property for one scalar.\n *\n * `ScriptRunIterator::ICUScriptData::GetScripts` starts with\n * `uscript_getScript` from Chromium's ICU (`script_run_iterator.cc:26-35,\n * :118-120`, rev 7d859f27). `unicode-properties` remains the helper-absent\n * degradation only: its bundled table predates Unicode 16, so it reports the\n * Gurung Khema / Tulu-Tigalari / Dives Akuru characters as Common and thereby\n * sends HarfBuzz `Zyyy` instead of `Gukh` / `Tutg` / `Diak`. That changes the\n * selected complex shaper and suppresses broken-syllable U+25CC insertion.\n *\n * Blink also folds Katakana into Hiragana before the merge-set walk because\n * both resolve to the same OpenType `kana` shaping system (`:26-35`). Keep\n * that source-level normalization here rather than preserving a dependency's\n * spelling accident.\n */\nfunction primaryScriptFor(\n  cp: number,\n  pinned: ReadonlyMap<number, IcuCodepointProperties>,\n): string {\n  const script = pinned.get(cp)?.scriptLongName ?? getScript(cp);\n  return script === \"Katakana\" || script === \"Katakana_Or_Hiragana\"\n    ? \"Hiragana\"\n    : script;\n}\n\n/** One native IPC query per text item, never one process launch per scalar. */\nfunction pinnedScriptsForText(text: string): Map<number, IcuCodepointProperties> {\n  const codepoints: number[] = [];\n  for (const ch of text) codepoints.push(ch.codePointAt(0)!);\n  return queryIcuCodepoints(codepoints);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/unicode-script-dotted-circle.test.ts"
+                },
+                "region": {
+                  "startLine": 113
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/144-dotted-circle-shaping-evidence.md"
+                },
+                "region": {
+                  "startLine": 14
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2522"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "7bef648a419bc0015ff54bbbf840b201"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "42186d0f08d1c434c91fbd9a3987b1db902bb9ba",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -54,6 +54,7 @@ expose all operations Blink calls.
 | canonical/NFD decomposition helpers | JavaScript `normalize()` and mark regex | pinned HarfBuzz normalization plus ICU normalization/properties | Version-dependent approximation | Prefer the pinned HarfBuzz shaping result. Where decomposition must be queried, use pinned ICU normalization and category data. |
 | `isLeftReorderingMatra` | generated HarfBuzz USE-category ranges | HarfBuzz USE shaping output | Exact table used predictively | Remove from emission decisions once dotted-circle fallback consumes actual HarfBuzz positions. |
 | `isRtlScriptCodepoint` | hand-maintained ranges transcribed from HarfBuzz | `hb_script_get_horizontal_direction` | Exact but duplicated transcription | Ask the pinned HarfBuzz build, with ICU script as the input where needed. |
+| shaping-run primary Script | `unicode-properties` (helper-absent only) / pinned ICU companion | `ScriptRunIterator::ICUScriptData::GetScripts` → `uscript_getScript` | Exact on the supported path | Keep the batched pinned-ICU answer authoritative. A stale primary Script selects a different HarfBuzz complex shaper; do not patch affected codepoints or Unicode blocks. |
 | `isStrippableOrphanIgnorable` | HarfBuzz predicate with ZWJ/ZWNJ carve-out | HarfBuzz shaping behavior | Caller-specific heuristic | Replace with the shaped cluster result; never strip a character merely from an independently maintained list. |
 | MathML operator properties / vertical stretch routing | generated `mathml-operator-dictionary.ts` | Blink compact operator dictionary + `Character::IsVerticalMathCharacter` | Complete pinned Chromium transcription | Regenerate with `npm run mathml:operator-dictionary:generate`; `:check` and the exhaustive digest reject drift. MathML Core does not dictionary-default legacy `fence`/`separator`, so those metadata fields remain explicitly false. |
 | `isCjkIdeographOrSymbol` | copied Blink tables plus JS emoji property | Blink's generated character-property trie | Known incomplete transcription | Generate from Blink's own generator inputs or query an exported Blink-equivalent helper operation; ICU alone is insufficient because Blink adds RGI-sequence members. |
@@ -90,6 +91,13 @@ The legacy predicates and generated inventories intentionally remain in source
 so helper absence is nonfatal. Their presence is not a claim of Chromium parity:
 the helper acquisition path warns loudly and that mode is explicitly best
 effort.
+
+Run itemization consumes the same pinned ICU Script answer before fallback and
+carries its ISO 15924 tag through the final `FontRun` into HarfBuzz. This matters
+even when the selected face has no nominal glyph for the source scalar: the
+script chooses the syllabic machine that may insert the selected face's U+25CC
+on the source cluster. The helper-absent `unicode-properties` fallback remains
+nonfatal but is not a parity claim.
 
 ## ICU helper surface
 
