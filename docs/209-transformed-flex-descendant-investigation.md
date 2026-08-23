@@ -106,10 +106,12 @@ edge rows. The permanent oracle must assert capture equals live and emitted SVG
 equals the documented rounding of capture, rather than demanding sub-tenth
 coordinate identity.
 
-A follow-up task, DM-2519, should land the 24-case logical oracle (including the mutation
-contracts above), update the fixture comment, remove only this fixture's
-`relaxedDiffPct: 0.05`, and ratify the resulting exact gate on macOS, Linux, and
-Windows. If a platform then produces only raster-edge differences despite
-identical logical rectangles, that evidence belongs to a separately owned
-paint-stage investigation; it is not grounds to restore an unexplained global
-threshold.
+The follow-up is now shipped. `tests/transformed-flex-geometry.e2e.test.ts`
+crosses 24 scale/origin/wrapper states with fractional padding, gap, size, and
+translations. It requires same-frame live rectangles to equal captured facts,
+and emitted SVG bounding boxes to equal the documented one-decimal
+serialization. Omitted/doubled scale, ignored origin, wrapper movement,
+premature local rounding, and renderer-consumption mutations are all active.
+The feature's `relaxedDiffPct: 0.05` is removed. A native macOS/Linux/Windows
+workflow runs both this exact logical matrix and the scored fixture; raw raster
+edges remain evidence rather than a substitute geometry threshold.

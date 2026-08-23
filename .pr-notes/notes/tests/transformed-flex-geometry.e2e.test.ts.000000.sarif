@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5n6tlw26tgh816",
+          "message": {
+            "text": "This matrix separates logical geometry from raster phase: 24 scale/origin/wrapper states use fractional local inputs, require exact live-to-capture facts and documented one-decimal emitted SVG geometry, and kill omitted/doubled scale, ignored origin, wrapper movement, premature rounding, and renderer-consumption drift. The formerly relaxed fixture remains 0.00% clean without a threshold.",
+            "markdown": "This matrix separates logical geometry from raster phase: 24 scale/origin/wrapper states use fractional local inputs, require exact live-to-capture facts and documented one-decimal emitted SVG geometry, and kill omitted/doubled scale, ignored origin, wrapper movement, premature rounding, and renderer-consumption drift. The formerly relaxed fixture remains 0.00% clean without a threshold."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/transformed-flex-geometry.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 29,
+                  "endLine": 87,
+                  "snippet": {
+                    "text": "    const wrapperPairs = new Map<string, Rect[]>();\n    try {\n      for (const scale of scales) for (const origin of origins) for (const wrapper of [false, true]) {\n        const inner = '<div id=\"a\" data-domotion-anim=\"a\"></div><div id=\"b\" data-domotion-anim=\"b\"></div>';\n        await source.setContent(`<style>html,body{margin:0}.host{margin:31.25px;width:200px;height:300px;transform:scale(${scale});transform-origin:${origin};display:flex;flex-direction:column;gap:9.625px;padding:10.375px}.host>*,.wrap>*{width:103.375px;height:40.625px}.wrap{display:contents}#a{background:#dc2626;transform:translateY(-5.25px)}#b{background:#3fb950;transform:translateY(10.375px)}</style><div class=\"host\" data-domotion-anim=\"host\">${wrapper ? `<div class=\"wrap\">${inner}</div>` : inner}</div>`);\n        const live = await source.evaluate(() => Object.fromEntries([\"a\", \"b\"].map((id) => { const r = document.getElementById(id)!.getBoundingClientRect(); return [id, { x: r.x, y: r.y, width: r.width, height: r.height }]; }))) as Record<string, Rect>;\n        const tree = await captureElementTree(source, \"body\", { x: 0, y: 0, width: 520, height: 440 });\n        for (const id of [\"a\", \"b\"]) {\n          const captured = find(tree, id)!;\n          expect({ x: captured.x, y: captured.y, width: captured.width, height: captured.height }).toEqual(live[id]);\n        }\n        await rendered.setContent(`<body style=\"margin:0\">${elementTreeToSvg(tree, 520, 440)}</body>`);\n        for (const id of [\"a\", \"b\"]) {\n          const box = await rendered.locator(`.anim-${id}`).boundingBox();\n          expect(box).not.toBeNull();\n          expect(box!.x).toBeCloseTo(rounded(live[id].x), 1);\n          expect(box!.y).toBeCloseTo(rounded(live[id].y), 1);\n          expect(box!.width).toBeCloseTo(rounded(live[id].width), 1);\n          expect(box!.height).toBeCloseTo(rounded(live[id].height), 1);\n        }\n        const key = `${scale}/${origin}`;\n        const values = wrapperPairs.get(key) ?? [];\n        values.push(live.a, live.b);\n        wrapperPairs.set(key, values);\n\n        if (scale !== 1) {\n          expect(Math.abs(live.a.width - 103.375)).toBeGreaterThan(10); // omitted ancestor scale\n          expect(Math.abs(live.a.width * scale - live.a.width)).toBeGreaterThan(10); // doubled scale\n        }\n        const prematureLocalY = 31.25 + Math.round(10.375 - 5.25) * scale;\n        expect(Math.abs(live.a.y - prematureLocalY)).toBeGreaterThan(0.01);\n      }\n      for (const values of wrapperPairs.values()) {\n        expect(values).toHaveLength(4);\n        expect(values[0]).toEqual(values[2]);\n        expect(values[1]).toEqual(values[3]);\n      }\n      for (const scale of scales.filter((value) => value !== 1)) {\n        const zeroOrigin = wrapperPairs.get(`${scale}/0 0`)!;\n        for (const origin of origins.slice(1)) {\n          const moved = wrapperPairs.get(`${scale}/${origin}`)!;\n          expect(Math.abs(moved[0].x - zeroOrigin[0].x) + Math.abs(moved[0].y - zeroOrigin[0].y), \"ignored origin mutation\").toBeGreaterThan(1);\n        }\n      }\n    } finally { await context.close(); }\n  }, 60_000);\n});\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2519"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "20d3c857d600cbd15ea222a28cb4bc74"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "b3cef77ac625995a05cae2724e1d6998da61f913",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+name: Transformed flex geometry parity
+
+on:
+  pull_request:
+    paths:
+      - "tests/features.ts"
+      - "tests/transformed-flex-geometry.e2e.test.ts"
+      - "tests/transformed-flex-geometry-workflow.test.ts"
+      - "docs/209-transformed-flex-descendant-investigation.md"
+      - ".github/workflows/transformed-flex-geometry-parity.yml"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  logical-geometry:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.21.0"
+          cache: npm
+      - run: npm ci
+      - if: runner.os == 'Linux'
+        run: npx playwright install --with-deps chromium
+      - if: runner.os != 'Linux'
+        run: npx playwright install chromium
+      - name: Run exact live-capture-emitted geometry matrix
+        run: npx vitest run --config vitest.e2e.config.ts tests/transformed-flex-geometry.e2e.test.ts
+      - name: Run fixture without a per-fixture relaxation
+        run: npm run demos:test -- --only transform-scale-flex-descendants

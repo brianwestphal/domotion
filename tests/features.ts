@@ -600,13 +600,10 @@ export const tests: FeatureTest[] = [
     height: 180,
   },
 
-  // DM-587: Verifies that nested descendants of a scale-transformed parent
-  // composite correctly. Mirrors the Stripe Payment Element pattern: outer
-  // wrapper with `transform: scale(0.69)`, flex column of child rows, with
-  // some rows carrying their own `transform: translateY(...)`. If the
-  // renderer's <g transform> composition is right, the child rows should
-  // appear at the same positions Chrome paints them; if descendants' rects
-  // are treated as viewport-post-transform, rows will overlap.
+  // Pure scale/translation is captured from Blink's live post-transform
+  // rectangles and emitted as rounded viewport geometry, while the transform
+  // still retains stacking-context ownership. Nested translated flex rows must
+  // therefore be scaled exactly once without a second SVG transform.
   {
     name: "transform-scale-flex-descendants",
     html: `<div style="width:300px;height:400px;background:#0d1117;padding:20px;">
@@ -620,7 +617,6 @@ export const tests: FeatureTest[] = [
     </div>`,
     width: 320,
     height: 420,
-    relaxedDiffPct: 0.05,
   },
 
   // DM-589: per CSS Transforms 2 §4, `transform-style` != `flat` creates a

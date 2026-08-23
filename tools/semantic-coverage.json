@@ -1227,6 +1227,8 @@
         "tools/animated-culling-geometry-oracle.ts",
         "tools/raster-boundary-oracle.ts",
         "tests/viewbox-culling-geometry.e2e.test.ts"
+        ,"tests/transformed-flex-geometry.e2e.test.ts"
+        ,".github/workflows/transformed-flex-geometry-parity.yml"
       ],
       "metamorphicTests": [
         "src/capture/text-fragment-geometry.test.ts",
@@ -1243,6 +1245,7 @@
         "src/tree-ops/viewbox-culling.test.ts",
         "src/tree-ops/swept-transform-bounds.test.ts",
         "tests/animated-culling-geometry-oracle.test.ts"
+        ,"tests/transformed-flex-geometry-workflow.test.ts"
       ],
       "visualFixtures": [
         "external/html-test/21-deep-anisotropic-scale.html",
@@ -1252,7 +1255,7 @@
         "tests/features.ts#perspective-fixed-containing-block-ownership"
       ],
       "coverage": "partial",
-      "boundary": "Computed perspective/origin, transformed text, inline SVG and fixed-containing-block ownership are source-audited and gated. DM-2492 selects the smallest owner through Blink's direct-parent used-preserve propagation. DM-2493 crosses 25 context/grouping/negative families with four static/animated/environment profiles at DPR 1/2; its schema-v2 macOS/Linux/Windows aggregate requires exact owners, one direct atomic image, retained vector sentinels, restoration and warning integrity, lossless SHA/crop provenance, complete Cartesian artifacts, nine mutations and a secondary four-device-pixel bound. Unknown internal view-transition participation still warns and retains a conservative Chromium surface. Scroll/view/rAF timelines remain outside the deterministic document-timeline contract. The affine text baseline remains behaviorally gated rather than a separately decoded Blink fragment-baseline protocol row.",
+      "boundary": "Computed perspective/origin, transformed text, inline SVG and fixed-containing-block ownership are source-audited and gated. Axis-aligned transformed flex descendants additionally cross 24 scale/origin/wrapper states with fractional local geometry, exact live/capture facts, documented one-decimal emitted SVG geometry, six active logical mutations, and no fixture relaxation in a native three-platform workflow. DM-2492 selects the smallest owner through Blink's direct-parent used-preserve propagation. DM-2493 crosses 25 context/grouping/negative families with four static/animated/environment profiles at DPR 1/2; its schema-v2 macOS/Linux/Windows aggregate requires exact owners, one direct atomic image, retained vector sentinels, restoration and warning integrity, lossless SHA/crop provenance, complete Cartesian artifacts, nine mutations and a secondary four-device-pixel bound. Unknown internal view-transition participation still warns and retains a conservative Chromium surface. Scroll/view/rAF timelines remain outside the deterministic document-timeline contract. The affine text baseline remains behaviorally gated rather than a separately decoded Blink fragment-baseline protocol row.",
       "featureIds": [
         "capture.animated-projective-frame",
         "render.tree-to-svg",
