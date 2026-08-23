@@ -1,6 +1,6 @@
 # 189 — Nested projective-context raster ownership
 
-**Status:** production selector corrected by DM-2492; all-platform ratification remains DM-2493
+**Status:** production selector and strict all-platform release gate shipped by DM-2492/DM-2493
 
 **Ticket:** DM-2356
 
@@ -90,7 +90,7 @@ must capture the active fact or fail closed rather than silently assuming it.
 
 ## Observational audit
 
-`npm run transform:nested-projective-owner-audit` builds thirteen font-free
+`npm run transform:nested-projective-owner-audit` builds twenty-five font-free
 cases and compares three independent views of each row:
 
 - source-derived used-context ownership from live computed facts and CDP
@@ -100,9 +100,10 @@ cases and compares three independent views of each row:
   sentinel outside the minimal owner and the count/placement of every atomic
   `<image>`.
 
-The families are shared context, nested context extension, perspective alone,
-ordinary intermediary, explicit flat intermediary, opacity, overflow,
-isolation, clip-path, mask, filter, independent planes, and an affine negative.
+The families cover shared/nested contexts, perspective, ordinary/flat breaks,
+every Blink grouping axis (including animation and will-change variants), both
+overflow axes, independent planes, affine and affine-matrix3d negatives, and
+inline-SVG/foreignObject promotion.
 Every non-affine decision is backed by the held-out fourth-corner residual from
 Chromium's quad rather than a parsed transform string.
 
@@ -152,5 +153,9 @@ DM-2492 changes production capture and selection by:
 
 - **DM-2492** implements frame-coherent Blink used rendering-context owner
   selection and corrects the animated expectation (complete in this source tree).
-- **DM-2493**, blocked on DM-2492, promotes this corpus to a strict native
-  macOS/Linux/Windows DPR-1/2 release gate with lossless artifacts.
+- **DM-2493** promotes this corpus to a strict native macOS/Linux/Windows
+  DPR-1/2 release gate. Four environment profiles cross horizontal/LTR,
+  vertical/RTL fractional zoom and scroll, iframe/SVG/effects, and paused
+  document-timeline evidence. Schema-v2 reports carry lossless PNG SHA-256,
+  crop/frame geometry, restoration and warning integrity, complete Cartesian
+  keys, and nine mandatory mutations; the aggregate rejects any missing arm.

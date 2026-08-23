@@ -871,7 +871,22 @@ function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide:
       // pattern itself needs to be backed by an <image> that's clipped to
       // the tile size so outside-tile pixels are transparent.
       const patId = `${id}p${li}`;
-      const patDef = buildImagePatternDef(patId, urlHref, elX, elY, w, h, layerSize, layerPos, layerRepeat, capturedIntrinsic ?? null);
+      const patDef = buildImagePatternDef(
+        patId,
+        urlHref,
+        elX,
+        elY,
+        w,
+        h,
+        layerSize,
+        layerPos,
+        layerRepeat,
+        capturedIntrinsic ?? null,
+        "scroll",
+        null,
+        null,
+        { x: paintX, y: paintY, width: paintW, height: paintH },
+      );
       if (patDef === "") return { contents, forceHide: false };
       contents.push(patDef);
       contents.push(`<rect x="${r(paintX)}" y="${r(paintY)}" width="${r(paintW)}" height="${r(paintH)}" fill="url(#${patId})" />`);

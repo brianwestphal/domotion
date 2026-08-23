@@ -73,6 +73,10 @@ the border box (with objectBoundingBox normalized content explicitly mapped
 through it), while SVG-child references force fill-box. Strict capture→SVG DPR
 1/2 controls cover stale trees, transparent hosts, nested frames, and external
 references (DM-2362, doc 39).
+All 110 logical rows are exact at the unchanged `0.00011` tolerance. DM-2494
+adds source-derived URL-mask `round`/`space` ownership: mask-origin supplies
+tile size/phase, mask-clip supplies the tiled paint destination, and a
+collapsed-area mutation is rejected structurally and by DPR-1/2 Chromium ink.
 DM-2358/[doc 188](../188-generated-svg-effect-combinations.md) extends that
 contract from curated rows to 24 deterministic cases covering all 953 pairs
 among 18 shape, unit, reference-box, viewport, marker, non-scaling-stroke,
@@ -174,7 +178,10 @@ they describe (see `CLAUDE.md` "Documentation"):
   Blink's origin positioning area, then intersect against the distinct
   border/padding/content painting area; no-clip remains unbounded by the HTML
   border box. A DPR-1/2 Chromium-vs-SVG oracle includes same-box controls and
-  rejects the collapsed-origin-to-clip mutation.
+  rejects the collapsed-origin-to-clip mutation. DM-2494 extends the exact
+  split through URL `round`/`space`: the origin owns tile size/phase and the
+  clip owns the SVG pattern/no-repeat destination; collapsing the pattern cell
+  to the origin box is independently rejected at DPR 1/2.
 
 - **Raster activation boundaries (doc 134) — Shipped.** A 24-row gate pairs
   every live raster ownership class with its representable vector control,
@@ -1886,6 +1893,11 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   retained. Capture records frame-coherent used context roots, retains
   inline-SVG promotion, and warns while retaining a conservative Chromium
   surface when internal active view-transition grouping is unavailable.
+  DM-2493 promotes that proof to a required native macOS/Linux/Windows
+  schema-v2 aggregate. It rejects missing Cartesian rows, warnings, stale or
+  duplicate owners, vector-sentinel absorption, restoration drift, artifact
+  corruption/fingerprint substitution, and final-image drift beyond four
+  device pixels.
 
 <!-- DM-2370 -->
 - URL background tile geometry, including sliced-fragment continuation, is

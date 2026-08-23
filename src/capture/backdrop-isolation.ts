@@ -98,7 +98,11 @@ function isAncestor(nodes: SnapshotNode[], ancestor: number, child: number): boo
 }
 
 /** Pure CDP snapshot planner; DOM mutation and restoration stay in emoji.ts. */
-export function planBackdropIsolation(nodes: SnapshotNode[], token: string): IsolationPlan | null {
+export function planBackdropIsolation(
+  nodes: SnapshotNode[],
+  token: string,
+  options: { includeTargetDescendants?: boolean } = {},
+): IsolationPlan | null {
   const target = nodes.findIndex((node) => hasToken(node, token));
   if (target < 0) return null;
   const targetNode = nodes[target];
@@ -107,10 +111,12 @@ export function planBackdropIsolation(nodes: SnapshotNode[], token: string): Iso
   // The renderer keeps descendants as vector content above the captured
   // filtered surface. Hide each top-level descendant subtree while taking the
   // crop so its pixels are not baked into the backdrop image as well.
-  for (let i = 0; i < nodes.length; i++) {
-    if (i === target || !isAncestor(nodes, target, i)) continue;
-    const parent = nodes[i]?.parentIndex ?? -1;
-    if (parent === target) hide.push(nodes[i].backendNodeId);
+  if (options.includeTargetDescendants !== true) {
+    for (let i = 0; i < nodes.length; i++) {
+      if (i === target || !isAncestor(nodes, target, i)) continue;
+      const parent = nodes[i]?.parentIndex ?? -1;
+      if (parent === target) hide.push(nodes[i].backendNodeId);
+    }
   }
   for (let i = 0; i < nodes.length; i++) {
     const node = nodes[i];

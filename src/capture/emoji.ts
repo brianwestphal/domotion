@@ -29,6 +29,11 @@ import {
   type SnapshotNode,
 } from "./backdrop-isolation.js";
 import { prepareBackdropEffectSpace } from "./backdrop-effect-neutralization.js";
+import {
+  materializeBackdropRootComposites,
+  planBackdropRootComposites,
+  targetNeedsAtomicFilterComposite,
+} from "./backdrop-composite-raster.js";
 import { selectedGlyphRasterSpans } from "../render/text-to-path.js";
 import { capturedTextSegmentFontFeatures, parseFontVariationSettings } from "../render/text.js";
 
@@ -481,7 +486,13 @@ export async function rasterizeBackdropFilters(
   warnings: CaptureWarning[],
 ): Promise<void> {
   type Raster = NonNullable<CapturedElement["backdropFilterRaster"]>;
-  type Target = { raster: Raster; selector: string; vectorFallback: string };
+  type Target = {
+    element: CapturedElement;
+    raster: Raster;
+    selector: string;
+    vectorFallback: string;
+    atomicTargetFilter: boolean;
+  };
   const targets: Target[] = [];
   forEachElement(tree, (el) => {
     const raster = el.backdropFilterRaster;
@@ -498,9 +509,22 @@ export async function rasterizeBackdropFilters(
       });
       return;
     }
-    targets.push({ raster, selector, vectorFallback });
+    const target = { element: el, raster, selector, vectorFallback };
+    targets.push({ ...target, atomicTargetFilter: targetNeedsAtomicFilterComposite(target) });
   });
   if (targets.length === 0) return;
+
+  const coveredRootRasters = await materializeBackdropRootComposites(
+    page,
+    planBackdropRootComposites(tree),
+    viewport,
+  );
+  for (const target of targets) {
+    if (coveredRootRasters.has(target.raster)) {
+      appendBackdropRasterWarning(warnings, target.selector, { status: "exact" });
+    }
+  }
+  const remainingTargets = targets.filter((target) => !coveredRootRasters.has(target.raster));
 
   let cdp: CDPSession | undefined;
   const captureCrop = async (target: Target): Promise<{ captured: boolean; effectSpaceExact: boolean }> => {
@@ -513,6 +537,21 @@ export async function rasterizeBackdropFilters(
       target.raster.y = clip.y - viewport.y;
       target.raster.width = clip.width;
       target.raster.height = clip.height;
+      if (target.atomicTargetFilter) {
+        target.element.backdropCompositeRaster = {
+          x: target.raster.x,
+          y: target.raster.y,
+          width: target.raster.width,
+          height: target.raster.height,
+          dataUri: target.raster.dataUri,
+          source: "chromium-target-filter-chain-v1",
+          consumedEffects: ["filter"],
+          neutralizedEffects: [],
+          ownerCount: 1,
+          screenshotPasses: 1,
+        };
+        target.raster.dataUri = undefined;
+      }
       return { captured: true, effectSpaceExact: preparedEffectSpace.status === "exact" };
     } catch {
       appendBackdropRasterWarning(warnings, target.selector, {
@@ -562,8 +601,10 @@ export async function rasterizeBackdropFilters(
       };
     });
 
-    for (const target of targets) {
-      const plan = planBackdropIsolation(nodes, target.raster.token!);
+    for (const target of remainingTargets) {
+      const plan = planBackdropIsolation(nodes, target.raster.token!, {
+        includeTargetDescendants: target.atomicTargetFilter,
+      });
       if (plan == null) {
         if ((await captureCrop(target)).captured) {
           appendBackdropRasterWarning(warnings, target.selector, {
@@ -631,7 +672,7 @@ export async function rasterizeBackdropFilters(
   } catch {
     // DOMSnapshot is Chromium-only and mapping can fail for pseudo/fragments.
     // Fall back to the original full-page crop for every unresolved target.
-    for (const target of targets) {
+    for (const target of remainingTargets) {
       if ((await captureCrop(target)).captured) {
         appendBackdropRasterWarning(warnings, target.selector, {
           status: "partial",

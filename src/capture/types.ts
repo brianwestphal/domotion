@@ -9,6 +9,31 @@ import type {
   BackdropRootReason,
 } from "./backdrop-effect-space.js";
 
+export type BackdropCompositeConsumedEffect = "filter" | "clip-path" | "mask" | "mix-blend-mode";
+
+/**
+ * One Chromium-composited ordinary-element surface which must remain atomic
+ * until its owning CSS effect is applied.  Backdrop Roots are captured on a
+ * transparent page before their outward opacity/blend/filter transform;
+ * target-filter chains retain Chromium's completed target surface instead.
+ */
+export interface CapturedBackdropCompositeRaster {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  dataUri?: string;
+  source: "chromium-isolated-backdrop-root-v1" | "chromium-target-filter-chain-v1";
+  /** Effects already present in `dataUri`; the SVG wrapper must not repeat them. */
+  consumedEffects: BackdropCompositeConsumedEffect[];
+  /** Outward effects removed for capture and intentionally re-applied by SVG. */
+  neutralizedEffects: BackdropEffectNeutralization[];
+  /** Number of ordinary backdrop owners represented by this atomic surface. */
+  ownerCount: number;
+  /** Explicit live screenshot count (mask calibration owns source/base/alpha). */
+  screenshotPasses: 1 | 3;
+}
+
 /**
  * Capture-side types describing the serialisable element tree produced by the
  * in-page CAPTURE_SCRIPT and consumed by the Node-side renderer. These live in
@@ -2124,6 +2149,12 @@ export interface CapturedElement {
       }>;
     };
   };
+  /**
+   * DM-2495: source-owned atomic effect surface for an ordinary backdrop
+   * owner.  Presence never authorizes a synthetic fallback: a missing
+   * `dataUri` falls through to the normal vector/backdrop warning route.
+   */
+  backdropCompositeRaster?: CapturedBackdropCompositeRaster;
   /**
    * DM-2415: Chromium-painted final surface for an HTML element whose CSS
    * `filter: url(#id)` graph contains `feConvolveMatrix`. The primitive reads

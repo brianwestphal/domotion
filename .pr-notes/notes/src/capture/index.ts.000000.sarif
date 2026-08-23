@@ -639,6 +639,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt530l5tv9agdi7q",
+          "message": {
+            "text": "Projective isolation must snapshot CSSOM aliases before mutating either alias. The expanded restoration oracle exposed that sequential mask/-webkit-mask capture observed the first temporary none value as the second alias's original state; snapshotting the whole neutral set first restores exact authored declarations. The focused 25-family live E2E is green after this correction.",
+            "markdown": "Projective isolation must snapshot CSSOM aliases before mutating either alias. The expanded restoration oracle exposed that sequential mask/-webkit-mask capture observed the first temporary none value as the second alias's original state; snapshotting the whole neutral set first restores exact authored declarations. The focused 25-family live E2E is green after this correction."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/index.ts"
+                },
+                "region": {
+                  "startLine": 2110,
+                  "endLine": 2135,
+                  "snippet": {
+                    "text": "\n      const shot = await page.screenshot({\n        clip: viewport,\n        omitBackground: true,\n        type: \"png\",\n      });\n      const decoded = await sharp(shot).ensureAlpha().raw().toBuffer({ resolveWithObject: true });\n      const { data, info } = decoded;\n      let minX = info.width;\n      let minY = info.height;\n      let maxX = -1;\n      let maxY = -1;\n      for (let y = 0; y < info.height; y++) {\n        for (let x = 0; x < info.width; x++) {\n          if (data[(y * info.width + x) * 4 + 3] === 0) continue;\n          if (x < minX) minX = x;\n          if (x > maxX) maxX = x;\n          if (y < minY) minY = y;\n          if (y > maxY) maxY = y;\n        }\n      }\n      if (maxX < minX || maxY < minY) {\n        target.empty = true;\n        continue;\n      }\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 97,
+          "workItemUris": [
+            "DM-2493"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "9f03d63ff4c2885ac8a68da272432146"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "7a2f149049a76e94c8f0a36cce1c001654a7e563",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

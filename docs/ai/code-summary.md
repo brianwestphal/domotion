@@ -218,7 +218,10 @@ shortest possible map:
   URL-mask natural dimensions, retains cyclic origin/clip lists, and
   physicalizes computed px terms plus border/padding edges once. SVG samples
   the resulting rectangle with `preserveAspectRatio="none"` and applies the
-  independent paint intersection (DM-2379/2472, docs 20/174). `borders.ts` owns border math;
+  independent paint intersection. URL `round`/`space` patterns retain that
+  split too: size/phase use the origin box and the pattern/no-repeat cell uses
+  the clip-owned paint destination, with collapsed-area unit and DPR-1/2
+  browser mutations (DM-2379/2472/2494, docs 20/130/174). `borders.ts` owns border math;
   `svg-inline.ts` inlines an `<img src="*.svg">` as a native, id-namespaced
   nested `<svg>` (`prefixSvgIds`/`inlineImgSvg`, DM-1588, doc 96), and namespaces
   captured DOM inline-SVG fragment ids per source document/shadow-root scope — crisp at
@@ -614,7 +617,11 @@ shortest possible map:
   intermediaries break it, and a nested preserve subtree starts a fresh root.
   `src/capture/projective-owner.ts` now consumes the same-frame used facts;
   unknown internal view-transition participation warns and retains the
-  conservative Chromium surface.
+  conservative Chromium surface. DM-2493 adds
+  `tools/projective-owner-release-gate.ts` and the three-OS
+  `projective-owner-release.yml` aggregate: 25 ownership families cross four
+  environment profiles and DPR 1/2 with lossless SHA/crop evidence,
+  restoration integrity, complete Cartesian enforcement, and nine mutations.
 - **Source-owned summary disclosure paint (DM-2457, doc 180)** —
   `src/capture/summary-marker-cdp.ts` joins a pierced Chromium `::marker` node
   with its single DOMSnapshot marker paint row, then threads an exact

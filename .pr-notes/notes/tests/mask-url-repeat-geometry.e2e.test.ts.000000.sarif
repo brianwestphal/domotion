@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt532qwyrbj493k3",
+          "message": {
+            "text": "The focused browser leg proves both correctness and activation at DPR 1/2. Live Chromium and generated SVG retain the same round/space tile count with at most one device pixel of raster-edge displacement, while collapsing the pattern paint cell back to the content positioning box creates a second visible no-repeat row and is rejected for both modes.",
+            "markdown": "The focused browser leg proves both correctness and activation at DPR 1/2. Live Chromium and generated SVG retain the same round/space tile count with at most one device pixel of raster-edge displacement, while collapsing the pattern paint cell back to the content positioning box creates a second visible no-repeat row and is rejected for both modes."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/mask-url-repeat-geometry.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 136,
+                  "endLine": 163,
+                  "snippet": {
+                    "text": "        const expectedPng = await source.screenshot();\n        const tree = await captureElementTree(source, \"#stage\", { x: 0, y: 0, width: WIDTH, height: HEIGHT });\n        const svg = elementTreeToSvg(tree, WIDTH, HEIGHT);\n        expect(svg.match(/<pattern\\b/g)).toHaveLength(2);\n        expect(svg.match(/<pattern\\b[^>]*\\by=\"20\"[^>]*\\bheight=\"120\"/g)).toHaveLength(2);\n\n        await rendered.setContent(`<body style=\"margin:0;background:white\">${svg}</body>`, { waitUntil: \"load\" });\n        await mutated.setContent(`<body style=\"margin:0;background:white\">${collapsePatternPaintingArea(svg)}</body>`, { waitUntil: \"load\" });\n        const [actualPng, mutatedPng] = await Promise.all([rendered.screenshot(), mutated.screenshot()]);\n        const [expected, actual, wrong] = await Promise.all([rgb(expectedPng), rgb(actualPng), rgb(mutatedPng)]);\n        for (const { id, repeat: _repeat, origin: _origin, clip: _clip, ...rect } of rects) {\n          const expectedRuns = inkRuns(expected, rect, rect.y + 70, dpr);\n          const actualRuns = inkRuns(actual, rect, rect.y + 70, dpr);\n          expect(actualRuns, `${id}: source/SVG tile count diverged`).toHaveLength(expectedRuns.length);\n          const edgeError = Math.max(...actualRuns.flatMap((run, index) => [\n            Math.abs(run[0] - expectedRuns[index][0]),\n            Math.abs(run[1] - expectedRuns[index][1]),\n          ]));\n          expect(edgeError, `${id}: source/SVG tile edges diverged in device pixels`).toBeLessThanOrEqual(1);\n\n          // The retired call gave the pattern the content-box as both origin\n          // and paint destination. Its 80px no-repeat cell then wrapped once\n          // above the intended 77.5px tile; the border-box-owned cell cannot.\n          const topY = rect.y + 4;\n          expect(inkCountAtRow(expected, rect, topY, dpr), `${id}: source top control`).toBe(0);\n          expect(inkCountAtRow(actual, rect, topY, dpr), `${id}: SVG top control`).toBe(0);\n          expect(inkCountAtRow(wrong, rect, topY, dpr), `${id}: collapsed painting-area mutation was vacuous`)\n            .toBeGreaterThan(10 * dpr);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/mask.ts"
+                },
+                "region": {
+                  "startLine": 874
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/paint-geometry-oracle.ts"
+                },
+                "region": {
+                  "startLine": 445
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2494"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "7d6581bf818f8bdf0ffe6469483228d7"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "7a2f149049a76e94c8f0a36cce1c001654a7e563",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

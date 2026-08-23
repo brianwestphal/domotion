@@ -172,6 +172,10 @@ export function hoistDuplicateImagePayloads(svg: string, opts: HoistImagePayload
   const groups = new Map<string, ParsedImage[]>();
   for (const img of images) {
     if (attrValue(img, "xlink:href") != null) continue; // legacy ref form; not ours
+    // Effect-space rasters must remain concrete <image> nodes: Chromium does
+    // not apply SVG mix-blend-mode equivalently when the same bitmap is moved
+    // behind a translated <use> reference (DM-2495).
+    if (attrValue(img, "data-domotion-no-hoist") != null) continue;
     const href = attrValue(img, "href");
     if (href == null || !href.startsWith("data:") || href.length < minPayloadChars) continue;
     const width = attrValue(img, "width");

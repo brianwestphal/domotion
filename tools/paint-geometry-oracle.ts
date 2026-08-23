@@ -436,12 +436,62 @@ function maskRows(): OracleRow[] {
   const spaceDelta = maxDelta(expectedSpaceOrigins, spaceOrigins);
   rows.push({ id: "mask.repeat.space", stage: "mask", source: "background_image_geometry.cc:17-30,596-632", expected: expectedSpaceOrigins, actual: spaceOrigins, maxAbsDelta: spaceDelta, pass: spaceDelta <= TOLERANCE });
   const dataMask = 'url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2280%22 height=%2240%22%3E%3Crect width=%2280%22 height=%2240%22 fill=%22black%22/%3E%3C/svg%3E")';
-  for (const test of [{ id: "round", repeat: "round no-repeat", expected: { x: 40, y: 65, width: 66.7, height: 200 } }, { id: "space", repeat: "space no-repeat", expected: { x: 10, y: 65, width: 120, height: 200 } }]) {
-    const def = buildMaskDef("murl", dataMask, 10, 20, 200, 100, "alpha", "80px 40px", "25% 75%", test.repeat, "add").def;
-    const pattern = /<pattern[^>]+/.exec(def)?.[0] ?? "";
-    const patternActual = { x: numberAttr(pattern, "x"), y: numberAttr(pattern, "y"), width: numberAttr(pattern, "width"), height: numberAttr(pattern, "height") };
-    const patternDelta = maxDelta(test.expected, patternActual);
-    rows.push({ id: `mask.url-repeat.${test.id}`, stage: "mask", source: "background_image_geometry.cc:547-632", expected: test.expected, actual: patternActual, maxAbsDelta: patternDelta, pass: patternDelta <= TOLERANCE });
+  const urlMaskBoxes = {
+    originCss: "content-box",
+    clipCss: "border-box",
+    border: { top: 10, right: 10, bottom: 10, left: 10 },
+    padding: { top: 10, right: 10, bottom: 10, left: 10 },
+  };
+  for (const test of [
+    {
+      id: "round",
+      repeat: "round no-repeat",
+      expected: {
+        pattern: { x: -27.5, y: 20, width: 80, height: 100 },
+        image: { x: 0, y: 35, width: 80, height: 40 },
+        paintingAreaOwnership: true,
+      },
+    },
+    {
+      id: "space",
+      repeat: "space no-repeat",
+      expected: {
+        pattern: { x: -60, y: 20, width: 90, height: 100 },
+        image: { x: 0, y: 35, width: 70, height: 40 },
+        paintingAreaOwnership: true,
+      },
+    },
+  ]) {
+    const build = (clipCss: string) => buildMaskDef(
+      "murl", dataMask, 10, 20, 200, 100,
+      "alpha", "70px 40px", "25% 75%", test.repeat, "add",
+      undefined, [{ w: 80, h: 40 }], undefined,
+      { ...urlMaskBoxes, clipCss },
+    ).def;
+    const def = build("border-box");
+    const collapsed = build("content-box");
+    const readGeometry = (markup: string) => {
+      const pattern = /<pattern[^>]+/.exec(markup)?.[0] ?? "";
+      const image = /<image[^>]+/.exec(markup)?.[0] ?? "";
+      return {
+        pattern: { x: numberAttr(pattern, "x"), y: numberAttr(pattern, "y"), width: numberAttr(pattern, "width"), height: numberAttr(pattern, "height") },
+        image: { x: numberAttr(image, "x"), y: numberAttr(image, "y"), width: numberAttr(image, "width"), height: numberAttr(image, "height") },
+      };
+    };
+    const geometry = readGeometry(def);
+    const collapsedGeometry = readGeometry(collapsed);
+    const mutationDelta = maxDelta(geometry, collapsedGeometry);
+    const actual = { ...geometry, paintingAreaOwnership: mutationDelta > 1 };
+    const delta = maxDelta(test.expected, actual);
+    rows.push({
+      id: `mask.url-repeat.${test.id}`,
+      stage: "mask",
+      source: "background_image_geometry.cc:90-177,525-642,654-750; svg_mask_painter.cc:139-226",
+      expected: test.expected,
+      actual,
+      maxAbsDelta: delta,
+      pass: delta <= TOLERANCE && actual.paintingAreaOwnership,
+    });
   }
   const fourLayers = Array.from({ length: 4 }, (_, index) => `linear-gradient(rgb(${index},0,0), black)`).join(",");
   const cyclicDef = buildMaskDef("mcycle", fourLayers, 0, 0, 100, 80, "alpha", "10px 10px,20px 20px", "0 0", "no-repeat", "add").def;

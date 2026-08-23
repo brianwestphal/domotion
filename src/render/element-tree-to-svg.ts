@@ -4464,7 +4464,10 @@ function computeGroupWrapperAttrs(
   const needsGroup = bakeOpacity || filterCss !== "" || blendCss !== "" || clipPathUrlId != null || maskUrlId != null || transformAttr !== "" || hasProjectiveTransform || needsIsolation || needsCullWrapper;
   const groupAttrs: string[] = [];
   if (transformAttr !== "") groupAttrs.push(`transform="${transformAttr}"`);
-  if (bakeOpacity) groupAttrs.push(`opacity="${r(opacity)}"`);
+  // Opacity is a unitless compositor coefficient, not geometry. One-decimal
+  // coordinate formatting turns author `.68` into `.7`, which is observable
+  // once an atomic Backdrop Root is flattened. Preserve four decimals.
+  if (bakeOpacity) groupAttrs.push(`opacity="${stopFmt(opacity)}"`);
   if (clipPathUrlId != null) groupAttrs.push(`clip-path="url(#${clipPathUrlId})"`);
   if (maskUrlId != null) groupAttrs.push(`mask="url(#${maskUrlId})"`);
   // animId (DM-209): elements tagged with `data-domotion-anim="<id>"` in the
@@ -5288,6 +5291,10 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
     }
     paintBoxPhase = false;
   }
+  const backdropCompositeRaster = el.backdropCompositeRaster?.dataUri != null
+    ? el.backdropCompositeRaster
+    : undefined;
+  const backdropConsumedEffects = new Set(backdropCompositeRaster?.consumedEffects ?? []);
   // empty-cells: hide — suppress bg + border on empty <td>/<th>.
   const suppressEmptyCell = el.styles.emptyCellsHidden === true;
   // Inline elements that wrap across multiple line boxes (CSS Backgrounds 3
@@ -5306,10 +5313,11 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // don't need to translate filter functions into <filter> elements.
   // backdrop-filter has no equivalent in img-rendered SVG; it's captured but
   // not emitted (documented limitation).
-  const filterCss = el.styles.filter && el.styles.filter !== "none" ? el.styles.filter : "";
-  const blendCss = el.styles.mixBlendMode && el.styles.mixBlendMode !== "normal" ? el.styles.mixBlendMode : "";
-  const clipPathUrlId = resolveClipPathOnce(state, el, corners);
-  const maskUrlId = renderMaskPhaseOnce(state, el);
+  const filterCss = !backdropConsumedEffects.has("filter") && el.styles.filter && el.styles.filter !== "none" ? el.styles.filter : "";
+  const blendCss = !backdropConsumedEffects.has("mix-blend-mode")
+    && el.styles.mixBlendMode && el.styles.mixBlendMode !== "normal" ? el.styles.mixBlendMode : "";
+  const clipPathUrlId = backdropConsumedEffects.has("clip-path") ? null : resolveClipPathOnce(state, el, corners);
+  const maskUrlId = backdropConsumedEffects.has("mask") ? null : renderMaskPhaseOnce(state, el);
   // CSS 2D transform (SK-1134): wrap the elements rendered group in
   // <g transform=...> composed around the resolved transform-origin in
   // viewport coords. transform-origin is reported by Chrome in pixels
@@ -5541,6 +5549,19 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
     if (localizeReferenceFilter) svgParts.push(`${indent}</g>`);
     if (needsFilterOuter) svgParts.push(`${indent}</g>`);
   };
+
+  if (backdropCompositeRaster != null) {
+    // Chromium captured this root/target as one transparent effect surface.
+    // Discard all vectors tentatively emitted above, stamp it once in the box
+    // phase, and retain only the outward wrappers not listed as consumed.
+    svgParts.length = wrapperContentStart;
+    if (paintBoxPhase) {
+      svgParts.push(`${indent}<image data-domotion-no-hoist="effect-surface" href="${backdropCompositeRaster.dataUri}" x="${r(backdropCompositeRaster.x)}" y="${r(backdropCompositeRaster.y)}" width="${r(backdropCompositeRaster.width)}" height="${r(backdropCompositeRaster.height)}" preserveAspectRatio="none"/>`);
+    }
+    closeWrappers();
+    appendBoxReflection(state, el, reflectionFragmentStart, depth);
+    return;
+  }
 
   // ── Step 2: a host-local negative stacking context paints after this
   // element's own background and before any descendant. Non-SC hosts emitted

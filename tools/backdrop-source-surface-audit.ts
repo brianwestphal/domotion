@@ -278,8 +278,51 @@ function findByAnimId(tree: CapturedElement[], animId: string): CapturedElement 
   return flatten(tree).find((element) => element.animId === animId);
 }
 
-function backdropOwners(tree: CapturedElement[]): CapturedElement[] {
-  return flatten(tree).filter((element) => element.backdropFilterRaster?.dataUri != null);
+interface BackdropOwnerRef {
+  record: { dataUri?: string };
+  rect: Rect;
+  ownerCount: number;
+  screenshotPasses: number;
+  source: "ordinary-boundary" | "ordinary-composite" | "generated-pseudo";
+}
+
+function backdropOwners(tree: CapturedElement[]): BackdropOwnerRef[] {
+  const owners: BackdropOwnerRef[] = [];
+  for (const element of flatten(tree)) {
+    const composite = element.backdropCompositeRaster;
+    if (composite?.dataUri != null) {
+      owners.push({
+        record: composite,
+        rect: { x: composite.x, y: composite.y, width: composite.width, height: composite.height },
+        ownerCount: composite.ownerCount,
+        screenshotPasses: composite.screenshotPasses,
+        source: "ordinary-composite",
+      });
+    } else {
+      const raster = element.backdropFilterRaster;
+      if (raster?.dataUri != null) {
+        owners.push({
+          record: raster,
+          rect: { x: raster.x, y: raster.y, width: raster.width, height: raster.height },
+          ownerCount: 1,
+          screenshotPasses: 1,
+          source: "ordinary-boundary",
+        });
+      }
+    }
+    for (const pseudo of element.pseudoFragments ?? []) {
+      const raster = pseudo.backdropFilterRaster;
+      if (raster?.dataUri == null) continue;
+      owners.push({
+        record: raster,
+        rect: raster.rect,
+        ownerCount: 1,
+        screenshotPasses: 1,
+        source: "generated-pseudo",
+      });
+    }
+  }
+  return owners;
 }
 
 function cloneTree(tree: CapturedElement[]): CapturedElement[] {
@@ -294,15 +337,15 @@ async function replaceBackdropRastersWithFinalCrops(
   const metadata = await sharp(sourcePng).metadata();
   const imageWidth = metadata.width ?? 0;
   const imageHeight = metadata.height ?? 0;
-  await Promise.all(backdropOwners(tree).map(async (element) => {
-    const raster = element.backdropFilterRaster!;
+  await Promise.all(backdropOwners(tree).map(async (owner) => {
+    const raster = owner.rect;
     const left = Math.max(0, Math.floor(raster.x * dpr));
     const top = Math.max(0, Math.floor(raster.y * dpr));
     const right = Math.min(imageWidth, Math.ceil((raster.x + raster.width) * dpr));
     const bottom = Math.min(imageHeight, Math.ceil((raster.y + raster.height) * dpr));
     if (right <= left || bottom <= top) return;
     const crop = await sharp(sourcePng).extract({ left, top, width: right - left, height: bottom - top }).png().toBuffer();
-    raster.dataUri = `data:image/png;base64,${crop.toString("base64")}`;
+    owner.record.dataUri = `data:image/png;base64,${crop.toString("base64")}`;
   }));
 }
 
@@ -336,6 +379,7 @@ export interface BackdropAuditRow {
   expectedRasterOwners: number;
   actualRasterOwners: number;
   ownershipComplete: boolean;
+  capturePasses: { surfaces: number; screenshots: number };
   sourceVsRendered: PixelComparison;
   productionEquivalent: boolean;
   underCapture: { applicable: boolean; comparison: PixelComparison; discriminated: boolean };
@@ -371,6 +415,7 @@ export interface BackdropSourceSurfaceReport {
   warnings: string[];
   blockers: string[];
   productionGaps: string[];
+  strictVerdict: "source-exact" | "production-gaps" | "incomplete";
   verdict: "investigation-complete" | "incomplete";
 }
 
@@ -520,7 +565,7 @@ export async function runBackdropSourceSurfaceAudit(
 
         const svg = elementTreeToSvg(capture.tree, BACKDROP_VIEWPORT.width, BACKDROP_VIEWPORT.height);
         const underTree = cloneTree(capture.tree);
-        for (const owner of backdropOwners(underTree)) owner.backdropFilterRaster!.dataUri = undefined;
+        for (const owner of backdropOwners(underTree)) owner.record.dataUri = undefined;
         const underSvg = elementTreeToSvg(underTree, BACKDROP_VIEWPORT.width, BACKDROP_VIEWPORT.height);
         const overTree = cloneTree(capture.tree);
         await replaceBackdropRastersWithFinalCrops(overTree, sourcePng, dpr);
@@ -544,31 +589,36 @@ export async function runBackdropSourceSurfaceAudit(
           const expectedRoot = expectedRootId(spec);
           const caseNode = findByAnimId(capture.tree, `bd-${spec.id}-case`);
           const owners = caseNode == null ? [] : backdropOwners([caseNode]);
+          const actualRasterOwners = owners.reduce((sum, owner) => sum + owner.ownerCount, 0);
           const sourceVsRendered = compareDecodedRegion(sourceImage, renderedImage, caseFacts.rect, dpr);
           const underComparison = compareDecodedRegion(renderedImage, underImage, caseFacts.rect, dpr);
           const overComparison = compareDecodedRegion(renderedImage, overImage, caseFacts.rect, dpr);
-          const target = findByAnimId(capture.tree, `bd-${spec.id}-target`);
-          const targetUri = target?.backdropFilterRaster?.dataUri;
+          const targetUri = owners[0]?.record.dataUri;
           const targetRasterAt = targetUri == null ? -1 : svg.indexOf(targetUri);
           const vectorAt = svg.indexOf(`class="anim-bd-${spec.id}-vector"`);
           const laterAt = svg.indexOf(`class="anim-bd-${spec.id}-later"`);
-          const rasterApplicable = owners.length > 0;
+          const rasterApplicable = actualRasterOwners > 0;
+          const atomicComposite = owners.some((owner) => owner.source === "ordinary-composite");
           const findings: string[] = [];
           if (root?.id !== expectedRoot) findings.push(`source-root classifier resolved ${root?.id ?? "none"}, expected ${expectedRoot}`);
           if (caseFacts.targetBackdropFilter === "none") findings.push("Chromium target backdrop-filter did not activate");
-          if (owners.length !== spec.expectedRasterOwners) findings.push(`serialized ${owners.length}/${spec.expectedRasterOwners} required backdrop surfaces`);
+          if (actualRasterOwners !== spec.expectedRasterOwners) findings.push(`serialized ${actualRasterOwners}/${spec.expectedRasterOwners} required backdrop surfaces`);
           if (sourceVsRendered.changedFraction > BACKDROP_EQUIVALENT_CHANGED_FRACTION) {
             findings.push(`production differs from Chromium on ${(sourceVsRendered.changedFraction * 100).toFixed(2)}% of case pixels`);
           }
           if (rasterApplicable && !mutationDiscriminates(underComparison)) findings.push("under-capture mutation did not move output");
           if (rasterApplicable && !mutationDiscriminates(overComparison)) findings.push("over-capture mutation did not move output");
-          const rasterBeforeLaterPaint = !rasterApplicable || laterAt < 0
+          const rasterBeforeLaterPaint = !rasterApplicable
             ? null
-            : targetRasterAt >= 0 && targetRasterAt < laterAt;
+            : atomicComposite && laterAt < 0
+              ? true
+              : laterAt < 0 ? null : targetRasterAt >= 0 && targetRasterAt < laterAt;
           const sourceTargetBeforeLaterPaint = sourceOrder[spec.id] ?? null;
           const vectorOrder = {
             sourceTargetBeforeLaterPaint,
-            rasterBeforeTargetVector: targetRasterAt < 0 || vectorAt < 0 ? null : targetRasterAt < vectorAt,
+            rasterBeforeTargetVector: atomicComposite && vectorAt < 0
+              ? true
+              : targetRasterAt < 0 || vectorAt < 0 ? null : targetRasterAt < vectorAt,
             rasterBeforeLaterPaint,
             matchesSourceSiblingOrder: sourceTargetBeforeLaterPaint == null || rasterBeforeLaterPaint == null
               ? null
@@ -592,8 +642,12 @@ export async function runBackdropSourceSurfaceAudit(
             rootMatchesSourceModel: root?.id === expectedRoot,
             targetBackdropFilter: caseFacts.targetBackdropFilter,
             expectedRasterOwners: spec.expectedRasterOwners,
-            actualRasterOwners: owners.length,
-            ownershipComplete: owners.length === spec.expectedRasterOwners,
+            actualRasterOwners,
+            ownershipComplete: actualRasterOwners === spec.expectedRasterOwners,
+            capturePasses: {
+              surfaces: owners.length,
+              screenshots: owners.reduce((sum, owner) => sum + owner.screenshotPasses, 0),
+            },
             sourceVsRendered,
             productionEquivalent: sourceVsRendered.changedFraction <= BACKDROP_EQUIVALENT_CHANGED_FRACTION,
             underCapture: { applicable: rasterApplicable, comparison: underComparison, discriminated: rasterApplicable && mutationDiscriminates(underComparison) },
@@ -631,6 +685,8 @@ export async function runBackdropSourceSurfaceAudit(
     const gaps: string[] = [];
     if (!row.ownershipComplete) gaps.push(`${row.id}:serialized ownership ${row.actualRasterOwners}/${row.expectedRasterOwners}`);
     if (!row.productionEquivalent) gaps.push(`${row.id}:rendered/source drift`);
+    if (row.underCapture.applicable && !row.underCapture.discriminated) gaps.push(`${row.id}:no-surface mutation inert`);
+    if (row.overCapture.applicable && !row.overCapture.discriminated) gaps.push(`${row.id}:final-composite mutation inert`);
     if (row.vectorOrder.rasterBeforeTargetVector === false) gaps.push(`${row.id}:backdrop/vector order drift`);
     if (row.vectorOrder.matchesSourceSiblingOrder === false) gaps.push(`${row.id}:backdrop/sibling order drift`);
     return gaps;
@@ -656,6 +712,7 @@ export async function runBackdropSourceSurfaceAudit(
     warnings,
     blockers,
     productionGaps,
+    strictVerdict: blockers.length > 0 ? "incomplete" : productionGaps.length > 0 ? "production-gaps" : "source-exact",
     verdict: blockers.length === 0 ? "investigation-complete" : "incomplete",
   };
 }
@@ -665,6 +722,7 @@ async function main(): Promise<void> {
   const dprAt = args.indexOf("--dpr");
   const jsonAt = args.indexOf("--json");
   const artifactAt = args.indexOf("--artifact-dir");
+  const strict = args.includes("--strict");
   const dprs = dprAt < 0 ? [1, 2] : args[dprAt + 1].split(",").map(Number).filter((value) => value > 0 && Number.isFinite(value));
   const jsonPath = jsonAt < 0 ? undefined : args[jsonAt + 1];
   const artifactDir = artifactAt < 0 ? undefined : args[artifactAt + 1];
@@ -675,7 +733,7 @@ async function main(): Promise<void> {
     writeFileSync(jsonPath, body);
   }
   process.stdout.write(body);
-  if (report.verdict !== "investigation-complete") process.exitCode = 1;
+  if (report.verdict !== "investigation-complete" || (strict && report.strictVerdict !== "source-exact")) process.exitCode = 1;
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) void main();

@@ -36,6 +36,16 @@ describe("planBackdropIsolation", () => {
     ];
     expect(planBackdropIsolation(nodes, "bf0")?.hideBackendNodeIds).toEqual([3]);
   });
+
+  it("keeps target descendants for an atomic regular-filter chain", () => {
+    const nodes = [
+      n(1, -1, 0, [0, 0, 200, 200]),
+      n(2, 0, 1, [20, 20, 100, 100], ["data-domotion-backdrop-raster", "bf0"]),
+      n(3, 1, 2, [30, 30, 20, 20]),
+      n(4, 0, 3, [40, 40, 100, 100]),
+    ];
+    expect(planBackdropIsolation(nodes, "bf0", { includeTargetDescendants: true })?.hideBackendNodeIds).toEqual([4]);
+  });
 });
 
 describe("backdrop raster diagnostics", () => {

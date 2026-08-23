@@ -113,6 +113,15 @@ fragments. Source and test details are in
 [doc 174](174-html-mask-origin-clip-geometry.md); run the strict DPR-1/2 browser
 gate with `npm run mask:origin-clip-oracle`.
 
+DM-2494 closes the URL `round`/`space` continuation of that split. Blink's
+`BackgroundImageGeometry` resolves tile size and phase from the origin box but
+passes `DrawImageTiled` the clip-owned destination. The SVG lowering now gives
+its pattern the same painting rectangle; using the smaller positioning box as
+the no-repeat-axis cell caused a second mask tile to wrap into the border area.
+`src/render/mask-origin-clip.test.ts` pins both modes and the collapsed-box
+mutation, while `tests/mask-url-repeat-geometry.e2e.test.ts` matches live
+Chromium tile edges and rejects that mutation at DPR 1 and 2.
+
 ## Requirement (this ticket)
 
 1. **Update the warning text** at `src/capture/script/walker/masks-clips.ts`. The current text claims masks aren't emitted; the truth is emission works for the common url + gradient cases. Replace with: `"non-trivial mask source — emission may differ from Chromium's actual blur/composite for masks composed of element() references or unresolved url() fragments"`.

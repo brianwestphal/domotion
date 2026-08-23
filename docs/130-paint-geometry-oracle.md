@@ -6,6 +6,12 @@ source-transcribed rule leg against the definitions emitted by Domotion's real
 gradient, mask, basic-clip, and platform-resizer builders. It does not rasterize
 either side.
 
+The 110-row corpus is again fully exact after DM-2494. Its URL-mask `round`
+and `space` rows now keep Blink's two rectangles distinct: tile size and phase
+come from `mask-origin`, while the SVG pattern cell and final destination come
+from `mask-clip`. Both rows include a destructive collapsed-area mutation and
+retain the existing `0.00011` logical tolerance unchanged.
+
 `npm run paint:geometry-browser-oracle` is the independent live-browser leg.
 At 4× device scale it paints deliberately binary discriminators for the
 non-square magic-corner decision, an HTML content-box clip, mask-repeat
@@ -41,7 +47,9 @@ object-bounding-box maps, and SVG URL forced-fill ownership; SVG content/padding
 mapping to the object bounding box, border/margin/stroke mapping to the stroke
 bounding box, and view-box mapping to the local SVG viewport; mask size, position,
 per-axis repeat, `round`/`space` adjustment for generated and URL images, and
-cyclic layer lists; bottom-up mixed-layer composition using each upper layer's
+cyclic layer lists, including distinct origin-positioning and clip-painting
+rectangles for URL `round`/`space` with an orthogonal no-repeat axis; bottom-up
+mixed-layer composition using each upper layer's
 Porter-Duff operator; all four mask-composite operators; fragment mask and
 clip-path user-space positioning; explicit gradient interpolation-space routing;
 conic center/from-angle/stop-domain and repeating-negative-domain decisions;

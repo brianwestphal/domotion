@@ -86,7 +86,39 @@ describe("Blink HTML mask-origin/mask-clip geometry (DM-2472)", () => {
       undefined, [{ w: 2, h: 1 }], undefined,
       { ...context, originCss: "content-box", clipCss: "border-box" },
     );
-    expect(built.def).toMatch(/<pattern id="mp0"[^>]* x="44" y="36"/);
+    // The serialized pattern cell begins before the painting area by Blink's
+    // tile phase; repeated instances still land exactly at the 44,36 origin.
+    expect(built.def).toMatch(/<pattern id="mp0"[^>]* x="-4" y="12"/);
     expect(built.def).toContain('<rect x="10" y="20" width="120" height="90" fill="url(#mp0)"');
   });
+
+  it.each(["round", "space"])(
+    "keeps URL mask %s tile phase in the origin box but owns the no-repeat cell in the clip box",
+    (repeat) => {
+      const png = 'url("data:image/png;base64,iVBORw0KGgo=")';
+      const distinct = buildMaskDef(
+        "m", png,
+        borderBox.x, borderBox.y, borderBox.width, borderBox.height,
+        "alpha", "16px 12px", "25% 75%", `${repeat} no-repeat`, "add",
+        undefined, [{ w: 16, h: 12 }], undefined,
+        { ...context, originCss: "content-box", clipCss: "border-box" },
+      ).def;
+      const collapsed = buildMaskDef(
+        "m", png,
+        borderBox.x, borderBox.y, borderBox.width, borderBox.height,
+        "alpha", "16px 12px", "25% 75%", `${repeat} no-repeat`, "add",
+        undefined, [{ w: 16, h: 12 }], undefined,
+        { ...context, originCss: "content-box", clipCss: "content-box" },
+      ).def;
+
+      // Blink computes tile size/phase against the 64x48 content-box, but
+      // DrawImageTiled owns the 120x90 border-box destination. The orthogonal
+      // no-repeat axis therefore needs one border-box-sized SVG pattern cell;
+      // collapsing it to the positioning area repeats the mask vertically.
+      expect(distinct).toMatch(/<pattern id="mp0"[^>]* y="20"[^>]* height="90"/);
+      expect(distinct).toContain('<rect x="10" y="20" width="120" height="90" fill="url(#mp0)"');
+      expect(collapsed).toMatch(/<pattern id="mp0"[^>]* y="36"[^>]* height="48"/);
+      expect(distinct).not.toBe(collapsed);
+    },
+  );
 });

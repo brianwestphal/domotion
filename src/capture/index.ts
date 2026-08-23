@@ -2084,12 +2084,21 @@ export async function rasterizeProjectiveSurfaces(
               ["scale", "none"],
             );
           }
-          for (const [property, value] of neutral) {
+          const neutralSnapshots = neutral.map(([property, value]) => ({
+            property,
+            value,
+            originalValue: html.style.getPropertyValue(property),
+            originalPriority: html.style.getPropertyPriority(property),
+          }));
+          // Snapshot the entire alias set before mutating it: `mask` and
+          // `-webkit-mask` share CSSOM storage, so recording the second alias
+          // after setting the first would falsely restore `none !important`.
+          for (const { property, value, originalValue, originalPriority } of neutralSnapshots) {
             restore.push({
               element: ancestor,
               property,
-              value: html.style.getPropertyValue(property),
-              priority: html.style.getPropertyPriority(property),
+              value: originalValue,
+              priority: originalPriority,
             });
             html.style.setProperty(property, value, "important");
           }

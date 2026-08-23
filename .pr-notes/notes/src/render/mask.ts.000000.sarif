@@ -297,6 +297,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt532qpgirxihfhw",
+          "message": {
+            "text": "URL mask patterns must keep Blink’s positioning and painting rectangles independent. BackgroundImageGeometry derives round/space tile size and phase from mask-origin, but SVGMaskPainter passes the clip-owned destination to DrawImageTiled; giving buildImagePatternDef only the origin box made an orthogonal no-repeat cell wrap into larger border/padding clips. The final argument preserves that paint destination without changing the shared background geometry model.",
+            "markdown": "URL mask patterns must keep Blink’s positioning and painting rectangles independent. `BackgroundImageGeometry` derives round/space tile size and phase from `mask-origin`, but `SVGMaskPainter` passes the clip-owned destination to `DrawImageTiled`; giving `buildImagePatternDef` only the origin box made an orthogonal no-repeat cell wrap into larger border/padding clips. The final argument preserves that paint destination without changing the shared background geometry model."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/mask.ts"
+                },
+                "region": {
+                  "startLine": 870,
+                  "endLine": 895,
+                  "snippet": {
+                    "text": "      // Repeating mask: fall back to pattern. Since mask-type=alpha, the\n      // pattern itself needs to be backed by an <image> that's clipped to\n      // the tile size so outside-tile pixels are transparent.\n      const patId = `${id}p${li}`;\n      const patDef = buildImagePatternDef(\n        patId,\n        urlHref,\n        elX,\n        elY,\n        w,\n        h,\n        layerSize,\n        layerPos,\n        layerRepeat,\n        capturedIntrinsic ?? null,\n        \"scroll\",\n        null,\n        null,\n        { x: paintX, y: paintY, width: paintW, height: paintH },\n      );\n      if (patDef === \"\") return { contents, forceHide: false };\n      contents.push(patDef);\n      contents.push(`<rect x=\"${r(paintX)}\" y=\"${r(paintY)}\" width=\"${r(paintW)}\" height=\"${r(paintH)}\" fill=\"url(#${patId})\" />`);\n    }\n  }\n  return { contents, forceHide: false };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/paint-geometry-oracle.ts"
+                },
+                "region": {
+                  "startLine": 439
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/mask-url-repeat-geometry.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 136
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2494"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "0d9098c2b43eb66363b6c3c8b666bc3a"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "7a2f149049a76e94c8f0a36cce1c001654a7e563",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

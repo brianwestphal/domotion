@@ -50,6 +50,14 @@ slice/clone fragment reconstruction. `mask-clip:no-clip` gets an explicit
 viewport-sized SVG mask region so SVG's default 120% mask bounds cannot crop
 Blink-visible overflow.
 
+DM-2494 threads that painting area into URL pattern lowering as well. This is
+observable when one axis is `round` or `space` and the other is `no-repeat`:
+Blink computes adjusted tile size and phase from the origin box, but
+`DrawImageTiled` receives the clip-owned destination. Reusing the origin box as
+the SVG pattern cell made the no-repeat axis wrap into a second row whenever
+the clip was larger. The corrected cell owns the paint rectangle while its
+image offset still represents the origin-derived phase.
+
 ## Evidence
 
 `src/render/mask-origin-clip.test.ts` locks:
@@ -60,7 +68,10 @@ Blink-visible overflow.
 - same-box negative controls;
 - a collapsed-origin-to-clip mutation that must move positioning while leaving
   painting unchanged; and
-- URL contain plus repeating pattern emission against different rectangles.
+- URL contain plus repeating pattern emission against different rectangles;
+  and
+- URL `round`/`space` pattern cells against a larger clip, with the collapsed
+  painting-area mutation required to move geometry.
 
 `tests/mask-origin-clip.e2e.test.ts` is the independent Chromium-vs-generated
 SVG device-pixel oracle. At DPR 1 and 2 it covers contain, cover, explicit
@@ -69,6 +80,12 @@ writing with RTL direction, cyclic multilayer composition, and a same-box
 control. A separate DPR-2 leg covers sliced and cloned wrapped inline
 fragments. The oracle also rewrites every captured origin to its clip and
 requires that retired mutation to be materially worse than production.
+
+`tests/mask-url-repeat-geometry.e2e.test.ts` adds an asymmetric-alpha URL tile
+for `round no-repeat` and `space no-repeat`. At DPR 1 and 2, live Chromium and
+generated SVG agree on tile count and every device-pixel edge within one pixel;
+collapsing the pattern cell to the positioning area creates a forbidden extra
+row and must fail independently for both repeat modes.
 
 Run the focused gate with:
 

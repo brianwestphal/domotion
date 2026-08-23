@@ -124,6 +124,14 @@ describe("hoistDuplicateImagePayloads", () => {
     expect(hoistDuplicateImagePayloads(input, { minPayloadChars: 8 })).toContain(`<use href="#dmi0"`);
   });
 
+  it("keeps compositor effect surfaces as concrete image nodes", () => {
+    const input = doc(
+      `<image data-domotion-no-hoist="effect-surface" href="${PAYLOAD}" x="0" y="0" width="20" height="20"/>`
+      + `<image data-domotion-no-hoist="effect-surface" href="${PAYLOAD}" x="0" y="40" width="20" height="20"/>`,
+    );
+    expect(hoistDuplicateImagePayloads(input)).toBe(input);
+  });
+
   it("refuses markup it can't parse as plain double-quoted attributes", () => {
     // Single-quoted attrs + a legacy xlink ref: both shapes come from inline SVG
     // copied verbatim out of the captured page, not from our emitters.

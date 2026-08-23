@@ -14,12 +14,7 @@ describe("paint geometry oracle (DM-2297)", () => {
     const report = runPaintGeometryOracle();
     expect(report.movementProven).toBe(true);
     expect(report.rows).toHaveLength(110);
-    // The expanded corpus exposes the remaining URL-mask round/space ownership
-    // gap. Keep those rows visible until their Blink geometry is implemented.
-    expect(report.rows.filter((row) => !row.pass).map((row) => row.id)).toEqual([
-      "mask.url-repeat.round",
-      "mask.url-repeat.space",
-    ]);
-    expect(report.verdict).toBe("logical-mismatch");
+    expect(report.rows.filter((row) => !row.pass)).toEqual([]);
+    expect(report.verdict).toBe("exact-logical-agreement");
   });
 });

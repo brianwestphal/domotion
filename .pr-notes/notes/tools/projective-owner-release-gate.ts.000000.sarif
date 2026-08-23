@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt530kszicbc6x2k",
+          "message": {
+            "text": "The release decision is structural before it is pixel-based. A visually identical oversized Chromium crop fails unless every platform supplies the complete family/profile/DPR Cartesian set with exact owner identity, one direct image per owner, retained vector sentinels, restoration integrity and fingerprinted lossless artifacts; the four-device-pixel comparison is only secondary.",
+            "markdown": "The release decision is structural before it is pixel-based. A visually identical oversized Chromium crop fails unless every platform supplies the complete family/profile/DPR Cartesian set with exact owner identity, one direct image per owner, retained vector sentinels, restoration integrity and fingerprinted lossless artifacts; the four-device-pixel comparison is only secondary."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/projective-owner-release-gate.ts"
+                },
+                "region": {
+                  "startLine": 1,
+                  "endLine": 111,
+                  "snippet": {
+                    "text": "import { z } from \"zod\";\n\nexport const PROJECTIVE_GATE_PLATFORMS = [\"darwin\", \"linux\", \"win32\"] as const;\nexport const PROJECTIVE_GATE_DPRS = [1, 2] as const;\nexport const PROJECTIVE_GATE_PROFILES = [\n  \"horizontal-ltr-static\",\n  \"vertical-rtl-fractional-zoom-scroll\",\n  \"same-origin-frame-svg-effects\",\n  \"paused-document-timeline\",\n] as const;\nexport const PROJECTIVE_GATE_FAMILIES = [\n  \"shared-context\", \"nested-extension\", \"perspective-only\", \"ordinary-dom-break\", \"explicit-flat-break\",\n  \"opacity-grouping\", \"opacity-animation-grouping\", \"opacity-will-change-grouping\",\n  \"filter-grouping\", \"filter-will-change-grouping\", \"reflection-grouping\", \"clip-path-grouping\",\n  \"isolation-grouping\", \"mask-grouping\", \"blend-grouping\", \"backdrop-filter-grouping\",\n  \"backdrop-will-change-grouping\", \"css-clip-grouping\", \"overflow-x-grouping\", \"overflow-y-grouping\",\n  \"view-transition-grouping\", \"independent-projective-planes\", \"affine-negative\", \"matrix3d-affine-negative\",\n  \"inline-svg-foreign-object-promotion\",\n] as const;\nexport const PROJECTIVE_GATE_MUTATIONS = [\n  \"owner-one-level-high\", \"owner-one-level-low\", \"dropped-owner\", \"duplicate-raster\",\n  \"baked-vector-sibling\", \"double-transform\", \"stale-animated-owner\",\n  \"grouping-fact-collapsed\", \"platform-dpr-fingerprint-swap\",\n] as const;\n\nconst sha = z.string().regex(/^[a-f0-9]{64}$/);\nconst rect = z.object({ x: z.number().int(), y: z.number().int(), width: z.number().int().positive(), height: z.number().int().positive() });\nconst artifact = z.object({\n  role: z.enum([\"source\", \"generated\", \"owner-crop\"]), path: z.string().min(1), sha256: sha,\n  pngWidth: z.number().int().positive(), pngHeight: z.number().int().positive(), deviceRect: rect,\n  sourceFrameDeviceRect: rect,\n});\nconst row = z.object({\n  family: z.enum(PROJECTIVE_GATE_FAMILIES), profile: z.enum(PROJECTIVE_GATE_PROFILES), dpr: z.union([z.literal(1), z.literal(2)]),\n  expectedOwnerIds: z.array(z.string()), actualOwnerIds: z.array(z.string()),\n  rasterCount: z.number().int().nonnegative(), directImageApplications: z.number().int().nonnegative(),\n  nestedDuplicateCount: z.number().int().nonnegative(), sampledApproximationCount: z.number().int().nonnegative(),\n  vectorSentinelExact: z.boolean(), sentinelBakedIntoRaster: z.boolean(),\n  restorationExact: z.boolean(), warnings: z.array(z.string()),\n  maxFinalPixelDelta: z.number().int().nonnegative(), artifacts: z.array(artifact), pass: z.boolean(),\n});\nexport const projectiveOwnerReleaseReportSchema = z.object({\n  schemaVersion: z.literal(2),\n  environment: z.object({\n    platform: z.enum(PROJECTIVE_GATE_PLATFORMS), architecture: z.string().min(1), osRelease: z.string().min(1),\n    runnerImage: z.string().min(1), runnerImageVersion: z.string().min(1), chromiumVersion: z.string().min(1),\n    chromiumRevision: z.string().min(1), playwrightVersion: z.string().min(1), launchArguments: z.array(z.string()),\n  }),\n  rows: z.array(row),\n  mutations: z.array(z.object({ id: z.enum(PROJECTIVE_GATE_MUTATIONS), killed: z.boolean() })),\n});\nexport type ProjectiveOwnerReleaseReport = z.infer<typeof projectiveOwnerReleaseReportSchema>;\n\nexport function projectiveGateRowKey(value: Pick<ProjectiveOwnerReleaseReport[\"rows\"][number], \"family\" | \"profile\" | \"dpr\">): string {\n  return `${value.family}/${value.profile}/dpr${value.dpr}`;\n}\n\nexport function adjudicateProjectiveOwnerRelease(inputs: readonly unknown[], integrity: readonly string[] = []): { ready: boolean; blockers: string[] } {\n  const blockers = [...integrity];\n  const reports: ProjectiveOwnerReleaseReport[] = [];\n  for (const input of inputs) {\n    const parsed = projectiveOwnerReleaseReportSchema.safeParse(input);\n    if (!parsed.success) blockers.push(`schema v2 rejected: ${z.prettifyError(parsed.error)}`);\n    else reports.push(parsed.data);\n  }\n  for (const platform of PROJECTIVE_GATE_PLATFORMS) {\n    const matches = reports.filter((report) => report.environment.platform === platform);\n    if (matches.length !== 1) blockers.push(`${matches.length === 0 ? \"missing\" : \"duplicate\"} native platform report: ${platform}`);\n  }\n  for (const report of reports) {\n    const expectedFingerprint = `${report.environment.platform}/${report.environment.architecture}/${report.environment.runnerImage}/${report.environment.runnerImageVersion}/${report.environment.chromiumRevision}`;\n    const keys = new Set(report.rows.map(projectiveGateRowKey));\n    for (const family of PROJECTIVE_GATE_FAMILIES) for (const profile of PROJECTIVE_GATE_PROFILES) for (const dpr of PROJECTIVE_GATE_DPRS) {\n      const key = `${family}/${profile}/dpr${dpr}`;\n      if (!keys.has(key)) blockers.push(`${report.environment.platform}: missing Cartesian row ${key}`);\n    }\n    if (keys.size !== report.rows.length) blockers.push(`${report.environment.platform}: duplicate Cartesian rows`);\n    for (const value of report.rows) {\n      const key = `${report.environment.platform}/${projectiveGateRowKey(value)}`;\n      if (!value.pass) blockers.push(`${key}: producer failed`);\n      if (value.warnings.length) blockers.push(`${key}: warnings forbidden`);\n      if (!value.restorationExact) blockers.push(`${key}: source DOM restoration drift`);\n      if (JSON.stringify([...value.actualOwnerIds].sort()) !== JSON.stringify([...value.expectedOwnerIds].sort())) blockers.push(`${key}: owner identity drift`);\n      if (value.rasterCount !== value.expectedOwnerIds.length || value.directImageApplications !== value.expectedOwnerIds.length) blockers.push(`${key}: not one direct atomic image per owner`);\n      if (value.nestedDuplicateCount || value.sampledApproximationCount) blockers.push(`${key}: duplicate or sampled projective paint`);\n      if (!value.vectorSentinelExact || value.sentinelBakedIntoRaster) blockers.push(`${key}: vector sentinel ownership drift`);\n      if (value.maxFinalPixelDelta > 4) blockers.push(`${key}: final image exceeds four device pixels`);\n      for (const item of value.artifacts) {\n        if (item.pngWidth !== item.deviceRect.width || item.pngHeight !== item.deviceRect.height) blockers.push(`${key}: artifact dimensions disagree with device crop`);\n        const frame = item.sourceFrameDeviceRect;\n        const crop = item.deviceRect;\n        if (crop.x < frame.x || crop.y < frame.y || crop.x + crop.width > frame.x + frame.width || crop.y + crop.height > frame.y + frame.height) blockers.push(`${key}: crop escapes source frame`);\n        if (!item.path.includes(expectedFingerprint.replaceAll(\"/\", \"-\"))) blockers.push(`${key}: artifact fingerprint mismatch`);\n      }\n    }\n    const mutationIds = new Set(report.mutations.filter((m) => m.killed).map((m) => m.id));\n    for (const id of PROJECTIVE_GATE_MUTATIONS) if (!mutationIds.has(id)) blockers.push(`${report.environment.platform}: mutation not killed: ${id}`);\n  }\n  return { ready: blockers.length === 0, blockers };\n}\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 98,
+          "workItemUris": [
+            "DM-2493"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "8e4753608a56ea208e197de6f6430df1"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "7a2f149049a76e94c8f0a36cce1c001654a7e563",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

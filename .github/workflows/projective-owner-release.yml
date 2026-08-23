@@ -1,0 +1,61 @@
+name: Minimal projective owner release gate
+on:
+  pull_request:
+    paths: ["src/capture/**", "src/render/**", "tools/*projective*", "tests/*projective*", ".github/workflows/projective-owner-release.yml"]
+  push:
+    branches: [main]
+    paths: ["src/capture/**", "src/render/**", "tools/*projective*", "tests/*projective*", ".github/workflows/projective-owner-release.yml"]
+  workflow_dispatch:
+env:
+  NODE_VERSION: "22.21.0"
+jobs:
+  collect:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-latest, label: macOS }
+          - { os: ubuntu-latest, label: Linux }
+          - { os: windows-latest, label: Windows }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: npm }
+      - run: npm ci
+      - if: runner.os == 'Linux'
+        run: npx playwright install --with-deps chromium
+      - if: runner.os != 'Linux'
+        run: npx playwright install chromium
+      - run: node -e "require('node:fs').mkdirSync('tests/output/projective-owner',{recursive:true})"
+      - run: node scripts/record-runner-image.mjs tests/output/projective-owner/runner-image.txt
+      - name: Produce complete source/generated ownership evidence
+        shell: bash
+        run: DOMOTION_RUNNER_IMAGE="$(cat tests/output/projective-owner/runner-image.txt)" npm run transform:projective-owner-producer -- --json tests/output/projective-owner/report.json --artifacts tests/output/projective-owner/artifacts --report-only
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: projective-owner-${{ runner.os }}
+          path: tests/output/projective-owner/
+          if-no-files-found: error
+  adjudicate:
+    if: always()
+    needs: collect
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: npm }
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: projective-owner-*
+          path: tests/output/projective-owner-release
+      - run: npm run transform:projective-owner-release -- --reports tests/output/projective-owner-release
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: projective-owner-release-evidence
+          path: tests/output/projective-owner-release/
+          if-no-files-found: error

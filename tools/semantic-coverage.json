@@ -625,6 +625,7 @@
         "single -> multiple composed layers",
         "center position -> arbitrary position",
         "mask-origin equals mask-clip -> mask-origin differs from mask-clip on HTML URL layers",
+        "URL mask origin phase -> distinct clip-owned round/space paint destination",
         "bare URL clip -> invalid URL-plus-geometry-box",
         "HTML URL border/object box -> SVG URL forced fill box",
         "curated SVG rows -> generated 18-axis pairwise combinations",
@@ -638,6 +639,7 @@
         "single -> multiple composed layers",
         "center position -> arbitrary position",
         "mask-origin equals mask-clip -> mask-origin differs from mask-clip on HTML URL layers",
+        "URL mask origin phase -> distinct clip-owned round/space paint destination",
         "bare URL clip -> invalid URL-plus-geometry-box",
         "HTML URL border/object box -> SVG URL forced fill box",
         "curated SVG rows -> generated 18-axis pairwise combinations"
@@ -655,6 +657,7 @@
         "external/chromium/third_party/blink/renderer/core/layout/svg"
       ],
       "productionOwners": [
+        "src/render/image-pattern.ts",
         "src/render/mask-position.ts",
         "src/render/mask-origin-clip.ts",
         "src/render/mask.ts",
@@ -674,6 +677,7 @@
         "tests/external-svg-refs.e2e.test.ts",
         "tests/mask-position-contain-cover.e2e.test.ts",
         "tests/mask-origin-clip.e2e.test.ts",
+        "tests/mask-url-repeat-geometry.e2e.test.ts",
         "tools/svg-effect-combination-oracle.ts",
         "tests/svg-native-paint-properties.e2e.test.ts"
       ],
@@ -690,7 +694,7 @@
         "tests/svg-effect-combination-oracle.e2e.test.ts"
       ],
       "coverage": "partial",
-      "boundary": "Arbitrary URL mask sizing/positioning is exact for Chromium-decoded intrinsic ratios and distinct per-layer HTML mask-origin/mask-clip border/padding/content/no-clip rectangles, including zoomed computed px terms, physical writing modes, cyclic composition, and sliced/cloned fragments. URL clip references additionally preserve Blink's exclusive grammar, HTML border/object-bounding-box map, SVG forced-fill ownership, nested-frame/external resolution, and stale-tree rejection. The generated native-SVG gate covers every pair among 18 enumerated axes; higher-order interactions and future effect classes remain the explicit partial boundary.",
+      "boundary": "Arbitrary URL mask sizing/positioning is exact for Chromium-decoded intrinsic ratios and distinct per-layer HTML mask-origin/mask-clip border/padding/content/no-clip rectangles, including URL round/space tile size and phase from the origin with a clip-owned paint/no-repeat destination, zoomed computed px terms, physical writing modes, cyclic composition, and sliced/cloned fragments. The 110-row logical gate retains its fixed tolerance, while DPR-1/2 browser rows reject the collapsed painting-area mutation. URL clip references additionally preserve Blink's exclusive grammar, HTML border/object-bounding-box map, SVG forced-fill ownership, nested-frame/external resolution, and stale-tree rejection. The generated native-SVG gate covers every pair among 18 enumerated axes; higher-order interactions and future effect classes remain the explicit partial boundary.",
       "featureIds": [
         "render.tree-to-svg"
       ],
@@ -948,6 +952,10 @@
         "tests/animated-projective-frame-workflow.test.ts",
         ".github/workflows/animated-projective-frame-parity.yml",
         "tools/nested-projective-ownership-audit.ts",
+        "tools/projective-owner-release-gate.ts",
+        "tools/projective-owner-release-producer.ts",
+        "tools/check-projective-owner-release.ts",
+        ".github/workflows/projective-owner-release.yml",
         "tests/nested-projective-ownership-audit.e2e.test.ts",
         "tools/animated-culling-geometry-oracle.ts",
         "tools/raster-boundary-oracle.ts",
@@ -957,6 +965,8 @@
         "src/capture/text-fragment-geometry.test.ts",
         "tests/animated-projective-frame-oracle.test.ts",
         "tests/nested-projective-ownership-audit.test.ts",
+        "tests/projective-owner-release-gate.test.ts",
+        "tests/projective-owner-release-workflow.test.ts",
         "src/render/text-affine.test.ts",
         "src/render/projective-transform.test.ts",
         "src/stacking-context.test.ts",
@@ -975,7 +985,7 @@
         "tests/features.ts#perspective-fixed-containing-block-ownership"
       ],
       "coverage": "partial",
-      "boundary": "Computed perspective/origin, the non-box inline stacking/fixed-owner split, and perspective/preserve-3d fixed-containing-block ownership are source-audited and gated. DM-2469 captures transformed text as ordered all-transform-neutral physical fragments plus complete signed live-paint matrices, with zoom retained locally, exact restoration/correlation checks, same-origin frames, and explicit Chromium ownership for unavailable or projective facts. DM-2470 consumes that neutral bundle through one signed residual matrix across every text paint branch and removes transform-derived font magnitudes, unsigned ancestor products and anisotropic correction. DM-2471 independently gates direct live/neutral/restored quads and final Chromium-versus-SVG device-space ink/content over 25 cases at DPR 1/2 on macOS/Linux/Windows with eight mutations and no platform envelope. DM-2359 pauses every participating document timeline before any prepass and exactly exposes sampled CDP quad/computed composition/residual, raster materialization, and atomic application. DM-2492 selects the smallest owner through Blink's direct-parent used-preserve context propagation: perspective owns the plane, ordinary/flat/grouping intermediaries break propagation, and a nested preserve subtree starts a fresh root. The 13-family DPR-1/2 corpus is 26/26 with every sentinel retained and six mutations; the animated corpus is 64/64 with five mutations. Unknown internal view-transition participation warns and retains a conservative Chromium surface. Refused, drifting, changing-enumeration, or non-document timelines fail explicitly rather than being approximated in 2D. The affine text baseline remains behaviorally gated rather than a separately decoded Blink fragment-baseline protocol row. The animated viewBox path has source-derived function-first composed sweeps and explicit unknown retention, validated by doc 166's all-platform gate.",
+      "boundary": "Computed perspective/origin, transformed text, inline SVG and fixed-containing-block ownership are source-audited and gated. DM-2492 selects the smallest owner through Blink's direct-parent used-preserve propagation. DM-2493 crosses 25 context/grouping/negative families with four static/animated/environment profiles at DPR 1/2; its schema-v2 macOS/Linux/Windows aggregate requires exact owners, one direct atomic image, retained vector sentinels, restoration and warning integrity, lossless SHA/crop provenance, complete Cartesian artifacts, nine mutations and a secondary four-device-pixel bound. Unknown internal view-transition participation still warns and retains a conservative Chromium surface. Scroll/view/rAF timelines remain outside the deterministic document-timeline contract. The affine text baseline remains behaviorally gated rather than a separately decoded Blink fragment-baseline protocol row.",
       "featureIds": [
         "capture.animated-projective-frame",
         "render.tree-to-svg",
