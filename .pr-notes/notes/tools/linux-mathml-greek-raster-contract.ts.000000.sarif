@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5jk92gq2hjeoqb",
+          "message": {
+            "text": "The MathML cell is a separate authenticated contract so adding FreeSans cannot silently change the ratified 348-cell corpus or reuse its envelopes. The package, extracted face, four math-auto scalars, source glyphs, and hinted/unhinted subset bytes all participate in the canonical supplemental cell identity.",
+            "markdown": "The MathML cell is a separate authenticated contract so adding FreeSans cannot silently change the ratified 348-cell corpus or reuse its envelopes. The package, extracted face, four math-auto scalars, source glyphs, and hinted/unhinted subset bytes all participate in the canonical supplemental cell identity."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/linux-mathml-greek-raster-contract.ts"
+                },
+                "region": {
+                  "startLine": 10,
+                  "endLine": 80,
+                  "snippet": {
+                    "text": "export const FREE_SANS_NOBLE_PACKAGE = {\n  suite: \"ubuntu-noble-main\",\n  name: \"fonts-freefont-ttf\",\n  source: \"fonts-freefont\",\n  version: \"20211204+svn4273-2\",\n  architecture: \"all\",\n  filename: \"pool/main/f/fonts-freefont/fonts-freefont-ttf_20211204+svn4273-2_all.deb\",\n  url: \"https://archive.ubuntu.com/ubuntu/pool/main/f/fonts-freefont/fonts-freefont-ttf_20211204%2Bsvn4273-2_all.deb\",\n  byteLength: 5_640_794,\n  sha256: \"c8283ec9ca390e6ad8d2114cb0942182db62bb97f5142c2f955218fc5f2027b4\",\n  fontPath: \"usr/share/fonts/truetype/freefont/FreeSans.ttf\",\n  fontByteLength: 1_844_796,\n  fontSha256: \"350badd6ab6a58e7fd7a0ea2ae0c10174941a08e1cd06b3c6010e10b3d5ae319\",\n  familyName: \"FreeSans\",\n  postscriptName: \"FreeSans\",\n  faceIndex: 0,\n  unitsPerEm: 1000,\n  ascent: 900,\n  descent: -300,\n  lineGap: 100,\n  glyphCount: 8536,\n} as const;\n\nexport const LINUX_MATHML_GREEK_SUBSETS = {\n  gids: [0, 6548, 6549, 6555, 6563],\n  hinted: {\n    byteLength: 43_184,\n    sha256: \"9208b3c4b2468f5b3040d45dfec40208f6ca269b1d3d7ab372677c59e796b5a4\",\n  },\n  unhinted: {\n    byteLength: 41_600,\n    sha256: \"1fa8efe98f3acead5ccc5d4e04f961cc4dd47cd0a63a3fff9d14a39ca76f2e00\",\n  },\n} as const;\n\nexport const LINUX_MATHML_GREEK_TOKENS = [\n  {\n    id: \"alpha\", source: \"α\", transformed: \"𝛼\", sourceCodePoint: 0x03b1, transformedCodePoint: 0x1d6fc,\n    glyph: { gid: 6548, cluster: 0, advanceX: 578, advanceY: 0, offsetX: 0, offsetY: 0, outlineSha256: \"e43fd0e75f237bd43dd00aebf92921045532724135d0b57f3633b17bb934123a\", outlineCommandCount: 31 },\n  },\n  {\n    id: \"beta\", source: \"β\", transformed: \"𝛽\", sourceCodePoint: 0x03b2, transformedCodePoint: 0x1d6fd,\n    glyph: { gid: 6549, cluster: 0, advanceX: 544, advanceY: 0, offsetX: 0, offsetY: 0, outlineSha256: \"1c895fa7002ed66ad32f5c617a658479c40f8c4301180ac61e0b3035ff9563ab\", outlineCommandCount: 33 },\n  },\n  {\n    id: \"pi\", source: \"π\", transformed: \"𝜋\", sourceCodePoint: 0x03c0, transformedCodePoint: 0x1d70b,\n    glyph: { gid: 6563, cluster: 0, advanceX: 594, advanceY: 0, offsetX: 0, offsetY: 0, outlineSha256: \"001f3a368297a899f9f192eb0e0af7a39fb34136cbcdb7df96edf1005eddd69c\", outlineCommandCount: 21 },\n  },\n  {\n    id: \"theta\", source: \"θ\", transformed: \"𝜃\", sourceCodePoint: 0x03b8, transformedCodePoint: 0x1d703,\n    glyph: { gid: 6555, cluster: 0, advanceX: 505, advanceY: 0, offsetX: 0, offsetY: 0, outlineSha256: \"c6a03f961b855e495a86960949c94a24d19ca263b40301d05c59cb7022202164\", outlineCommandCount: 28 },\n  },\n] as const;\n\nexport const LINUX_MATHML_GREEK_CELL = {\n  schemaVersion: 1,\n  id: \"freesans-mathml-mi-greek-italic-dpr1\",\n  fixture: \"mathml-mi-greek-italic\",\n  deviceScaleFactor: 1,\n  fontSizePx: 24,\n  viewport: { width: 320, height: 160 },\n  bodyFontFamily: \"system-ui, sans-serif\",\n  foreground: \"#000000\",\n  background: \"#ffffff\",\n  metricAlgorithm: \"opaque-rgba-ink-edge-v2\",\n  sourceAuthority: LINUX_MATHML_GREEK_AUTHORITY,\n  packageSha256: FREE_SANS_NOBLE_PACKAGE.sha256,\n  fontSha256: FREE_SANS_NOBLE_PACKAGE.fontSha256,\n  subsetHintedSha256: LINUX_MATHML_GREEK_SUBSETS.hinted.sha256,\n  subsetUnhintedSha256: LINUX_MATHML_GREEK_SUBSETS.unhinted.sha256,\n  tokens: LINUX_MATHML_GREEK_TOKENS,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2512"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4a29a96feb9835fc0b13631b9f803676"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "655493c6cf530bfb4df1f6dfb447efd751d39107",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

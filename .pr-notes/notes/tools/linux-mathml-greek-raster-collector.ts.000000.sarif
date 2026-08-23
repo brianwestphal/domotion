@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5jk98ryds5z6qq",
+          "message": {
+            "text": "A one-file Fontconfig environment makes CDP's non-custom FreeSans result attributable to the verified Noble bytes rather than the mutable runner inventory. The collector copies and rehashes that sole face before Chromium starts, and fingerprints both the generated config and exact inventory.",
+            "markdown": "A one-file Fontconfig environment makes CDP's non-custom FreeSans result attributable to the verified Noble bytes rather than the mutable runner inventory. The collector copies and rehashes that sole face before Chromium starts, and fingerprints both the generated config and exact inventory."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/linux-mathml-greek-raster-collector.ts"
+                },
+                "region": {
+                  "startLine": 102,
+                  "endLine": 124,
+                  "snippet": {
+                    "text": "function isolatedFontconfig(fontBytes: Buffer, fontSource: string, artifactDir: string): IsolatedFontconfig {\n  const root = resolve(artifactDir, \"isolated-fontconfig\"), fontDir = resolve(root, \"fonts\"), cacheDir = resolve(root, \"cache\");\n  mkdirSync(fontDir, { recursive: true }); mkdirSync(cacheDir, { recursive: true });\n  const fontPath = resolve(fontDir, \"FreeSans.ttf\");\n  copyFileSync(fontSource, fontPath);\n  assertFile(fontPath, FREE_SANS_NOBLE_PACKAGE.fontByteLength, FREE_SANS_NOBLE_PACKAGE.fontSha256, \"isolated FreeSans.ttf\");\n  const config = `<?xml version=\"1.0\"?><fontconfig><dir>${xml(fontDir)}</dir><cachedir>${xml(cacheDir)}</cachedir><config><rescan><int>0</int></rescan></config></fontconfig>`;\n  const configPath = resolve(root, \"fonts.conf\"); writeFileSync(configPath, config);\n  const env = { ...process.env, FONTCONFIG_FILE: configPath, FONTCONFIG_PATH: root };\n  execFileSync(\"fc-cache\", [\"-f\", fontDir], { env, stdio: \"pipe\" });\n  const version = execFileSync(\"fc-list\", [\"--version\"], { env, encoding: \"utf8\", stdio: [\"ignore\", \"pipe\", \"pipe\"] }).trim();\n  const lines = execFileSync(\"fc-list\", [\"-f\", \"%{file}\\t%{family[0]}\\t%{postscriptname}\\t%{index}\\n\"], { env, encoding: \"utf8\" })\n    .split(/\\r?\\n/).map((line) => line.trim()).filter(Boolean);\n  if (lines.length !== 1) throw new Error(`isolated Fontconfig inventory has ${lines.length} entries, expected one: ${JSON.stringify(lines)}`);\n  const [listedPath, familyName, postscriptName, rawIndex] = lines[0].split(\"\\t\");\n  if (resolve(listedPath) !== fontPath || familyName !== \"FreeSans\" || postscriptName !== \"FreeSans\" || Number(rawIndex) !== 0) {\n    throw new Error(`isolated Fontconfig inventory mismatch: ${lines[0]}`);\n  }\n  const entry = {\n    path: fontPath, byteLength: fontBytes.length, sha256: sha256(fontBytes), familyName: \"FreeSans\" as const,\n    postscriptName: \"FreeSans\" as const, faceIndex: 0 as const,\n  };\n  return { env, fontPath, version, configSha256: sha256(config), inventorySha256: sha256(JSON.stringify(entry)), entry };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2512"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "8a1a186667d019079cf45b3922085471"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "655493c6cf530bfb4df1f6dfb447efd751d39107",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

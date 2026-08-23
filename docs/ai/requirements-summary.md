@@ -1849,9 +1849,13 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   feature residual inactive on the current pinned noble image: six `<mi>`
   tokens end at capture-owned raster overlays, operators remain paths, and the
   focused run has zero significant regions without a threshold change. The
-  current logical oracle still assumes a paths-provenance row on Linux, so
-  exact face/gid/metric and native/path-floor ratification remain explicit
-  follow-ups rather than being inferred from the clean visual verdict.
+  logical grading now has a token-only pre-terminal contract for exact
+  FreeSans face/gid/advance/offset/outline and captured baseline facts, without
+  demanding paths provenance from a raster-owned terminal. Doc 210 adds a
+  separate authenticated Noble FreeSans native/paths/no-hint Linux collector
+  and proposal/validation gate; its envelope remains explicitly unratified
+  until independent runner evidence is reviewed. The 348-cell core and every
+  scalar visual threshold are unchanged.
 
 <!-- DM-2452 -->
 - The macOS SFNS mask/baseline oracle (doc 168) is diagnostic-only. It routes

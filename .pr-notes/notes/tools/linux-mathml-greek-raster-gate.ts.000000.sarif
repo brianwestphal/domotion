@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5jk9f1pw46opil",
+          "message": {
+            "text": "Ratification remains logical-first and review-bound: independent boot identities, identical environment fingerprints, active native/path and hinting-off arms, validation no greater than proposal in every scalar residual, and exact reviewed role hashes are all mandatory. An empty envelope yields an explicit logical-exact-unratified candidate, never an accepted tolerance.",
+            "markdown": "Ratification remains logical-first and review-bound: independent boot identities, identical environment fingerprints, active native/path and hinting-off arms, validation no greater than proposal in every scalar residual, and exact reviewed role hashes are all mandatory. An empty envelope yields an explicit logical-exact-unratified candidate, never an accepted tolerance."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/linux-mathml-greek-raster-gate.ts"
+                },
+                "region": {
+                  "startLine": 202,
+                  "endLine": 236,
+                  "snippet": {
+                    "text": "export function adjudicateLinuxMathmlGreekRows(\n  rawRows: unknown,\n  rawEnvelopes: unknown,\n): LinuxMathmlGreekReport {\n  const parsed = z.array(linuxMathmlGreekRasterRowSchema).safeParse(rawRows);\n  const envelopes = linuxMathmlGreekEnvelopeFileSchema.safeParse(rawEnvelopes);\n  if (!parsed.success || !envelopes.success) return { schemaVersion: 1, pass: false, eligibleForRatification: false, verdict: \"logical-mismatch\", problems: [parsed.success ? envelopes.error.message : parsed.error.message] };\n  const rows = parsed.data;\n  const problems = rows.flatMap((row) => logicalProblems(row).map((problem) => `${row.runLabel}: ${problem}`));\n  if (problems.length > 0) return { schemaVersion: 1, pass: false, eligibleForRatification: false, verdict: \"logical-mismatch\", problems };\n  const proposal = rows.filter((row) => row.runLabel === \"proposal\");\n  const validation = rows.filter((row) => row.runLabel === \"validation\");\n  if (proposal.length !== 1 || validation.length !== 1) return { schemaVersion: 1, pass: false, eligibleForRatification: false, verdict: \"incomplete-independent-evidence\", problems: [`expected one proposal and one validation row, found ${proposal.length}/${validation.length}`] };\n  const p = proposal[0], v = validation[0];\n  if (canonical(p.fingerprint) !== canonical(v.fingerprint)) problems.push(\"proposal/validation fingerprints differ\");\n  if (p.runProvenance.runnerBootIdSha256 === v.runProvenance.runnerBootIdSha256) problems.push(\"proposal/validation were not collected on independent Linux machines\");\n  if (p.cellSha256 !== v.cellSha256) problems.push(\"proposal/validation cell identities differ\");\n  const proposalMaxima = maxima(p.residual), validationResidual = maxima(v.residual);\n  const candidateEnvelope = {\n    cellSha256: p.cellSha256,\n    fingerprintSha256: linuxMathmlGreekFingerprintSha256(p.fingerprint),\n    proposalHashes: { native: p.nativeArtifact.sha256, paths: p.pathsArtifact.sha256, hintingOff: p.hintingOffArtifact.sha256 },\n    validationHashes: { native: v.nativeArtifact.sha256, paths: v.pathsArtifact.sha256, hintingOff: v.hintingOffArtifact.sha256 },\n    maxima: proposalMaxima,\n  };\n  if (!inside(validationResidual, proposalMaxima)) problems.push(\"independent validation exceeds the proposal residual in at least one scalar dimension\");\n  if (problems.length > 0) return { schemaVersion: 1, pass: false, eligibleForRatification: false, verdict: problems.some((problem) => problem.includes(\"exceeds\")) ? \"validation-exceeds-proposal\" : \"incomplete-independent-evidence\", problems, candidateEnvelope };\n  const envelope = envelopes.data.entries.find((entry) => entry.cellSha256 === candidateEnvelope.cellSha256 && entry.fingerprintSha256 === candidateEnvelope.fingerprintSha256);\n  if (envelope == null) return { schemaVersion: 1, pass: false, eligibleForRatification: true, verdict: \"logical-exact-unratified\", problems: [], candidateEnvelope };\n  if (canonical(envelope.proposalHashes) !== canonical(candidateEnvelope.proposalHashes)\n    || canonical(envelope.validationHashes) !== canonical(candidateEnvelope.validationHashes)\n    || canonical(envelope.maxima) !== canonical(candidateEnvelope.maxima)) {\n    return { schemaVersion: 1, pass: false, eligibleForRatification: false, verdict: \"logical-mismatch\", problems: [\"ratified envelope is not the reviewed proposal/validation evidence\"], candidateEnvelope };\n  }\n  return { schemaVersion: 1, pass: true, eligibleForRatification: true, verdict: \"ratified-rasterization-only\", problems: [], candidateEnvelope };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 98,
+          "workItemUris": [
+            "DM-2512"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e6ac610428f9a2635615922c6f8391bf"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "655493c6cf530bfb4df1f6dfb447efd751d39107",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

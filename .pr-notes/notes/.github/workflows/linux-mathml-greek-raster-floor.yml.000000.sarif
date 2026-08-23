@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5jk9lb6bgkjlds",
+          "message": {
+            "text": "The dedicated Ubuntu 24.04 workflow downloads and verifies the exact Noble .deb and FreeSans member, collects proposal and validation on separate runners, reopens every PNG through the strict gate, and uploads an unratified candidate for review. It never edits or invokes the three-platform 348-cell envelope.",
+            "markdown": "The dedicated Ubuntu 24.04 workflow downloads and verifies the exact Noble .deb and FreeSans member, collects proposal and validation on separate runners, reopens every PNG through the strict gate, and uploads an unratified candidate for review. It never edits or invokes the three-platform 348-cell envelope."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/linux-mathml-greek-raster-floor.yml"
+                },
+                "region": {
+                  "startLine": 7,
+                  "endLine": 78,
+                  "snippet": {
+                    "text": "  collect:\n    strategy:\n      fail-fast: false\n      matrix:\n        evidence: [proposal, validation]\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with:\n          node-version: 22\n          cache: npm\n      - run: npm ci\n      - name: Install pinned Chromium and Linux dependencies\n        run: npx playwright install --with-deps chromium\n      - name: Acquire authenticated Ubuntu Noble FreeSans package\n        shell: bash\n        run: |\n          set -euo pipefail\n          mkdir -p .linux-mathml-font/extracted\n          curl --fail --location --silent --show-error \\\n            'https://archive.ubuntu.com/ubuntu/pool/main/f/fonts-freefont/fonts-freefont-ttf_20211204%2Bsvn4273-2_all.deb' \\\n            --output .linux-mathml-font/fonts-freefont-ttf.deb\n          echo 'c8283ec9ca390e6ad8d2114cb0942182db62bb97f5142c2f955218fc5f2027b4  .linux-mathml-font/fonts-freefont-ttf.deb' | sha256sum --check --strict\n          dpkg-deb --extract .linux-mathml-font/fonts-freefont-ttf.deb .linux-mathml-font/extracted\n          echo '350badd6ab6a58e7fd7a0ea2ae0c10174941a08e1cd06b3c6010e10b3d5ae319  .linux-mathml-font/extracted/usr/share/fonts/truetype/freefont/FreeSans.ttf' | sha256sum --check --strict\n      - name: Collect one source-owned MathML Greek raster cell\n        run: >-\n          npm run fonts:paths-raster:linux-mathml:collect --\n          --deb .linux-mathml-font/fonts-freefont-ttf.deb\n          --font .linux-mathml-font/extracted/usr/share/fonts/truetype/freefont/FreeSans.ttf\n          --out observations/observations.json\n          --artifact-dir observations\n          --run-label ${{ matrix.evidence }}\n      - name: Reauthenticate logical facts and PNG residuals\n        run: >-\n          npm run fonts:paths-raster:linux-mathml:gate -- produce\n          --observations observations/observations.json\n          --out observations/linux-mathml-greek-raster-rows.json\n      - uses: actions/upload-artifact@v4\n        if: always()\n        with:\n          name: linux-mathml-greek-raster-${{ matrix.evidence }}\n          path: |\n            observations/linux-mathml-greek-raster-rows.json\n            observations/*-native.png\n            observations/*-paths.png\n            observations/*-hinting-off.png\n          if-no-files-found: error\n          compression-level: 0\n\n  aggregate:\n    needs: collect\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with:\n          node-version: 22\n          cache: npm\n      - run: npm ci\n      - uses: actions/download-artifact@v4\n        with:\n          pattern: linux-mathml-greek-raster-*\n          path: artifacts\n      - name: Build strict ratification candidate\n        run: >-\n          npm run fonts:paths-raster:linux-mathml:gate -- aggregate\n          --artifacts artifacts\n          --envelopes tools/linux-mathml-greek-raster-envelopes.json\n          --out linux-mathml-greek-raster-report.json\n          --allow-unratified"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2512"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "950c96ee9d8292b6f524b2a6a506369c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "655493c6cf530bfb4df1f6dfb447efd751d39107",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
