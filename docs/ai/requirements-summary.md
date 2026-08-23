@@ -95,6 +95,20 @@ proposal plus 348 independent-validation cells on each of macOS, Linux, and
 Windows at DPR1/2. Every validation residual remains inside its exact proposal
 value; scalar harness caps stay unchanged.
 
+DM-2532/doc 220 closes the declared logical substitution-stream gap before any
+native raster grading. The same authenticated portable bytes must cross a sole
+Chromium custom face, Chromium-configured pinned HarfBuzz, and production
+text-run provenance with exact gid/UTF-16-cluster/source-span/advance/offset,
+direction/script/language/features/axes, and source identity. The corpus covers
+`liga`, required/contextual `rlig`, contextual Arabic forms, GPOS mark
+attachment, variable axes, and `locl` language systems under Blink's actual
+default `MONOTONE_GRAPHEMES`. All thirteen input/source/record mutations must
+move. Cross-platform ratification requires independent proposal and validation
+artifacts on macOS, Linux, and Windows with identical corpus/logical digests;
+the aggregate reports rasterization `not-started`, and doc 197's 348-cell
+corpus, envelopes, and scalar caps remain unchanged. DM-2552 owns the first
+retained six-artifact run after integration.
+
 The doc-116 text-layout stage is an exact CI gate: a declarative multi-valued
 covering array proves every pair across Blink's bidi, writing, wrapping,
 breaking, ruby, emphasis, justification, synthesis, zoom, transform, and
@@ -550,12 +564,16 @@ they describe (see `CLAUDE.md` "Documentation"):
   headless/headed, Common + ten standing scripts + Page language scripts, and
   dynamically derived preference mutations on macOS/Linux/Windows. It uses
   `system-ui` only as a separation control and has no pixel tolerance.
-  The isolated-profile gate in doc 212 additionally proves the upstream
-  PrefService/WebPreferences route: headed full Chrome honors the supported
-  profile fields, while headless retains only profile Common `math` and uses
-  clean headless Settings elsewhere. Cross-site target divergence is detected
-  and refused rather than inheriting unauthenticated main-Page authority, and
-  every script probe paints a scalar belonging to that script.
+  The isolated-profile gate in docs 212/219 additionally proves the upstream
+  PrefService/WebPreferences route. All 21 Common/Japanese/Devanagari fields
+  must persist raw and paint exactly in headed Chrome; headless ownership is
+  split only by the keys derived from Playwright's installed source table.
+  Full-Chrome path/SHA/channel/command-line/user-data-dir identity, both profile
+  launch orders, and both all-field main/OOPIF mutation orders are mandatory.
+  Cross-site target divergence is detected and refused rather than inheriting
+  unauthenticated main-Page authority; `system-ui` remains a stable separate
+  control. No fixed overlay count, pixel tolerance, or font-name answer table
+  can satisfy the gate.
 - **Platform-owned `system-ui` preferences (font-resolution-diagram §2,
   doc 211, DM-2504)** — **Shipped logical gate.** `system-ui` bypasses generic
   Settings: macOS resolves a CoreText UI handle through the pinned
@@ -1149,8 +1167,14 @@ they describe (see `CLAUDE.md` "Documentation"):
   functions in `src/capture/script/cross-origin.ts` (bundled into the capture script +
   unit-tested), exact-host with optional port (default ports normalized). Default off +
   a stderr security warning (web-security-off disables CORS). Unit + e2e tested
-  (`tests/cross-origin-iframe-recursion.e2e.test.ts`). Scroll-path threading is a minor
-  follow-up. **Phase 1 (DM-1441):** a same-origin `<iframe>` no longer rasters to a flat `<image>`
+  (`tests/cross-origin-iframe-recursion.e2e.test.ts`). DM-2537 now threads a
+  fresh Chromium `FrameId`/parent graph, the exact parent-relative allowlist,
+  ancestor reachability, frame-local scrollbar owners and raw offsets through
+  every scroll anchor. Composition rejects omitted/reused/wrong-frame state;
+  denied/inaccessible branches remain diagnosed rasters with no descendant
+  owner leakage. A forced OOPIF control authenticates its target/parent IDs
+  while web security keeps the child inaccessible ([doc 217](../217-cross-origin-frame-scroll-ownership.md)).
+  **Phase 1 (DM-1441):** a same-origin `<iframe>` no longer rasters to a flat `<image>`
   (raster-fallback §E4) — its `contentDocument` is recursed with the **same** capture
   logic and spliced in as the iframe node's child, yielding crisp/scalable/selectable
   native SVG. Placement uses a **temporary `vp`-origin shift** during the inner walk
@@ -1776,6 +1800,23 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   `source-exact`; the fixed four-code stage bound and mutation thresholds were
   not widened, and no known-drift workflow allowance remains.
 
+<!-- DM-2535 -->
+- Mixed SVG/reference and shorthand filters remain one browser-owned native
+  CSS filter terminal. [Doc 218](../218-mixed-reference-color-space-ownership.md)
+  pins Chromium's current compositor-list behavior: a linearRGB reference
+  followed by a shorthand filter receives no intermediate linearRGB-to-sRGB
+  conversion, and the terminal converts to sRGB only after the list. Domotion
+  must not insert, lower, or approximate that missing transition. The DPR-1/2
+  oracle must retain exact straight and premultiplied stages, explicit-sRGB and
+  reversed-order controls, partial alpha, six vector boundaries, hostile
+  transfer/order/isolation models, and independently active source/candidate
+  mutations. Blink's blend Effect remains the outer consumer of its inner
+  Filter: source content is filtered before it blends with the effect backdrop.
+  The current localized reference-filter wrapper reverses that nesting; DM-2548
+  owns the source-derived reorder, and DM-2549 owns strict three-platform
+  promotion afterward. DM-2535 changes neither production behavior nor the
+  fixed four-code channel and eight-code mutation bounds.
+
 <!-- Ordinary backdrop ownership -->
 - [Docs 187](../187-backdrop-source-surface-transitions.md),
   [194](../194-ordinary-backdrop-effect-space.md), and
@@ -2096,6 +2137,21 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   perspective/grouping expected owner was copied from production's former
   descendant-union assumption; DM-2492 corrected both expectations and the
   selector, and the focused gate is 64/64 with 5/5 mutations.
+- Scroll/view/rAF timing remains an **investigated, explicit production
+  boundary** (DM-2531, [doc 221](../221-scroll-view-raf-timeline-ownership.md)).
+  Pinned Blink proves that ScrollTimeline/ViewTimeline time is a CSS percentage
+  from post-layout scroll/range snapshots and can also tick from the compositor
+  scroll tree. HTML/CSS-box position/size ignores projective paint for this
+  purpose, while SVG-child size uses transform-sensitive mapped bounds.
+  `document.getAnimations()` is TreeScope-limited. rAF is a PageAnimator queue
+  outside that enumeration. The live main/OOPIF oracle proves exact percentage
+  holds freeze effects but not sources, shadow progress is silently missed,
+  and a pre-navigation Playwright clock stops benign page-global callbacks but
+  exposes saved native rAF and misses worker rAF. DM-2553 must carry logical
+  axis/direction, SVG geometry, source/snapshot, rollback, and all-TreeScope
+  authority. DM-2554 must own, disable, or reject page-native and worker escapes
+  and pass the combined ordering gate. No millisecond-to-percentage mapping,
+  pixel evidence, or tolerance is authorized.
 - Nested projective owner selection is **source-derived and shipped**
   (DM-2356/DM-2492, [doc 189](../189-nested-projective-context-ownership.md)). Pinned
   Blink source propagates a rendering-context ID only through a direct parent
@@ -2186,6 +2242,25 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   rasters are in [doc 169](../169-authoritative-scrollbar-capture.md). DM-2484
   owns the dependent three-platform release gate.
 
+<!-- DM-2537 -->
+- Cross-origin iframe scroll ownership is **source-derived and implemented**
+  ([doc 217](../217-cross-origin-frame-scroll-ownership.md)). Each capture uses
+  Chromium's default execution-context `FrameId`, local `Page.Frame` parent
+  ID, and OOPIF `TargetInfo.parentFrameId`, not URL/order/geometry correlation,
+  then binds that child record to its exact iframe owner element. Access is
+  decided relative to the immediate parent;
+  a denied, inaccessible, or unauthenticated ancestor exposes no descendant
+  scroll owners. Every reachable frame records exact viewport/element owner
+  IDs, raw negative RTL/vertical offsets, dimensions, direction and writing
+  mode. Frame-local scrollbar sets carry the same owner identity. Each scroll
+  segment seals a fresh state, selected top-frame owner and offset; composition
+  rejects capture reuse, an omitted/changed allowlist, a sibling owner,
+  wrong-frame scrollbar, stale iframe identity or offset mutation. Unit
+  mutations and a three-origin live Chromium E2E cover nested same/cross/denied
+  frames, a forced site-isolated inaccessible iframe, fixed descendants, and
+  mask/clip TreeScopes on macOS/Linux/Windows.
+  No pixel threshold, fitting constant or tolerance changed.
+
 <!-- Composed parity corpus -->
 - The composed integration corpus is **shipped** ([doc 183](../183-composed-metamorphic-parity-corpus.md)). Seven repository visual rows and one pinned html-test page cross multilingual fallback/bidi with flex/grid, controls with responsive fragmentation, gradient/mask/clip paint with stacking, SVG effects, zoom/transforms, same-origin iframe recursion, and dynamic canvas pixels frozen at capture. A live Chromium E2E leg proves the neutral-wrapper, equivalent-syntax, node-split, translation, scale, and DOM-order relations actually move or remain invariant as declared; the visual leg launches a fresh process per page so global cache history cannot become a hidden fixture-order axis. A hard native macOS/Linux/Windows workflow builds each platform resolver helper, records the producer fingerprint, and uploads source/SVG/raster/diff evidence. The primary macOS calibration is exact on all seven rows (zero regions and zero changed coverage).
 
@@ -2216,3 +2291,23 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   structured line-relative/physical baseline record. Native glyph
   antialiasing and all existing visual tolerances remain outside this geometry
   requirement.
+
+<!-- DM-2539 -->
+- Isolated browser generic preferences are an **authenticated 21-field logical
+  protocol** ([doc 219](../219-authenticated-profile-oopif-generic-preferences.md)).
+  Every run must resolve full Chrome through Playwright channel `chrome`, hash
+  that executable, and match the CDP product, command path, and exact isolated
+  user-data-dir. Raw `Default/Preferences` must retain all seven maps for
+  Common, Japanese, and Devanagari before launch and after headed/headless
+  launches in both orders. Headless ownership is determined by structurally
+  reading the installed Playwright overlay source, never by a remembered row
+  count. Every requested field must be non-inert and each script must use at
+  least two independently painted mutation families. A cross-site child must
+  authenticate as a distinct `iframe` target; child→main and main→child
+  `Page.setFontFamilies` orders must each move all 21 selected-target fields,
+  leave all 21 other-target fields stable after the first step, converge to the
+  same final state, and leave locale-tagged `system-ui` controls unchanged.
+  Script discriminators must restore Blink's `lang`-owned `-webkit-locale`
+  after style neutralization. The gate is native macOS/Linux/Windows logical
+  evidence only: screenshots, pixel tolerances, committed family answers, and
+  unchecked “supported field” counts are forbidden.

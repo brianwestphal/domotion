@@ -51,6 +51,14 @@ therefore update synchronously or within the normal settle window after its
 scroll event; applications with longer asynchronous updates should include an
 appropriate pause in the pattern.
 
+Every anchor also carries an authenticated source record for the selected
+owner: Chromium `FrameId`, capture-local live-node owner ID, raw offset and the
+exact cross-origin allowlist/frame graph. The current selector API resolves in
+the top document; child-frame owners are retained for nested scrollbar and
+resource correlation, not accepted as substitute composition anchors. A
+fresh state is required for every anchor, so DOM reuse cannot inherit a prior
+allowlist. See [doc 217](217-cross-origin-frame-scroll-ownership.md).
+
 The composed SVG animates between the recorded anchors. It does not execute the
 application's virtualization code at playback time, so the result remains
 self-contained and deterministic.

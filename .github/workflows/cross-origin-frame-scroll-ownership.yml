@@ -1,0 +1,68 @@
+name: Cross-origin frame scroll ownership
+
+on:
+  pull_request:
+    paths:
+      - "src/capture/frame-scroll-state.ts"
+      - "src/capture/scrollbar-capture.ts"
+      - "src/capture/script/index.ts"
+      - "src/capture/script.generated.ts"
+      - "src/capture/types.ts"
+      - "src/capture/index.ts"
+      - "src/scroll/executor.ts"
+      - "src/scroll/composer.ts"
+      - "src/scroll/frame-scroll-ownership.test.ts"
+      - "tests/cross-origin-frame-scroll-workflow.test.ts"
+      - "tests/cross-origin-iframe-recursion.e2e.test.ts"
+      - "docs/81-iframe-recursion.md"
+      - "docs/217-cross-origin-frame-scroll-ownership.md"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - ".github/workflows/cross-origin-frame-scroll-ownership.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/capture/frame-scroll-state.ts"
+      - "src/capture/scrollbar-capture.ts"
+      - "src/capture/script/index.ts"
+      - "src/capture/script.generated.ts"
+      - "src/capture/types.ts"
+      - "src/capture/index.ts"
+      - "src/scroll/executor.ts"
+      - "src/scroll/composer.ts"
+      - "src/scroll/frame-scroll-ownership.test.ts"
+      - "tests/cross-origin-frame-scroll-workflow.test.ts"
+      - "tests/cross-origin-iframe-recursion.e2e.test.ts"
+      - "docs/81-iframe-recursion.md"
+      - "docs/217-cross-origin-frame-scroll-ownership.md"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - ".github/workflows/cross-origin-frame-scroll-ownership.yml"
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "22.21.0"
+
+jobs:
+  exact-logical-ownership:
+    name: ${{ runner.os }} exact frame/scroll ownership
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium
+      - name: Verify destructive frame/allowlist/offset mutations
+        run: npx vitest run src/scroll/frame-scroll-ownership.test.ts tests/cross-origin-frame-scroll-workflow.test.ts
+      - name: Verify nested live Chromium frame and scrollbar ownership
+        run: npx vitest run --config vitest.e2e.config.ts tests/cross-origin-iframe-recursion.e2e.test.ts
+      - name: Verify generated capture bundle and types
+        run: npm run typecheck

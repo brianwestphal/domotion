@@ -26,7 +26,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import type { Page } from "@playwright/test";
+import type { Frame, Page } from "@playwright/test";
 import sharp from "sharp";
 
 import type { ResolvedPseudoStyleCapture } from "./pseudo-style-cdp.js";
@@ -49,6 +49,7 @@ import type {
   CapturedScrollbarSet,
   CaptureWarning,
 } from "./types.js";
+import type { PreparedFrameScrollCapture, PreparedFrameScrollFrame } from "./frame-scroll-state.js";
 
 export interface ScrollbarCaptureViewport {
   x: number;
@@ -77,6 +78,10 @@ const MARKER_DISTANCE_SQUARED = 34 ** 2 * 3;
 const REQUIRED_FACT_FEATURE = "scrollbar-capture";
 
 interface BrowserCandidate {
+  frame: Frame;
+  frameId: string;
+  ownerId: string;
+  elementIndex: number;
   index: number;
   hostId?: string;
   selector: string;
@@ -457,6 +462,10 @@ function makeScrollbarSet(
     captureDpr: candidate.devicePixelRatio,
     forcedColors: candidate.forcedColors,
     missingFacts: [...new Set(missingFacts)].sort(),
+    owner: {
+      frameId: candidate.frameId,
+      ownerId: candidate.ownerId,
+    },
   };
 }
 
@@ -692,10 +701,10 @@ async function materializeAuthorPartRasters(
 }
 
 async function restoreMarkerPaint(
-  page: Page,
+  frame: Frame,
   args: { nodesKey: string; index: number; markerAttribute: string },
 ): Promise<void> {
-  await page.evaluate(({ nodesKey, index, markerAttribute }) => {
+  await frame.evaluate(({ nodesKey, index, markerAttribute }) => {
     const nodes = (globalThis as typeof globalThis & Record<string, unknown>)[nodesKey] as Element[] | undefined;
     const element = nodes?.[index];
     const state = (globalThis as typeof globalThis & Record<string, unknown>)[`${nodesKey}_marker`] as {
@@ -718,7 +727,7 @@ async function restoreMarkerPaint(
     }
     delete (globalThis as typeof globalThis & Record<string, unknown>)[`${nodesKey}_marker`];
   }, args).catch(() => undefined);
-  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
+  await frame.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
     .catch(() => undefined);
 }
 
@@ -779,15 +788,17 @@ function nativeOverlayComponentsFromSource(
 async function captureNativeOverlayFrames(
   page: Page,
   nodesKey: string,
-  indexes: readonly number[],
+  frameIndexes: readonly { frame: Frame; indexes: readonly number[] }[],
   viewport: ScrollbarCaptureViewport,
 ): Promise<NativeOverlayFrames> {
   const source = await captureNativeScrollbarSourceFrame(page, viewport);
-  if (indexes.length === 0 || source == null) return { source, underlay: null, restored: null };
+  if (frameIndexes.every(({ indexes }) => indexes.length === 0) || source == null) {
+    return { source, underlay: null, restored: null };
+  }
   const restoreKey = `__domotionScrollbarWidthRestore_${randomUUID().replaceAll("-", "")}`;
   let underlay: NativeScrollbarFrame | null = null;
   try {
-    await page.evaluate(({ nodesKey, indexes, restoreKey }) => {
+    await Promise.all(frameIndexes.map(({ frame, indexes }) => frame.evaluate(({ nodesKey, indexes, restoreKey }) => {
       const pageGlobal = globalThis as typeof globalThis & Record<string, unknown>;
       const nodes = pageGlobal[nodesKey] as Element[] | undefined;
       const restore: Array<{ element: HTMLElement; value: string; priority: string }> = [];
@@ -803,13 +814,15 @@ async function captureNativeOverlayFrames(
       }
       pageGlobal[restoreKey] = restore;
       void document.documentElement.getBoundingClientRect();
-    }, { nodesKey, indexes, restoreKey });
-    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    }, { nodesKey, indexes, restoreKey })));
+    await Promise.all(frameIndexes.map(({ frame }) => frame.evaluate(() => new Promise<void>((resolve) => (
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+    )))));
     underlay = await captureNativeScrollbarSourceFrame(page, viewport);
   } catch {
     underlay = null;
   } finally {
-    await page.evaluate((restoreKey) => {
+    await Promise.all(frameIndexes.map(({ frame }) => frame.evaluate((restoreKey) => {
       const pageGlobal = globalThis as typeof globalThis & Record<string, unknown>;
       const restore = pageGlobal[restoreKey] as Array<{
         element: HTMLElement;
@@ -823,10 +836,11 @@ async function captureNativeOverlayFrames(
       }
       delete pageGlobal[restoreKey];
       void document.documentElement.getBoundingClientRect();
-    }, restoreKey).catch(() => undefined);
+    }, restoreKey).catch(() => undefined)));
   }
-  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
-    .catch(() => undefined);
+  await Promise.all(frameIndexes.map(({ frame }) => frame.evaluate(() => new Promise<void>((resolve) => (
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+  ))).catch(() => undefined)));
   const restored = await captureNativeScrollbarSourceFrame(page, viewport);
   return { source, underlay, restored };
 }
@@ -837,144 +851,200 @@ export async function prepareCapturedScrollbarSets(
   selector: string,
   viewport: ScrollbarCaptureViewport,
   pseudoCapture: Pick<ResolvedPseudoStyleCapture, "propertyKey" | "stylesByHost" | "dynamicScrollbarKinds">,
-  options?: { sourceImagePath?: string },
+  options?: {
+    sourceImagePath?: string;
+    frameScrollCapture?: PreparedFrameScrollCapture;
+  },
 ): Promise<PreparedScrollbarCapture> {
   const propertyKey = `__domotionCapturedScrollbars_${randomUUID().replaceAll("-", "")}`;
   const nodesKey = `${propertyKey}_nodes`;
   const markerAttribute = `data-${propertyKey.toLowerCase().replaceAll("_", "-")}`;
   let candidates: BrowserCandidate[];
+  const frameTargets: readonly PreparedFrameScrollFrame[] = options?.frameScrollCapture?.frames
+    .filter(({ access, reachableFromTop }) => reachableFromTop && (
+      access === "top" || access === "same-origin" || access === "cross-origin-allowlisted"
+    ))
+    ?? [{
+      frame: page.mainFrame(), token: "legacy", frameId: "legacy-top", parentFrameId: null,
+      origin: "", access: "top", allowlistMatched: false, readableFromParent: true,
+      reachableFromTop: true,
+      frameOffsetX: 0, frameOffsetY: 0, frameScaleX: 1, frameScaleY: 1,
+      frameClip: { x: 0, y: 0, width: page.viewportSize()?.width ?? viewport.width, height: page.viewportSize()?.height ?? viewport.height },
+      axisAligned: true,
+    }];
   try {
-    candidates = await page.evaluate(({ selector, viewport, nodesKey, pseudoKey }) => {
-    const root = document.querySelector(selector);
-    if (root == null) return [];
-    const nodes: Element[] = [];
-    const seen = new Set<Element>();
-    const stack: Element[] = [root];
-    if (document.scrollingElement != null && !root.contains(document.scrollingElement)) {
-      stack.push(document.scrollingElement);
-    }
-    while (stack.length > 0) {
-      const element = stack.pop()!;
-      if (seen.has(element)) continue;
-      seen.add(element);
-      let style: CSSStyleDeclaration;
-      try { style = getComputedStyle(element); } catch { continue; }
-      const rootScroller = element === document.scrollingElement;
-      const html = element as HTMLElement;
-      const rootRange = rootScroller && (
-        (style.overflowX !== "hidden" && style.overflowX !== "clip" && html.scrollWidth > html.clientWidth)
-        || (style.overflowY !== "hidden" && style.overflowY !== "clip" && html.scrollHeight > html.clientHeight)
-        || style.scrollbarGutter !== "auto"
-      );
-      if (["auto", "scroll"].includes(style.overflowX)
-          || ["auto", "scroll"].includes(style.overflowY)
-          || rootRange) nodes.push(element);
-      for (const child of element.children) stack.push(child);
-      if (element.shadowRoot != null) for (const child of element.shadowRoot.children) stack.push(child);
-      // Same-origin iframe documents recurse through CAPTURE_SCRIPT with their
-      // own viewport mapping. Do not attach main-frame screenshot coordinates
-      // to those inner nodes; the walker emits an explicit correlation warning
-      // until a frame-local marker surface is added.
-    }
-    (globalThis as typeof globalThis & Record<string, unknown>)[nodesKey] = nodes;
-    return nodes.map((element, index) => {
-      const style = getComputedStyle(element);
-      const rootScroller = element === document.scrollingElement;
-      const measuredRect = element.getBoundingClientRect();
-      const rect = rootScroller
-        ? { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight }
-        : measuredRect;
-      let clip = { x: viewport.x, y: viewport.y, width: viewport.width, height: viewport.height };
-      let hasOverflowControlsClip = false;
-      let clipExact = style.clipPath === "none" && style.maskImage === "none"
-        && style.borderRadius === "0px";
-      for (let ancestor = element.parentElement; ancestor != null; ancestor = ancestor.parentElement) {
-        const ancestorStyle = getComputedStyle(ancestor);
-        const clipsOverflow = [ancestorStyle.overflowX, ancestorStyle.overflowY]
-          .some((value) => value !== "visible");
-        if (ancestorStyle.clipPath !== "none" || ancestorStyle.maskImage !== "none"
-            || (clipsOverflow && (ancestorStyle.transform !== "none" || ancestorStyle.borderRadius !== "0px"))) {
-          clipExact = false;
+    const discovered = await Promise.all(frameTargets.map(async (target) => {
+      const local = await target.frame.evaluate(({ selector, viewport, nodesKey, pseudoKey, frameMeta, top }) => {
+        const root = top ? document.querySelector(selector) : document.documentElement;
+        if (root == null) return [];
+        const allElements: Element[] = [];
+        const allIndex = new Map<Element, number>();
+        const allSeen = new Set<Element>();
+        const allStack: Element[] = [document.documentElement];
+        while (allStack.length > 0) {
+          const element = allStack.pop()!;
+          if (allSeen.has(element)) continue;
+          allSeen.add(element);
+          allIndex.set(element, allElements.length);
+          allElements.push(element);
+          const children: Element[] = [...element.children];
+          if (element.shadowRoot != null) children.push(...element.shadowRoot.children);
+          for (let index = children.length - 1; index >= 0; index--) allStack.push(children[index]!);
         }
-        if (clipsOverflow) {
-          hasOverflowControlsClip = true;
-          const ancestorRect = ancestor.getBoundingClientRect();
-          const ancestorClip = {
-            x: ancestorRect.x + ancestor.clientLeft,
-            y: ancestorRect.y + ancestor.clientTop,
-            width: ancestor.clientWidth,
-            height: ancestor.clientHeight,
-          };
-          const left = Math.max(clip.x, ancestorClip.x);
-          const top = Math.max(clip.y, ancestorClip.y);
-          const right = Math.min(clip.x + clip.width, ancestorClip.x + ancestorClip.width);
-          const bottom = Math.min(clip.y + clip.height, ancestorClip.y + ancestorClip.height);
-          clip = { x: left, y: top, width: Math.max(0, right - left), height: Math.max(0, bottom - top) };
+        const nodes: Element[] = [];
+        const seen = new Set<Element>();
+        const stack: Element[] = [root];
+        if (document.scrollingElement != null && !root.contains(document.scrollingElement)) stack.push(document.scrollingElement);
+        while (stack.length > 0) {
+          const element = stack.pop()!;
+          if (seen.has(element)) continue;
+          seen.add(element);
+          let style: CSSStyleDeclaration;
+          try { style = getComputedStyle(element); } catch { continue; }
+          const rootScroller = element === document.scrollingElement;
+          const html = element as HTMLElement;
+          const rootRange = rootScroller && (
+            (style.overflowX !== "hidden" && style.overflowX !== "clip" && html.scrollWidth > html.clientWidth)
+            || (style.overflowY !== "hidden" && style.overflowY !== "clip" && html.scrollHeight > html.clientHeight)
+            || style.scrollbarGutter !== "auto"
+          );
+          if (["auto", "scroll"].includes(style.overflowX)
+              || ["auto", "scroll"].includes(style.overflowY)
+              || rootRange) nodes.push(element);
+          const children: Element[] = [...element.children];
+          if (element.shadowRoot != null) children.push(...element.shadowRoot.children);
+          for (let index = children.length - 1; index >= 0; index--) stack.push(children[index]!);
         }
-      }
-      let zoom = 1;
-      let axisAlignedOutput = true;
-      for (let current: Element | null = element; current != null; current = current.parentElement) {
-        const currentStyle = getComputedStyle(current);
-        const value = Number.parseFloat(currentStyle.zoom || "1");
-        if (Number.isFinite(value) && value > 0) zoom *= value;
-        if (currentStyle.transform !== "none") {
-          try {
-            const matrix = new DOMMatrixReadOnly(currentStyle.transform);
-            if (!matrix.is2D || Math.abs(matrix.b) > 1e-7 || Math.abs(matrix.c) > 1e-7) {
-              axisAlignedOutput = false;
+        (globalThis as typeof globalThis & Record<string, unknown>)[nodesKey] = nodes;
+        const globalRect = (rect: { x: number; y: number; width: number; height: number }) => ({
+          x: frameMeta.offsetX + rect.x * frameMeta.scaleX,
+          y: frameMeta.offsetY + rect.y * frameMeta.scaleY,
+          width: rect.width * frameMeta.scaleX,
+          height: rect.height * frameMeta.scaleY,
+        });
+        const intersect = (
+          left: { x: number; y: number; width: number; height: number },
+          right: { x: number; y: number; width: number; height: number },
+        ) => {
+          const x = Math.max(left.x, right.x);
+          const y = Math.max(left.y, right.y);
+          const r = Math.min(left.x + left.width, right.x + right.width);
+          const b = Math.min(left.y + left.height, right.y + right.height);
+          return { x, y, width: Math.max(0, r - x), height: Math.max(0, b - y) };
+        };
+        return nodes.map((element, index) => {
+          const style = getComputedStyle(element);
+          const rootScroller = element === document.scrollingElement;
+          const measuredRect = element.getBoundingClientRect();
+          const localRect = rootScroller
+            ? { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight }
+            : { x: measuredRect.x, y: measuredRect.y, width: measuredRect.width, height: measuredRect.height };
+          const rect = globalRect(localRect);
+          let clip = { x: viewport.x, y: viewport.y, width: viewport.width, height: viewport.height };
+          let hasOverflowControlsClip = !top;
+          if (frameMeta.clip != null) clip = intersect(clip, frameMeta.clip);
+          let clipExact = frameMeta.axisAligned && style.clipPath === "none" && style.maskImage === "none"
+            && style.borderRadius === "0px";
+          for (let ancestor = element.parentElement; ancestor != null; ancestor = ancestor.parentElement) {
+            const ancestorStyle = getComputedStyle(ancestor);
+            const clipsOverflow = [ancestorStyle.overflowX, ancestorStyle.overflowY].some((value) => value !== "visible");
+            if (ancestorStyle.clipPath !== "none" || ancestorStyle.maskImage !== "none"
+                || (clipsOverflow && (ancestorStyle.transform !== "none" || ancestorStyle.borderRadius !== "0px"))) clipExact = false;
+            if (clipsOverflow) {
+              hasOverflowControlsClip = true;
+              const ancestorRect = ancestor.getBoundingClientRect();
+              clip = intersect(clip, globalRect({
+                x: ancestorRect.x + ancestor.clientLeft,
+                y: ancestorRect.y + ancestor.clientTop,
+                width: ancestor.clientWidth,
+                height: ancestor.clientHeight,
+              }));
             }
-          } catch {
-            axisAlignedOutput = false;
           }
-        }
-      }
-      const borderLeft = Number.parseFloat(style.borderLeftWidth) || 0;
-      const borderRight = Number.parseFloat(style.borderRightWidth) || 0;
-      const borderTop = Number.parseFloat(style.borderTopWidth) || 0;
-      const borderBottom = Number.parseFloat(style.borderBottomWidth) || 0;
-      const layoutWidth = element instanceof HTMLElement ? element.offsetWidth : rect.width / zoom;
-      const layoutHeight = element instanceof HTMLElement ? element.offsetHeight : rect.height / zoom;
-      const selectorText = element.id !== ""
-        ? `${element.localName}#${element.id}`
-        : element.localName;
-      return {
-        index,
-        hostId: pseudoKey === "" ? undefined : (element as Element & Record<string, string>)[pseudoKey],
-        selector: selectorText,
-        screenRect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
-        outputRect: { x: rect.x - viewport.x, y: rect.y - viewport.y, width: rect.width, height: rect.height },
-        clipRect: { x: clip.x - viewport.x, y: clip.y - viewport.y, width: clip.width, height: clip.height },
-        hasOverflowControlsClip,
-        clipExact,
-        overflowX: style.overflowX,
-        overflowY: style.overflowY,
-        scrollbarWidth: style.scrollbarWidth || "auto",
-        scrollbarColor: style.scrollbarColor || "auto",
-        scrollbarGutter: style.scrollbarGutter || "auto",
-        colorScheme: style.colorScheme || "normal",
-        direction: style.direction,
-        writingMode: style.writingMode,
-        visibility: style.visibility,
-        scrollWidth: (element as HTMLElement).scrollWidth ?? 0,
-        scrollHeight: (element as HTMLElement).scrollHeight ?? 0,
-        clientWidth: (element as HTMLElement).clientWidth ?? 0,
-        clientHeight: (element as HTMLElement).clientHeight ?? 0,
-        scrollLeft: (element as HTMLElement).scrollLeft ?? 0,
-        scrollTop: (element as HTMLElement).scrollTop ?? 0,
-        layoutGutterVertical: Math.max(0, layoutWidth - (element as HTMLElement).clientWidth - borderLeft - borderRight),
-        layoutGutterHorizontal: Math.max(0, layoutHeight - (element as HTMLElement).clientHeight - borderTop - borderBottom),
-        effectiveZoom: zoom,
-        devicePixelRatio: window.devicePixelRatio,
-        forcedColors: matchMedia("(forced-colors: active)").matches,
-        prefersDark: matchMedia("(prefers-color-scheme: dark)").matches,
-        axisAlignedOutput,
-        hostHovered: element.matches(":hover"),
-        hostPressed: element.matches(":active"),
-        rootScroller,
-      };
-    });
-    }, { selector, viewport, nodesKey, pseudoKey: pseudoCapture.propertyKey }) as BrowserCandidate[];
+          let zoom = 1;
+          let axisAlignedOutput = frameMeta.axisAligned;
+          for (let current: Element | null = element; current != null; current = current.parentElement) {
+            const currentStyle = getComputedStyle(current);
+            const value = Number.parseFloat(currentStyle.zoom || "1");
+            if (Number.isFinite(value) && value > 0) zoom *= value;
+            if (currentStyle.transform !== "none") {
+              try {
+                const matrix = new DOMMatrixReadOnly(currentStyle.transform);
+                if (!matrix.is2D || Math.abs(matrix.b) > 1e-7
+                    || Math.abs(matrix.c) > 1e-7) axisAlignedOutput = false;
+              } catch { axisAlignedOutput = false; }
+            }
+          }
+          const borderLeft = Number.parseFloat(style.borderLeftWidth) || 0;
+          const borderRight = Number.parseFloat(style.borderRightWidth) || 0;
+          const borderTop = Number.parseFloat(style.borderTopWidth) || 0;
+          const borderBottom = Number.parseFloat(style.borderBottomWidth) || 0;
+          const layoutWidth = element instanceof HTMLElement ? element.offsetWidth : localRect.width / zoom;
+          const layoutHeight = element instanceof HTMLElement ? element.offsetHeight : localRect.height / zoom;
+          const selectorText = element.id !== "" ? `${element.localName}#${element.id}` : element.localName;
+          return {
+            index,
+            elementIndex: allIndex.get(element) ?? -1,
+            hostId: pseudoKey === "" ? undefined : (element as Element & Record<string, string>)[pseudoKey],
+            selector: selectorText,
+            screenRect: rect,
+            outputRect: { x: rect.x - viewport.x, y: rect.y - viewport.y, width: rect.width, height: rect.height },
+            clipRect: { x: clip.x - viewport.x, y: clip.y - viewport.y, width: clip.width, height: clip.height },
+            hasOverflowControlsClip,
+            clipExact,
+            overflowX: style.overflowX,
+            overflowY: style.overflowY,
+            scrollbarWidth: style.scrollbarWidth || "auto",
+            scrollbarColor: style.scrollbarColor || "auto",
+            scrollbarGutter: style.scrollbarGutter || "auto",
+            colorScheme: style.colorScheme || "normal",
+            direction: style.direction,
+            writingMode: style.writingMode,
+            visibility: style.visibility,
+            scrollWidth: (element as HTMLElement).scrollWidth ?? 0,
+            scrollHeight: (element as HTMLElement).scrollHeight ?? 0,
+            clientWidth: (element as HTMLElement).clientWidth ?? 0,
+            clientHeight: (element as HTMLElement).clientHeight ?? 0,
+            scrollLeft: (element as HTMLElement).scrollLeft ?? 0,
+            scrollTop: (element as HTMLElement).scrollTop ?? 0,
+            layoutGutterVertical: Math.max(0, layoutWidth - (element as HTMLElement).clientWidth - borderLeft - borderRight),
+            layoutGutterHorizontal: Math.max(0, layoutHeight - (element as HTMLElement).clientHeight - borderTop - borderBottom),
+            effectiveZoom: zoom,
+            devicePixelRatio: window.devicePixelRatio,
+            forcedColors: matchMedia("(forced-colors: active)").matches,
+            prefersDark: matchMedia("(prefers-color-scheme: dark)").matches,
+            axisAlignedOutput,
+            hostHovered: element.matches(":hover"),
+            hostPressed: element.matches(":active"),
+            rootScroller,
+          };
+        });
+      }, {
+        selector,
+        viewport,
+        nodesKey,
+        pseudoKey: pseudoCapture.propertyKey,
+        top: target.frame === page.mainFrame(),
+        frameMeta: {
+          offsetX: target.frameOffsetX,
+          offsetY: target.frameOffsetY,
+          scaleX: target.frameScaleX,
+          scaleY: target.frameScaleY,
+          clip: target.frameClip,
+          axisAligned: target.axisAligned,
+        },
+      });
+      return local.map((candidate) => ({
+        ...candidate,
+        frame: target.frame,
+        frameId: target.frameId,
+        ownerId: `${target.frameId}:${candidate.elementIndex}`,
+        selector: target.frame === page.mainFrame()
+          ? candidate.selector
+          : `frame[${target.frameId}] ${candidate.selector}`,
+      })) as BrowserCandidate[];
+    }));
+    candidates = discovered.flat();
   } catch (error) {
     return {
       propertyKey,
@@ -990,14 +1060,18 @@ export async function prepareCapturedScrollbarSets(
   const warnings: CaptureWarning[] = [];
   const viewportSize = page.viewportSize();
   const fingerprint = await captureNativeScrollbarFingerprint(page);
-  const overlayIndexes = candidates.filter((candidate) => (
+  const overlayCandidates = candidates.filter((candidate) => (
     routeForCandidate(candidate, pseudoCapture) === "native-raster"
     && Math.max(candidate.layoutGutterVertical, candidate.layoutGutterHorizontal) <= 0.5
     && candidate.scrollbarWidth !== "none"
     && (candidate.overflowX === "scroll" || candidate.overflowY === "scroll"
       || candidate.scrollWidth > candidate.clientWidth || candidate.scrollHeight > candidate.clientHeight)
-  )).map(({ index }) => index);
-  const overlayFrames = await captureNativeOverlayFrames(page, nodesKey, overlayIndexes, viewport);
+  ));
+  const overlayFrameIndexes = frameTargets.map(({ frame }) => ({
+    frame,
+    indexes: overlayCandidates.filter((candidate) => candidate.frame === frame).map(({ index }) => index),
+  }));
+  const overlayFrames = await captureNativeOverlayFrames(page, nodesKey, overlayFrameIndexes, viewport);
   const sourceFrame = options?.sourceImagePath == null
     ? overlayFrames.source
     : await captureNativeScrollbarSourceFrame(page, viewport, options.sourceImagePath);
@@ -1007,7 +1081,7 @@ export async function prepareCapturedScrollbarSets(
       const route = routeForCandidate(candidate, pseudoCapture);
       if (candidate.scrollbarWidth === "none") {
         const record = makeScrollbarSet(candidate, route, [], {});
-        await page.evaluate(({ nodesKey, index, propertyKey, record }) => {
+        await candidate.frame.evaluate(({ nodesKey, index, propertyKey, record }) => {
           const nodes = (globalThis as typeof globalThis & Record<string, unknown>)[nodesKey] as Element[] | undefined;
           const element = nodes?.[index];
           if (element != null) Object.defineProperty(element, propertyKey, { value: record, configurable: true });
@@ -1016,7 +1090,7 @@ export async function prepareCapturedScrollbarSets(
       }
       const baselinePng = await page.screenshot({ type: "png" });
       const token = `${candidate.index}-${randomUUID().replaceAll("-", "")}`;
-      await page.evaluate(({
+      await candidate.frame.evaluate(({
         nodesKey,
         index,
         markerAttribute,
@@ -1089,7 +1163,7 @@ export async function prepareCapturedScrollbarSets(
       });
       let components: ClassifiedComponent[] = [];
       try {
-        await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+        await candidate.frame.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
         const baseline = await sharp(baselinePng).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
         const classifyScreenshot = async (): Promise<ClassifiedComponent[]> => {
           const png = await page.screenshot({ type: "png" });
@@ -1123,13 +1197,13 @@ export async function prepareCapturedScrollbarSets(
           // so their rectangles also remain browser-owned facts.
           for (const isolatedKind of ["background", "track"] as const) {
             const css = customMarkerCss(markerAttribute, token, isolatedKind);
-            await page.evaluate(({ nodesKey, css }) => {
+            await candidate.frame.evaluate(({ nodesKey, css }) => {
               const state = (globalThis as typeof globalThis & Record<string, unknown>)[`${nodesKey}_marker`] as {
                 style: HTMLStyleElement | null;
               } | undefined;
               if (state?.style != null) state.style.textContent = css;
             }, { nodesKey, css });
-            await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+            await candidate.frame.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
             const isolated = (await classifyScreenshot()).filter(({ kind }) => kind === isolatedKind);
             components = [
               ...components.filter(({ kind }) => kind !== isolatedKind),
@@ -1138,7 +1212,7 @@ export async function prepareCapturedScrollbarSets(
           }
         }
       } finally {
-        await restoreMarkerPaint(page, { nodesKey, index: candidate.index, markerAttribute });
+        await restoreMarkerPaint(candidate.frame, { nodesKey, index: candidate.index, markerAttribute });
       }
 
       if (route === "native-raster" && components.length === 0
@@ -1166,7 +1240,7 @@ export async function prepareCapturedScrollbarSets(
           pseudoCapture.dynamicScrollbarKinds,
         );
       }
-      await page.evaluate(({ nodesKey, index, propertyKey, record }) => {
+      await candidate.frame.evaluate(({ nodesKey, index, propertyKey, record }) => {
         const nodes = (globalThis as typeof globalThis & Record<string, unknown>)[nodesKey] as Element[] | undefined;
         const element = nodes?.[index];
         if (element == null) return;
@@ -1192,14 +1266,14 @@ export async function prepareCapturedScrollbarSets(
     propertyKey,
     warnings,
     async dispose(): Promise<void> {
-      await page.evaluate(({ nodesKey, propertyKey }) => {
+      await Promise.all(frameTargets.map(({ frame }) => frame.evaluate(({ nodesKey, propertyKey }) => {
         const nodes = (globalThis as typeof globalThis & Record<string, unknown>)[nodesKey] as Element[] | undefined;
         for (const element of nodes ?? []) {
           try { delete (element as Element & Record<string, unknown>)[propertyKey]; } catch { /* Detached node. */ }
         }
         delete (globalThis as typeof globalThis & Record<string, unknown>)[nodesKey];
         delete (globalThis as typeof globalThis & Record<string, unknown>)[`${nodesKey}_marker`];
-      }, { nodesKey, propertyKey }).catch(() => undefined);
+      }, { nodesKey, propertyKey }).catch(() => undefined)));
     },
   };
 }

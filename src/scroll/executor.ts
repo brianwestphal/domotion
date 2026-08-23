@@ -21,8 +21,15 @@
 
 import type { Page } from "@playwright/test";
 
-import type { CapturedElement } from "../capture/types.js";
-import { captureElementTree, captureElementTreeSelfContained } from "../capture/index.js";
+import type {
+  CapturedElement,
+  CapturedFrameScrollOwner,
+  CapturedFrameScrollState,
+  CaptureWarning,
+} from "../capture/types.js";
+import { captureElementTreeWithWarnings } from "../capture/index.js";
+import { embedRemoteImages } from "../capture/embed.js";
+import { capturedScrollOwnerBindingSha256 } from "../capture/frame-scroll-state.js";
 import type {
   ScrollPattern, ScrollPatternSegment, FlatSegment, BracketedSegment,
   ScrollPatternAction, ScrollAction, ScrollTarget, AbsoluteTarget, Anchor,
@@ -83,6 +90,14 @@ export interface ScrollSegmentCapture {
   tree: CapturedElement[];
   /** Diff from the previous segment's capture. Null for the very first. */
   diffFromPrev: TreeDiff | null;
+  /** Exact Chromium FrameId/scroll-owner authority sampled with this tree. */
+  frameScrollState?: CapturedFrameScrollState;
+  /** Scroll owner whose raw offset drives this segment's composition anchor. */
+  scrollOwnerId?: string;
+  /** Digest binding the selected owner + x/y to `frameScrollState`. */
+  scrollOwnerBindingSha256?: string;
+  /** Per-segment fail-closed frame diagnostics (denied/inaccessible/etc.). */
+  captureWarnings?: CaptureWarning[];
   /** Easing of the scroll action that produced the motion INTO this segment,
    *  from the pattern's `[easing-name]` suffix (DM-1076). Absent → the composer
    *  uses its `linear` default. The initial capture and pause-captures (no
@@ -328,17 +343,32 @@ export async function executeScrollPattern(
   const selector = opts.selector ?? null;
   const pageQuery = realPageQuery(page, selector);
   const log = opts.log ?? ((_msg: string): void => { /* silent */ });
-  // Capture entry point for this run: self-contained (inlines remote image
-  // bytes) unless the caller embeds the segments itself.
-  const capture = opts.embedImages === false ? captureElementTree : captureElementTreeSelfContained;
   const captureSelector = opts.captureSelector ?? "body";
   const captureViewport = opts.captureViewport ?? {
     x: 0, y: 0, width: opts.viewportW, height: opts.viewportH,
   };
-  const captureCurrentTree = (): Promise<CapturedElement[]> =>
-    capture(page, captureSelector, captureViewport, {
+  const captureCurrentTree = async (): Promise<{
+    tree: CapturedElement[];
+    frameScrollState: CapturedFrameScrollState;
+    captureWarnings: CaptureWarning[];
+    scrollOwnerId: string;
+    scrollX: number;
+    scrollY: number;
+  }> => {
+    const captured = await captureElementTreeWithWarnings(page, captureSelector, captureViewport, {
       ...(opts.crossOriginFrames != null ? { crossOriginFrames: opts.crossOriginFrames } : {}),
     });
+    const scrollOwner = await resolveScrollOwner(page, selector, captured.frameScrollState);
+    if (opts.embedImages !== false) await embedRemoteImages(captured.tree);
+    return {
+      tree: captured.tree,
+      frameScrollState: captured.frameScrollState,
+      captureWarnings: captured.warnings,
+      scrollOwnerId: scrollOwner.ownerId,
+      scrollX: scrollOwner.scrollLeft,
+      scrollY: scrollOwner.scrollTop,
+    };
+  };
 
   if (prescroll) {
     log("  pre-scrolling page to wake lazy-loaded content...");
@@ -350,16 +380,25 @@ export async function executeScrollPattern(
   let sceneTime = 0;
 
   // Capture the initial state.
-  const initialSnap = await pageQuery.snapshot();
-  log(`  captured frame 1 at scrollY=${initialSnap.scrollY} (initial)`);
-  let prevTree = await captureCurrentTree();
+  const initialCapture = await captureCurrentTree();
+  log(`  captured frame 1 at scrollY=${initialCapture.scrollY} (initial)`);
+  let prevTree = initialCapture.tree;
   captures.push({
-    scrollX: initialSnap.scrollX,
-    scrollY: initialSnap.scrollY,
+    scrollX: initialCapture.scrollX,
+    scrollY: initialCapture.scrollY,
     segmentStartMs: 0,
     segmentEndMs: 0,
     tree: prevTree,
     diffFromPrev: null,
+    frameScrollState: initialCapture.frameScrollState,
+    captureWarnings: initialCapture.captureWarnings,
+    scrollOwnerId: initialCapture.scrollOwnerId,
+    scrollOwnerBindingSha256: capturedScrollOwnerBindingSha256(
+      initialCapture.frameScrollState,
+      initialCapture.scrollOwnerId,
+      initialCapture.scrollX,
+      initialCapture.scrollY,
+    ),
   });
 
   const checkTimeout = (): void => {
@@ -375,17 +414,26 @@ export async function executeScrollPattern(
       // Wait. Then check whether the DOM changed (lazy-load may fire).
       await page.waitForTimeout(op.durationMs);
       sceneTime += op.durationMs;
-      const nextTree = await captureCurrentTree();
+      const nextCapture = await captureCurrentTree();
+      const nextTree = nextCapture.tree;
       const diff = diffTrees(prevTree, nextTree);
       const anyChange = diff.entries.some((e) => e.kind !== "static");
       if (anyChange) {
-        const snap = await pageQuery.snapshot();
         captures.push({
-          scrollX: snap.scrollX, scrollY: snap.scrollY,
+          scrollX: nextCapture.scrollX, scrollY: nextCapture.scrollY,
           segmentStartMs: sceneTime - op.durationMs,
           segmentEndMs: sceneTime,
           tree: nextTree,
           diffFromPrev: diff,
+          frameScrollState: nextCapture.frameScrollState,
+          captureWarnings: nextCapture.captureWarnings,
+          scrollOwnerId: nextCapture.scrollOwnerId,
+          scrollOwnerBindingSha256: capturedScrollOwnerBindingSha256(
+            nextCapture.frameScrollState,
+            nextCapture.scrollOwnerId,
+            nextCapture.scrollX,
+            nextCapture.scrollY,
+          ),
         });
         prevTree = nextTree;
         log(`  captured frame ${captures.length} (DOM changed during pause)`);
@@ -437,19 +485,28 @@ export async function executeScrollPattern(
       const segStart = sceneTime;
       await scrollTo(page, selector, chunkDestX, chunkDestY, chunkDur);
       sceneTime += chunkDur;
-      const snap = await pageQuery.snapshot();
-      const nextTree = await captureCurrentTree();
+      const nextCapture = await captureCurrentTree();
+      const nextTree = nextCapture.tree;
       const diff = diffTrees(prevTree, nextTree);
       captures.push({
-        scrollX: snap.scrollX, scrollY: snap.scrollY,
+        scrollX: nextCapture.scrollX, scrollY: nextCapture.scrollY,
         segmentStartMs: segStart,
         segmentEndMs: sceneTime,
         tree: nextTree,
         diffFromPrev: diff,
         easing: op.easing,
+        frameScrollState: nextCapture.frameScrollState,
+        captureWarnings: nextCapture.captureWarnings,
+        scrollOwnerId: nextCapture.scrollOwnerId,
+        scrollOwnerBindingSha256: capturedScrollOwnerBindingSha256(
+          nextCapture.frameScrollState,
+          nextCapture.scrollOwnerId,
+          nextCapture.scrollX,
+          nextCapture.scrollY,
+        ),
       });
       prevTree = nextTree;
-      log(`  captured frame ${captures.length} at scrollY=${Math.round(snap.scrollY)} (chunk ${ci}/${numChunks})`);
+      log(`  captured frame ${captures.length} at scrollY=${Math.round(nextCapture.scrollY)} (chunk ${ci}/${numChunks})`);
     }
   };
 
@@ -615,6 +672,43 @@ async function runAction(
 }
 
 // ── Playwright I/O ─────────────────────────────────────────────────────────
+
+async function resolveScrollOwner(
+  page: Page,
+  selector: string | null,
+  state: CapturedFrameScrollState,
+): Promise<CapturedFrameScrollOwner> {
+  const top = state.frames.find(({ frameId }) => frameId === state.topFrameId);
+  if (top == null) throw new ScrollExecutionError("capture omitted the Chromium top-frame scroll record");
+  if (selector == null) {
+    const viewport = top.scrollOwners.find(({ kind }) => kind === "viewport");
+    if (viewport == null) throw new ScrollExecutionError("capture omitted the Chromium viewport scroll owner");
+    return viewport;
+  }
+  const elementIndex = await page.evaluate((css) => {
+    const root = document.documentElement;
+    const target = document.querySelector(css);
+    if (root == null || target == null) return -1;
+    const elements: Element[] = [];
+    const stack: Element[] = [root];
+    const seen = new Set<Element>();
+    while (stack.length > 0) {
+      const element = stack.pop()!;
+      if (seen.has(element)) continue;
+      seen.add(element);
+      elements.push(element);
+      const children: Element[] = [...element.children];
+      if (element.shadowRoot != null) children.push(...element.shadowRoot.children);
+      for (let index = children.length - 1; index >= 0; index--) stack.push(children[index]!);
+    }
+    return elements.indexOf(target);
+  }, selector);
+  const owner = top.scrollOwners.find((candidate) => candidate.elementIndex === elementIndex);
+  if (owner == null) {
+    throw new ScrollExecutionError(`selector(${JSON.stringify(selector)}) is not an authenticated Chromium scroll owner`);
+  }
+  return owner;
+}
 
 function realPageQuery(page: Page, selector: string | null): PageQuery {
   return {

@@ -13,10 +13,16 @@ on:
       - "src/capture/script/walker/masks-clips.ts"
       - "src/capture/types.ts"
       - "tools/blend-filter-pixel-stage-oracle.ts"
+      - "tools/mixed-reference-color-space-oracle.ts"
       - "tests/blend-filter-pixel-stage-oracle.test.ts"
       - "tests/blend-filter-pixel-stage-oracle.e2e.test.ts"
       - "tests/blend-filter-pixel-stage-workflow.test.ts"
+      - "tests/mixed-reference-color-space-oracle.test.ts"
+      - "tests/mixed-reference-color-space-oracle.e2e.test.ts"
+      - "tests/mixed-reference-color-space-workflow.test.ts"
       - "tests/fixtures/html-test/37-blend-filter-pixel-stage.html"
+      - "tests/fixtures/html-test/38-mixed-reference-color-space-stage.html"
+      - "docs/218-mixed-reference-color-space-ownership.md"
       - "tools/parity-program.json"
       - "tools/semantic-coverage.json"
       - "package.json"
@@ -34,10 +40,16 @@ on:
       - "src/capture/script/walker/masks-clips.ts"
       - "src/capture/types.ts"
       - "tools/blend-filter-pixel-stage-oracle.ts"
+      - "tools/mixed-reference-color-space-oracle.ts"
       - "tests/blend-filter-pixel-stage-oracle.test.ts"
       - "tests/blend-filter-pixel-stage-oracle.e2e.test.ts"
       - "tests/blend-filter-pixel-stage-workflow.test.ts"
+      - "tests/mixed-reference-color-space-oracle.test.ts"
+      - "tests/mixed-reference-color-space-oracle.e2e.test.ts"
+      - "tests/mixed-reference-color-space-workflow.test.ts"
       - "tests/fixtures/html-test/37-blend-filter-pixel-stage.html"
+      - "tests/fixtures/html-test/38-mixed-reference-color-space-stage.html"
+      - "docs/218-mixed-reference-color-space-ownership.md"
       - "tools/parity-program.json"
       - "tools/semantic-coverage.json"
       - "package.json"
@@ -76,9 +88,11 @@ jobs:
         if: runner.os != 'Linux'
         run: npx playwright install chromium
       - name: Run source arithmetic and workflow guards
-        run: npx vitest run tests/blend-filter-pixel-stage-oracle.test.ts tests/blend-filter-pixel-stage-workflow.test.ts
+        run: npx vitest run tests/blend-filter-pixel-stage-oracle.test.ts tests/blend-filter-pixel-stage-workflow.test.ts tests/mixed-reference-color-space-oracle.test.ts tests/mixed-reference-color-space-workflow.test.ts
       - name: Capture DPR 1/2 named-pixel and mutation evidence
         run: npm run paint:blend-filter-stage -- --dpr 1,2 --json tests/output/blend-filter/${{ runner.os }}/report.json --artifact-dir tests/output/blend-filter/${{ runner.os }}
+      - name: Capture mixed reference/shorthand color-space evidence
+        run: npm run paint:mixed-color-space-stage -- --dpr 1,2 --json tests/output/blend-filter/${{ runner.os }}/mixed-color-space-report.json --artifact-dir tests/output/blend-filter/${{ runner.os }}/mixed-color-space-artifacts
       - name: Upload exact producer and pixel evidence
         if: always()
         uses: actions/upload-artifact@v4

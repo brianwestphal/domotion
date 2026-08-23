@@ -142,20 +142,22 @@ pixels, a font-name snapshot, or a tolerance.
 
 - `npm run fonts:generic-profile-target` now proves the upstream
   PrefService-to-WebPreferences path with an isolated, dynamically derived
-  profile rather than a saved font-name snapshot. Full Chrome headed honors all
-  supported Common/script fields. Full Chrome headless instead uses its clean
-  headless Settings for 20 rows while retaining the profile's Common `math`
-  field, because Playwright's Common override table does not assign `math`.
-  The source-owned split is asserted exactly and cannot be hidden by a pixel
-  tolerance.
-- The same gate proves that an ordinary child frame shares its Page authority,
-  while a fresh target CDP session can make a cross-site OOPIF diverge without
-  moving the main frame. Production supports only the non-divergent state and
-  now fails closed when authenticated target Settings disagree; it does not
-  clone the main Page record into a divergent target.
-- Script probes paint representative scalars (`日`, `अ`, `ก`, `ა`, and their
-  peers), so a reported script setting must participate in selection. A Latin
-  fallback glyph can no longer make a script-key assertion vacuously green.
+  profile rather than a saved font-name snapshot. Both headed launch orders
+  honor all 21 Common/Japanese/Devanagari fields and preserve them in the raw
+  profile. Headless ownership is split only by the keys derived from the exact
+  installed Playwright source table: source-masked fields use independently
+  observed clean-headless identities, while omitted fields retain the profile.
+  No fixed row count or pixel tolerance can satisfy the gate.
+- The same gate authenticates distinct main-page and cross-site OOPIF target
+  IDs, then mutates all 21 fields child→main and main→child with a fresh CDP
+  session for each target. Every step moves only its selected target and leaves
+  locale-tagged `system-ui` controls unchanged. Production supports only the
+  non-divergent state and fails closed when authenticated target Settings
+  disagree; it does not clone main-Page authority into a divergent target.
+- The isolated DM-2539 discriminators restore Blink's `lang`-owned
+  `-webkit-locale` after `all: initial`, so Japanese and Devanagari rows select
+  the claimed script maps. DM-2551 owns that locale fix across the broader
+  production probe; DM-2550 owns the hidden macOS Hebrew face it exposes.
 - `system-ui` remains outside this gate's parity claim. Its separate exact
   CoreText / Linux renderer-family / Windows menu-font route oracle shipped in
   [doc 211](211-platform-system-ui-preference-route.md); the rows here remain

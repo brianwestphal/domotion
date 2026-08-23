@@ -41,6 +41,10 @@ export {
 export { embedRemoteImages } from "./capture/embed.js";
 export type {
   CapturedElement,
+  CapturedFrameAccess,
+  CapturedFrameScrollOwner,
+  CapturedFrameScrollRecord,
+  CapturedFrameScrollState,
   CapturedSessionGenericFamilies,
   CapturedTreeEnvelope,
   CapturedTreeInput,

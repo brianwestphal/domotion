@@ -22,6 +22,11 @@
  */
 
 import type { ScrollSegmentCapture } from "./executor.js";
+import {
+  capturedScrollOwnerBindingSha256,
+  validateCapturedFrameScrollState,
+} from "../capture/frame-scroll-state.js";
+import type { CapturedElement, CapturedFrameScrollState } from "../capture/types.js";
 import { elementTreeToSvgInner } from "../render/element-tree-to-svg.js";
 import { rootSvgA11y } from "../render/format.js";
 import { isTransparentBackground } from "../utils/transparent-background.js";
@@ -104,6 +109,159 @@ export interface ScrollComposerOptions {
   renderText?: RenderTextMode;
 }
 
+function iframeIdentities(tree: readonly CapturedElement[]): Array<{
+  element: CapturedElement;
+  identity: NonNullable<CapturedElement["frameScrollIdentity"]>;
+}> {
+  const identities: Array<{
+    element: CapturedElement;
+    identity: NonNullable<CapturedElement["frameScrollIdentity"]>;
+  }> = [];
+  const visit = (elements: readonly CapturedElement[]): void => {
+    for (const element of elements) {
+      if (element.frameScrollIdentity != null) identities.push({ element, identity: element.frameScrollIdentity });
+      visit(element.children ?? []);
+    }
+  };
+  visit(tree);
+  return identities;
+}
+
+function scrollbarSets(tree: readonly CapturedElement[], topFrameId: string): Array<{
+  element: CapturedElement;
+  set: NonNullable<CapturedElement["scrollbars"]>;
+  expectedFrameId: string;
+}> {
+  const sets: Array<{
+    element: CapturedElement;
+    set: NonNullable<CapturedElement["scrollbars"]>;
+    expectedFrameId: string;
+  }> = [];
+  const visit = (elements: readonly CapturedElement[], frameId: string): void => {
+    for (const element of elements) {
+      if (element.scrollbars != null) sets.push({ element, set: element.scrollbars, expectedFrameId: frameId });
+      if (element.rootScrollbars != null) sets.push({ element, set: element.rootScrollbars, expectedFrameId: frameId });
+      const childFrameId = element.tag === "iframe" && element.frameScrollIdentity != null
+        ? element.frameScrollIdentity.frameId
+        : frameId;
+      visit(element.children ?? [], childFrameId);
+    }
+  };
+  visit(tree, topFrameId);
+  return sets;
+}
+
+function scrollOwner(
+  state: CapturedFrameScrollState,
+  ownerId: string,
+): CapturedFrameScrollState["frames"][number]["scrollOwners"][number] | undefined {
+  for (const frame of state.frames) {
+    const owner = frame.scrollOwners.find((candidate) => candidate.ownerId === ownerId);
+    if (owner != null) return owner;
+  }
+  return undefined;
+}
+
+/**
+ * Fail closed before composition when frame/allowlist/offset authority is
+ * omitted, stale, or assigned to a sibling Chromium frame.
+ */
+export function assertScrollFrameOwnership(segments: readonly ScrollSegmentCapture[]): void {
+  const frameAware = segments.some((segment) => (
+    segment.frameScrollState != null
+    || segment.scrollOwnerId != null
+    || segment.scrollOwnerBindingSha256 != null
+    || iframeIdentities(segment.tree).length > 0
+    || scrollbarSets(segment.tree, "").some(({ set }) => set.owner != null)
+  ));
+  if (!frameAware) return; // Legacy/synthetic unit inputs contain no frame authority.
+  const captureIds = new Set<string>();
+  let allowlistSha256: string | undefined;
+  let frameTreeSha256: string | undefined;
+  for (let index = 0; index < segments.length; index++) {
+    const segment = segments[index]!;
+    const state = segment.frameScrollState;
+    if (state == null) throw new Error(`composeScrollSvg: segment ${index} omitted frame-scroll authority`);
+    if (segment.scrollOwnerId == null) throw new Error(`composeScrollSvg: segment ${index} omitted its scroll owner`);
+    if (segment.scrollOwnerBindingSha256 == null) {
+      throw new Error(`composeScrollSvg: segment ${index} omitted its scroll-owner binding`);
+    }
+    const failures = validateCapturedFrameScrollState(state);
+    if (failures.length > 0) {
+      throw new Error(`composeScrollSvg: segment ${index} has invalid frame-scroll authority (${failures.join("; ")})`);
+    }
+    if (captureIds.has(state.captureId)) {
+      throw new Error(`composeScrollSvg: segment ${index} reused capture-local frame state from an earlier segment`);
+    }
+    captureIds.add(state.captureId);
+    allowlistSha256 ??= state.allowlist.sha256;
+    frameTreeSha256 ??= state.frameTreeSha256;
+    if (state.allowlist.sha256 !== allowlistSha256) {
+      throw new Error(`composeScrollSvg: segment ${index} changed/omitted the authenticated cross-origin allowlist`);
+    }
+    if (state.frameTreeSha256 !== frameTreeSha256) {
+      throw new Error(`composeScrollSvg: segment ${index} changed Chromium frame identity during composition`);
+    }
+    const owner = scrollOwner(state, segment.scrollOwnerId);
+    if (owner == null) {
+      throw new Error(`composeScrollSvg: segment ${index} scroll owner ${segment.scrollOwnerId} is absent or belongs to another frame`);
+    }
+    // The executor's selector is resolved with page.evaluate(), so both the
+    // viewport route and selector(...) route are necessarily owned by the top
+    // Chromium frame. Child-frame owners are carried for scrollbar/resource
+    // correlation, never as a substitute composition anchor.
+    if (owner.frameId !== state.topFrameId) {
+      throw new Error(`composeScrollSvg: segment ${index} scroll owner ${owner.ownerId} does not belong to the top Chromium frame`);
+    }
+    if (!Object.is(owner.scrollLeft, segment.scrollX) || !Object.is(owner.scrollTop, segment.scrollY)) {
+      throw new Error(`composeScrollSvg: segment ${index} offset does not match Chromium scroll owner ${owner.ownerId}`);
+    }
+    if (capturedScrollOwnerBindingSha256(
+      state,
+      segment.scrollOwnerId,
+      segment.scrollX,
+      segment.scrollY,
+    ) !== segment.scrollOwnerBindingSha256) {
+      throw new Error(`composeScrollSvg: segment ${index} scroll owner/offset binding was mutated`);
+    }
+    for (const { element, set, expectedFrameId } of scrollbarSets(segment.tree, state.topFrameId)) {
+      if (set.owner == null) {
+        throw new Error(`composeScrollSvg: ${element.tag} scrollbar omitted its Chromium frame/scroll owner in segment ${index}`);
+      }
+      const scrollbarOwner = scrollOwner(state, set.owner.ownerId);
+      if (scrollbarOwner == null || scrollbarOwner.frameId !== set.owner.frameId
+          || set.owner.frameId !== expectedFrameId) {
+        throw new Error(`composeScrollSvg: ${element.tag} scrollbar belongs to a missing or wrong Chromium frame in segment ${index}`);
+      }
+      if (set.horizontal != null && !Object.is(set.horizontal.currentPosition, scrollbarOwner.scrollLeft)) {
+        throw new Error(`composeScrollSvg: ${element.tag} horizontal scrollbar offset does not match owner ${scrollbarOwner.ownerId}`);
+      }
+      if (set.vertical != null && !Object.is(set.vertical.currentPosition, scrollbarOwner.scrollTop)) {
+        throw new Error(`composeScrollSvg: ${element.tag} vertical scrollbar offset does not match owner ${scrollbarOwner.ownerId}`);
+      }
+    }
+    for (const { element, identity } of iframeIdentities(segment.tree)) {
+      const frame = state.frames.find(({ frameId }) => frameId === identity.frameId);
+      if (identity.source !== state.source
+          || identity.captureId !== state.captureId
+          || identity.allowlistSha256 !== state.allowlist.sha256
+          || frame == null
+          || identity.parentFrameId !== frame.parentFrameId
+          || identity.access !== frame.access) {
+        throw new Error(`composeScrollSvg: iframe ${identity.frameId} carries stale/wrong-frame authority in segment ${index}`);
+      }
+      const recursed = frame.reachableFromTop
+        && (identity.access === "same-origin" || identity.access === "cross-origin-allowlisted");
+      if (recursed && element.replacedSnapshot != null) {
+        throw new Error(`composeScrollSvg: readable frame ${identity.frameId} was unexpectedly composed from a raster fallback`);
+      }
+      if (!recursed && element.replacedSnapshot == null) {
+        throw new Error(`composeScrollSvg: fail-closed frame ${identity.frameId} omitted its Chromium raster fallback`);
+      }
+    }
+  }
+}
+
 /**
  * Step-end `visibility` keyframes for a culled segment / sticky window (DM-641):
  * hidden until the content first enters [startPct], visible across the window,
@@ -171,6 +329,7 @@ export function composeScrollSvg(
   if (segments.length === 0) {
     throw new Error("composeScrollSvg: at least one segment capture required");
   }
+  assertScrollFrameOwnership(segments);
   const axis = opts.axis ?? "y";
   const W = opts.viewportW;
   const VH = opts.viewportH;

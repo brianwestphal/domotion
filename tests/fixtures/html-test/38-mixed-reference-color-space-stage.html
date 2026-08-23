@@ -1,0 +1,132 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: transparent; }
+  #stage {
+    width: 760px;
+    height: 340px;
+    padding: 16px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(6, 104px);
+    gap: 12px;
+  }
+  .case {
+    position: relative;
+    width: 104px;
+    height: 72px;
+  }
+  .subject {
+    position: absolute;
+    inset: 8px;
+    background: rgba(52, 164, 231, .58);
+  }
+  .linear-reference {
+    filter: url(#linear-matrix);
+  }
+  .srgb-shorthand {
+    filter: brightness(.74) invert(.19) opacity(.67);
+  }
+  .mixed-reference-shorthand {
+    filter: url(#linear-matrix) brightness(.74) invert(.19) opacity(.67);
+  }
+  .explicit-srgb-boundary {
+    filter: url(#linear-matrix) url(#srgb-identity) brightness(.74) invert(.19) opacity(.67);
+  }
+  .shorthand-first {
+    filter: brightness(.74) invert(.19) opacity(.67) url(#linear-matrix);
+  }
+  .linear-identity {
+    filter: url(#linear-identity);
+  }
+  .identity-mixed {
+    filter: url(#linear-identity) brightness(.74) invert(.19) opacity(.67);
+  }
+  .identity-explicit {
+    filter: url(#linear-identity) url(#srgb-identity) brightness(.74) invert(.19) opacity(.67);
+  }
+  #blend-grid { margin-top: 18px; }
+  .blend-case { background: rgb(194, 79, 43); }
+  .blend-subject {
+    filter: url(#linear-matrix) brightness(.74) invert(.19) opacity(.67);
+    mix-blend-mode: multiply;
+  }
+  .isolation-owner,
+  .local-isolation-owner,
+  .nonisolation-owner {
+    position: absolute;
+    inset: 0;
+  }
+  .isolation-owner,
+  .local-isolation-owner { isolation: isolate; }
+  .local-backplate {
+    position: absolute;
+    inset: 0;
+    background: rgb(51, 136, 94);
+  }
+</style>
+
+<svg width="0" height="0" aria-hidden="true">
+  <filter id="linear-matrix" color-interpolation-filters="linearRGB">
+    <feColorMatrix values=".82 0 0 0 .07  0 .68 0 0 .10  0 0 .91 0 .02  0 0 0 1 0"/>
+  </filter>
+  <filter id="linear-identity" color-interpolation-filters="linearRGB">
+    <feColorMatrix values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0"/>
+  </filter>
+  <filter id="srgb-identity" color-interpolation-filters="sRGB">
+    <feColorMatrix values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0"/>
+  </filter>
+</svg>
+
+<main id="stage">
+  <section class="grid" id="stage-grid">
+    <div class="case" data-probe="stage.source">
+      <div class="subject" data-domotion-anim="stage-source"></div>
+    </div>
+    <div class="case" data-probe="stage.linear-reference">
+      <div class="subject linear-reference" data-domotion-anim="stage-linear-reference"></div>
+    </div>
+    <div class="case" data-probe="stage.srgb-shorthand">
+      <div class="subject srgb-shorthand" data-domotion-anim="stage-srgb-shorthand"></div>
+    </div>
+    <div class="case" data-probe="stage.mixed-reference-shorthand">
+      <div class="subject mixed-reference-shorthand" data-domotion-anim="stage-mixed"></div>
+    </div>
+    <div class="case" data-probe="stage.explicit-srgb-boundary">
+      <div class="subject explicit-srgb-boundary" data-domotion-anim="stage-explicit"></div>
+    </div>
+    <div class="case" data-probe="stage.shorthand-first">
+      <div class="subject shorthand-first" data-domotion-anim="stage-shorthand-first"></div>
+    </div>
+    <div class="case" data-probe="stage.linear-identity">
+      <div class="subject linear-identity" data-domotion-anim="stage-linear-identity"></div>
+    </div>
+    <div class="case" data-probe="stage.identity-mixed">
+      <div class="subject identity-mixed" data-domotion-anim="stage-identity-mixed"></div>
+    </div>
+    <div class="case" data-probe="stage.identity-explicit">
+      <div class="subject identity-explicit" data-domotion-anim="stage-identity-explicit"></div>
+    </div>
+  </section>
+
+  <section class="grid" id="blend-grid">
+    <div class="case blend-case" data-probe="blend.nonisolated">
+      <div class="nonisolation-owner" data-domotion-anim="nonisolation-owner">
+        <div class="subject blend-subject" data-domotion-anim="blend-nonisolated"></div>
+      </div>
+    </div>
+    <div class="case blend-case" data-probe="blend.isolated">
+      <div class="isolation-owner" data-domotion-anim="isolation-owner">
+        <div class="subject blend-subject" data-domotion-anim="blend-isolated"></div>
+      </div>
+    </div>
+    <div class="case blend-case" data-probe="blend.local-isolated">
+      <div class="local-isolation-owner" data-domotion-anim="local-isolation-owner">
+        <div class="local-backplate"></div>
+        <div class="subject blend-subject" data-domotion-anim="blend-local-isolated"></div>
+      </div>
+    </div>
+  </section>
+</main>

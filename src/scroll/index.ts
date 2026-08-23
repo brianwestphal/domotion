@@ -32,5 +32,5 @@ export type {
   PageQuery,
 } from "./executor.js";
 
-export { composeScrollSvg } from "./composer.js";
+export { assertScrollFrameOwnership, composeScrollSvg } from "./composer.js";
 export type { ScrollComposerOptions } from "./composer.js";

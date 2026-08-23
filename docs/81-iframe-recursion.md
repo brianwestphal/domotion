@@ -282,11 +282,15 @@ raster even when its document is readable). Wiring:
 
 ### Scope note
 
-The allowlist is threaded through the **static** single-capture path (`domotion
-capture <url>`) and `DemoRecorder`. The `--scroll` path's per-segment capture
-does not yet pass the allowlist, so cross-origin frames inside a scroll capture
-stay raster (same-origin recursion still applies). Threading it through the scroll
-executor is a minor follow-up.
+The same allowlist is threaded through **static and scroll** capture. Every
+scroll anchor receives a fresh capture-local authority that correlates
+Playwright browsing contexts to Chromium DevTools `FrameId`s, binds each child
+ID to its exact iframe owner element, and records the selected top-frame or
+element scroll owner plus raw offsets. Descendants below a denied/inaccessible
+ancestor expose no scroll owners. Composition rejects an omitted/changed
+allowlist, reused capture state, wrong-frame owner, stale iframe identity, or
+frame-local scrollbar assigned outside its owning frame. See
+[doc 217](217-cross-origin-frame-scroll-ownership.md) for the exact protocol.
 
 ### Security caveat (warned when enabled)
 
@@ -306,7 +310,11 @@ visible warning** to stderr (regardless of `--quiet`).
     on the iframe, validating the content-box offset and the overflow clip.
 - `src/capture/script/cross-origin.test.ts` (unit) — allowlist parsing + host /
   host:port / wildcard / subdomain / default-port matching.
-- `tests/cross-origin-iframe-recursion.e2e.test.ts` (e2e, two localhost origins) —
-  allowlist **match** recurses, **non-match** stays raster (blast-radius limit),
-  `*` recurses all, no-allowlist stays raster, and **without** the launch flag the
-  cross-origin document is unreadable so it stays raster.
+- `tests/cross-origin-iframe-recursion.e2e.test.ts` (e2e, three localhost
+  origins) — allowlist **match** recurses, **non-match** stays raster
+  (blast-radius limit), `*` recurses all, no-allowlist stays raster, and
+  **without** the launch flag the cross-origin document is unreadable so it
+  stays raster. Its scroll cases additionally cover parent-relative nested
+  origins, denied-ancestor isolation, raw RTL/vertical offsets, fixed content,
+  frame-local scrollbars, mask/clip TreeScopes, capture-to-capture cleanup, and
+  a forced site-isolated inaccessible OOPIF joined by Chromium target/parent IDs.

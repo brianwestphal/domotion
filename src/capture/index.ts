@@ -23,6 +23,7 @@ import { refineLineClampEllipsisFragments } from "./line-clamp.js";
 import { captureResolvedControlPseudoStyles } from "./pseudo-style-cdp.js";
 import { captureEffectiveAppearanceFacts } from "./effective-appearance-cdp.js";
 import { finalizeScrollbarResizerOverlap, prepareCapturedScrollbarSets } from "./scrollbar-capture.js";
+import { prepareFrameScrollCapture } from "./frame-scroll-state.js";
 import { assertGenericFamilyTargetConsistency, ensureSessionGenericFamilyOverrides, serializeSessionGenericFamilyProbe } from "./generic-font-probe.js";
 import { createCapturedTreeEnvelope, promoteCapturedSubtree } from "./tree-envelope.js";
 import { primeBackgroundImageSizing } from "./background-image-sizing.js";
@@ -47,7 +48,7 @@ import {
   type CssQuad,
 } from "./replaced-snapshot-geometry.js";
 import { _resetLastCaptureWarnings } from "./warnings.js";
-import type { CapturedElement, CapturedTreeEnvelope, CaptureWarning } from "./types.js";
+import type { CapturedElement, CapturedFrameScrollState, CapturedTreeEnvelope, CaptureWarning } from "./types.js";
 import { forEachElement } from "../tree-ops/for-each-element.js";
 import { createFontRendererSession, withFontRendererSession, type FontRendererSession } from "../render/font-resolution.js";
 // Brand kit (docs/85 + docs/92). `brand.js` has no browser/Playwright deps
@@ -58,6 +59,10 @@ import { brandCustomProperties, type Brand } from "../templates/brand.js";
 
 export { createCapturedTreeEnvelope, promoteCapturedSubtree };
 export type {
+  CapturedFrameAccess,
+  CapturedFrameScrollOwner,
+  CapturedFrameScrollRecord,
+  CapturedFrameScrollState,
   CapturedSessionGenericFamilies,
   CapturedTreeEnvelope,
   CapturedTreeInput,
@@ -1666,7 +1671,7 @@ export async function captureElementTreeWithWarnings(
   selector: string = "body",
   viewport: { x: number; y: number; width: number; height: number },
   opts?: CaptureElementTreeOptions,
-): Promise<{ tree: CapturedElement[]; warnings: CaptureWarning[] }> {
+): Promise<{ tree: CapturedElement[]; warnings: CaptureWarning[]; frameScrollState: CapturedFrameScrollState }> {
   let animationFrameState: StableAnimationFrameState | undefined;
   if (opts?.animationTimeMs != null) {
     animationFrameState = await seekAnimationsToFrame(page, opts.animationTimeMs, {
@@ -1701,6 +1706,13 @@ export async function captureElementTreeWithWarnings(
     primeMaskImageIntrinsics(page),
     primeBackgroundImageSizing(page),
   ]);
+  const frameScrollCapture = await prepareFrameScrollCapture(page, opts?.crossOriginFrames).catch(async (error) => {
+    await Promise.all([
+      maskIntrinsicPrime.dispose().catch(() => undefined),
+      backgroundImagePrime.dispose().catch(() => undefined),
+    ]);
+    throw error;
+  });
   let pseudoStyles: Awaited<ReturnType<typeof captureResolvedControlPseudoStyles>> | undefined;
   let effectiveAppearance: Awaited<ReturnType<typeof captureEffectiveAppearanceFacts>> | undefined;
   let scrollbarCapture: Awaited<ReturnType<typeof prepareCapturedScrollbarSets>> | undefined;
@@ -1714,6 +1726,7 @@ export async function captureElementTreeWithWarnings(
     effectiveAppearance = await captureEffectiveAppearanceFacts(page);
     scrollbarCapture = await prepareCapturedScrollbarSets(page, selector, viewport, pseudoStyles, {
       sourceImagePath: opts?.rasterizeFromImagePath,
+      frameScrollCapture,
     });
     projectiveProbe = await measureProjectivePaintQuads(
       page,
@@ -1734,6 +1747,7 @@ export async function captureElementTreeWithWarnings(
       eak: effectiveAppearance.propertyKey,
       ear: effectiveAppearance.setupFailure,
       sk: scrollbarCapture.propertyKey,
+      fk: frameScrollCapture.propertyKey,
       pq: projectiveProbe.facts,
       pqk: projectiveProbe.key,
       pqt: animationFrameState?.requestedTimeMs,
@@ -1756,6 +1770,7 @@ export async function captureElementTreeWithWarnings(
       tgk: textPaintProbe.key,
     })})`);
   } finally {
+    if (result == null) await frameScrollCapture.dispose();
     await pseudoFragmentProbe?.dispose();
     await scrollbarCapture?.dispose();
     await effectiveAppearance?.dispose();
@@ -1766,6 +1781,7 @@ export async function captureElementTreeWithWarnings(
       await projectiveProbe?.dispose();
     }
   }
+  try {
   const typed = result as { tree: CapturedElement[]; warnings: CaptureWarning[] };
   const warnings = typed.warnings ?? [];
   for (let index = 0; index < (projectiveProbe?.facts.length ?? 0); index++) {
@@ -1781,9 +1797,10 @@ export async function captureElementTreeWithWarnings(
   warnings.push(...(scrollbarCapture?.warnings ?? []));
   warnings.push(...(pseudoFragmentProbe?.warnings ?? []));
   warnings.push(...(textPaintProbe?.warnings ?? []));
+  const frameScrollState = await frameScrollCapture.snapshot();
+  warnings.push(...frameScrollCapture.warnings);
   finalizeScrollbarResizerOverlap(typed.tree);
   _resetLastCaptureWarnings(warnings);
-  try {
   try {
     // DM-2455: structural hosts keep their vector box/text while one separate
     // transparent Chromium atlas supplies only the closed-shadow/native
@@ -1817,7 +1834,9 @@ export async function captureElementTreeWithWarnings(
     await rasterizeProjectiveSurfaces(page, typed.tree, viewport, projectiveProbe?.key);
   } finally {
     await pseudoStyles?.dispose();
+    pseudoStyles = undefined;
     await projectiveProbe?.dispose();
+    projectiveProbe = undefined;
   }
   await refineLineClampEllipsisFragments(page, typed.tree, viewport, warnings);
   await rasterizeUrlFilterSurfaces(page, typed.tree, viewport);
@@ -1848,8 +1867,11 @@ export async function captureElementTreeWithWarnings(
     const captured = serializeSessionGenericFamilyProbe(sessionGenericFamilies);
     for (const root of typed.tree) root.sessionGenericFamilies = captured;
   }
-  return { tree: typed.tree, warnings };
+  return { tree: typed.tree, warnings, frameScrollState };
   } finally {
+    await frameScrollCapture.dispose();
+    await pseudoStyles?.dispose();
+    await projectiveProbe?.dispose();
     await textPaintProbe?.dispose();
   }
 }

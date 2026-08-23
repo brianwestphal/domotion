@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5ytrnqmi5aorv4",
+          "message": {
+            "text": "ViewTimeline transform ownership is deliberately split by Blink subject type. The same fixed-scroll mutation requires the HTML/CSS LayoutBox projective quad to change without retiming, but requires the SVG child mapped bounds and percentage to change; holding all three effects separately from their moving source prevents either branch from being generalized into an answer table.",
+            "markdown": "ViewTimeline transform ownership is deliberately split by Blink subject type. The same fixed-scroll mutation requires the HTML/CSS LayoutBox projective quad to change without retiming, but requires the SVG child mapped bounds and percentage to change; holding all three effects separately from their moving source prevents either branch from being generalized into an answer table."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/timeline-sampling-ownership-oracle.ts"
+                },
+                "region": {
+                  "startLine": 598,
+                  "endLine": 693,
+                  "snippet": {
+                    "text": "async function runNativeFrame(role: NativeFrameReport[\"role\"], frame: Frame, cdp: CDPSession): Promise<NativeFrameReport> {\n  await prepareTimelineFrame(frame);\n  const baseline = await readTimelineState(frame);\n  const scrollerQuadBefore = await contentQuad(cdp, \"#scroller\");\n  const subjectQuadBefore = await contentQuad(cdp, \"#viewSubject\");\n  const svgSubjectQuadBefore = await contentQuad(cdp, \"#svgViewSubject\");\n  await mutateGeometry(frame);\n  const transformed = await readTimelineState(frame);\n  const scrollerQuadAfter = await contentQuad(cdp, \"#scroller\");\n  const subjectQuadAfter = await contentQuad(cdp, \"#viewSubject\");\n  const svgSubjectQuadAfter = await contentQuad(cdp, \"#svgViewSubject\");\n\n  const transformedScroller: GeometryDiscriminator = {\n    before: baseline,\n    after: transformed,\n    beforeQuad: scrollerQuadBefore,\n    afterQuad: scrollerQuadAfter,\n    beforeQuadIsExactParallelogram: isExactParallelogram(scrollerQuadBefore),\n    afterQuadIsExactParallelogram: isExactParallelogram(scrollerQuadAfter),\n    timelineTimeExact: equal(baseline.scrollTimeline, transformed.scrollTimeline),\n    quadChanged: !equal(scrollerQuadBefore, scrollerQuadAfter),\n    pass: false,\n  };\n  transformedScroller.pass = transformedScroller.timelineTimeExact\n    && transformedScroller.quadChanged\n    && baseline.scrollTop === transformed.scrollTop\n    && baseline.scrollerTransform !== transformed.scrollerTransform;\n\n  const projectiveHtmlSubject: GeometryDiscriminator = {\n    before: baseline,\n    after: transformed,\n    beforeQuad: subjectQuadBefore,\n    afterQuad: subjectQuadAfter,\n    beforeQuadIsExactParallelogram: isExactParallelogram(subjectQuadBefore),\n    afterQuadIsExactParallelogram: isExactParallelogram(subjectQuadAfter),\n    timelineTimeExact: equal(baseline.viewTimeline, transformed.viewTimeline),\n    quadChanged: !equal(subjectQuadBefore, subjectQuadAfter),\n    pass: false,\n  };\n  projectiveHtmlSubject.pass = projectiveHtmlSubject.timelineTimeExact\n    && projectiveHtmlSubject.quadChanged\n    && baseline.scrollTop === transformed.scrollTop\n    && baseline.subjectTransform.startsWith(\"matrix3d(\")\n    && transformed.subjectTransform.startsWith(\"matrix3d(\")\n    && baseline.viewOwnerPerspective !== \"none\"\n    && transformed.viewOwnerPerspective !== \"none\"\n    && !projectiveHtmlSubject.beforeQuadIsExactParallelogram\n    && !projectiveHtmlSubject.afterQuadIsExactParallelogram\n    && baseline.subjectTransform !== transformed.subjectTransform;\n\n  const transformedSvgSubject: SvgViewDiscriminator = {\n    before: baseline,\n    after: transformed,\n    beforeQuad: svgSubjectQuadBefore,\n    afterQuad: svgSubjectQuadAfter,\n    timelineTimeChanged: !equal(baseline.svgViewTimeline, transformed.svgViewTimeline),\n    quadChanged: !equal(svgSubjectQuadBefore, svgSubjectQuadAfter),\n    pass: false,\n  };\n  transformedSvgSubject.pass = transformedSvgSubject.timelineTimeChanged\n    && transformedSvgSubject.quadChanged\n    && baseline.scrollTop === transformed.scrollTop\n    && baseline.svgSubjectTransform !== transformed.svgSubjectTransform\n    && baseline.svgSubjectRect.width !== transformed.svgSubjectRect.width\n    && baseline.svgSubjectRect.height !== transformed.svgSubjectRect.height;\n\n  const absoluteSeek = await absoluteSeekDiscriminator(frame);\n  const pinFailures = await pinProgressEffects(frame);\n  await settleNativeFrame(frame);\n  const pinned = await readTimelineState(frame);\n  await moveTimelineSource(frame);\n  const sourceMoved = await readTimelineState(frame);\n  const heldEffects: HeldEffectDiscriminator = {\n    pinned,\n    sourceMoved,\n    pinFailures,\n    sourceTimelineChanged: !equal(pinned.scrollTimeline, sourceMoved.scrollTimeline)\n      && !equal(pinned.viewTimeline, sourceMoved.viewTimeline)\n      && !equal(pinned.svgViewTimeline, sourceMoved.svgViewTimeline),\n    animationTimesExact: equal(pinned.scrollAnimation, sourceMoved.scrollAnimation)\n      && equal(pinned.viewAnimation, sourceMoved.viewAnimation)\n      && equal(pinned.svgViewAnimation, sourceMoved.svgViewAnimation),\n    effectProgressExact: pinned.scrollProgress === sourceMoved.scrollProgress\n      && pinned.viewProgress === sourceMoved.viewProgress\n      && pinned.svgViewProgress === sourceMoved.svgViewProgress,\n    computedStylesExact: pinned.scrollOpacity === sourceMoved.scrollOpacity\n      && pinned.viewOpacity === sourceMoved.viewOpacity\n      && pinned.svgViewOpacity === sourceMoved.svgViewOpacity,\n    pass: false,\n  };\n  heldEffects.pass = pinFailures.length === 0\n    && heldEffects.sourceTimelineChanged\n    && heldEffects.animationTimesExact\n    && heldEffects.effectProgressExact\n    && heldEffects.computedStylesExact\n    && pinned.scrollTop !== sourceMoved.scrollTop;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "workItemUris": [
+            "DM-2531"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "6fbcb8a50acea46e4a50f3b9a7d5f7fa"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5ytrtt5mosudcu",
+          "message": {
+            "text": "Document animation enumeration proves only one TreeScope. The live main/OOPIF control begins with three document plus one open-shadow and one closed-shadow progress animation per target; after cancelling only document animations, strict capture succeeds while both shadow animations remain live, authenticating the current silent boundary rather than merely citing source.",
+            "markdown": "Document animation enumeration proves only one TreeScope. The live main/OOPIF control begins with three document plus one open-shadow and one closed-shadow progress animation per target; after cancelling only document animations, strict capture succeeds while both shadow animations remain live, authenticating the current silent boundary rather than merely citing source."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/timeline-sampling-ownership-oracle.ts"
+                },
+                "region": {
+                  "startLine": 719,
+                  "endLine": 810,
+                  "snippet": {
+                    "text": "async function readTreeScopeAnimationState(frame: Frame): Promise<TreeScopeAnimationState> {\n  return frame.evaluate(() => {\n    type FixtureState = {\n      openShadow: { root: ShadowRoot };\n      closedShadow: { root: ShadowRoot };\n    };\n    type AnimationScope = { getAnimations(): Animation[] };\n    const fixture = (globalThis as typeof globalThis & { __dm2531: FixtureState }).__dm2531;\n    const documentAnimations = document.getAnimations();\n    const openShadowAnimations = (fixture.openShadow.root as unknown as AnimationScope).getAnimations();\n    const closedShadowAnimations = (fixture.closedShadow.root as unknown as AnimationScope).getAnimations();\n    return {\n      documentAnimationCount: documentAnimations.length,\n      documentProgressCount: documentAnimations.filter((animation) =>\n        animation.currentTime != null && typeof animation.currentTime !== \"number\").length,\n      openShadowAnimationCount: openShadowAnimations.length,\n      openShadowProgressCount: openShadowAnimations.filter((animation) =>\n        animation.currentTime != null && typeof animation.currentTime !== \"number\").length,\n      closedShadowAnimationCount: closedShadowAnimations.length,\n      closedShadowProgressCount: closedShadowAnimations.filter((animation) =>\n        animation.currentTime != null && typeof animation.currentTime !== \"number\").length,\n    };\n  });\n}\n\nasync function readTreeScopePair(\n  frames: { main: Frame; oopif: Frame },\n): Promise<Record<\"main\" | \"oopif\", TreeScopeAnimationState>> {\n  const [main, oopif] = await Promise.all([\n    readTreeScopeAnimationState(frames.main),\n    readTreeScopeAnimationState(frames.oopif),\n  ]);\n  return { main, oopif };\n}\n\nasync function cancelDocumentScopeAnimations(frames: { main: Frame; oopif: Frame }): Promise<void> {\n  await Promise.all([frames.main, frames.oopif].map((frame) => frame.evaluate(() => {\n    for (const animation of document.getAnimations()) animation.cancel();\n  })));\n}\n\nasync function runCaptureBoundary(page: Page, frames: { main: Frame; oopif: Frame }): Promise<CaptureBoundaryReport> {\n  const treeScopesBefore = await readTreeScopePair(frames);\n  const beforeRafCounts = await rafCounts(frames);\n  const nonStrict = await seekAnimationsToFrame(page, 375, { strict: false, includeChildFrames: true });\n  const afterRafCounts = await rafCounts(frames);\n  const nonStrictFailures = nonStrict.documents.flatMap((document) =>\n    document.failures.map((failure) => `${document.url}: ${failure}`));\n  let strictError: string | null = null;\n  try {\n    await seekAnimationsToFrame(page, 375, { strict: true, includeChildFrames: true });\n  } catch (error) {\n    strictError = String(error);\n  }\n  const progressTimelineRejected = nonStrictFailures.some((failure) => /refused document-time seek/.test(failure))\n    && nonStrictFailures.some((failure) => /non-document timeline currentTime/.test(failure))\n    && strictError != null\n    && /Stable animation frame unavailable/.test(strictError);\n  const rafMutatedDuringCaptureSettle = afterRafCounts.main > beforeRafCounts.main\n    && afterRafCounts.oopif > beforeRafCounts.oopif;\n  await cancelDocumentScopeAnimations(frames);\n  let shadowOnlyStrictError: string | null = null;\n  try {\n    await seekAnimationsToFrame(page, 375, { strict: true, includeChildFrames: true });\n  } catch (error) {\n    shadowOnlyStrictError = String(error);\n  }\n  const treeScopesAfterDocumentCancellation = await readTreeScopePair(frames);\n  const shadowOnlyStrictAccepted = shadowOnlyStrictError == null\n    && Object.values(treeScopesAfterDocumentCancellation).every((state) =>\n      state.documentAnimationCount === 0\n      && state.documentProgressCount === 0\n      && state.openShadowAnimationCount === 1\n      && state.openShadowProgressCount === 1\n      && state.closedShadowAnimationCount === 1\n      && state.closedShadowProgressCount === 1)\n    && Object.values(treeScopesBefore).every((state) =>\n      state.documentProgressCount >= 3\n      && state.openShadowProgressCount === 1\n      && state.closedShadowProgressCount === 1);\n  return {\n    beforeRafCounts,\n    afterRafCounts,\n    nonStrictFailures,\n    strictError,\n    progressTimelineRejected,\n    rafMutatedDuringCaptureSettle,\n    treeScopesBefore,\n    treeScopesAfterDocumentCancellation,\n    shadowOnlyStrictError,\n    shadowOnlyStrictAccepted,\n    pass: progressTimelineRejected && rafMutatedDuringCaptureSettle && shadowOnlyStrictAccepted,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "workItemUris": [
+            "DM-2531"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "2e58caaa5db9e59df6cb80174aa763a9"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5ytrzwr1zmlk4h",
+          "message": {
+            "text": "A pre-navigation Playwright clock freezes only the benign replaced-global path. With fake performance time and those counters unchanged, page-visible saved-native callbacks and dedicated-worker rAF messages both advance in main and OOPIF; source fingerprints and target ids therefore cannot upgrade this shim into complete rAF ownership.",
+            "markdown": "A pre-navigation Playwright clock freezes only the benign replaced-global path. With fake performance time and those counters unchanged, page-visible saved-native callbacks and dedicated-worker rAF messages both advance in main and OOPIF; source fingerprints and target ids therefore cannot upgrade this shim into complete rAF ownership."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/timeline-sampling-ownership-oracle.ts"
+                },
+                "region": {
+                  "startLine": 851,
+                  "endLine": 932,
+                  "snippet": {
+                    "text": "async function runPreNavigationClock(browser: Browser, url: string): Promise<PreNavigationClockReport> {\n  const context = await browser.newContext();\n  const page = await context.newPage();\n  const sessions: CDPSession[] = [];\n  try {\n    await page.clock.install({ time: 1_000_000 });\n    await page.goto(url);\n    const frames = await fixtureFrames(page);\n    const target = await clockTargets(context, page, frames);\n    sessions.push(...target.sessions);\n    await page.clock.pauseAt(1_001_000);\n    const before = await readClockPair(frames);\n    await delayRealTime(100);\n    const afterRealDelay = await readClockPair(frames);\n    const targetLocalTimesExact = before.main.performanceNow === 1000\n      && before.oopif.performanceNow === 1000\n      && afterRealDelay.main.performanceNow === before.main.performanceNow\n      && afterRealDelay.oopif.performanceNow === before.oopif.performanceNow;\n    const countersFrozen = before.main.rafCount === afterRealDelay.main.rafCount\n      && before.oopif.rafCount === afterRealDelay.oopif.rafCount;\n    const installedInBoth = [before.main, before.oopif, afterRealDelay.main, afterRealDelay.oopif]\n      .every((state) => state.clockInjected && state.requestAnimationFrameWrapped);\n    return {\n      targets: target.pair,\n      before,\n      afterRealDelay,\n      targetLocalTimesExact,\n      countersFrozen,\n      pass: target.pair.distinctOopifTargets && targetLocalTimesExact && countersFrozen && installedInBoth,\n    };\n  } finally {\n    await Promise.all(sessions.map((session) => session.detach().catch(() => undefined)));\n    await context.close();\n  }\n}\n\nasync function runPreNavigationClockEscapes(browser: Browser, url: string): Promise<PreNavigationClockEscapeReport> {\n  const context = await browser.newContext();\n  const page = await context.newPage();\n  const sessions: CDPSession[] = [];\n  try {\n    await page.clock.install({ time: 1_000_000 });\n    await page.goto(`${url}?builtinEscape=1&workerEscape=1`);\n    const frames = await fixtureFrames(page);\n    const target = await clockTargets(context, page, frames);\n    sessions.push(...target.sessions);\n    await delayRealTime(100);\n    await page.clock.pauseAt(1_001_000);\n    const afterPause = await readClockPair(frames);\n    await delayRealTime(100);\n    const afterRealDelay = await readClockPair(frames);\n    const exposedClocksFrozen = afterPause.main.performanceNow === afterRealDelay.main.performanceNow\n      && afterPause.oopif.performanceNow === afterRealDelay.oopif.performanceNow\n      && [afterPause.main, afterPause.oopif, afterRealDelay.main, afterRealDelay.oopif]\n        .every((state) => state.clockInjected && state.requestAnimationFrameWrapped);\n    const benignCountersFrozen = afterPause.main.rafCount === afterRealDelay.main.rafCount\n      && afterPause.oopif.rafCount === afterRealDelay.oopif.rafCount;\n    const exposedNativeCallbacksAdvanced = afterRealDelay.main.builtinRafCount > afterPause.main.builtinRafCount\n      && afterRealDelay.oopif.builtinRafCount > afterPause.oopif.builtinRafCount\n      && [afterPause.main, afterPause.oopif, afterRealDelay.main, afterRealDelay.oopif]\n        .every((state) => state.nativeClockBuiltinsExposed);\n    const workerCallbacksAdvanced = afterRealDelay.main.workerRafCount > afterPause.main.workerRafCount\n      && afterRealDelay.oopif.workerRafCount > afterPause.oopif.workerRafCount;\n    return {\n      targets: target.pair,\n      afterPause,\n      afterRealDelay,\n      exposedClocksFrozen,\n      benignCountersFrozen,\n      exposedNativeCallbacksAdvanced,\n      workerCallbacksAdvanced,\n      pass: target.pair.distinctOopifTargets\n        && exposedClocksFrozen\n        && benignCountersFrozen\n        && exposedNativeCallbacksAdvanced\n        && workerCallbacksAdvanced,\n    };\n  } finally {\n    await Promise.all(sessions.map((session) => session.detach().catch(() => undefined)));\n    await context.close();\n  }\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "workItemUris": [
+            "DM-2531"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "a8e4142c8bed3fab46415e01e0ec059f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "fc3e5bfb1230da3a38f57a7b104953dc4c01f979",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -4,31 +4,36 @@ Domotion captures the live Blink `Settings` generic-family maps owned by the
 exact Playwright `Page`. It does not infer those maps from static platform
 tables or from a different browser target.
 
-`npm run fonts:generic-profile-target` creates an isolated full-Chrome profile
+`npm run fonts:generic-profile-target` creates isolated full-Chrome profiles
 whose requested families are chosen from faces painted by the current browser
-and font inventory. It then checks the logical face identity for seven Common
-generic families and the supported Japanese and Devanagari script fields.
-There are no screenshot comparisons or pixel thresholds.
+and font inventory. DM-2539 now authenticates all 21 Common, Japanese, and
+Devanagari fields, the raw preference file, the full-Chrome process, and both
+renderer targets; [doc 219](219-authenticated-profile-oopif-generic-preferences.md)
+is the current gate contract. There are no screenshot comparisons or pixel
+thresholds.
 
-The gate records two distinct source-owned launch outcomes:
+The gate records two distinct source-owned launch outcomes in both forward and
+reverse profile-launch order:
 
-- Headed full Chrome applies the profile-owned Common and supported script
-  preferences.
-- Headless full Chrome applies its clean headless settings to 20 of 21 rows.
-  The profile's Common `math` row survives because the headless override table
-  does not assign it.
+- Headed full Chrome applies every one of the 21 persisted profile fields.
+- Headless full Chrome applies exactly the Common/script fields present in the
+  installed Playwright source table and retains the profile for every omitted
+  field. The OS mask is derived from source keys, not a fixed row count.
 
-The browser oracle also creates a cross-site OOPIF. An ordinary child initially
-matches the main Page. A target-local `Page.setFontFamilies` mutation then moves
-only the OOPIF. This proves that one main-Page record is insufficient when
-target Settings diverge. Production therefore authenticates every distinct
-target and refuses capture on disagreement; the supported contract is one
+The browser oracle also creates a cross-site OOPIF. The main and child have
+distinct authenticated CDP target IDs. It applies all 21 non-inert
+`Page.setFontFamilies` fields child→main and main→child: each step moves only
+the selected target, while locale-tagged `system-ui` controls remain stable.
+This proves that one main-Page record is insufficient when target Settings
+diverge. Production therefore authenticates every distinct target and refuses
+capture on disagreement; the supported capture contract remains one
 non-divergent Page authority.
 
-Every script-key probe paints a scalar belonging to that script, including
-Thai `ก` and Georgian `ა` discovered from response-header and closed-shadow
-language facts. This prevents Latin glyph fallback from masquerading as proof
-that a script-specific family map was exercised.
+Every script-key probe paints a scalar belonging to that script and restores
+Blink's `lang`-owned `-webkit-locale` after `all: initial` neutralization. This
+prevents the document script or Latin glyph fallback from masquerading as proof
+that a script-specific family map was exercised. DM-2550/DM-2551 own the
+separate production-probe consequences described in doc 219.
 
 The native workflow runs the exact logical gate on macOS, Linux under Xvfb,
 and Windows and retains its fingerprinted JSON report. Platform-owned

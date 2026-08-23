@@ -123,7 +123,15 @@ paused-frame used-preserve facts.
 ## Explicit boundary
 
 Deterministic document-timeline CSS/WAAPI and SMIL animation is supported.
-Scroll/view timelines and requestAnimationFrame-driven JavaScript motion do
-not have a numeric document `currentTime`; strict capture reports them instead
-of sampling or approximating them. This is a declared timeline boundary, not a
-pixel tolerance or platform envelope.
+Scroll/view timelines do not have a numeric document `currentTime`, so strict
+capture reports and rejects those visible to each queried document TreeScope.
+Open/closed-shadow progress animations are currently missed. rAF motion is a
+separate unsupported gap: it is outside WAAPI enumeration, is not reported by
+strict capture, and can advance during the helper's settle callbacks. Even a
+pre-navigation Playwright clock exposes native rAF to page script and does not
+instrument worker rAF. This is not a pixel tolerance or platform envelope.
+DM-2531 independently traces that boundary in
+[doc 221](221-scroll-view-raf-timeline-ownership.md): a resolved scroll/view
+effect can be held only at its source-owned CSS percentage while its
+post-layout/compositor source remains independently mutable. DM-2553 and
+DM-2554 own the two exact production protocols; neither is approximated here.

@@ -1,0 +1,110 @@
+name: Browser HarfBuzz substitution streams
+
+on:
+  pull_request:
+    paths:
+      - "src/render/font-resolution.ts"
+      - "src/render/harfbuzz-shaper.ts"
+      - "src/render/text-run-provenance.ts"
+      - "src/render/text-to-path.ts"
+      - "tools/browser-harfbuzz-substitution-oracle.ts"
+      - "tools/exact-shaping-control-fixtures.ts"
+      - "tests/browser-harfbuzz-substitution-oracle.test.ts"
+      - "tests/browser-harfbuzz-substitution-oracle.e2e.test.ts"
+      - "tests/browser-harfbuzz-substitution-workflow.test.ts"
+      - "tests/fixtures/exact-shaping/*.base64"
+      - "tests/fixtures/variable-axis/variable-axis.html"
+      - "package.json"
+      - ".github/workflows/browser-harfbuzz-substitution-streams.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/render/font-resolution.ts"
+      - "src/render/harfbuzz-shaper.ts"
+      - "src/render/text-run-provenance.ts"
+      - "src/render/text-to-path.ts"
+      - "tools/browser-harfbuzz-substitution-oracle.ts"
+      - "tools/exact-shaping-control-fixtures.ts"
+      - "tests/browser-harfbuzz-substitution-oracle.test.ts"
+      - "tests/browser-harfbuzz-substitution-oracle.e2e.test.ts"
+      - "tests/browser-harfbuzz-substitution-workflow.test.ts"
+      - "tests/fixtures/exact-shaping/*.base64"
+      - "tests/fixtures/variable-axis/variable-axis.html"
+      - "package.json"
+      - ".github/workflows/browser-harfbuzz-substitution-streams.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exact-logical-artifacts:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, ubuntu-24.04, windows-2025]
+        evidence: [proposal, validation]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    env:
+      DM2532_RUNNER_OS: ${{ runner.os }}
+      DOMOTION_CHROMIUM_REVISION: 7d859f271cbda744098ac69f44978d4edfa62be3
+      DOMOTION_HARFBUZZ_REVISION: 4de187dd0a915d13c976fa8bd474c084229f3aab
+      DOMOTION_SKIA_REVISION: 62efacd37737505732dbe3d8daa62abd679626a1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.21.0
+          cache: npm
+      - run: npm ci
+      - name: Install pinned Chromium with Linux dependencies
+        if: runner.os == 'Linux'
+        run: npx playwright install --with-deps chromium
+      - name: Install pinned Chromium
+        if: runner.os != 'Linux'
+        run: npx playwright install chromium
+      - name: Prove the portable corpus and hostile mutations
+        run: npx vitest run tests/browser-harfbuzz-substitution-oracle.test.ts
+      - name: Record browser face ownership and exact substitution streams
+        shell: bash
+        run: |
+          mkdir -p "tests/output/browser-harfbuzz/${{ runner.os }}/${{ matrix.evidence }}"
+          npm run fonts:browser-harfbuzz-substitutions -- \
+            --${{ matrix.evidence }} \
+            --json "tests/output/browser-harfbuzz/${{ runner.os }}/${{ matrix.evidence }}/report.json"
+      - name: Upload exact logical artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-harfbuzz-${{ runner.os }}-${{ matrix.evidence }}
+          path: tests/output/browser-harfbuzz/${{ runner.os }}/${{ matrix.evidence }}/report.json
+          if-no-files-found: error
+          retention-days: 30
+
+  ratify:
+    needs: exact-logical-artifacts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.21.0
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: browser-harfbuzz-*
+          path: artifacts
+      - name: Require exact proposal/validation agreement on all three OSes
+        run: >-
+          npm run fonts:browser-harfbuzz-substitutions --
+          --aggregate artifacts
+          --json browser-harfbuzz-substitution-report.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-harfbuzz-substitution-report
+          path: browser-harfbuzz-substitution-report.json
+          if-no-files-found: error

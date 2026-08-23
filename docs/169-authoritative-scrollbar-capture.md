@@ -130,6 +130,18 @@ each embedded PNG byte-for-byte with the supplied Chromium source crop and the
 final generated-SVG strip pixel-for-pixel at DPR 2, while a vector sentinel
 outside the crop remains vector.
 
+DM-2537 extends the same live marker/native-source protocol into every
+authenticated readable iframe. Each set now carries the exact Chromium
+`FrameId` plus capture-local scroll-owner ID; its rectangles are mapped through
+the iframe owner into the one top-page source frame. Composition verifies that
+identity and the raw horizontal/vertical position against the browsing-context
+ancestry before emitting anything. Denied/inaccessible branches and all their
+descendants provide diagnostics and no scrollbar owners. Nested RTL,
+vertical-writing, fixed-descendant, mask/clip and wrong-frame mutations run in
+the three-platform logical workflow documented in
+[doc 217](217-cross-origin-frame-scroll-ownership.md); no marker geometry or
+pixel threshold changed.
+
 The upgraded ownership audit completed on macOS arm64 with Headless Chromium
 147. Every author-custom route passes the strict generated marker gate:
 

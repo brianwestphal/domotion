@@ -76,6 +76,12 @@ const captureDocumentTree =
   // `--cross-origin-frames` value, passed in as `args.cof`). null in the
   // default (Phase 1) configuration — only same-origin frames recurse then.
   const _crossOriginAllow = parseCrossOriginAllowlist(args.cof);
+  // DM-2537: Node authenticates each live main-world browsing context against
+  // Chromium's DevTools FrameId before this synchronous walk begins. The
+  // private registry is capture-local and removed in a finally; it prevents a
+  // repeated URL, stale allowlist, or sibling-frame index from authorizing the
+  // wrong document during a multi-segment scroll capture.
+  const _frameScrollKey = typeof args.fk === 'string' ? args.fk : '';
   const _svgReferenceScopes = new WeakMap();
   let _nextSvgReferenceScope = 0;
   function _svgReferenceScope(el) {
@@ -734,7 +740,20 @@ const captureDocumentTree =
       // inaccessible (cross-origin under the Same-Origin Policy, or a
       // media/pixel frame) and it therefore stays a raster snapshot.
       if (_iframeIsRecursable(el) == null) {
-        warn(sel, '<iframe>', 'cross-origin / inaccessible frame rendered as a static raster snapshot; same-origin frames recurse to native SVG');
+        var _frameBoundary = _iframeFrameAuthority(el);
+        var _frameBoundaryAccess = _frameBoundary && _frameBoundary.access;
+        var _frameBoundaryId = _frameBoundary && _frameBoundary.frameId
+          ? _frameBoundary.frameId
+          : 'unknown';
+        if (_frameBoundaryAccess === 'cross-origin-denied') {
+          warn(sel, '<iframe>', 'frame ' + _frameBoundaryId + ' was denied by this capture\'s cross-origin allowlist; rendered as a static Chromium raster and no child scroll state was read');
+        } else if (_frameBoundaryAccess === 'inaccessible') {
+          warn(sel, '<iframe>', 'frame ' + _frameBoundaryId + ' was allowlisted/same-origin but inaccessible from the parent document; rendered as a static Chromium raster and no child scroll state was read');
+        } else if (_frameBoundaryAccess === 'identity-unavailable' || (_frameScrollKey !== '' && _frameBoundary == null)) {
+          warn(sel, '<iframe>', 'child Chromium FrameId authority was unavailable or did not belong to this parent; rendered as a static Chromium raster and no child scroll state was read');
+        } else {
+          warn(sel, '<iframe>', 'cross-origin / inaccessible frame rendered as a static raster snapshot; same-origin frames recurse to native SVG');
+        }
       }
     }
     // DM-2481: the Node-side live-frame probe owns scrollbar warnings. Do not
@@ -1563,6 +1582,17 @@ const captureDocumentTree =
     // box) and the raster-snapshot routing below is skipped for it. See
     // docs/81-iframe-recursion.md.
     if (tag === 'iframe' && !bordersOnlyCell) {
+      var _iframeAuthority = _iframeFrameAuthority(el);
+      if (_iframeAuthority != null) {
+        _captured.frameScrollIdentity = {
+          source: _iframeAuthority.source,
+          captureId: _iframeAuthority.captureId,
+          frameId: _iframeAuthority.frameId,
+          parentFrameId: _iframeAuthority.parentFrameId,
+          access: _iframeAuthority.access,
+          allowlistSha256: _iframeAuthority.allowlistSha256,
+        };
+      }
       var _iframeNode = _captureIframeRecursion(el, cs, rect);
       if (_iframeNode != null) {
         _captured.children = [_iframeNode];
@@ -1873,6 +1903,46 @@ const captureDocumentTree =
     return frameHostAllowed(url || '', _crossOriginAllow);
   }
 
+  // DM-2537: child authority must be from this exact capture, carry the same
+  // allowlist digest as the current document, and name the current Chromium
+  // frame as its protocol parent. Failure is a raster boundary, never a URL- or
+  // DOM-order fallback.
+  function _iframeFrameAuthority(el) {
+    if (_frameScrollKey === '') return null;
+    try {
+      // Node binds the child authority to this exact Chromium frame-owner
+      // Element. Unlike reading a property through contentWindow, this remains
+      // available for an inaccessible cross-origin child and can therefore
+      // identify the raster boundary without crossing the Same-Origin Policy.
+      var child = el[_frameScrollKey];
+      var parentView = el.ownerDocument && el.ownerDocument.defaultView;
+      var parent = parentView && parentView[_frameScrollKey];
+      if (child == null || parent == null) return null;
+      if (child.source !== 'chromium-cdp-frame-scroll-v1'
+          || parent.source !== 'chromium-cdp-frame-scroll-v1') return null;
+      if (child.captureId !== parent.captureId) return null;
+      if (child.allowlistSha256 !== parent.allowlistSha256) return null;
+      if (child.parentFrameId !== parent.frameId) return null;
+      if (typeof child.frameId !== 'string' || child.frameId === '') return null;
+      if (child.access === 'same-origin' || child.access === 'cross-origin-allowlisted') {
+        // A document navigation replaces the child global but not necessarily
+        // its iframe owner Element or Chromium FrameId. Require the live child
+        // main-world token before using the earlier allowlist decision, so a
+        // navigation during the async prepasses can only become a raster.
+        var childView = el.contentWindow;
+        var liveChild = childView && childView[_frameScrollKey];
+        if (liveChild == null
+            || liveChild.token !== child.token
+            || liveChild.frameId !== child.frameId
+            || liveChild.captureId !== child.captureId
+            || liveChild.allowlistSha256 !== child.allowlistSha256) return null;
+      }
+      return child;
+    } catch (e) {
+      return null;
+    }
+  }
+
   // DM-1441 / DM-1442: the accessible document of an <iframe> we may recurse, or
   // null when the frame can't be recursed (cross-origin and not allowlisted,
   // not yet loaded, a media/pixel frame with no DOM, or access throws). Used
@@ -1883,6 +1953,12 @@ const captureDocumentTree =
     var doc;
     try { doc = el.contentDocument; } catch (e) { return null; }
     if (doc == null || doc.body == null || doc.documentElement == null) return null;
+    if (_frameScrollKey !== '') {
+      var authority = _iframeFrameAuthority(el);
+      if (authority == null) return null;
+      if (authority.access !== 'same-origin'
+          && authority.access !== 'cross-origin-allowlisted') return null;
+    }
     // Same-origin frames always recurse (Phase 1). A cross-origin frame is only
     // reachable here when web security was disabled (the --cross-origin-frames
     // path); recurse it only when its origin is on the allowlist, else leave it

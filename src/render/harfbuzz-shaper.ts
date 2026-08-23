@@ -385,7 +385,8 @@ export function harfbuzzShapeRun(
     language?: string;
     /** Raw `hb_buffer_flags_t`, used by the exact oracle and BOT/EOT runs. */
     bufferFlags?: number;
-    /** Raw `hb_buffer_cluster_level_t`; Blink uses monotone characters. */
+    /** Raw `hb_buffer_cluster_level_t`; Blink leaves HarfBuzz's
+     * monotone-graphemes default at the pinned revision. */
     clusterLevel?: number;
     /**
      * Skip outline extraction — the cluster-granularity splitter only needs

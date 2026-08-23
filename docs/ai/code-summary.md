@@ -86,6 +86,18 @@ reauthenticate real-path-confined PNG bytes through
 and validation runs on macOS/Linux/Windows without an external bundle.
 Envelopes remain a separate four-artifact human review with exact cell hashes,
 never a percentage cap.
+`tools/browser-harfbuzz-substitution-oracle.ts` (doc 220) owns the adjacent
+pre-raster substitution stream gate. Four SHA-pinned portable faces exercise
+`liga`, `rlig`, contextual Arabic forms, GPOS mark attachment, variable axes,
+and `locl` language selection under Blink's actual HarfBuzz default
+`MONOTONE_GRAPHEMES`. CDP must authenticate the sole custom face and exact
+glyph count; pinned Chromium-configured HarfBuzz and opt-in production
+provenance over those same bytes then agree field-for-field on gid, UTF-16
+cluster/span, advance, offset, request, and source. Thirteen hostile mutations
+must move, and
+`.github/workflows/browser-harfbuzz-substitution-streams.yml` withholds its
+aggregate until macOS/Linux/Windows proposal and validation artifacts share
+one exact corpus/logical digest. It contains no raster or tolerance step.
 `linux-mathml-greek-raster-{contract,collector,gate}.ts` adds doc 210's
 Linux-only supplement without extending that 348-cell corpus. It authenticates
 the exact Noble FreeSans package and one-file Fontconfig inventory, records
@@ -596,8 +608,15 @@ shortest possible map:
   `system-ui` separation controls, and 11 quoted-literal controls. The strict native three-platform workflow is
   `.github/workflows/generic-family-preference-parity.yml`; see doc 198.
   `tools/generic-profile-target-oracle.ts` and its native workflow extend that
-  contract through an isolated Chrome profile and a target-local OOPIF
-  mutation. `captureElementTree()` calls
+  contract through two opposite-order isolated Chrome profiles and two
+  opposite-order target-local OOPIF mutations. The gate authenticates the
+  Playwright registry's full-Chrome channel, executable path/SHA, every CDP
+  process command and user-data-dir, and all 21 raw persisted fields. It loads
+  and hashes Playwright's installed default-family source to derive the current
+  OS overlay mask, restores Blink's `lang`-owned `-webkit-locale` in its
+  independent discriminators, and requires exact all-field target movement,
+  other-target stability, and `system-ui` separation; see doc 219.
+  `captureElementTree()` calls
   `assertGenericFamilyTargetConsistency()` and fails closed when a distinct
   target's authenticated Settings disagree with the main Page; see doc 212.
 - **Platform-owned system-UI preference oracle** —
@@ -787,6 +806,21 @@ shortest possible map:
   expectation and production selector: perspective owns its plane; direct
   parent used-preserve propagation chooses the context root; grouping breaks
   start a fresh nested root. The gate is 64/64 locally at DPR 1/2.
+- **Scroll/view/rAF timeline ownership investigation (DM-2531, doc 221)** —
+  `tools/timeline-sampling-ownership-oracle.ts` leaves production untouched and
+  joins pinned Blink post-layout snapshots, compositor scroll-tree ticks, and
+  PageAnimator rAF callbacks to exact live main/OOPIF facts. Absolute numeric
+  seeks are rejected for progress timelines; a `CSS.percent(...)` hold freezes
+  the effect but not its source timeline. Transformed scrollers and projective
+  HTML-box subjects do not retime, while transformed SVG-subject mapped bounds
+  do. `document.getAnimations()` misses open/closed-shadow progress effects. A
+  pre-navigation Playwright clock freezes benign Window-global callbacks but
+  exposes saved native rAF through `__pwClock.builtins` and does not instrument
+  worker rAF; a late install also cannot own retained native rAF. Focused unit
+  and browser tests gate eleven logical discriminators without pixels. DM-2553
+  owns all-TreeScope progress/source capture and DM-2554 owns a non-page-visible
+  or fail-closed Window/worker rAF protocol; current strict capture owns neither
+  boundary completely.
 - **Nested projective ownership audit (DM-2356, doc 189)** —
   `tools/nested-projective-ownership-audit.ts` reconstructs pinned Blink
   `RenderingContextId` propagation from live used-style/CDP facts and compares
@@ -905,6 +939,21 @@ shortest possible map:
   and [doc 169](../169-authoritative-scrollbar-capture.md) define the capture
   record, narrow precomposited stock strips, shipped custom-vector lowering,
   explicit absence, the shipped stock-native seam, and the DM-2484 gate.
+  DM-2537 extends that live ownership through nested iframe scroll capture:
+  `frame-scroll-state.ts` handshakes each Playwright context with Chromium's
+  default-context `FrameId`; site-isolated iframe targets additionally join
+  that ID to Chromium's `TargetInfo.parentFrameId`. It binds the child ID to its exact owner element,
+  records parent-relative allowlist/ancestor reachability plus raw frame-local
+  viewport/element offsets, and removes the registry after every capture.
+  `scrollbar-capture.ts` now discovers authenticated readable frames and tags
+  every set with its exact frame/owner; denied/inaccessible ancestor branches
+  expose diagnostics and no owners. `scroll/executor.ts` seals a fresh selected
+  top-frame owner per anchor, while `scroll/composer.ts` rejects reused state,
+  changed/omitted allowlists, wrong-frame owners/scrollbars, stale iframe
+  identities and raw-offset mismatches before rendering. The exact logical
+  contract and three-platform workflow are in
+  [doc 217](../217-cross-origin-frame-scroll-ownership.md); there is no pixel
+  fitting or tolerance change.
 
 - **Pseudo-element filter effects (DM-2367)** —
   `src/render/pseudo-filter.ts` is the shared empty/text/image generated-paint
@@ -933,6 +982,24 @@ shortest possible map:
   and modern six-decimal forms. The DPR-1/2 report is `source-exact`; there is
   no known-drift allowance, and the four-code pixel-stage bound plus mutation
   thresholds remain immutable.
+
+- **Mixed reference/shorthand color-space ownership (DM-2535, doc 218)** —
+  `tools/mixed-reference-color-space-oracle.ts` pins Blink's compositor-list
+  behavior when a linearRGB SVG/reference filter is followed by an sRGB CSS
+  shorthand filter. At the pinned Chromium revision, Blink leaves that
+  intermediate transition absent and converts the remaining linear result
+  to sRGB only at the native-list terminal; Domotion therefore preserves the
+  browser-owned CSS filter list instead of locally lowering or correcting it.
+  The oracle records exact straight and premultiplied stage values, nine
+  partial-alpha filter probes, explicit-sRGB and reversed-order controls, three
+  blend/isolation surfaces, six vector ownership rows, four hostile models, and
+  live source/candidate mutations at DPR 1/2. All filter-only rows are exact.
+  The bounded investigation ratchet exposes a separate renderer gap:
+  reference-filter localization currently emits the filter wrapper outside the
+  blend wrapper, reversing Blink's outer Effect / inner Filter order and hiding
+  the intended backdrop from `mix-blend-mode`. DM-2548 owns the wrapper reorder;
+  DM-2549 then removes the bounded gap set and promotes source-exact evidence on
+  macOS/Linux/Windows. No production path or tolerance changed in DM-2535.
 
 - **Strict ordinary backdrop ownership (docs 187/194/195)** —
   `backdrop-composite-raster.ts` owns atomic opacity/blend/mask roots and the

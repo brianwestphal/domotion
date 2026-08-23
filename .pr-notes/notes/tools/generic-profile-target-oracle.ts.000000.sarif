@@ -23,10 +23,10 @@
           "ruleIndex": 0,
           "kind": "informational",
           "level": "none",
-          "guid": "mt5lruk5wrbm5vot",
+          "guid": "mt5whzmgjt4u4j7j",
           "message": {
-            "text": "The profile discriminator is derived from a face that differs from the clean headless result, so the observed headed/headless split cannot pass through coincidental family equality. The oracle compares logical painted-face identity only; no pixel threshold participates.",
-            "markdown": "The profile discriminator is derived from a face that differs from the clean headless result, so the observed headed/headless split cannot pass through coincidental family equality. The oracle compares logical painted-face identity only; no pixel threshold participates."
+            "text": "The headless ownership mask is decoded from the exact installed Playwright table, not encoded as platform counts. The report also hashes that source and the full-Chrome binary, then separately authenticates each process command and raw profile checkpoint, so a stale answer table or wrong browser channel cannot pass.",
+            "markdown": "The headless ownership mask is decoded from the exact installed Playwright table, not encoded as platform counts. The report also hashes that source and the full-Chrome binary, then separately authenticates each process command and raw profile checkpoint, so a stale answer table or wrong browser channel cannot pass."
           },
           "locations": [
             {
@@ -35,10 +35,10 @@
                   "uri": "tools/generic-profile-target-oracle.ts"
                 },
                 "region": {
-                  "startLine": 106,
-                  "endLine": 176,
+                  "startLine": 302,
+                  "endLine": 323,
                   "snippet": {
-                    "text": "function rotatedProfile(discovery: ProfileFaceRow[], cleanHeadless: ProfileFaceRow[]): ProfileFonts {\n  const result = Object.fromEntries(GENERICS.map((generic) => [generic, {}])) as ProfileFonts;\n  for (const script of SCRIPTS) {\n    const rows = discovery.filter((row) => row.script === script);\n    const clean = cleanHeadless.filter((row) => row.script === script);\n    const distinct = rows.filter((row, index) => rows.findIndex((other) => norm(other.familyName) === norm(row.familyName)) === index);\n    if (distinct.length < 2) throw new Error(`profile discriminator needs two painted ${script} families`);\n    for (const generic of GENERICS) {\n      const cleanFamily = clean.find((row) => row.generic === generic)!.familyName;\n      const discriminator = distinct.find((row) => norm(row.familyName) !== norm(cleanFamily));\n      if (discriminator == null) throw new Error(`profile discriminator matches clean ${script}/${generic}`);\n      result[generic][script] = discriminator.familyName;\n    }\n  }\n  return result;\n}\n\nfunction writeProfile(dir: string, fonts: ProfileFonts): void {\n  mkdirSync(join(dir, \"Default\"), { recursive: true });\n  writeFileSync(join(dir, \"Default\", \"Preferences\"), `${JSON.stringify({ webkit: { webprefs: { fonts } } })}\\n`);\n}\n\nasync function enable(cdp: CDPSession): Promise<void> {\n  await cdp.send(\"DOM.enable\");\n  await cdp.send(\"CSS.enable\");\n}\n\nasync function collectPersistent(dir: string, headless: boolean, opened: BrowserContext[]): Promise<{ context: BrowserContext; page: Page; cdp: CDPSession; rows: ProfileFaceRow[] }> {\n  const context = await chromium.launchPersistentContext(dir, { channel: \"chrome\", headless, args: [\"--site-per-process\"] });\n  opened.push(context);\n  const page = context.pages()[0] ?? await context.newPage();\n  await page.setContent(\"<!doctype html><body>profile authority</body>\");\n  const cdp = await context.newCDPSession(page);\n  await enable(cdp);\n  return { context, page, cdp, rows: await readRows(page, cdp) };\n}\n\nfunction expectedExact(rows: ProfileFaceRow[], expected: ProfileFonts): number {\n  return rows.filter((row) => norm(row.familyName) === norm(expected[row.generic][row.script])).length;\n}\n\nasync function productionProbeExact(page: Page, rows: ProfileFaceRow[]): Promise<boolean> {\n  const probe = await ensureSessionGenericFamilyOverrides(page);\n  if (probe == null) return false;\n  return rows.every((row) => {\n    const generic = row.generic === \"fixed\" ? \"monospace\" : row.generic === \"sansserif\" ? \"sans-serif\" : row.generic;\n    const observed = row.script === \"Zyyy\" ? probe.common.get(generic) : probe.byScript.get(row.script === \"Jpan\" ? \"KATAKANA_OR_HIRAGANA\" : \"DEVANAGARI\")?.get(generic);\n    return norm(observed ?? \"\") === norm(face(row));\n  });\n}\n\nfunction headlessExpected(profile: ProfileFonts, clean: ProfileFaceRow[]): ProfileFonts {\n  const result = structuredClone(profile);\n  for (const row of clean) result[row.generic][row.script] = row.familyName;\n  // Full Chrome's headless profile path retains the Common math preference;\n  // Playwright then assigns the other Common fields. Script maps remain the\n  // clean headless values, unlike the headed PrefService-owned profile maps.\n  result.math.Zyyy = profile.math.Zyyy;\n  return result;\n}\n\nfunction sha(value: string): string { return createHash(\"sha256\").update(value).digest(\"hex\"); }\nfunction revision(repo: string): string { try { return execFileSync(\"git\", [\"-C\", repo, \"rev-parse\", \"HEAD\"], { encoding: \"utf8\" }).trim(); } catch { return \"unavailable\"; } }\n\nexport function adjudicateOverlay(profile: ProfileFonts, clean: ProfileFaceRow[], actual: ProfileFaceRow[]): GenericProfileTargetReport[\"overlay\"] {\n  const cleanMap = new Map(clean.map((row) => [key(row), row]));\n  const headlessMatchesClean = actual.filter((row) => norm(row.familyName) === norm(cleanMap.get(key(row))!.familyName)).length;\n  const supported = actual.filter((row) => profileFieldSupported(row.script, row.generic));\n  const profileDiscriminators = supported.filter((row) => norm(profile[row.generic][row.script]) !== norm(cleanMap.get(key(row))!.familyName)).length;\n  const profileMapRetainedInHeadless = supported.filter((row) => norm(row.familyName) === norm(profile[row.generic][row.script])).length;\n  const expected = headlessExpected(profile, clean);"
+                    "text": "export function derivePlaywrightOverlayMask(platformKey: PlaywrightOverlayMask[\"platformKey\"], sourceTable: Record<string, unknown>): PlaywrightOverlayMask {\n  const entry = asObject(sourceTable[platformKey], `Playwright platformToFontFamilies.${platformKey}`);\n  const fields: PlaywrightOverlayField[] = [];\n  const add = (script: Script, familiesValue: unknown): void => {\n    const families = asObject(familiesValue, `${platformKey}/${script}.fontFamilies`);\n    for (const [protocolKey, requestedFamily] of Object.entries(families)) {\n      if (!isProtocolKey(protocolKey) || typeof requestedFamily !== \"string\") continue;\n      fields.push({ script, generic: GENERIC_FROM_PROTOCOL[protocolKey], requestedFamily });\n    }\n  };\n  add(\"Zyyy\", entry.fontFamilies);\n  if (Array.isArray(entry.forScripts)) {\n    for (const itemValue of entry.forScripts) {\n      const item = asObject(itemValue, `${platformKey}.forScripts[]`);\n      const script = String(item.script ?? \"\").toLowerCase();\n      if (script === \"jpan\") add(\"Jpan\", item.fontFamilies);\n      if (script === \"deva\") add(\"Deva\", item.fontFamilies);\n    }\n  }\n  const unique = new Map(fields.map((field) => [key(field), field]));\n  if (unique.size !== fields.length) throw new Error(`duplicate Playwright overlay fields for ${platformKey}`);\n  return { platformKey, fields, sourceFieldCount: fields.length };"
                   }
                 }
               }
@@ -48,21 +48,184 @@
             "tags": [
               "rationale"
             ],
-            "ext-ai-tool-confidence": 0.95
+            "ext-ai-tool-confidence": 0.98
           },
-          "rank": 90,
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/generic-profile-target-oracle.ts"
+                },
+                "region": {
+                  "startLine": 326
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/generic-profile-target-oracle.ts"
+                },
+                "region": {
+                  "startLine": 341
+                }
+              }
+            },
+            {
+              "id": 2,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/generic-profile-target-oracle.ts"
+                },
+                "region": {
+                  "startLine": 469
+                }
+              }
+            },
+            {
+              "id": 3,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/generic-profile-target-oracle.ts"
+                },
+                "region": {
+                  "startLine": 561
+                }
+              }
+            }
+          ],
+          "rank": 95,
           "workItemUris": [
-            "DM-2503"
+            "DM-2539"
           ],
           "partialFingerprints": {
-            "prNoteAnchor/v1": "c82d60e4c7fad0ecfb00c8b9b8dffc23"
+            "prNoteAnchor/v1": "d5e9015a216140c0f6f8f19471fc8179"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5whzsmqyrg2iy0",
+          "message": {
+            "text": "Restoring the quoted -webkit-locale after all:initial is necessary to exercise Japanese and Devanagari Settings keys. Blink maps lang through this inherited presentation property; without the explicit restoration these rows silently query the document script and a nominal 21-field result is logically unauthenticated. DM-2551 owns the broader production-probe correction and DM-2550 owns the hidden macOS Hebrew face that it exposes.",
+            "markdown": "Restoring the quoted -webkit-locale after all:initial is necessary to exercise Japanese and Devanagari Settings keys. Blink maps lang through this inherited presentation property; without the explicit restoration these rows silently query the document script and a nominal 21-field result is logically unauthenticated. DM-2551 owns the broader production-probe correction and DM-2550 owns the hidden macOS Hebrew face that it exposes."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/generic-profile-target-oracle.ts"
+                },
+                "region": {
+                  "startLine": 388,
+                  "endLine": 399,
+                  "snippet": {
+                    "text": "      span.style.cssText = \"all:initial;display:block;font-size:32px;line-height:normal\";\n      if (generic !== \"standard\") span.style.fontFamily = generic === \"fixed\" ? \"monospace\" : generic === \"sansserif\" ? \"sans-serif\" : generic;\n      if (script === \"Jpan\") {\n        span.lang = \"ja\";\n        span.style.setProperty(\"-webkit-locale\", '\"ja\"');\n      }\n      if (script === \"Deva\") {\n        span.lang = \"hi\";\n        span.style.setProperty(\"-webkit-locale\", '\"hi\"');\n      }\n      span.textContent = script === \"Jpan\" ? \"日\" : script === \"Deva\" ? \"अ\" : \"A\";\n      root.appendChild(span);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/219-authenticated-profile-oopif-generic-preferences.md"
+                },
+                "region": {
+                  "startLine": 67
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2539"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "5007d597c8d260bfe83f33206ba28c6d"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5whzyuc6prhcs9",
+          "message": {
+            "text": "Fresh CDP sessions prove renderer-target ownership in both mutation orders. Each step requires all 21 selected-target fields to move, all 21 other-target fields to remain stable, and all three system-ui controls on both targets to remain stable; the final states must also be order-equivalent. The focused full-Chrome E2E passed this eight-launch contract on macOS.",
+            "markdown": "Fresh CDP sessions prove renderer-target ownership in both mutation orders. Each step requires all 21 selected-target fields to move, all 21 other-target fields to remain stable, and all three system-ui controls on both targets to remain stable; the final states must also be order-equivalent. The focused full-Chrome E2E passed this eight-launch contract on macOS."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/generic-profile-target-oracle.ts"
+                },
+                "region": {
+                  "startLine": 658,
+                  "endLine": 718,
+                  "snippet": {
+                    "text": "async function runTargetOrder(args: {\n  id: TargetOrder;\n  dir: string;\n  profile: ProfileFonts;\n  binary: ChromeBinaryIdentity;\n  opened: Set<BrowserContext>;\n  launches: ChromeLaunchAuthentication[];\n  targetUrl: string;\n}): Promise<TargetOrderReport> {\n  writeProfile(args.dir, args.profile);\n  const launch = await collectPersistent(args.dir, true, `target-${args.id}`, args.binary, args.opened);\n  args.launches.push(launch.authentication);\n  let childCdp: CDPSession | null = null;\n  try {\n    await launch.page.goto(args.targetUrl);\n    const child = launch.page.frames().find((frame) => frame !== launch.page.mainFrame());\n    if (child == null) throw new Error(`${args.id}: cross-site child frame not found`);\n    await child.waitForLoadState(\"load\");\n    childCdp = await launch.context.newCDPSession(child);\n    await enable(childCdp);\n    const [mainIdentity, childIdentity] = await Promise.all([targetInfo(launch.cdp), targetInfo(childCdp)]);\n    const distinctOopifTargets = mainIdentity.targetId !== childIdentity.targetId\n      && mainIdentity.type === \"page\"\n      && childIdentity.type === \"iframe\"\n      && new URL(mainIdentity.url).hostname !== new URL(childIdentity.url).hostname;\n    const baseline = {\n      main: await targetSnapshot(launch.page, launch.cdp),\n      child: await targetSnapshot(child, childCdp),\n    };\n    const baselineMainChildExactFields = rowsExact(baseline.main.genericRows, baseline.child.genericRows);\n    const { profile: mutationProfile, mutation } = deriveNonInertProfile(baseline.main.genericRows);\n    const payload = protocolProfile(mutationProfile);\n    const current = { main: baseline.main, child: baseline.child };\n    const steps: TargetStepReport[] = [];\n    for (const mutatedTarget of args.id === \"child-main\" ? [\"child\", \"main\"] as const : [\"main\", \"child\"] as const) {\n      const otherTarget = mutatedTarget === \"main\" ? \"child\" : \"main\";\n      const cdp = mutatedTarget === \"main\" ? launch.cdp : childCdp;\n      await cdp.send(\"Page.setFontFamilies\", payload);\n      const next = {\n        main: await targetSnapshot(launch.page, launch.cdp),\n        child: await targetSnapshot(child, childCdp),\n      };\n      const mutatedTargetExactFields = profileExactSnapshot(next[mutatedTarget], mutationProfile);\n      const otherTargetStableFields = rowsExact(next[otherTarget].genericRows, current[otherTarget].genericRows);\n      const mainSystemUiStableRows = systemRowsExact(next.main.systemUiRows, baseline.main.systemUiRows);\n      const childSystemUiStableRows = systemRowsExact(next.child.systemUiRows, baseline.child.systemUiRows);\n      const pass = mutatedTargetExactFields === REQUIRED_FIELDS\n        && otherTargetStableFields === REQUIRED_FIELDS\n        && mainSystemUiStableRows === SCRIPTS.length\n        && childSystemUiStableRows === SCRIPTS.length;\n      steps.push({ mutatedTarget, mutatedTargetExactFields, otherTargetStableFields, mainSystemUiStableRows, childSystemUiStableRows, pass });\n      current.main = next.main;\n      current.child = next.child;\n    }\n    const pass = distinctOopifTargets\n      && baselineMainChildExactFields === REQUIRED_FIELDS\n      && mutation.pass\n      && steps.length === 2\n      && steps.every((step) => step.pass)\n      && profileExactSnapshot(current.main, mutationProfile) === REQUIRED_FIELDS\n      && profileExactSnapshot(current.child, mutationProfile) === REQUIRED_FIELDS;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/generic-profile-target-oracle.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 33
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/generic-profile-target-oracle.ts"
+                },
+                "region": {
+                  "startLine": 832
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2539"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e065bc11a1c0046750d002293cfeaa52"
           }
         }
       ],
       "versionControlProvenance": [
         {
           "repositoryUri": "git@github.com:brianwestphal/domotion.git",
-          "revisionId": "ef537ffbb5972304f8ef965b2818c28cea26a09e",
+          "revisionId": "fc3e5bfb1230da3a38f57a7b104953dc4c01f979",
           "branch": "main"
         }
       ]

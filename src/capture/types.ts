@@ -1597,6 +1597,76 @@ export interface CapturedScrollbarSet {
   /** Proven source-frame absence for a fully faded platform overlay. */
   noInkReason?: "overlay-source-frame-empty";
   missingFacts: string[];
+  /**
+   * DM-2537: exact Chromium frame + live scroll-owner identity for this set.
+   * The frame id is the DevTools FrameId exposed on the default execution
+   * context, not a URL/index guess. `ownerId` is capture-local and combines
+   * that FrameId with the frame-local live-node index used by the marker pass.
+   */
+  owner?: {
+    frameId: string;
+    ownerId: string;
+  };
+}
+
+export type CapturedFrameAccess =
+  | "top"
+  | "same-origin"
+  | "cross-origin-allowlisted"
+  | "cross-origin-denied"
+  | "inaccessible"
+  | "identity-unavailable";
+
+/** One live Blink scroll owner sampled in its owning document. */
+export interface CapturedFrameScrollOwner {
+  /** `${frameId}:${frame-local live-node index}`. */
+  ownerId: string;
+  frameId: string;
+  elementIndex: number;
+  kind: "viewport" | "element";
+  tag: string;
+  direction: string;
+  writingMode: string;
+  /** Raw DOM offsets. RTL scrollLeft deliberately remains negative. */
+  scrollLeft: number;
+  scrollTop: number;
+  scrollWidth: number;
+  scrollHeight: number;
+  clientWidth: number;
+  clientHeight: number;
+}
+
+/** One CDP-authenticated frame and the scroll owners readable for this capture. */
+export interface CapturedFrameScrollRecord {
+  frameId: string;
+  parentFrameId: string | null;
+  origin: string;
+  access: CapturedFrameAccess;
+  allowlistMatched: boolean;
+  readableFromParent: boolean;
+  /** Every ancestor boundary from the top frame was authenticated/readable. */
+  reachableFromTop: boolean;
+  scrollOwners: CapturedFrameScrollOwner[];
+  /** Present for every fail-closed frame boundary. */
+  diagnostic?: string;
+}
+
+/**
+ * DM-2537: immutable authority accompanying one captured tree/scroll segment.
+ * `integritySha256` seals the allowlist decision, CDP frame graph and exact raw
+ * offsets so composition rejects wrong-frame/omitted-authority mutations.
+ */
+export interface CapturedFrameScrollState {
+  source: "chromium-cdp-frame-scroll-v1";
+  captureId: string;
+  topFrameId: string;
+  allowlist: {
+    canonical: string;
+    sha256: string;
+  };
+  frameTreeSha256: string;
+  frames: CapturedFrameScrollRecord[];
+  integritySha256: string;
 }
 
 export type BrokenImageFallbackDisposition =
@@ -1769,6 +1839,20 @@ export interface CapturedElement {
    */
   sessionGenericFamilies?: CapturedSessionGenericFamilies;
   tag: string;
+  /**
+   * DM-2537: authenticated identity of an iframe's child browsing context.
+   * Present on captured `<iframe>` owners whether the child recursed or stayed
+   * a fail-closed raster, so segment composition can correlate resources and
+   * fixed descendants with the exact Chromium frame rather than URL/order.
+   */
+  frameScrollIdentity?: {
+    source: "chromium-cdp-frame-scroll-v1";
+    captureId: string;
+    frameId: string;
+    parentFrameId: string | null;
+    access: CapturedFrameAccess;
+    allowlistSha256: string;
+  };
   text: string;
   x: number;
   y: number;

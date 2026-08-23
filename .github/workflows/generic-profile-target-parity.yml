@@ -7,6 +7,7 @@ on:
       - "src/capture/index.ts"
       - "tools/generic-profile-target-oracle.ts"
       - "tests/generic-profile-target-oracle*.test.ts"
+      - "docs/219-authenticated-profile-oopif-generic-preferences.md"
       - ".github/workflows/generic-profile-target-parity.yml"
   workflow_dispatch:
 

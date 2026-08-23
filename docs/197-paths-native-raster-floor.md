@@ -134,6 +134,18 @@ generation to `SkFontHost_FreeType.cpp`, `SkScalerContext_mac_ct.cpp`, and
 `SkScalerContext_win_dw.cpp`. Only that terminal platform-mask difference is
 eligible for an envelope.
 
+Doc 220 closes the adjacent logical substitution-stream gap without changing
+this raster corpus. Its portable `GSUB`/`GPOS`, required-ligature,
+contextual-form, mark-attachment, axis, and language-system rows join the sole
+CDP-authenticated custom face and browser glyph count to pinned HarfBuzz and
+production provenance at exact gid/cluster/source-span/advance/offset level.
+The browser-focused gate uses Blink's actual HarfBuzz default
+`MONOTONE_GRAPHEMES`, requires independent proposal/validation artifacts on
+macOS, Linux, and Windows, and explicitly reports rasterization `not-started`.
+No substitution row becomes eligible for native-raster grading until that
+six-artifact logical aggregate passes. The ratified 348-cell core, its
+envelopes, and every scalar visual-harness cap remain byte-for-byte unchanged.
+
 Doc 210 defines a separate Linux-only FreeSans MathML supplement. It keeps the
 348-cell substitution-free core and its ratified envelopes byte-for-byte
 unchanged while adding one browser `math-auto` cell, an isolated package/font

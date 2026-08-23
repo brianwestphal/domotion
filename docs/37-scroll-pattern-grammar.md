@@ -168,6 +168,16 @@ Cross-axis conflicts (e.g. `down:left + 200px` — vertical direction with horiz
   whose rows are recycled on `scrollTop` changes are supported. See
   [doc 147](147-inner-live-scroll-capture.md) for the complete contract.
 
+- **Frame-local ownership.** Every production segment seals the selected
+  top-frame viewport/element owner and its raw `scrollLeft`/`scrollTop` against
+  a fresh Chromium `FrameId` graph and the exact cross-origin allowlist. Nested
+  readable frames carry their own scrollbar/offset owners; denied or
+  inaccessible frames and all descendants below them carry diagnostics and no
+  child owners. The composer fails closed on reused state, changed/omitted
+  allowlists, wrong-frame owners, or stale iframe identities. This changes no
+  grammar or timing rule; [doc 217](217-cross-origin-frame-scroll-ownership.md)
+  defines the record.
+
 - Comma between top-level groups means **sequential execution with no implicit pause**; insert `pause:` / `<duration>` if you want one.
 
 - **Auto-chunking** (executor implementation detail, not grammar). A long single scroll (multiple viewport-heights covered by one `down:bottom/30s` action) is subdivided internally into viewport-height steps so the composer has enough anchor points to stack contiguous captures. The pattern grammar surface is unaffected — this is purely how the executor schedules the captures.

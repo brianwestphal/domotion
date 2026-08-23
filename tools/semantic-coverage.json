@@ -130,11 +130,11 @@
     {
       "id": "capture.generic-profile-target-authority",
       "parityAreas": ["font-selection", "generic-profile-target-authority"],
-      "subjects": ["Chrome profile generic preferences", "Page Settings", "OOPIF target authority"],
-      "states": ["clean profile -> isolated headed profile", "headed profile -> headless Settings overlay", "main Page Settings -> ordinary child inheritance", "ordinary child inheritance -> divergent target Settings", "divergent target Settings -> fail-closed capture"],
-      "exactStates": ["clean profile -> isolated headed profile", "headed profile -> headless Settings overlay", "main Page Settings -> ordinary child inheritance", "ordinary child inheritance -> divergent target Settings", "divergent target Settings -> fail-closed capture"],
+      "subjects": ["authenticated full-Chrome process", "raw Chrome profile generic preferences", "source-derived Playwright headless overlay", "Page Settings", "OOPIF target authority", "system-ui separation"],
+      "states": ["registry chrome channel -> hashed command executable", "requested 21 fields -> raw persisted preferences", "isolated headed profile -> exact 21-field painted state", "profile state -> source-derived headless Settings overlay", "main Page Settings -> ordinary child inheritance", "ordinary inheritance -> child-first divergent target Settings", "ordinary inheritance -> main-first divergent target Settings", "generic Page mutation -> stable system-ui", "divergent target Settings -> fail-closed capture"],
+      "exactStates": ["registry chrome channel -> hashed command executable", "requested 21 fields -> raw persisted preferences", "isolated headed profile -> exact 21-field painted state", "profile state -> source-derived headless Settings overlay", "main Page Settings -> ordinary child inheritance", "ordinary inheritance -> child-first divergent target Settings", "ordinary inheritance -> main-first divergent target Settings", "generic Page mutation -> stable system-ui", "divergent target Settings -> fail-closed capture"],
       "uncoveredStates": [],
-      "upstreamSources": ["external/chromium/chrome/browser/chrome_content_browser_client.cc", "external/chromium/third_party/blink/renderer/core/inspector/inspector_page_agent.cc", "node_modules/playwright-core/lib/server/chromium/defaultFontFamilies.js"],
+      "upstreamSources": ["external/chromium/chrome/browser/chrome_content_browser_client.cc", "external/chromium/chrome/browser/font_family_cache.cc", "external/chromium/chrome/browser/ui/prefs/prefs_tab_helper.cc", "external/chromium/third_party/blink/renderer/platform/fonts/generic_font_family_settings.cc", "external/chromium/third_party/blink/renderer/platform/fonts/font_selector.cc", "external/chromium/third_party/blink/renderer/core/inspector/inspector_page_agent.cc", "node_modules/playwright-core/lib/server/chromium/crPage.js", "node_modules/playwright-core/lib/server/chromium/defaultFontFamilies.js"],
       "productionOwners": ["src/capture/generic-font-probe.ts", "src/capture/index.ts"],
       "oracles": ["tools/generic-profile-target-oracle.ts"],
       "metamorphicTests": ["tests/generic-profile-target-oracle.test.ts", "tests/generic-profile-target-oracle.e2e.test.ts", "tests/generic-profile-target-workflow.test.ts", ".github/workflows/generic-profile-target-parity.yml"],
@@ -223,17 +223,17 @@
     {
       "id": "text.paths-native-raster-floor",
       "parityAreas": ["paths-native-raster-floor"],
-      "subjects": ["paths mode", "native Skia mask", "face/glyph/layout identity", "platform raster envelope"],
-      "states": ["declared source-owned cell -> authenticated native/paths observation", "logical mismatch -> gate failure", "logical exact -> unratified envelope", "unratified envelope -> reviewed platform envelope", "MathML math-auto Greek token -> authenticated Linux FreeSans supplement", "substitution-free source-table stream -> browser HarfBuzz substitution stream"],
-      "exactStates": ["declared source-owned cell -> authenticated native/paths observation", "logical mismatch -> gate failure", "logical exact -> unratified envelope", "unratified envelope -> reviewed platform envelope", "MathML math-auto Greek token -> authenticated Linux FreeSans supplement"],
-      "uncoveredStates": ["substitution-free source-table stream -> browser HarfBuzz substitution stream"],
+      "subjects": ["paths mode", "native Skia mask", "face/glyph/layout identity", "platform raster envelope", "browser HarfBuzz substitution stream"],
+      "states": ["declared source-owned cell -> authenticated native/paths observation", "logical mismatch -> gate failure", "logical exact -> unratified envelope", "unratified envelope -> reviewed platform envelope", "MathML math-auto Greek token -> authenticated Linux FreeSans supplement", "substitution-free source-table stream -> browser HarfBuzz substitution stream", "implemented substitution gate -> retained six-artifact native ratification"],
+      "exactStates": ["declared source-owned cell -> authenticated native/paths observation", "logical mismatch -> gate failure", "logical exact -> unratified envelope", "unratified envelope -> reviewed platform envelope", "MathML math-auto Greek token -> authenticated Linux FreeSans supplement", "substitution-free source-table stream -> browser HarfBuzz substitution stream"],
+      "uncoveredStates": ["implemented substitution gate -> retained six-artifact native ratification"],
       "upstreamSources": ["external/chromium/third_party/blink/renderer/core/layout/inline", "external/chromium/third_party/blink/renderer/platform/fonts/shaping", "external/harfbuzz/src", "external/skia/src/core", "external/skia/src/ports/SkFontHost_FreeType.cpp", "external/skia/src/ports/SkScalerContext_mac_ct.cpp", "external/skia/src/ports/SkScalerContext_win_dw.cpp"],
       "productionOwners": ["src/render/text.ts", "src/render/text-to-path.ts", "src/render/text-run-provenance.ts"],
-      "oracles": ["tools/paths-native-raster-collector.ts", "tools/paths-native-raster-corpus.ts", "tools/paths-native-raster-metrics.ts", "tools/paths-native-raster-gate.ts", "tools/paths-native-raster-producer.ts", "tools/paths-native-raster-aggregate.ts", "tools/linux-mathml-greek-raster-contract.ts", "tools/linux-mathml-greek-raster-collector.ts", "tools/linux-mathml-greek-raster-gate.ts"],
-      "metamorphicTests": ["tests/paths-native-raster-collector.test.ts", "tests/paths-native-raster-gate.test.ts", "tests/paths-native-raster-workflow.test.ts", "tests/linux-mathml-greek-raster-contract.test.ts", "tests/linux-mathml-greek-raster-gate.test.ts", "tests/linux-mathml-greek-raster-workflow.test.ts"],
-      "visualFixtures": [".github/workflows/paths-native-raster-floor.yml", ".github/workflows/linux-mathml-greek-raster-floor.yml"],
+      "oracles": ["tools/paths-native-raster-collector.ts", "tools/paths-native-raster-corpus.ts", "tools/paths-native-raster-metrics.ts", "tools/paths-native-raster-gate.ts", "tools/paths-native-raster-producer.ts", "tools/paths-native-raster-aggregate.ts", "tools/linux-mathml-greek-raster-contract.ts", "tools/linux-mathml-greek-raster-collector.ts", "tools/linux-mathml-greek-raster-gate.ts", "tools/browser-harfbuzz-substitution-oracle.ts"],
+      "metamorphicTests": ["tests/paths-native-raster-collector.test.ts", "tests/paths-native-raster-gate.test.ts", "tests/paths-native-raster-workflow.test.ts", "tests/linux-mathml-greek-raster-contract.test.ts", "tests/linux-mathml-greek-raster-gate.test.ts", "tests/linux-mathml-greek-raster-workflow.test.ts", "tests/browser-harfbuzz-substitution-oracle.test.ts", "tests/browser-harfbuzz-substitution-oracle.e2e.test.ts", "tests/browser-harfbuzz-substitution-workflow.test.ts"],
+      "visualFixtures": [".github/workflows/paths-native-raster-floor.yml", ".github/workflows/linux-mathml-greek-raster-floor.yml", ".github/workflows/browser-harfbuzz-substitution-streams.yml", "tests/fixtures/variable-axis/variable-axis.html", "tests/fixtures/exact-shaping/ArabicRligTest.ttf.base64", "tests/fixtures/exact-shaping/ArabicMarkTest.ttf.base64", "tests/fixtures/exact-shaping/LOCLTest.ttf.base64"],
       "coverage": "partial",
-      "boundary": "The self-contained collector runs a canonical 348-cell union per proposal/validation arm and requires CDP custom face, source-table gid/advance/outline facts, selected production bytes/axes/glyph stream/source outlines, and emitted baseline/matrix/synthetic paint plan before pixels; producer and aggregate resolve confined real paths, reopen PNG bytes, and recompute hashes/residuals. Run 32621780121 reviewed and ratified 2,088 rows across macOS/Linux/Windows at DPR1/2 with exact logical identity, zero warnings, active arms, and every independent validation residual inside its proposal value. A separate Linux-only Noble FreeSans supplement authenticates four MathML math-auto Greek tokens, capture-owned baselines, and native/paths/no-hint PNGs without changing the 348-cell schema or scalar caps; workflow run 32628749740 independently ratified its terminal mask envelope. Arbitrary browser shaping substitutions remain outside the source-table-owned core.",
+      "boundary": "The self-contained collector runs a canonical 348-cell union per proposal/validation arm and requires CDP custom face, source-table gid/advance/outline facts, selected production bytes/axes/glyph stream/source outlines, and emitted baseline/matrix/synthetic paint plan before pixels; producer and aggregate resolve confined real paths, reopen PNG bytes, and recompute hashes/residuals. Run 32621780121 reviewed and ratified 2,088 rows across macOS/Linux/Windows at DPR1/2 with exact logical identity, zero warnings, active arms, and every independent validation residual inside its proposal value. A separate Linux-only Noble FreeSans supplement authenticates four MathML math-auto Greek tokens, capture-owned baselines, and native/paths/no-hint PNGs without changing the 348-cell schema or scalar caps; workflow run 32628749740 independently ratified its terminal mask envelope. DM-2532/doc 220 now covers the declared portable browser-HarfBuzz substitution transition with sole CDP custom-face/glyph-count ownership, pinned-HarfBuzz and production gid/cluster/span/advance/offset agreement, thirteen active mutations, and a strict three-OS proposal/validation aggregate under Blink's actual monotone-grapheme default. DM-2552 owns the first retained six-artifact native run required before substitutions may enter raster grading; the ratified 348-cell core and scalar caps are unchanged.",
       "featureIds": ["render.text"],
       "verifiedPlatforms": ["darwin", "linux", "win32"]
     },
@@ -1288,6 +1288,8 @@
         "tests/animation-frame.e2e.test.ts",
         "tests/animated-projective-frame.e2e.test.ts",
         "tests/animated-projective-frame-workflow.test.ts",
+        "tools/timeline-sampling-ownership-oracle.ts",
+        "tests/timeline-sampling-ownership-oracle.e2e.test.ts",
         ".github/workflows/animated-projective-frame-parity.yml",
         "tools/nested-projective-ownership-audit.ts",
         "tools/projective-owner-release-gate.ts",
@@ -1309,6 +1311,7 @@
         "tests/projective-owner-release-workflow.test.ts",
         "src/render/text-affine.test.ts",
         "tests/text-affine-baseline-protocol-oracle.test.ts",
+        "tests/timeline-sampling-ownership-oracle.test.ts",
         "src/render/projective-transform.test.ts",
         "src/stacking-context.test.ts",
         "src/capture/perspective-ownership.e2e.test.ts",
@@ -1327,7 +1330,7 @@
         "tests/features.ts#perspective-fixed-containing-block-ownership"
       ],
       "coverage": "partial",
-      "boundary": "Computed perspective/origin, transformed text, inline SVG and fixed-containing-block ownership are source-audited and gated. Axis-aligned transformed flex descendants additionally cross 24 scale/origin/wrapper states with fractional local geometry, exact live/capture facts, documented one-decimal emitted SVG geometry, six active logical mutations, and no fixture relaxation in a native three-platform workflow. DM-2492 selects the smallest owner through Blink's direct-parent used-preserve propagation. DM-2493 crosses 25 context/grouping/negative families with four static/animated/environment profiles at DPR 1/2; its schema-v2 macOS/Linux/Windows aggregate requires exact owners, one direct atomic image, retained vector sentinels, restoration and warning integrity, lossless SHA/crop provenance, complete Cartesian artifacts, nine mutations and a secondary four-device-pixel bound. Unknown internal view-transition participation still warns and retains a conservative Chromium surface. Scroll/view/rAF timelines remain outside the deterministic document-timeline contract. DM-2544 now independently decodes the Range/CDP/paint-snap/ascent/writing-plane/transform-origin baseline protocol without pixels. Production still lacks pre-correlation splitting for multiple physical text fragments (DM-2546) and a structured vertical line-relative/physical baseline record (DM-2547), so both transitions remain explicitly uncovered.",
+      "boundary": "Computed perspective/origin, transformed text, inline SVG and fixed-containing-block ownership are source-audited and gated. Axis-aligned transformed flex descendants additionally cross 24 scale/origin/wrapper states with fractional local geometry, exact live/capture facts, documented one-decimal emitted SVG geometry, six active logical mutations, and no fixture relaxation in a native three-platform workflow. DM-2492 selects the smallest owner through Blink's direct-parent used-preserve propagation. DM-2493 crosses 25 context/grouping/negative families with four static/animated/environment profiles at DPR 1/2; its schema-v2 macOS/Linux/Windows aggregate requires exact owners, one direct atomic image, retained vector sentinels, restoration and warning integrity, lossless SHA/crop provenance, complete Cartesian artifacts, nine mutations and a secondary four-device-pixel bound. Unknown internal view-transition participation still warns and retains a conservative Chromium surface. DM-2531 source-traces scroll/view time to post-layout snapshots and the compositor scroll tree, and rAF to PageAnimator callbacks outside WAAPI enumeration. Its eleven-discriminator main/OOPIF logical oracle proves exact percentage holds and mutable sources, HTML-box versus SVG transform behavior, document/open/closed-shadow TreeScope omission, benign page-global clock freezing, and page-builtin/worker/late native rAF escapes. Production remains uncovered until DM-2553 authenticates logical-axis/SVG/all-TreeScope progress sources with rollback and DM-2554 owns or rejects every Window/worker callback queue. DM-2544 independently decodes the Range/CDP/paint-snap/ascent/writing-plane/transform-origin baseline protocol without pixels. Production still lacks pre-correlation splitting for multiple physical text fragments (DM-2546) and a structured vertical line-relative/physical baseline record (DM-2547), so all three transitions remain explicitly uncovered.",
       "featureIds": [
         "capture.animated-projective-frame",
         "render.tree-to-svg",
@@ -1386,8 +1389,10 @@
         "external/chromium/third_party/blink/renderer/core/paint/object_paint_properties.h",
         "external/chromium/third_party/blink/renderer/platform/graphics/compositing_reasons.h",
         "external/chromium/third_party/blink/renderer/platform/graphics/filters/paint_filter_builder.cc",
+        "external/chromium/third_party/blink/renderer/platform/graphics/interpolation_space.cc",
         "external/skia/src/core/SkCanvas.cpp",
-        "external/skia/src/core"
+        "external/skia/src/core/SkColorFilter.cpp",
+        "external/skia/src/core/SkColorSpaceXformSteps.cpp"
       ],
       "productionOwners": [
         "src/render/stacking.ts",
@@ -1409,6 +1414,8 @@
         "tools/paint-order-oracle.ts",
         "tools/raster-boundary-oracle.ts",
         "tools/blend-filter-pixel-stage-oracle.ts",
+        "tools/mixed-reference-color-space-oracle.ts",
+        ".github/workflows/blend-filter-pixel-stage.yml",
         "tools/backdrop-source-surface-audit.ts",
         ".github/workflows/backdrop-source-surface-parity.yml",
         "tools/pseudo-backdrop-source-oracle.ts",
@@ -1423,6 +1430,9 @@
         "tests/blend-filter-pixel-stage-oracle.test.ts",
         "tests/blend-filter-pixel-stage-oracle.e2e.test.ts",
         "tests/blend-filter-pixel-stage-workflow.test.ts",
+        "tests/mixed-reference-color-space-oracle.test.ts",
+        "tests/mixed-reference-color-space-oracle.e2e.test.ts",
+        "tests/mixed-reference-color-space-workflow.test.ts",
         "tests/backdrop-source-surface-audit.test.ts",
         "tests/backdrop-source-surface-audit.e2e.test.ts",
         "tests/backdrop-source-surface-workflow.test.ts",
@@ -1438,10 +1448,11 @@
         "tests/features.ts#filter-passthrough",
         "tests/pseudo-filter-functions.e2e.test.ts",
         "tests/features.ts#blend-mode-passthrough",
-        "tests/fixtures/html-test/37-blend-filter-pixel-stage.html"
+        "tests/fixtures/html-test/37-blend-filter-pixel-stage.html",
+        "tests/fixtures/html-test/38-mixed-reference-color-space-stage.html"
       ],
       "coverage": "partial",
-      "boundary": "Pseudo shorthand filter functions are exact native-vector effects with function-list, mutation, clip/transform/stack-slot, zoom, and DPR evidence. DM-2360 pins and gates the browser pixel stage for all 17 premultiplied blend modes, author-order sRGB shorthand chains, opacity, decal blur, fractional drop-shadow, isolation and reverse-painted background blends at DPR 1/2 on macOS/Linux/Windows. Independent filter/blend/isolation mutations and six ownership rows prevent a wrong source surface from passing an end-image tolerance. Computed alpha preserves Blink's legacy two/three-decimal and modern six-decimal forms. Docs 187/194/195 close ordinary backdrop ownership with atomic opacity/blend/mask roots, target-filter grouping, a rotate/skew-only terminal surface, and document-root scroll/sticky boundaries. The schema-v2 native DPR-1/2 gate requires exact source clips/pass counts/order, both destructive mutations, no backdrop warning, and zero logical-interior residual pixels; source-edge consumer phase cannot excuse a new or shifted rendered edge, and none of the four-code/1%/mutation thresholds changed. DM-2488/doc 193 separately closes generated-pseudo ownership, DM-2489/doc 192 closes fixed sibling order, and DM-2490 keeps retained partial/unavailable output explicit. Coverage remains partial only for the upstream mixed reference-linearRGB/shorthand-sRGB seam, which is not locally emulated.",
+      "boundary": "Pseudo shorthand filter functions are exact native-vector effects with function-list, mutation, clip/transform/stack-slot, zoom, and DPR evidence. DM-2360 pins and gates the browser pixel stage for all 17 premultiplied blend modes, author-order sRGB shorthand chains, opacity, decal blur, fractional drop-shadow, isolation and reverse-painted background blends at DPR 1/2 on macOS/Linux/Windows. Independent filter/blend/isolation mutations and six ownership rows prevent a wrong source surface from passing an end-image tolerance. DM-2535/doc 218 pins Blink's current missing reference-linearRGB to shorthand-sRGB compositor transition, records exact straight and premultiplied stages, and proves all nine filter-only native-terminal rows exact at DPR 1/2 without local transition emulation. Its hostile transfer/order/isolation models and source/candidate mutations isolate a separate local wrapper defect: localized CSS URL filters currently sit outside mix-blend-mode, reversing Blink's outer Effect / inner Filter order. DM-2548 owns that reorder and DM-2549 owns strict three-platform promotion; the fixed four-code channel bound and eight-code mutation floor did not change. Computed alpha preserves Blink's legacy two/three-decimal and modern six-decimal forms. Docs 187/194/195 close ordinary backdrop ownership with atomic opacity/blend/mask roots, target-filter grouping, a rotate/skew-only terminal surface, and document-root scroll/sticky boundaries. The schema-v2 native DPR-1/2 gate requires exact source clips/pass counts/order, both destructive mutations, no backdrop warning, and zero logical-interior residual pixels; source-edge consumer phase cannot excuse a new or shifted rendered edge, and none of the four-code/1%/mutation thresholds changed. DM-2488/doc 193 separately closes generated-pseudo ownership, DM-2489/doc 192 closes fixed sibling order, and DM-2490 keeps retained partial/unavailable output explicit. Coverage remains partial only for the source-proven localized filter-before-blend wrapper gap.",
       "featureIds": [
         "render.tree-to-svg"
       ],
@@ -1973,17 +1984,24 @@
         "cross-origin denied -> raster",
         "cross-origin allowlisted -> recursive vector",
         "unique fragment id -> duplicate outer/iframe TreeScope ids",
-        "single fragment mask -> ordered duplicate-id fragment layers"
-      ],
-      "uncoveredStates": [
+        "single fragment mask -> ordered duplicate-id fragment layers",
         "static capture -> scroll composition"
       ],
+      "uncoveredStates": [],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/html",
         "external/chromium/third_party/blink/renderer/core/paint",
+        "external/chromium/third_party/blink/renderer/core/inspector/main_thread_debugger.cc",
+        "external/chromium/third_party/blink/renderer/core/inspector/identifiers_factory.cc",
+        "external/chromium/third_party/blink/renderer/core/inspector/inspector_page_agent.cc",
+        "external/chromium/third_party/blink/renderer/core/inspector/inspector_dom_snapshot_agent.cc",
+        "external/chromium/third_party/blink/public/devtools_protocol/domains/Target.pdl",
+        "external/chromium/third_party/blink/renderer/core/paint/paint_layer_scrollable_area.cc",
         "external/chromium/third_party/blink/renderer/core/css/resolver/element_style_resources.cc"
       ],
       "productionOwners": [
+        "src/capture/frame-scroll-state.ts",
+        "src/capture/scrollbar-capture.ts",
         "src/capture/script/cross-origin.ts",
         "src/capture/script/walker/masks-clips.ts",
         "src/capture/script/index.ts",
@@ -1991,23 +2009,27 @@
         "src/capture/index.ts",
         "src/render/mask.ts",
         "src/render/element-tree-to-svg.ts",
+        "src/scroll/executor.ts",
         "src/scroll/composer.ts"
       ],
       "oracles": [
         "tools/raster-boundary-oracle.ts",
+        "tests/cross-origin-iframe-recursion.e2e.test.ts",
         "tests/iframe-inner-defs.e2e.test.ts",
         "tests/multi-layer-fragment-mask.e2e.test.ts"
       ],
       "metamorphicTests": [
         "src/capture/script/cross-origin.test.ts",
+        "src/scroll/frame-scroll-ownership.test.ts",
+        "tests/cross-origin-frame-scroll-workflow.test.ts",
         "src/mask.test.ts"
       ],
       "visualFixtures": [
         "tests/features.ts#replaced-iframe-same-origin",
-        "tests/features.ts#iframe-inner-clip-mask"
+        "tests/features.ts#iframe-inner-clip-mask",
+        ".github/workflows/cross-origin-frame-scroll-ownership.yml"
       ],
-      "coverage": "partial",
-      "boundary": "Allowlist state is not threaded through scroll capture. Same-origin iframe mask/clip resources, including ordered multi-layer fragment masks with duplicate outer/iframe ids, are exact by originating TreeScope, border-box object/user-space geometry, zoom, channel, resource region, and composite at DPR 1/2; no iframe mask threshold is involved.",
+      "coverage": "exact",
       "featureIds": [
         "capture.iframe-recursion"
       ],
