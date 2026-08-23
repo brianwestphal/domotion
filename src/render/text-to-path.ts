@@ -67,6 +67,7 @@ import {
   TextPathOwnership,
   TextPathResult,
   codepointResolvesToNotdef,
+  createFontFallbackSemanticContext,
   commandsFor,
   currentRenderTextMode,
   ensureGlyphDef,
@@ -257,12 +258,14 @@ export function splitTextIntoGlyphPathRuns(
   /** Exact Blink cache-key request state; neither field changes shaping. */
   fallbackRequest?: { rawSlope: number; orientation: number },
 ): FontRun[] {
+  const semanticContext = createFontFallbackSemanticContext(fontFamily);
   const clusterEnabled = clusterFallbackEnabled();
   if (clusterEnabled) {
     return splitTextIntoFontRunsShaped(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily, {
       mode: "paths", features, bidiOverride,
       fallbackRawSlope: fallbackRequest?.rawSlope,
       fallbackOrientation: fallbackRequest?.orientation,
+      semanticContext,
     });
   }
   const legacyMechanism: NonNullable<FontRun["routeMechanism"]> = "cluster-disabled-legacy";
@@ -309,7 +312,7 @@ export function splitTextIntoGlyphPathRuns(
         : (chIsMark && !clusterHasBase) ? cp      // orphaned bare mark (HarfBuzz inserts the ◌)
         : 0;
       if (markForCluster !== 0) {
-        const hbRun = resolveDottedCircleHbRun(markForCluster, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain);
+        const hbRun = resolveDottedCircleHbRun(markForCluster, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, undefined, undefined, fontFamily, semanticContext);
         if (hbRun != null) { hbDottedCircleRun = hbRun; clusterRun = hbRun; }
       }
     }
@@ -330,6 +333,7 @@ export function splitTextIntoGlyphPathRuns(
       cp, primaryFont, primaryFontKey, weight, fontSize, slant,
       variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, effFve,
       fontFamily, fallbackRequest?.rawSlope, fallbackRequest?.orientation,
+      semanticContext,
     );
     if (clusterRun != null) {
       emitCh = ch;
@@ -1646,6 +1650,7 @@ export function insertSyntheticDottedCircles(
   // authoritative (it vetoes the static block heuristic), so it maps to an empty
   // set, NOT null. Only `undefined` (no probe data) falls back to the heuristic.
   const coveredCircleSet = dottedCircleMarks != null ? new Set(dottedCircleMarks) : null;
+  const semanticContext = createFontFallbackSemanticContext(fontFamily);
   const primaryFontKey = resolveFontKey(fontFamily, lang);
   // The full declared stack, derived the same way the run splitters derive it —
   // the coverage probe below delegates to `resolveFontForCodepoint`, which walks
@@ -1768,7 +1773,7 @@ export function insertSyntheticDottedCircles(
     const orphaned = !clusterHasBase;
     const logicalHbRun = isMark && orphaned
       ? resolveDottedCircleHbRun(cp, primaryFont, primaryFontKey, weight, fontSize, slant,
-        variationSettings, lang, fontKeyChain)
+        variationSettings, lang, fontKeyChain, undefined, undefined, fontFamily, semanticContext)
       : null;
     const fallbackScript = isMark ? segmentForShaping(ch)[0]?.script : undefined;
     const icuScriptTag = icu?.scriptName;
@@ -1842,7 +1847,7 @@ export function insertSyntheticDottedCircles(
           && !(shapeUncoveredOrphansNatively && logicalShapeFont?.shapesWithHarfbuzz === true)
           && codepointResolvesToNotdef(cp, primaryFont, primaryFontKey, weight, fontSize, slant,
             variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily, lang), stretch,
-            undefined, fallbackRequest?.rawSlope, fallbackRequest?.orientation)) {
+            undefined, fallbackRequest?.rawSlope, fallbackRequest?.orientation, fontFamily, semanticContext)) {
         const adv = resolveDottedCircleAdvance();
         const markX = haveX ? (xOffsets![i] ?? 0) : 0;
         if (isLeftReorderingMatra(cp) || isRtlScriptCodepoint(cp)) {
@@ -1881,7 +1886,7 @@ export function insertSyntheticDottedCircles(
       const coveredMarkResolution = probeFlagged && logicalHbRun == null
         ? resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant,
           variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily, lang), stretch,
-          undefined, undefined, fallbackRequest?.rawSlope, fallbackRequest?.orientation)
+          undefined, fontFamily, fallbackRequest?.rawSlope, fallbackRequest?.orientation, semanticContext)
         : null;
       const coveredMarkFont = logicalHbRun?.font
         ?? (coveredMarkResolution?.covered === true
@@ -2016,6 +2021,7 @@ function splitTextIntoFontRuns(
   bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string },
   fallbackRequest?: { rawSlope: number; orientation: number },
 ): FontRun[] {
+  const semanticContext = createFontFallbackSemanticContext(fontFamily);
   // Default: fallback at shaped-cluster granularity — Blink's shape-then-
   // requeue mechanism (`ExtractShapeResults`, harfbuzz_shaper.cc:627-787, rev
   // 7d859f27) instead of the per-codepoint cmap walk below. The state machine
@@ -2028,6 +2034,7 @@ function splitTextIntoFontRuns(
       features, bidiOverride,
       fallbackRawSlope: fallbackRequest?.rawSlope,
       fallbackOrientation: fallbackRequest?.orientation,
+      semanticContext,
     });
   }
   const legacyMechanism: NonNullable<FontRun["routeMechanism"]> = "cluster-disabled-legacy";
@@ -2093,7 +2100,9 @@ function splitTextIntoFontRuns(
     // over the whole group.
     const byChain = new Map<string, { chain: string[]; cps: number[] }>();
     for (const cp of uncovered) {
-      const chain = fallbackFontChain(cp, primaryFontKey, lang);
+      const chain = fallbackFontChain(cp, primaryFontKey, lang, {
+        weight, slant, fontSize, stretch, fontVariantEmoji, ...semanticContext,
+      });
       if (chain.length === 0) continue;
       const key = chain.join("\0");
       const entry = byChain.get(key);
@@ -2150,7 +2159,7 @@ function splitTextIntoFontRuns(
         : (chIsMark && !clusterHasBase) ? cp
         : 0;
       if (markForCluster !== 0) {
-        const hbRun = resolveDottedCircleHbRun(markForCluster, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain);
+        const hbRun = resolveDottedCircleHbRun(markForCluster, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, undefined, undefined, fontFamily, semanticContext);
         if (hbRun != null) { hbDottedCircleRun = hbRun; clusterRun = hbRun; }
       }
     }
@@ -2173,6 +2182,7 @@ function splitTextIntoFontRuns(
       cp, primaryFont, primaryFontKey, weight, fontSize, slant,
       variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, effFve,
       fontFamily, fallbackRequest?.rawSlope, fallbackRequest?.orientation,
+      semanticContext,
     );
     const emitCh = clusterRun != null ? ch : res!.emitCh;
     const useKey = clusterRun != null ? clusterRun.key : res!.key;

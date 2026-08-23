@@ -2329,6 +2329,72 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "version": "gpt-5",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5nigkcaof8ywj5",
+          "message": {
+            "text": "DM-2515: Blink owns descriptor GenericFamily independently of the selected face; the unresolved stack's rightmost legacy generic is carried as request state, while system-ui/math and quoted generic spellings do not occupy that enum.",
+            "markdown": "DM-2515: Blink owns descriptor GenericFamily independently of the selected face; the unresolved stack's rightmost legacy generic is carried as request state, while system-ui/math and quoted generic spellings do not occupy that enum."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 5042,
+                  "endLine": 5042,
+                  "snippet": {
+                    "text": "  return winFallbackPriorityForTextRun(cp);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "rank": 1,
+          "workItemUris": [
+            "DM-2515"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "00badaa4155a6b309d3ac8814282011f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a948ece64b94d2a9dea20803ebf708b38a2f6dc8",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

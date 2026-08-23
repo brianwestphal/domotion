@@ -545,17 +545,16 @@ they describe (see `CLAUDE.md` "Documentation"):
   explicit and restored in `finally`; environment invalidation now also expires
   the memoized menu family, with a stale-before/fresh-after discriminator.
 - **Resolved keys do not own Blink's generic-family semantic (font-resolution
-  diagram §7, doc 206)** — **Investigated; production correction pending.**
+  diagram §7, doc 206)** — **Windows hardcoded stage corrected.**
   Blink preserves the rightmost enum-bearing generic in `FontDescription`
-  independently of the concrete selected family. Domotion currently infers
-  the Windows hardcoded-fallback branch from whether the resolved key is
-  `courier`, creating both named-Courier false positives and non-Courier-key
-  monospace false negatives. A 20-row Arabic/Hebrew source discriminator runs
+  independently of the concrete selected family. Domotion now derives that
+  semantic once from the unresolved stack, carries it through fallback requests,
+  and keys the OS fallback memo by normalized declared head plus node kind. A
+  20-row Arabic/Hebrew source/production discriminator runs
   forward and reverse on macOS/Linux/Windows, requires exact candidate order
   plus one CDP-painted glyph, and uses no pixel threshold. The Windows-routing
-  and common-Skia-terminal bugs plus subsequent strict-gate promotion are
-  tracked as standalone follow-ups in doc 206; this transition remains partial
-  until those land.
+  common-Skia-terminal gap and subsequent strict-gate promotion remain separate
+  follow-ups in doc 206.
 - **Family-match CI gates (docs 110/111, DM-1953)** — **Shipped (awaiting
   first-run baselines).** Regression-relative against env-keyed baseline SETS
   (`tools/family-match-baseline.ts`; one entry per environment fingerprint in

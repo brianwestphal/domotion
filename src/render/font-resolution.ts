@@ -2486,6 +2486,10 @@ export function resolveFontSpec(key: string): FontPath | null {
 // the answer is weight- and style-dependent, because Blink re-selects the cut
 // within the substitute family (see `resolveSystemFallbackFonts`).
 const systemFallbackKeyCache = new Map<string, string | null>();
+/** Test-only mutation witness for request-identity cache controls. */
+export function __systemFallbackKeyCacheSizeForTest(): number {
+  return systemFallbackKeyCache.size;
+}
 
 // DM-1018: gate for the per-codepoint live system-fallback resolution. Each
 // first-seen uncovered codepoint costs one resolver round-trip (memoized after).
@@ -3158,7 +3162,11 @@ export function resolveSystemFallbackKeyForCp(
   // committed conformance baseline) is untouched.
   const primaryKeyComponent = hostPlatform() === "darwin" ? "" : primaryKey ?? "";
   const darwinDescription = hostPlatform() === "darwin" ? `|${rawSlope}|${orientation}` : "";
-  const cacheKey = `${hostPlatform()}|${cp}|${weight}|${slant !== 0 ? 1 : 0}${darwinDescription}|${fontSize}|${base.name}|${useSystemUiBase ? "ui" : ""}|${lang ?? ""}|${suppressEmojiPresentation ? "t" : ""}|${primaryKeyComponent}`;
+  // Linux's rejected-head retry and Windows' DirectWrite base nomination read
+  // the unresolved declared head. It is therefore part of this memo's input,
+  // including whether the node was a generic or a quoted/named family.
+  const declaredHeadComponent = hostPlatform() === "darwin" ? "" : declaredFamilyHeadIdentity(declaredFamily);
+  const cacheKey = `${hostPlatform()}|${cp}|${weight}|${slant !== 0 ? 1 : 0}${darwinDescription}|${fontSize}|${base.name}|${useSystemUiBase ? "ui" : ""}|${lang ?? ""}|${suppressEmojiPresentation ? "t" : ""}|${primaryKeyComponent}|${declaredHeadComponent}`;
   // DM-1949: the ideograph document cache (Blink's character_fallback_cache_,
   // font_cache_mac.mm:352-366) is consulted BEFORE any ask — including the
   // process-global memo below, which is a memo of the context-FREE ask and
@@ -4127,7 +4135,7 @@ function linuxDeferOrStatic(
   if (hostPlatform() === "linux" && _systemFallbackResolutionEnabled
       && resolveSystemFallbackKeyForCp(
         cp, css?.weight, css?.slant, css?.fontSize, primaryKey, false, lang,
-        css?.stretch, css?.fontVariantEmoji,
+        css?.stretch, css?.fontVariantEmoji, css?.declaredFamily,
       ) != null) {
     return [];
   }
@@ -5006,14 +5014,12 @@ function win32DeferOrStatic(
  * and Thai to Tahoma-then-Leelawadee-UI as a pair where Blink nominates exactly
  * one family and then probes pan-Unicode.
  *
- * `primaryKey` supplies `FontDescription::GenericFamily()`, which changes an
- * answer only through `FindMonospaceFontForScript` (monospace + Arabic/Hebrew →
- * Courier New). The `monospace` generic resolves to the `courier` key on
- * Windows, so that is the test. An author who names `"Courier New"` explicitly
- * lands on the same key while Blink would see `kStandardFamily` — a documented
- * residual of the key model (the same information loss `system-ui` has), not a
- * behavior choice, and it can only differ for Arabic or Hebrew text in an
- * explicitly-Courier-New run.
+ * The request-scoped `CssFallbackDescription.genericFamily` supplies
+ * `FontDescription::GenericFamily()`, which changes an answer only through
+ * `FindMonospaceFontForScript` (monospace + Arabic/Hebrew → Courier New).
+ * Concrete face keys deliberately do not own that semantic: named Courier is
+ * non-monospace, while a settings-mapped monospace generic may resolve to a
+ * non-Courier key.
  */
 /**
  * The Windows fallback priority for one codepoint under one `font-variant-emoji`
@@ -5046,7 +5052,11 @@ export function win32FallbackChain(
   // which family to nominate (`win/font_fallback_win.cc:54-65`). Whether a family
   // is installed does not depend on the run's weight.
   const families = blinkWinHardcodedFamilies(codepoint, {
-    generic: primaryKey === "courier" ? "monospace" : "standard",
+    // Blink carries FontDescription::GenericFamily independently from the
+    // concrete face selected for the first family.  A named Courier is not the
+    // monospace enum, while a session-probed monospace generic need not resolve
+    // to our `courier` key.  The unresolved CSS stack is therefore the owner.
+    generic: css?.genericFamily === "monospace" ? "monospace" : "standard",
     lang,
     // DM-1985: the run's SEGMENTED priority, not an unconditional upgrade.
     // `winFallbackPriorityForTextRun` transcribes Blink's `kText → kEmojiText`
@@ -5156,6 +5166,87 @@ export interface CssFallbackDescription {
    *  of the Windows `kText → kEmojiText` promotion rather than beside it.
    *  Absent = `normal`, and then the codepoint's own segmented priority wins. */
   fontVariantEmoji?: FontVariantEmojiOverride;
+  /** Blink's descriptor-wide GenericFamily. This is semantic request state,
+   *  not a property of whichever concrete face/key resolved first. */
+  genericFamily?: BlinkGenericFamily;
+  /** The unresolved serialized CSS family stack from which `genericFamily`
+   *  was derived. Kept for platform asks whose identity includes the declared
+   *  head even after that head failed to resolve. */
+  declaredFamily?: string;
+}
+
+export interface FontFallbackSemanticContext {
+  declaredFamily?: string;
+  genericFamily: BlinkGenericFamily;
+}
+
+export function createFontFallbackSemanticContext(declaredFamily?: string): FontFallbackSemanticContext {
+  return { declaredFamily, genericFamily: blinkGenericFamilyFromDeclaredStack(declaredFamily) };
+}
+
+export type BlinkGenericFamily =
+  | "none" | "standard" | "webkit-body" | "serif" | "sans-serif"
+  | "monospace" | "cursive" | "fantasy";
+
+interface DeclaredFamilyToken { value: string; quoted: boolean }
+
+/** Parse the comma/quote boundary needed for Blink's FontFamily list. */
+export function splitDeclaredFontFamily(value: string): DeclaredFamilyToken[] {
+  const out: DeclaredFamilyToken[] = [];
+  let token = "";
+  let quote = "";
+  let escaped = false;
+  const push = (): void => {
+    const entry = token.trim(); token = "";
+    if (entry === "") return;
+    const quoted = entry.length >= 2
+      && ((entry.startsWith('"') && entry.endsWith('"'))
+        || (entry.startsWith("'") && entry.endsWith("'")));
+    out.push({ value: quoted ? entry.slice(1, -1) : entry, quoted });
+  };
+  for (const ch of value) {
+    if (escaped) { token += ch; escaped = false; continue; }
+    if (ch === "\\") { token += ch; escaped = true; continue; }
+    if (quote !== "") { token += ch; if (ch === quote) quote = ""; continue; }
+    if (ch === '"' || ch === "'") { quote = ch; token += ch; continue; }
+    if (ch === ",") { push(); continue; }
+    token += ch;
+  }
+  push();
+  return out;
+}
+
+const BLINK_GENERIC_FAMILIES: Readonly<Record<string, BlinkGenericFamily>> = {
+  serif: "serif", "sans-serif": "sans-serif", monospace: "monospace",
+  cursive: "cursive", fantasy: "fantasy", "-webkit-standard": "standard",
+  "-webkit-body": "webkit-body",
+};
+
+/** Blink reverses the list and sets the descriptor enum once, hence the
+ * rightmost enum-bearing legacy generic wins. system-ui and math deliberately
+ * do not occupy this enum; quoted generic spellings are named families. */
+export function blinkGenericFamilyFromDeclaredStack(value?: string): BlinkGenericFamily {
+  const families = splitDeclaredFontFamily(value ?? "");
+  for (let index = families.length - 1; index >= 0; index--) {
+    const family = families[index];
+    if (!family.quoted) {
+      const generic = BLINK_GENERIC_FAMILIES[family.value.toLowerCase()];
+      if (generic != null) return generic;
+    }
+  }
+  return "none";
+}
+
+/** Stable identity for the declared head consumed by Linux/Windows system
+ * fallback. The node kind prevents quoted `"monospace"` from aliasing the
+ * monospace generic in the process-global memo. */
+export function declaredFamilyHeadIdentity(value?: string): string {
+  const head = splitDeclaredFontFamily(value ?? "")[0];
+  if (head == null) return "missing:";
+  const lowered = head.value.toLowerCase();
+  const kind = !head.quoted && (BLINK_GENERIC_FAMILIES[lowered] != null || lowered === "system-ui" || lowered === "math")
+    ? "generic" : "name";
+  return `${kind}:${lowered}`;
 }
 
 
@@ -9533,6 +9624,8 @@ export function resolveDottedCircleHbRun(
   weight: number, fontSize: number, slant: number,
   variationSettings: Record<string, number> | undefined,
   lang: string | undefined, fontKeyChain: string[], rawSlope?: number, orientation?: number,
+  declaredFamily?: string,
+  semanticContext: FontFallbackSemanticContext = createFontFallbackSemanticContext(declaredFamily),
 ): { key: string; font: FontInstance } | null {
   // DM-1215 + DM-1197: do NOT reroute marks belonging to a DEDICATED HarfBuzz
   // shaper (Indic / Thai-Lao / Tibetan / Myanmar / Khmer / Arabic / Hebrew /
@@ -9551,7 +9644,7 @@ export function resolveDottedCircleHbRun(
   // green (they're caught by `usesDedicatedShaper`, untouched by this change).
   if (usesDedicatedShaper(markCp)) return null;
   const r = resolveFontForCodepoint(markCp, primaryFont, primaryFontKey, weight, fontSize, slant,
-    variationSettings, lang, fontKeyChain, false, 100, undefined, undefined, rawSlope, orientation);
+    variationSettings, lang, fontKeyChain, false, 100, undefined, declaredFamily, rawSlope, orientation, semanticContext);
   if (!r.covered) return null;
   const markKey = r.key;
   const markFont = r.fontOverride ?? (markKey === primaryFontKey ? primaryFont : getFontInstance(markKey, weight, fontSize, slant));
@@ -9718,10 +9811,12 @@ export function codepointResolvesToNotdef(
   fontVariantEmoji?: FontVariantEmojiOverride,
   rawSlope?: number,
   orientation?: number,
+  declaredFamily?: string,
+  semanticContext: FontFallbackSemanticContext = createFontFallbackSemanticContext(declaredFamily),
 ): boolean {
   return !resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant,
     variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji,
-    undefined, rawSlope, orientation).covered;
+    declaredFamily, rawSlope, orientation, semanticContext).covered;
 }
 
 /**
@@ -10173,10 +10268,11 @@ export function resolveFontForCodepoint(
   declaredFamily?: string,
   rawSlope: number = slant !== 0 ? 14 : 0,
   orientation: number = 0,
+  semanticContext: FontFallbackSemanticContext = createFontFallbackSemanticContext(declaredFamily),
 ): FontResolution {
   return harfbuzzShapedScriptOverride(
     cp,
-    resolveFontForCodepointInner(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, declaredFamily, rawSlope, orientation),
+    resolveFontForCodepointInner(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, declaredFamily, rawSlope, orientation, semanticContext),
     primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings,
   );
 }
@@ -10210,7 +10306,12 @@ function walkFontFallbackStages(
   declaredFamily?: string,
   rawSlope: number = slant !== 0 ? 14 : 0,
   orientation: number = 0,
+  semanticContext: FontFallbackSemanticContext = createFontFallbackSemanticContext(declaredFamily),
 ): FontResolution {
+  // From this point the serialized request carrier is the sole owner. Keeping
+  // the legacy scalar only in the public signature preserves call compatibility
+  // without allowing hardcoded and live stages to answer different stacks.
+  declaredFamily = semanticContext.declaredFamily;
   _stageStats.calls++;
   const ch = String.fromCodePoint(cp);
   const helperBacked = isGlyphHelperAvailable() && isIcuHelperAvailable();
@@ -10533,7 +10634,9 @@ function walkFontFallbackStages(
     _stageStats.staticAsked++;
     // DM-1985: the run's `font-variant-emoji` reaches the chain, because on
     // Windows it decides which arm of `GetFallbackFamily` the codepoint takes.
-    for (const candidate of fallbackFontChain(cp, primaryFontKey, lang, { weight, slant, fontSize, fontVariantEmoji })) {
+    for (const candidate of fallbackFontChain(cp, primaryFontKey, lang, {
+      weight, slant, fontSize, fontVariantEmoji, ...semanticContext,
+    })) {
       if (candidate === "last-resort") continue;
       const cf = getFontInstance(candidate, weight, fontSize, slant);
       // The coverage test, answered from a local cmap bitset when the face can
@@ -10685,7 +10788,9 @@ function walkFontFallbackStages(
   // synthesis solely as the documented best-effort path when the native
   // helper cannot provide Chromium's platform fallback/shaping stack.
   if (!helperBacked) {
-    const decomp = decomposeMathAlphaRun(cp, fallbackFontChain(cp, primaryFontKey, lang, { weight, slant, fontSize }), weight, fontSize);
+    const decomp = decomposeMathAlphaRun(cp, fallbackFontChain(cp, primaryFontKey, lang, {
+      weight, slant, fontSize, ...semanticContext,
+    }), weight, fontSize);
     if (decomp != null) return cover(decomp.key, decomp.font, decomp.ch, true);
   }
 
@@ -10711,11 +10816,12 @@ function resolveFontForCodepointInner(
   declaredFamily?: string,
   rawSlope: number = slant !== 0 ? 14 : 0,
   orientation: number = 0,
+  semanticContext: FontFallbackSemanticContext = createFontFallbackSemanticContext(declaredFamily),
 ): FontResolution {
   return walkFontFallbackStages(
     cp, primaryFont, primaryFontKey, weight, fontSize, slant,
     variationSettings, lang, fontKeyChain, systemUiPrimary, stretch,
-    fontVariantEmoji, declaredFamily, rawSlope, orientation,
+    fontVariantEmoji, declaredFamily, rawSlope, orientation, semanticContext,
   );
 }
 

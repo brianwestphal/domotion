@@ -62,6 +62,8 @@ import {
   fontHasSupportedColorTable,
   harfbuzzShapedRunOverride,
   FontVariantEmojiOverride,
+  FontFallbackSemanticContext,
+  createFontFallbackSemanticContext,
   registerFontEnvironmentInvalidator,
 } from "./font-resolution.js";
 import { harfbuzzShapeRun, harfbuzzGlyphQuery, mirrorPairedCharacters } from "./harfbuzz-shaper.js";
@@ -142,6 +144,7 @@ export interface ShapedSplitOptions {
   fallbackRawSlope?: number;
   /** Numeric Blink FontOrientation for CharacterFallbackKey identity. */
   fallbackOrientation?: number;
+  semanticContext?: FontFallbackSemanticContext;
 }
 
 /** Blocks promoted by Blink's stable `ScriptBasedOnUnicodeBlock` feature when
@@ -512,8 +515,9 @@ export function splitTextIntoFontRunsShaped(
   opts?: ShapedSplitOptions,
 ): FontRun[] {
   if (text.length === 0) return [];
+  const semanticContext = opts?.semanticContext ?? createFontFallbackSemanticContext(fontFamily);
   _invoked++;
-  const runs = splitShapedInner(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily, opts);
+  const runs = splitShapedInner(text, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, fontFamily, { ...opts, semanticContext });
   _accepted++;
   return runs;
 }
@@ -693,7 +697,7 @@ function splitShapedInner(
               ? resolveColorEmojiKeyForCp(hint, weight, fontSize, slant, lang)
               : resolveSystemFallbackKeyForCp(
                   hint, weight, slant, fontSize, primaryFontKey,
-                  systemUiPrimary, lang, stretch, "text", fontFamily,
+                  systemUiPrimary, lang, stretch, "text", opts?.semanticContext?.declaredFamily,
                   opts?.fallbackRawSlope, opts?.fallbackOrientation,
                 );
             if (key == null) break;
@@ -728,6 +732,7 @@ function splitShapedInner(
               hint, primaryFont, primaryFontKey, weight, fontSize, slant,
               variationSettings, lang, fontKeyChain, systemUiPrimary, stretch,
               effFve, fontFamily, opts?.fallbackRawSlope, opts?.fallbackOrientation,
+              opts?.semanticContext,
             );
             if (!res.covered) { iter.stage = "lastResort"; break; }
             const font = res.fontOverride ?? (res.key === primaryFontKey ? primaryFont : getFontInstance(res.key, weight, fontSize, slant));

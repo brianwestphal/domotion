@@ -121,7 +121,7 @@ describe("dotted-circle coverage probe shares the resolver's walk", () => {
     const body = bodyAfterParams(functionBody(FONT_RESOLUTION_SRC, "codepointResolvesToNotdef"))
       .replace(/\s+/g, " ");
     expect(body).toContain(
-      "return !resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, undefined, rawSlope, orientation).covered;",
+      "return !resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, declaredFamily, rawSlope, orientation, semanticContext).covered;",
     );
   });
 
@@ -150,7 +150,7 @@ describe("dotted-circle coverage probe shares the resolver's walk", () => {
     // each dropped once before.
     const call = TEXT_TO_PATH_SRC.replace(/\s+/g, " ");
     expect(call).toContain(
-      "codepointResolvesToNotdef(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily, lang), stretch, undefined, fallbackRequest?.rawSlope, fallbackRequest?.orientation)",
+      "codepointResolvesToNotdef(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, stackPrimaryIsSystemUi(fontFamily, lang), stretch, undefined, fallbackRequest?.rawSlope, fallbackRequest?.orientation, fontFamily, semanticContext)",
     );
     // And the chain is derived the same way the run splitters derive it —
     // lang included, since the settings-mapped generics and the standard

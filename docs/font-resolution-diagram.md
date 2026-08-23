@@ -1737,20 +1737,19 @@ Two divergences it baked in, now gone by construction: Hebrew went to Segoe UI
 where Blink nominates **David** first, and Thai went to Tahoma-then-Leelawadee-UI
 as a pair where Blink nominates exactly one family and then probes pan-Unicode.
 
-**Known residual (source-confirmed in
+**Windows hardcoded stage (source-exact; see
 [doc 206](206-generic-family-semantic-ownership.md)):**
-`FontDescription::GenericFamily()` reaches the transcription only as "is the
-primary key `courier`", because the logical-key model does not carry the CSS
-generic separately (the same information loss `system-ui` has — see §7's
-`stackPrimaryIsSystemUi` note). Blink actually keeps the descriptor-wide
+`FontDescription::GenericFamily()` is now derived once from the unresolved
+serialized stack and carried as request state, independently of concrete face
+keys. Blink keeps the descriptor-wide
 generic independently: named `Courier`/`Courier New` are `kNoFamily`, the
 rightmost enum-bearing legacy generic wins, and only `kMonospaceFamily` changes
 the Windows Arabic/Hebrew candidate order. The heuristic therefore has false
 positives (`Courier`, `Courier, serif`, `monospace, serif`) and false negatives
 (`Arial, monospace`, or a script/session monospace preference resolving to a
 non-`courier` key). The fingerprinted 20-row forward/reverse logical audit
-records this gap without pixels. DM-2515 carries the standalone Windows fix and
-cache-head work; DM-2517 owns the distinct generic-sensitive common-Skia
+records source/production agreement without pixels. The system fallback memo
+also keys normalized declared head plus node kind. DM-2517 owns the distinct generic-sensitive common-Skia
 terminal; DM-2516 carries strict all-platform promotion after both fixes.
 
 **Source of truth:** `fallbackFontChain` / `darwinFallbackChain` /

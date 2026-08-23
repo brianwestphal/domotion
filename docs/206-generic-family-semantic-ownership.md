@@ -2,16 +2,15 @@
 
 ## Verdict
 
-Domotion loses a source-owned Blink fact after resolving a CSS family stack to
-one concrete renderer key. Blink stores the family-list entries and the
-descriptor-wide `GenericFamily` independently. The current Windows adapter
-reconstructs that generic as `primaryKey === "courier" ? "monospace" :
-"standard"`, so a concrete key can silently stand in for a different CSS
-semantic.
+Blink stores family-list entries and descriptor-wide `GenericFamily`
+independently. Domotion historically lost that fact after resolving the stack
+to one renderer key and reconstructed it from `primaryKey === "courier"`.
+DM-2515 now derives the semantic from the unresolved stack and carries it as
+request state through Windows routing and system-fallback cache identity.
 
-This investigation confirms the information loss and adds a fingerprinted
-logical audit. It does **not** change production routing and does not introduce
-a screenshot, pixel tolerance, or host-font snapshot.
+The fingerprinted logical audit retains the historical key heuristic as a
+hostile mutation while grading the current production adapter directly. It
+introduces no screenshot, pixel tolerance, or host-font snapshot.
 
 ## Pinned source ownership
 
@@ -70,10 +69,10 @@ second clear. A pass requires both orders to be identical and requires the
 known false-positive and
 false-negative controls to remain active:
 
-- named `Courier` resolves to the `courier` key, which the current seam wrongly
-  calls monospace;
+- named `Courier` resolves to the `courier` key, which the historical seam
+  wrongly called monospace;
 - `Arial, monospace` resolves the first available named face to a non-`courier`
-  key, which the current seam wrongly calls non-monospace even though Blink's
+  key, which the historical seam wrongly called non-monospace even though Blink's
   descriptor remains monospace.
 
 The CDP face is corroboration that the browser row painted one glyph. It is not
@@ -81,8 +80,8 @@ treated as a portable snapshot or as proof that macOS/Linux exercised the
 Windows implementation. Indeed, a host may paint the same Courier face for
 both controls while the source-level Windows candidate order still differs.
 
-The local macOS arm64 run against Chromium `147.0.7727.15` is
-`confirmed-information-loss`: 40/40 rows pass their logical evidence contract,
+The local macOS arm64 run against Chromium `147.0.7727.15` is `source-exact`:
+40/40 rows pass their source/production logical evidence contract,
 all eight semantic controls pass, and forward/reverse signatures are identical.
 The workflow runs the same source-owned audit on macOS, Linux, and Windows and
 retains each JSON report with the browser/source/environment fingerprint.
@@ -94,10 +93,12 @@ npm run fonts:generic-family-semantics -- \
 
 ## Follow-ups
 
-- **DM-2515 — carry Blink `FontDescription` generic-family identity through
-  fallback routing and caches.** This production bug owns replacing the
-  concrete-key heuristic, including every affected cache key and A/B order
-  mutation.
+- **DM-2515 — shipped:** the unresolved stack now creates one request-scoped
+  Blink generic semantic before fallback matching. Windows nomination consumes
+  that carrier rather than a face key; Linux/Windows system-fallback memo
+  identity includes the normalized declared head and node kind. Forward/reverse
+  no-reset mutations cover named/quoted Courier, rightmost generics, and
+  system-ui/math non-occupying controls.
 - **DM-2516 — promote generic-family semantic ownership to an exact
   three-platform regression gate.** After the production correction, this task
   owns changing the investigation verdict into a strict source/production
@@ -111,7 +112,7 @@ npm run fonts:generic-family-semantics -- \
   line-clamp/control paths that bypass the host's `-webkit-standard` rewrite and
   the remaining non-CSS-aware family split.
 
-Until the production bug lands, `text.family-fallback` remains partial. The
-audit exits successfully only for a complete, reproducible confirmation of the
-known information loss; source drift, missing rows, order-sensitive evidence,
-or an incomplete painted-face record fail independently.
+`text.family-fallback` remains partial only for the separately owned terminal
+and structured-capture boundaries. The audit now accepts either the historical
+confirmed-loss seam or the source-exact production seam; source drift, missing
+rows, order-sensitive evidence, or incomplete painted-face records fail.

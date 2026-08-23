@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "version": "gpt-5",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5nigkbwekbhnk0",
+          "message": {
+            "text": "DM-2515 verification joins the independent pinned-source parser to production carrier output and crosses named/quoted/rightmost/non-occupying controls; Windows candidate routing runs forward/reverse without resetting.",
+            "markdown": "DM-2515 verification joins the independent pinned-source parser to production carrier output and crosses named/quoted/rightmost/non-occupying controls; Windows candidate routing runs forward/reverse without resetting."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/generic-family-semantics-audit.test.ts"
+                },
+                "region": {
+                  "startLine": 69,
+                  "endLine": 69,
+                  "snippet": {
+                    "text": "    ).map((spec) => validRow(spec, order as GenericFamilySemanticsOrder[\"order\"])),"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "rank": 1,
+          "workItemUris": [
+            "DM-2515"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "bde20980ae511784e1ac85183a56eb10"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a948ece64b94d2a9dea20803ebf708b38a2f6dc8",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

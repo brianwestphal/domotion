@@ -13,6 +13,14 @@ import {
   type GenericFamilySemanticsRow,
 } from "../tools/generic-family-semantics-audit.js";
 import { blinkWinHardcodedFamilies } from "../src/render/win-font-fallback.js";
+import {
+  __resolveSystemFallbackKeyForCpForTest,
+  __systemFallbackKeyCacheSizeForTest,
+  blinkGenericFamilyFromDeclaredStack,
+  clearFontResolutionCaches,
+  declaredFamilyHeadIdentity,
+} from "../src/render/font-resolution.js";
+import { withHostPlatform } from "../src/render/host-platform.js";
 
 function candidateOrder(codepoint: number, generic: "standard" | "monospace"): string[] {
   return blinkWinHardcodedFamilies(codepoint, { generic, priority: "text" }, () => true);
@@ -42,6 +50,9 @@ function validRow(
     expectedGeneric: spec.expectedGeneric,
     sourceGeneric,
     sourceFallbackMode,
+    productionGeneric: sourceGeneric,
+    productionFallbackMode: sourceFallbackMode,
+    productionCandidateOrder: candidateOrder(spec.codepoint, sourceFallbackMode),
     primaryKey,
     keyInferredFallbackMode,
     sourceCandidateOrder: candidateOrder(spec.codepoint, sourceFallbackMode),
@@ -91,6 +102,35 @@ describe("generic-family semantic ownership audit", () => {
     expect(sourceWinFallbackMode("monospace")).toBe("monospace");
   });
 
+  it("keeps the production carrier in exact agreement with the independent source model", () => {
+    for (const row of GENERIC_FAMILY_SEMANTICS_CASES) {
+      expect(blinkGenericFamilyFromDeclaredStack(row.fontFamily))
+        .toBe(blinkGenericFamilyFromComputedStack(row.fontFamily));
+    }
+  });
+
+  it("keys the system-fallback memo by declared head and node kind", () => {
+    expect(declaredFamilyHeadIdentity("monospace")).toBe("generic:monospace");
+    expect(declaredFamilyHeadIdentity('"monospace"')).toBe("name:monospace");
+    expect(declaredFamilyHeadIdentity("Courier, serif")).toBe("name:courier");
+    expect(declaredFamilyHeadIdentity("Arial, monospace")).toBe("name:arial");
+  });
+
+  it("does not reuse the process memo across declared heads in either order", () => {
+    const ask = (family: string) => withHostPlatform("linux", () =>
+      __resolveSystemFallbackKeyForCpForTest(0x10D0, 400, 0, 16, "helvetica", false,
+        "ka", 100, undefined, family));
+    for (const order of [["Courier", "Arial"], ["Arial", "Courier"]] as const) {
+      clearFontResolutionCaches();
+      ask(order[0]);
+      expect(__systemFallbackKeyCacheSizeForTest()).toBe(1);
+      ask(order[1]);
+      expect(__systemFallbackKeyCacheSizeForTest()).toBe(2);
+      ask(order[0]);
+      expect(__systemFallbackKeyCacheSizeForTest()).toBe(2);
+    }
+  });
+
   it("freezes the current key-derived seam without treating it as source truth", () => {
     expect(keyInferredWinFallbackMode("courier")).toBe("monospace");
     expect(keyInferredWinFallbackMode("courier-new")).toBe("standard");
@@ -126,7 +166,7 @@ describe("generic-family semantic ownership audit", () => {
       },
       verdict: "confirmed-information-loss",
     });
-    expect(classifyGenericFamilySemanticsEvidence(orders, false).verdict).toBe("source-drift");
+    expect(classifyGenericFamilySemanticsEvidence(orders, false).verdict).toBe("source-exact");
     expect(classifyGenericFamilySemanticsEvidence([orders[0]], true).verdict).toBe("invalid-evidence");
   });
 

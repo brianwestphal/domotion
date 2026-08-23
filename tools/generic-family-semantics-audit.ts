@@ -4,9 +4,9 @@
  *
  * The browser's selected face is useful corroboration, but the verdict is
  * logical: Blink stores the CSS generic separately from the concrete family
- * name and passes that enum into Windows' hardcoded fallback stage. Domotion's
- * current adapter reconstructs it from a resolved key. No pixels, tolerances,
- * or renderer constants participate in this audit.
+ * name and passes that enum into Windows' hardcoded fallback stage. The current
+ * adapter carries that semantic directly; the old resolved-key inference stays
+ * as a hostile mutation. No pixels or tolerances participate in this audit.
  */
 
 import { createHash } from "node:crypto";
@@ -18,8 +18,11 @@ import { pathToFileURL } from "node:url";
 import { chromium, type CDPSession, type Page } from "@playwright/test";
 
 import {
+  __setWin32FamilyKeyResolverForTest,
+  blinkGenericFamilyFromDeclaredStack,
   clearFontResolutionCaches,
   resolveFontKey,
+  win32FallbackChain,
 } from "../src/render/font-resolution.js";
 import {
   blinkWinHardcodedFamilies,
@@ -33,14 +36,8 @@ export const GENERIC_FAMILY_SEMANTICS_SOURCE_PINS = {
 } as const;
 
 export type BlinkGenericFamily =
-  | "none"
-  | "standard"
-  | "webkit-body"
-  | "serif"
-  | "sans-serif"
-  | "monospace"
-  | "cursive"
-  | "fantasy";
+  | "none" | "standard" | "webkit-body" | "serif" | "sans-serif"
+  | "monospace" | "cursive" | "fantasy";
 
 interface StackCase {
   id: string;
@@ -95,57 +92,29 @@ export const GENERIC_FAMILY_SEMANTICS_CASES: readonly GenericFamilySemanticsCase
     scriptId: script.id,
   })));
 
-const GENERIC_ENUM: ReadonlyMap<string, BlinkGenericFamily> = new Map([
-  ["serif", "serif"],
-  ["sans-serif", "sans-serif"],
-  ["monospace", "monospace"],
-  ["cursive", "cursive"],
-  ["fantasy", "fantasy"],
-  ["-webkit-standard", "standard"],
-  ["-webkit-body", "webkit-body"],
-]);
-
 interface FamilyToken { value: string; quoted: boolean }
+
+const GENERIC_ENUM: ReadonlyMap<string, BlinkGenericFamily> = new Map([
+  ["serif", "serif"], ["sans-serif", "sans-serif"], ["monospace", "monospace"],
+  ["cursive", "cursive"], ["fantasy", "fantasy"],
+  ["-webkit-standard", "standard"], ["-webkit-body", "webkit-body"],
+]);
 
 /** Split the small CSSOM font-family grammar needed by this audit. */
 export function splitComputedFontFamily(value: string): FamilyToken[] {
   const raw: string[] = [];
-  let token = "";
-  let quote = "";
-  let escaped = false;
+  let token = "", quote = "", escaped = false;
   for (const ch of value) {
-    if (escaped) {
-      token += ch;
-      escaped = false;
-      continue;
-    }
-    if (ch === "\\") {
-      token += ch;
-      escaped = true;
-      continue;
-    }
-    if (quote !== "") {
-      token += ch;
-      if (ch === quote) quote = "";
-      continue;
-    }
-    if (ch === '"' || ch === "'") {
-      quote = ch;
-      token += ch;
-      continue;
-    }
-    if (ch === ",") {
-      raw.push(token.trim());
-      token = "";
-      continue;
-    }
+    if (escaped) { token += ch; escaped = false; continue; }
+    if (ch === "\\") { token += ch; escaped = true; continue; }
+    if (quote !== "") { token += ch; if (ch === quote) quote = ""; continue; }
+    if (ch === '"' || ch === "'") { quote = ch; token += ch; continue; }
+    if (ch === ",") { raw.push(token.trim()); token = ""; continue; }
     token += ch;
   }
   raw.push(token.trim());
-  return raw.filter((entry) => entry !== "").map((entry) => {
-    const quoted = entry.length >= 2
-      && ((entry.startsWith('"') && entry.endsWith('"'))
-        || (entry.startsWith("'") && entry.endsWith("'")));
+  return raw.filter(Boolean).map((entry) => {
+    const quoted = entry.length >= 2 && ((entry.startsWith('"') && entry.endsWith('"')) || (entry.startsWith("'") && entry.endsWith("'")));
     return { value: quoted ? entry.slice(1, -1) : entry, quoted };
   });
 }
@@ -160,9 +129,10 @@ export function blinkGenericFamilyFromComputedStack(value: string): BlinkGeneric
   const families = splitComputedFontFamily(value);
   for (let index = families.length - 1; index >= 0; index--) {
     const family = families[index];
-    if (family.quoted) continue;
-    const generic = GENERIC_ENUM.get(family.value.toLowerCase());
-    if (generic != null) return generic;
+    if (!family.quoted) {
+      const generic = GENERIC_ENUM.get(family.value.toLowerCase());
+      if (generic != null) return generic;
+    }
   }
   return "none";
 }
@@ -204,6 +174,9 @@ export interface GenericFamilySemanticsRow {
   expectedGeneric: BlinkGenericFamily;
   sourceGeneric: BlinkGenericFamily;
   sourceFallbackMode: WinGenericFamily;
+  productionGeneric: BlinkGenericFamily;
+  productionFallbackMode: WinGenericFamily;
+  productionCandidateOrder: string[];
   primaryKey: string;
   keyInferredFallbackMode: WinGenericFamily;
   sourceCandidateOrder: string[];
@@ -222,6 +195,9 @@ export function adjudicateGenericFamilySemanticsRow(
   const expectedLead = row.scriptId === "arabic" ? "Tahoma" : "David";
   if (row.sourceGeneric !== row.expectedGeneric) blockers.push("generic-enum");
   if (row.sourceFallbackMode !== expectedMode) blockers.push("fallback-mode");
+  if (row.productionGeneric !== row.sourceGeneric) blockers.push("production-generic");
+  if (row.productionFallbackMode !== row.sourceFallbackMode) blockers.push("production-fallback-mode");
+  if (JSON.stringify(row.productionCandidateOrder) !== JSON.stringify(row.sourceCandidateOrder)) blockers.push("production-candidate-order");
   if (row.sourceCandidateOrder[0] !== (expectedMode === "monospace" ? "courier new" : expectedLead)) {
     blockers.push("source-candidate-order");
   }
@@ -246,6 +222,7 @@ export interface GenericFamilySemanticsOrder {
 
 export type GenericFamilySemanticsVerdict =
   | "confirmed-information-loss"
+  | "source-exact"
   | "source-drift"
   | "invalid-evidence";
 
@@ -279,6 +256,9 @@ function stableRowSignature(row: GenericFamilySemanticsRow): string {
     computedFontFamily: row.computedFontFamily,
     sourceGeneric: row.sourceGeneric,
     sourceFallbackMode: row.sourceFallbackMode,
+    productionGeneric: row.productionGeneric,
+    productionFallbackMode: row.productionFallbackMode,
+    productionCandidateOrder: row.productionCandidateOrder,
     primaryKey: row.primaryKey,
     keyInferredFallbackMode: row.keyInferredFallbackMode,
     sourceCandidateOrder: row.sourceCandidateOrder,
@@ -346,7 +326,7 @@ export function classifyGenericFamilySemanticsEvidence(
   return {
     controls,
     verdict: !legacySeamPresent
-      ? "source-drift"
+      ? logicalComplete ? "source-exact" : "source-drift"
       : logicalComplete
         ? "confirmed-information-loss"
         : "invalid-evidence",
@@ -413,7 +393,20 @@ async function collectOrder(
       const paintedFaces = await paintedFacesForNode(page, cdp, root.nodeId, selector);
       const sourceGeneric = blinkGenericFamilyFromComputedStack(computedFontFamily);
       const sourceFallback = sourceWinFallbackMode(sourceGeneric);
+      const productionGeneric = blinkGenericFamilyFromDeclaredStack(computedFontFamily);
+      const productionFallback = sourceWinFallbackMode(productionGeneric);
       const primaryKey = resolveFontKey(computedFontFamily, spec.lang);
+      let productionCandidateOrder: string[];
+      __setWin32FamilyKeyResolverForTest((family) => `winfam:${family}`);
+      try {
+        productionCandidateOrder = win32FallbackChain(spec.codepoint, primaryKey, undefined, {
+          weight: 400, slant: 0, fontSize: 32, declaredFamily: computedFontFamily,
+          genericFamily: productionGeneric,
+        }).filter((key) => key.startsWith("winfam:"))
+          .map((key) => key.slice("winfam:".length));
+      } finally {
+        __setWin32FamilyKeyResolverForTest(null);
+      }
       const keyFallback = keyInferredWinFallbackMode(primaryKey);
       rows.push(adjudicateGenericFamilySemanticsRow({
         id: spec.id,
@@ -427,6 +420,9 @@ async function collectOrder(
         expectedGeneric: spec.expectedGeneric,
         sourceGeneric,
         sourceFallbackMode: sourceFallback,
+        productionGeneric,
+        productionFallbackMode: productionFallback,
+        productionCandidateOrder,
         primaryKey,
         keyInferredFallbackMode: keyFallback,
         sourceCandidateOrder: candidateOrder(spec.codepoint, sourceFallback),
@@ -485,7 +481,7 @@ async function main(): Promise<void> {
     writeFileSync(resolve(target), `${JSON.stringify(report, null, 2)}\n`);
   }
   console.log(JSON.stringify(report, null, 2));
-  process.exitCode = report.verdict === "confirmed-information-loss" ? 0 : 1;
+  process.exitCode = report.verdict === "confirmed-information-loss" || report.verdict === "source-exact" ? 0 : 1;
 }
 
 if (process.argv[1] != null && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

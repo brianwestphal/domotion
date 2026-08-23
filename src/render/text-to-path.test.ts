@@ -4,7 +4,7 @@ import * as fontkit from "fontkit";
 import { glyphIdForCp, __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, cjkTrimShiftFontUnits, classifyEmptyGlyphOutline, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, getFontInstance, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, positionShapedClusters, registerWebfont, renderRadicalGlyph, renderSourceOwnedTextBoundary, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveGlyphCommands, shapedGlyphSourceSpans, sourceClusterSpan, resolveFontKeyChain, setRenderTextMode, subBoldWeightCutSuffix, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain, __setWin32FamilyKeyResolverForTest } from "./text-to-path.js";
 import { haltInfoFor } from "./font-resolution.js";
 import { isRtlScriptCodepoint } from "./unicode-classification.js";
-import { clearFontResolutionCaches, getGlyphDefs, getSystemFallbackResolution, isNonCharacterCodepoint, isPrivateUseCodepoint, setSystemFallbackResolution, withSystemFallbackResolution, __resolveSystemFallbackKeyForCpForTest } from "./font-resolution.js";
+import { blinkGenericFamilyFromDeclaredStack, clearFontResolutionCaches, getGlyphDefs, getSystemFallbackResolution, isNonCharacterCodepoint, isPrivateUseCodepoint, setSystemFallbackResolution, withSystemFallbackResolution, __resolveSystemFallbackKeyForCpForTest } from "./font-resolution.js";
 import { existsSync } from "node:fs";
 import * as fontkit2 from "fontkit";
 import { _builderInstanceKeys, _builderRegistrySize, _setBuilderNextPuaForTest, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
@@ -2275,12 +2275,41 @@ describe("win32FallbackChain: adapter over Blink's hardcoded Windows stage (DM-1
 
   it("routes Arabic + monospace to Courier New only for the monospace generic", () => {
     injectInventory(MEASURED_WIN11);
-    // `FindMonospaceFontForScript` (Arabic/Hebrew + kMonospaceFamily). The
-    // `monospace` generic resolves to the `courier` key on Windows.
-    expect(win32FallbackChain(0x0628, "courier")[0]).toBe("winfam:courier new");
-    // Any other primary is kStandardFamily → the Arabic script list (Tahoma first).
-    expect(win32FallbackChain(0x0628, "helvetica")[0]).toBe("winfam:Tahoma");
+    const css = (declaredFamily: string) => ({
+      weight: 400, slant: 0, fontSize: 16, declaredFamily,
+      genericFamily: blinkGenericFamilyFromDeclaredStack(declaredFamily),
+    });
+    // Concrete key and semantic enum are deliberately independent.
+    expect(win32FallbackChain(0x0628, "helvetica", undefined, css("Arial, monospace"))[0])
+      .toBe("winfam:courier new");
+    expect(win32FallbackChain(0x0628, "courier", undefined, css("Courier"))[0])
+      .toBe("winfam:Tahoma");
+    expect(win32FallbackChain(0x0628, "courier", undefined, css("monospace, serif"))[0])
+      .toBe("winfam:Tahoma");
+    expect(win32FallbackChain(0x0628, "helvetica", undefined, css("serif, monospace"))[0])
+      .toBe("winfam:courier new");
     expect(win32FallbackChain(0x0628)[0]).toBe("winfam:Tahoma");
+  });
+
+  it("preserves request semantics through forward/reverse no-reset routing", () => {
+    injectInventory(new Set([...MEASURED_WIN11, "david"]));
+    const stacks = [
+      ["Courier", "standard"], ["monospace", "monospace"],
+      ["Arial, monospace", "monospace"], ["Courier, serif", "standard"],
+      ["monospace, serif", "standard"], ["serif, monospace", "monospace"],
+      ["Courier, system-ui", "standard"], ["monospace, math", "monospace"],
+      ['"monospace", Courier', "standard"],
+    ] as const;
+    for (const order of [stacks, [...stacks].reverse()]) {
+      for (const [declaredFamily, mode] of order) {
+        const css = { weight: 400, slant: 0, fontSize: 16, declaredFamily,
+          genericFamily: blinkGenericFamilyFromDeclaredStack(declaredFamily) };
+        expect(win32FallbackChain(0x0628, "courier", "ar", css)[0])
+          .toBe(mode === "monospace" ? "winfam:courier new" : "winfam:Tahoma");
+        expect(win32FallbackChain(0x05D0, "courier", undefined, css)[0])
+          .toBe(mode === "monospace" ? "winfam:courier new" : "winfam:David");
+      }
+    }
   });
 
   it("carries the generated per-block net only behind the live DirectWrite resolver", () => {
