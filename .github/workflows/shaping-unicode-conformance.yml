@@ -23,6 +23,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
+      - run: npx playwright install chromium
       - name: Clone Unicode fixtures
         shell: bash
         run: git clone --depth 1 https://github.com/brianwestphal/html-test.git external/html-test
@@ -50,6 +51,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
+      - run: npx playwright install chromium
       - name: Clone Unicode fixtures
         shell: bash
         run: git clone --depth 1 https://github.com/brianwestphal/html-test.git external/html-test
