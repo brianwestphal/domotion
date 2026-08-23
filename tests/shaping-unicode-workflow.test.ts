@@ -8,6 +8,8 @@ describe("Unicode shaping conformance workflow", () => {
     // mapping makes the workflow invalid before any job is created.
     expect(workflow).not.toMatch(/with:\s*\{[^\n]*\$\{\{/);
     expect(workflow.match(/npx playwright install chromium/g)).toHaveLength(2);
+    expect(workflow.match(/acquireGlyphHelper/g)).toHaveLength(4);
+    expect(workflow.match(/acquireIcuCompanion/g)).toHaveLength(4);
     expect(workflow.match(/mkdir -p tests\/output\/shaping-unicode/g)).toHaveLength(2);
     expect(workflow).toContain("pull_request:");
     expect(workflow).toContain("[macos-14, ubuntu-24.04, windows-2025]");
