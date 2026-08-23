@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const workflow = readFileSync(".github/workflows/paths-native-raster-floor.yml", "utf8");
+const collector = readFileSync("tools/paths-native-raster-collector.ts", "utf8");
+const producer = readFileSync("tools/paths-native-raster-producer.ts", "utf8");
 describe("paths/native raster workflow", () => {
   it("produces lossless evidence on all three native runner OSes", () => {
     expect(workflow).toContain("macos-latest, ubuntu-latest, windows-latest");
@@ -24,5 +26,11 @@ describe("paths/native raster workflow", () => {
     expect(workflow).toMatch(/adjudicate:\n\s+needs: produce/);
     expect(workflow).toContain("tools/paths-native-raster-envelopes.json");
     expect(workflow).toContain("fonts:paths-raster:aggregate");
+  });
+  it("executes both CLIs through platform-normalized file URLs", () => {
+    for (const source of [collector, producer]) {
+      expect(source).toContain("pathToFileURL(resolve(process.argv[1])).href");
+      expect(source).not.toContain("`file://${process.argv[1]}`");
+    }
   });
 });

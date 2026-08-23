@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import { arch, platform, release } from "node:os";
 import { createReadStream, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { chromium, type Browser, type Page } from "@playwright/test";
 import * as fontkit from "fontkit";
 import sharp from "sharp";
@@ -418,7 +419,7 @@ function cliArg(name: string): string | undefined {
   return index < 0 ? undefined : process.argv[index + 1];
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] != null && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const fontRoot = cliArg("--font-root"), out = cliArg("--out"), artifactDir = cliArg("--artifact-dir");
   if (fontRoot == null || out == null || artifactDir == null) throw new Error("usage: paths-native-raster-collector --font-root <dir> --out <observations.json> --artifact-dir <dir> [--dpr 1|2] [--run-label proposal|validation]");
   const rawDpr = cliArg("--dpr");
