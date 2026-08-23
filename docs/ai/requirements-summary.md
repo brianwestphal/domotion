@@ -429,8 +429,11 @@ they describe (see `CLAUDE.md` "Documentation"):
   `zoom: 1.25` absolute-length discriminator exposed and closed a missing
   renderer multiplier, and the pinned Linux arm64 run is exact at
   109/109 transcription, 30/30 skip-ink/pattern, and 109/109 rule-vs-SVG.
-  A Windows DPR-1/4 workflow builds the DirectWrite helper and retains exact
-  fingerprinted reports; vertical writing's separate central-baseline and
+  Windows run 32624743248 ratifies 109/30/109 exact at both DPR 1 and DPR 4.
+  The DirectWrite helper now transports raw selected-face OS/2 typo metrics for
+  `under`; integer solid snaps, wavy DPR-1 paint bounds, and patterned edge
+  alpha are classified without changing the 0.2/0.3/0.9 envelopes. The
+  workflow retains exact fingerprinted reports; vertical writing's separate central-baseline and
   script-sensitive side transcription is tracked rather than hidden by an
   envelope. DM-2501 (doc 200) additionally
   binds Chrome paint and Domotion capture to one DPR-qualified Blink fragment
@@ -507,6 +510,18 @@ they describe (see `CLAUDE.md` "Documentation"):
   headless/headed, Common + ten standing scripts + Page language scripts, and
   dynamically derived preference mutations on macOS/Linux/Windows. It uses
   `system-ui` only as a separation control and has no pixel tolerance.
+- **Resolved keys do not own Blink's generic-family semantic (font-resolution
+  diagram §7, doc 206)** — **Investigated; production correction pending.**
+  Blink preserves the rightmost enum-bearing generic in `FontDescription`
+  independently of the concrete selected family. Domotion currently infers
+  the Windows hardcoded-fallback branch from whether the resolved key is
+  `courier`, creating both named-Courier false positives and non-Courier-key
+  monospace false negatives. A 20-row Arabic/Hebrew source discriminator runs
+  forward and reverse on macOS/Linux/Windows, requires exact candidate order
+  plus one CDP-painted glyph, and uses no pixel threshold. The Windows-routing
+  and common-Skia-terminal bugs plus subsequent strict-gate promotion are
+  tracked as standalone follow-ups in doc 206; this transition remains partial
+  until those land.
 - **Family-match CI gates (docs 110/111, DM-1953)** — **Shipped (awaiting
   first-run baselines).** Regression-relative against env-keyed baseline SETS
   (`tools/family-match-baseline.ts`; one entry per environment fingerprint in
