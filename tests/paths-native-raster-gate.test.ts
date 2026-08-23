@@ -8,7 +8,7 @@ function row(): PathsRasterRow { return {
     platform: "linux", osImage: "ubuntu-24.04", osImageVersion: "20260817.1", arch: "x64", osRelease: "6.8", chromium: "147",
     chromiumRevision: "r147", browserExecutableSha256: sha("f"), skia: `browser-binary:${sha("f")}`,
     harfbuzz: `browser-binary:${sha("f")}`, oracleSkiaRevision: "62efacd3", oracleHarfbuzzRevision: "4de187d",
-    fontInventorySha256: sha("a"), rendererRevision: "deadbeef", consumerRasterizer: "chromium-svg",
+    fontInventorySha256: sha("a"), rendererSourceSha256: sha("2"), oracleSourceSha256: sha("3"), consumerRasterizer: "chromium-svg",
     playwrightVersion: "1.59.1", nodeVersion: "22.14.0", icuVersion: "77.1", sharpVersion: "0.34.5",
     libvipsVersion: "8.17.3", metricAlgorithm: "opaque-rgba-ink-edge-v2", launchFlags: [], locale: "en-US",
   },

@@ -15,7 +15,9 @@ const fingerprintSchema = z.object({
   // separately and must never be presented as binary provenance.
   skia: z.string().min(1), harfbuzz: z.string().min(1),
   oracleSkiaRevision: z.string().min(1), oracleHarfbuzzRevision: z.string().min(1),
-  fontInventorySha256: z.string().regex(/^[a-f0-9]{64}$/), rendererRevision: z.string().min(1),
+  fontInventorySha256: z.string().regex(/^[a-f0-9]{64}$/),
+  rendererSourceSha256: z.string().regex(/^[a-f0-9]{64}$/),
+  oracleSourceSha256: z.string().regex(/^[a-f0-9]{64}$/),
   consumerRasterizer: z.string().min(1), playwrightVersion: z.string().min(1),
   nodeVersion: z.string().min(1), icuVersion: z.string().min(1), sharpVersion: z.string().min(1),
   libvipsVersion: z.string().min(1), metricAlgorithm: z.string().min(1),

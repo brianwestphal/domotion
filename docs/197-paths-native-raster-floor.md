@@ -27,12 +27,17 @@ A zero-pixel row with the wrong face, gid, outline, advance, baseline, matrix,
 or paint plan is therefore `logical-mismatch`; a visually close wrong answer
 can never become `accepted-rasterization-only`. Fingerprints are not portable
 between OS images/releases, architectures, authenticated Chromium binaries,
-font inventories, renderer revisions, consumer rasterizers, Node/ICU,
+font inventories, production-renderer source hashes, oracle-source hashes,
+consumer rasterizers, Node/ICU,
 Sharp/libvips, metric algorithms, launch flags, or locales. Chromium does not
 report embedded Skia/HarfBuzz revisions at runtime, so the fingerprint names
 the executable SHA for both binary-owned components and records the logical
 oracle source revisions separately; it does not mislabel source pins as the
 browser's binary provenance.
+The two source hashes are computed from the files that can affect production
+path output and adjudication respectively. Review docs and the envelope JSON
+are excluded, so recording a review cannot circularly invalidate its evidence;
+changing renderer or oracle logic always does.
 
 ## Source-owned corpus and complete matrix
 
