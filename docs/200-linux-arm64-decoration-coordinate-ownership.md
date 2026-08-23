@@ -43,7 +43,8 @@ Chrome-paint/Domotion-capture mismatch. Both legs use DPR 4 in the full matrix.
 The JSON evidence fingerprints platform, architecture, Chromium version, the
 `blink-physical-text-fragment-same-dpr-v1` ownership contract, and both device
 scales. The Linux arm64 finalizer additionally requires all three gates to be
-armed, exactly 106 matrix rows and 29 skip-ink/pattern rows, and the unchanged
+armed, exactly 109 matrix rows (including three CSS-zoom controls) and 30
+skip-ink/pattern rows, and the unchanged
 `0.3px` SVG-geometry tolerance.
 
 The production path already had the right ownership. Capture obtains segment
@@ -62,9 +63,9 @@ proves that a one-pixel origin mutation still fails. The pinned Playwright
 
 | Gate | Exact result |
 | --- | ---: |
-| Chrome paint vs source rule | 106 / 106 |
-| Chrome paint vs SVG skip-ink/pattern segments | 29 / 29 |
-| Source rule vs emitted SVG | 106 / 106 |
+| Chrome paint vs source rule | 109 / 109 |
+| Chrome paint vs SVG skip-ink/pattern segments | 30 / 30 |
+| Source rule vs emitted SVG | 109 / 109 |
 | Focused coherent-DPR browser rows | DPR 1 + DPR 4 |
 
 The local arm64 container report records Chromium `147.0.7727.0`,

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildCases,
   compareBars,
   compareSegments,
+  decorationCorpusSha256,
   decorationOracleScalePlan,
   decorationOracleScalePlanErrors,
   expandDashSegments,
@@ -39,12 +41,13 @@ describe("DM-2501 decoration coordinate ownership", () => {
 // + max(1,t) at :449-451; underline offset `core/layout/text_decoration_offset.cc:16-35`;
 // line-through `text_decoration_info.cc:385-386`; paint snap
 // `core/paint/decoration_line_painter.cc` SnapYAxis/RoundDownThickness.
-const meas = (ascF: number): PageMeasure => ({
+const meas = (ascF: number, effectiveFontSize = 24): PageMeasure => ({
   rect: { x: 10, y: 100, w: 200, h: 28 },
   baselineY: 100 + ascF,
   ascF,
   descF: 6,
   fragments: 1,
+  effectiveFontSize,
 });
 
 const base: Omit<CaseSpec, "id"> & { id: string } = {
@@ -58,6 +61,16 @@ describe("lengthPx", () => {
     expect(lengthPx("25%", 24)).toBe(6);
     expect(lengthPx("-2px", 24)).toBe(-2);
     expect(lengthPx("auto", 24)).toBeNull();
+    expect(lengthPx("3px", 30, 1.25)).toBe(3.75);
+  });
+});
+
+describe("decoration corpus identity", () => {
+  it("includes zoom activation rows in the deterministic fingerprint", () => {
+    const cases = buildCases();
+    expect(cases.filter((row) => row.zoom != null).map((row) => row.zoom)).toEqual([0.8, 1.25, 2]);
+    expect(decorationCorpusSha256(cases)).toMatch(/^[0-9a-f]{64}$/);
+    expect(decorationCorpusSha256(cases)).toBe(decorationCorpusSha256(cases));
   });
 });
 
@@ -72,6 +85,13 @@ describe("predictCase — Blink rule algebra", () => {
     // t = 5 -> gap = ceil(2.5) = 3 -> topRel 25.
     const p = predictCase({ ...base, thickness: "5px" }, meas(22));
     expect(p.bars).toEqual([{ top: 125, height: 5 }]);
+  });
+  it("applies CSS zoom to used size and absolute decoration lengths", () => {
+    const p = predictCase({ ...base, thickness: "3px", underlineOffset: "2px", zoom: 1.25 }, {
+      ...meas(27.5, 30), rect: { x: 10, y: 100, w: 250, h: 35 },
+    });
+    expect(p.thickness).toBe(4);
+    expect(p.bars).toEqual([{ top: 131, height: 4 }]);
   });
   it("percent thickness is rounded then floored at paint", () => {
     // 10% of 24 = 2.4 -> roundf = 2 -> gap = 1 -> topRel 23, h 2.
@@ -124,7 +144,7 @@ describe("predictCase — Blink rule algebra", () => {
     expect(p.bars[0].height).toBeCloseTo(2 * amp + 2.4, 6);
   });
   it("thickness never predicts below 1px", () => {
-    const p = predictCase({ ...base, fontSize: 8 }, { ...meas(8), rect: { x: 10, y: 100, w: 80, h: 10 } });
+    const p = predictCase({ ...base, fontSize: 8 }, { ...meas(8, 8), rect: { x: 10, y: 100, w: 80, h: 10 } });
     expect(p.bars[0].height).toBe(1); // t = max(1, 0.8) = 1
   });
 });

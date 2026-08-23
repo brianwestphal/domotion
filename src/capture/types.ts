@@ -1365,6 +1365,9 @@ export interface PropagatedDecoration {
   thickness?: string;
   /** Decorating box's `text-underline-offset`. */
   underlineOffset?: string;
+  /** Effective CSS zoom of the decorating box. Computed absolute lengths
+   * stay unzoomed in CSSOM while Blink's used decoration geometry scales. */
+  lengthScale?: number;
   /** Decorating box's font — the metrics basis for decoration position and
    *  auto thickness. */
   fontFamily: string;

@@ -590,11 +590,11 @@ export function decorationEvidenceErrors(decoration: DecorationEvidenceReport): 
     || decoration.gates.svgGeometry !== true) {
     errors.push("decoration report does not arm every logical gate");
   }
-  if (!Array.isArray(decoration.results) || decoration.results.length !== 106) {
-    errors.push("decoration report is not the complete 106-row matrix");
+  if (!Array.isArray(decoration.results) || decoration.results.length !== 109) {
+    errors.push("decoration report is not the complete 109-row matrix");
   } else {
     const skipInkRows = decoration.results.filter((row) => row.skipInk != null);
-    if (skipInkRows.length !== 29) errors.push("decoration report is not the complete 29-row skip-ink/pattern matrix");
+    if (skipInkRows.length !== 30) errors.push("decoration report is not the complete 30-row skip-ink/pattern matrix");
     if (decoration.results.some((row) => row.transcription?.ok !== true
       || row.svgGeometry?.ok !== true
       || (row.skipInk != null && row.skipInk.ok !== true))) {

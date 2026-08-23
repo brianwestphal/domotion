@@ -125,6 +125,12 @@ function walk(el: CapturedElement, ctx: PropagatedDecoration[] | null): void {
           : s.color,
         thickness: s.textDecorationThickness,
         underlineOffset: s.textUnderlineOffset,
+        lengthScale: (() => {
+          const logical = parseFloat(s.fontLogicalSize ?? s.fontSize);
+          const effective = parseFloat(s.fontSize);
+          return Number.isFinite(logical) && logical > 0 && Number.isFinite(effective)
+            ? effective / logical : 1;
+        })(),
         fontFamily: s.fontFamily,
         fontSize: parseFloat(s.fontSize) || 14,
         fontWeight: s.fontWeight,

@@ -70,10 +70,10 @@ describe("DM-2353 Linux arm64 release evidence", () => {
       },
       tolerances: { svgGeometry: 0.3 },
       gates: { transcription: true, skipInk: true, svgGeometry: true },
-      results: Array.from({ length: 106 }, (_, index) => ({
+      results: Array.from({ length: 109 }, (_, index) => ({
         transcription: { ok: true },
         svgGeometry: { ok: true },
-        skipInk: index < 29 ? { ok: true } : null,
+        skipInk: index < 30 ? { ok: true } : null,
       })),
     };
     expect(decorationEvidenceErrors(exact)).toEqual([]);

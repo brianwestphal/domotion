@@ -56,6 +56,7 @@ describeBrowser("DM-2501 decoration physical-fragment coordinate ownership", () 
             ascF: metrics.fontBoundingBoxAscent,
             descF: metrics.fontBoundingBoxDescent,
             fragments: target.getClientRects().length,
+            effectiveFontSize: Number.parseFloat(cs.fontSize) * (Number.parseFloat(cs.zoom) || 1),
           } satisfies PageMeasure;
         });
 

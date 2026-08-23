@@ -69,6 +69,10 @@ describe("propagateTextDecorations: basics", () => {
       fontSize: 24,
       fontWeight: "400",
       fontStyle: undefined,
+      fontAscent: undefined,
+      fontDescent: undefined,
+      baselines: undefined,
+      lengthScale: 1,
     }]);
     // The decorating element itself is not annotated.
     expect(span.propagatedDecorations).toBeUndefined();

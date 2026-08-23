@@ -2907,6 +2907,15 @@ describe("getDecorationMetrics: Blink's transcribed decoration rules (Chromium r
     expect(getDecorationMetrics(base, { thicknessOverride: "0.4px", fontAscent: 15 }).thickness).toBe(1);
   });
 
+  it("scales absolute thickness and offset by effective CSS zoom before roundf", () => {
+    const m = getDecorationMetrics(
+      { ...base, fontSize: 30 },
+      { thicknessOverride: "3px", underlineOffsetCss: "2px", lengthScale: 1.25, fontAscent: 27.5 },
+    );
+    expect(m.thickness).toBe(4); // roundf(3px × 1.25)
+    expect(m.underlineTop).toBe(31); // lround(27.5) + roundf(2px × 1.25)
+  });
+
   it("from-font thickness consults the RESOLVED face — unknown families reach the standard-font fallback, as Blink's PrimaryFont() does (text_decoration_info.cc:78-84)", () => {
     // `resolveFont` routes an unknown family to the platform default face, so
     // the from-font metric is that face's post table, clamped by max(1, t).

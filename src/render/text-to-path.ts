@@ -3479,6 +3479,8 @@ export interface DecorationStyleOptions {
    *  font size). An EXPLICIT length also zeroes Blink's auto underline gap
    *  (`core/layout/text_decoration_offset.cc:22-29`, rev 7d859f27). */
   underlineOffsetCss?: string;
+  /** Multiplier from computed CSS px lengths to the used zoomed paint state. */
+  lengthScale?: number;
   /**
    * CSS `text-underline-position` (`auto` / `from-font` / `under` / `left` /
    * `right`, possibly space-combined). Horizontal-tb resolution mirrors
@@ -3516,14 +3518,14 @@ const roundHalfAwayFromZero = (v: number): number => Math.sign(v) * Math.round(M
  * robustness (computed styles serialize it to px). Returns null for keywords
  * or unparsable input.
  */
-function decorationLengthPx(spec: string, fontSize: number): number | null {
+function decorationLengthPx(spec: string, fontSize: number, lengthScale = 1): number | null {
   const m = /^(-?[\d.]+)(px|em|%)?$/.exec(spec.trim());
   if (m == null) return null;
   const v = parseFloat(m[1]);
   if (Number.isNaN(v)) return null;
   if (m[2] === "em") return v * fontSize;
   if (m[2] === "%") return (v / 100) * fontSize;
-  return v;
+  return v * lengthScale;
 }
 
 /**
@@ -3603,7 +3605,7 @@ export function getDecorationMetrics(
   decoration: DecorationStyleOptions = {},
 ): DecorationMetrics {
   const { fontFamily, fontSize, fontStyle, fontStretch, variationSettings } = fontOptions;
-  const { thicknessOverride, underlineOffsetCss, underlinePositionCss } = decoration;
+  const { thicknessOverride, underlineOffsetCss, underlinePositionCss, lengthScale = 1 } = decoration;
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
   const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretchPercent(fontStretch), fontOptions.lang);
@@ -3624,7 +3626,7 @@ export function getDecorationMetrics(
     const fromFont = font != null ? (font.underlineThickness * fontSize) / upem : NaN;
     t = Number.isFinite(fromFont) && fromFont > 0 ? fromFont : fontSize / 10;
   } else {
-    const px = decorationLengthPx(thSpec, fontSize);
+    const px = decorationLengthPx(thSpec, fontSize, lengthScale);
     t = px != null ? roundHalfAwayFromZero(px) : fontSize / 10;
   }
   // `max(1, t)` for non-SVG text (`text_decoration_info.cc:449-451`).
@@ -3634,7 +3636,7 @@ export function getDecorationMetrics(
   // (`text_decoration_offset.cc:122-135`; auto → 0, percent of font size).
   const offSpec = (underlineOffsetCss ?? "auto").trim();
   const offIsAuto = offSpec === "" || offSpec === "auto";
-  const extra = offIsAuto ? 0 : (decorationLengthPx(offSpec, fontSize) ?? 0);
+  const extra = offIsAuto ? 0 : (decorationLengthPx(offSpec, fontSize, lengthScale) ?? 0);
 
   // Underline position — `ResolveUnderlinePosition` for horizontal-tb
   // (`text_decoration_info.cc:23-53`): `under` wins, then `from-font`;

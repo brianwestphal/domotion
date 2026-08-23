@@ -424,8 +424,15 @@ they describe (see `CLAUDE.md` "Documentation"):
   `getDecorationMetrics` / `emitDecorationLine` emit Blink's rules exactly —
   fragment-top anchoring on the captured FloatAscent, fs/10 auto thickness,
   gap `max(1, ceil(t/2))` zeroed by an explicit offset, per-style paint snap
-  — and ALL THREE legs pass and gate by default (transcription 106/106,
-  skip-ink/pattern 29/29, rule-vs-SVG 106/106). DM-2501 (doc 200) additionally
+  — and ALL THREE legs pass and gate by default. DM-2345 (doc 207) adds
+  effective-zoom ownership and fingerprinted cross-platform evidence: its
+  `zoom: 1.25` absolute-length discriminator exposed and closed a missing
+  renderer multiplier, and the pinned Linux arm64 run is exact at
+  109/109 transcription, 30/30 skip-ink/pattern, and 109/109 rule-vs-SVG.
+  A Windows DPR-1/4 workflow builds the DirectWrite helper and retains exact
+  fingerprinted reports; vertical writing's separate central-baseline and
+  script-sensitive side transcription is tracked rather than hidden by an
+  envelope. DM-2501 (doc 200) additionally
   binds Chrome paint and Domotion capture to one DPR-qualified Blink fragment
   state: the original Linux arm64 run compared DPR 4 with DPR 1 and produced
   a false uniform `+1px`. Coherent DPR-1/DPR-4 regressions and the native-arm64
