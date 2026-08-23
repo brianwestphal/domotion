@@ -157,6 +157,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5iwz8cpf1doikn",
+          "message": {
+            "text": "The conformance oracle now separates Chromium's logical glyph count from final ink emission. Production provenance already retains HarfBuzz's zero-advance space glyph for a standalone selector; only the SVG paint boundary suppresses its empty outline. Counting the terminal emitter record avoids double-counting an embedded-to-path retry and fixes the category error without changing renderer behavior or tolerance.",
+            "markdown": "The conformance oracle now separates Chromium's logical glyph count from final ink emission. Production provenance already retains HarfBuzz's zero-advance space glyph for a standalone selector; only the SVG paint boundary suppresses its empty outline. Counting the terminal emitter record avoids double-counting an embedded-to-path retry and fixes the category error without changing renderer behavior or tolerance."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/shaping-conformance.ts"
+                },
+                "region": {
+                  "startLine": 822,
+                  "endLine": 899,
+                  "snippet": {
+                    "text": "  const provenanceWasEnabled = textRunProvenanceEnabled();\n  resetTextRunProvenance();\n  setTextRunProvenanceEnabled(true);\n  let svg: string | null;\n  let provenance: ReturnType<typeof getTextRunProvenance>;\n  try {\n    svg = renderTextAsPath(spec.text, 0, spec.fontSize * 2, {\n      fontSize: spec.fontSize, fontFamily: spec.fontFamily,\n      fontWeight: String(spec.fontWeight), fill: \"#000\", fontStyle: spec.fontStyle,\n    // The run's axis location, parsed with the SAME function the renderer uses\n    // on a real capture (`src/render/text.ts`), so the oracle exercises the\n    // shipped parse rather than a second one that could drift from it.\n    variationSettings: parseFontVariationSettings(spec.fontVariationSettings),\n    fontStretch: spec.fontStretch,\n    // Parsed with the SAME function the renderer uses on a real capture\n    // (`src/render/text.ts`), for the same reason as the axis location above:\n    // the oracle must exercise the shipped parse, not a second one that can\n    // drift from it. That matters more than usual here, because the shipped\n    // parse has a KNOWN divergence from Chrome it would otherwise hide —\n    // fontkit takes an enable-only feature list, so `\"liga\" 0` is dropped\n    // rather than disabling a default-on feature. The fixture corpus declares\n    // exactly that (`\"liga\" 0, \"dlig\" 0`), so this is a disagreement the sweep\n    // should now be able to see rather than one it silently reproduces.\n    // DM-1983: merged through the SHIPPED `mergeFeatureLists`, and derived by\n    // the shipped `resolveFontVariantFeatures`, so the oracle exercises the real\n    // derivation rather than a second one that can drift from it. This is where\n    // the letter-spacing / optimizeSpeed vetoes enter: they push `-liga`,\n    // `-clig` and `-calt`, which is what stops a ligature from forming and\n    // therefore what the glyph-count comparison can see.\n      features,\n    });\n    provenance = getTextRunProvenance();\n  } finally {\n    setTextRunProvenanceEnabled(provenanceWasEnabled);\n    resetTextRunProvenance();\n  }\n  // A classified embedded decline retries the same selected runs through the\n  // paths emitter. Count only that terminal attempt; otherwise every fallback\n  // would duplicate the logical glyph stream. This is the renderer's real\n  // selected/shaped record, captured before the paint-only inkless filter.\n  const terminalEmitter = provenance.runs.some((run) => run.emitter === \"paths\")\n    ? \"paths\" : \"embedded-font\";\n  const logicalGlyphs = provenance.runs\n    .filter((run) => run.emitter === terminalEmitter)\n    .flatMap((run) => run.glyphs);\n  const logicalRuns = provenance.runs.filter((run) => run.emitter === terminalEmitter);\n  assertStandaloneDefaultIgnorableRecord(spec.text, logicalRuns);\n  if (svg == null) return { glyphCount: logicalGlyphs.length, xs: [], ok: logicalGlyphs.length > 0, featureList, logicalRecord, logicalGlyphs, logicalRuns };\n  // EVERY `<text>` element, not the first: a run spanning more than one font\n  // emits one element per font (`font-family=\"dmf0\"`, `dmf1`, …). Reading only\n  // the first made a mixed-font run look truncated — measured on \"FIXED → trapped\"\n  // (Helvetica-Bold + LucidaGrande-Bold), where our 5 positions were exactly\n  // Chrome's first 5 and the other 8 were in the second element.\n  const xs: number[] = [];\n  let found = false;\n  for (const m of svg.matchAll(/<text[^>]*\\sx=\"([^\"]*)\"/g)) {\n    found = true;\n    for (const tok of m[1].trim().split(/\\s+/)) {\n      const v = Number(tok);\n      if (tok !== \"\" && Number.isFinite(v)) xs.push(v);\n    }\n  }\n  // Blink/CDP counts hidden default-ignorables as logical glyphs even though\n  // HarfBuzz gives them no ink and zero advance. When the complete terminal\n  // stream is such a zero vector, its exact origins are all the run origin;\n  // retain those logical positions without forcing empty glyphs into SVG.\n  const logicalXs = logicalGlyphs.length > 0\n    && logicalGlyphs.every((glyph) => glyph.xAdvance === 0 && glyph.yAdvance === 0\n      && glyph.xOffset === 0 && glyph.yOffset === 0)\n    ? logicalGlyphs.map(() => 0)\n    : xs;\n  return {\n    glyphCount: logicalGlyphs.length,\n    xs: logicalXs,\n    ok: found || logicalGlyphs.length > 0,\n    featureList,\n    logicalRecord,\n    logicalGlyphs,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2521"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "5accec2e51248fbfe917ef9554df12e0"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f32e3bb3db45f64ecbc452c0bf41d77ea370ccb2",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

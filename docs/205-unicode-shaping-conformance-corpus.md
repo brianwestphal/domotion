@@ -13,6 +13,13 @@ The corpus runner does not invent a second shaping comparison or change the
 existing position tolerance. It partitions and preserves the exact reports
 that `tools/shaping-conformance.ts` already emits.
 
+DM-2521 separates logical shaping from ink emission for standalone
+default-ignorables. Reports retain the exact production-selected face, gid,
+cluster and UTF-16/code-point source spans. Pinned HarfBuzz maps the scalar to
+that face's zero-advance U+0020 glyph when it has one, or takes its source-owned
+deletion branch when it does not. Final SVG paint continues to suppress the
+empty outline. No selector allowlist or pixel tolerance participates.
+
 ## Deterministic profiles
 
 `tools/shaping-unicode-corpus.ts` canonicalizes every complete run record and

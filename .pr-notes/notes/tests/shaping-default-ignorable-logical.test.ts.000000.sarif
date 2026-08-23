@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5iwzdjsud4ql44",
+          "message": {
+            "text": "The six reduced standalone-selector scalars retain exact scalar, UTF-16/code-point span, cluster, selected-face space gid, zero geometry, and null outline. Gid/span/scalar/face/count mutations fail; HarfBuzz REMOVE and PRESERVE flag mutations move; final SVG remains path-all-inkless with no consumer glyph. The 4,096-row representative gate removed all six selector failures at the unchanged 0.5px tolerance.",
+            "markdown": "The six reduced standalone-selector scalars retain exact scalar, UTF-16/code-point span, cluster, selected-face space gid, zero geometry, and null outline. Gid/span/scalar/face/count mutations fail; HarfBuzz REMOVE and PRESERVE flag mutations move; final SVG remains path-all-inkless with no consumer glyph. The 4,096-row representative gate removed all six selector failures at the unchanged 0.5px tolerance."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/shaping-default-ignorable-logical.test.ts"
+                },
+                "region": {
+                  "startLine": 30,
+                  "endLine": 123,
+                  "snippet": {
+                    "text": "describe(\"standalone default-ignorable logical shaping (DM-2521)\", () => {\n  it.each(MACOS_STANDALONE_SELECTORS.map((cp) => [cp]))(\n    \"retains U+%s as the selected face's zero-advance space glyph\",\n    (cp) => {\n      const row = ourShaping(spec(cp));\n      expect(row.glyphCount).toBe(1);\n      expect(row.xs).toEqual([0]);\n      expect(row.logicalRuns).toHaveLength(1);\n      expect(row.logicalGlyphs).toHaveLength(1);\n      expect(row.logicalGlyphs[0]).toMatchObject({\n        cluster: 0,\n        sourceSpan: [0, cp > 0xFFFF ? 2 : 1],\n        sourceCodepointSpan: [0, 1],\n        xAdvance: 0,\n        yAdvance: 0,\n        xOffset: 0,\n        yOffset: 0,\n        sourceOutline: null,\n      });\n      expect(() => assertStandaloneDefaultIgnorableRecord(spec(cp).text, row.logicalRuns)).not.toThrow();\n    },\n  );\n\n  it(\"fails the source control when gid, source span, or logical retention mutates\", () => {\n    const row = ourShaping(spec(0xE0110));\n    const mutated = structuredClone(row.logicalRuns);\n    mutated[0].glyphs[0].id++;\n    expect(() => assertStandaloneDefaultIgnorableRecord(spec(0xE0110).text, mutated)).toThrow(/disagrees with HarfBuzz source/);\n    mutated[0].glyphs = structuredClone(row.logicalRuns[0].glyphs);\n    mutated[0].glyphs[0].sourceSpan = [0, 1];\n    expect(() => assertStandaloneDefaultIgnorableRecord(spec(0xE0110).text, mutated)).toThrow(/disagrees with HarfBuzz source/);\n    mutated[0].glyphs = [];\n    expect(() => assertStandaloneDefaultIgnorableRecord(spec(0xE0110).text, mutated)).toThrow(/produced 0 logical glyphs/);\n    mutated[0] = structuredClone(row.logicalRuns[0]);\n    mutated[0].sourceText = String.fromCodePoint(0xE0108);\n    expect(() => assertStandaloneDefaultIgnorableRecord(spec(0xE0110).text, mutated)).toThrow(/scalar\\/run record disagrees/);\n    mutated[0] = structuredClone(row.logicalRuns[0]);\n    mutated[0].glyphs[0].cluster = 1;\n    expect(() => assertStandaloneDefaultIgnorableRecord(spec(0xE0110).text, mutated)).toThrow(/disagrees with HarfBuzz source/);\n    mutated[0] = structuredClone(row.logicalRuns[0]);\n    mutated[0].glyphs[0].xAdvance = 1;\n    expect(() => assertStandaloneDefaultIgnorableRecord(spec(0xE0110).text, mutated)).toThrow(/disagrees with HarfBuzz source/);\n    const selectedFace = row.logicalRuns[0].selected.instantiatedPostscriptName\n      ?? row.logicalRuns[0].selected.postscriptName!;\n    expect(() => assertStandaloneDefaultIgnorableFace(\n      spec(0xE0110).text, row.logicalRuns, [`${selectedFace}×1`],\n    )).not.toThrow();\n    expect(() => assertStandaloneDefaultIgnorableFace(\n      spec(0xE0110).text, row.logicalRuns, [\"WrongFace×1\"],\n    )).toThrow(/selected face.*!= Chromium/);\n  });\n\n  it(\"keeps the zero-ink terminal without forcing a consumer glyph\", () => {\n    const source = spec(0xE0110);\n    const svg = renderTextAsPath(source.text, 0, 64, {\n      fontSize: source.fontSize,\n      fontFamily: source.fontFamily,\n      fontWeight: String(source.fontWeight),\n      fontStyle: source.fontStyle,\n      fill: \"#000\",\n    });\n    expect(svg).toContain('data-domotion-text-boundary=\"path-all-inkless\"');\n    expect(svg).not.toMatch(/<(?:text|use)\\b/);\n  });\n\n  it(\"moves under HarfBuzz REMOVE and PRESERVE buffer-flag mutations\", () => {\n    const source = spec(0xE0110);\n    const row = ourShaping(source);\n    const selected = row.logicalRuns[0].selected;\n    const shape = (bufferFlags: number) => harfbuzzShapeRun(\n      selected.sourcePath!, selected.faceIndex!, source.text, \"ltr\", source.fontSize,\n      selected.variationAxes, undefined, { bufferFlags },\n    );\n    expect(shape(BufferFlag.REMOVE_DEFAULT_IGNORABLES)?.glyphs).toHaveLength(0);\n    const preserved = shape(BufferFlag.PRESERVE_DEFAULT_IGNORABLES)!;\n    expect(preserved.glyphs).toHaveLength(1);\n    expect(preserved.glyphs[0].id).not.toBe(row.logicalGlyphs[0].id);\n    expect(preserved.positions[0].xAdvance).not.toBe(0);\n  });\n\n  it(\"makes logical omission move the public count verdict\", () => {\n    const row = ourShaping(spec(0xFE06));\n    expect(compareShaping(\n      { glyphCount: 1, faces: [\"source-face×1\"], xs: [0], width: 0 },\n      row,\n      0.5,\n    )).toEqual({ verdict: \"agree-exact\", maxDelta: 0 });\n    const omitted: OurShaping = { ...row, glyphCount: 0, xs: [], ok: false, logicalGlyphs: [], logicalRuns: [] };\n    expect(compareShaping(\n      { glyphCount: 1, faces: [\"source-face×1\"], xs: [0], width: 0 },\n      omitted,\n      0.5,\n    ).verdict).toBe(\"mismatch-unrendered\");\n  });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2521"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "94b182825f06ac33967dd7a236013967"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f32e3bb3db45f64ecbc452c0bf41d77ea370ccb2",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
