@@ -24,6 +24,15 @@ jobs:
         with: { node-version: 22, cache: npm }
       - run: npm ci
       - run: npx playwright install chromium
+      - name: Acquire authenticated native glyph and ICU helpers
+        shell: bash
+        run: >-
+          node --import tsx -e 'import fs from "node:fs";
+          import { acquireGlyphHelper } from "./src/render/helper-acquire.ts";
+          import { acquireIcuCompanion } from "./src/render/icu-helper-acquire.ts";
+          const glyph = await acquireGlyphHelper(); const icu = await acquireIcuCompanion();
+          if (glyph == null || icu == null) throw new Error("authenticated shaping helpers unavailable");
+          fs.appendFileSync(process.env.GITHUB_ENV, `DOMOTION_HELPER_PATH=${glyph}\nDOMOTION_ICU_HELPER_PATH=${icu}\n`);'
       - name: Clone Unicode fixtures
         shell: bash
         run: git clone --depth 1 https://github.com/brianwestphal/html-test.git external/html-test
@@ -54,6 +63,15 @@ jobs:
         with: { node-version: 22, cache: npm }
       - run: npm ci
       - run: npx playwright install chromium
+      - name: Acquire authenticated native glyph and ICU helpers
+        shell: bash
+        run: >-
+          node --import tsx -e 'import fs from "node:fs";
+          import { acquireGlyphHelper } from "./src/render/helper-acquire.ts";
+          import { acquireIcuCompanion } from "./src/render/icu-helper-acquire.ts";
+          const glyph = await acquireGlyphHelper(); const icu = await acquireIcuCompanion();
+          if (glyph == null || icu == null) throw new Error("authenticated shaping helpers unavailable");
+          fs.appendFileSync(process.env.GITHUB_ENV, `DOMOTION_HELPER_PATH=${glyph}\nDOMOTION_ICU_HELPER_PATH=${icu}\n`);'
       - name: Clone Unicode fixtures
         shell: bash
         run: git clone --depth 1 https://github.com/brianwestphal/html-test.git external/html-test
