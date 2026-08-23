@@ -60,6 +60,18 @@ expected logical arrays and only `xAdvance` movement. Invalid, inert, or
 unexpected fixture rows withhold independently; pixels and raster thresholds
 remain outside this gate.
 
+DM-2502/doc 201 classifies the same run's lone significant HTML residual as a
+logical shaping-item ownership defect. Blink intersects `SymbolsIterator`
+source-priority ranges with bidi/script ranges before creating a fallback
+iterator; Domotion currently creates only bidi/script items and derives emoji
+priority later from a queued hint. In `✗ ❗`, FreeSans selected for the first
+text-priority miss therefore covers bare U+2757 before an emoji-priority lookup,
+while reversing the symbols reaches Noto Color Emoji. Exact VS15/VS16,
+`font-variant-emoji`, declared-family, ICU-property, selected-glyph, and healthy
+raster controls rule out classification and paint. The investigation gate has
+no pixel threshold; DM-2507 owns source-priority itemization and DM-2508 owns
+arm64 aggregate promotion.
+
 Doc 197 defines the paths-mode native-raster floor as an evidence/ratification
 matrix, not a percentage exception. Every row must first match exact face bytes,
 face index/axes, gid/cluster/advance/offset stream, baseline, and affine matrix.
@@ -376,6 +388,11 @@ they describe (see `CLAUDE.md` "Documentation"):
   system-stage decisions on macOS and 0 of 780k on Linux. The existing
   unicode-grid sweeps are one-codepoint-per-cell and structurally cannot grade
   this mechanism (gating corpus tracked separately).
+  DM-2502 narrows that shipped claim: bidi/script boundaries are preserved, but
+  Blink's independent source-presentation boundary is not yet represented.
+  `tools/emoji-presentation-ownership-audit.ts` makes the missing mixed-symbol
+  transition explicit and leaves the family/selector/raster negatives exact;
+  production closure is tracked by DM-2507 and release activation by DM-2508.
 - **Doc 112 (`docs/112-decoration-geometry-oracle.md`, DM-2009)** —
   **Shipped.** `tools/decoration-oracle.ts` (`npm run decorations:oracle`)
   grades text-decoration GEOMETRY against Chrome's paint and Blink's

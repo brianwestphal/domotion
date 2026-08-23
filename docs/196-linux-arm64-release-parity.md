@@ -106,6 +106,20 @@ arm64 container now passes 106/106 transcription, 29/29 skip-ink/pattern, and
 106/106 SVG geometry. A focused browser gate also passes coherent DPR 1 and
 DPR 4. No capture or renderer behavior changed. See [doc 200](200-linux-arm64-decoration-coordinate-ownership.md).
 
+The same run's sole significant HTML region is a separate logical ownership
+finding, not native raster noise. Chromium paints bare U+2757 with Noto Color
+Emoji, while the SVG embeds a FreeSans outline after sharing the preceding
+U+2717 text-priority fallback iterator. Pinned Chromium source requires a
+`SymbolsIterator` boundary before per-item fallback allocation; Domotion
+currently itemizes only bidi and script. The exact native order matrix changes
+answer for `✗ ❗` versus `❗ ✗`, while VS15/VS16, CSS-text, declared-family,
+ICU-property, selected-glyph, and six healthy color-raster controls localize
+the defect before rasterization. The investigation-only workflow
+`.github/workflows/emoji-presentation-ownership-audit.yml` records the source
+partition and native route without a pixel threshold. See
+[doc 201](201-emoji-presentation-item-ownership.md); DM-2507 owns the production
+fix and DM-2508 owns its eventual aggregate activation.
+
 ## Maintainer commands
 
 The pure ELF/fingerprint/finalizer and workflow-structure contracts run on any

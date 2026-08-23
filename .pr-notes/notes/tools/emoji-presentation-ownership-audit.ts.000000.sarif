@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex DM-2502 investigator",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt58vcm4yl26721k",
+          "message": {
+            "text": "The source-owned partition proves the defect is missing itemization, not raster noise. Pinned Blink splits the 52-code-unit line at 43 and 44 around emoji-presentation U+2757; Domotion's current bidi/script item remains 0-52. The native arm64 route matrix then reproduces the order-sensitive FreeSans-versus-Noto ownership change while keeping VS15, VS16, CSS, and declared-family controls fixed.",
+            "markdown": "The source-owned partition proves the defect is missing itemization, not raster noise. Pinned Blink splits the 52-code-unit line at 43 and 44 around emoji-presentation U+2757; Domotion's current bidi/script item remains 0-52. The native arm64 route matrix then reproduces the order-sensitive FreeSans-versus-Noto ownership change while keeping VS15, VS16, CSS, and declared-family controls fixed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/emoji-presentation-ownership-audit.ts"
+                },
+                "region": {
+                  "startLine": 137,
+                  "endLine": 154,
+                  "snippet": {
+                    "text": "export function structuralOwnershipEvidence(text = EMOJI_OWNERSHIP_FIXTURE): StructuralOwnershipEvidence {\n  const sourceItems = sourcePriorityItems(text);\n  const currentSegments = segmentForShaping(text, bidiLevelsFor(text));\n  const currentBoundaries = new Set(currentSegments.flatMap((segment) => [segment.start, segment.end]));\n  const missingSourceBoundaries = sourceItems\n    .flatMap((item) => [item.start, item.end])\n    .filter((boundary, index, all) => boundary > 0 && boundary < text.length\n      && all.indexOf(boundary) === index && !currentBoundaries.has(boundary));\n  const target = text.indexOf(EMOJI_OWNERSHIP_TARGET);\n  const targetItem = sourceItems.find((item) => item.start === target);\n  return {\n    sourcePriorityItems: sourceItems,\n    currentSegments,\n    missingSourceBoundaries,\n    rootCausePresent: targetItem?.priority === \"emoji\"\n      && missingSourceBoundaries.includes(target)\n      && missingSourceBoundaries.includes(target + EMOJI_OWNERSHIP_TARGET.length),\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/script-segmentation.ts"
+                },
+                "region": {
+                  "startLine": 422
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/cluster-fallback.ts"
+                },
+                "region": {
+                  "startLine": 559
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2502"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "842036c2a74e63256bc30a3296f9733f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c547fb040878997a6c3e41bdc791589d91951501",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

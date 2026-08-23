@@ -131,6 +131,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex DM-2502 investigator",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt58vih4j9w10g4h",
+          "message": {
+            "text": "Emoji presentation is deliberately downgraded from exact to partial at one named logical transition. DM-2502 exonerates ICU, HarfBuzz, Skia, and selected-glyph raster ownership, but the mixed text-miss to bare-emoji source boundary remains absent until DM-2507; recording that state as exact would hide the production defect, while changing a raster threshold would grade the wrong stage.",
+            "markdown": "Emoji presentation is deliberately downgraded from exact to partial at one named logical transition. DM-2502 exonerates ICU, HarfBuzz, Skia, and selected-glyph raster ownership, but the mixed text-miss to bare-emoji source boundary remains absent until DM-2507; recording that state as exact would hide the production defect, while changing a raster threshold would grade the wrong stage."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/semantic-coverage.json"
+                },
+                "region": {
+                  "startLine": 193,
+                  "endLine": 230,
+                  "snippet": {
+                    "text": "      \"uncoveredStates\": [\n        \"text-priority miss before bare emoji -> isolated emoji priority\"\n      ],\n      \"upstreamSources\": [\n        \"external/chromium/third_party/blink/renderer/platform/fonts\",\n        \"external/chromium/third_party/blink/renderer/platform/text\"\n      ],\n      \"productionOwners\": [\n        \"src/capture/script/emoji-detect.ts\",\n        \"src/render/cluster-fallback.ts\",\n        \"src/render/font-resolution.ts\",\n        \"src/capture/emoji.ts\",\n        \"src/render/text-to-path.ts\",\n        \"src/render/glyph-helper.ts\"\n      ],\n      \"oracles\": [\n        \"tools/font-conformance.ts\",\n        \"tools/raster-boundary-oracle.ts\",\n        \"tools/renderer-font-route-oracle.ts\",\n        \"tools/emoji-presentation-ownership-audit.ts\"\n      ],\n      \"metamorphicTests\": [\n        \"src/render/emoji-presentation-fallback.test.ts\",\n        \"src/capture/script/emoji-detect.test.ts\",\n        \"src/render/cluster-fallback.test.ts\",\n        \"src/render/emoji-raster-kind.test.ts\",\n        \"src/render/text.test.ts\",\n        \"tests/alchemical-symbols-not-rastered.e2e.test.ts\",\n        \"tests/raster-fallback-content.e2e.test.ts\",\n        \"tests/emoji-presentation-ownership-audit.test.ts\",\n        \"tests/emoji-presentation-ownership-workflow.test.ts\"\n      ],\n      \"visualFixtures\": [\n        \"tests/features.ts#text-font-variant-emoji\",\n        \".github/workflows/emoji-presentation-ownership-audit.yml\"\n      ],\n      \"coverage\": \"partial\",\n      \"boundary\": \"DM-2502 proves with the retained Linux arm64 artifact, pinned Chromium source, and an order-sensitive native matrix that Domotion omits Blink's SymbolsIterator boundary before fallback allocation. U+2757 can therefore inherit a prior text-priority outline face; ICU classification, selected-glyph representation, HarfBuzz, and Skia raster ownership are exact downstream. DM-2507 owns the production itemization fix and DM-2508 owns promotion into the release aggregate; no pixel tolerance is implicated.\","
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/emoji-presentation-ownership-audit.ts"
+                },
+                "region": {
+                  "startLine": 303
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/201-emoji-presentation-item-ownership.md"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2502"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "7428a6d9490547c5db0bb1d28fb935ac"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c547fb040878997a6c3e41bdc791589d91951501",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

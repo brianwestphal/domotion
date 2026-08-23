@@ -111,3 +111,20 @@ advances, and the two selected `sbix` spans appear in one artifact. Its paired
 and change the raster-span result; that negative arm proves the passing default
 record traversed the whole-sequence route rather than an unconditional common
 path. The `text-font-variant-emoji` visual fixture is the final placement gate.
+
+## Upstream itemization boundary discovered by DM-2502
+
+Renderer-owned raster classification begins only after face selection, so it
+cannot repair an incorrectly shared fallback iterator. The retained native
+arm64 `02-text-emoji` artifact proves one such upstream gap: Domotion groups a
+text-priority U+2717 miss and the following bare emoji-presentation U+2757 in
+one bidi/script item, whereas Blink's `SymbolsIterator` terminates the text
+item and allocates a fresh emoji-priority iterator. FreeSans therefore owns
+both outlines in Domotion; Chromium assigns U+2757 to Noto Color Emoji.
+
+The six other color glyphs in the same artifact traverse this document's
+selected-glyph raster boundary exactly. The order pair `✗ ❗` / `❗ ✗` and
+VS15/VS16, CSS-text, and declared-FreeSans controls localize the logical error
+before `selectedGlyphRasterSpans()`. See [doc 201](201-emoji-presentation-item-ownership.md).
+DM-2507 owns the itemizer change and DM-2508 owns release-gate promotion; this
+finding does not alter this boundary or authorize a pixel tolerance.

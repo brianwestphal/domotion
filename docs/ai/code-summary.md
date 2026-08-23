@@ -147,7 +147,8 @@ shortest possible map:
   current font, requeue only the `.notdef` clusters — and is the DEFAULT run
   splitter for BOTH render modes (`splitTextIntoFontRuns` for the embedded-font
   pipeline; `splitTextIntoGlyphPathRuns` invokes it in "paths" mode for the
-  glyph-path emitter, preserving every bidi/script shaping-item boundary and
+  glyph-path emitter, preserving every currently materialized bidi/script
+  shaping-item boundary and
   its resolved direction plus ISO 15924 script (`FontRun.shapingDirection` /
   `FontRun.shapingScript`), while raster emoji use the same Chromium terminal
   as embedded mode. Dotted-circle insertion and canonical decomposition remain
@@ -166,6 +167,14 @@ shortest possible map:
   `text.ts` suppresses exactly the returned UTF-16 span. See
   `docs/145-renderer-owned-color-glyph-boundary.md`; no codepoint/block/font-name
   allowlist or canvas-color probe participates.
+  DM-2502/doc 201 records one explicit upstream exception: the itemizer does
+  not yet intersect Blink's source-priority `SymbolsIterator` ranges with the
+  bidi/script ranges. A preceding text-priority miss can therefore lend its
+  outline face to a following emoji-presentation scalar before the otherwise
+  exact selected-glyph raster boundary runs. The strict native arm64 ownership
+  audit pins order, VS15/VS16, CSS, family, ICU, and representation controls;
+  DM-2507 owns the production fix and DM-2508 owns aggregate promotion, with no
+  pixel-tolerance change.
   `script-iso15924.generated.ts` maps UCD script names to the ISO 15924 tags
   passed to `hb_buffer_set_script` (derived from HarfBuzz's
   `hb-script-list.h`);

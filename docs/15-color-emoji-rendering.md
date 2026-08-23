@@ -127,6 +127,23 @@ predicate is exactly `sbix || (COLR && CPAL) || (CBDT && CBLC)`; SVG is a
 separate selected-glyph output capability. See
 [145-renderer-owned-color-glyph-boundary.md](145-renderer-owned-color-glyph-boundary.md).
 
+## Known shaping-item boundary gap (DM-2502)
+
+The downstream selected-glyph predicate above is exact, but the current
+cluster fallback itemizer does not yet carry Blink's source-owned
+`SymbolsIterator` priority boundary. Native Linux arm64 run `32611751700`
+exposed the consequence: after a text-priority miss selected FreeSans for
+U+2717, the same iterator reused that covering outline face for the following
+emoji-presentation U+2757. Chromium created a new emoji-priority item and
+painted Noto Color Emoji. Reversing only the two symbols changes Domotion's
+answer, while VS15, VS16, CSS-text, and declared-family controls distinguish
+the itemization defect from Unicode classification or raster paint.
+
+[Doc 201](201-emoji-presentation-item-ownership.md) records the pinned source,
+artifact, and strict native discriminator. DM-2507 owns the production split;
+DM-2508 will promote it into the arm64 aggregate. No raster tolerance is
+involved.
+
 ## Known gaps
 
 - **Non-sbix formats use screenshots.** COLR, OpenType SVG, custom color

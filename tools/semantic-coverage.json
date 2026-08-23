@@ -170,7 +170,8 @@
       "subjects": [
         "font-variant-emoji",
         "variation selectors",
-        "Unicode emoji properties"
+        "Unicode emoji properties",
+        "SymbolsIterator source-priority item boundaries"
       ],
       "states": [
         "normal -> text",
@@ -178,7 +179,8 @@
         "text -> emoji",
         "emoji -> text",
         "VS15 -> VS16",
-        "monochrome face -> color face"
+        "monochrome face -> color face",
+        "text-priority miss before bare emoji -> isolated emoji priority"
       ],
       "exactStates": [
         "normal -> text",
@@ -188,7 +190,9 @@
         "VS15 -> VS16",
         "monochrome face -> color face"
       ],
-      "uncoveredStates": [],
+      "uncoveredStates": [
+        "text-priority miss before bare emoji -> isolated emoji priority"
+      ],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/platform/fonts",
         "external/chromium/third_party/blink/renderer/platform/text"
@@ -204,7 +208,8 @@
       "oracles": [
         "tools/font-conformance.ts",
         "tools/raster-boundary-oracle.ts",
-        "tools/renderer-font-route-oracle.ts"
+        "tools/renderer-font-route-oracle.ts",
+        "tools/emoji-presentation-ownership-audit.ts"
       ],
       "metamorphicTests": [
         "src/render/emoji-presentation-fallback.test.ts",
@@ -213,12 +218,16 @@
         "src/render/emoji-raster-kind.test.ts",
         "src/render/text.test.ts",
         "tests/alchemical-symbols-not-rastered.e2e.test.ts",
-        "tests/raster-fallback-content.e2e.test.ts"
+        "tests/raster-fallback-content.e2e.test.ts",
+        "tests/emoji-presentation-ownership-audit.test.ts",
+        "tests/emoji-presentation-ownership-workflow.test.ts"
       ],
       "visualFixtures": [
-        "tests/features.ts#text-font-variant-emoji"
+        "tests/features.ts#text-font-variant-emoji",
+        ".github/workflows/emoji-presentation-ownership-audit.yml"
       ],
-      "coverage": "exact",
+      "coverage": "partial",
+      "boundary": "DM-2502 proves with the retained Linux arm64 artifact, pinned Chromium source, and an order-sensitive native matrix that Domotion omits Blink's SymbolsIterator boundary before fallback allocation. U+2757 can therefore inherit a prior text-priority outline face; ICU classification, selected-glyph representation, HarfBuzz, and Skia raster ownership are exact downstream. DM-2507 owns the production itemization fix and DM-2508 owns promotion into the release aggregate; no pixel tolerance is implicated.",
       "featureIds": [
         "capture.emoji-detect",
         "render.text"
