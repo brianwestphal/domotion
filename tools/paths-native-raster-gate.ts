@@ -7,6 +7,7 @@ const fingerprintSchema = z.object({
   platform: z.enum(["darwin", "linux", "win32"]), osImage: z.string().min(1), osImageVersion: z.string().min(1), arch: z.string().min(1),
   osRelease: z.string().min(1), chromium: z.string().min(1), chromiumRevision: z.string().min(1),
   browserExecutableSha256: z.string().regex(/^[a-f0-9]{64}$/),
+  nativeIdentityHelperSha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   // Chromium does not expose the embedded Skia/HarfBuzz revisions at runtime.
   // These fields therefore identify the authenticated browser binary that owns
   // those libraries; the source revisions used by the logical oracle are kept
@@ -18,7 +19,14 @@ const fingerprintSchema = z.object({
   nodeVersion: z.string().min(1), icuVersion: z.string().min(1), sharpVersion: z.string().min(1),
   libvipsVersion: z.string().min(1), metricAlgorithm: z.string().min(1),
   launchFlags: z.array(z.string()), locale: z.string().min(1),
-}).strict();
+}).strict().superRefine((fingerprint, ctx) => {
+  if (fingerprint.platform === "win32" && fingerprint.nativeIdentityHelperSha256 == null) {
+    ctx.addIssue({ code: "custom", message: "Windows observations require the DirectWrite identity-helper fingerprint" });
+  }
+  if (fingerprint.platform !== "win32" && fingerprint.nativeIdentityHelperSha256 != null) {
+    ctx.addIssue({ code: "custom", message: "only Windows observations may carry a DirectWrite identity-helper fingerprint" });
+  }
+});
 const glyphSchema = z.object({
   gid: z.number().int().nonnegative(), cluster: z.number().int().nonnegative(),
   advanceX: finite, advanceY: finite, offsetX: finite, offsetY: finite,

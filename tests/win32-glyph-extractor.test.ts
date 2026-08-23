@@ -113,11 +113,13 @@ describeHelper("Windows DirectWrite glyph extractor", () => {
         fonts: [{ ref: "f", fontPath: ARIAL, size: 2048 }],
         queries: [{ type: "meta", fontRef: "f" }],
       });
-      const meta = resp.results[0] as { unitsPerEm: number; ascent: number; descent: number; traitItalic?: boolean };
+      const meta = resp.results[0] as { unitsPerEm: number; ascent: number; descent: number; traitItalic?: boolean; postscriptName: string; faceIndex: number };
       expect(meta.unitsPerEm).toBe(2048);
       expect(meta.ascent).toBeGreaterThan(0);
       expect(meta.descent).toBeLessThan(0); // negative-below-baseline convention
       expect(meta.traitItalic).toBe(false);
+      expect(meta.postscriptName).toBe("ArialMT");
+      expect(meta.faceIndex).toBe(0);
     });
 
     it("extracts the H outline matching fontkit (validates y-up + line mapping)", () => {

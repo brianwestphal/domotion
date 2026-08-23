@@ -113,12 +113,63 @@ describe("paths/native source-owned collection contract", () => {
   });
 
   it("keeps a variable source face logical while validating Blink's coordinate suffix", () => {
-    expect(logicalPaintedPostscriptName("Roboto-Regular", "Roboto-Regular_wght2580000_wdth5A0000")).toEqual({
-      logical: "Roboto-Regular", sourceMatch: true,
+    const identity = {
+      sourcePostscript: "Roboto-Regular",
+      sourceSha256: sha("a"),
+      faceIndex: 0,
+      variationAxes: { wdth: 90, wght: 400 },
+      isCustomFont: true,
+      isVariable: true,
+      platform: "linux" as const,
+    };
+    expect(logicalPaintedPostscriptName({
+      ...identity, paintedPostscript: "Roboto-Regular_wght2580000_wdth5A0000",
+    })).toEqual({
+      logical: "Roboto-Regular", sourceMatch: true, match: "blink-coordinate-suffix",
     });
-    expect(logicalPaintedPostscriptName("Roboto-Regular", "Fallback-Regular")).toEqual({
-      logical: "Roboto-Regular", sourceMatch: false,
+    expect(logicalPaintedPostscriptName({ ...identity, paintedPostscript: "Fallback-Regular" })).toEqual({
+      logical: "Roboto-Regular", sourceMatch: false, match: "mismatch",
     });
+  });
+
+  it("accepts a DirectWrite alias only with the same helper, source face, and exact axes", () => {
+    const identity = {
+      sourcePostscript: "Roboto-Regular",
+      sourceSha256: sha("a"),
+      faceIndex: 0,
+      variationAxes: { wdth: 90, wght: 600 },
+      paintedPostscript: "Roboto-Medium",
+      isCustomFont: true,
+      isVariable: true,
+      platform: "win32" as const,
+      fingerprintHelperSha256: sha("b"),
+      directWrite: {
+        postscriptName: "Roboto-Medium",
+        resolvedAxes: { wght: 600, wdth: 90 },
+        sourceSha256: sha("a"),
+        faceIndex: 0,
+        helperSha256: sha("b"),
+      },
+    };
+    expect(logicalPaintedPostscriptName(identity)).toEqual({
+      logical: "Roboto-Regular", sourceMatch: true, match: "directwrite-variable-face",
+    });
+    for (const mutation of [
+      { paintedPostscript: "Roboto-Regularized" },
+      { paintedPostscript: "RobotoFallback" },
+      { sourceSha256: sha("c") },
+      { faceIndex: 1 },
+      { variationAxes: { wdth: 100, wght: 600 } },
+      { isCustomFont: false },
+      { isVariable: false },
+      { platform: "linux" as const },
+      { fingerprintHelperSha256: sha("c") },
+      { directWrite: { ...identity.directWrite, resolvedAxes: { wdth: 90, wght: 500 } } },
+    ]) {
+      expect(logicalPaintedPostscriptName({
+        ...identity, ...mutation,
+      })).toEqual({ logical: "Roboto-Regular", sourceMatch: false, match: "mismatch" });
+    }
   });
 
   it("rehashes bytes and recomputes residuals instead of trusting supplied observations", async () => {
