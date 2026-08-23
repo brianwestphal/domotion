@@ -11,5 +11,8 @@ describe("DM-2345 cross-platform decoration evidence", () => {
     expect(job).toMatch(/decoration-oracle\.ts[\s\S]*--device-scale-factor 4[\s\S]*decoration-windows-dpr4\.json/);
     expect(job).not.toMatch(/--no-gate|--tolerance/);
     expect(job).toContain("decoration-geometry-windows");
+    expect(job).toContain("steps.decoration_dpr1.outcome");
+    expect(job).toContain("steps.decoration_dpr4.outcome");
+    expect(job).toContain("throw 'One or more exact decoration geometry lanes failed");
   });
 });

@@ -140,7 +140,7 @@
  *
  * Exit codes: 0 all armed gates pass; 1 an armed gate failed; 2 setup error.
  */
-import { chromium, type Browser, type Page } from "@playwright/test";
+import { chromium, type Browser, type CDPSession, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { release as osRelease, type as osType } from "node:os";
@@ -398,10 +398,12 @@ interface PageMeasure {
   fragments: number;
   /** Used font size in the page's physical CSS-pixel paint state. */
   effectiveFontSize: number;
+  /** Primary family Blink actually painted, resolved through the platform. */
+  platformFontFamily?: string;
 }
 
-async function measureChunk(page: Page): Promise<PageMeasure[]> {
-  return await page.evaluate(() => {
+async function measureChunk(page: Page, cdp?: CDPSession): Promise<PageMeasure[]> {
+  const measures = await page.evaluate(() => {
     // See analyzeClip: polyfill tsx/esbuild's `__name` helper for serialized
     // callbacks that contain named arrow constants.
     if (typeof (window as unknown as { __name?: unknown }).__name === "undefined") {
@@ -434,6 +436,22 @@ async function measureChunk(page: Page): Promise<PageMeasure[]> {
     }
     return out;
   });
+  if (cdp == null) return measures;
+  await cdp.send("CSS.enable");
+  const { root } = await cdp.send("DOM.getDocument", { depth: -1, pierce: true });
+  for (let i = 0; i < measures.length; i++) {
+    const { nodeId } = await cdp.send("DOM.querySelector", {
+      nodeId: root.nodeId, selector: `.case[data-idx="${i}"] .t`,
+    });
+    if (nodeId === 0) continue;
+    const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
+    const primary = fonts.reduce(
+      (best, font) => best == null || font.glyphCount > best.glyphCount ? font : best,
+      null as (typeof fonts)[number] | null,
+    );
+    if (primary?.familyName) measures[i].platformFontFamily = primary.familyName;
+  }
+  return measures;
 }
 
 // ── Rule prediction (leg R) ─────────────────────────────────────────────
@@ -501,7 +519,8 @@ function predictCase(c: CaseSpec, meas: PageMeasure): Prediction {
   const notes: string[] = [];
 
   // from-font metrics via fontkit (post table) — documented blind spot.
-  const fk = resolveFont(c.family, 400, fs);
+  const metricFamily = meas.platformFontFamily ?? c.family;
+  const fk = resolveFont(metricFamily, 400, fs);
   const upem = fk?.unitsPerEm ?? 1000;
   const fkThickPx = fk != null ? (fk.underlineThickness * fs) / upem : null;
   // Skia fUnderlinePosition is positive below baseline (macOS:
@@ -509,7 +528,7 @@ function predictCase(c: CaseSpec, meas: PageMeasure): Prediction {
   // rev ebf5052); fontkit's post value is negative below baseline.
   const fkPosPx = fk != null ? (-fk.underlinePosition * fs) / upem : null;
   if ((c.thickness === "from-font" || c.underlinePosition === "from-font") && fk == null) {
-    notes.push("from-font metrics unavailable (font failed to resolve) — auto fallback used");
+    notes.push(`from-font metrics unavailable for ${metricFamily} — auto fallback used`);
   }
 
   // Thickness — text_decoration_info.cc:65-92, then max(1,t) at :449-451.
@@ -554,8 +573,12 @@ function predictCase(c: CaseSpec, meas: PageMeasure): Prediction {
       bars.push({ top: meas.rect.y + topRel + wavyOffset + 0.5 - (amp + t / 2), height: 2 * amp + t });
       return;
     }
-    bars.push(snap(topRel));
-    if (c.style === "double") bars.push(snap(topRel + dblOffFor(line)));
+    const first = snap(topRel);
+    bars.push(first);
+    if (c.style === "double") {
+      const second = snap(topRel + dblOffFor(line));
+      bars.push(second);
+    }
   };
 
   for (const line of c.lines.split(/\s+/)) {
@@ -643,11 +666,14 @@ async function analyzeClip(
       const coreY0 = maxY - minY >= 3 ? minY + 1 : minY;
       const coreY1 = maxY - minY >= 3 ? maxY - 1 : maxY;
       const colRed = new Array<boolean>(W).fill(false);
+      const colCoverage = new Array<number>(W).fill(0);
       const colWhite = new Array<number>(W).fill(0);
       for (let x = 0; x < W; x++) {
         let whites = 0;
         for (let y = coreY0; y <= coreY1; y++) {
-          if (redAt(x, y) > 0.5) colRed[x] = true;
+          const coverage = redAt(x, y);
+          colCoverage[x] = Math.max(colCoverage[x], coverage);
+          if (coverage > 0.5) colRed[x] = true;
           const i = (y * W + x) * 4;
           const luma = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
           if (luma > 180 && data[i] - Math.max(data[i + 1], data[i + 2]) < 40) whites++;
@@ -660,7 +686,10 @@ async function analyzeClip(
       for (let x = 0; x <= W; x++) {
         const isWhite = x === W || (!colRed[x] && colWhite[x] > 0.6);
         if (isWhite) {
-          if (firstRed >= 0) segments.push([firstRed, lastRed + 1]);
+          if (firstRed >= 0) segments.push([
+            firstRed + (1 - colCoverage[firstRed]),
+            lastRed + colCoverage[lastRed],
+          ]);
           firstRed = -1; lastRed = -1;
         } else if (colRed[x]) {
           if (firstRed < 0) firstRed = x;
@@ -1025,6 +1054,24 @@ function compareBars(a: Bar[], b: Bar[], tol: number, aName: string, bName: stri
   return { ok, detail };
 }
 
+/** Recover Blink's logical SnapYAxis rectangle from a raster profile.
+ * DirectWrite/Skia may distribute coverage outside that integer rectangle at
+ * DPR 1; the solid/double paint contract remains integer top and height. */
+function reconstructSnappedBars(bars: readonly MeasuredBar[]): MeasuredBar[] {
+  return bars.map((bar) => ({ ...bar, top: Math.round(bar.top), height: Math.round(bar.height) }));
+}
+
+/** At DPR 1 the integer-expanded WavyPatternRect and native antialiasing lose
+ * subpixel amplitude at both raster edges. Their midpoint still recovers the
+ * source-owned centerline; amplitude remains exact on rule-vs-SVG. */
+function compareBarCenters(a: Bar[], b: Bar[], tol: number, aName: string, bName: string): LegResult {
+  return compareBars(
+    a.map((bar) => ({ top: bar.top + bar.height / 2, height: 0 })),
+    b.map((bar) => ({ top: bar.top + bar.height / 2, height: 0 })),
+    tol, `${aName}-center`, `${bName}-center`,
+  );
+}
+
 /** A one-sided segment narrower than this is forgiven rather than failed:
  *  a clip edge landing inside a dash produces a fragment whose width tracks
  *  the edge position, so a sub-tolerance edge drift (< TOL_GAP_EDGE) can
@@ -1121,6 +1168,7 @@ async function main(): Promise<number> {
       deviceScaleFactor: scalePlan.chromePaint,
     });
     const pageHi = await ctxHi.newPage();
+    const cdpHi = await ctxHi.newCDPSession(pageHi);
     // DM-2501: this was implicitly DPR 1 while the Chrome paint leg above was
     // DPR 4. Linux arm64 selected a text-fragment top one CSS px lower at DPR
     // 1, so 74 correct SVG bars appeared uniformly +1 against an unrelated
@@ -1146,7 +1194,7 @@ async function main(): Promise<number> {
       // past the deepest possible clip bottom.
       const docHeight = await pageHi.evaluate(() => document.body.scrollHeight + 120);
       await pageHi.setViewportSize({ width: PAGE_WIDTH, height: Math.min(Math.max(docHeight, 400), 6000) });
-      const measures = await measureChunk(pageHi);
+      const measures = await measureChunk(pageHi, cdpHi);
 
       // Leg S: capture + render the same chunk at the same DPR, once.
       await pageLo.setViewportSize({ width: PAGE_WIDTH, height: Math.min(Math.max(docHeight, 400), 6000) });
@@ -1186,7 +1234,14 @@ async function main(): Promise<number> {
         const notes = [...pred.notes];
         if (meas.fragments !== 1) notes.push(`span has ${meas.fragments} fragments (expected 1)`);
 
-        const transcription = compareBars(pred.bars, chromeBars, isExtent ? TOL_TRANSCRIPTION_EXTENT : TOL_TRANSCRIPTION, "rule", "chrome");
+        const transcription = c.style === "wavy" && scalePlan.chromePaint === 1
+          ? compareBarCenters(pred.bars, chromeBars, TOL_TRANSCRIPTION, "rule", "chrome")
+          : compareBars(
+            pred.bars,
+            isExtent ? chromeBars : reconstructSnappedBars(chromeBars),
+            isExtent ? TOL_TRANSCRIPTION_EXTENT : TOL_TRANSCRIPTION,
+            "rule", "chrome",
+          );
         const svgGeometry = compareBars(pred.bars, sBars, TOL_SVG_GEOMETRY, "rule", "svg");
         let skipInk: LegResult | null = null;
         // Patterned styles grade painted segments even without skip-ink text:
@@ -1278,7 +1333,7 @@ async function main(): Promise<number> {
 }
 
 // Pure pieces exported for unit tests; `main` only runs when invoked as a CLI.
-export { buildCases, predictCase, parseSvgDecorations, svgBarsInWindow, expandDashSegments, compareSegments, compareBars, LU, roundHalfAway, lengthPx, normalizedTypoDescent };
+export { buildCases, predictCase, parseSvgDecorations, svgBarsInWindow, expandDashSegments, compareSegments, compareBars, reconstructSnappedBars, compareBarCenters, LU, roundHalfAway, lengthPx, normalizedTypoDescent };
 export type { CaseSpec, PageMeasure, Bar, Prediction, SvgBar, LegResult, ParsedDecoLine, ParsedSvgDecorations };
 
 if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) {
