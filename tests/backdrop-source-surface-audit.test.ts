@@ -9,8 +9,12 @@ import {
   BACKDROP_SOURCE_PINS,
   backdropAuditFixtureHtml,
   backdropRootReasons,
+  classifySourceEdgeResidual,
   mutationDiscriminates,
   nearestBackdropRoot,
+  rasterOwnerGeometryMatchesHost,
+  unionRects,
+  type DecodedImage,
   type BackdropStyleFacts,
 } from "../tools/backdrop-source-surface-audit.js";
 
@@ -86,5 +90,44 @@ describe("DM-2357 backdrop source-surface model", () => {
     expect(mutationDiscriminates({ pixels: 1000, changedPixels: 3, changedFraction: .003, meanAbsoluteChannelDelta: .1, maxChannelDelta: 12 })).toBe(true);
     expect(mutationDiscriminates({ pixels: 1000, changedPixels: 1, changedFraction: .001, meanAbsoluteChannelDelta: 8, maxChannelDelta: 255 })).toBe(false);
     expect(mutationDiscriminates({ pixels: 1000, changedPixels: 500, changedFraction: .5, meanAbsoluteChannelDelta: 2, maxChannelDelta: 11 })).toBe(false);
+  });
+
+  it("classifies only Chromium-owned paint-edge deltas as consumer raster phase", () => {
+    const image = (values: number[]): DecodedImage => ({
+      width: 5,
+      height: 1,
+      channels: 4,
+      data: Buffer.from(values.flatMap((value) => [value, value, value, 255])),
+    });
+    const source = image([20, 20, 220, 220, 220]);
+    const edgeOnly = image([20, 20, 214, 220, 220]);
+    expect(classifySourceEdgeResidual(source, edgeOnly, { x: 0, y: 0, width: 5, height: 1 }, 1)).toEqual({
+      changedPixels: 1,
+      sourceEdgeChangedPixels: 1,
+      logicalInteriorChangedPixels: 0,
+      sourceEdgeOnly: true,
+    });
+
+    const flatSource = image([20, 20, 20, 20, 20]);
+    const inventedInterior = image([20, 20, 30, 20, 20]);
+    expect(classifySourceEdgeResidual(flatSource, inventedInterior, { x: 0, y: 0, width: 5, height: 1 }, 1)).toMatchObject({
+      logicalInteriorChangedPixels: 1,
+      sourceEdgeOnly: false,
+    });
+  });
+
+  it("requires screenshot geometry to be the exact outward host clip", () => {
+    expect(rasterOwnerGeometryMatchesHost(
+      { x: 10, y: 20, width: 101, height: 81 },
+      { x: 10.4, y: 20.2, width: 100.2, height: 80.3 },
+    )).toBe(true);
+    expect(rasterOwnerGeometryMatchesHost(
+      { x: 11, y: 20, width: 101, height: 81 },
+      { x: 10.4, y: 20.2, width: 100.2, height: 80.3 },
+    )).toBe(false);
+    expect(unionRects([
+      { x: 2, y: 4, width: 8, height: 5 },
+      { x: 7, y: 1, width: 6, height: 10 },
+    ])).toEqual({ x: 2, y: 1, width: 11, height: 10 });
   });
 });

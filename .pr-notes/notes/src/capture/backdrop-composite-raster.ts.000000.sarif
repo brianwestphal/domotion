@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5655qvwqq4a374",
+          "message": {
+            "text": "Only rotated or skewed compositor layers terminalize document-root backdrop capture; scroll and sticky remain direct property-tree consumers. Pinned Blink classifies transform and scroll transitions outside the Backdrop Root effect triggers, while the retained terminal solves the narrower SVG relative-paint-space loss. A scroll-terminal experiment was rejected because it drove the scroll and sticky logical deltas from about 1.20% and 1.02% to about 96% and 97%; the strict adjudicator (0) now accepts only exact owner geometry plus Chromium-source-edge residuals.",
+            "markdown": "Only rotated or skewed compositor layers terminalize document-root backdrop capture; scroll and sticky remain direct property-tree consumers. Pinned Blink classifies transform and scroll transitions outside the Backdrop Root effect triggers, while the retained terminal solves the narrower SVG relative-paint-space loss. A scroll-terminal experiment was rejected because it drove the scroll and sticky logical deltas from about 1.20% and 1.02% to about 96% and 97%; the [strict adjudicator](0) now accepts only exact owner geometry plus Chromium-source-edge residuals."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/backdrop-composite-raster.ts"
+                },
+                "region": {
+                  "startLine": 94,
+                  "endLine": 143,
+                  "snippet": {
+                    "text": "/**\n * Select a Chromium terminal surface only where SVG cannot preserve Blink's\n * relative paint space: a rotated/skewed compositor layer. This is not a\n * Backdrop Root; the record retains the document-root classification while\n * crossing the narrower source-owned compositor layer.\n */\nexport function planBackdropTerminalComposites(tree: CapturedElement[]): BackdropTerminalCompositeJob[] {\n  const parents = new Map<CapturedElement, CapturedElement>();\n  const elements: CapturedElement[] = [];\n  const visit = (element: CapturedElement): void => {\n    elements.push(element);\n    for (const child of element.children ?? []) {\n      parents.set(child, element);\n      visit(child);\n    }\n  };\n  for (const element of tree) visit(element);\n\n  const jobs = new Map<CapturedElement, BackdropTerminalCompositeJob>();\n  for (const element of elements) {\n    const raster = element.backdropFilterRaster;\n    if (raster?.token == null || raster.effectSpace?.nearestRoot.kind !== \"document\") continue;\n    const transformDepths = new Set(raster.effectSpace.ancestors\n      .filter((ancestor) => ancestor.neutralize.includes(\"rotate-skew\"))\n      .map((ancestor) => ancestor.depth));\n    let root: CapturedElement | undefined = element;\n    let selected: { root: CapturedElement; depth: number; reason: BackdropTerminalCompositeJob[\"reason\"] } | undefined;\n    for (let depth = 1; root != null; depth++) {\n      root = parents.get(root);\n      if (root == null) break;\n      if (transformDepths.has(depth)) {\n        selected = { root, depth, reason: \"relative-transform\" };\n        break;\n      }\n    }\n    if (selected == null) continue;\n    const target = { element, raster, selector: raster.selector ?? element.tag };\n    const existing = jobs.get(selected.root);\n    if (existing == null) {\n      jobs.set(selected.root, {\n        root: selected.root,\n        targets: [target],\n        rootDepth: selected.depth,\n        reason: selected.reason,\n      });\n    } else {\n      existing.targets.push(target);\n    }\n  }\n  return [...jobs.values()];"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "alternative-considered"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/backdrop-source-surface-audit.ts"
+                },
+                "region": {
+                  "startLine": 719
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/195-strict-ordinary-backdrop-ownership.md"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2497"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f65299c86bdf100fb2a4f7d8d9e94bee"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c93b479360aa33fd59c325090bf38c8abbccc3c5",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

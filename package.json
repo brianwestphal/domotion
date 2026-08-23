@@ -122,7 +122,7 @@
     "scrollbars:parity-gate": "tsx tools/check-native-scrollbar-release.ts",
     "paint:order-oracle": "tsx tools/paint-order-oracle.ts",
     "paint:blend-filter-stage": "node --import tsx tools/blend-filter-pixel-stage-oracle.ts",
-    "paint:backdrop-source-audit": "node --import tsx tools/backdrop-source-surface-audit.ts",
+    "paint:backdrop-source-audit": "node --import tsx tools/backdrop-source-surface-audit.ts --strict",
     "replaced:geometry-oracle": "node --import tsx tools/replaced-geometry-oracle.ts",
     "replaced:ownership-gate": "node --import tsx tools/replaced-geometry-oracle.ts --dpr 1,2",
     "raster:boundary-oracle": "tsx tools/raster-boundary-oracle.ts",

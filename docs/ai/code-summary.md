@@ -756,16 +756,20 @@ shortest possible map:
   no known-drift allowance, and the four-code pixel-stage bound plus mutation
   thresholds remain immutable.
 
-- **Backdrop source-surface investigation (DM-2357, doc 187)** —
-  `tools/backdrop-source-surface-audit.ts` derives the nearest Backdrop Root
-  from pinned Blink effect-tree triggers, records an independent pre-capture
-  `DOMSnapshot` sibling order, and compares Chromium with the complete SVG for
-  17 font-free transition families at DPR 1/2. Removing every backdrop raster
-  proves under-capture sensitivity; replacing it with the final Chromium crop
-  proves over-capture sensitivity. The investigation does not alter production:
-  it exposes final-crop replay under ancestor opacity/filter/mask/blend and
-  transforms, missing generated-pseudo ownership, and fixed-target sibling-order
-  drift for DM-2487–DM-2490.
+- **Strict ordinary backdrop ownership (docs 187/194/195)** —
+  `backdrop-composite-raster.ts` owns atomic opacity/blend/mask roots and the
+  narrower rotate/skew terminal compositor surface. `backdrop-layer-space.ts`
+  retains the ordinary counter-transform mapping; overflow, scroll, fixed, and
+  sticky never become terminal owners. `tools/backdrop-source-surface-audit.ts`
+  derives the nearest Backdrop Root from pinned Blink effect-tree triggers,
+  records independent `DOMSnapshot` sibling order, and gates 17 font-free
+  families at DPR 1/2. Schema v2 requires exact owner clips, pass counts,
+  warning-free backdrop materialization, vector/sibling order, and active
+  no-surface/final-composite mutations. A row above the unchanged 1% diagnostic
+  is accepted as consumer raster phase only when every changed pixel is already
+  an edge in Chromium's source; a new/shifted output edge remains a logical
+  failure. The native macOS/Linux/Windows workflow is
+  `.github/workflows/backdrop-source-surface-parity.yml`.
 
 - **Backdrop raster outcome diagnostics (DM-2490, docs 19/126)** — the
   synchronous capture walk records only backdrop intent, token, rect, and

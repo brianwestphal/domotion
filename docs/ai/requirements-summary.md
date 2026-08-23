@@ -1603,20 +1603,22 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   `source-exact`; the fixed four-code stage bound and mutation thresholds were
   not widened, and no known-drift workflow allowance remains.
 
-<!-- DM-2357 -->
-- [Doc 187](../187-backdrop-source-surface-transitions.md) completes the
-  backdrop source-surface investigation without changing production. Pinned
-  Blink/Skia establishes a prior-parent-device Backdrop Root Image and separate
-  backdrop/regular-filter effect surfaces. The local 17-family DPR-1/2 audit
-  gets 34/34 nearest-root classifications, defeats under- and final-crop
-  over-capture mutations for all 32 serialized surfaces, and preserves
-  raster-before-target-vector order. It also proves three implementation gaps:
-  final viewport crops are reprocessed by ancestor effect/transform wrappers,
-  generated pseudos serialize no backdrop owner. DM-2489/doc 192 has since
-  closed the independently observed fixed-hoisting sibling reversal at DPR 1/2;
-  DM-2487, DM-2488 and DM-2490 own the remaining production,
-  pseudo, order, and diagnostic follow-ups; a native release gate waits for the
-  production representation rather than blessing current drift.
+<!-- Ordinary backdrop ownership -->
+- [Docs 187](../187-backdrop-source-surface-transitions.md),
+  [194](../194-ordinary-backdrop-effect-space.md), and
+  [195](../195-strict-ordinary-backdrop-ownership.md) establish and ship the
+  ordinary backdrop source boundary. Pinned Blink/Skia defines a
+  prior-parent-device Backdrop Root surface and separate backdrop/regular-filter
+  effect nodes. Opacity/blend/mask own an atomic captured root; rotate/skew owns
+  one final-space terminal compositor patch; scroll and sticky remain ordinary
+  document-root target surfaces. The strict schema-v2 17-family DPR-1/2 audit
+  requires 34/34 root and owner records, exact source clip/pass facts,
+  raster-before-vector and source sibling order, both destructive mutations,
+  and no backdrop materialization warning. The four-code and 1% diagnostics are
+  unchanged. Residuals above 1% pass only with exact source-owner geometry and
+  zero logical-interior changed pixels—all changes must already lie on a
+  Chromium source edge. A native macOS/Linux/Windows workflow persists the
+  reports and source/render/mutation artifacts.
 
 <!-- DM-2490 -->
 - `backdrop-filter` warnings describe the Node materialization outcome, not the

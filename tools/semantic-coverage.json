@@ -1047,14 +1047,14 @@
         "non-stacking -> stacking context",
         "in-flow -> positioned/floating",
         "normal -> pseudo filter",
+        "document surface -> effect-created Backdrop Root",
+        "target final crop -> Backdrop Root/effect-space surface",
         "element backdrop -> generated-pseudo backdrop",
         "non-atomic -> atomic",
         "viewport fixed -> trapped fixed"
       ],
       "uncoveredStates": [
-        "normal -> blend/backdrop",
-        "document surface -> effect-created Backdrop Root",
-        "target final crop -> Backdrop Root/effect-space surface"
+        "normal -> blend/backdrop"
       ],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/paint/filter_effect_builder.cc",
@@ -1073,6 +1073,9 @@
         "src/render/text.ts",
         "src/capture/script/walker/pseudo-content.ts",
         "src/capture/backdrop-isolation.ts",
+        "src/capture/backdrop-composite-raster.ts",
+        "src/capture/backdrop-effect-neutralization.ts",
+        "src/capture/backdrop-layer-space.ts",
         "src/capture/pseudo-fragment-cdp.ts",
         "src/capture/pseudo-backdrop-isolation.ts",
         "src/capture/emoji.ts",
@@ -1084,6 +1087,7 @@
         "tools/raster-boundary-oracle.ts",
         "tools/blend-filter-pixel-stage-oracle.ts",
         "tools/backdrop-source-surface-audit.ts",
+        ".github/workflows/backdrop-source-surface-parity.yml",
         "tools/pseudo-backdrop-source-oracle.ts",
         ".github/workflows/pseudo-backdrop-source-parity.yml"
       ],
@@ -1098,6 +1102,7 @@
         "tests/blend-filter-pixel-stage-workflow.test.ts",
         "tests/backdrop-source-surface-audit.test.ts",
         "tests/backdrop-source-surface-audit.e2e.test.ts",
+        "tests/backdrop-source-surface-workflow.test.ts",
         "src/capture/backdrop-raster-diagnostics.test.ts",
         "src/capture/backdrop-isolation.e2e.test.ts",
         "src/capture/pseudo-backdrop-isolation.test.ts",
@@ -1113,7 +1118,7 @@
         "tests/fixtures/html-test/37-blend-filter-pixel-stage.html"
       ],
       "coverage": "partial",
-      "boundary": "Pseudo shorthand filter functions are exact native-vector effects with function-list, mutation, clip/transform/stack-slot, zoom, and DPR evidence. DM-2360 pins and gates the browser pixel stage for all 17 premultiplied blend modes, author-order sRGB shorthand chains, opacity, decal blur, fractional drop-shadow, isolation and reverse-painted background blends at DPR 1/2 on macOS/Linux/Windows. Independent filter/blend/isolation mutations and six ownership rows prevent a wrong source surface from passing an end-image tolerance. Computed alpha preserves Blink's legacy two/three-decimal and modern six-decimal forms, so the strict report is source-exact with no known-drift allowance. DM-2357 observationally covers 17 backdrop transitions at DPR 1/2 with exact source-root classification, independent sibling order, raster-before-vector checks, and under/final-crop mutations; DM-2488/doc 193 closes generated-pseudo ownership with pseudo-local prior-device rasters, retained direct vectors, exact slot placement, and independent no-surface/final-composite mutations at DPR 1/2; DM-2489/doc 192 closes its fixed-hoisting sibling-order miss; DM-2490 makes exact host and generated-pseudo materializations silent and emits named status diagnostics only for retained partial/unavailable output. Coverage remains partial: ordinary-element viewport-final crops replay ancestor effect/transform space, and the upstream mixed reference-linearRGB/shorthand-sRGB seam is not locally emulated.",
+      "boundary": "Pseudo shorthand filter functions are exact native-vector effects with function-list, mutation, clip/transform/stack-slot, zoom, and DPR evidence. DM-2360 pins and gates the browser pixel stage for all 17 premultiplied blend modes, author-order sRGB shorthand chains, opacity, decal blur, fractional drop-shadow, isolation and reverse-painted background blends at DPR 1/2 on macOS/Linux/Windows. Independent filter/blend/isolation mutations and six ownership rows prevent a wrong source surface from passing an end-image tolerance. Computed alpha preserves Blink's legacy two/three-decimal and modern six-decimal forms. Docs 187/194/195 close ordinary backdrop ownership with atomic opacity/blend/mask roots, target-filter grouping, a rotate/skew-only terminal surface, and document-root scroll/sticky boundaries. The schema-v2 native DPR-1/2 gate requires exact source clips/pass counts/order, both destructive mutations, no backdrop warning, and zero logical-interior residual pixels; source-edge consumer phase cannot excuse a new or shifted rendered edge, and none of the four-code/1%/mutation thresholds changed. DM-2488/doc 193 separately closes generated-pseudo ownership, DM-2489/doc 192 closes fixed sibling order, and DM-2490 keeps retained partial/unavailable output explicit. Coverage remains partial only for the upstream mixed reference-linearRGB/shorthand-sRGB seam, which is not locally emulated.",
       "featureIds": [
         "render.tree-to-svg"
       ],

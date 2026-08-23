@@ -1,7 +1,7 @@
 # 194 — Ordinary backdrop Backdrop Root/effect-space ownership
 
-**Status: source ownership shipped; final composite parity remains partial
-(DM-2487).**
+**Status: source ownership shipped; final composite parity completed by the
+strict gate in [doc 195](195-strict-ordinary-backdrop-ownership.md).**
 
 ## Source contract
 
@@ -73,6 +73,17 @@ shared target group; and the DPR-1 mask edge needs its root-local coverage.
 - pinned Chromium audit: both DPR 1 and DPR 2 completed with no evidence
   blockers and unchanged thresholds.
 
-Because the strict 17-family acceptance is not yet met, this change does not
-add or promote a three-platform release workflow. The partial status and exact
-residuals are retained in doc 187, parity metadata, and semantic coverage.
+At this milestone, the strict 17-family acceptance was not yet met, so this
+change did not add or promote a three-platform release workflow. The partial
+status and exact residuals are retained in doc 187, parity metadata, and
+semantic coverage.
+
+## Completion
+
+Doc 195 closes the deliberately retained boundary without changing any numeric
+threshold. Atomic root surfaces now own opacity/blend/mask and the target
+regular-filter group; rotate/skew crosses one source-owned final-space terminal
+surface. Scroll and sticky remain document-root transitions. The strict DPR-1/2
+matrix distinguishes logical interior drift from consumer raster phase only
+when the raster has exact source-owner geometry and every changed pixel is an
+edge in the Chromium source.
