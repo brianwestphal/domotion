@@ -1,0 +1,81 @@
+name: Unicode shaping conformance
+on:
+  pull_request:
+    paths: ["src/render/**", "src/capture/**", "tools/shaping-*.ts", "tests/shaping-*.test.ts", ".github/workflows/shaping-unicode-conformance.yml"]
+  workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        options: [representative, exhaustive]
+        default: representative
+  schedule:
+    - cron: "17 3 * * 0"
+
+jobs:
+  representative:
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'representative')
+    strategy:
+      fail-fast: false
+      matrix: { os: [macos-14, ubuntu-24.04, windows-2025] }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Clone Unicode fixtures
+        shell: bash
+        run: git clone --depth 1 https://github.com/brianwestphal/html-test.git external/html-test
+      - name: Extract full Unicode shaping corpus
+        shell: bash
+        run: npm run fonts:shaping:runs -- --source external/html-test/unicode --runs tests/output/shaping-unicode/full-runs.json
+      - name: Run representative gate
+        shell: bash
+        run: npm run fonts:shaping:unicode -- --mode representative --shard 0/1 --runs tests/output/shaping-unicode/full-runs.json --out tests/output/shaping-unicode/results
+      - name: Upload fingerprinted evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: shaping-unicode-representative-${{ matrix.os }}, path: tests/output/shaping-unicode/ }
+
+  prepare-exhaustive:
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'exhaustive')
+    strategy:
+      fail-fast: false
+      matrix: { os: [macos-14, ubuntu-24.04, windows-2025] }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Clone Unicode fixtures
+        shell: bash
+        run: git clone --depth 1 https://github.com/brianwestphal/html-test.git external/html-test
+      - name: Extract full Unicode shaping corpus
+        shell: bash
+        run: npm run fonts:shaping:runs -- --source external/html-test/unicode --runs tests/output/shaping-unicode/full-runs.json
+      - uses: actions/upload-artifact@v4
+        with: { name: shaping-unicode-corpus-${{ matrix.os }}, path: tests/output/shaping-unicode/full-runs.json }
+
+  exhaustive:
+    needs: prepare-exhaustive
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, ubuntu-24.04, windows-2025]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with: { name: shaping-unicode-corpus-${{ matrix.os }}, path: tests/output/shaping-unicode }
+      - name: Run exhaustive shard
+        shell: bash
+        run: npm run fonts:shaping:unicode -- --mode exhaustive --shard "${{ matrix.shard }}/8" --runs tests/output/shaping-unicode/full-runs.json --out tests/output/shaping-unicode/results
+      - name: Upload resumable report and mismatch reductions
+        if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: shaping-unicode-exhaustive-${{ matrix.os }}-${{ matrix.shard }}, path: tests/output/shaping-unicode/ }

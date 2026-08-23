@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5fpz2b5yrsw62p",
+          "message": {
+            "text": "Canonical SHA-256 identities make representative sampling and shard ownership independent of extraction/filesystem order. Mismatch reduction groups only logical signatures and retains a raw example; it never alters the underlying report or exit code, so reduction cannot become an allowlist.",
+            "markdown": "Canonical SHA-256 identities make representative sampling and shard ownership independent of extraction/filesystem order. Mismatch reduction groups only logical signatures and retains a raw example; it never alters the underlying report or exit code, so reduction cannot become an allowlist."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/shaping-unicode-corpus.ts"
+                },
+                "region": {
+                  "startLine": 17,
+                  "endLine": 31,
+                  "snippet": {
+                    "text": "export function selectCorpusRuns(runs: CorpusRun[], mode: CorpusMode, shardIndex: number, shardCount: number, representativeLimit = 4096): CorpusRun[] {\n  if (!Number.isInteger(shardIndex) || !Number.isInteger(shardCount) || shardCount < 1 || shardIndex < 0 || shardIndex >= shardCount) throw new Error(\"invalid shard i/n\");\n  const ordered = [...runs].sort((a, b) => runIdentity(a).localeCompare(runIdentity(b)));\n  const population = mode === \"representative\" ? ordered.slice(0, representativeLimit) : ordered;\n  return population.filter((run) => Number.parseInt(runIdentity(run).slice(0, 8), 16) % shardCount === shardIndex);\n}\n\nexport function reduceMismatches(rows: Array<Record<string, unknown>>) {\n  const groups = new Map<string, { signature: string; count: number; example: Record<string, unknown> }>();\n  for (const row of rows) {\n    const signature = [row.verdict, row.fontFamily, row.chromeGlyphs, row.ourGlyphs, row.maxDelta].join(\"|\");\n    const hit = groups.get(signature);\n    if (hit == null) groups.set(signature, { signature, count: 1, example: row }); else hit.count++;\n  }\n  return [...groups.values()].sort((a, b) => b.count - a.count || a.signature.localeCompare(b.signature));"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 93,
+          "workItemUris": [
+            "DM-2344"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4e3b588a7b1314282f8390f597f5e954"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5fpz7n44g8j77t",
+          "message": {
+            "text": "Resume is fail-closed: a shard is reused only when the corpus/profile/selected-run digest matches, and its prior nonzero exit status is restored. The one-run real Chromium smoke produced a complete doc-120 fingerprint and zero mismatches; an identical rerun hit the manifest without reshaping.",
+            "markdown": "Resume is fail-closed: a shard is reused only when the corpus/profile/selected-run digest matches, and its prior nonzero exit status is restored. The one-run real Chromium smoke produced a complete doc-120 fingerprint and zero mismatches; an identical rerun hit the manifest without reshaping."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/shaping-unicode-corpus.ts"
+                },
+                "region": {
+                  "startLine": 44,
+                  "endLine": 68,
+                  "snippet": {
+                    "text": "const corpusDigest = digest({ sources: corpus.sources, splitWords: corpus.splitWords === true, runs: corpus.runs });\nconst shardDigest = digest({ corpusDigest, mode, shard, selected: selected.map(runIdentity) });\nconst shardDir = resolve(outDir, `${mode}-${shard[0]}-of-${shard[1]}`);\nconst manifestPath = resolve(shardDir, \"manifest.json\");\nif (existsSync(manifestPath)) {\n  const old = JSON.parse(readFileSync(manifestPath, \"utf8\")) as { shardDigest?: string; completed?: boolean; exitCode?: number };\n  if (old.shardDigest === shardDigest && old.completed === true) { process.stdout.write(`resume hit ${manifestPath}\\n`); process.exitCode = old.exitCode ?? 2; return; }\n}\nmkdirSync(shardDir, { recursive: true });\nconst shardCorpus = resolve(shardDir, \"runs.json\");\nwriteFileSync(shardCorpus, `${JSON.stringify({ ...corpus, runs: selected }, null, 2)}\\n`);\nconst startedAt = new Date().toISOString();\nconst command = resolve(\"node_modules/.bin\", platform() === \"win32\" ? \"tsx.cmd\" : \"tsx\");\nconst child = spawnSync(command, [resolve(\"tools/shaping-conformance.ts\"), \"--runs\", shardCorpus, \"--out\", shardDir], { stdio: \"inherit\", shell: platform() === \"win32\" });\nconst reportPath = resolve(shardDir, \"report.json\");\nconst report = existsSync(reportPath) ? JSON.parse(readFileSync(reportPath, \"utf8\")) as { mismatches?: Array<Record<string, unknown>> } : null;\nconst reductions = reduceMismatches(report?.mismatches ?? []);\nwriteFileSync(resolve(shardDir, \"mismatch-reductions.json\"), `${JSON.stringify(reductions, null, 2)}\\n`);\nwriteFileSync(manifestPath, `${JSON.stringify({\n  schemaVersion: 1, mode, shard: { index: shard[0], count: shard[1] }, corpusDigest, shardDigest,\n  selectedRuns: selected.length, totalRuns: corpus.runs.length, startedAt, completedAt: new Date().toISOString(),\n  completed: child.status != null, exitCode: child.status, fingerprint: parityEnvironment({ chromium: String(report && (report as any).meta?.chromium || \"unavailable\"), launchFlags: [], deviceScaleFactor: 1, zoom: 1, writingMode: \"mixed-corpus\", direction: \"mixed-corpus\", corpusIdentity: corpusDigest, sampleIdentity: shardDigest }),\n  report: \"report.json\", mismatchReductions: \"mismatch-reductions.json\",\n}, null, 2)}\\n`);\nprocess.exitCode = child.status ?? 2;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 94,
+          "workItemUris": [
+            "DM-2344"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "2c5a91c85bf47829195140e3fc7179e2"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "860aed489f488a49656911256237b45a512b0b61",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

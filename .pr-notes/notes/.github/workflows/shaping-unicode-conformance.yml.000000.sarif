@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5fpzcysya71hco",
+          "message": {
+            "text": "Exhaustive extraction runs once per operating system because computed run records are platform-owned, then fans that authenticated corpus into eight shards. This avoids repeating the expensive 312k-run extraction in every shard while preserving macOS/Linux/Windows-specific corpus identity.",
+            "markdown": "Exhaustive extraction runs once per operating system because computed run records are platform-owned, then fans that authenticated corpus into eight shards. This avoids repeating the expensive 312k-run extraction in every shard while preserving macOS/Linux/Windows-specific corpus identity."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/shaping-unicode-conformance.yml"
+                },
+                "region": {
+                  "startLine": 40,
+                  "endLine": 81,
+                  "snippet": {
+                    "text": "  prepare-exhaustive:\n    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'exhaustive')\n    strategy:\n      fail-fast: false\n      matrix: { os: [macos-14, ubuntu-24.04, windows-2025] }\n    runs-on: ${{ matrix.os }}\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with: { node-version: 22, cache: npm }\n      - run: npm ci\n      - name: Clone Unicode fixtures\n        shell: bash\n        run: git clone --depth 1 https://github.com/brianwestphal/html-test.git external/html-test\n      - name: Extract full Unicode shaping corpus\n        shell: bash\n        run: npm run fonts:shaping:runs -- --source external/html-test/unicode --runs tests/output/shaping-unicode/full-runs.json\n      - uses: actions/upload-artifact@v4\n        with: { name: shaping-unicode-corpus-${{ matrix.os }}, path: tests/output/shaping-unicode/full-runs.json }\n\n  exhaustive:\n    needs: prepare-exhaustive\n    strategy:\n      fail-fast: false\n      matrix:\n        os: [macos-14, ubuntu-24.04, windows-2025]\n        shard: [0, 1, 2, 3, 4, 5, 6, 7]\n    runs-on: ${{ matrix.os }}\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with: { node-version: 22, cache: npm }\n      - run: npm ci\n      - uses: actions/download-artifact@v4\n        with: { name: shaping-unicode-corpus-${{ matrix.os }}, path: tests/output/shaping-unicode }\n      - name: Run exhaustive shard\n        shell: bash\n        run: npm run fonts:shaping:unicode -- --mode exhaustive --shard \"${{ matrix.shard }}/8\" --runs tests/output/shaping-unicode/full-runs.json --out tests/output/shaping-unicode/results\n      - name: Upload resumable report and mismatch reductions\n        if: always()\n        uses: actions/upload-artifact@v4\n        with: { name: shaping-unicode-exhaustive-${{ matrix.os }}-${{ matrix.shard }}, path: tests/output/shaping-unicode/ }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2344"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ca508b968350926f8df065b328f0f114"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "860aed489f488a49656911256237b45a512b0b61",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
