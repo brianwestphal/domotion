@@ -2,6 +2,8 @@ name: Linux arm64 release parity
 
 on:
   workflow_dispatch:
+  push:
+    branches: [validation/dm2353-arm64]
 
 permissions:
   contents: read
