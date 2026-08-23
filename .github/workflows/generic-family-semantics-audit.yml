@@ -1,9 +1,12 @@
-name: Generic family semantic ownership
+name: Exact generic family semantic ownership
 
 on:
   pull_request:
     paths:
+      - "src/font-family-stack.ts"
+      - "src/render/cluster-fallback.ts"
       - "src/render/font-resolution.ts"
+      - "src/render/skia-last-resort-routing.test.ts"
       - "src/render/win-font-fallback.ts"
       - "tools/generic-family-semantics-audit.ts"
       - "tests/generic-family-semantics-audit.test.ts"
@@ -11,12 +14,16 @@ on:
       - "tests/generic-family-semantics-workflow.test.ts"
       - "tools/parity-program.json"
       - "tools/semantic-coverage.json"
+      - "docs/206-generic-family-semantic-ownership.md"
       - "package.json"
       - ".github/workflows/generic-family-semantics-audit.yml"
   push:
     branches: [main]
     paths:
+      - "src/font-family-stack.ts"
+      - "src/render/cluster-fallback.ts"
       - "src/render/font-resolution.ts"
+      - "src/render/skia-last-resort-routing.test.ts"
       - "src/render/win-font-fallback.ts"
       - "tools/generic-family-semantics-audit.ts"
       - "tests/generic-family-semantics-audit.test.ts"
@@ -24,6 +31,7 @@ on:
       - "tests/generic-family-semantics-workflow.test.ts"
       - "tools/parity-program.json"
       - "tools/semantic-coverage.json"
+      - "docs/206-generic-family-semantic-ownership.md"
       - "package.json"
       - ".github/workflows/generic-family-semantics-audit.yml"
   workflow_dispatch:
@@ -33,7 +41,7 @@ env:
 
 jobs:
   semantic-ownership:
-    name: ${{ matrix.label }} logical generic ownership
+    name: ${{ matrix.label }} exact logical generic ownership
     strategy:
       fail-fast: false
       matrix:
@@ -62,8 +70,8 @@ jobs:
         if: runner.os != 'Linux'
         run: npx playwright install chromium
       - name: Validate logical adjudicator and workflow contract
-        run: npx vitest run tests/generic-family-semantics-audit.test.ts tests/generic-family-semantics-workflow.test.ts
-      - name: Capture source-owned generic identity in both cache orders
+        run: npx vitest run src/render/skia-last-resort-routing.test.ts tests/generic-family-semantics-audit.test.ts tests/generic-family-semantics-workflow.test.ts
+      - name: Gate source enum, platform route, raw terminal questions, terminal owners, and both cache orders
         run: npm run fonts:generic-family-semantics -- --json generic-family-semantics-${{ runner.os }}.json
       - name: Upload logical source, routing, face, and environment evidence
         if: always()

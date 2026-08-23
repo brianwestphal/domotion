@@ -2395,6 +2395,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5qtj62jxbj1024",
+          "message": {
+            "text": "The production seam preserves Chromium's raw family-question sequence before logical-key normalization. Chromium rev 7d859f27 asks an empty/default family and a final match-anything typeface through distinct operations, so the two explicit unnamed markers prevent normalization from erasing that ownership; the strict gate compares this sequence to an independent source transcription, while cluster fallback separately collapses it to existing logical owners.",
+            "markdown": "The production seam preserves Chromium's raw family-question sequence before logical-key normalization. Chromium rev 7d859f27 asks an empty/default family and a final match-anything typeface through distinct operations, so the two explicit unnamed markers prevent normalization from erasing that ownership; the strict gate compares this sequence to an independent source transcription, while cluster fallback separately collapses it to existing logical owners."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 5239,
+                  "endLine": 5274,
+                  "snippet": {
+                    "text": "/**\n * Raw family questions in Blink's platform last-resort walk, before host font\n * matching or Domotion's logical-key normalization.\n *\n * The common Skia order is transcribed from `font_cache_skia.cc:146-259`;\n * Windows adds its six fixed names and locale-space probe there, while macOS\n * uses the separate `font_cache_mac.mm:376-394` Times/Lucida Grande terminal\n * (Chromium rev 7d859f27). The two unnamed markers are intentionally distinct:\n * the first is the empty family returned by `GetFallbackFontFamily`, and the\n * last is Skia's `legacyMakeTypeface(nullptr, ...)` match-anything query.\n */\nexport function skiaLastResortFamilyQuestionOrder(\n  genericFamily: BlinkGenericFamily,\n  platform: NodeJS.Platform = hostPlatform(),\n): string[] {\n  if (platform === \"darwin\") return [\"Times\", \"Lucida Grande\"];\n\n  const common = [\n    skiaLastResortInitialFamily(genericFamily) || \"<unnamed-default>\",\n    \"Sans\",\n    \"Arial\",\n  ];\n  if (platform !== \"win32\") return [...common, \"<unnamed>\"];\n\n  return [\n    ...common,\n    \"MS UI Gothic\",\n    \"Microsoft Sans Serif\",\n    \"Segoe UI\",\n    \"Calibri\",\n    \"Times New Roman\",\n    \"Courier New\",\n    \"<locale-space-match>\",\n    \"<unnamed>\",\n  ];\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/generic-family-semantics-audit.ts"
+                },
+                "region": {
+                  "startLine": 381
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/cluster-fallback.ts"
+                },
+                "region": {
+                  "startLine": 484
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2516"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "412ccf56b62f4899b4ae76ca9de83284"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "63fca35b606e722baf215d7aa0972c7170cf2592",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

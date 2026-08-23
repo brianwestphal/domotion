@@ -7,7 +7,8 @@ const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as {
 };
 
 describe("generic-family semantic ownership workflow", () => {
-  it("runs the logical two-order discriminator on every supported runner OS", () => {
+  it("runs the strict logical two-order gate on every supported runner OS", () => {
+    expect(workflow).toContain("name: Exact generic family semantic ownership");
     expect(workflow).toContain("macos-latest");
     expect(workflow).toContain("ubuntu-latest");
     expect(workflow).toContain("windows-latest");
@@ -15,6 +16,12 @@ describe("generic-family semantic ownership workflow", () => {
     expect(workflow).toContain("playwright install --with-deps chromium");
     expect(workflow).toContain("playwright install chromium");
     expect(workflow).toContain("tests/generic-family-semantics-audit.test.ts");
+    expect(workflow).toContain("src/render/cluster-fallback.ts");
+    expect(workflow).toContain("src/render/skia-last-resort-routing.test.ts");
+    expect(workflow).toContain("src/font-family-stack.ts");
+    expect(workflow).toContain(
+      "Gate source enum, platform route, raw terminal questions, terminal owners, and both cache orders",
+    );
     expect(packageJson.scripts?.["fonts:generic-family-semantics"])
       .toBe("node --import tsx tools/generic-family-semantics-audit.ts");
   });

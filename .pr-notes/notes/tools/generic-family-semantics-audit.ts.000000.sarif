@@ -154,6 +154,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5qtnrdyv01pesn",
+          "message": {
+            "text": "The gate grades raw Chromium questions and normalized Domotion owners as independent invariants, so an owner mapping cannot make a wrong source question order pass. Focused unit coverage rejects hostile mutations at both boundaries; the live macOS run produced 52 passing rows, 17 true controls, and source-exact, while the focused browser E2E, metadata validators, ESLint, and full TypeScript build also passed.",
+            "markdown": "The gate grades raw Chromium questions and normalized Domotion owners as independent invariants, so an owner mapping cannot make a wrong source question order pass. Focused unit coverage rejects hostile mutations at both boundaries; the live macOS run produced 52 passing rows, 17 true controls, and source-exact, while the focused browser E2E, metadata validators, ESLint, and full TypeScript build also passed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/generic-family-semantics-audit.ts"
+                },
+                "region": {
+                  "startLine": 368,
+                  "endLine": 400,
+                  "snippet": {
+                    "text": "  if (row.sourceGeneric !== row.expectedGeneric) blockers.push(\"source-enum\");\n  if (row.productionGeneric !== row.sourceGeneric) blockers.push(\"production-enum\");\n  if (row.sourceFallbackMode !== expectedFallbackMode) blockers.push(\"source-fallback-mode\");\n  if (row.productionFallbackMode !== row.sourceFallbackMode) blockers.push(\"production-fallback-mode\");\n  if (JSON.stringify(row.sourceCandidateOrder) !== JSON.stringify(expectedCandidateOrder)) {\n    blockers.push(\"source-candidate-order\");\n  }\n  if (JSON.stringify(row.productionCandidateOrder) !== JSON.stringify(row.sourceCandidateOrder)) {\n    blockers.push(\"production-candidate-order\");\n  }\n  if (JSON.stringify(row.sourceTerminalQuestionOrder) !== JSON.stringify(expectedTerminalQuestions)) {\n    blockers.push(\"source-terminal-question-order\");\n  }\n  if (JSON.stringify(row.productionTerminalQuestionOrder)\n      !== JSON.stringify(row.sourceTerminalQuestionOrder)) {\n    blockers.push(\"production-terminal-question-order\");\n  }\n  if (JSON.stringify(row.sourceTerminalOwnerOrder) !== JSON.stringify(expectedTerminalOwners)) {\n    blockers.push(\"source-terminal-owner-order\");\n  }\n  if (JSON.stringify(row.productionTerminalOwnerOrder)\n      !== JSON.stringify(row.sourceTerminalOwnerOrder)) {\n    blockers.push(\"production-terminal-owner-order\");\n  }\n  if (row.sourceTerminalActivated !== expectedTerminalActivation) {\n    blockers.push(\"source-terminal-activation\");\n  }\n  if (row.productionTerminalActivated !== row.sourceTerminalActivated) {\n    blockers.push(\"production-terminal-activation\");\n  }\n  if (row.sourceCacheIdentity !== expectedCacheIdentity) blockers.push(\"source-cache-identity\");\n  if (row.productionCacheIdentity !== row.sourceCacheIdentity) {\n    blockers.push(\"production-cache-identity\");"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 5250
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/generic-family-semantics-audit.test.ts"
+                },
+                "region": {
+                  "startLine": 207
+                }
+              }
+            }
+          ],
+          "rank": 97,
+          "workItemUris": [
+            "DM-2516"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "2d918909bec300488260b356874a0f56"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "63fca35b606e722baf215d7aa0972c7170cf2592",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

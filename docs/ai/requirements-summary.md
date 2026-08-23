@@ -552,23 +552,25 @@ they describe (see `CLAUDE.md` "Documentation"):
   explicit and restored in `finally`; environment invalidation now also expires
   the memoized menu family, with a stale-before/fresh-after discriminator.
 - **Resolved keys do not own Blink's generic-family semantic (font-resolution
-  diagram §§3/7, doc 206)** — **Windows hardcoded and common-Skia terminal
-  stages corrected.**
+  diagram §§3/7, doc 206)** — **Exact three-platform gate shipped.**
   Blink preserves the rightmost enum-bearing generic in `FontDescription`
   independently of the concrete selected family. Domotion now derives that
   semantic once from the unresolved stack, carries it through fallback requests,
   and keys the OS fallback memo by normalized declared head plus node kind. A
-  20-row Arabic/Hebrew source/production discriminator runs
-  forward and reverse on macOS/Linux/Windows, requires exact candidate order
-  plus one CDP-painted glyph, and uses no pixel threshold. When family/settings
-  selection exhausts, the common-Skia terminal now asks the descriptor's legacy
-  generic first (or unnamed for none/system-ui/math), keys only that terminal
-  result by the source-selected family, and leaves the concrete face/style cache
-  generic-agnostic. A repository-owned forward/reverse family-exhaustion suite
-  covers named Courier, monospace, serif, system-ui, math, and non-occupying
-  controls; its shaped U+E000 mutation distinguishes first-candidate `.notdef`
-  from a covering monospace last-resort face without host snapshots or raster
-  assertions. Strict-gate promotion remains the separate follow-up in doc 206.
+  strict 26-row Arabic/Hebrew discriminator runs forward and reverse from one
+  cache clear on macOS/Linux/Windows. It independently fingerprints Chromium's
+  source enum, Windows candidate order, and complete raw platform terminal
+  questions, compares pure production seams, and then asserts normalized
+  terminal owners, activation, routing, and cache identity separately. Exactly
+  one CDP-painted glyph corroborates each row; no face-name snapshot or pixel
+  threshold grades it. When family/settings selection exhausts, the common-Skia
+  terminal asks the descriptor's legacy generic first (or unnamed for
+  none/system-ui/math), keys only that terminal result by the source-selected
+  family, and leaves the concrete face/style cache generic-agnostic. A
+  repository-owned forward/reverse family-exhaustion suite covers named
+  Courier, monospace, serif, system-ui, math, and non-occupying controls; its
+  shaped U+E000 mutation distinguishes first-candidate `.notdef` from a covering
+  monospace last-resort face without host snapshots or raster assertions.
 - **Family-match CI gates (docs 110/111, DM-1953)** — **Shipped (awaiting
   first-run baselines).** Regression-relative against env-keyed baseline SETS
   (`tools/family-match-baseline.ts`; one entry per environment fingerprint in

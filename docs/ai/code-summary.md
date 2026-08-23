@@ -589,24 +589,25 @@ shortest possible map:
   family and the oracle restores it in `finally`; helper environment
   invalidation now expires the memoized menu family. The strict native workflow
   is `.github/workflows/system-ui-preference-route.yml`; see doc 211.
-- **Generic-family semantic ownership audit** —
+- **Exact generic-family semantic ownership gate** —
   `tools/generic-family-semantics-audit.ts` (`npm run
   fonts:generic-family-semantics`) freezes Blink's separate family-name/type and
   descriptor-generic ownership before HarfBuzz/Skia. Production derives the
   carrier from the unresolved stack; Windows hardcoded fallback and the
   common-Skia generic-sensitive terminal consume it independently of concrete
-  face keys. The audit compares exact Windows Arabic/Hebrew candidate order
-  with the production carrier
-  over ten named/generic/rightmost/quoted/non-occupying stacks, then repeats the
-  20 rows in reverse without clearing caches. The all-platform workflow retains
-  logical CDP/source/routing fingerprints and contains no visual tolerance. The
+  face keys. The audit compares exact Windows Arabic/Hebrew candidate order and
+  all three platforms' raw terminal family questions with pure production
+  seams, then separately compares normalized terminal owners. Thirteen
+  named/generic/rightmost/quoted/non-occupying stacks produce 26 rows per order;
+  the reverse order reuses the same live resolver cache. The strict
+  macOS/Linux/Windows workflow requires all 52 rows and 17 controls, retains
+  logical CDP/source/routing fingerprints, and contains no visual tolerance. The
   terminal's repository-owned cassette suite separately forces family
   exhaustion for named Courier, monospace, serif, system-ui, and math in both
   cache orders, asserts the source-selected initial family and generic-agnostic
   concrete-face cache, and shapes an uncovered U+E000 to distinguish the first
   candidate's `.notdef` from the covering monospace terminal. It contains no
-  raster comparison. See doc 206; strict all-platform promotion remains the
-  named follow-up there.
+  raster comparison. See doc 206.
 - **Synthetic stack corpus** — `tools/font-conformance-synthetic-stacks.ts`
   generates a SECOND corpus for the same oracle from a stated rule (the 13 CSS
   generic-family keywords × the 9-rung weight ladder × the 9 stretch keywords ×

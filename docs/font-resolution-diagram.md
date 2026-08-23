@@ -1765,12 +1765,17 @@ rightmost enum-bearing legacy generic wins, and only `kMonospaceFamily` changes
 the Windows Arabic/Hebrew candidate order. The heuristic therefore has false
 positives (`Courier`, `Courier, serif`, `monospace, serif`) and false negatives
 (`Arial, monospace`, or a script/session monospace preference resolving to a
-non-`courier` key). The fingerprinted 20-row forward/reverse logical audit
-records source/production agreement without pixels. The system fallback memo
+non-`courier` key). The fingerprinted 26-row-per-order logical gate records
+source/production agreement without pixels or a cache reset between orders. The
+system fallback memo
 also keys normalized declared head plus node kind. The distinct common-Skia
 terminal now consumes the same descriptor carrier: its legacy-generic initial
 family precedes the fixed platform tail, and only terminal-result memo identity
-includes that source decision. DM-2516 carries strict all-platform promotion.
+includes that source decision. DM-2516 replaces the sampler with a strict
+26-row-per-order macOS/Linux/Windows gate: independently fingerprinted source
+enum/candidate/raw-terminal order must match pure production seams, while
+normalized terminal owners, activation, routing, and cache identity are graded
+separately under 17 controls.
 
 **Source of truth:** `fallbackFontChain` / `darwinFallbackChain` /
 `linuxFallbackChain` / `linuxNotoFallbackChain` / `win32FallbackChain` /
