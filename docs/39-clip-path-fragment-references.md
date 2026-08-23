@@ -60,17 +60,23 @@ Mirrors the `mask-image: url("#id")` infrastructure introduced for inline `<mask
 
 At capture time, when CAPTURE_SCRIPT sees `clip-path: url("#clip-id")`:
 
-1. Resolve the fragment: `document.getElementById(id)`.
-2. If the element exists and is `<clipPath>`, serialise its `outerHTML`.
-3. Emit it as part of the captured tree (new top-level field `tree[0].clipPathDefs?: ClipPathFragmentDef[]`).
+1. Resolve the fragment through the consumer's originating `getRootNode()`
+   TreeScope; a shadow-root miss does not fall through to the owner document.
+2. If the element exists and is `<clipPath>`, serialise its `outerHTML`, scope,
+   and resolved `clipPathUnits`.
+3. Emit it as a top-level `ClipPathFragmentDef` and carry the same scope plus
+   EffectiveZoom on its consumer.
 
 At render time:
 
-1. For each clipped element whose `clipPath` style is `url(#id)`, look the def up by id from the top-level collection.
-2. Rewrite ids inside the def's `outerHTML` to a domotion-prefixed namespace so multiple captured frames sharing the same source id never collide in the output.
+1. For each clipped element whose `clipPath` style is `url(#id)`, look the def
+   up by `(TreeScope,id)` from the top-level collection.
+2. Rewrite ids inside the def's `outerHTML` into that output definition's own
+   namespace so both top-level and descendant ids remain collision-free.
 3. Emit the rewritten `<clipPath>` into the output `<defs>` once per relevant
-   reference-space key: `(frame, source-id, border rect)` for HTML
-   `objectBoundingBox`, or `(frame, source-id, user-space origin)` otherwise.
+   reference-space key: `(scope, source-id, border rect)` for HTML
+   `objectBoundingBox`, or `(scope, source-id, user-space origin, zoom)`
+   otherwise.
 4. Apply via `clipPathUrlId` on the masked element's wrapper `<g>`.
 
 ### 2. `clipPathUnits` semantics
@@ -78,7 +84,13 @@ At render time:
 The captured `<clipPath>`'s `clipPathUnits` is recorded at capture time (`ClipPathFragmentDef.clipPathUnits`, defaulting to `userSpaceOnUse` per the SVG spec) and drives how the def is emitted:
 
 - `clipPathUnits="objectBoundingBox"`: the polygon / path coordinates are 0..1 fractions of the masked element's reference box. Blink passes an HTML consumer's **border box** explicitly to `CalculateClipTransform`; the generated SVG wrapper's natural bbox is not authoritative (a transparent host with one offset child proves the difference). Domotion therefore converts the normalized clip to `userSpaceOnUse` with one `translate(borderX,borderY) scale(borderWidth,borderHeight)` map per distinct consumer box. Native inline-SVG clones keep `objectBoundingBox`; Blink forces the SVG child's fill box.
-- `clipPathUnits="userSpaceOnUse"` (the SVG default): the coordinates are in the user coordinate system at the reference site. **Empirically (DM-828), for an HTML element that origin is the element's border-box top-left — element-local, NOT the source-page origin** (an earlier note here mis-stated it as page-absolute). Domotion draws the element's content at absolute (x, y) with no positioning transform, so each consumer gets a **per-(fragId, x, y) copy** of the clipPath with `transform="translate(x, y)"` added — `positionFragmentClipPathDef()`, the clipPath analogue of `positionFragmentMaskDef()`. (`<clipPath>` can't wrap children in a `<g>` — not a permitted child in SVG 1.1 — but it accepts a `transform` attribute, which Chrome honors.) **Implemented in DM-828.**
+- `clipPathUnits="userSpaceOnUse"` (the SVG default): the coordinates are in
+  the user coordinate system at the reference site. For an HTML consumer,
+  Blink supplies its border-box origin and EffectiveZoom. Domotion therefore
+  emits a per-`(scope,id,x,y,zoom)` copy with
+  `transform="translate(x,y) scale(zoom)"` on the `<clipPath>`. No scale is
+  added for objectBoundingBox because the captured border dimensions already
+  own that physical size. See DM-828 and DM-2338/[doc 208](208-iframe-fragment-reference-ownership.md).
 
 ### 3. External-file fragment (`url("./shapes.svg#clip-id")`)
 
@@ -89,8 +101,14 @@ Caveats: this only works over **http(s)** — Chrome doesn't resolve external cl
 ## Implementation notes
 
 - **Serialisation scope**: capture serialises the `<clipPath>` element's `outerHTML` verbatim. Descendants (nested `<polygon>` / `<path>` / `<use>`) ride along as part of that string. References from inside the clipPath subtree to outside defs (`url(#filter)` etc.) are not chased today — that's defensible because real `<clipPath>` content is overwhelmingly self-contained geometry. File a follow-up if a fixture surfaces a clipPath with transitive defs.
-- **Id rewriting**: reuse the existing `rewriteFragmentMaskDef()` machinery — it discovers every `id="…"` in the subtree, mints prefixed aliases (the outer element gets `${idPrefix}cpfragN`; descendants get `${idPrefix}fragid-${original}`), and rewrites `id`, `href`/`xlink:href`, and `url(#…)` references consistently. The helper is element-name-agnostic (it does not care whether the root tag is `<mask>` or `<clipPath>`), so a single shared `rewriteFragmentDef()` covers both paths. Refactor only as needed for clarity; otherwise keep the existing function and rename the file-level docstring + tests.
-- **Per-element placement**: HTML `objectBoundingBox` clipPaths get a per-`(fragId, border rect)` materialized map so an offset/overflowing descendant cannot redefine the reference box. For `userSpaceOnUse` (DM-828) the renderer mints a per-`(fragId, elX, elY)` copy translated to the element's border-box origin (`positionFragmentClipPathDef`), deduping identical positions — the same per-consumer-copy precedent as `resolveFragmentMaskRef`.
+- **Id rewriting**: reuse the existing `rewriteFragmentMaskDef()` machinery — it discovers every `id="…"` in the subtree, gives each output definition its own descendant namespace, and rewrites `id`, `href`/`xlink:href`, and `url(#…)` references consistently. The helper is element-name-agnostic.
+- **Scoped identity**: capture definitions, consumer records, renderer lookups,
+  and output caches use `(TreeScope,id)`. An outer document and iframe can
+  both define `#hex` without first-wins aliasing.
+- **Per-element placement**: HTML `objectBoundingBox` clipPaths get a scoped
+  per-border-rect materialized map so an offset/overflowing descendant cannot
+  redefine the reference box. `userSpaceOnUse` output is keyed by scoped id,
+  border origin, and effective zoom.
 - **Resource loading failures** (missing fragment id, target is not a `<clipPath>`) fall back gracefully — capture emits a per-element warning and the renderer skips the clip (so the element paints unclipped; same outcome as the pre-DM-826 baseline).
 - **URL grammar is exclusive** (DM-2362): `parseSameDocumentClipPathUrl`
   accepts only a bare same-document URL. Capture does not strip geometry boxes,
@@ -143,12 +161,17 @@ bare-URL visual. DM-2362 adds the source-decision and activation evidence:
   frames.
 - `tests/external-svg-refs.e2e.test.ts`: valid external URL reference and an
   external URL-plus-box negative over loopback HTTP.
+- `tests/iframe-inner-defs.e2e.test.ts`: duplicate outer/iframe ids,
+  definition-local descendant namespaces, object/user units, asymmetric HTML
+  borders, zoom, and exact DPR-1/2 source/render probes.
 
 ## Resolved design questions
 
 - **`objectBoundingBox` vs explicit mapping**: explicit for HTML, native for SVG. Blink supplies the HTML border box even when the element has no painted box of its own, so `positionObjectBoundingBoxClipPathDef` materializes that map. A cloned inline-SVG reference remains native so its URL operation resolves against Blink's forced fill/object box.
 - **Shared rewrite helper or per-feature copy**: shared. `rewriteFragmentMaskDef` is already element-name-agnostic at the implementation level.
-- **Top-level vs per-element payload**: top-level (`tree[0].clipPathDefs`). Captured source defs are deduped by id; renderer output copies are deduped by the consumer reference-space key so distinct HTML border boxes cannot share the wrong transform.
+- **Top-level vs per-element payload**: top-level (`tree[0].clipPathDefs`).
+  Captured source defs are deduped by `(TreeScope,id)`; renderer copies are
+  deduped by the scoped consumer reference-space key.
 
 ## Follow-ups
 

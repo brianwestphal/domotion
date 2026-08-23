@@ -160,7 +160,7 @@ const captureDocumentTree =
   const { resolveCounterStyle, resolveCounterValue, isCustomCounterStyle } = createCounterStyleResolver({ counterStyles: _counterStyles });
   const { captureListsCounters } = createListsCountersHandler({ normColor, resolveCounterStyle, isCustomCounterStyle, measureFontMetrics: _measureFontMetrics });
   const { handleReplacedElement } = createReplacedElementsHandler({ vp });
-  const { discoverMasks, computeMaskIntrinsic, discoverClipPaths, discoverFilters, maskDefs: _maskDefs, maskRasters: _maskRasters, clipPathDefs: _clipPathDefs, filterDefs: _filterDefs } = createMasksClipsHandler({ vp, warn });
+  const { discoverMasks, computeMaskIntrinsic, discoverClipPaths, discoverFilters, maskDefs: _maskDefs, maskRasters: _maskRasters, clipPathDefs: _clipPathDefs, filterDefs: _filterDefs } = createMasksClipsHandler({ vp, warn, referenceScopeFor: _svgReferenceScope });
   const { captureFormControls } = createFormControlsHandler({ normColor, resolvePseudo: _resolvePseudo });
   const { wrapWithFrozenTransform, threadFrozenTransform } = createTransformsHandler();
   const { captureBordersBackgrounds, isTableCellHiddenByEmptyCells } = createBordersBackgroundsHandler({
@@ -667,11 +667,11 @@ const captureDocumentTree =
     // refs (`element(#id)`), and warnings for unsupported mask sources.
     // Handler owns the maskDefs / maskRasters Maps that the orchestration
     // tail consumes. See walker/masks-clips.ts.
-    discoverMasks(el, cs, sel);
+    const _maskFragmentReferenceScope = discoverMasks(el, cs, sel);
     // DM-826: clip-path: url("#id") same-document fragment refs. Sibling of
     // the mask discovery above; collects inline <clipPath> defs the
     // renderer copies into the output SVG. See docs/39.
-    discoverClipPaths(el, cs, sel);
+    const _clipFragmentReferenceScope = discoverClipPaths(el, cs, sel);
     // DM-934: CSS `filter: url(#id)` referencing an inline SVG <filter>.
     // Collect the def so the renderer can copy it into the output SVG;
     // the existing pass-through of cs.filter as an inline style then
@@ -977,6 +977,12 @@ const captureDocumentTree =
         ? _projectiveNodeIndex.get(el)
         : undefined,
       svgReferenceScope,
+      fragmentReferenceScope: _maskFragmentReferenceScope != null
+        ? _maskFragmentReferenceScope
+        : _clipFragmentReferenceScope,
+      fragmentReferenceZoom: _maskFragmentReferenceScope != null || _clipFragmentReferenceScope != null
+        ? _effectiveZoomFor(el)
+        : undefined,
       // DM-1106: effective cursor keyword for the auto cursor-overlay hit-test.
       // Omitted when it resolves to the default arrow (the common case) to keep
       // the tree lean — the overlay treats a missing value as `default`.

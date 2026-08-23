@@ -847,6 +847,9 @@
         "URL mask origin phase -> distinct clip-owned round/space paint destination",
         "bare URL clip -> invalid URL-plus-geometry-box",
         "HTML URL border/object box -> SVG URL forced fill box",
+        "capture-global fragment id -> originating TreeScope fragment id",
+        "zoom-1 fragment user space -> consumer EffectiveZoom",
+        "single fragment URL -> multiple fragment URL layers",
         "curated SVG rows -> generated 18-axis pairwise combinations",
         "pairwise-covered SVG effects -> higher-order/future combinations"
       ],
@@ -861,16 +864,24 @@
         "URL mask origin phase -> distinct clip-owned round/space paint destination",
         "bare URL clip -> invalid URL-plus-geometry-box",
         "HTML URL border/object box -> SVG URL forced fill box",
+        "capture-global fragment id -> originating TreeScope fragment id",
+        "zoom-1 fragment user space -> consumer EffectiveZoom",
         "curated SVG rows -> generated 18-axis pairwise combinations"
       ],
       "uncoveredStates": [
+        "single fragment URL -> multiple fragment URL layers",
         "pairwise-covered SVG effects -> higher-order/future combinations"
       ],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/css/properties/longhands/longhands_custom.cc",
         "external/chromium/third_party/blink/renderer/core/css/resolver/style_builder_converter.cc",
+        "external/chromium/third_party/blink/renderer/core/css/resolver/element_style_resources.cc",
+        "external/chromium/third_party/blink/renderer/core/css/resolver/style_resolver_state.cc",
         "external/chromium/third_party/blink/renderer/core/paint/clip_path_clipper.cc",
+        "external/chromium/third_party/blink/renderer/core/paint/box_painter_base.cc",
+        "external/chromium/third_party/blink/renderer/core/paint/svg_mask_painter.cc",
         "external/chromium/third_party/blink/renderer/core/layout/svg/layout_svg_resource_clipper.cc",
+        "external/chromium/third_party/blink/renderer/core/layout/svg/layout_svg_resource_container.cc",
         "external/chromium/third_party/blink/renderer/core/paint/background_image_geometry.cc",
         "external/chromium/third_party/blink/renderer/core/paint/box_background_paint_context.cc",
         "external/chromium/third_party/blink/renderer/core/layout/svg"
@@ -897,6 +908,7 @@
         "tests/mask-position-contain-cover.e2e.test.ts",
         "tests/mask-origin-clip.e2e.test.ts",
         "tests/mask-url-repeat-geometry.e2e.test.ts",
+        "tests/iframe-inner-defs.e2e.test.ts",
         "tools/svg-effect-combination-oracle.ts",
         "tests/svg-native-paint-properties.e2e.test.ts"
       ],
@@ -910,10 +922,11 @@
       "visualFixtures": [
         "tests/features.ts#mask-advanced-tiling-composite",
         "tests/features.ts#clip-path-userspaceonuse-fragment",
+        "tests/features.ts#iframe-inner-clip-mask",
         "tests/svg-effect-combination-oracle.e2e.test.ts"
       ],
       "coverage": "partial",
-      "boundary": "Arbitrary URL mask sizing/positioning is exact for Chromium-decoded intrinsic ratios and distinct per-layer HTML mask-origin/mask-clip border/padding/content/no-clip rectangles, including URL round/space tile size and phase from the origin with a clip-owned paint/no-repeat destination, zoomed computed px terms, physical writing modes, cyclic composition, and sliced/cloned fragments. The 110-row logical gate retains its fixed tolerance, while DPR-1/2 browser rows reject the collapsed painting-area mutation. URL clip references additionally preserve Blink's exclusive grammar, HTML border/object-bounding-box map, SVG forced-fill ownership, nested-frame/external resolution, and stale-tree rejection. The generated native-SVG gate covers every pair among 18 enumerated axes; higher-order interactions and future effect classes remain the explicit partial boundary.",
+      "boundary": "Arbitrary URL mask sizing/positioning is exact for Chromium-decoded intrinsic ratios and distinct per-layer HTML mask-origin/mask-clip border/padding/content/no-clip rectangles, including URL round/space tile size and phase from the origin with a clip-owned paint/no-repeat destination, zoomed computed px terms, physical writing modes, cyclic composition, and sliced/cloned fragments. The 110-row logical gate retains its fixed tolerance, while DPR-1/2 browser rows reject the collapsed painting-area mutation. Local mask/clip fragments now preserve originating TreeScope identity, definition-local descendant ids, HTML border-box object/user-space region/content mapping, source-viewport resolution, EffectiveZoom, ignored SVG-mask image geometry, and effective alpha/luminance; the focused DPR-1/2 discriminator and 0.00% feature row use no relaxation. URL clip references additionally preserve Blink's exclusive grammar, SVG forced-fill ownership, nested-frame/external resolution, and stale-tree rejection. DM-2520 owns multiple fragment URLs in one mask-image list; transitive references outside a copied subtree and higher-order/future generated SVG effect combinations remain explicit partial boundaries.",
       "featureIds": [
         "render.tree-to-svg"
       ],
@@ -1841,37 +1854,47 @@
         "same-origin -> recursive vector",
         "cross-origin denied -> raster",
         "cross-origin allowlisted -> recursive vector",
+        "unique fragment id -> duplicate outer/iframe TreeScope ids",
         "static capture -> scroll composition"
       ],
       "exactStates": [
         "same-origin -> recursive vector",
         "cross-origin denied -> raster",
-        "cross-origin allowlisted -> recursive vector"
+        "cross-origin allowlisted -> recursive vector",
+        "unique fragment id -> duplicate outer/iframe TreeScope ids"
       ],
       "uncoveredStates": [
         "static capture -> scroll composition"
       ],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/html",
-        "external/chromium/third_party/blink/renderer/core/paint"
+        "external/chromium/third_party/blink/renderer/core/paint",
+        "external/chromium/third_party/blink/renderer/core/css/resolver/element_style_resources.cc"
       ],
       "productionOwners": [
         "src/capture/script/cross-origin.ts",
+        "src/capture/script/walker/masks-clips.ts",
+        "src/capture/script/index.ts",
+        "src/capture/types.ts",
         "src/capture/index.ts",
+        "src/render/mask.ts",
+        "src/render/element-tree-to-svg.ts",
         "src/scroll/composer.ts"
       ],
       "oracles": [
-        "tools/raster-boundary-oracle.ts"
+        "tools/raster-boundary-oracle.ts",
+        "tests/iframe-inner-defs.e2e.test.ts"
       ],
       "metamorphicTests": [
-        "src/capture/script/cross-origin.test.ts"
+        "src/capture/script/cross-origin.test.ts",
+        "src/mask.test.ts"
       ],
       "visualFixtures": [
         "tests/features.ts#replaced-iframe-same-origin",
         "tests/features.ts#iframe-inner-clip-mask"
       ],
       "coverage": "partial",
-      "boundary": "Allowlist state is not threaded through scroll capture and one nested clip/mask threshold remains.",
+      "boundary": "Allowlist state is not threaded through scroll capture. Same-origin iframe mask/clip resources are exact by originating TreeScope, border-box object/user-space geometry, zoom, and alpha/luminance at DPR 1/2; the former nested clip/mask relaxation is removed. Multi-layer fragment masks remain DM-2520 under paint.masks-clips rather than an iframe-recursion threshold.",
       "featureIds": [
         "capture.iframe-recursion"
       ],

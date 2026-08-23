@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex-dm2336",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5hbympwaw95hq4",
+          "message": {
+            "text": "The remaining 0.05 allowance has no demonstrated current logical geometry residual. Same-frame Chromium/capture comparison covered 24 scale, transform-origin, and neutral-wrapper combinations with maximum descendant rectangle delta 0; current macOS and checked-in Linux/Windows scored fixture records are 0. The macOS raw artifact still differs at 252 antialiased edge pixels (maximum channel delta 8), so DM-2519 must add fractional-local mutation cases and emitted-SVG geometry checks before removing the threshold.",
+            "markdown": "The remaining 0.05 allowance has no demonstrated current logical geometry residual. Same-frame Chromium/capture comparison covered 24 scale, transform-origin, and neutral-wrapper combinations with maximum descendant rectangle delta 0; current macOS and checked-in Linux/Windows scored fixture records are 0. The macOS raw artifact still differs at 252 antialiased edge pixels (maximum channel delta 8), so DM-2519 must add fractional-local mutation cases and emitted-SVG geometry checks before removing the threshold."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/209-transformed-flex-descendant-investigation.md"
+                },
+                "region": {
+                  "startLine": 47,
+                  "endLine": 70,
+                  "snippet": {
+                    "text": "scaled by 0.69 around `0 0`; two children have local translations of -5px and\n+10px (`tests/features.ts:604-625`). Its emitted child geometry is the direct\ncomposition of layout and paint spaces: 10px padding becomes 6.9px, 40px\nheight becomes 27.6px, the 50px item pitch becomes 34.5px, and the two local\ntranslations become -3.45px and +6.9px.\n\nThree independent observations reject a current logical gap:\n\n1. The current macOS feature run reports zero differing regions and 0.00%.\n2. Checked-in Linux and Windows baseline records both report `diffPct: 0` and\n   zero differing regions for this fixture.\n3. A live Chromium metamorphic probe crossed four scales (`0.5`, `0.69`, `1`,\n   `1.25`), three origins (`0 0`, `50% 50%`, `17px 23px`), and presence or\n   absence of a neutral `display: contents` wrapper: 24 cases total. Every\n   captured descendant `(x, y, width, height)` equalled its same-frame live\n   `getBoundingClientRect()` value exactly (maximum delta 0). Every wrapper\n   pair was invariant. At scale 0.69, inverse-normalized item pitch remained\n   50px, while the translated rows moved by -5px and +10px in local space,\n   proving nested translation is scaled once rather than omitted or doubled.\n\nThe mutation contracts for the proposed permanent oracle are logical, not\npixel allowances:\n\n- comparing captured coordinates with unscaled descendant translations must"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/features.ts"
+                },
+                "region": {
+                  "startLine": 604
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/transforms.ts"
+                },
+                "region": {
+                  "startLine": 240
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2336"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4947a932b1e800426848d6aee0e7e313"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "5ab7b5f1538f70a96eb90ce7a4a80ca06c9b4e1a",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

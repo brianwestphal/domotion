@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5hvmx0jnb68249",
+          "message": {
+            "text": "This DPR-1/2 discriminator proves the fix without a pixel envelope: opposing same-id outer/iframe resources, definition-local descendant ids, border-box object/user units, EffectiveZoom, source-viewport mask regions, hostile ignored mask image geometry, and explicit alpha/luminance all have binary source/render probes. The companion iframe-inner-clip-mask feature passes at 0.00% after removing only its relaxedDiffPct entry.",
+            "markdown": "This DPR-1/2 discriminator proves the fix without a pixel envelope: opposing same-id outer/iframe resources, definition-local descendant ids, border-box object/user units, EffectiveZoom, source-viewport mask regions, hostile ignored mask image geometry, and explicit alpha/luminance all have binary source/render probes. The companion iframe-inner-clip-mask feature passes at 0.00% after removing only its relaxedDiffPct entry."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/iframe-inner-defs.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 141,
+                  "endLine": 207,
+                  "snippet": {
+                    "text": "  it.each([1, 2])(\"keeps iframe fragment identity, coordinate systems, and mask semantics exact at DPR %i\", async (dpr) => {\n    const context = await env!.browser.newContext({\n      viewport: { width: EXACT_WIDTH, height: EXACT_HEIGHT },\n      deviceScaleFactor: dpr,\n    });\n    const source = await context.newPage();\n    const rendered = await context.newPage();\n    try {\n      await source.setContent(exactOuter(), { waitUntil: \"load\" });\n      await source.waitForFunction(() => document.querySelector(\"iframe\")?.contentDocument?.querySelectorAll(\".case,.zoomcase\").length === 8);\n      const sourcePng = await source.screenshot();\n      const { tree, warnings } = await captureElementTreeWithWarnings(source, \"body\", {\n        x: 0, y: 0, width: EXACT_WIDTH, height: EXACT_HEIGHT,\n      });\n      expect(warnings.filter((warning) => /did not resolve to an inline/.test(warning.detail))).toEqual([]);\n\n      const root = tree[0];\n      const sharedMasks = (root.maskDefs ?? []).filter((def) => def.id === \"sharedMask\");\n      const sharedClips = (root.clipPathDefs ?? []).filter((def) => def.id === \"sharedClip\");\n      expect(sharedMasks).toHaveLength(2);\n      expect(sharedClips).toHaveLength(2);\n      expect(new Set(sharedMasks.map((def) => def.scope)).size).toBe(2);\n      expect(new Set(sharedClips.map((def) => def.scope)).size).toBe(2);\n      expect((root.maskDefs ?? []).find((def) => def.id === \"alphaMask\")?.maskType).toBe(\"alpha\");\n      expect((root.maskDefs ?? []).find((def) => def.id === \"objectContentMask\")?.maskContentUnits).toBe(\"objectBoundingBox\");\n      expect((root.maskDefs ?? []).find((def) => def.id === \"userRegionMask\")?.userSpaceRegion)\n        .toEqual({ x: 0, y: 0, width: 32, height: 60 });\n      expect((root.maskDefs ?? []).find((def) => def.id === \"zoomUserMask\")?.maskType).toBe(\"luminance\");\n\n      const scopedConsumers = flatten(tree).filter((node) => /^url\\(/.test(node.styles.clipPath)\n        || /^url\\(/.test(node.styles.maskImage));\n      expect(scopedConsumers).toHaveLength(10);\n      expect(scopedConsumers.every((node) => node.fragmentReferenceScope != null)).toBe(true);\n      expect(scopedConsumers.filter((node) => node.fragmentReferenceZoom === 2)).toHaveLength(2);\n\n      const svg = elementTreeToSvgInner(tree, EXACT_WIDTH, EXACT_HEIGHT);\n      const nestedToneIds = [...svg.matchAll(/id=\"([^\"]*fragid-tone)\"/g)].map((match) => match[1]);\n      expect(nestedToneIds).toHaveLength(2);\n      expect(new Set(nestedToneIds).size).toBe(2);\n      expect(svg).toContain('transform=\"translate(58, 204) scale(80, 60)\"');\n      expect(svg).toContain('style=\"mask-type:alpha\"');\n\n      await rendered.setContent(`<body style=\"margin:0\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"${EXACT_WIDTH}\" height=\"${EXACT_HEIGHT}\" viewBox=\"0 0 ${EXACT_WIDTH} ${EXACT_HEIGHT}\"><rect width=\"100%\" height=\"100%\" fill=\"white\"/>${svg}</svg></body>`, { waitUntil: \"load\" });\n      const renderedPng = await rendered.screenshot();\n      const probes = [\n        [380, 50, false, \"outer objectBoundingBox left is clipped\"],\n        [430, 50, true, \"outer objectBoundingBox right survives\"],\n        [380, 130, false, \"outer luminance black is hidden\"],\n        [430, 130, true, \"outer luminance white survives\"],\n        [68, 74, true, \"inner objectBoundingBox left survives at iframe content offset\"],\n        [118, 74, false, \"inner objectBoundingBox right is clipped\"],\n        [162, 74, false, \"inner userSpace pre-origin stays clipped\"],\n        [175, 74, true, \"inner userSpace origin includes iframe viewport offset\"],\n        [68, 154, true, \"inner luminance white survives\"],\n        [118, 154, false, \"inner luminance black is hidden\"],\n        [160, 154, true, \"SVG mask source ignores hostile mask-clip content-box\"],\n        [168, 154, true, \"stylesheet-owned alpha keeps opaque black visible\"],\n        [208, 154, false, \"stylesheet-owned alpha hides transparent content\"],\n        [68, 234, true, \"objectBoundingBox mask content scales to left half\"],\n        [118, 234, false, \"objectBoundingBox mask content clips right half\"],\n        [168, 234, true, \"userSpace mask region starts at consumer origin\"],\n        [208, 234, false, \"userSpace mask region owns the right boundary\"],\n        [65, 314, false, \"zoomed userSpace clip preserves the pre-origin gap\"],\n        [90, 314, true, \"zoomed userSpace clip scales source coordinates once\"],\n        [165, 314, false, \"zoomed userSpace mask region preserves the pre-origin gap\"],\n        [190, 314, true, \"explicit alpha mode keeps zoomed opaque black visible\"],\n        [225, 314, false, \"zoomed userSpace mask region scales its width once\"],"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/features.ts"
+                },
+                "region": {
+                  "startLine": 1084
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/mask.test.ts"
+                },
+                "region": {
+                  "startLine": 181
+                }
+              }
+            },
+            {
+              "id": 2,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/208-iframe-fragment-reference-ownership.md"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2338"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "019cf57932eb8b9c6aab2cf8403e94c4"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "ee9e799e238f94dacfb9a0b2c2f169068bba9a03",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -3293,20 +3293,19 @@ function buildRenderState(
   // bucket), so the id is populated before lookup.
   const overflowClipPathIds = new Map<CapturedElement, string>();
 
-  // DM-493: top-level mask fragment defs collected at capture time. Map keyed
-  // by the original DOM id; the renderer mints a per-element mask def whose
-  // content is translated into the masked element's user-space coordinates,
-  // so two elements at different positions both render the mask correctly.
-  // Per-element copies are necessary because CSS mask-image positions the
-  // mask source at the masked element's content-box origin, while SVG
-  // `maskUnits=userSpaceOnUse` interprets coordinates absolutely against the
-  // root SVG. We dedupe identical (fragId, elX, elY, elW, elH) tuples to
-  // keep the output compact when many elements share a position.
+  // DM-493/DM-2338: top-level mask fragment defs collected at capture time.
+  // DOM ids are TreeScope-local, so definitions and consumers pair by
+  // `(scope,id)`. The renderer mints a consumer-positioned mask whose region
+  // and content mapping preserve the captured SVG units, source viewport,
+  // border-box origin, effective zoom, and effective alpha/luminance channel.
+  // Equivalent consumer facts share one output definition.
+  const fragmentDefinitionKey = (id: string, scope?: number): string => scope == null ? id : `${scope}\u0000${id}`;
   const fragmentMaskDefs = new Map<string, MaskFragmentDef>();
   for (const root of elements) {
     if (root.maskDefs == null) continue;
     for (const def of root.maskDefs) {
-      if (!fragmentMaskDefs.has(def.id)) fragmentMaskDefs.set(def.id, def);
+      const key = fragmentDefinitionKey(def.id, def.scope);
+      if (!fragmentMaskDefs.has(key)) fragmentMaskDefs.set(key, def);
     }
   }
   // DM-494: top-level mask raster lookup table for `mask-image: element(#id)`.
@@ -3323,19 +3322,16 @@ function buildRenderState(
   // below (they are mutated by the lifted resolver functions).
   const fragmentMaskOutputId = new Map<string, string>();
 
-  // DM-826: top-level clip-path fragment defs (`clip-path: url("#id")`).
-  // Unlike masks, clipPath fragments don't need per-element positioning when
-  // `clipPathUnits="objectBoundingBox"` (SVG auto-scales into the masked
-  // element's bbox natively) — so the resolver returns ONE output id per
-  // source fragment and every consumer references the same def. For
-  // `userSpaceOnUse` clipPaths we currently emit the def verbatim too;
-  // faithful support across captured (x, y) origins is deferred (see
-  // docs/39).
+  // DM-826/DM-2338: top-level clip-path fragment defs pair with consumers by
+  // `(TreeScope,id)`. Every output copy is materialized in root user space:
+  // objectBoundingBox coordinates use the captured HTML border box, while
+  // userSpaceOnUse coordinates use its border origin and effective zoom.
   const fragmentClipPathDefs = new Map<string, ClipPathFragmentDef>();
   for (const root of elements) {
     if (root.clipPathDefs == null) continue;
     for (const def of root.clipPathDefs) {
-      if (!fragmentClipPathDefs.has(def.id)) fragmentClipPathDefs.set(def.id, def);
+      const key = fragmentDefinitionKey(def.id, def.scope);
+      if (!fragmentClipPathDefs.has(key)) fragmentClipPathDefs.set(key, def);
     }
   }
   // DM-934: collect inline <filter> defs from every root. Filters don't
@@ -3637,66 +3633,76 @@ function resolveFragmentClipPathRef(
   // instead of painting a clip Chromium parsed as `none`.
   const fragId = parseSameDocumentClipPathUrl(clipPathCss);
   if (fragId == null) return null;
-  const def = fragmentClipPathDefs.get(fragId);
+  const scopedFragId = el.fragmentReferenceScope == null ? fragId : `${el.fragmentReferenceScope}\u0000${fragId}`;
+  const def = fragmentClipPathDefs.get(scopedFragId) ?? fragmentClipPathDefs.get(fragId);
   if (def == null) return null;
 
   // The mask rewriter is element-name-agnostic (discovers ids, mints prefixed
-  // aliases, rewrites href / url() refs); the outer `<clipPath>`'s id becomes
-  // `outId`, descendants get the `${idPrefix}fragid-${original}` alias.
+  // aliases, rewrites href / url() refs). The outer `<clipPath>` becomes
+  // `outId`; descendants use this output definition's own namespace.
   if ((def.clipPathUnits ?? "userSpaceOnUse") === "objectBoundingBox") {
     // Blink passes the HTML consumer's border box to the SVG resource. The
     // generated wrapper's native SVG object bbox can instead collapse to an
     // offset/overflowing child when the host itself has no paint. Materialize
     // the normalized-to-border-box map, one copy per distinct consumer box.
-    const cacheKey = `${fragId}|object|${r(el.x)}|${r(el.y)}|${r(el.width)}|${r(el.height)}`;
+    const cacheKey = `${scopedFragId}|object|${r(el.x)}|${r(el.y)}|${r(el.width)}|${r(el.height)}`;
     const cached = fragmentClipPathOutputId.get(cacheKey);
     if (cached != null) return cached;
     const outId = `${idPrefix}cpfrag${state.fragmentClipPathCounter++}`;
     fragmentClipPathOutputId.set(cacheKey, outId);
-    const rewritten = rewriteFragmentMaskDef(def.outerHTML, outId, idPrefix);
+    const rewritten = rewriteFragmentMaskDef(def.outerHTML, outId, `${outId}-`);
     defsParts.push(positionObjectBoundingBoxClipPathDef(rewritten, el.x, el.y, el.width, el.height));
     return outId;
   }
 
-  // userSpaceOnUse (the SVG default): coords are element-local but the element
-  // is drawn at absolute (elX, elY), so mint a per-position copy translated to
-  // match. Dedupe identical positions, mirroring resolveFragmentMaskRef
-  // (width/height don't matter for a clipPath — no bbox) — DM-828.
-  const cacheKey = `${fragId}|${r(el.x)}|${r(el.y)}`;
+  // userSpaceOnUse (the SVG default): Blink supplies the HTML border origin
+  // and EffectiveZoom. Mint a copy for each distinct position/zoom tuple.
+  const referenceZoom = el.fragmentReferenceZoom ?? 1;
+  const cacheKey = `${scopedFragId}|${r(el.x)}|${r(el.y)}|${r(referenceZoom)}`;
   const cached = fragmentClipPathOutputId.get(cacheKey);
   if (cached != null) return cached;
   const outId = `${idPrefix}cpfrag${state.fragmentClipPathCounter++}`;
   fragmentClipPathOutputId.set(cacheKey, outId);
-  const rewritten = rewriteFragmentMaskDef(def.outerHTML, outId, idPrefix);
-  defsParts.push(positionFragmentClipPathDef(rewritten, el.x, el.y));
+  const rewritten = rewriteFragmentMaskDef(def.outerHTML, outId, `${outId}-`);
+  defsParts.push(positionFragmentClipPathDef(rewritten, el.x, el.y, referenceZoom));
   return outId;
 }
 function resolveFragmentMaskRef(
   state: RenderState,
   maskImage: string,
-  elX: number, elY: number, elW: number, elH: number,
+  el: CapturedElement,
 ): string | null {
   const { fragmentMaskDefs, fragmentMaskOutputId, defsParts, idPrefix } = state;
   const m = /^url\(\s*(?:"|')?#([^"')\s]+)(?:"|')?\s*\)$/i.exec(maskImage);
   if (m == null) return null;
   const fragId = m[1];
-  const def = fragmentMaskDefs.get(fragId);
+  const scopedFragId = el.fragmentReferenceScope == null ? fragId : `${el.fragmentReferenceScope}\u0000${fragId}`;
+  const def = fragmentMaskDefs.get(scopedFragId) ?? fragmentMaskDefs.get(fragId);
   if (def == null) return null;
-  const cacheKey = `${fragId}|${r(elX)}|${r(elY)}|${r(elW)}|${r(elH)}`;
+  const maskMode = (el.styles.maskMode || "match-source").trim().toLowerCase();
+  const maskType = maskMode === "alpha" || maskMode === "luminance" ? maskMode : (def.maskType ?? "luminance");
+  const referenceZoom = el.fragmentReferenceZoom ?? 1;
+  const cacheKey = `${scopedFragId}|${r(el.x)}|${r(el.y)}|${r(el.width)}|${r(el.height)}|${maskType}|${r(referenceZoom)}`;
   const cached = fragmentMaskOutputId.get(cacheKey);
   if (cached != null) return cached;
   const outId = `${idPrefix}mkfrag${state.fragmentMaskCounter++}`;
   fragmentMaskOutputId.set(cacheKey, outId);
   // Rewrite the captured <mask>'s outerHTML: mint our output id, prefix
   // descendant ids and url(#…) refs to the domotion namespace, then
-  // translate the mask's content into user-space at (elX, elY) so the
-  // mask region aligns with the masked element. We do this by extracting
-  // the mask's children, wrapping them in <g transform="translate(elX, elY)">
-  // and re-emitting as a fresh <mask maskUnits="userSpaceOnUse">. The
-  // captured mask's own x/y/width/height become the <mask> element's
-  // bounds, shifted by (elX, elY).
-  const rewritten = rewriteFragmentMaskDef(def.outerHTML, outId, idPrefix);
-  const positioned = positionFragmentMaskDef(rewritten, elX, elY, elW, elH);
+  // Materialize the source mask into root user space. Region and content each
+  // retain their own captured unit system; user-space coordinates retain the
+  // source viewport resolution and consumer zoom, while object-bbox values
+  // map through the HTML border box. The CSS layer's explicit mode can
+  // override the captured mask-type channel.
+  const rewritten = rewriteFragmentMaskDef(def.outerHTML, outId, `${outId}-`);
+  const positioned = positionFragmentMaskDef(rewritten, el.x, el.y, el.width, el.height, {
+    maskUnits: def.maskUnits,
+    maskContentUnits: def.maskContentUnits,
+    maskType,
+    effectiveZoom: referenceZoom,
+    region: def.region,
+    userSpaceRegion: def.userSpaceRegion,
+  });
   defsParts.push(positioned);
   return outId;
 }
@@ -3766,7 +3772,7 @@ function renderMaskPhase(state: RenderState, el: CapturedElement): string | null
     // DM-493: same-document fragment refs (mask-image: url("#id")) emit the
     // captured inline <mask> verbatim with id rewriting, bypassing the
     // gradient/url() emission path.
-    const fragRef = resolveFragmentMaskRef(state, maskImage, el.x, el.y, el.width, el.height);
+    const fragRef = resolveFragmentMaskRef(state, maskImage, el);
     if (fragRef != null) {
       maskUrlId = fragRef;
     } else {

@@ -1095,8 +1095,17 @@ they describe (see `CLAUDE.md` "Documentation"):
   `--disable-web-security`, default-off + a security warning). **DM-1443** then ran the
   inner-document pre-passes (`_runInnerDocumentPrePasses`) so inner CSS counters,
   `@counter-style`, fixed/sticky/transform cull exemptions, and scale/zoom font metrics
-  all resolve against the iframe's own document; inner mask/clip/filter `<defs>`
-  fragment refs remain a tracked gap.
+  all resolve against the iframe's own document. **DM-2338** closes inner mask/clip
+  fragment ownership end to end: capture and renderer key by Blink's originating
+  `(TreeScope,id)`, output definitions have independent descendant namespaces,
+  HTML border-box object/user-space region/content maps retain source viewport
+  plus EffectiveZoom, and effective alpha/luminance is explicit. The focused
+  DPR-1/2 capture-to-SVG gate covers opposing duplicate ids, zoom, asymmetric
+  border/padding, hostile mask image geometry, and binary channel probes; the
+  `iframe-inner-clip-mask` feature is strict 0.00% with its relaxation removed
+  ([doc 208](../208-iframe-fragment-reference-ownership.md)). DM-2520 owns
+  multi-layer fragment-mask composition; filter refs keep their existing
+  document-local collection path.
 - **Doc 78 (`docs/78-svg-to-image.md`, DM-1353 + DM-1354)** — **Shipped.** A fifth
   published bin, `svg-to-image`: convert one SVG to a single image file — PNG /
   JPEG / PDF / WebP / AVIF / TIFF, format inferred from the `-o` extension (or
