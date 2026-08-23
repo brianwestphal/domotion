@@ -2,6 +2,9 @@ name: Paths/native raster floor evidence
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - validation/dm2353-arm64
 
 jobs:
   produce:
