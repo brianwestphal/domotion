@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5dkzpbuxnxgjyg",
+          "message": {
+            "text": "The live discriminator confirms a deterministic palette-cache identity defect without a tolerance. On macOS arm64 with Chromium 147.0.7727.15, the final DPR-1/2 run passed all 22 native source-color rows. Base2/base3 source PNG SHA-256 values were 91145b2c… and 83ac4321…; Domotion emitted two uses of only the first hash, and reversing DOM order duplicated only the other hash. Both records retained selectedRepresentation=colr, two SVG image uses, zero warnings, and no captured fontPalette fact. Focused unit/workflow tests passed 12/12 and the browser E2E passed 1/1.",
+            "markdown": "The live discriminator confirms a deterministic palette-cache identity defect without a tolerance. On macOS arm64 with Chromium 147.0.7727.15, the final DPR-1/2 run passed all 22 native source-color rows. Base2/base3 source PNG SHA-256 values were 91145b2c… and 83ac4321…; Domotion emitted two uses of only the first hash, and reversing DOM order duplicated only the other hash. Both records retained selectedRepresentation=colr, two SVG image uses, zero warnings, and no captured fontPalette fact. Focused unit/workflow tests passed 12/12 and the browser E2E passed 1/1."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/font-palette-ownership-audit.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 5,
+                  "endLine": 23,
+                  "snippet": {
+                    "text": "describe(\"DM-2350 live font-palette ownership discriminator\", () => {\n  it(\"proves source selection and the current palette-blind raster-cache signature\", async () => {\n    const report = await runFontPaletteOwnershipAudit({ dprs: [1] });\n    expect(report.verdict).toBe(\"confirmed-palette-identity-gap\");\n    expect(report.nativeRows).toHaveLength(FONT_PALETTE_CASES.length);\n    expect(report.nativeRows.every((row) => row.pass)).toBe(true);\n    expect(report.productionOrders).toHaveLength(2);\n    for (const row of report.productionOrders) {\n      expect(row.warnings).toEqual([]);\n      expect(row.sourcePngSha256[0]).not.toBe(row.sourcePngSha256[1]);\n      expect(row.capturedPngCount).toBe(2);\n      expect(row.capturedUniquePngCount).toBe(1);\n      expect(row.captureHasFontPaletteFact).toBe(false);\n      expect(row.selectedRepresentation).toBe(\"colr\");\n      expect(row.svgImageCount).toBe(2);\n    }\n    expect(report.productionOrders[0].capturedPngSha256[0])\n      .not.toBe(report.productionOrders[1].capturedPngSha256[0]);\n  }, 30_000);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/font-palette-ownership-audit.ts"
+                },
+                "region": {
+                  "startLine": 190
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/202-font-palette-selection-raster-boundary.md"
+                },
+                "region": {
+                  "startLine": 103
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2350"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "63530e0217be56d4df1132ad4b6432e6"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "045daef284a2bdca591651d8b10d32ccec637aaf",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -77,6 +77,7 @@
     "fonts:linux-arm64-release": "node --import tsx tools/linux-arm64-release-evidence.ts",
     "fonts:generic-preferences": "node --import tsx tools/generic-family-preference-oracle.ts",
     "fonts:emoji-presentation-ownership-audit": "node --import tsx tools/emoji-presentation-ownership-audit.ts",
+    "fonts:palette-ownership-audit": "node --import tsx tools/font-palette-ownership-audit.ts",
     "fonts:conformance:iterate": "node scripts/font-conformance-iterate.mjs",
     "fonts:conformance:stacks": "tsx tools/font-conformance.ts --extract-stacks",
     "fonts:cluster-conformance": "tsx tools/cluster-conformance.ts",

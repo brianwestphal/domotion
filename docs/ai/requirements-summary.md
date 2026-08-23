@@ -401,6 +401,13 @@ they describe (see `CLAUDE.md` "Documentation"):
   `tools/emoji-presentation-ownership-audit.ts` now requires order-invariant
   color ownership while leaving family, selector, CSS, and raster negatives
   exact. DM-2508 tracks release activation, not a renderer ownership gap.
+  DM-2350/doc 202 separately audits palette choice within one already selected
+  COLR gid. A pinned WPT CPAL fixture produces 22 exact native DPR-1/2 rows for
+  normal, theme, named, override, and invalid-rule transitions with no pixel
+  envelope. The production A/B and reverse-order controls confirm that current
+  capture omits resolved `font-palette` identity and reuses the first raster
+  PNG. This is a named partial paint-content state; selected-glyph raster
+  activation remains exact and the investigation makes no production change.
 - **Doc 112 (`docs/112-decoration-geometry-oracle.md`, DM-2009)** —
   **Shipped.** `tools/decoration-oracle.ts` (`npm run decorations:oracle`)
   grades text-decoration GEOMETRY against Chrome's paint and Blink's

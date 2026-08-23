@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5dksqvyktr0pfv",
+          "message": {
+            "text": "Palette identity must be proven after selected-glyph activation, not folded into it. Blink keeps the palette in its font/typeface cache key and Skia applies it while painting the already-selected COLR gid; therefore this adjudicator first requires complete source-derived palette rows and exact COLR activation, then distinguishes a correct pair of source-equal PNGs from the specific first-raster reuse signature. The captured style omission and palette-blind production key are visible at the related locations; vectorizing COLR or accepting a pixel envelope would cross the wrong ownership boundary.",
+            "markdown": "Palette identity must be proven after selected-glyph activation, not folded into it. Blink keeps the palette in its font/typeface cache key and Skia applies it while painting the already-selected COLR gid; therefore this adjudicator first requires complete source-derived palette rows and exact COLR activation, then distinguishes a correct pair of source-equal PNGs from the specific first-raster reuse signature. The captured style omission and palette-blind production key are visible at the related locations; vectorizing COLR or accepting a pixel envelope would cross the wrong ownership boundary."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/font-palette-ownership-audit.ts"
+                },
+                "region": {
+                  "startLine": 190,
+                  "endLine": 208,
+                  "snippet": {
+                    "text": "export function classifyPaletteAudit(\n  nativeRows: readonly NativePaletteRow[],\n  orders: readonly ProductionOrderEvidence[],\n  expectedDprs: readonly (1 | 2)[] = [1, 2],\n): PaletteAuditVerdict {\n  const expectedKeys = expectedDprs.flatMap((dpr) => FONT_PALETTE_CASES.map((spec) => `${dpr}:${spec.id}`));\n  const observedKeys = nativeRows.map((row) => `${row.dpr}:${row.id}`);\n  if (nativeRows.length !== expectedKeys.length || new Set(observedKeys).size !== observedKeys.length\n    || expectedKeys.some((key) => !observedKeys.includes(key)) || nativeRows.some((row) => !row.pass)) return \"invalid-evidence\";\n  if (orders.length !== 2 || orders.some((row) => row.warnings.length > 0 || row.sourcePngSha256.length !== 2\n      || row.sourcePngSha256[0] === row.sourcePngSha256[1] || row.selectedRepresentation !== \"colr\"\n      || row.svgImageCount !== 2)) return \"invalid-evidence\";\n  const exact = orders.every((row) => row.capturedPngCount === 2 && row.capturedUniquePngCount === 2\n    && row.captureHasFontPaletteFact && row.capturedPngSha256.every((hash, index) => hash === row.sourcePngSha256[index]));\n  if (exact) return \"source-exact\";\n  const contaminated = orders.every((row) => row.capturedPngCount === 2 && row.capturedUniquePngCount === 1\n      && !row.captureHasFontPaletteFact && row.capturedPngSha256.every((hash) => hash === row.sourcePngSha256[0]))\n    && orders[0].capturedPngSha256[0] !== orders[1].capturedPngSha256[0];\n  return contaminated ? \"confirmed-palette-identity-gap\" : \"inconclusive\";"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/emoji.ts"
+                },
+                "region": {
+                  "startLine": 293
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/types.ts"
+                },
+                "region": {
+                  "startLine": 1170
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2350"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "6e87fe01c294f7c3bb9bb2e6d9e5b53c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "045daef284a2bdca591651d8b10d32ccec637aaf",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

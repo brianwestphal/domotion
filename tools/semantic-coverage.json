@@ -241,6 +241,76 @@
       ]
     },
     {
+      "id": "text.font-palette-selection",
+      "parityAreas": [
+        "font-selection",
+        "raster-fallback-boundary"
+      ],
+      "subjects": [
+        "font-palette",
+        "@font-palette-values",
+        "COLR/CPAL palette identity",
+        "color-glyph raster cache identity"
+      ],
+      "states": [
+        "normal palette -> theme-selected palette",
+        "normal palette -> named base palette",
+        "base palette -> ordered color overrides",
+        "invalid rule or index -> palette-zero fallback",
+        "palette A first -> palette B first in captured raster cache",
+        "static palette -> palette-mix or animated palette"
+      ],
+      "exactStates": [
+        "normal palette -> theme-selected palette",
+        "normal palette -> named base palette",
+        "base palette -> ordered color overrides",
+        "invalid rule or index -> palette-zero fallback"
+      ],
+      "uncoveredStates": [
+        "palette A first -> palette B first in captured raster cache",
+        "static palette -> palette-mix or animated palette"
+      ],
+      "upstreamSources": [
+        "external/chromium/third_party/blink/renderer/core/css/css_font_selector.cc",
+        "external/chromium/third_party/blink/renderer/core/css/style_rule_font_palette_values.cc",
+        "external/chromium/third_party/blink/renderer/core/css/resolver/style_builder_converter.cc",
+        "external/chromium/third_party/blink/renderer/platform/fonts/font_custom_platform_data.cc",
+        "external/chromium/third_party/blink/renderer/platform/fonts/palette_interpolation.cc",
+        "external/chromium/third_party/blink/renderer/platform/fonts/opentype/open_type_cpal_lookup.cc",
+        "external/skia/include/core/SkFontArguments.h",
+        "external/skia/src/ports/SkFontHost_FreeType.cpp",
+        "external/skia/src/ports/SkTypeface_fontations.cpp",
+        "external/skia/src/ports/SkTypeface_win_dw.cpp"
+      ],
+      "productionOwners": [
+        "src/capture/types.ts",
+        "src/capture/script/index.ts",
+        "src/capture/emoji.ts",
+        "src/render/text-to-path.ts"
+      ],
+      "oracles": [
+        "tools/font-palette-ownership-audit.ts"
+      ],
+      "metamorphicTests": [
+        "tests/font-palette-ownership-audit.test.ts",
+        "tests/font-palette-ownership-audit.e2e.test.ts",
+        "tests/font-palette-ownership-workflow.test.ts"
+      ],
+      "visualFixtures": [
+        "tests/fixtures/font-palette/COLR-palettes-test-font.ttf",
+        ".github/workflows/font-palette-ownership-audit.yml"
+      ],
+      "coverage": "partial",
+      "boundary": "DM-2350/doc 202 proves source-owned static palette selection and exact native CPAL colors on macOS, and provides a fingerprinted DPR-1/2 three-OS investigation workflow. Production capture currently omits resolved palette identity and the color-glyph screenshot cache reuses the first PNG for the same face/gid/representation (DM-2509); palette-mix and animation are deferred, and DM-2510 owns strict gate promotion. Raster activation remains exact and no tolerance changes.",
+      "featureIds": [
+        "capture.emoji-detect",
+        "render.text"
+      ],
+      "verifiedPlatforms": [
+        "darwin"
+      ]
+    },
+    {
       "id": "text.bidi-runs",
       "parityAreas": [
         "shaping-clusters-glyphs",

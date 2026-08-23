@@ -144,6 +144,25 @@ orders now select Noto Color Emoji for U+2757 and the unchanged HTML fixture is
 clean. DM-2508 will promote that resolved evidence into the arm64 aggregate.
 No raster tolerance is involved.
 
+## Palette identity within a selected color glyph (DM-2350)
+
+`font-palette` does not change the selected face, gid, advance, or COLR
+representation. Blink includes it in font/typeface cache identity and applies
+the resolved CPAL base plus overrides when it creates an author webfont
+typeface. Domotion's selected-glyph raster boundary is still correct, but the
+captured styles and `src/capture/emoji.ts` screenshot cache key currently omit
+palette identity.
+
+The pinned WPT COLR/CPAL fixture and
+`tools/font-palette-ownership-audit.ts` make the distinction observable:
+Chromium paints all 22 source-derived DPR-1/2 palette rows exactly, while two
+copies of the same gid with base palettes 2 and 3 reuse the first captured PNG.
+Reversing DOM order reverses the duplicated palette. This is a confirmed
+cache-identity gap, not an activation or vector-ownership failure. See
+[doc 202](202-font-palette-selection-raster-boundary.md); its production fix
+and strict three-platform promotion remain follow-up work in DM-2509 and
+DM-2510 respectively.
+
 ## Known gaps
 
 - **Non-sbix formats use screenshots.** COLR, OpenType SVG, custom color
@@ -153,6 +172,10 @@ No raster tolerance is involved.
 - **Helper-absent mode is approximate.** The app remains non-fatal, but pinned
   ICU properties and native face-table evidence are official-helper features;
   host Unicode/fontkit provide best effort without them.
+- **Selected COLR palette identity is not yet captured.** Two uses of the same
+  face/gid/representation with different `font-palette` values can reuse the
+  first browser screenshot. The exact A/B and reverse-order discriminator is
+  documented in [doc 202](202-font-palette-selection-raster-boundary.md).
 
 ## Test coverage
 
