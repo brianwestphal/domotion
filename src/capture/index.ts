@@ -23,7 +23,8 @@ import { refineLineClampEllipsisFragments } from "./line-clamp.js";
 import { captureResolvedControlPseudoStyles } from "./pseudo-style-cdp.js";
 import { captureEffectiveAppearanceFacts } from "./effective-appearance-cdp.js";
 import { finalizeScrollbarResizerOverlap, prepareCapturedScrollbarSets } from "./scrollbar-capture.js";
-import { ensureSessionGenericFamilyOverrides, serializeSessionGenericFamilyProbe } from "./generic-font-probe.js";
+import { assertGenericFamilyTargetConsistency, ensureSessionGenericFamilyOverrides, serializeSessionGenericFamilyProbe } from "./generic-font-probe.js";
+import { createCapturedTreeEnvelope, promoteCapturedSubtree } from "./tree-envelope.js";
 import { primeBackgroundImageSizing } from "./background-image-sizing.js";
 import { captureBrokenImageFallbackFacts } from "./broken-image-fallback.js";
 import { captureSummaryMarkerGeometry } from "./summary-marker-cdp.js";
@@ -46,7 +47,7 @@ import {
   type CssQuad,
 } from "./replaced-snapshot-geometry.js";
 import { _resetLastCaptureWarnings } from "./warnings.js";
-import type { CapturedElement, CaptureWarning } from "./types.js";
+import type { CapturedElement, CapturedTreeEnvelope, CaptureWarning } from "./types.js";
 import { forEachElement } from "../tree-ops/for-each-element.js";
 import { createFontRendererSession, withFontRendererSession, type FontRendererSession } from "../render/font-resolution.js";
 // Brand kit (docs/85 + docs/92). `brand.js` has no browser/Playwright deps
@@ -54,6 +55,13 @@ import { createFontRendererSession, withFontRendererSession, type FontRendererSe
 // the capture pipeline (the template subsystem imports FROM this module, not the
 // other way around).
 import { brandCustomProperties, type Brand } from "../templates/brand.js";
+
+export { createCapturedTreeEnvelope, promoteCapturedSubtree };
+export type {
+  CapturedSessionGenericFamilies,
+  CapturedTreeEnvelope,
+  CapturedTreeInput,
+} from "./types.js";
 
 export interface CaptureOptions {
   width: number;
@@ -1462,6 +1470,22 @@ export async function captureElementTree(
 }
 
 /**
+ * Capture into the JSON-stable Page-ownership envelope used when callers may
+ * promote a descendant to a later independent render root. Legacy
+ * `captureElementTree()` remains array-shaped; this opt-in form stores the live
+ * Page generic-family record once beside the roots instead of requiring a
+ * consumer to copy it onto promoted nodes.
+ */
+export async function captureElementTreeEnvelope(
+  page: Page,
+  selector: string = "body",
+  viewport: { x: number; y: number; width: number; height: number },
+  opts?: CaptureElementTreeOptions,
+): Promise<CapturedTreeEnvelope> {
+  return createCapturedTreeEnvelope(await captureElementTree(page, selector, viewport, opts));
+}
+
+/**
  * DM-2379: await Chromium's image decoder for every URL-backed mask layer and
  * leave the natural dimensions on the live element for CAPTURE_SCRIPT's
  * synchronous walk. `new Image().naturalWidth` immediately after assigning
@@ -1666,10 +1690,12 @@ export async function captureElementTreeWithWarnings(
   // concrete family
   // behind `serif` / `monospace` / ... is a property of the launched session
   // (Playwright applies its own table via CDP `Page.setFontFamilies`), so the
-  // Page is the only authority. The renderer scopes that record to this tree,
-  // so independently captured pages cannot contaminate one another. See
-  // `src/capture/generic-font-probe.ts`.
+  // Page is the only authority. Legacy arrays retain top-level annotations;
+  // captureElementTreeEnvelope moves them into one JSON-stable Page envelope.
+  // The renderer scopes either form to this tree, so independently captured
+  // pages cannot contaminate one another. See `generic-font-probe.ts`.
   const sessionGenericFamilies = await ensureSessionGenericFamilyOverrides(page);
+  await assertGenericFamilyTargetConsistency(page, sessionGenericFamilies);
 
   const [maskIntrinsicPrime, backgroundImagePrime] = await Promise.all([
     primeMaskImageIntrinsics(page),

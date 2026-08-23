@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5kpj6k8i2z41k7",
+          "message": {
+            "text": "The COLRv1 arm authenticates paint ownership from the pinned OpenType table, not from expected screenshots. The parser binds U+F0100 to gid 8, PaintGlyph→PaintLinearGradient, offsets 0/1, and CPAL entries 0/4; the fixture is independently fixed by Chromium revision, Git blob, and SHA-256. This makes palette selection logical evidence before any native raster observation.",
+            "markdown": "The COLRv1 arm authenticates paint ownership from the pinned OpenType table, not from expected screenshots. The parser binds U+F0100 to gid 8, PaintGlyph→PaintLinearGradient, offsets 0/1, and CPAL entries 0/4; the fixture is independently fixed by Chromium revision, Git blob, and SHA-256. This makes palette selection logical evidence before any native raster observation."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/font-palette-paint-gate.ts"
+                },
+                "region": {
+                  "startLine": 50,
+                  "endLine": 85,
+                  "snippet": {
+                    "text": "/** Parse the exact PaintGlyph -> PaintLinearGradient chain used by U+F0100. */\nexport function readColrv1SourceFacts(path = COLRV1_FIXTURE): Colrv1SourceFacts {\n  const bytes = readFileSync(resolve(path));\n  const digest = sha256(bytes);\n  if (digest !== COLRV1_SHA256) throw new Error(`COLRv1 fixture SHA-256 ${digest} != ${COLRV1_SHA256}`);\n  const font: any = fontkit.create(bytes);\n  if (font.COLR?.version !== 1 || font.CPAL?.version !== 1) throw new Error(\"fixture must carry COLR v1 + CPAL v1\");\n  const glyphId = font.glyphForCodePoint(COLRV1_CODEPOINT).id;\n  if (glyphId === 0) throw new Error(\"COLRv1 discriminator maps to .notdef\");\n  const colr = tableOffset(bytes, \"COLR\");\n  const baseList = colr + bytes.readUInt32BE(colr + 14);\n  const recordCount = bytes.readUInt32BE(baseList);\n  let paint = -1;\n  for (let index = 0; index < recordCount; index += 1) {\n    const record = baseList + 4 + index * 6;\n    if (bytes.readUInt16BE(record) === glyphId) paint = baseList + bytes.readUInt32BE(record + 2);\n  }\n  if (paint < 0 || bytes[paint] !== 10) throw new Error(\"discriminator must start with PaintGlyph\");\n  paint += u24(bytes, paint + 1);\n  if (bytes[paint] !== 4) throw new Error(\"discriminator must own PaintLinearGradient\");\n  const colorLine = paint + u24(bytes, paint + 1);\n  if (bytes.readUInt16BE(colorLine + 1) !== 2) throw new Error(\"discriminator must own exactly two gradient stops\");\n  const stops = [0, 1].map((index) => {\n    const stop = colorLine + 3 + index * 6;\n    return { offset: bytes.readInt16BE(stop) / 16384, palette: bytes.readUInt16BE(stop + 2) };\n  });\n  const palettes: [Color, Color][] = font.CPAL.colorRecordIndices.map((start: number) => stops.map(({ palette }) => {\n    const value = font.CPAL.colorRecords[start + palette];\n    return [value.red, value.green, value.blue, value.alpha] as Color;\n  }) as [Color, Color]);\n  return {\n    sha256: digest, gitBlob: COLRV1_GIT_BLOB, familyName: font.familyName,\n    postscriptName: font.postscriptName, colrVersion: 1, cpalVersion: 1, glyphId,\n    paintFormat: 4, paletteIndices: [stops[0].palette, stops[1].palette],\n    stopOffsets: [stops[0].offset, stops[1].offset], paletteEndpoints: palettes,\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 94,
+          "workItemUris": [
+            "DM-2510"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f0779c48d6505e423b2224e2dfcdedf6"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5kpjcnp7ml6amj",
+          "message": {
+            "text": "The native content gate deliberately avoids a whole-image percentage and an adjustable antialiasing envelope. Fully opaque samples must stay inside the two source CPAL endpoint channels; source-constant channels stay exact and source-varying channels remain active. The local pinned-Chromium DPR1/2 run was source-exact: the retained COLRv0 audit passed and all 10 COLRv1 rows passed, including exact missing/mismatched-rule collapse and three distinct active palettes.",
+            "markdown": "The native content gate deliberately avoids a whole-image percentage and an adjustable antialiasing envelope. Fully opaque samples must stay inside the two source CPAL endpoint channels; source-constant channels stay exact and source-varying channels remain active. The local pinned-Chromium DPR1/2 run was source-exact: the retained COLRv0 audit passed and all 10 COLRv1 rows passed, including exact missing/mismatched-rule collapse and three distinct active palettes."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/font-palette-paint-gate.ts"
+                },
+                "region": {
+                  "startLine": 112,
+                  "endLine": 127,
+                  "snippet": {
+                    "text": "export function adjudicateColrv1Row(\n  row: Omit<Colrv1PaintRow, \"pass\" | \"blockers\">,\n  expectedEndpoints: [Color, Color],\n): Colrv1PaintRow {\n  const blockers: string[] = [];\n  if (!row.isCustomFont) blockers.push(\"not-custom-font\");\n  if (row.paintedGlyphCount !== 1) blockers.push(\"glyph-count\");\n  if (row.opaquePixelCount === 0) blockers.push(\"no-opaque-paint\");\n  for (let channel = 0; channel < 3; channel += 1) {\n    const low = Math.min(expectedEndpoints[0][channel], expectedEndpoints[1][channel]);\n    const high = Math.max(expectedEndpoints[0][channel], expectedEndpoints[1][channel]);\n    if (row.channelMin[channel] < low || row.channelMax[channel] > high) blockers.push(`channel-${channel}-outside-source`);\n    if (low === high && (row.channelMin[channel] !== low || row.channelMax[channel] !== high)) blockers.push(`channel-${channel}-constant`);\n    if (low !== high && row.channelMin[channel] === row.channelMax[channel]) blockers.push(`channel-${channel}-inert`);\n  }\n  return { ...row, pass: blockers.length === 0, blockers };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 96,
+          "workItemUris": [
+            "DM-2510"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f3c0bef1625e6ec65dc8b773545aff23"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "ef537ffbb5972304f8ef965b2818c28cea26a09e",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

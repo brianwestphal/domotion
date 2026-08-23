@@ -383,6 +383,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5lc7cai9lxps2p",
+          "message": {
+            "text": "One native logical question now owns system-ui identity on all three platforms. macOS reuses the checked-in MatchSystemUIFont CoreText transcription, Linux reuses the Skia/fontconfig family-style matcher with the browser's renderer preference value, and Windows composes the live menu metric with DirectWrite style matching; no platform face name is fitted or committed as an answer.",
+            "markdown": "One native logical question now owns system-ui identity on all three platforms. macOS reuses the checked-in MatchSystemUIFont CoreText transcription, Linux reuses the Skia/fontconfig family-style matcher with the browser's renderer preference value, and Windows composes the live menu metric with DirectWrite style matching; no platform face name is fitted or committed as an answer."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/glyph-helper.ts"
+                },
+                "region": {
+                  "startLine": 1950,
+                  "endLine": 2014,
+                  "snippet": {
+                    "text": "export function resolveSystemUiFontFace(\n  style: InstalledFontStyle & { size?: number } = {},\n  linuxRendererSystemFamily?: string,\n): SystemUiFontFace | null {\n  const weight = style.weight ?? 400;\n  const italic = style.italic === true || (style.slant ?? 0) !== 0;\n  const slant = style.slant ?? (italic ? 1 : 0);\n  const stretch = style.stretch ?? 100;\n\n  if (hostPlatform() === \"darwin\") {\n    if (!isGlyphHelperAvailable()) return null;\n    try {\n      const resp = callHelper({\n        fonts: [{\n          ref: \"system-ui\",\n          size: style.size ?? 16,\n          systemUI: true,\n          cssWeight: weight,\n          cssSlant: slant,\n          cssWidth: stretch,\n        }],\n        queries: [{ type: \"meta\", fontRef: \"system-ui\" }],\n      });\n      const r = resp.results[0];\n      if (r?.type !== \"meta\" || r.resolution !== \"systemUI\"\n          || r.postscriptName == null || r.postscriptName === \"\") return null;\n      return {\n        route: \"coretext-ui-font\",\n        familyName: r.familyName ?? \"\",\n        postscriptName: r.postscriptName,\n        systemFamily: null,\n        ...(r.ctAxes != null ? { ctAxes: r.ctAxes } : {}),\n      };\n    } catch {\n      return null;\n    }\n  }\n\n  if (hostPlatform() === \"linux\") {\n    const systemFamily = linuxRendererSystemFamily?.trim() || \"sans\";\n    const matched = resolveLinuxFamilyMatch(systemFamily, { weight, italic, stretch });\n    if (matched == null || matched.postscriptName === \"\") return null;\n    return {\n      route: \"renderer-system-family\",\n      familyName: matched.family,\n      postscriptName: matched.postscriptName,\n      systemFamily,\n    };\n  }\n\n  if (hostPlatform() === \"win32\") {\n    const systemFamily = resolveSystemUiFamily();\n    if (systemFamily == null || systemFamily === \"\") return null;\n    const matched = resolveInstalledFont(systemFamily, { weight, italic, slant, stretch });\n    if (matched == null || matched.postscriptName === \"\") return null;\n    return {\n      route: \"windows-menu-font\",\n      familyName: matched.familyName || systemFamily,\n      postscriptName: matched.postscriptName,\n      systemFamily,\n      ...(matched.resolvedAxes != null ? { axes: matched.resolvedAxes } : {}),\n    };\n  }\n\n  return null;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/system-ui-preference-route-oracle.ts"
+                },
+                "region": {
+                  "startLine": 373
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/system-ui-preference-route-oracle.ts"
+                },
+                "region": {
+                  "startLine": 423
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2504"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b4c2bbe9aab17a90eb42ca94c0ca0bbd"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "ef537ffbb5972304f8ef965b2818c28cea26a09e",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

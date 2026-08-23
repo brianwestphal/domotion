@@ -16,6 +16,10 @@ import {
 } from "./font-resolution.js";
 import { withHostPlatform } from "./host-platform.js";
 import {
+  __seedSystemUiFamilyForTest,
+  __systemUiFamilyCacheForTest,
+} from "./glyph-helper.js";
+import {
   _clusterVerdictCacheSizeForTest,
   _seedClusterVerdictCacheForTest,
 } from "./cluster-fallback.js";
@@ -151,6 +155,13 @@ describe("clearFontResolutionCaches (DM-1860)", () => {
     expect(_clusterVerdictCacheSizeForTest()).toBe(1);
     invalidateFontEnvironmentCaches();
     expect(_clusterVerdictCacheSizeForTest()).toBe(0);
+  });
+
+  it("environment invalidation expires the Windows menu-font preference", () => {
+    __seedSystemUiFamilyForTest("DM-2504 stale menu font");
+    expect(__systemUiFamilyCacheForTest()).toBe("DM-2504 stale menu font");
+    invalidateFontEnvironmentCaches();
+    expect(__systemUiFamilyCacheForTest()).toBeUndefined();
   });
 
   it("survives repeated clear/resolve cycles without drifting", () => {

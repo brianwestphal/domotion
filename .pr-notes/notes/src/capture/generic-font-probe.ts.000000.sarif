@@ -168,6 +168,160 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "unknown-ai-tool",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5laeqt3ozpveb5",
+          "message": {
+            "text": "DOMSnapshot is the source-aligned language seam: Chromium revision 7d859f271c exposes Document::ContentLanguage in each snapshot and flattens shadow DOM, matching Element::ComputeInheritedLanguage across element ancestry, shadow hosts, and the response-header fallback. The reachable-frame scan is additive only; it does not infer or clone per-target Settings.",
+            "markdown": "DOMSnapshot is the source-aligned language seam: Chromium revision 7d859f271c exposes Document::ContentLanguage in each snapshot and flattens shadow DOM, matching Element::ComputeInheritedLanguage across element ancestry, shadow hosts, and the response-header fallback. The reachable-frame scan is additive only; it does not infer or clone per-target Settings."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/generic-font-probe.ts"
+                },
+                "region": {
+                  "startLine": 132,
+                  "endLine": 185,
+                  "snippet": {
+                    "text": "/**\n * Read Blink's actual language inputs from a flattened DOM snapshot. Unlike a\n * page `querySelectorAll(\"[lang]\")`, DOMSnapshot includes open/closed shadow\n * trees, and its document record exposes the response-header-owned\n * `Document::ContentLanguage()` value used as the last inherited-language\n * fallback (`element.cc`, `ComputeInheritedLanguage`, rev 7d859f27).\n */\nexport function languagesFromDomSnapshot(snapshot: DomSnapshotLanguageFacts): string[] {\n  const languages = new Set<string>();\n  const add = (value: string | undefined): void => {\n    if (value != null && value.trim() !== \"\") languages.add(value);\n  };\n  for (const document of snapshot.documents) {\n    add(snapshot.strings[document.contentLanguage]);\n    for (const attributes of document.nodes.attributes ?? []) {\n      for (let i = 0; i + 1 < attributes.length; i += 2) {\n        const name = snapshot.strings[attributes[i]]?.toLowerCase();\n        if (name === \"lang\" || name === \"xml:lang\") add(snapshot.strings[attributes[i + 1]]);\n      }\n    }\n  }\n  return [...languages];\n}\n\nasync function pageLanguageFacts(page: Page, cdp: CDPSession): Promise<string[]> {\n  const [snapshotLanguages, reachableLanguages] = await Promise.all([\n    cdp.send(\"DOMSnapshot.captureSnapshot\", {\n      computedStyles: [],\n      includeDOMRects: false,\n      includePaintOrder: false,\n    }).then(languagesFromDomSnapshot).catch(() => [] as string[]),\n    Promise.all(page.frames().map(async (frame) => {\n      try {\n        return await frame.evaluate(() => {\n          const languages: string[] = [];\n          const visit = (root: Document | ShadowRoot): void => {\n            for (const element of root.querySelectorAll(\"*\")) {\n              const html = element.getAttribute(\"lang\");\n              const xml = element.getAttribute(\"xml:lang\");\n              if (html != null && html !== \"\") languages.push(html);\n              if (xml != null && xml !== \"\") languages.push(xml);\n              if (element.shadowRoot != null) visit(element.shadowRoot);\n            }\n          };\n          visit(document);\n          return languages;\n        });\n      } catch {\n        return [] as string[];\n      }\n    })).then((values) => values.flat()),\n  ]);\n  return [...new Set([...snapshotLanguages, ...reachableLanguages])];\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/dom/element.cc"
+                },
+                "region": {
+                  "startLine": 10477
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/inspector/inspector_dom_snapshot_agent.cc"
+                },
+                "region": {
+                  "startLine": 393
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2505"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "dd9a4450244eb23ddfe0bc8f47d1da14"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "ef537ffbb5972304f8ef965b2818c28cea26a09e",
+          "branch": "main"
+        }
+      ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5lrupcn5ushouv",
+          "message": {
+            "text": "A captured main-Page Settings record is authoritative only while every distinct frame target reports the same live generic-family maps. Divergence fails closed instead of cloning unauthenticated authority into an OOPIF.",
+            "markdown": "A captured main-Page Settings record is authoritative only while every distinct frame target reports the same live generic-family maps. Divergence fails closed instead of cloning unauthenticated authority into an OOPIF."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/generic-font-probe.ts"
+                },
+                "region": {
+                  "startLine": 362,
+                  "endLine": 410,
+                  "snippet": {
+                    "text": "export async function assertGenericFamilyTargetConsistency(\n  page: Page,\n  main: SessionGenericFamilyProbe | null,\n): Promise<void> {\n  if (main == null) return;\n  for (const frame of page.frames()) {\n    if (frame === page.mainFrame()) continue;\n    const child = await probeFrameGenericFamilies(frame);\n    if (child != null && !probeResultsEqual(main, child)) {\n      throw new Error(`Generic-family Settings diverge for frame target ${frame.url() || \"<uncommitted>\"}; capture requires one non-divergent Page authority.`);\n    }\n  }\n}\n\n/**\n * Ask THIS capture session which family each CSS generic keyword paints.\n * Returns Common and script-keyed maps from generic keyword to painted\n * platform face name (preferentially PostScript, e.g. \"monospace\" ->\n * \"Courier\"), or null when the\n * probe fails or never stabilizes. Never throws.\n */\nexport async function probeSessionGenericFamilies(\n  context: BrowserContext,\n): Promise<SessionGenericFamilyProbe | null> {\n  let page: Page | null = null;\n  try {\n    page = await context.newPage();\n    await page.setContent(\"<!DOCTYPE html><meta charset=utf-8><body></body>\");\n    return await probePageGenericFamilies(page);\n  } catch {\n    return null;\n  } finally {\n    await page?.close().catch(() => {});\n  }\n}\n\nfunction probeResultsEqual(\n  a: SessionGenericFamilyProbe | null,\n  b: SessionGenericFamilyProbe | null,\n): boolean {\n  if (a == null || b == null) return a === b;\n  const entries = (probe: SessionGenericFamilyProbe): string[] => [\n    ...[...probe.common].map(([generic, family]) => `COMMON/${generic}/${family}`),\n    ...[...probe.byScript].flatMap(([script, map]) =>\n      [...map].map(([generic, family]) => `${script}/${generic}/${family}`)),\n  ].sort();\n  return JSON.stringify(entries(a)) === JSON.stringify(entries(b));\n}\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2503"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "3b4ac591d596e9b71548d6ccc243be94"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "ef537ffbb5972304f8ef965b2818c28cea26a09e",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

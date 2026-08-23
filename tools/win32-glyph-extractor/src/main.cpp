@@ -1508,13 +1508,13 @@ static std::string runFallbackQuery(const JsonValue& query, IDWriteFactory* fact
 //
 // The family is pushed into Blink from the browser side via
 // `WebFontRendering::SetMenuFontMetrics` (`core/layout/web_font_rendering_win.cc:29`).
-// The code that READS it from the OS lives outside the Blink tree and is not in
-// the local checkout, so — stated rather than glossed — the Blink half of this is
-// transcribed and cited, while the OS half is the standard Win32 call for the
-// non-client metrics and carries no Chromium line. Asking the OS is still
-// categorically better than baking in "Segoe UI", which would be correct on
-// current Windows 11 and wrong by construction: a sampled literal that survives
-// only until someone runs a differently-configured host.
+// Chromium reads the same preference through `gfx::win::GetSystemFont(kMenu)`
+// (`content/browser/renderer_host/render_view_host_impl.cc:136-145,248-267`),
+// whose system-font initialization reads `NONCLIENTMETRICS` with
+// `SPI_GETNONCLIENTMETRICS` and stores `lfMenuFont`
+// (`ui/gfx/system_fonts_win.cc:140-205`, rev 7d859f27). Mirror that API here;
+// baking in "Segoe UI" would be correct only for one current default and wrong
+// by construction on a host whose user menu metric differs.
 static std::string runSystemFontQuery() {
   std::ostringstream out;
   out << "{\"type\":\"systemfont\"";

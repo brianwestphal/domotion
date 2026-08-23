@@ -3,6 +3,7 @@ import {
   deserializeSessionGenericFamilyProbe,
   genericFamilyProbeTargets,
   genericProbeArmed,
+  languagesFromDomSnapshot,
   serializeSessionGenericFamilyProbe,
 } from "./generic-font-probe.js";
 
@@ -24,24 +25,40 @@ describe("genericFamilyProbeTargets", () => {
   it("uses a primary-covered sample and canonical Blink script keys", () => {
     const targets = genericFamilyProbeTargets();
     const sample = (lang: string) => targets.find((target) => target.lang === lang)!;
-    expect(sample("ja")).toMatchObject({ text: "A", script: "KATAKANA_OR_HIRAGANA" });
-    expect(sample("ko")).toMatchObject({ text: "A", script: "HANGUL" });
-    expect(sample("zh-Hans")).toMatchObject({ text: "A", script: "SIMPLIFIED_HAN" });
-    expect(sample("zh-Hant")).toMatchObject({ text: "A", script: "TRADITIONAL_HAN" });
-    expect(sample("ru")).toMatchObject({ text: "A", script: "CYRILLIC" });
-    expect(sample("ar")).toMatchObject({ text: "A", script: "ARABIC" });
-    expect(sample("el")).toMatchObject({ text: "A", script: "GREEK" });
+    expect(sample("ja")).toMatchObject({ text: "日", script: "KATAKANA_OR_HIRAGANA" });
+    expect(sample("ko")).toMatchObject({ text: "한", script: "HANGUL" });
+    expect(sample("zh-Hans")).toMatchObject({ text: "汉", script: "SIMPLIFIED_HAN" });
+    expect(sample("zh-Hant")).toMatchObject({ text: "漢", script: "TRADITIONAL_HAN" });
+    expect(sample("ru")).toMatchObject({ text: "Я", script: "CYRILLIC" });
+    expect(sample("ar")).toMatchObject({ text: "ا", script: "ARABIC" });
+    expect(sample("el")).toMatchObject({ text: "Ω", script: "GREEK" });
     expect(sample("en")).toMatchObject({ text: "A", script: "LATIN" });
-    expect(sample("he")).toMatchObject({ text: "A", script: "HEBREW" });
-    expect(sample("hi")).toMatchObject({ text: "A", script: "DEVANAGARI" });
+    expect(sample("he")).toMatchObject({ text: "א", script: "HEBREW" });
+    expect(sample("hi")).toMatchObject({ text: "अ", script: "DEVANAGARI" });
   });
 
   it("adds every effective page language once per Blink settings script", () => {
-    const targets = genericFamilyProbeTargets(["th", "th-TH", "bn", ""]);
+    const targets = genericFamilyProbeTargets(["th", "th-TH", "ka", "bn", ""]);
     const languages = new Set(targets.filter((target) => target.lang != null).map((target) => target.lang));
     expect(languages).toContain("th");
     expect(languages).not.toContain("th-TH");
+    expect(languages).toContain("ka");
     expect(languages).toContain("bn");
+    expect(targets.find((target) => target.lang === "th")).toMatchObject({ text: "ก", script: "THAI" });
+    expect(targets.find((target) => target.lang === "ka")).toMatchObject({ text: "ა", script: "GEORGIAN" });
+  });
+
+  it("extracts response and flattened shadow-tree language facts from DOMSnapshot", () => {
+    const snapshot = {
+      strings: ["th", "lang", "ka", "xml:lang", "hy", "class", "ignored"],
+      documents: [{
+        contentLanguage: 0,
+        nodes: {
+          attributes: [[], [1, 2], [3, 4], [5, 6]],
+        },
+      }],
+    };
+    expect(languagesFromDomSnapshot(snapshot)).toEqual(["th", "ka", "hy"]);
   });
 
   it("is on by default and retains an explicit degraded-mode escape hatch", () => {

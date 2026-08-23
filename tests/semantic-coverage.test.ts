@@ -69,6 +69,7 @@ describe("semantic coverage inventory", () => {
     const report = semanticCoverageReport(inventory);
     expect(report).toContain("Uncovered:");
     expect(report).not.toContain("text.emoji-presentation [partial]");
-    expect(report).toContain("generic family -> browser preference");
+    expect(report).not.toContain("generic family -> browser preference");
+    expect(report).toContain("resolved face key aliases named/generic stacks -> retain Blink generic-family semantic");
   });
 });

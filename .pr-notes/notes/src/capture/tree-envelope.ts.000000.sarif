@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "unknown-ai-tool",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5laer60x1rwd1a",
+          "message": {
+            "text": "Page generic preferences are capture authority, so promotion carries one canonical envelope record instead of copying a profile map onto descendants. Root/envelope conflicts fail closed, and identity membership prevents attaching Page A authority to an unrelated Page B node; JSON callers select from the parsed source tree so the same proof survives serialization.",
+            "markdown": "Page generic preferences are capture authority, so promotion carries one canonical envelope record instead of copying a profile map onto descendants. Root/envelope conflicts fail closed, and identity membership prevents attaching Page A authority to an unrelated Page B node; JSON callers select from the parsed source tree so the same proof survives serialization."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/tree-envelope.ts"
+                },
+                "region": {
+                  "startLine": 87,
+                  "endLine": 161,
+                  "snippet": {
+                    "text": "export function capturedTreeSessionGenericFamilies(\n  input: CapturedTreeInput,\n): CapturedSessionGenericFamilies | null {\n  const tree = capturedTreeRoots(input);\n  const rootRecord = rootPreferenceRecord(tree);\n  if (!isEnvelope(input)) return rootRecord;\n  const envelopeRecord = input.sessionGenericFamilies ?? null;\n  if (envelopeRecord == null) return rootRecord;\n  assertPreferenceRecord(envelopeRecord);\n  if (rootRecord != null && preferenceSignature(rootRecord) !== preferenceSignature(envelopeRecord)) {\n    throw new Error(\"Captured-tree envelope conflicts with root generic-family preference authority\");\n  }\n  return envelopeRecord;\n}\n\nfunction withoutRootPreferenceRecord(root: CapturedElement): CapturedElement {\n  if (root.sessionGenericFamilies == null) return root;\n  const copy = { ...root };\n  delete copy.sessionGenericFamilies;\n  return copy;\n}\n\n/**\n * Move legacy root annotations into one JSON-stable Page-ownership envelope.\n * The input is not mutated; only annotated roots are shallow-cloned.\n */\nexport function createCapturedTreeEnvelope(input: CapturedTreeInput): CapturedTreeEnvelope {\n  const record = capturedTreeSessionGenericFamilies(input);\n  return {\n    schema: CAPTURED_TREE_SCHEMA,\n    tree: capturedTreeRoots(input).map(withoutRootPreferenceRecord),\n    ...(record == null ? {} : { sessionGenericFamilies: record }),\n  };\n}\n\nfunction collectTreeNodes(roots: CapturedElement[]): Set<CapturedElement> {\n  const nodes = new Set<CapturedElement>();\n  const visit = (element: CapturedElement): void => {\n    if (nodes.has(element)) return;\n    nodes.add(element);\n    for (const child of element.children) visit(child);\n  };\n  for (const root of roots) visit(root);\n  return nodes;\n}\n\n/**\n * Promote one or more descendants to independent roots while retaining the\n * exact Page generic-family authority from their originating capture.\n * Selection uses object identity so authority cannot accidentally be attached\n * to an unrelated tree. JSON round-trips are supported: select the descendant\n * from the parsed source envelope, then pass that same object here.\n */\nexport function promoteCapturedSubtree(\n  source: CapturedTreeInput,\n  selected: CapturedElement | readonly CapturedElement[],\n): CapturedTreeEnvelope {\n  const sourceRoots = capturedTreeRoots(source);\n  const sourceEnvelope = createCapturedTreeEnvelope(source);\n  const roots = Array.isArray(selected) ? [...selected] : [selected];\n  if (roots.length === 0) {\n    throw new Error(\"Cannot promote an empty captured subtree selection\");\n  }\n  const sourceNodes = collectTreeNodes(sourceRoots);\n  if (roots.some((root) => !sourceNodes.has(root))) {\n    throw new Error(\"Cannot promote a node that does not belong to the captured tree\");\n  }\n  return {\n    schema: CAPTURED_TREE_SCHEMA,\n    tree: roots.map(withoutRootPreferenceRecord),\n    ...(sourceEnvelope.sessionGenericFamilies == null\n      ? {}\n      : { sessionGenericFamilies: sourceEnvelope.sessionGenericFamilies }),\n  };\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 3574
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2505"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "d4dac79b89f4f7c19ed65a068de93344"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "ef537ffbb5972304f8ef965b2818c28cea26a09e",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

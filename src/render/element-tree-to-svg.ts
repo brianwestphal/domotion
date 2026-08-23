@@ -66,7 +66,8 @@ import { cssTransformToSvg } from "./transforms.js";
 import { parseCssUrl, splitTopLevelCommas } from "./css-tokens.js";
 import { buildLinearGradientDef as buildExactLinearGradientDef, parseLegacyWebkitLinearGradient } from "./gradients.js";
 import { blinkPhysicalSymbolMarkerRect, blinkSymbolMarkerGeometry, disclosureTriangle, pixelSnapRect, type SymbolMarkerType } from "./list-marker-geometry.js";
-import type { CapturedBackgroundImage, CapturedElement, CapturedSessionGenericFamilies, TextSegment, MaskFragmentDef, MaskRasterRef, ClipPathFragmentDef, CaptureWarning } from "../capture/types.js";
+import type { CapturedBackgroundImage, CapturedElement, CapturedTreeInput, TextSegment, MaskFragmentDef, MaskRasterRef, ClipPathFragmentDef, CaptureWarning } from "../capture/types.js";
+import { capturedTreeRoots, capturedTreeSessionGenericFamilies } from "../capture/tree-envelope.js";
 import {
   _dataUriCache,
   _resizedDataUriCache,
@@ -3571,50 +3572,46 @@ function elementTreeToSvgInnerImpl(
  * one capture session share one renderer cache.
  */
 export function elementTreeToSvgInner(
-  ...args: Parameters<typeof elementTreeToSvgInnerImpl>
+  input: CapturedTreeInput,
+  width: number,
+  height: number,
+  idPrefix: string = "",
+  includeGlyphDefs: boolean = true,
+  hiDPIFactor: number = 2,
+  includeEmbeddedFontCss: boolean = includeGlyphDefs,
 ): string {
+  const elements = capturedTreeRoots(input);
   const render = (): string => {
     beginCharacterFallbackDocument();
     try {
-      return elementTreeToSvgInnerImpl(...args);
+      return elementTreeToSvgInnerImpl(
+        elements,
+        width,
+        height,
+        idPrefix,
+        includeGlyphDefs,
+        hiDPIFactor,
+        includeEmbeddedFontCss,
+      );
     } finally {
       endCharacterFallbackDocument();
     }
   };
-  const captured = capturedSessionGenericFamilies(args[0]);
+  const captured = capturedSessionGenericFamilies(input);
   return captured == null
     ? render()
     : withSessionGenericFamilyOverrides(captured, render);
 }
 
 export function capturedSessionGenericFamilies(
-  elements: CapturedElement[],
+  input: CapturedTreeInput,
 ): SessionGenericFamilyOverrides | null {
-  const records = elements
-    .map((element) => element.sessionGenericFamilies)
-    .filter((record): record is CapturedSessionGenericFamilies => record != null);
-  if (records.length === 0) return null;
-  if (records.length !== elements.length) {
-    throw new Error("Cannot mix captured roots with and without generic-family preference authority");
-  }
-  const signature = (record: CapturedSessionGenericFamilies): string => JSON.stringify({
-    source: record.source,
-    common: Object.entries(record.common).sort(([a], [b]) => a.localeCompare(b)),
-    byScript: Object.entries(record.byScript)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([script, families]) => [
-        script,
-        Object.entries(families).sort(([a], [b]) => a.localeCompare(b)),
-      ]),
-  });
-  const firstSignature = signature(records[0]);
-  if (records.some((record) => signature(record) !== firstSignature)) {
-    throw new Error("Cannot render roots captured from different generic-family preference sessions in one tree");
-  }
+  const record = capturedTreeSessionGenericFamilies(input);
+  if (record == null) return null;
   return {
-    common: new Map(Object.entries(records[0].common)),
+    common: new Map(Object.entries(record.common)),
     byScript: new Map(
-      Object.entries(records[0].byScript).map(([script, families]) => [script, new Map(Object.entries(families))]),
+      Object.entries(record.byScript).map(([script, families]) => [script, new Map(Object.entries(families))]),
     ),
   };
 }
@@ -5950,7 +5947,7 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
  * and wrapping the output in `wrapSvg()` yourself, switch to this.
  */
 export function elementTreeToSvg(
-  elements: CapturedElement[],
+  input: CapturedTreeInput,
   width: number,
   height: number,
   opts?: {
@@ -5971,8 +5968,9 @@ export function elementTreeToSvg(
     desc?: string;
   },
 ): string {
+  const elements = capturedTreeRoots(input);
   const inner = elementTreeToSvgInner(
-    elements, width, height,
+    input, width, height,
     opts?.idPrefix ?? "",
     opts?.includeGlyphDefs ?? true,
     opts?.hiDPIFactor ?? 2,

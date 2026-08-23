@@ -11,7 +11,8 @@ describe("near-complete Chromium parity release gate", () => {
     expect(result.summary).toMatch(/^NOT READY: \d+ blocker/);
     expect(result.blockers).toContain("partial semantic family: text.family-fallback");
     expect(result.blockers).toContain("missing reviewed visual evidence: darwin");
-    expect(result.blockers).toContain("source audit incomplete: borders-outlines (partial)");
+    expect(result.blockers).not.toContain("source audit incomplete: borders-outlines (partial)");
+    expect(result.blockers).toContain("source audit incomplete: gradients-masks-clips (partial)");
   });
 
   it("rejects unexplained and logical residuals independently of pixel percentages", async () => {

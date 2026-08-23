@@ -61,21 +61,47 @@ author-important, offscreen logical spans, temporarily neutralizes hostile
 `html`/`body` display and visibility declarations, reads
 `CSS.getPlatformFontsForNode`, and requires two stable reads (a third is the
 tie-break). Common, ten standing scripts, and every additional script derived
-from page `lang` facts are recorded. The concrete answers are serialized as
-`sessionGenericFamilies` on each top-level captured root.
+from the captured documents' language facts are recorded. Language discovery
+uses `DOMSnapshot.captureSnapshot`: its flattened DOM includes closed as well
+as open shadow trees, while each document's `contentLanguage` is Blink's exact
+response-header-owned `Document::ContentLanguage()` value. This matches
+`Element::ComputeInheritedLanguage()`, which walks element/`xml:lang` ancestry,
+crosses shadow hosts, and consults `Document::ContentLanguage()` last
+(`external/chromium/third_party/blink/renderer/core/dom/element.cc`, revision
+`7d859f271c`). Reachable child-frame DOM language attributes remain an
+additional control; this does not claim target-divergent OOPIF Settings.
 
-`elementTreeToSvgInner` reads that record and calls
+Legacy array captures serialize the concrete answers as
+`sessionGenericFamilies` on each top-level captured root. The stable
+`CapturedTreeEnvelope` instead stores that Page authority once beside `tree`:
+
+```ts
+{
+  schema: "domotion-captured-tree-v1",
+  tree: CapturedElement[],
+  sessionGenericFamilies?: CapturedSessionGenericFamilies,
+}
+```
+
+`captureElementTreeEnvelope()` captures directly into that form.
+`createCapturedTreeEnvelope()` non-mutatingly converts a legacy root array,
+requiring every annotated root to carry the same canonical record.
+`promoteCapturedSubtree(source, selected)` verifies that every selection
+belongs to `source` by object identity, then emits a new envelope whose roots
+are the selected descendants and whose authority is the source Page record.
+After JSON serialization, the selection must come from the parsed source
+envelope; this retains both membership proof and authority without copying the
+full map onto every descendant.
+
+`elementTreeToSvg` and `elementTreeToSvgInner` accept either the legacy array or
+the envelope, read its one record, and call
 `withSessionGenericFamilyOverrides(record, render)`. The scope is synchronous,
 so JavaScript cannot interleave another render; `try/finally` restores any
 explicit oracle setting. Mixed annotated/unannotated roots and conflicting
-page records fail closed. Equivalent JSON records compare canonically rather
-than by object insertion order. Legacy trees without a record retain the
-documented static/degraded route.
-
-Top-level metadata is the supported ownership envelope. A consumer that
-promotes a captured descendant to a new independent render root must preserve
-or reattach its originating record; a bare descendant cannot truthfully infer
-which Page supplied it.
+page/envelope records fail closed. Equivalent JSON records compare canonically
+rather than by object insertion order. Legacy trees without a record retain the
+documented degraded route; the envelope never synthesizes a browser/profile
+table when Page authority is absent.
 
 ## Independent logical gate
 
@@ -102,17 +128,35 @@ on native macOS, Linux, and Windows. Linux uses Xvfb for the headed legs; every
 runner installs both pinned Chromium and full Chrome and uploads its JSON even
 on failure.
 
+Focused ownership controls add a distinct logical layer beneath that native
+matrix: unit tests cross legacy/envelope JSON, equivalent/reordered A/B
+records, partial/conflicting authority, authority-free legacy input, and
+unrelated-node promotion. A real Chromium E2E captures an envelope, JSON
+round-trips it, promotes a live descendant, renders it, and proves the
+process-global compatibility slot remains untouched. A second E2E serves a
+Thai `Content-Language` header and a Georgian `lang` inside a closed shadow
+root; both scripts must appear with all seven settings rows. No assertion uses
+pixels, a font-name snapshot, or a tolerance.
+
 ## Explicit residual boundaries
 
-- This gate mutates live Page Settings through CDP. An isolated non-default
-  Chrome profile preference is still needed to prove the upstream
-  PrefService-to-WebPreferences propagation path itself.
-- Cross-origin OOPIF targets can theoretically receive independent Inspector
-  mutations; one main-Page record does not claim target-divergent settings.
-- Language discovery does not yet include shadow-root-only or response-header
-  language facts. Standing script rows reduce that risk but do not enumerate
-  every ICU script.
-- Extracted descendant render roots need an explicit metadata propagation
-  contract, as described above.
-- `system-ui` requires its separate platform-route oracle; this document makes
-  only the negative-control claim.
+- `npm run fonts:generic-profile-target` now proves the upstream
+  PrefService-to-WebPreferences path with an isolated, dynamically derived
+  profile rather than a saved font-name snapshot. Full Chrome headed honors all
+  supported Common/script fields. Full Chrome headless instead uses its clean
+  headless Settings for 20 rows while retaining the profile's Common `math`
+  field, because Playwright's Common override table does not assign `math`.
+  The source-owned split is asserted exactly and cannot be hidden by a pixel
+  tolerance.
+- The same gate proves that an ordinary child frame shares its Page authority,
+  while a fresh target CDP session can make a cross-site OOPIF diverge without
+  moving the main frame. Production supports only the non-divergent state and
+  now fails closed when authenticated target Settings disagree; it does not
+  clone the main Page record into a divergent target.
+- Script probes paint representative scalars (`日`, `अ`, `ก`, `ა`, and their
+  peers), so a reported script setting must participate in selection. A Latin
+  fallback glyph can no longer make a script-key assertion vacuously green.
+- `system-ui` remains outside this gate's parity claim. Its separate exact
+  CoreText / Linux renderer-family / Windows menu-font route oracle shipped in
+  [doc 211](211-platform-system-ui-preference-route.md); the rows here remain
+  ownership negative controls only.

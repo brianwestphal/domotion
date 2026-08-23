@@ -753,6 +753,7 @@ func runMetaQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [String
         "nameMatched": entry.nameMatched,
         "resolution": entry.resolution.rawValue,
         "postscriptName": (CTFontCopyPostScriptName(font) as String?) ?? "",
+        "familyName": (CTFontCopyFamilyName(font) as String?) ?? "",
         "supportedColorTables": supportedColorTables,
         // DM-1880: CoreText's own symbolic traits. Blink's macOS synthetic-bold
         // rule is `Weight() > 500 && !(traits & kCTFontTraitBold)`
@@ -768,6 +769,7 @@ func runMetaQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [String
     if let v = underlineThick { result["underlineThickness"] = v }
     if let v = strikeoutPos { result["strikeoutPosition"] = v }
     if let v = strikeoutThick { result["strikeoutThickness"] = v }
+    if let axes = ctAxesReport(font) { result["ctAxes"] = axes }
     return result
 }
 

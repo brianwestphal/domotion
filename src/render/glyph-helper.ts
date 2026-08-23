@@ -140,6 +140,10 @@ interface MetaResponse {
   resolution?: string;
   /** The PostScript name of the face actually opened. */
   postscriptName?: string;
+  /** Native family name of the face actually opened. */
+  familyName?: string;
+  /** CoreText handle axes, including the current coordinate (macOS only). */
+  ctAxes?: Array<{ tag: string; min: number; def: number; max: number; value: number }>;
   /** Physical SFNT paint tables reported by the selected native face. */
   supportedColorTables?: string[];
 }
@@ -252,7 +256,21 @@ export function measureOutlineOffsetY(
 
 // Spawn the helper once, request meta + a batch of glyphs in one envelope.
 interface HelperRequest {
-  fonts: Array<{ ref: string; postscriptName?: string; fontPath?: string; fontData?: string; size: number; variations?: Record<string, number>; requestScoped?: boolean }>;
+  fonts: Array<{
+    ref: string;
+    postscriptName?: string;
+    fontPath?: string;
+    fontData?: string;
+    size: number;
+    variations?: Record<string, number>;
+    requestScoped?: boolean;
+    /** macOS `MatchSystemUIFont` route rather than named-face opening. */
+    systemUI?: boolean;
+    cssWeight?: number;
+    cssSlant?: number;
+    cssWidth?: number;
+    italic?: boolean;
+  }>;
   queries: Array<
     | { type: "meta"; fontRef: string }
     | { type: "glyphs"; fontRef: string; glyphs: Array<{ cp?: number; id?: number }> }
@@ -1814,6 +1832,19 @@ export interface InstalledFontStyle {
   stretch?: number;
 }
 
+/** Exact logical face selected by the platform-owned CSS `system-ui` route. */
+export interface SystemUiFontFace {
+  route: "coretext-ui-font" | "renderer-system-family" | "windows-menu-font";
+  familyName: string;
+  postscriptName: string;
+  /** The browser-supplied family question on Linux, or the OS menu family on Windows. */
+  systemFamily: string | null;
+  /** Current CoreText coordinates for the matched UI handle (macOS only). */
+  ctAxes?: Array<{ tag: string; min: number; def: number; max: number; value: number }>;
+  /** DirectWrite-resolved variable coordinates (Windows only). */
+  axes?: Record<string, number>;
+}
+
 let _systemUiFamily: string | null | undefined;
 
 /**
@@ -1828,9 +1859,10 @@ let _systemUiFamily: string | null | undefined;
  * "Segoe UI": that literal is correct on current Windows 11 and wrong by
  * construction, surviving only until a differently-configured host runs it.
  *
- * Memoised for the process — the OS metric does not change under us mid-render.
- * `null` when the helper cannot answer, which leaves the caller on its existing
- * filename-table path rather than failing.
+ * Memoized within one font-environment generation — it does not change during
+ * a render, while `invalidateFontEnvironmentCaches()` drops it after an OS
+ * preference change. `null` when the helper cannot answer, which leaves the
+ * caller on its existing filename-table path rather than failing.
  */
 export function resolveSystemUiFamily(): string | null {
   if (_systemUiFamily !== undefined) return _systemUiFamily;
@@ -1852,6 +1884,16 @@ export function resolveSystemUiFamily(): string | null {
 /** Test seam: drop the memoised system-ui family. */
 export function __clearSystemUiFamilyForTest(): void {
   _systemUiFamily = undefined;
+}
+
+/** Test-only cache state: `undefined` means the OS menu metric will be re-read. */
+export function __systemUiFamilyCacheForTest(): string | null | undefined {
+  return _systemUiFamily;
+}
+
+/** Test-only seed for the environment-invalidation postcondition. */
+export function __seedSystemUiFamilyForTest(family: string): void {
+  _systemUiFamily = family;
 }
 
 export function resolveInstalledFont(
@@ -1890,6 +1932,86 @@ export function resolveInstalledFont(
   }
   _installedFontCache.set(key, resolved);
   return resolved;
+}
+
+/**
+ * Resolve the face behind CSS `system-ui` through the same native question
+ * Blink asks on this platform.
+ *
+ * This is intentionally separate from generic-family preferences. macOS opens
+ * `CTFontCreateUIFontForLanguage` and applies Blink's UI weight/width/trait
+ * mutations; Linux receives a browser-owned renderer family string and passes
+ * it to Skia/fontconfig; Windows reads the live menu font metric and asks
+ * DirectWrite for that family's requested cut. The optional Linux family is
+ * the value transported in `RendererPreferences` (the oracle supplies the
+ * controlled `--system-font-family` value); production's ordinary route is
+ * the source-defined `sans` fallback.
+ */
+export function resolveSystemUiFontFace(
+  style: InstalledFontStyle & { size?: number } = {},
+  linuxRendererSystemFamily?: string,
+): SystemUiFontFace | null {
+  const weight = style.weight ?? 400;
+  const italic = style.italic === true || (style.slant ?? 0) !== 0;
+  const slant = style.slant ?? (italic ? 1 : 0);
+  const stretch = style.stretch ?? 100;
+
+  if (hostPlatform() === "darwin") {
+    if (!isGlyphHelperAvailable()) return null;
+    try {
+      const resp = callHelper({
+        fonts: [{
+          ref: "system-ui",
+          size: style.size ?? 16,
+          systemUI: true,
+          cssWeight: weight,
+          cssSlant: slant,
+          cssWidth: stretch,
+        }],
+        queries: [{ type: "meta", fontRef: "system-ui" }],
+      });
+      const r = resp.results[0];
+      if (r?.type !== "meta" || r.resolution !== "systemUI"
+          || r.postscriptName == null || r.postscriptName === "") return null;
+      return {
+        route: "coretext-ui-font",
+        familyName: r.familyName ?? "",
+        postscriptName: r.postscriptName,
+        systemFamily: null,
+        ...(r.ctAxes != null ? { ctAxes: r.ctAxes } : {}),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  if (hostPlatform() === "linux") {
+    const systemFamily = linuxRendererSystemFamily?.trim() || "sans";
+    const matched = resolveLinuxFamilyMatch(systemFamily, { weight, italic, stretch });
+    if (matched == null || matched.postscriptName === "") return null;
+    return {
+      route: "renderer-system-family",
+      familyName: matched.family,
+      postscriptName: matched.postscriptName,
+      systemFamily,
+    };
+  }
+
+  if (hostPlatform() === "win32") {
+    const systemFamily = resolveSystemUiFamily();
+    if (systemFamily == null || systemFamily === "") return null;
+    const matched = resolveInstalledFont(systemFamily, { weight, italic, slant, stretch });
+    if (matched == null || matched.postscriptName === "") return null;
+    return {
+      route: "windows-menu-font",
+      familyName: matched.familyName || systemFamily,
+      postscriptName: matched.postscriptName,
+      systemFamily,
+      ...(matched.resolvedAxes != null ? { axes: matched.resolvedAxes } : {}),
+    };
+  }
+
+  return null;
 }
 
 /** The face a declared CSS family resolves to at one style. */
@@ -2254,6 +2376,11 @@ export function glyphHelperCodepointMemoSize(): number {
 export function clearGlyphHelperCache(): void {
   _traitBoldCache.clear();
   _traitItalicCache.clear();
+  // Unlike family/style answers, the Windows system-ui family is an OS
+  // preference, not a stable inventory fact. `invalidateFontEnvironmentCaches`
+  // promises to observe preference-generation changes, so its helper reset must
+  // force the next route through SPI_GETNONCLIENTMETRICS again.
+  _systemUiFamily = undefined;
   helperAvailable = null;
   helperPath = undefined;
   // …and the resolved TRANSPORT, for the same reason as the resolved path.

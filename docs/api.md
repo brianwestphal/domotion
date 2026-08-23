@@ -23,12 +23,15 @@ live DOM and produces a serializable element tree the renderer can consume.
 | Export | Kind | Description |
 | --- | --- | --- |
 | `captureElementTree` | function | Run the capture script in a Playwright `Page` and return the element tree for the given selector + viewport. |
+| `captureElementTreeEnvelope` | function | Capture into a JSON-stable `{ schema, tree, sessionGenericFamilies? }` Page-ownership envelope. Use this when a consumer may later promote a descendant to an independent render root. |
 | `captureElementTreeSelfContained` | function | `captureElementTree` + the remote-image embed pass. **Prefer this whenever the tree's render reaches output** — a tree that skips the embed serializes the literal origin URL, which renders blank wherever that origin is unreachable. |
 | `captureElementTreeWithWarnings` | function | Same as above but returns `{ tree, warnings }` instead of mutating a global buffer. |
 | `seekAnimationsToFrame` | function | Pause CSS/WAAPI and SMIL timelines at one exact, paint-committed document time before frame-scoped capture. |
 | `getLastCaptureWarnings` | function | Read the warnings buffer populated by `captureElementTree`. Use when you can't switch to the `WithWarnings` form. |
 | `logCaptureWarnings` | function | Pretty-print the warnings to stderr. |
 | `embedRemoteImages` | function | Walk a captured tree and inline any `<img>` / `<image>` data into `data:` URIs so the SVG is self-contained. |
+| `createCapturedTreeEnvelope` | function | Move equivalent legacy top-level `sessionGenericFamilies` annotations into one non-mutating, serializable ownership envelope; mixed or conflicting root authority throws. |
+| `promoteCapturedSubtree` | function | Return an envelope rooted at selected descendants while carrying the originating Page authority exactly once. Selected nodes must belong to the source tree by identity; unrelated nodes throw. |
 | `DemoRecorder` | class | Higher-level helper that captures N frames from a sequence of page states, ready for `generateAnimatedSvg`. |
 | `contentBox` | function | `contentBox(page, selector, { at, dx, dy })` → the padding-inset **content** box of an element on a live page (viewport coords), plus a resolved `at` point. Where text actually starts inside a padded `<input>` / `<textarea>` — the one-liner imperative typing-overlay callers need instead of re-measuring padding by hand. Throws if the selector matches nothing. |
 | `borderBox` | function | `borderBox(page, selector, { at, dx, dy })` → the **border** box (`getBoundingClientRect`, border + padding included), the symmetric sibling of `contentBox`, with the same `{ at, dx, dy }` anchor vocabulary and `{ x, y, width, height, at }` shape. This is the box the cursor targets (vs `contentBox` for typing overlays) — they differ by the element's border + padding. Throws if the selector matches nothing. |
@@ -40,6 +43,7 @@ live DOM and produces a serializable element tree the renderer can consume.
 | `CaptureElementTreeOptions` | type | Direct tree-capture options, including strict `animationTimeMs` frame seeking. |
 | `SeekAnimationsToFrameOptions`, `StableAnimationDocumentState`, `StableAnimationFrameState` | type | Strict/include-frame controls and auditable per-document/result records for an exact animation-frame seek. |
 | `CapturedElement` | type | The serializable element-tree node — the contract between capture and render. |
+| `CapturedSessionGenericFamilies`, `CapturedTreeEnvelope`, `CapturedTreeInput` | type | The exact serialized Page preference record, versioned Page-authority envelope, and renderer input union (`CapturedElement[] | CapturedTreeEnvelope`). |
 | `CaptureWarning` | type | `{ selector, feature, detail, status? }` entries reported by `getLastCaptureWarnings`; Node-owned fallback diagnostics may set `status` to `partial` or `unavailable`. |
 
 ## Render

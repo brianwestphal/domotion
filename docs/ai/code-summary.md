@@ -234,7 +234,12 @@ shortest possible map:
   computed token to its family-matched rule/base/ordered overrides, then adds
   selected face/gid/representation to the durable record and PNG cache key.
   Both palette rasters remain byte-equal in either order without vectorizing
-  COLR paint or adding a tolerance.
+  COLR paint or adding a tolerance. DM-2510 promotes this to
+  `tools/font-palette-paint-gate.ts`: its second authenticated Chromium fixture
+  parses the exact COLRv1 PaintLinearGradient/CPAL entries, and the DPR-1/2
+  three-OS workflow requires source-bounded native channel paint alongside the
+  existing exact COLRv0 colors and capture/native PNG identity. No global
+  percentage or adjustable anti-aliasing envelope is used.
   `script-iso15924.generated.ts` maps UCD script names to the ISO 15924 tags
   passed to `hb_buffer_set_script` (derived from HarfBuzz's
   `hb-script-list.h`);
@@ -548,15 +553,37 @@ shortest possible map:
   single-shot `FONTAGREE:` diagnostic sibling.
 - **Live generic-family preference ownership** —
   `src/capture/generic-font-probe.ts` re-probes the exact capture Page and
-  serializes Common plus script-keyed painted faces on the captured top-level
-  roots. `elementTreeToSvgInner` scopes that record to one synchronous render;
-  no production capture writes the legacy process-global oracle slot. This
+  serializes Common plus script-keyed painted faces. DOMSnapshot supplies
+  response-header language and flattened open/closed-shadow `lang` facts.
+  Legacy arrays annotate top-level roots; `src/capture/tree-envelope.ts`
+  stores the authority once in a versioned JSON envelope and carries it through
+  identity-checked descendant promotion. Both renderer entry points scope that
+  record to one synchronous render; no production capture writes the legacy
+  process-global oracle slot. This
   closes the deterministic A-capture/B-capture/A-render contamination and the
   fresh-CDP-session mutation invalidation gap. `tools/generic-family-preference-oracle.ts`
   (`npm run fonts:generic-preferences`) crosses pinned Chromium and full Chrome,
   headless and headed, controlled live mutations, 77 settings rows, 11
   `system-ui` separation controls, and 11 quoted-literal controls. The strict native three-platform workflow is
   `.github/workflows/generic-family-preference-parity.yml`; see doc 198.
+  `tools/generic-profile-target-oracle.ts` and its native workflow extend that
+  contract through an isolated Chrome profile and a target-local OOPIF
+  mutation. `captureElementTree()` calls
+  `assertGenericFamilyTargetConsistency()` and fails closed when a distinct
+  target's authenticated Settings disagree with the main Page; see doc 212.
+- **Platform-owned system-UI preference oracle** —
+  `resolveSystemUiFontFace()` in `src/render/glyph-helper.ts` asks the live
+  CoreText UI handle, Linux renderer-family/fontconfig matcher, or Windows
+  menu-family/DirectWrite matcher and returns exact family/PostScript identity.
+  `tools/system-ui-preference-route-oracle.ts` (`npm run
+  fonts:system-ui-preferences`) crosses pinned/full Chrome and headed/headless,
+  derives Linux and Windows mutations from the current inventory, requires
+  route activation plus stable `Page.setFontFamilies` negative controls, and
+  records source/platform/font fingerprints without pixels or answer snapshots.
+  `tools/windows-menu-font-preference.ps1` changes only the current user's menu
+  family and the oracle restores it in `finally`; helper environment
+  invalidation now expires the memoized menu family. The strict native workflow
+  is `.github/workflows/system-ui-preference-route.yml`; see doc 211.
 - **Generic-family semantic ownership audit** —
   `tools/generic-family-semantics-audit.ts` (`npm run
   fonts:generic-family-semantics`) freezes Blink's separate family-name/type and

@@ -66,6 +66,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "unknown-ai-tool",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5laer6r2uvsyia",
+          "message": {
+            "text": "The live Chromium controls cross the previously missing boundaries without pixels: a captured envelope is JSON-round-tripped, a descendant is promoted and rendered with the global slot restored, while a Thai Content-Language header and Georgian lang inside a closed shadow root each produce all seven exact Page settings rows.",
+            "markdown": "The live Chromium controls cross the previously missing boundaries without pixels: a captured envelope is JSON-round-tripped, a descendant is promoted and rendered with the global slot restored, while a Thai Content-Language header and Georgian lang inside a closed shadow root each produce all seven exact Page settings rows."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/generic-font-probe.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 119,
+                  "endLine": 176,
+                  "snippet": {
+                    "text": "  it(\"retains Page authority through JSON and descendant promotion into a render root\", async () => {\n    const page = await context!.newPage();\n    await page.setContent(\"<!doctype html><body><main><section><span style='font:32px serif'>promoted</span></section></main></body>\");\n    setSessionGenericFamilyOverrides(null);\n    try {\n      const captured = await captureElementTreeEnvelope(\n        page,\n        \"body\",\n        { x: 0, y: 0, width: 400, height: 120 },\n      );\n      const parsed = JSON.parse(JSON.stringify(captured)) as CapturedTreeEnvelope;\n      const find = (nodes: CapturedElement[]): CapturedElement | undefined => {\n        for (const node of nodes) {\n          if (node.text.includes(\"promoted\")) return node;\n          const child = find(node.children);\n          if (child != null) return child;\n        }\n        return undefined;\n      };\n      const descendant = find(parsed.tree);\n      expect(descendant).toBeDefined();\n      const promoted = promoteCapturedSubtree(parsed, descendant!);\n      expect(promoted.sessionGenericFamilies).toEqual(parsed.sessionGenericFamilies);\n      expect(promoted.tree[0].sessionGenericFamilies).toBeUndefined();\n      expect(capturedSessionGenericFamilies(promoted)?.common.get(\"serif\"))\n        .toBe(parsed.sessionGenericFamilies!.common.serif);\n      expect(elementTreeToSvgInner(promoted, 400, 120)).toContain(\"promoted\");\n      expect(getSessionGenericFamilyOverrides()).toBeNull();\n    } finally {\n      await page.close();\n    }\n  });\n\n  it(\"includes closed-shadow and response-header languages in the Page probe\", async () => {\n    const server = createServer((_request, response) => {\n      response.setHeader(\"Content-Type\", \"text/html; charset=utf-8\");\n      response.setHeader(\"Content-Language\", \"th\");\n      response.end(`<!doctype html><body><x-host></x-host><script>\n        const root = document.querySelector(\"x-host\").attachShadow({ mode: \"closed\" });\n        root.innerHTML = \"<span lang=ka>shadow language</span>\";\n      </script></body>`);\n    });\n    await new Promise<void>((resolve) => server.listen(0, \"127.0.0.1\", resolve));\n    const page = await context!.newPage();\n    try {\n      const { port } = server.address() as AddressInfo;\n      await page.goto(`http://127.0.0.1:${port}/`);\n      const result = await probePageGenericFamilies(page);\n      expect(result).not.toBeNull();\n      expect([...result!.byScript.get(\"THAI\")!.keys()])\n        .toEqual([\"standard\", \"serif\", \"sans-serif\", \"monospace\", \"cursive\", \"fantasy\", \"math\"]);\n      expect([...result!.byScript.get(\"GEORGIAN\")!.keys()])\n        .toEqual([\"standard\", \"serif\", \"sans-serif\", \"monospace\", \"cursive\", \"fantasy\", \"math\"]);\n    } finally {\n      await page.close();\n      await new Promise<void>((resolve, reject) => server.close((error) => error == null ? resolve() : reject(error)));\n    }\n  });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/tree-envelope.test.ts"
+                },
+                "region": {
+                  "startLine": 27
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2505"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "46fde1552677aebe1a08887564732eaa"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "ef537ffbb5972304f8ef965b2818c28cea26a09e",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

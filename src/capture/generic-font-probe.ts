@@ -35,13 +35,13 @@
 // for every session. We therefore ask the
 // capture session itself — render one hidden page with Common and per-script
 // generic spans, read the painted family via CDP
-// `CSS.getPlatformFontsForNode`, and route the generic keywords to those
-// families for the rest of the process
-// (`setSessionGenericFamilyOverrides` in `src/render/font-resolution.ts`).
+// `CSS.getPlatformFontsForNode`, serialize those Page-owned answers with the
+// captured tree, and scope them only around that tree's synchronous render
+// (`withSessionGenericFamilyOverrides` in `src/render/font-resolution.ts`).
 // Static routes remain only as a degraded fallback when probing fails or is
 // explicitly disabled.
 
-import type { BrowserContext, CDPSession, Page } from "@playwright/test";
+import type { BrowserContext, CDPSession, Frame, Page } from "@playwright/test";
 import type { CapturedSessionGenericFamilies } from "./types.js";
 import { localeToScriptCodeForFontSelection } from "../render/generic-script-families.js";
 
@@ -49,22 +49,38 @@ import { localeToScriptCodeForFontSelection } from "../render/generic-script-fam
  *  list. `standard` is the implicit final family and therefore also owns the
  *  `.notdef` donor when every declared candidate is exhausted. */
 const PROBED_GENERICS = ["standard", "serif", "sans-serif", "monospace", "cursive", "fantasy", "math"] as const;
+const SCRIPT_PROBE_TEXT: Readonly<Record<string, string>> = {
+  KATAKANA_OR_HIRAGANA: "日",
+  HANGUL: "한",
+  SIMPLIFIED_HAN: "汉",
+  TRADITIONAL_HAN: "漢",
+  CYRILLIC: "Я",
+  ARABIC: "ا",
+  GREEK: "Ω",
+  LATIN: "A",
+  HEBREW: "א",
+  DEVANAGARI: "अ",
+  THAI: "ก",
+  GEORGIAN: "ა",
+};
+const scriptProbeText = (lang: string): string =>
+  SCRIPT_PROBE_TEXT[localeToScriptCodeForFontSelection(lang)] ?? "A";
 const SCRIPT_PROBES = [
-  { lang: "ja", text: "A" },
-  { lang: "ko", text: "A" },
-  { lang: "zh-Hans", text: "A" },
-  { lang: "zh-Hant", text: "A" },
-  { lang: "ru", text: "A" },
-  { lang: "ar", text: "A" },
-  { lang: "el", text: "A" },
+  { lang: "ja", text: "日" },
+  { lang: "ko", text: "한" },
+  { lang: "zh-Hans", text: "汉" },
+  { lang: "zh-Hant", text: "漢" },
+  { lang: "ru", text: "Я" },
+  { lang: "ar", text: "ا" },
+  { lang: "el", text: "Ω" },
   // Full Chrome profile preferences are not limited to Playwright's four
   // macOS/seven Windows table entries. These three are standing controls for
   // ordinary Latin plus two settings scripts absent from Playwright's table;
   // every additional language actually present in the captured page is added
   // dynamically below.
   { lang: "en", text: "A" },
-  { lang: "he", text: "A" },
-  { lang: "hi", text: "A" },
+  { lang: "he", text: "א" },
+  { lang: "hi", text: "अ" },
 ] as const;
 const SCRIPT_PROBED_GENERICS = PROBED_GENERICS;
 
@@ -105,11 +121,74 @@ interface ProbeTarget {
   script: string | null;
 }
 
+interface DomSnapshotLanguageFacts {
+  strings: readonly string[];
+  documents: ReadonlyArray<{
+    contentLanguage: number;
+    nodes: { attributes?: ReadonlyArray<readonly number[]> };
+  }>;
+}
+
+/**
+ * Read Blink's actual language inputs from a flattened DOM snapshot. Unlike a
+ * page `querySelectorAll("[lang]")`, DOMSnapshot includes open/closed shadow
+ * trees, and its document record exposes the response-header-owned
+ * `Document::ContentLanguage()` value used as the last inherited-language
+ * fallback (`element.cc`, `ComputeInheritedLanguage`, rev 7d859f27).
+ */
+export function languagesFromDomSnapshot(snapshot: DomSnapshotLanguageFacts): string[] {
+  const languages = new Set<string>();
+  const add = (value: string | undefined): void => {
+    if (value != null && value.trim() !== "") languages.add(value);
+  };
+  for (const document of snapshot.documents) {
+    add(snapshot.strings[document.contentLanguage]);
+    for (const attributes of document.nodes.attributes ?? []) {
+      for (let i = 0; i + 1 < attributes.length; i += 2) {
+        const name = snapshot.strings[attributes[i]]?.toLowerCase();
+        if (name === "lang" || name === "xml:lang") add(snapshot.strings[attributes[i + 1]]);
+      }
+    }
+  }
+  return [...languages];
+}
+
+async function pageLanguageFacts(page: Page, cdp: CDPSession): Promise<string[]> {
+  const [snapshotLanguages, reachableLanguages] = await Promise.all([
+    cdp.send("DOMSnapshot.captureSnapshot", {
+      computedStyles: [],
+      includeDOMRects: false,
+      includePaintOrder: false,
+    }).then(languagesFromDomSnapshot).catch(() => [] as string[]),
+    Promise.all(page.frames().map(async (frame) => {
+      try {
+        return await frame.evaluate(() => {
+          const languages: string[] = [];
+          const visit = (root: Document | ShadowRoot): void => {
+            for (const element of root.querySelectorAll("*")) {
+              const html = element.getAttribute("lang");
+              const xml = element.getAttribute("xml:lang");
+              if (html != null && html !== "") languages.push(html);
+              if (xml != null && xml !== "") languages.push(xml);
+              if (element.shadowRoot != null) visit(element.shadowRoot);
+            }
+          };
+          visit(document);
+          return languages;
+        });
+      } catch {
+        return [] as string[];
+      }
+    })).then((values) => values.flat()),
+  ]);
+  return [...new Set([...snapshotLanguages, ...reachableLanguages])];
+}
+
 export function genericFamilyProbeTargets(additionalLanguages: readonly string[] = []): ProbeTarget[] {
   const common = PROBED_GENERICS.map((generic, i) => ({
     id: `gc${i}`, generic, text: "Regna", lang: null, script: null,
   }));
-  const scriptedInputs = [...SCRIPT_PROBES, ...additionalLanguages.map((lang) => ({ lang, text: "A" }))]
+  const scriptedInputs = [...SCRIPT_PROBES, ...additionalLanguages.map((lang) => ({ lang, text: scriptProbeText(lang) }))]
     .filter(({ lang }) => lang.trim() !== "")
     .filter((entry, index, entries) => entries.findIndex((candidate) =>
       localeToScriptCodeForFontSelection(candidate.lang) === localeToScriptCodeForFontSelection(entry.lang)) === index);
@@ -131,7 +210,7 @@ export function genericProbeArmed(): boolean {
 let probeDocumentSequence = 0;
 
 async function readPageGenericFamilies(
-  page: Page,
+  page: Page | Frame,
   cdp: CDPSession,
   targets: ProbeTarget[],
 ): Promise<SessionGenericFamilyProbe | null> {
@@ -237,20 +316,10 @@ export async function probePageGenericFamilies(
 ): Promise<SessionGenericFamilyProbe | null> {
   let cdp: CDPSession | null = null;
   try {
-    const languages = (await Promise.all(page.frames().map(async (frame) => {
-      try {
-        return await frame.evaluate(() => [
-          document.documentElement?.lang ?? "",
-          ...Array.from(document.querySelectorAll("[lang]"), (element) => (element as HTMLElement).lang),
-        ]);
-      } catch {
-        return [] as string[];
-      }
-    }))).flat();
-    const targets = genericFamilyProbeTargets(languages);
     cdp = await page.context().newCDPSession(page);
     await cdp.send("DOM.enable");
     await cdp.send("CSS.enable");
+    const targets = genericFamilyProbeTargets(await pageLanguageFacts(page, cdp));
     const first = await readPageGenericFamilies(page, cdp, targets);
     const second = await readPageGenericFamilies(page, cdp, targets);
     if (probeResultsEqual(first, second)) return second;
@@ -260,6 +329,47 @@ export async function probePageGenericFamilies(
     return null;
   } finally {
     await cdp?.detach().catch(() => {});
+  }
+}
+
+async function probeFrameGenericFamilies(frame: Frame): Promise<SessionGenericFamilyProbe | null> {
+  let cdp: CDPSession | null = null;
+  try {
+    cdp = await frame.page().context().newCDPSession(frame);
+  } catch (error) {
+    // A local child frame shares its parent's renderer target. Only OOPIFs
+    // expose a separate Inspector session and can carry divergent Settings.
+    if (error instanceof Error && error.message.includes("does not have a separate CDP session")) return null;
+    throw error;
+  }
+  try {
+    await cdp.send("DOM.enable");
+    await cdp.send("CSS.enable");
+    const languages = await frame.evaluate(() => [...document.querySelectorAll("[lang]")]
+      .map((element) => element.getAttribute("lang") ?? "")
+      .filter(Boolean));
+    const targets = genericFamilyProbeTargets(languages);
+    const first = await readPageGenericFamilies(frame, cdp, targets);
+    const second = await readPageGenericFamilies(frame, cdp, targets);
+    return probeResultsEqual(first, second) ? second : null;
+  } finally {
+    await cdp.detach().catch(() => {});
+  }
+}
+
+/** Refuse a tree whose separate renderer targets have different live generic
+ * Settings: one captured authority record cannot represent that state. */
+export async function assertGenericFamilyTargetConsistency(
+  page: Page,
+  main: SessionGenericFamilyProbe | null,
+): Promise<void> {
+  if (main == null) return;
+  for (const frame of page.frames()) {
+    if (frame === page.mainFrame()) continue;
+    const child = await probeFrameGenericFamilies(frame);
+    if (child != null && !probeResultsEqual(main, child)) {
+      throw new Error(`Generic-family Settings diverge for frame target ${frame.url() || "<uncommitted>"}; capture requires one non-divergent Page authority.`);
+    }
   }
 }
 

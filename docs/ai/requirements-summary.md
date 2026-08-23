@@ -414,7 +414,13 @@ they describe (see `CLAUDE.md` "Documentation"):
   envelope. Production now captures the family-matched rule/base/override
   identity and selected face/gid/representation in the color-glyph cache key.
   The A/B and reverse-order controls retain two byte-exact PNGs; selected-glyph
-  raster activation remains exact.
+  raster activation remains exact. DM-2510 promotes that proof to the strict
+  native paint gate: an independently pinned COLRv1 PaintLinearGradient source
+  joins the exact COLRv0 rows at DPR 1/2 on macOS, Linux, and Windows. The
+  COLRv1 arm requires source-bounded channels, active palette mutations, and
+  exact missing/mismatched-rule collapse; it covers Fontations on all three
+  platforms while COLRv0 retains the Windows DirectWrite split. No percentage
+  or adjustable anti-aliasing envelope is introduced.
 - **Doc 112 (`docs/112-decoration-geometry-oracle.md`, DM-2009)** —
   **Shipped.** `tools/decoration-oracle.ts` (`npm run decorations:oracle`)
   grades text-decoration GEOMETRY against Chrome's paint and Blink's
@@ -494,9 +500,13 @@ they describe (see `CLAUDE.md` "Documentation"):
   doc 198)** — **Shipped.** The settings-mapped generics resolve per content
   script, mirroring `FamilyNameFromSettings`'s `settings.<Generic>(script)`
   consult with the values the exact capture Page paints. Capture probes on
-  every call, serializes authority on the top-level tree roots, and render
-  selects it in a synchronous `try/finally` scope; no BrowserContext cache or
-  production process-global survives to contaminate another Page.
+  every call; legacy arrays serialize authority on their top-level roots while
+  the versioned captured-tree envelope stores it once and preserves it through
+  identity-checked descendant promotion and JSON round-trips. Render selects
+  either form in a synchronous `try/finally` scope; no BrowserContext cache or
+  production process-global survives to contaminate another Page. Language
+  discovery reads Blink's flattened DOMSnapshot and response-header-owned
+  content language, so closed-shadow-only and header-only scripts are covered.
   `resolveFontKey` /
   `resolveFontKeyChain` / `resolveFont` take the element's `lang`; the
   lang→script mapping is `LocaleToScriptCodeForFontSelection` transcribed in
@@ -510,6 +520,26 @@ they describe (see `CLAUDE.md` "Documentation"):
   headless/headed, Common + ten standing scripts + Page language scripts, and
   dynamically derived preference mutations on macOS/Linux/Windows. It uses
   `system-ui` only as a separation control and has no pixel tolerance.
+  The isolated-profile gate in doc 212 additionally proves the upstream
+  PrefService/WebPreferences route: headed full Chrome honors the supported
+  profile fields, while headless retains only profile Common `math` and uses
+  clean headless Settings elsewhere. Cross-site target divergence is detected
+  and refused rather than inheriting unauthenticated main-Page authority, and
+  every script probe paints a scalar belonging to that script.
+- **Platform-owned `system-ui` preferences (font-resolution-diagram §2,
+  doc 211, DM-2504)** — **Shipped logical gate.** `system-ui` bypasses generic
+  Settings: macOS resolves a CoreText UI handle through the pinned
+  `MatchSystemUIFont` transcription, Linux consumes the browser-owned renderer
+  system family (including `--system-font-family`) through the transcribed
+  Skia/fontconfig cut matcher, and Windows reads the live
+  `NONCLIENTMETRICS.lfMenuFont` family then matches its DirectWrite cut.
+  `resolveSystemUiFontFace()` exposes those native logical answers without an
+  OS-name table. The four-launch native workflow derives every alternate from
+  the current inventory, requires a face movement and exact PostScript/family
+  join, carries source/platform/font fingerprints, and uses no screenshots,
+  pixel tolerance, or committed answer snapshot. The Windows mutation is
+  explicit and restored in `finally`; environment invalidation now also expires
+  the memoized menu family, with a stale-before/fresh-after discriminator.
 - **Resolved keys do not own Blink's generic-family semantic (font-resolution
   diagram §7, doc 206)** — **Investigated; production correction pending.**
   Blink preserves the rightmost enum-bearing generic in `FontDescription`

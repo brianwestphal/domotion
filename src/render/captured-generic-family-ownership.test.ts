@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CapturedElement, CapturedSessionGenericFamilies } from "../capture/types.js";
+import { createCapturedTreeEnvelope } from "../capture/tree-envelope.js";
 import { capturedSessionGenericFamilies } from "./element-tree-to-svg.js";
 import {
   getSessionGenericFamilyOverrides,
@@ -50,8 +51,12 @@ describe("captured generic-family preference ownership", () => {
 
   it("renders serialized A/B records in either order without global contamination", () => {
     const prior = { common: new Map([["serif", "Explicit prior"]]), byScript: new Map() };
-    const a = capturedSessionGenericFamilies([root(JSON.parse(JSON.stringify(record("Page A"))))])!;
-    const b = capturedSessionGenericFamilies([root(JSON.parse(JSON.stringify(record("Page B"))))])!;
+    const a = capturedSessionGenericFamilies(createCapturedTreeEnvelope([
+      root(JSON.parse(JSON.stringify(record("Page A")))),
+    ]))!;
+    const b = capturedSessionGenericFamilies(createCapturedTreeEnvelope([
+      root(JSON.parse(JSON.stringify(record("Page B")))),
+    ]))!;
     setSessionGenericFamilyOverrides(prior);
     try {
       expect(withSessionGenericFamilyOverrides(a, () => getSessionGenericFamilyOverrides()?.common.get("serif")))

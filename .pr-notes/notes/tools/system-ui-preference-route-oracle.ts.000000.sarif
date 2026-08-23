@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5lc7c0ndw8bdpf",
+          "message": {
+            "text": "The rebuilt CoreText helper and pinned Chromium 147.0.7727.15 agreed on 7/7 representative logical rows. Normal, bold, and italic PostScript identities were exact; live CoreText reports also carried the requested opsz, wght, and wdth coordinates, repeat browser reads were stable, and the dynamically selected Times Page.setFontFamilies control left system-ui unchanged.",
+            "markdown": "The rebuilt CoreText helper and pinned Chromium 147.0.7727.15 agreed on 7/7 representative logical rows. Normal, bold, and italic PostScript identities were exact; live CoreText reports also carried the requested opsz, wght, and wdth coordinates, repeat browser reads were stable, and the dynamically selected Times Page.setFontFamilies control left system-ui unchanged."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/system-ui-preference-route-oracle.ts"
+                },
+                "region": {
+                  "startLine": 331,
+                  "endLine": 351,
+                  "snippet": {
+                    "text": "async function runDarwinMode(mode: LaunchMode): Promise<ModeReport> {\n  invalidateFontEnvironmentCaches();\n  const result = await collectState(mode, \"coretext-live\", [], null);\n  const distinct = new Set(result.state.rows.map((row) => normalizeFace(faceId(row.browser))));\n  const active = distinct.size >= 3;\n  return {\n    id: mode.id,\n    engine: mode.engine,\n    headless: mode.headless,\n    browserVersions: [result.browserVersion],\n    states: [result.state],\n    preferenceMutation: {\n      kind: \"coretext-style-metric\",\n      before: faceId(result.state.rows.find((row) => row.id === \"text-normal\")?.browser ?? null),\n      after: faceId(result.state.rows.find((row) => row.id === \"bold\")?.browser ?? null),\n      active,\n    },\n    pass: result.state.pass && active,\n  };\n}\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/macos-glyph-extractor/Sources/DomotionGlyphPaths/main.swift"
+                },
+                "region": {
+                  "startLine": 706
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2504"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "343170d8ad6e42f015cd5b62b4e4c9e7"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "warning",
+          "guid": "mt5lc7cevs9drfck",
+          "message": {
+            "text": "Windows preference mutation is deliberately explicit and recoverable. The gate refuses to mutate without its opt-in flag, derives the replacement from a live installed browser face, verifies the OS accepted it, proves the warm memo stays stale before invalidation, and restores the original menu family in finally before clearing the environment again.",
+            "markdown": "Windows preference mutation is deliberately explicit and recoverable. The gate refuses to mutate without its opt-in flag, derives the replacement from a live installed browser face, verifies the OS accepted it, proves the warm memo stays stale before invalidation, and restores the original menu family in finally before clearing the environment again."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/system-ui-preference-route-oracle.ts"
+                },
+                "region": {
+                  "startLine": 423,
+                  "endLine": 465,
+                  "snippet": {
+                    "text": "async function runWindowsMode(mode: LaunchMode, allowMutation: boolean): Promise<ModeReport> {\n  if (!allowMutation) throw new Error(\"Windows requires --allow-system-preference-mutation (the tool restores the original metric in finally)\");\n  const original = windowsMenuMetric(\"get\");\n  let mutated = false;\n  try {\n    invalidateFontEnvironmentCaches();\n    const baseline = await collectState(mode, \"menu-font-baseline\", [], null);\n    const alternative = chooseWindowsMutationFamily(baseline.state, original.menuFamily);\n    const warmBefore = resolveSystemUiFontFace({ size: 20, weight: 400 });\n    const observedMutation = windowsMenuMetric(\"set\", alternative);\n    mutated = true;\n    if (normalizeFace(observedMutation.menuFamily) !== normalizeFace(alternative)) {\n      throw new Error(`Windows menu-font mutation was inert: requested ${alternative}, observed ${observedMutation.menuFamily}`);\n    }\n    const stale = resolveSystemUiFontFace({ size: 20, weight: 400 });\n    invalidateFontEnvironmentCaches();\n    const mutation = await collectState(mode, \"menu-font-mutation\", [], null);\n    const before = normalFace(baseline.state);\n    const after = normalFace(mutation.state);\n    const active = normalizeFace(before) !== normalizeFace(after);\n    const staleCacheRetainedOldPreference = normalizeFace(stale?.systemFamily ?? \"\")\n      === normalizeFace(warmBefore?.systemFamily ?? \"\")\n      && normalizeFace(stale?.systemFamily ?? \"\") !== normalizeFace(observedMutation.menuFamily);\n    return {\n      id: mode.id,\n      engine: mode.engine,\n      headless: mode.headless,\n      browserVersions: [baseline.browserVersion, mutation.browserVersion],\n      states: [baseline.state, mutation.state],\n      preferenceMutation: {\n        kind: \"windows-menu-font\",\n        before,\n        after,\n        active,\n        staleBeforeInvalidation: stale?.systemFamily ?? \"\",\n        staleCacheRetainedOldPreference,\n      },\n      pass: baseline.state.pass && mutation.state.pass && active && staleCacheRetainedOldPreference,\n    };\n  } finally {\n    if (mutated) windowsMenuMetric(\"set\", original.menuFamily);\n    invalidateFontEnvironmentCaches();\n  }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "risk"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/windows-menu-font-preference.ps1"
+                },
+                "region": {
+                  "startLine": 73
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/glyph-helper.ts"
+                },
+                "region": {
+                  "startLine": 2376
+                }
+              }
+            },
+            {
+              "id": 2,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution-cache-reset.test.ts"
+                },
+                "region": {
+                  "startLine": 160
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2504"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f787fc31270c2af5db2f5c377f54164c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "ef537ffbb5972304f8ef965b2818c28cea26a09e",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

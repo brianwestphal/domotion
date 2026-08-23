@@ -2,6 +2,16 @@
 // tree (or fragments of one) and emit SVG markup.
 
 export {
+  createCapturedTreeEnvelope,
+  promoteCapturedSubtree,
+} from "../capture/tree-envelope.js";
+export type {
+  CapturedSessionGenericFamilies,
+  CapturedTreeEnvelope,
+  CapturedTreeInput,
+} from "../capture/types.js";
+
+export {
   elementTreeToSvg,
   elementTreeToSvgInner,
   wrapSvg,

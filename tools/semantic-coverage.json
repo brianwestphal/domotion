@@ -16,12 +16,14 @@
         "font-variation-settings",
         "font-size/ptem",
         "lang",
+        "platform-owned system-ui preference",
         "FontDescription generic-family identity"
       ],
       "states": [
         "declared face covers cluster -> declared face",
         "declared face misses cluster -> platform fallback",
         "generic family -> browser preference",
+        "default system-ui preference -> controlled platform preference",
         "non-default variable coordinates -> omitted/default coordinates",
         "ptem 9 tracking -> unset ptem",
         "resolved face key aliases named/generic stacks -> retain Blink generic-family semantic",
@@ -31,6 +33,7 @@
         "declared face covers cluster -> declared face",
         "declared face misses cluster -> platform fallback",
         "generic family -> browser preference",
+        "default system-ui preference -> controlled platform preference",
         "non-default variable coordinates -> omitted/default coordinates",
         "ptem 9 tracking -> unset ptem"
       ],
@@ -46,6 +49,7 @@
         "src/capture/generic-font-probe.ts",
         "src/capture/index.ts",
         "src/capture/types.ts",
+        "src/capture/tree-envelope.ts",
         "src/render/font-resolution.ts",
         "src/render/element-tree-to-svg.ts",
         "src/render/cluster-fallback.ts",
@@ -59,6 +63,7 @@
         "tools/unified-shaping-oracle.ts",
         "tools/renderer-font-route-oracle.ts",
         "tools/generic-family-preference-oracle.ts",
+        "tools/system-ui-preference-route-oracle.ts",
         "tools/generic-family-semantics-audit.ts",
         "tools/linux-arm64-release-evidence.ts"
       ],
@@ -67,12 +72,16 @@
         "src/render/cluster-fallback-features.test.ts",
         "src/render/text-run-provenance.test.ts",
         "src/capture/generic-font-probe.test.ts",
+        "src/capture/tree-envelope.test.ts",
         "src/render/session-generic-overrides.test.ts",
         "src/render/captured-generic-family-ownership.test.ts",
         "tests/generic-font-probe.e2e.test.ts",
         "tests/generic-family-preference-oracle.test.ts",
         "tests/generic-family-preference-workflow.test.ts",
         ".github/workflows/generic-family-preference-parity.yml",
+        "tests/system-ui-preference-route-oracle.test.ts",
+        "tests/system-ui-preference-route-workflow.test.ts",
+        ".github/workflows/system-ui-preference-route.yml",
         "tests/generic-family-semantics-audit.test.ts",
         "tests/generic-family-semantics-audit.e2e.test.ts",
         "tests/generic-family-semantics-workflow.test.ts",
@@ -89,7 +98,7 @@
         "tests/html-test-suite.tsx"
       ],
       "coverage": "partial",
-      "boundary": "Unified face/shaping evidence and a production per-run route ledger exist. Generic-family preferences are exact for the captured Page/tree contract: every capture re-probes live Common/script settings, serialized A/B roots render in order-independent scoped state, and the strict native workflow crosses pinned/full Chrome headed/headless with dynamically derived mutations and system-ui separation controls. The pinned source audit separately confirms a production semantic gap before shaping: Windows hardcoded fallback infers FontDescription generic identity from a concrete key, producing both named-Courier false positives and non-courier-key monospace false negatives. Its 20-row forward/reverse logical discriminator includes rightmost-generic plus system-ui/math non-occupying controls and does not reset caches between orders; it is exact as investigation evidence, but the transition stays uncovered until DM-2515 propagates the semantic through Windows routing/caches, DM-2517 closes generic-sensitive Skia terminal routing, and DM-2516 promotes source/production agreement. Isolated profile-to-WebPreferences propagation, per-target OOPIF divergence, promoted descendants, shadow/header-only language facts, and system-ui platform routing remain explicit separate boundaries. The dispatch-only Linux arm64 gate consumes fingerprinted published helpers from a clean cache and requires exact logical plus selected visual evidence, with its first retained native run still required after integration. Source-owned Open Sans wght/wdth omission rows and HarfBuzz ptem=9-to-unset now make axes and ptem applicable independently of the installed host inventory, with complete logical-stream invariants and no raster tolerance. The renderer-route corpus is representative rather than exhaustive, and helper-absent behavior is intentionally degraded.",
+      "boundary": "Unified face/shaping evidence and a production per-run route ledger exist. Generic-family preferences are exact for the captured Page/tree contract: every capture re-probes live Common/script settings, serialized A/B roots render in order-independent scoped state, versioned JSON envelopes preserve authority through identity-checked descendant promotion, and DOMSnapshot supplies response-header plus closed-shadow language facts. That Settings workflow crosses pinned/full Chrome headed/headless with dynamically derived mutations and system-ui separation controls. A separate exact system-ui workflow now owns the platform path: CoreText UI handles, Linux renderer system-family preferences, and Windows menu-font metrics are joined to Domotion's live native answer under dynamically derived mutations, inventory/source fingerprints, and a stale-before/fresh-after cache discriminator, without pixels or answer snapshots. The pinned source audit separately confirms a production semantic gap before shaping: Windows hardcoded fallback infers FontDescription generic identity from a concrete key, producing both named-Courier false positives and non-courier-key monospace false negatives. Its 20-row forward/reverse logical discriminator includes rightmost-generic plus system-ui/math non-occupying controls and does not reset caches between orders; it is exact as investigation evidence, but the transition stays uncovered until DM-2515 propagates the semantic through Windows routing/caches, DM-2517 closes generic-sensitive Skia terminal routing, and DM-2516 promotes source/production agreement. Isolated profile-to-WebPreferences propagation and authenticated per-target OOPIF divergence remain explicit separate boundaries; the first retained all-platform DM-2504 artifact is still required. The dispatch-only Linux arm64 gate consumes fingerprinted published helpers from a clean cache and requires exact logical plus selected visual evidence, with its first retained native run still required after integration. Source-owned Open Sans wght/wdth omission rows and HarfBuzz ptem=9-to-unset now make axes and ptem applicable independently of the installed host inventory, with complete logical-stream invariants and no raster tolerance. The renderer-route corpus is representative rather than exhaustive, and helper-absent behavior is intentionally degraded.",
       "featureIds": [
         "render.text",
         "fonts.glyph-helper"
@@ -99,6 +108,22 @@
         "linux",
         "win32"
       ]
+    },
+    {
+      "id": "capture.generic-profile-target-authority",
+      "parityAreas": ["font-selection", "generic-profile-target-authority"],
+      "subjects": ["Chrome profile generic preferences", "Page Settings", "OOPIF target authority"],
+      "states": ["clean profile -> isolated headed profile", "headed profile -> headless Settings overlay", "main Page Settings -> ordinary child inheritance", "ordinary child inheritance -> divergent target Settings", "divergent target Settings -> fail-closed capture"],
+      "exactStates": ["clean profile -> isolated headed profile", "headed profile -> headless Settings overlay", "main Page Settings -> ordinary child inheritance", "ordinary child inheritance -> divergent target Settings", "divergent target Settings -> fail-closed capture"],
+      "uncoveredStates": [],
+      "upstreamSources": ["external/chromium/chrome/browser/chrome_content_browser_client.cc", "external/chromium/third_party/blink/renderer/core/inspector/inspector_page_agent.cc", "node_modules/playwright-core/lib/server/chromium/defaultFontFamilies.js"],
+      "productionOwners": ["src/capture/generic-font-probe.ts", "src/capture/index.ts"],
+      "oracles": ["tools/generic-profile-target-oracle.ts"],
+      "metamorphicTests": ["tests/generic-profile-target-oracle.test.ts", "tests/generic-profile-target-oracle.e2e.test.ts", "tests/generic-profile-target-workflow.test.ts", ".github/workflows/generic-profile-target-parity.yml"],
+      "visualFixtures": ["tests/generic-profile-target-oracle.e2e.test.ts"],
+      "coverage": "exact",
+      "featureIds": ["render.text"],
+      "verifiedPlatforms": ["darwin", "linux", "win32"]
     },
     {
       "id": "text.unicode-shaping-corpus",
@@ -374,25 +399,30 @@
         "src/render/text-to-path.ts"
       ],
       "oracles": [
-        "tools/font-palette-ownership-audit.ts"
+        "tools/font-palette-ownership-audit.ts",
+        "tools/font-palette-paint-gate.ts"
       ],
       "metamorphicTests": [
         "tests/font-palette-ownership-audit.test.ts",
+        "tests/font-palette-paint-gate.test.ts",
         "tests/font-palette-ownership-audit.e2e.test.ts",
         "tests/font-palette-ownership-workflow.test.ts"
       ],
       "visualFixtures": [
         "tests/fixtures/font-palette/COLR-palettes-test-font.ttf",
+        "tests/fixtures/font-palette/COLRv1-static-test-glyphs.ttf",
         ".github/workflows/font-palette-ownership-audit.yml"
       ],
       "coverage": "partial",
-      "boundary": "DM-2350/doc 202 proves source-owned static palette selection and exact native CPAL colors. DM-2509 captures resolved rule/base/override identity plus selected face/gid/representation and keys Chromium-owned raster PNGs by that complete record; forward/reverse order are byte-exact. Palette-mix and animation remain deferred, and DM-2510 owns strict three-platform gate promotion. Raster activation remains exact and no tolerance changes.",
+      "boundary": "DM-2350/doc 202 proves source-owned static palette selection and exact native CPAL colors. DM-2509 captures resolved rule/base/override identity plus selected face/gid/representation and keys Chromium-owned raster PNGs by that complete record; forward/reverse order are byte-exact. DM-2510 adds the strict DPR-1/2 COLRv0/COLRv1 native paint gate on macOS/Linux/Windows, covering Fontations and the Windows DirectWrite split without a pixel envelope. Palette-mix, animation, and shadow-tree palette scoping remain deferred.",
       "featureIds": [
         "capture.emoji-detect",
         "render.text"
       ],
       "verifiedPlatforms": [
-        "darwin"
+        "darwin",
+        "linux",
+        "win32"
       ]
     },
     {

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5lruk5wrbm5vot",
+          "message": {
+            "text": "The profile discriminator is derived from a face that differs from the clean headless result, so the observed headed/headless split cannot pass through coincidental family equality. The oracle compares logical painted-face identity only; no pixel threshold participates.",
+            "markdown": "The profile discriminator is derived from a face that differs from the clean headless result, so the observed headed/headless split cannot pass through coincidental family equality. The oracle compares logical painted-face identity only; no pixel threshold participates."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/generic-profile-target-oracle.ts"
+                },
+                "region": {
+                  "startLine": 106,
+                  "endLine": 176,
+                  "snippet": {
+                    "text": "function rotatedProfile(discovery: ProfileFaceRow[], cleanHeadless: ProfileFaceRow[]): ProfileFonts {\n  const result = Object.fromEntries(GENERICS.map((generic) => [generic, {}])) as ProfileFonts;\n  for (const script of SCRIPTS) {\n    const rows = discovery.filter((row) => row.script === script);\n    const clean = cleanHeadless.filter((row) => row.script === script);\n    const distinct = rows.filter((row, index) => rows.findIndex((other) => norm(other.familyName) === norm(row.familyName)) === index);\n    if (distinct.length < 2) throw new Error(`profile discriminator needs two painted ${script} families`);\n    for (const generic of GENERICS) {\n      const cleanFamily = clean.find((row) => row.generic === generic)!.familyName;\n      const discriminator = distinct.find((row) => norm(row.familyName) !== norm(cleanFamily));\n      if (discriminator == null) throw new Error(`profile discriminator matches clean ${script}/${generic}`);\n      result[generic][script] = discriminator.familyName;\n    }\n  }\n  return result;\n}\n\nfunction writeProfile(dir: string, fonts: ProfileFonts): void {\n  mkdirSync(join(dir, \"Default\"), { recursive: true });\n  writeFileSync(join(dir, \"Default\", \"Preferences\"), `${JSON.stringify({ webkit: { webprefs: { fonts } } })}\\n`);\n}\n\nasync function enable(cdp: CDPSession): Promise<void> {\n  await cdp.send(\"DOM.enable\");\n  await cdp.send(\"CSS.enable\");\n}\n\nasync function collectPersistent(dir: string, headless: boolean, opened: BrowserContext[]): Promise<{ context: BrowserContext; page: Page; cdp: CDPSession; rows: ProfileFaceRow[] }> {\n  const context = await chromium.launchPersistentContext(dir, { channel: \"chrome\", headless, args: [\"--site-per-process\"] });\n  opened.push(context);\n  const page = context.pages()[0] ?? await context.newPage();\n  await page.setContent(\"<!doctype html><body>profile authority</body>\");\n  const cdp = await context.newCDPSession(page);\n  await enable(cdp);\n  return { context, page, cdp, rows: await readRows(page, cdp) };\n}\n\nfunction expectedExact(rows: ProfileFaceRow[], expected: ProfileFonts): number {\n  return rows.filter((row) => norm(row.familyName) === norm(expected[row.generic][row.script])).length;\n}\n\nasync function productionProbeExact(page: Page, rows: ProfileFaceRow[]): Promise<boolean> {\n  const probe = await ensureSessionGenericFamilyOverrides(page);\n  if (probe == null) return false;\n  return rows.every((row) => {\n    const generic = row.generic === \"fixed\" ? \"monospace\" : row.generic === \"sansserif\" ? \"sans-serif\" : row.generic;\n    const observed = row.script === \"Zyyy\" ? probe.common.get(generic) : probe.byScript.get(row.script === \"Jpan\" ? \"KATAKANA_OR_HIRAGANA\" : \"DEVANAGARI\")?.get(generic);\n    return norm(observed ?? \"\") === norm(face(row));\n  });\n}\n\nfunction headlessExpected(profile: ProfileFonts, clean: ProfileFaceRow[]): ProfileFonts {\n  const result = structuredClone(profile);\n  for (const row of clean) result[row.generic][row.script] = row.familyName;\n  // Full Chrome's headless profile path retains the Common math preference;\n  // Playwright then assigns the other Common fields. Script maps remain the\n  // clean headless values, unlike the headed PrefService-owned profile maps.\n  result.math.Zyyy = profile.math.Zyyy;\n  return result;\n}\n\nfunction sha(value: string): string { return createHash(\"sha256\").update(value).digest(\"hex\"); }\nfunction revision(repo: string): string { try { return execFileSync(\"git\", [\"-C\", repo, \"rev-parse\", \"HEAD\"], { encoding: \"utf8\" }).trim(); } catch { return \"unavailable\"; } }\n\nexport function adjudicateOverlay(profile: ProfileFonts, clean: ProfileFaceRow[], actual: ProfileFaceRow[]): GenericProfileTargetReport[\"overlay\"] {\n  const cleanMap = new Map(clean.map((row) => [key(row), row]));\n  const headlessMatchesClean = actual.filter((row) => norm(row.familyName) === norm(cleanMap.get(key(row))!.familyName)).length;\n  const supported = actual.filter((row) => profileFieldSupported(row.script, row.generic));\n  const profileDiscriminators = supported.filter((row) => norm(profile[row.generic][row.script]) !== norm(cleanMap.get(key(row))!.familyName)).length;\n  const profileMapRetainedInHeadless = supported.filter((row) => norm(row.familyName) === norm(profile[row.generic][row.script])).length;\n  const expected = headlessExpected(profile, clean);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2503"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c82d60e4c7fad0ecfb00c8b9b8dffc23"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "ef537ffbb5972304f8ef965b2818c28cea26a09e",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

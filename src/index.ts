@@ -20,6 +20,7 @@
 // follow-up; for now `src/index.ts` is the source of truth.)
 export {
   captureElementTree,
+  captureElementTreeEnvelope,
   captureElementTreeSelfContained,
   captureElementTreeWithWarnings,
   DemoRecorder,
@@ -38,7 +39,17 @@ export {
   logCaptureWarnings,
 } from "./capture/warnings.js";
 export { embedRemoteImages } from "./capture/embed.js";
-export type { CapturedElement, CaptureWarning } from "./capture/types.js";
+export type {
+  CapturedElement,
+  CapturedSessionGenericFamilies,
+  CapturedTreeEnvelope,
+  CapturedTreeInput,
+  CaptureWarning,
+} from "./capture/types.js";
+export {
+  createCapturedTreeEnvelope,
+  promoteCapturedSubtree,
+} from "./capture/tree-envelope.js";
 // DM-1133: the padding-inset content box of a selector on a live page — where
 // text actually starts inside a padded field, for imperative typing-overlay
 // callers (and the building block for DM-1132's overlay resolver).

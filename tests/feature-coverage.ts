@@ -49,11 +49,23 @@ export const FEATURES: FeatureEntry[] = [
   // ── Capture ────────────────────────────────────────────────────────────
   {
     id: "capture.element-tree",
-    behavior: "Walk a live Chromium page into a serializable element tree (with computed styles / geometry).",
-    doc: "docs/ai/code-summary.md",
-    exports: ["captureElementTree", "captureElementTreeWithWarnings", "launchChromium"],
+    behavior: "Walk a live Chromium page into a serializable element tree (with computed styles / geometry), optionally envelope its exact Page authority, and preserve that authority when a descendant is promoted to a render root.",
+    doc: "docs/198-live-generic-family-preference-parity.md",
+    exports: [
+      "captureElementTree",
+      "captureElementTreeEnvelope",
+      "captureElementTreeWithWarnings",
+      "createCapturedTreeEnvelope",
+      "launchChromium",
+      "promoteCapturedSubtree",
+    ],
     verbs: ["capture", "domotion"],
-    tests: ["src/capture/content-box.test.ts", "tests/examples-use-real-pipelines.test.ts"],
+    tests: [
+      "src/capture/content-box.test.ts",
+      "src/capture/tree-envelope.test.ts",
+      "tests/examples-use-real-pipelines.test.ts",
+      "tests/generic-font-probe.e2e.test.ts",
+    ],
   },
   {
     id: "capture.warnings",

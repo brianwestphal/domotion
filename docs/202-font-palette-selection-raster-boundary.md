@@ -1,4 +1,4 @@
-# Font-palette selection and raster-boundary investigation
+# Font-palette selection and native paint gate
 
 DM-2350 traces the complete
 `font-palette` ownership chain, replaces a platform-font visual with a pinned
@@ -17,7 +17,9 @@ representation to that record and to `src/capture/emoji.ts`'s PNG cache key.
 Two copies of the same COLR glyph using different palettes therefore retain two
 distinct Chromium-owned rasters.
 
-The production verdict is `source-exact` for both DOM orders.
+The production verdict is `source-exact` for both DOM orders. DM-2510 promotes
+that selection proof to a strict COLRv0/COLRv1 native paint gate on macOS,
+Linux, and Windows.
 
 ## Pinned fixture and anti-vacuity
 
@@ -113,13 +115,38 @@ at `source-exact`. The three-OS workflow records browser,
 runner, fixture, and executable fingerprints and uploads lossless source and
 captured PNG/SVG artifacts on every outcome.
 
+## Strict COLRv0/COLRv1 paint promotion
+
+`tools/font-palette-paint-gate.ts` retains every COLRv0 row above and adds the
+pinned Chromium COLRv1 static test face
+`tests/fixtures/font-palette/COLRv1-static-test-glyphs.ttf`. The copy is from
+the same Chromium revision, Git blob
+`a03de3f8db044859d2392c3a92e8a1f2d909bf35`, and SHA-256
+`5cc3f86c7db4c4a1a00866cd0690c810acd9e9552c79d5395a53d592722d6d94`.
+The gate parses the source COLR table rather than trusting a screenshot label:
+U+F0100 is gid 8 and owns `PaintGlyph -> PaintLinearGradient`, whose two exact
+stops are offset 0/1 and CPAL entries 0/4.
+
+At DPR 1 and 2, normal, base-palette 1, and a two-entry override must each
+produce a distinct custom-face native raster. Every fully opaque interior
+sample must remain inside the two source endpoint channels; any source-constant
+channel must remain exact, and every source-varying channel must vary. A
+family-mismatched rule and a missing rule must collapse byte-for-byte to the
+normal raster. These are logical channel and activation assertions, not a
+whole-image percentage or adjustable anti-aliasing envelope. COLRv0 continues
+to require its exact two source colors and exact capture/native PNG identity.
+
+The local macOS run is `source-exact`: COLRv0 remains exact, and all 10 COLRv1
+rows pass. `.github/workflows/font-palette-ownership-audit.yml` runs the same
+immutable DPR-1/2 gate independently on macOS, Linux, and Windows and uploads
+the report plus lossless artifacts on every outcome. Chromium's source split
+is therefore explicit: static COLRv1 exercises Fontations on all three
+platforms, while COLRv0 retains the Windows DirectWrite branch and Fontations
+elsewhere.
+
 ## Required follow-ups
 
-1. **DM-2510** promotes this investigation to a
-   strict macOS/Linux/Windows paint gate. Add a deterministic COLRv1 row to
-   cover the all-platform Fontations backend while retaining COLRv0 for the
-   Windows DirectWrite split.
-2. Keep `palette-mix()`, palette animation, and Blink's documented shadow-tree
+1. Keep `palette-mix()`, palette animation, and Blink's documented shadow-tree
    palette-rule scoping limitation as later, separately adjudicated work.
 
 The follow-up must not vectorize COLR paint or widen a raster threshold.

@@ -1,0 +1,96 @@
+name: System UI preference route parity
+
+on:
+  pull_request:
+    paths:
+      - "src/render/glyph-helper.ts"
+      - "src/render/font-resolution.ts"
+      - "src/render/font-resolution-cache-reset.test.ts"
+      - "tools/macos-glyph-extractor/Sources/DomotionGlyphPaths/main.swift"
+      - "tools/linux-glyph-extractor/src/main.cpp"
+      - "tools/win32-glyph-extractor/src/main.cpp"
+      - "tools/system-ui-preference-route-oracle.ts"
+      - "tools/windows-menu-font-preference.ps1"
+      - "tests/system-ui-preference-route-oracle.test.ts"
+      - "tests/system-ui-preference-route-workflow.test.ts"
+      - "package.json"
+      - ".github/workflows/system-ui-preference-route.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/render/glyph-helper.ts"
+      - "src/render/font-resolution.ts"
+      - "tools/macos-glyph-extractor/Sources/DomotionGlyphPaths/main.swift"
+      - "tools/linux-glyph-extractor/src/main.cpp"
+      - "tools/win32-glyph-extractor/src/main.cpp"
+      - "tools/system-ui-preference-route-oracle.ts"
+      - "tools/windows-menu-font-preference.ps1"
+      - "package.json"
+      - ".github/workflows/system-ui-preference-route.yml"
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "22.21.0"
+
+jobs:
+  parity:
+    name: ${{ matrix.label }} platform system-ui route
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            label: macOS
+          - os: ubuntu-latest
+            label: Linux
+          - os: windows-latest
+            label: Windows
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Install pinned Chromium, full Chrome, display, and Linux native dependencies
+        if: runner.os == 'Linux'
+        run: |
+          npx playwright install --with-deps chromium chrome
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev libfontconfig-dev
+      - name: Install pinned Chromium and full Chrome
+        if: runner.os != 'Linux'
+        run: npx playwright install chromium chrome
+      - name: Build macOS CoreText helper
+        if: runner.os == 'macOS'
+        run: bash tools/macos-glyph-extractor/build.sh
+      - name: Build Linux fontconfig helper
+        if: runner.os == 'Linux'
+        run: bash tools/linux-glyph-extractor/build.sh
+      - name: Build Windows DirectWrite helper
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: tools/win32-glyph-extractor/build.ps1
+      - name: Validate exact logical contract and preference invalidation
+        run: npx vitest run src/render/font-resolution-cache-reset.test.ts tests/system-ui-preference-route-oracle.test.ts tests/system-ui-preference-route-workflow.test.ts
+      - name: Run pinned/full headed/headless route matrix under Xvfb
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run fonts:system-ui-preferences -- --json system-ui-preference-route-${{ runner.os }}.json
+      - name: Run pinned/full headed/headless route matrix
+        if: runner.os == 'macOS'
+        run: npm run fonts:system-ui-preferences -- --json system-ui-preference-route-${{ runner.os }}.json
+      - name: Run Windows menu-font mutation matrix with guaranteed restoration
+        if: runner.os == 'Windows'
+        run: npm run fonts:system-ui-preferences -- --allow-system-preference-mutation --json system-ui-preference-route-${{ runner.os }}.json
+      - name: Upload logical face, preference, source, and inventory evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: system-ui-preference-route-${{ runner.os }}
+          path: system-ui-preference-route-${{ runner.os }}.json
+          if-no-files-found: error
+          retention-days: 30

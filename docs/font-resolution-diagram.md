@@ -128,11 +128,19 @@ mirroring Blink `FontCache::Invalidate()` (`font_cache.cc:265-275`). It also
 restarts native-helper discovery, clears installed-family/style/trait and
 HarfBuzz file caches, forgets dynamically discovered system faces, and expires
 `local()` aliases so capture can rediscover
-them against the changed inventory. Downloaded webfont buffers remain valid.
+them against the changed inventory. The Windows `system-ui` menu-family memo is
+part of this boundary: it must re-read `SPI_GETNONCLIENTMETRICS` after a user
+preference change rather than retaining the prior `lfMenuFont`. Downloaded
+webfont buffers remain valid.
 Launched-browser generic preferences live above Blink's font cache. Captured
-answers belong to their Page/tree and are selected only while that tree renders;
-`setSessionGenericFamilyOverrides()` remains an explicit oracle/compatibility
-control, not production session ownership.
+answers belong to their Page/tree and are selected only while that tree renders.
+Legacy root arrays carry equivalent top-level annotations;
+`CapturedTreeEnvelope` stores the record once beside `tree`, and
+`promoteCapturedSubtree()` preserves it when a descendant becomes an independent
+render root. Both renderer entry points scope either form synchronously and
+reject partial/conflicting authority. `setSessionGenericFamilyOverrides()`
+remains an explicit oracle/compatibility control, not production session
+ownership.
 
 Linux has one intentionally non-pure exception inside the document/renderer
 scope: Chromium `WebSandboxSupportLinux::unicode_font_families_` is keyed only
@@ -170,7 +178,11 @@ script-keyed STANDARD family, matching Blink's `kFontFamily` iteration.
 > (`FamilyNameFromSettings`, `platform/fonts/font_selector.cc:72-91`, rev
 > 7d859f27), the script being `LocaleToScriptCodeForFontSelection(lang)`
 > (`platform/text/locale_to_script_mapping.cc:164-470`, transcribed in full in
-> `src/render/generic-script-families.ts`). The capture session's per-script
+> `src/render/generic-script-families.ts`). Capture enumerates language inputs
+> from the flattened `DOMSnapshot` tree (including closed shadow roots) and its
+> exact `Document::ContentLanguage()` response-header value, matching
+> `Element::ComputeInheritedLanguage()`'s element/shadow-host/document fallback
+> (`core/dom/element.cc:10477`, rev 7d859f27). The capture session's per-script
 > values default to Playwright's `forScripts` tables (`defaultFontFamilies.js`,
 > playwright-core 1.59.1; drift-guarded against the installed package by
 > `generic-script-families.test.ts`): mac carries jpan/hang/hans/hant, win
@@ -348,13 +360,17 @@ script-keyed STANDARD family, matching Blink's `kFontFamily` iteration.
 > probes the exact Page on every capture — author-important offscreen spans
 > containing Common-script values for the standard family and all six
 > generics, ten standing content scripts, and every additional script derived
-> from the Page's language facts across that same family set. Two consecutive
+> from the Page's language facts across that same family set. Those facts come
+> from the flattened `DOMSnapshot` (including closed shadow roots) plus each
+> document's response-header-owned `contentLanguage`. Two consecutive
 > identical paints are required (up to three attempts), so a first-layout race
 > between Playwright's `Page.setFontFamilies` and Blink's constructor defaults
-> is not installed as truth. The Common and script-keyed answers are serialized
-> on the captured top-level roots; `elementTreeToSvgInner` selects that record
-> only for the tree's synchronous render and restores prior explicit oracle
-> state in `finally`. This ownership matters because `Page.setFontFamilies`
+> is not installed as truth. Legacy arrays serialize the Common and script-keyed
+> answers on their top-level roots; `CapturedTreeEnvelope` stores one record
+> beside `tree`, and `promoteCapturedSubtree()` carries it to selected
+> descendants without per-element copies. Both renderer entry points select
+> that record only for the tree's synchronous render and restore prior explicit
+> oracle state in `finally`. This ownership matters because `Page.setFontFamilies`
 > mutates one Page's Settings and a fresh Inspector session can mutate it again:
 > a BrowserContext/Page cache or process-global production setting is unsound.
 > Mixed annotated/legacy roots and conflicting Page records fail closed.
@@ -366,6 +382,17 @@ script-keyed STANDARD family, matching Blink's `kFontFamily` iteration.
 > the degraded static path; probe failure or a legacy tree otherwise falls back
 > safely. The source verdict and four-launch, three-platform logical gate are
 > in [doc 198](198-live-generic-family-preference-parity.md).
+
+> **`system-ui` is a separate platform-preference route.** It never consumes
+> those generic-family Settings. `resolveSystemUiFontFace()` exposes the exact
+> native logical question used by the DM-2504 gate: macOS opens the CoreText UI
+> font through the helper's `MatchSystemUIFont` transcription; Linux asks the
+> browser-owned renderer system-family value through the transcribed
+> Skia/fontconfig matcher (ordinary production fallback is `sans`); Windows
+> reads the live menu family and asks DirectWrite for its style cut. The strict
+> pinned/full-Chrome headed/headless mutation gate and source trace are in
+> [doc 211](211-platform-system-ui-preference-route.md). DM-2351's `system-ui`
+> rows remain only Settings-ownership negative controls.
 
 ```mermaid
 flowchart TD

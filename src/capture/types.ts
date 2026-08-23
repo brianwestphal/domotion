@@ -44,6 +44,7 @@ export interface CapturedBackdropCompositeRaster {
  *
  * - `TextSegment`        — per-baseline text run within an element.
  * - `CapturedElement`    — the recursive captured DOM-element record.
+ * - `CapturedTreeEnvelope` — Page authority plus one or more captured roots.
  * - `MaskFragmentDef`    — inline `<mask>` defs lifted from author-supplied
  *                          SVG `mask-image: url(#id)` references.
  * - `MaskRasterRef`      — capture-time placeholder for a mask image whose
@@ -1750,12 +1751,12 @@ export interface CapturedElement {
    * DM-2351: generic-family settings observed from the same Chromium page as
    * this capture. The probe records concrete painted faces rather than a
    * browser/profile snapshot table; the renderer installs this record only
-   * for the synchronous render of this tree. It is repeated only on
-   * top-level roots so serialized multi-root captures retain their session
-   * authority without copying the map onto every descendant. A consumer that
-   * promotes a descendant to a new render root must retain/reattach the
-   * originating root record; a bare descendant intentionally takes the
-   * legacy/static fallback rather than guessing its former Page.
+   * for the synchronous render of this tree. Legacy array captures repeat it
+   * only on top-level roots. `createCapturedTreeEnvelope()` moves those copies
+   * into one Page-owned record, and `promoteCapturedSubtree()` carries that
+   * authority when a descendant becomes a new root. A bare descendant still
+   * intentionally takes the legacy/degraded route rather than guessing its
+   * former Page.
    */
   sessionGenericFamilies?: CapturedSessionGenericFamilies;
   tag: string;
@@ -2365,6 +2366,25 @@ export interface CapturedSessionGenericFamilies {
   /** Blink UScriptCode name -> generic keyword -> concrete painted face. */
   byScript: Record<string, Record<string, string>>;
 }
+
+/**
+ * Serializable ownership envelope for a captured element tree.
+ *
+ * `sessionGenericFamilies` belongs to the Chromium Page that supplied the
+ * capture, not to any individual DOM element. Keeping it beside the roots
+ * lets a consumer promote a descendant through `promoteCapturedSubtree()`
+ * without copying the complete settings record onto every node. The schema
+ * discriminator is intentionally explicit so malformed/future envelopes fail
+ * closed instead of being mistaken for a legacy `CapturedElement[]`.
+ */
+export interface CapturedTreeEnvelope {
+  schema: "domotion-captured-tree-v1";
+  tree: CapturedElement[];
+  sessionGenericFamilies?: CapturedSessionGenericFamilies;
+}
+
+/** Legacy root array or its Page-authority-preserving envelope. */
+export type CapturedTreeInput = CapturedElement[] | CapturedTreeEnvelope;
 
 export interface PseudoBox {
   /** Which pseudo-element this box came from. CSS render order paints the
