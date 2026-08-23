@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -77,6 +77,14 @@ function partialRow(cell = pathsNativeRasterMatrix()[0]): PathsRasterRow {
 }
 
 describe("paths/native source-owned collection contract", () => {
+  it("keeps the serialized browser callback free of nested helper functions", () => {
+    const source = readFileSync("tools/paths-native-raster-collector.ts", "utf8");
+    const start = source.indexOf('page.locator("#native").evaluate');
+    const callback = source.slice(start, source.indexOf("const cdp =", start));
+    expect(callback).not.toContain("const unquote =");
+    expect(callback).not.toContain(".flatMap(");
+    expect(callback).not.toContain(".filter(");
+  });
   it("declares the deconfounded 348-cell technology/phase/transform/DPR union", () => {
     const matrix = pathsNativeRasterMatrix();
     expect(PATHS_NATIVE_RASTER_FIXTURES.map((fixture) => fixture.technology)).toEqual([
