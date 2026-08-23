@@ -62,10 +62,11 @@ After acquisition succeeds, the workflow runs eight independently named legs:
 
 - helper-in-renderer-loop activation;
 - exact ICU classification;
-- the synthetic corpus's deterministic 351-stack prefix: every CSS-initial
-  generic-family row plus every single-axis weight/stretch/style/spelling/
-  language departure (the corpus's source-defined slice, not a runtime cap on
-  mismatch evidence);
+- the synthetic corpus's deterministic 13-stack prefix: one CSS-initial row
+  for every generic family. The dedicated font-conformance workflows own the
+  351-stack single-axis and 50,544-stack exhaustive matrices; the release job
+  keeps enough budget to execute shaping, decoration, paint, HTML, and Unicode
+  rather than duplicating those sweeps;
 - exact logical shaping with host movement controls plus pinned, source-owned
   variable-axis and `ptem` applicability rows (doc 199);
 - coherent-DPR decoration geometry with the unchanged source-owned `0.3px`
