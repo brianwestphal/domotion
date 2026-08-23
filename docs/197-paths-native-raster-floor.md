@@ -104,7 +104,7 @@ or any incomplete 348-row matrix fails closed; no external observation bundle
 is accepted.
 
 The committed `tools/paths-native-raster-envelopes.json` is ratified from
-GitHub Actions run `32621059647`. It lists the exact fingerprint/canonical cell
+GitHub Actions run `32621780121`. It lists the exact fingerprint/canonical cell
 hash, all four proposal and validation native/path role hashes, the proposal
 maxima, reviewer, and UTC review time for 1,044 platform/cell identities. Same-
 role hashes may be byte-identical across independent runners (reproducibility);
