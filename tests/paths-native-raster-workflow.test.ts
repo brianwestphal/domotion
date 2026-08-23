@@ -15,6 +15,8 @@ describe("paths/native raster workflow", () => {
     expect(workflow).toContain("npx playwright install --with-deps chromium");
     expect(workflow).toContain("Build DirectWrite identity helper");
     expect(workflow).toContain("./tools/win32-glyph-extractor/build.ps1");
+    expect(readFileSync("tools/win32-glyph-extractor/CMakeLists.txt", "utf8"))
+      .toMatch(/target_compile_options\([^\n]+\/Brepro\)[\s\S]*target_link_options\([^\n]+\/Brepro\)/);
     expect(workflow).not.toContain("observation_bundle_base_url");
   });
   it("acquires the exact source-owned corpus instead of downloading preauthored observations", () => {

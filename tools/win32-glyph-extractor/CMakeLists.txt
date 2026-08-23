@@ -21,7 +21,12 @@ add_executable(domotion-glyph-paths src/main.cpp)
 target_link_libraries(domotion-glyph-paths PRIVATE dwrite)
 
 if(MSVC)
-  target_compile_options(domotion-glyph-paths PRIVATE /O2 /EHsc /W3)
+  # Proposal and validation jobs build this helper independently, then require
+  # the executable fingerprint to agree.  /Brepro removes timestamps and other
+  # build-session entropy from both the object and PE/link stages; without it,
+  # identical source on two Windows runners produces different witnesses.
+  target_compile_options(domotion-glyph-paths PRIVATE /O2 /EHsc /W3 /Brepro)
+  target_link_options(domotion-glyph-paths PRIVATE /Brepro)
   # Static CRT (/MT) so the .exe runs on a clean Windows with no VC++ redist.
   set_property(TARGET domotion-glyph-paths PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
 endif()
