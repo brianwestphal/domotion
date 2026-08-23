@@ -174,9 +174,13 @@ shortest possible map:
   emitted definition owns a descendant-id namespace. HTML user-space facts
   retain source-viewport resolution plus EffectiveZoom, object-box facts map
   through the border rect, and the effective mask alpha/luminance channel is
-  baked into the copied definition (DM-2338, doc 208). The strict DPR-1/2
-  discriminator lives in `tests/iframe-inner-defs.e2e.test.ts`; multi-layer
-  fragment-mask composition is the explicit DM-2520 boundary.
+  baked into the copied definition (DM-2338, doc 208). DM-2520 keeps ordered
+  `(layerIndex,scope,id)` identities for every local fragment mask layer and
+  composes cyclic mode/operator lists bottom-up, including Blink's SVG
+  resource-region clip before Porter-Duff composition. The strict DPR-1/2
+  discriminators live in `tests/iframe-inner-defs.e2e.test.ts` and
+  `tests/multi-layer-fragment-mask.e2e.test.ts`; external-to-subtree transitive
+  SVG references remain the explicit boundary.
   `culling-geometry.ts` is its fail-closed geometry preflight: it exposes the
   generated subtree's exact fill/stroke/view reference boxes separately from
   bounded visual ink, applies frozen affine wrappers and emitted overflow

@@ -73,6 +73,21 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
     const value = animatedLength && animatedLength.baseVal && animatedLength.baseVal.value;
     return Number.isFinite(value) ? value : 0;
   };
+  const splitLayers = (value) => {
+    const layers = [];
+    let depth = 0, start = 0;
+    for (let i = 0; i < value.length; i++) {
+      const ch = value[i];
+      if (ch === '(') depth++;
+      else if (ch === ')') depth--;
+      else if (ch === ',' && depth === 0) {
+        layers.push(value.slice(start, i));
+        start = i + 1;
+      }
+    }
+    layers.push(value.slice(start));
+    return layers;
+  };
 
   // DM-2379: Blink's contain/cover sizing consumes StyleImage natural sizing
   // before resolving mask-position against the remaining space. Capture the
@@ -84,18 +99,7 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
     if (Array.isArray(primed)) return primed;
     const maskImage = cs.maskImage || cs.webkitMaskImage || '';
     if (maskImage === '' || maskImage === 'none') return [];
-    const layers = [];
-    let depth = 0, start = 0;
-    for (let i = 0; i < maskImage.length; i++) {
-      const ch = maskImage[i];
-      if (ch === '(') depth++;
-      else if (ch === ')') depth--;
-      else if (ch === ',' && depth === 0) {
-        layers.push(maskImage.slice(start, i));
-        start = i + 1;
-      }
-    }
-    layers.push(maskImage.slice(start));
+    const layers = splitLayers(maskImage);
     return layers.map((layer) => {
       const url = extractCssUrl(layer);
       if (url == null) return null;
@@ -117,51 +121,59 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
     // DM-470: only warn for mask sources we can't emit. Gradient and url()
     // mask-images round-trip cleanly through buildMaskDef() with size /
     // position / repeat / composite — those don't deserve a per-element
-    // warning. element() paint references and inline-SVG fragment URLs
-    // are the actual gaps; flag those instead.
+    // warning. Local inline-SVG fragments are resolved below; only sources
+    // that still cannot be materialized receive a warning.
     // See docs/20-css-mask-emission.md.
     const miSrc = cs.maskImage || cs.webkitMaskImage || '';
 
-    // DM-493: same-document fragment refs (mask-image: url("#id")) are
-    // resolved at capture time and emitted as inline <mask> defs.
-    const fragMatch = /^url\(\s*(?:"|')?#([^"')\s]+)(?:"|')?\s*\)$/i.exec(miSrc);
-    if (fragMatch != null) {
+    // Blink constructs one FillLayer per comma-separated image and resolves
+    // each local mask source through the consumer's OriginatingTreeScope.
+    // Preserve that layer index explicitly: a renderer must not collapse the
+    // list to one author id or lose which mask-mode/composite entry belongs to
+    // which resource.
+    const fragmentReferences = [];
+    const layers = splitLayers(miSrc);
+    for (let layerIndex = 0; layerIndex < layers.length; layerIndex++) {
+      const layer = layers[layerIndex].trim();
+      const fragMatch = /^url\(\s*(?:"|')?#([^"')\s]+)(?:"|')?\s*\)$/i.exec(layer);
+      if (fragMatch == null) continue;
       const fragId = fragMatch[1];
       const scope = referenceScopeFor(el);
       const key = scopedKey(scope, fragId);
-      if (!maskDefs.has(key)) {
-        const target = fragmentTarget(el, fragId);
-        if (target != null && target.tagName.toLowerCase() === 'mask') {
-          const maskUnits = svgUnit(target.maskUnits, target.getAttribute('maskUnits'));
-          const maskContentUnits = svgUnit(target.maskContentUnits, target.getAttribute('maskContentUnits'));
-          const targetView = target.ownerDocument && target.ownerDocument.defaultView;
-          const computedMaskType = targetView != null ? targetView.getComputedStyle(target).maskType : '';
-          maskDefs.set(key, {
-            id: fragId,
-            scope,
-            outerHTML: target.outerHTML,
-            maskUnits,
-            maskContentUnits,
-            maskType: computedMaskType === 'alpha' ? 'alpha' : 'luminance',
-            region: {
-              x: svgLengthString(target.x, '-10%'),
-              y: svgLengthString(target.y, '-10%'),
-              width: svgLengthString(target.width, '120%'),
-              height: svgLengthString(target.height, '120%'),
-            },
-            userSpaceRegion: {
-              x: svgLengthValue(target.x),
-              y: svgLengthValue(target.y),
-              width: svgLengthValue(target.width),
-              height: svgLengthValue(target.height),
-            },
-          });
-        } else {
-          warn(sel, 'mask', 'mask-image fragment "#' + fragId + '" did not resolve to an inline <mask> element');
-        }
+      const target = fragmentTarget(el, fragId);
+      if (target == null || target.tagName.toLowerCase() !== 'mask') {
+        warn(sel, 'mask', 'mask-image fragment "#' + fragId + '" did not resolve to an inline <mask> element');
+        continue;
       }
-      return scope;
+      if (!maskDefs.has(key)) {
+        const maskUnits = svgUnit(target.maskUnits, target.getAttribute('maskUnits'));
+        const maskContentUnits = svgUnit(target.maskContentUnits, target.getAttribute('maskContentUnits'));
+        const targetView = target.ownerDocument && target.ownerDocument.defaultView;
+        const computedMaskType = targetView != null ? targetView.getComputedStyle(target).maskType : '';
+        maskDefs.set(key, {
+          id: fragId,
+          scope,
+          outerHTML: target.outerHTML,
+          maskUnits,
+          maskContentUnits,
+          maskType: computedMaskType === 'alpha' ? 'alpha' : 'luminance',
+          region: {
+            x: svgLengthString(target.x, '-10%'),
+            y: svgLengthString(target.y, '-10%'),
+            width: svgLengthString(target.width, '120%'),
+            height: svgLengthString(target.height, '120%'),
+          },
+          userSpaceRegion: {
+            x: svgLengthValue(target.x),
+            y: svgLengthValue(target.y),
+            width: svgLengthValue(target.width),
+            height: svgLengthValue(target.height),
+          },
+        });
+      }
+      fragmentReferences.push({ layerIndex, id: fragId, scope });
     }
+    if (fragmentReferences.length > 0) return fragmentReferences;
 
     // External-file fragment refs (url("./file.svg#id")) — resolved before this
     // walk by the inlineExternalSvgRefs pre-pass (DM-496), which fetches the

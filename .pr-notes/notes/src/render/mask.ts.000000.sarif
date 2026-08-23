@@ -386,6 +386,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5o7vofv6f6vw22",
+          "message": {
+            "text": "The compositor deliberately preserves destination alpha outside the current SVG mask resource region. Blink SVGMaskPainter clips ResourceBoundingBox before BeginLayer(composite_op); the three-layer Chromium oracle proved that global alpha algebra is wrong by exactly the region-exclusive strip. The even-odd outside path plus clipped operation reproduces that paint order without a tolerance.",
+            "markdown": "The compositor deliberately preserves destination alpha outside the current SVG mask resource region. Blink SVGMaskPainter clips ResourceBoundingBox before BeginLayer(composite_op); the three-layer Chromium oracle proved that global alpha algebra is wrong by exactly the region-exclusive strip. The even-odd outside path plus clipped operation reproduces that paint order without a tolerance."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/mask.ts"
+                },
+                "region": {
+                  "startLine": 1180,
+                  "endLine": 1251,
+                  "snippet": {
+                    "text": "  // Blink paints from the bottom layer upward and applies each non-bottom\n  // layer's own Porter-Duff operator to the accumulated destination. The old\n  // uniform-operator shortcuts below are compact and exact for two layers;\n  // arbitrary lists and 3+ layers need the actual sequential recurrence.\n  const operatorAt = (layerIndex: number): string => normaliseComposite(cyclic(compositeLayers, layerIndex, \"add\"));\n  const topOperators = activeLayers.slice(0, -1).map((layer) => operatorAt(layer.index));\n  const needsSequentialComposition = activeLayers.length > 2\n    || new Set(topOperators).size > 1\n    || (hasFragmentLayer && activeLayers.length > 1);\n  if (needsSequentialComposition) {\n    const defs: string[] = [];\n    const fullRect = (maskId: string): string => `<rect x=\"${r(maskRegion.x)}\" y=\"${r(maskRegion.y)}\" width=\"${r(maskRegion.width)}\" height=\"${r(maskRegion.height)}\" fill=\"#fff\" mask=\"url(#${maskId})\" />`;\n    const intersectRegions = (a: MaskImageRect, b: MaskImageRect): MaskImageRect => {\n      const x = Math.max(a.x, b.x), y = Math.max(a.y, b.y);\n      const right = Math.min(a.x + a.width, b.x + b.width);\n      const bottom = Math.min(a.y + a.height, b.y + b.height);\n      return { x, y, width: Math.max(0, right - x), height: Math.max(0, bottom - y) };\n    };\n    const rectPath = (rect: MaskImageRect): string =>\n      `M${r(rect.x)} ${r(rect.y)}H${r(rect.x + rect.width)}V${r(rect.y + rect.height)}H${r(rect.x)}Z`;\n    const rawIds = new Map<number, string>();\n    for (const layer of activeLayers) {\n      const rawId = `${id}raw${layer.index}`;\n      rawIds.set(layer.index, rawId);\n      defs.push(`<mask id=\"${rawId}\" maskUnits=\"userSpaceOnUse\" x=\"${r(maskRegion.x)}\" y=\"${r(maskRegion.y)}\" width=\"${r(maskRegion.width)}\" height=\"${r(maskRegion.height)}\" mask-type=\"${maskType}\">${layer.contents.join(\"\")}</mask>`);\n    }\n    const invFilterId = `${id}inv`;\n    defs.push(`<filter id=\"${invFilterId}\" filterUnits=\"userSpaceOnUse\" x=\"${r(maskRegion.x)}\" y=\"${r(maskRegion.y)}\" width=\"${r(maskRegion.width)}\" height=\"${r(maskRegion.height)}\"><feColorMatrix type=\"matrix\" values=\"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -1 1\"/></filter>`);\n    const inverse = (sourceId: string, suffix: string): string => {\n      const inverseId = `${id}not${suffix}`;\n      defs.push(`<mask id=\"${inverseId}\" maskUnits=\"userSpaceOnUse\" x=\"${r(maskRegion.x)}\" y=\"${r(maskRegion.y)}\" width=\"${r(maskRegion.width)}\" height=\"${r(maskRegion.height)}\" mask-type=\"alpha\"><g filter=\"url(#${invFilterId})\"><rect x=\"${r(maskRegion.x)}\" y=\"${r(maskRegion.y)}\" width=\"${r(maskRegion.width)}\" height=\"${r(maskRegion.height)}\" fill=\"transparent\" />${fullRect(sourceId)}</g></mask>`);\n      return inverseId;\n    };\n    let accumulated = rawIds.get(activeLayers[activeLayers.length - 1].index)!;\n    for (let position = activeLayers.length - 2; position >= 0; position--) {\n      const layer = activeLayers[position];\n      const source = rawIds.get(layer.index)!;\n      const combined = `${id}acc${position}`;\n      const op = operatorAt(layer.index);\n      let operationBody: string;\n      if (op === \"intersect\") {\n        operationBody = `<g mask=\"url(#${source})\">${fullRect(accumulated)}</g>`;\n      } else if (op === \"subtract\") {\n        operationBody = `<g mask=\"url(#${inverse(accumulated, `a${position}`)})\">${fullRect(source)}</g>`;\n      } else if (op === \"exclude\") {\n        const notAccumulated = inverse(accumulated, `a${position}`);\n        const notSource = inverse(source, `s${position}`);\n        operationBody = `<g mask=\"url(#${notAccumulated})\">${fullRect(source)}</g><g mask=\"url(#${notSource})\">${fullRect(accumulated)}</g>`;\n      } else {\n        operationBody = `${fullRect(accumulated)}${fullRect(source)}`;\n      }\n\n      let body = operationBody;\n      const fragmentRegion = fragmentMaskLayers?.get(layer.index)?.region;\n      if (fragmentRegion != null) {\n        // SVGMaskPainter clips the graphics context to ResourceBoundingBox()\n        // before BeginLayer(composite_op). The Porter-Duff result therefore\n        // replaces the accumulated destination only inside this fragment's\n        // resource region; destination pixels outside it survive unchanged.\n        const operationRegion = intersectRegions(maskRegion, fragmentRegion);\n        const coversMaskRegion = operationRegion.x <= maskRegion.x\n          && operationRegion.y <= maskRegion.y\n          && operationRegion.x + operationRegion.width >= maskRegion.x + maskRegion.width\n          && operationRegion.y + operationRegion.height >= maskRegion.y + maskRegion.height;\n        if (operationRegion.width <= 0 || operationRegion.height <= 0) {\n          body = fullRect(accumulated);\n        } else if (!coversMaskRegion) {\n          const clipId = `${id}opclip${position}`;\n          defs.push(`<clipPath id=\"${clipId}\" clipPathUnits=\"userSpaceOnUse\"><rect x=\"${r(operationRegion.x)}\" y=\"${r(operationRegion.y)}\" width=\"${r(operationRegion.width)}\" height=\"${r(operationRegion.height)}\" /></clipPath>`);\n          const outsideDestination = `<path d=\"${rectPath(maskRegion)}${rectPath(operationRegion)}\" fill=\"#fff\" fill-rule=\"evenodd\" mask=\"url(#${accumulated})\" />`;\n          body = `${outsideDestination}<g clip-path=\"url(#${clipId})\">${operationBody}</g>`;\n        }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/paint/svg_mask_painter.cc"
+                },
+                "region": {
+                  "startLine": 285
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/multi-layer-fragment-mask.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 125
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2520"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "17b9ee9b587ff9bb573406c1243324dc"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2266cd86d871a08913ab404b69916c13dbf331d0",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

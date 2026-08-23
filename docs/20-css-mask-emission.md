@@ -19,6 +19,12 @@ Until DM-470, the capture path warned `mask: captured but not emitted — mask s
 - `mask-image: linear-gradient(...)` / `radial-gradient(...)` / `repeating-…-gradient(...)` — emitted as `<linearGradient>` / `<radialGradient>` painted into a sized `<rect>` inside the `<mask>`, with `mask-size` / `mask-position` honored.
 - `mask-image: url("…")` — emitted as `<image>` inside the `<mask>`, sized via `mask-size` (auto / contain / cover / explicit) and offset via the computed two-axis `mask-position` (percentages, lengths, and linear `calc()` mixtures).
 - Multi-layer `mask-image: a, b, c` — flattened into one `<mask>` for the additive composite (the common default). `mask-composite: intersect` chains nested masks.
+- Multi-layer local SVG fragments (DM-2520) — capture keeps ordered
+  `(layerIndex,TreeScope,id)` references. The renderer materializes each
+  fragment's units, channel, region, and zoom, then applies cyclic per-layer
+  mode and bottom-up `add`/`intersect`/`subtract`/`exclude`. SVG sources ignore
+  ordinary mask image geometry, while the resource region still clips that
+  layer's Porter-Duff operation exactly as Blink does.
 - `mask-mode: alpha | luminance` — translates to SVG `mask-type` on the `<mask>` element. Defaults to `alpha` for gradients / bitmaps (matches Chromium's practical behavior for `mask-mode: match-source`).
 
 Renderer wiring (`src/render/element-tree-to-svg.ts`): when `el.styles.maskImage` is non-empty, the mask def is pushed into `defsParts` and the rendered group gets `mask="url(#mkN)"`.

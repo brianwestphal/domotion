@@ -10,6 +10,11 @@ the referenced mask's coordinate systems, region, computed channel, and the
 HTML consumer's effective zoom so the generated SVG can materialize Blink's
 reference geometry without a raster or a fitted offset.
 
+DM-2520 applies that identity independently to every local URL in a computed
+`mask-image` layer list. It retains layer order, cyclic mode/composite
+selection, resolved resource regions, and bottom-up Porter-Duff composition;
+duplicate ids in different frames cannot cross-wire any layer.
+
 The `iframe-inner-clip-mask` feature no longer has a `relaxedDiffPct` escape.
 The strict feature comparison is 0.00%, and the dedicated capture-to-SVG gate
 passes every discriminator at DPR 1 and 2.
@@ -39,7 +44,8 @@ resource lookup.
 
 The capture script reuses the deterministic `getRootNode()` scope allocator
 already used for inline-SVG references. Each `MaskFragmentDef` and
-`ClipPathFragmentDef`, and each consuming `CapturedElement`, carries that scope.
+`ClipPathFragmentDef` carries that scope. A mask consumer carries ordered
+`(layerIndex,scope,id)` references; a single clip consumer carries its scope.
 The capture maps, renderer lookups, and renderer output caches all use
 `(scope,id)`. A miss in a shadow root does not fall through to
 `ownerDocument.getElementById`.
@@ -83,14 +89,25 @@ The relevant Blink seams are:
   `core/paint/svg_mask_painter.cc:34-47`, and
   `core/layout/svg/layout_svg_resource_masker.cc:87-107` for the mask region
   and content maps.
+- `core/style/fill_layer.cc:209-354` and
+  `core/paint/svg_mask_painter.cc:95-135,229-307` for cyclic longhand fill,
+  bottom-up layers, per-layer channel/composite selection, and the SVG
+  resource clip that precedes the Porter-Duff layer.
 - `core/layout/svg/layout_svg_resource_container.cc:46-63,96-139` for SVG
   length and percentage resolution.
 
 The SVG-mask source is a special CSS mask layer: Blink does not apply the
 ordinary `mask-origin`, `mask-clip`, `mask-size`, `mask-position`, or
 `mask-repeat` image geometry to it. The discriminator assigns hostile values
-to those longhands and requires the same output. Layer composition remains a
-separate multi-layer concern.
+to those longhands and requires the same output.
+
+Composition is still scoped by the SVG resource region. Blink calls
+`Clip(ResourceBoundingBox)` before `BeginLayer(composite_op)`, so a non-bottom
+fragment layer replaces the accumulated destination only inside its resolved
+region; destination alpha outside survives. Domotion materializes that region
+per layer and reproduces the clipped bottom-up recurrence for `add`,
+`intersect`, `subtract`, and `exclude`, including mixed three-layer operator
+lists. This is logical paint ownership, not a pixel-tolerance adjustment.
 
 ## Alpha and luminance ownership
 
@@ -124,12 +141,13 @@ probes, not a percentage pixel envelope.
 materialization. `tests/features.ts#iframe-inner-clip-mask` is the repository
 visual row and now passes with the default strict comparison at 0.00%.
 
-## Deliberate boundaries
+`tests/multi-layer-fragment-mask.e2e.test.ts` adds raw RGBA equality at DPR 1
+and 2 for duplicate outer/iframe ids, object/user units, effective zoom,
+per-layer alpha/match-source channels, hostile image geometry, and two-/three-
+layer operator sequences. Destructive scope, mode, operator, and zoom
+mutations prove each captured fact is active.
 
-DM-2520 owns fragment refs inside a multi-layer `mask-image` value, including
-per-layer scope, mode, composite, and ordered composition. DM-2338 keeps the
-single-fragment activation grammar it inherited and does not claim that wider
-surface.
+## Deliberate boundaries
 
 Definitions referenced transitively from outside the copied mask/clip subtree
 and author stylesheet paint on copied descendants are also not made

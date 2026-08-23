@@ -155,6 +155,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5o7vhszq7m4zk5",
+          "message": {
+            "text": "Layer index is part of fragment identity here. Chromium builds one FillLayer per computed mask-image entry and resolves each local resource through the consumer TreeScope, so a single scope field or first matching id would detach cyclic mode/composite values and cross-wire duplicate frame ids.",
+            "markdown": "Layer index is part of fragment identity here. Chromium builds one FillLayer per computed mask-image entry and resolves each local resource through the consumer TreeScope, so a single scope field or first matching id would detach cyclic mode/composite values and cross-wire duplicate frame ids."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/masks-clips.ts"
+                },
+                "region": {
+                  "startLine": 129,
+                  "endLine": 176,
+                  "snippet": {
+                    "text": "    // Blink constructs one FillLayer per comma-separated image and resolves\n    // each local mask source through the consumer's OriginatingTreeScope.\n    // Preserve that layer index explicitly: a renderer must not collapse the\n    // list to one author id or lose which mask-mode/composite entry belongs to\n    // which resource.\n    const fragmentReferences = [];\n    const layers = splitLayers(miSrc);\n    for (let layerIndex = 0; layerIndex < layers.length; layerIndex++) {\n      const layer = layers[layerIndex].trim();\n      const fragMatch = /^url\\(\\s*(?:\"|')?#([^\"')\\s]+)(?:\"|')?\\s*\\)$/i.exec(layer);\n      if (fragMatch == null) continue;\n      const fragId = fragMatch[1];\n      const scope = referenceScopeFor(el);\n      const key = scopedKey(scope, fragId);\n      const target = fragmentTarget(el, fragId);\n      if (target == null || target.tagName.toLowerCase() !== 'mask') {\n        warn(sel, 'mask', 'mask-image fragment \"#' + fragId + '\" did not resolve to an inline <mask> element');\n        continue;\n      }\n      if (!maskDefs.has(key)) {\n        const maskUnits = svgUnit(target.maskUnits, target.getAttribute('maskUnits'));\n        const maskContentUnits = svgUnit(target.maskContentUnits, target.getAttribute('maskContentUnits'));\n        const targetView = target.ownerDocument && target.ownerDocument.defaultView;\n        const computedMaskType = targetView != null ? targetView.getComputedStyle(target).maskType : '';\n        maskDefs.set(key, {\n          id: fragId,\n          scope,\n          outerHTML: target.outerHTML,\n          maskUnits,\n          maskContentUnits,\n          maskType: computedMaskType === 'alpha' ? 'alpha' : 'luminance',\n          region: {\n            x: svgLengthString(target.x, '-10%'),\n            y: svgLengthString(target.y, '-10%'),\n            width: svgLengthString(target.width, '120%'),\n            height: svgLengthString(target.height, '120%'),\n          },\n          userSpaceRegion: {\n            x: svgLengthValue(target.x),\n            y: svgLengthValue(target.y),\n            width: svgLengthValue(target.width),\n            height: svgLengthValue(target.height),\n          },\n        });\n      }\n      fragmentReferences.push({ layerIndex, id: fragId, scope });\n    }\n    if (fragmentReferences.length > 0) return fragmentReferences;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/types.ts"
+                },
+                "region": {
+                  "startLine": 2284
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2520"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "fbdf3e0d5d4359645fd44ca3e9534226"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2266cd86d871a08913ab404b69916c13dbf331d0",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

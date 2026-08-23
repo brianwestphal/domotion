@@ -1136,9 +1136,13 @@ they describe (see `CLAUDE.md` "Documentation"):
   DPR-1/2 capture-to-SVG gate covers opposing duplicate ids, zoom, asymmetric
   border/padding, hostile mask image geometry, and binary channel probes; the
   `iframe-inner-clip-mask` feature is strict 0.00% with its relaxation removed
-  ([doc 208](../208-iframe-fragment-reference-ownership.md)). DM-2520 owns
-  multi-layer fragment-mask composition; filter refs keep their existing
-  document-local collection path.
+  ([doc 208](../208-iframe-fragment-reference-ownership.md)). **DM-2520** now
+  preserves ordered `(layerIndex,TreeScope,id)` fragment-mask lists, cyclic
+  per-layer mode/composite values, materialized resource regions/units/zoom,
+  and Blink's clipped bottom-up Porter-Duff recurrence. Its duplicate-frame
+  DPR-1/2 gate is raw-RGBA exact and rejects scope/operator/mode/zoom
+  mutations. Transitive resources outside a copied mask subtree and filter
+  refs' existing document-local collection path remain separate boundaries.
 - **Doc 78 (`docs/78-svg-to-image.md`, DM-1353 + DM-1354)** — **Shipped.** A fifth
   published bin, `svg-to-image`: convert one SVG to a single image file — PNG /
   JPEG / PDF / WebP / AVIF / TIFF, format inferred from the `-o` extension (or

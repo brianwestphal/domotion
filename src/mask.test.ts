@@ -105,6 +105,80 @@ describe("buildMaskDef — composite (DM-395)", () => {
   });
 });
 
+describe("buildMaskDef — layered local SVG mask sources", () => {
+  const images = "url(#left), url(#right)";
+  const region = { x: 10, y: 20, width: 80, height: 60 };
+  const fragments = new Map([
+    [0, { id: "frag-left", region }],
+    [1, { id: "frag-right", region }],
+  ]);
+
+  function build(composite: string, ids = fragments, size = "1px 2px", position = "99% 87%", repeat = "space round") {
+    return buildMaskDef(
+      "m", images, 10, 20, 80, 60,
+      "alpha, luminance", size, position, repeat, composite,
+      undefined, undefined, undefined, undefined, ids,
+    ).def;
+  }
+
+  it("ignores ordinary image geometry for every referenced SVG mask layer", () => {
+    const hostile = build("add", fragments, "1px 2px, 3px 4px", "99% 87%, 13px 17px", "space round, no-repeat");
+    const neutral = build("add", fragments, "auto, auto", "0% 0%, 0% 0%", "repeat, repeat");
+    expect(hostile).toBe(neutral);
+    expect(hostile).toContain('mask="url(#frag-left)"');
+    expect(hostile).toContain('mask="url(#frag-right)"');
+  });
+
+  it.each(["add", "intersect", "subtract", "exclude"])(
+    "threads both materialized fragment layers through %s composition",
+    (composite) => {
+      const out = build(composite);
+      expect(out).toContain('mask="url(#frag-left)"');
+      expect(out).toContain('mask="url(#frag-right)"');
+      if (composite === "intersect") {
+        expect(out).toMatch(/<g mask="url\(#mraw0\)"><rect[^>]*mask="url\(#mraw1\)"/);
+      } else if (composite === "subtract" || composite === "exclude") {
+        expect(out).toContain("feColorMatrix");
+      }
+    },
+  );
+
+  it("keeps layer index authoritative under a destructive id swap", () => {
+    const swapped = build("intersect", new Map([
+      [0, { id: "frag-right", region }],
+      [1, { id: "frag-left", region }],
+    ]));
+    const original = build("intersect");
+    expect(swapped).not.toBe(original);
+    expect(swapped).toMatch(/id="mraw0"[^]*url\(#frag-right\)[^]*id="mraw1"[^]*url\(#frag-left\)/);
+    expect(original).toMatch(/id="mraw0"[^]*url\(#frag-left\)[^]*id="mraw1"[^]*url\(#frag-right\)/);
+  });
+
+  it("preserves destination alpha outside each fragment resource region", () => {
+    const threeLayers = new Map([
+      [0, { id: "frag-left", region }],
+      [1, { id: "frag-middle", region: { x: 30, y: 20, width: 60, height: 60 } }],
+      [2, { id: "frag-right", region }],
+    ]);
+    const out = buildMaskDef(
+      "m", "url(#left),url(#middle),url(#right)", 10, 20, 80, 60,
+      "alpha,alpha,alpha", "auto", "0% 0%", "repeat", "exclude,intersect,add",
+      undefined, undefined, undefined, undefined, threeLayers,
+    ).def;
+    expect(out).toContain('<clipPath id="mopclip1"');
+    expect(out).toContain('fill-rule="evenodd" mask="url(#mraw2)"');
+    expect(out).toContain('clip-path="url(#mopclip1)"');
+
+    const widened = new Map(threeLayers);
+    widened.set(1, { id: "frag-middle", region });
+    expect(out).not.toBe(buildMaskDef(
+      "m", "url(#left),url(#middle),url(#right)", 10, 20, 80, 60,
+      "alpha,alpha,alpha", "auto", "0% 0%", "repeat", "exclude,intersect,add",
+      undefined, undefined, undefined, undefined, widened,
+    ).def);
+  });
+});
+
 describe("rewriteFragmentMaskDef — DM-493 same-document mask fragment refs", () => {
   it("rewrites the outer mask id to the requested output id", () => {
     const out = rewriteFragmentMaskDef(

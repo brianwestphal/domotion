@@ -171,12 +171,22 @@ content units, computed alpha/luminance, and explicit mode overrides are
 materialized into the generated definition, while the SVG-mask special path
 ignores ordinary mask origin/clip/size/position/repeat geometry.
 
+DM-2520 extends that ownership to every local fragment in a comma-separated
+mask list. Each layer retains its index and iframe-local scope, mode, resolved
+resource region, and EffectiveZoom; bottom-up add/intersect/subtract/exclude
+composition also preserves Blink's rule that an SVG resource clip is applied
+before the layer composite. Duplicate-frame ids therefore remain independent
+even in mixed two- and three-layer masks.
+
 The strict DPR-1/2 discriminator uses opposing same-id outer/iframe resources,
 definition-local descendant ids, asymmetric borders/padding, zoom, and binary
 channel probes. `iframe-inner-clip-mask` remains 0.00% with no
 `relaxedDiffPct`. See [doc 208](208-iframe-fragment-reference-ownership.md) and
 `tests/iframe-inner-defs.e2e.test.ts`. Inline filter collection retains its
 existing document-local DM-1446 path.
+The complementary `tests/multi-layer-fragment-mask.e2e.test.ts` gate is raw-
+RGBA exact at DPR 1/2 and includes destructive scope/operator/mode/zoom
+mutations.
 
 ### Canvas background fill (DM-1448 — Fixed)
 

@@ -25,7 +25,7 @@ import { advancedGradientTile, needsChromiumGradientRaster } from "./advanced-gr
 import { computeTileSize } from "./conic-raster.js";
 import { isFlexOrGridContainerDisplay, establishesStackingContext, gatherStackingContextChildren, isOverflowOnlySC, isFixedContainingBlock, paintOrderBuckets, paintsAtomicallyAsInlineBox, type PaintOrderBuckets } from "./stacking.js";
 export { parseGradientStops, buildRadialGradientDef, parseBgPositionPx } from "./gradient-defs.js"; // re-export for existing test importers
-import { buildMaskDef, buildMaskBorder9Slice, positionFragmentMaskDef, positionFragmentClipPathDef, positionObjectBoundingBoxClipPathDef, rewriteFragmentMaskDef } from "./mask.js";
+import { buildMaskDef, buildMaskBorder9Slice, positionFragmentMaskDef, positionFragmentClipPathDef, positionObjectBoundingBoxClipPathDef, resolveFragmentMaskRegion, rewriteFragmentMaskDef, type MaterializedFragmentMaskLayer } from "./mask.js";
 // Re-export mask helpers used by focused geometry/emission tests.
 export { buildMaskDef, maskPaintAreas, positionFragmentMaskDef, rewriteFragmentMaskDef } from "./mask.js";
 export { resolveMaskContainCoverRect, resolveMaskPosition, resolveMaskPositionAxis } from "./mask-position.js";
@@ -66,7 +66,7 @@ import { cssTransformToSvg } from "./transforms.js";
 import { parseCssUrl, splitTopLevelCommas } from "./css-tokens.js";
 import { buildLinearGradientDef as buildExactLinearGradientDef, parseLegacyWebkitLinearGradient } from "./gradients.js";
 import { blinkPhysicalSymbolMarkerRect, blinkSymbolMarkerGeometry, disclosureTriangle, pixelSnapRect, type SymbolMarkerType } from "./list-marker-geometry.js";
-import type { CapturedBackgroundImage, CapturedElement, CapturedTreeInput, TextSegment, MaskFragmentDef, MaskRasterRef, ClipPathFragmentDef, CaptureWarning } from "../capture/types.js";
+import type { CapturedBackgroundImage, CapturedElement, CapturedTreeInput, TextSegment, MaskFragmentDef, MaskFragmentReference, MaskRasterRef, ClipPathFragmentDef, CaptureWarning } from "../capture/types.js";
 import { capturedTreeRoots, capturedTreeSessionGenericFamilies } from "../capture/tree-envelope.js";
 import {
   _dataUriCache,
@@ -3666,24 +3666,33 @@ function resolveFragmentClipPathRef(
   defsParts.push(positionFragmentClipPathDef(rewritten, el.x, el.y, referenceZoom));
   return outId;
 }
-function resolveFragmentMaskRef(
+function resolveFragmentMaskLayer(
   state: RenderState,
-  maskImage: string,
+  reference: MaskFragmentReference,
   el: CapturedElement,
-): string | null {
+  layerMode: string,
+): MaterializedFragmentMaskLayer | null {
   const { fragmentMaskDefs, fragmentMaskOutputId, defsParts, idPrefix } = state;
-  const m = /^url\(\s*(?:"|')?#([^"')\s]+)(?:"|')?\s*\)$/i.exec(maskImage);
-  if (m == null) return null;
-  const fragId = m[1];
-  const scopedFragId = el.fragmentReferenceScope == null ? fragId : `${el.fragmentReferenceScope}\u0000${fragId}`;
+  const fragId = reference.id;
+  const referenceScope = reference.scope ?? el.fragmentReferenceScope;
+  const scopedFragId = referenceScope == null ? fragId : `${referenceScope}\u0000${fragId}`;
   const def = fragmentMaskDefs.get(scopedFragId) ?? fragmentMaskDefs.get(fragId);
   if (def == null) return null;
-  const maskMode = (el.styles.maskMode || "match-source").trim().toLowerCase();
+  const maskMode = layerMode.trim().toLowerCase();
   const maskType = maskMode === "alpha" || maskMode === "luminance" ? maskMode : (def.maskType ?? "luminance");
   const referenceZoom = el.fragmentReferenceZoom ?? 1;
+  const positionOptions = {
+    maskUnits: def.maskUnits,
+    maskContentUnits: def.maskContentUnits,
+    maskType,
+    effectiveZoom: referenceZoom,
+    region: def.region,
+    userSpaceRegion: def.userSpaceRegion,
+  };
+  const region = resolveFragmentMaskRegion(el.x, el.y, el.width, el.height, positionOptions);
   const cacheKey = `${scopedFragId}|${r(el.x)}|${r(el.y)}|${r(el.width)}|${r(el.height)}|${maskType}|${r(referenceZoom)}`;
   const cached = fragmentMaskOutputId.get(cacheKey);
-  if (cached != null) return cached;
+  if (cached != null) return { id: cached, region };
   const outId = `${idPrefix}mkfrag${state.fragmentMaskCounter++}`;
   fragmentMaskOutputId.set(cacheKey, outId);
   // Rewrite the captured <mask>'s outerHTML: mint our output id, prefix
@@ -3694,16 +3703,25 @@ function resolveFragmentMaskRef(
   // map through the HTML border box. The CSS layer's explicit mode can
   // override the captured mask-type channel.
   const rewritten = rewriteFragmentMaskDef(def.outerHTML, outId, `${outId}-`);
-  const positioned = positionFragmentMaskDef(rewritten, el.x, el.y, el.width, el.height, {
-    maskUnits: def.maskUnits,
-    maskContentUnits: def.maskContentUnits,
-    maskType,
-    effectiveZoom: referenceZoom,
-    region: def.region,
-    userSpaceRegion: def.userSpaceRegion,
-  });
+  const positioned = positionFragmentMaskDef(rewritten, el.x, el.y, el.width, el.height, positionOptions);
   defsParts.push(positioned);
-  return outId;
+  return { id: outId, region };
+}
+
+/** Legacy single-layer serialized trees predate `maskFragmentReferences`. */
+function resolveLegacyFragmentMaskRef(
+  state: RenderState,
+  maskImage: string,
+  el: CapturedElement,
+): string | null {
+  const match = /^url\(\s*(?:"|')?#([^"')\s]+)(?:"|')?\s*\)$/i.exec(maskImage);
+  if (match == null) return null;
+  return resolveFragmentMaskLayer(
+    state,
+    { layerIndex: 0, id: match[1], scope: el.fragmentReferenceScope },
+    el,
+    splitTopLevelCommas(el.styles.maskMode || "match-source")[0] ?? "match-source",
+  )?.id ?? null;
 }
 
 // Resolve the element's CSS mask into an SVG <mask> def + the mask="url(#…)"
@@ -3768,12 +3786,25 @@ function renderMaskPhase(state: RenderState, el: CapturedElement): string | null
       maskUrlId = built.id;
     }
   } else if (maskImage != null && maskImage !== "none" && maskImage !== "") {
-    // DM-493: same-document fragment refs (mask-image: url("#id")) emit the
-    // captured inline <mask> verbatim with id rewriting, bypassing the
-    // gradient/url() emission path.
-    const fragRef = resolveFragmentMaskRef(state, maskImage, el);
-    if (fragRef != null) {
-      maskUrlId = fragRef;
+    const maskLayers = splitTopLevelCommas(maskImage);
+    const maskModes = splitTopLevelCommas(el.styles.maskMode ?? "match-source");
+    const fragmentMaskLayers = new Map<number, MaterializedFragmentMaskLayer>();
+    for (const reference of el.maskFragmentReferences ?? []) {
+      if (reference.layerIndex < 0 || reference.layerIndex >= maskLayers.length) continue;
+      const mode = maskModes.length > 0
+        ? maskModes[reference.layerIndex % maskModes.length]
+        : "match-source";
+      const fragmentMask = resolveFragmentMaskLayer(state, reference, el, mode);
+      if (fragmentMask != null) fragmentMaskLayers.set(reference.layerIndex, fragmentMask);
+    }
+    // Keep the historical direct single-fragment shape compact. Multi-layer
+    // lists instead normalize every referenced mask to one alpha source and
+    // enter the same ordered compositor as gradients/images.
+    const directFragmentId = maskLayers.length === 1
+      ? fragmentMaskLayers.get(0)?.id ?? resolveLegacyFragmentMaskRef(state, maskImage, el)
+      : null;
+    if (directFragmentId != null) {
+      maskUrlId = directFragmentId;
     } else {
       // DM-758: when the source comes from `mask-border-source`, force
       // size 100% 100% / no-repeat so the mask stretches across the
@@ -3828,6 +3859,7 @@ function renderMaskPhase(state: RenderState, el: CapturedElement): string | null
           padding: maskInsets.padding,
           noClipPaintingArea: { x: 0, y: 0, width: state.width, height: state.height },
         },
+        fragmentMaskLayers,
       );
       if (maskDef.def !== "") {
         maskUrlId = maskDef.id;

@@ -17,33 +17,36 @@ Doc 20 covers the gradient + raster `url()` cases that already round-trip cleanl
 
 ## Today's behavior
 
-DM-493 implemented same-document fragment refs (`url("#id")`); DM-496 added external-file refs (`url("./shapes.svg#id")`) by inlining the fetched `<mask>` as a same-document def before the walk (see §2). A capture-time warning now only fires when that resolution fails (fetch error / non-http / missing fragment).
+DM-493 implemented same-document fragment refs (`url("#id")`); DM-496 added external-file refs (`url("./shapes.svg#id")`) by inlining the fetched `<mask>` as a same-document def before the walk (see §2). DM-2520 extends the local path to every fragment in a comma-separated layer list. A capture-time warning now only fires when resolution fails (fetch error / non-http / missing fragment).
 
 For local refs, CAPTURE_SCRIPT resolves the inline `<mask>` in the consumer's
-originating TreeScope and serialises `(scope,id)`, `outerHTML`, SVG unit/region
-facts, and computed `mask-type` into the root `maskDefs` payload. The renderer
-copies the selected definition into output `<defs>` with collision-free id
-rewriting and materializes its region/content map against the consumer's HTML
-border box and effective zoom. See `rewriteFragmentMaskDef`,
+originating TreeScope and serialises `(layerIndex,scope,id)` on the consumer,
+plus `outerHTML`, SVG unit/region facts, and computed `mask-type` in the root
+`maskDefs` payload. The renderer copies each selected definition into output
+`<defs>` with collision-free id rewriting, materializes its region/content map
+against the consumer's HTML border box and effective zoom, then composes the
+ordered layers. See `rewriteFragmentMaskDef`,
 `positionFragmentMaskDef`, and [doc 208](208-iframe-fragment-reference-ownership.md).
 
-Prior behavior: `buildMaskDef()` treated every `url(...)` as a raster image and emitted `<image href="…">` inside the SVG `<mask>` — wrong for fragment refs because there is no raster at that URL. Per DM-470's narrow-warning policy, fragment refs were warned. DM-493's path now bypasses `buildMaskDef()` entirely for `url("#id")` cases and emits the resolved inline mask instead.
+Prior behavior: `buildMaskDef()` treated every `url(...)` as a raster image and emitted `<image href="…">` inside the SVG `<mask>` — wrong for fragment refs because there is no raster at that URL. Per DM-470's narrow-warning policy, fragment refs were warned. A single fragment still takes DM-493's compact direct path; a multi-layer value now gives `buildMaskDef()` the already-materialized fragment masks and their resource regions for ordered composition.
 
 ## Proposed approach
 
 ### 1. Same-document fragment (`url("#mask-id")`)
 
-At capture time, when CAPTURE_SCRIPT sees `mask-image: url("#mask-id")`:
+At capture time, when CAPTURE_SCRIPT sees one or more local fragment layers:
 
 1. Resolve the fragment through the consumer's `getRootNode()` TreeScope; a
    shadow-root miss does not fall through to the owner document.
 2. If the element exists and is `<mask>`, serialise its `outerHTML`, scope,
    units, source-resolved region, and computed channel.
-3. Emit it as a `MaskFragmentDef` and put the same scope plus effective zoom on
-   the consuming element.
-4. The renderer selects by `(scope,id)`, rewrites the definition into a unique
-   per-output namespace, materializes its region/content map, and points the
-   element's `mask` attribute at the new id.
+3. Emit it as a `MaskFragmentDef` and put its exact layer index and scope, plus
+   the shared effective zoom, on the consuming element. Shorter mode and
+   composite lists retain CSS cyclic indexing.
+4. The renderer selects every layer by `(scope,id)`, rewrites each definition
+   into a unique per-output namespace, materializes its region/content map,
+   and composes from the bottom layer upward with that non-bottom layer's
+   `add`, `intersect`, `subtract`, or `exclude` operator.
 
 ### 2. External-file fragment (`url("./shapes.svg#mask-id")`)
 
@@ -73,6 +76,12 @@ A file is fetched once and shared across consumers (icon-set pattern). Only work
   `match-source`; an explicit CSS `mask-mode` overrides it. SVG fragment mask
   sources ignore the layer's ordinary origin/clip/size/position/repeat image
   geometry, as locked by the hostile-longhand discriminator in doc 208.
+- **Ordered composition**: every local URL layer keeps `(layerIndex,scope,id)`.
+  Blink clips an SVG mask draw to that resource's resolved region *before*
+  opening its Porter-Duff layer, so accumulated destination alpha outside the
+  current resource region survives. The generated recurrence preserves that
+  clipped operation; treating a three-layer `exclude, intersect, add` list as
+  global alpha algebra is observably wrong.
 - **Resource loading failures** (missing fragment id, target is not a `<mask>`) fall back gracefully — capture emits a per-element warning and the renderer falls through to the legacy `buildMaskDef()` path (which is already a no-op for unresolved fragment URLs).
 
 ## What's deferred
@@ -80,8 +89,6 @@ A file is fetched once and shared across consumers (icon-set pattern). Only work
 - `mask-image: element(#id)` referencing a non-`<mask>` painted element (canvas/iframe/regular div) — covered by DM-477.
 - `<mask>` definitions that depend on `<feImage>` or other filter primitives that domotion doesn't support — those will warn through the existing filter-emission path.
 - Animated masks (mask defs with their own `<animate>` / `<animateTransform>` children) — out of scope; capture is a static snapshot.
-- Multi-layer values containing one or more fragment URLs are tracked by
-  DM-2520; this path still activates only for one complete `url(#id)` value.
 
 ## Test fixture
 
@@ -99,6 +106,13 @@ zoom, asymmetric borders, alpha/luminance, ignored mask image geometry, and
 per-output descendant namespaces. The `iframe-inner-clip-mask` feature row now
 passes at 0.00% without a relaxed threshold.
 
+`tests/multi-layer-fragment-mask.e2e.test.ts` requires raw RGBA equality at
+DPR 1 and 2 for duplicate outer/iframe ids, two- and three-layer lists,
+object/user units, alpha/match-source modes, zoom, hostile image longhands,
+and all four composite operators. Wrong scope, operator, mode, and zoom
+mutations must each move output. `src/mask.test.ts` separately locks layer-id
+and resource-region mutations.
+
 ## Resolved design questions
 
 - **External `.svg` fetch**: implemented in DM-496 via the shared `inlineExternalSvgRefs` in-page pre-pass (same mechanism as the clip-path analogue, DM-829). In-page same-origin `fetch` keeps it simple + consistent across the two features; the CSP/CORS-robust alternative (Node-side `page.context().request.fetch`) was weighed and declined for that consistency, since Domotion captures the author's own pages (see docs/39 for the clip-path counterpart).
@@ -108,7 +122,5 @@ passes at 0.00% without a relaxed threshold.
 
 ## Follow-ups
 
-- DM-2520: TreeScope-correct discovery and ordered composition for fragment
-  URLs inside multi-layer `mask-image` values.
 - Transitive source-scoped definition collection when a real mask depends on a
   sibling filter, gradient, mask, or clip outside its copied subtree.

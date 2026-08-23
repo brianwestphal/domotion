@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5o7vvlcoa0oova",
+          "message": {
+            "text": "This is an exact logical browser gate: source Chromium and generated SVG have zero changed raw RGBA channels at DPR 1 and 2. Duplicate outer/iframe ids, object/user units, zoom, alpha/match-source, two- and three-layer operators, and hostile image longhands all cross; wrong scope, composite, mode, and zoom mutations each move output.",
+            "markdown": "This is an exact logical browser gate: source Chromium and generated SVG have zero changed raw RGBA channels at DPR 1 and 2. Duplicate outer/iframe ids, object/user units, zoom, alpha/match-source, two- and three-layer operators, and hostile image longhands all cross; wrong scope, composite, mode, and zoom mutations each move output."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/multi-layer-fragment-mask.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 92,
+                  "endLine": 151,
+                  "snippet": {
+                    "text": "describe(\"multi-layer same-document SVG mask fragments (DM-2520)\", () => {\n  for (const dpr of [1, 2]) {\n    it(`keeps ordered TreeScope, units, modes, operators, and zoom exact at DPR ${dpr}`, async () => {\n      const context = await env.browser.newContext({\n        viewport: { width: WIDTH, height: HEIGHT },\n        deviceScaleFactor: dpr,\n      });\n      const source = await context.newPage();\n      const rendered = await context.newPage();\n      try {\n        await source.setContent(sourceHtml(), { waitUntil: \"load\" });\n        await source.waitForFunction(() => document.querySelector(\"iframe\")?.contentDocument?.querySelectorAll(\".case\").length === 4);\n        const expected = await source.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } });\n        const capture = await captureElementTreeWithWarnings(source, \"body\", { x: 0, y: 0, width: WIDTH, height: HEIGHT });\n        expect(capture.warnings.filter((warning) => /did not resolve to an inline/.test(warning.detail))).toEqual([]);\n\n        const masked = consumers(capture.tree);\n        expect(masked).toHaveLength(8);\n        expect(masked.every((node) => node.maskFragmentReferences\n          ?.every((reference, index) => reference.layerIndex === index && reference.id === [\"a\", \"b\", \"c\"][index]))).toBe(true);\n        expect(masked.filter((node) => node.maskFragmentReferences?.length === 3)).toHaveLength(2);\n        expect(masked.every((node) => new Set(node.maskFragmentReferences?.map((reference) => reference.scope)).size === 1)).toBe(true);\n        expect(new Set(masked.flatMap((node) => node.maskFragmentReferences?.map((reference) => reference.scope) ?? [])).size).toBe(2);\n        expect(masked.filter((node) => node.fragmentReferenceZoom === 2)).toHaveLength(4);\n\n        const root = capture.tree[0];\n        expect((root.maskDefs ?? []).filter((definition) => definition.id === \"a\")).toHaveLength(2);\n        expect((root.maskDefs ?? []).filter((definition) => definition.id === \"b\")).toHaveLength(2);\n        expect((root.maskDefs ?? []).filter((definition) => definition.id === \"c\")).toHaveLength(2);\n        expect((root.maskDefs ?? []).find((definition) => definition.id === \"a\")?.maskContentUnits).toBe(\"objectBoundingBox\");\n        expect((root.maskDefs ?? []).filter((definition) => definition.id === \"b\").map((definition) => definition.userSpaceRegion))\n          .toEqual(expect.arrayContaining([{ x: 20, y: 0, width: 60, height: 60 }, { x: 0, y: 0, width: 30, height: 30 }]));\n\n        const actual = await render(rendered, capture.tree);\n        expect(await changedChannels(expected, actual)).toBe(0);\n\n        if (dpr === 1) {\n          const innerScope = masked.find((node) => node.fragmentReferenceZoom === 2)!.maskFragmentReferences![0].scope;\n          const outerScope = masked.find((node) => node.fragmentReferenceZoom === 1)!.maskFragmentReferences![0].scope;\n\n          const wrongScope = structuredClone(capture.tree);\n          for (const node of consumers(wrongScope).filter((candidate) => candidate.fragmentReferenceZoom === 2)) {\n            for (const reference of node.maskFragmentReferences!) reference.scope = outerScope;\n          }\n          expect(innerScope).not.toBe(outerScope);\n          expect(await changedChannels(expected, await render(rendered, wrongScope))).toBeGreaterThan(0);\n\n          const wrongComposite = structuredClone(capture.tree);\n          for (const node of consumers(wrongComposite)) node.styles.maskComposite = \"add, add\";\n          expect(await changedChannels(expected, await render(rendered, wrongComposite))).toBeGreaterThan(0);\n\n          const wrongMode = structuredClone(capture.tree);\n          for (const node of consumers(wrongMode)) node.styles.maskMode = \"match-source, match-source\";\n          expect(await changedChannels(expected, await render(rendered, wrongMode))).toBeGreaterThan(0);\n\n          const wrongZoom = structuredClone(capture.tree);\n          for (const node of consumers(wrongZoom).filter((candidate) => candidate.fragmentReferenceZoom === 2)) {\n            node.fragmentReferenceZoom = 1;\n          }\n          expect(await changedChannels(expected, await render(rendered, wrongZoom))).toBeGreaterThan(0);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/mask.ts"
+                },
+                "region": {
+                  "startLine": 1180
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/masks-clips.ts"
+                },
+                "region": {
+                  "startLine": 129
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2520"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "2a5baff846cb4f9421267e4fbc7f661e"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2266cd86d871a08913ab404b69916c13dbf331d0",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

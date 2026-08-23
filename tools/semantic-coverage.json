@@ -901,10 +901,10 @@
         "HTML URL border/object box -> SVG URL forced fill box",
         "capture-global fragment id -> originating TreeScope fragment id",
         "zoom-1 fragment user space -> consumer EffectiveZoom",
+        "single fragment URL -> multiple fragment URL layers",
         "curated SVG rows -> generated 18-axis pairwise combinations"
       ],
       "uncoveredStates": [
-        "single fragment URL -> multiple fragment URL layers",
         "pairwise-covered SVG effects -> higher-order/future combinations"
       ],
       "upstreamSources": [
@@ -944,6 +944,7 @@
         "tests/mask-origin-clip.e2e.test.ts",
         "tests/mask-url-repeat-geometry.e2e.test.ts",
         "tests/iframe-inner-defs.e2e.test.ts",
+        "tests/multi-layer-fragment-mask.e2e.test.ts",
         "tools/svg-effect-combination-oracle.ts",
         "tests/svg-native-paint-properties.e2e.test.ts"
       ],
@@ -961,7 +962,7 @@
         "tests/svg-effect-combination-oracle.e2e.test.ts"
       ],
       "coverage": "partial",
-      "boundary": "Arbitrary URL mask sizing/positioning is exact for Chromium-decoded intrinsic ratios and distinct per-layer HTML mask-origin/mask-clip border/padding/content/no-clip rectangles, including URL round/space tile size and phase from the origin with a clip-owned paint/no-repeat destination, zoomed computed px terms, physical writing modes, cyclic composition, and sliced/cloned fragments. The 110-row logical gate retains its fixed tolerance, while DPR-1/2 browser rows reject the collapsed painting-area mutation. Local mask/clip fragments now preserve originating TreeScope identity, definition-local descendant ids, HTML border-box object/user-space region/content mapping, source-viewport resolution, EffectiveZoom, ignored SVG-mask image geometry, and effective alpha/luminance; the focused DPR-1/2 discriminator and 0.00% feature row use no relaxation. URL clip references additionally preserve Blink's exclusive grammar, SVG forced-fill ownership, nested-frame/external resolution, and stale-tree rejection. DM-2520 owns multiple fragment URLs in one mask-image list; transitive references outside a copied subtree and higher-order/future generated SVG effect combinations remain explicit partial boundaries.",
+      "boundary": "Arbitrary URL mask sizing/positioning is exact for Chromium-decoded intrinsic ratios and distinct per-layer HTML mask-origin/mask-clip border/padding/content/no-clip rectangles, including URL round/space tile size and phase from the origin with a clip-owned paint/no-repeat destination, zoomed computed px terms, physical writing modes, cyclic composition, and sliced/cloned fragments. The 110-row logical gate retains its fixed tolerance, while DPR-1/2 browser rows reject the collapsed painting-area mutation. Local mask/clip fragments preserve originating TreeScope identity, definition-local descendant ids, HTML border-box object/user-space region/content mapping, source-viewport resolution, EffectiveZoom, ignored SVG-mask image geometry, and effective alpha/luminance. DM-2520 extends this exactly to ordered two-/three-layer fragment lists, cyclic per-layer modes/operators, and Blink's resource-region-clipped bottom-up composition; the raw-RGBA DPR-1/2 gate rejects scope/operator/mode/zoom mutations with no relaxation. URL clip references additionally preserve Blink's exclusive grammar, SVG forced-fill ownership, nested-frame/external resolution, and stale-tree rejection. Transitive references outside a copied subtree and higher-order/future generated SVG effect combinations remain explicit partial boundaries.",
       "featureIds": [
         "render.tree-to-svg"
       ],
@@ -1893,13 +1894,15 @@
         "cross-origin denied -> raster",
         "cross-origin allowlisted -> recursive vector",
         "unique fragment id -> duplicate outer/iframe TreeScope ids",
+        "single fragment mask -> ordered duplicate-id fragment layers",
         "static capture -> scroll composition"
       ],
       "exactStates": [
         "same-origin -> recursive vector",
         "cross-origin denied -> raster",
         "cross-origin allowlisted -> recursive vector",
-        "unique fragment id -> duplicate outer/iframe TreeScope ids"
+        "unique fragment id -> duplicate outer/iframe TreeScope ids",
+        "single fragment mask -> ordered duplicate-id fragment layers"
       ],
       "uncoveredStates": [
         "static capture -> scroll composition"
@@ -1921,7 +1924,8 @@
       ],
       "oracles": [
         "tools/raster-boundary-oracle.ts",
-        "tests/iframe-inner-defs.e2e.test.ts"
+        "tests/iframe-inner-defs.e2e.test.ts",
+        "tests/multi-layer-fragment-mask.e2e.test.ts"
       ],
       "metamorphicTests": [
         "src/capture/script/cross-origin.test.ts",
@@ -1932,7 +1936,7 @@
         "tests/features.ts#iframe-inner-clip-mask"
       ],
       "coverage": "partial",
-      "boundary": "Allowlist state is not threaded through scroll capture. Same-origin iframe mask/clip resources are exact by originating TreeScope, border-box object/user-space geometry, zoom, and alpha/luminance at DPR 1/2; the former nested clip/mask relaxation is removed. Multi-layer fragment masks remain DM-2520 under paint.masks-clips rather than an iframe-recursion threshold.",
+      "boundary": "Allowlist state is not threaded through scroll capture. Same-origin iframe mask/clip resources, including ordered multi-layer fragment masks with duplicate outer/iframe ids, are exact by originating TreeScope, border-box object/user-space geometry, zoom, channel, resource region, and composite at DPR 1/2; no iframe mask threshold is involved.",
       "featureIds": [
         "capture.iframe-recursion"
       ],

@@ -667,7 +667,11 @@ const captureDocumentTree =
     // refs (`element(#id)`), and warnings for unsupported mask sources.
     // Handler owns the maskDefs / maskRasters Maps that the orchestration
     // tail consumes. See walker/masks-clips.ts.
-    const _maskFragmentReferenceScope = discoverMasks(el, cs, sel);
+    const _maskFragmentReferences = discoverMasks(el, cs, sel);
+    const _maskFragmentReferenceScope = _maskFragmentReferences != null
+      && _maskFragmentReferences.length === 1
+      ? _maskFragmentReferences[0].scope
+      : undefined;
     // DM-826: clip-path: url("#id") same-document fragment refs. Sibling of
     // the mask discovery above; collects inline <clipPath> defs the
     // renderer copies into the output SVG. See docs/39.
@@ -980,8 +984,12 @@ const captureDocumentTree =
       fragmentReferenceScope: _maskFragmentReferenceScope != null
         ? _maskFragmentReferenceScope
         : _clipFragmentReferenceScope,
-      fragmentReferenceZoom: _maskFragmentReferenceScope != null || _clipFragmentReferenceScope != null
+      fragmentReferenceZoom: (_maskFragmentReferences != null && _maskFragmentReferences.length > 0)
+          || _clipFragmentReferenceScope != null
         ? _effectiveZoomFor(el)
+        : undefined,
+      maskFragmentReferences: _maskFragmentReferences != null && _maskFragmentReferences.length > 0
+        ? _maskFragmentReferences
         : undefined,
       // DM-1106: effective cursor keyword for the auto cursor-overlay hit-test.
       // Omitted when it resolves to the default arrow (the common case) to keep

@@ -85,6 +85,52 @@ export function rewriteFragmentMaskDef(
   return out;
 }
 
+export interface FragmentMaskPositionOptions {
+  maskUnits?: "userSpaceOnUse" | "objectBoundingBox";
+  maskContentUnits?: "userSpaceOnUse" | "objectBoundingBox";
+  maskType?: "alpha" | "luminance";
+  effectiveZoom?: number;
+  region?: { x: string; y: string; width: string; height: string };
+  userSpaceRegion?: { x: number; y: number; width: number; height: number };
+}
+
+/** Resolve an SVG mask resource region against Blink's HTML reference box. */
+export function resolveFragmentMaskRegion(
+  elX: number, elY: number, elW: number, elH: number,
+  options: FragmentMaskPositionOptions = {},
+): MaskImageRect {
+  const bboxTerm = (token: string | undefined, span: number, fallback: number): number => {
+    const source = (token ?? "").trim();
+    const parsed = Number.parseFloat(source);
+    if (!Number.isFinite(parsed)) return fallback * span;
+    return source.endsWith("%") ? parsed / 100 * span : parsed * span;
+  };
+  const region = options.region ?? { x: "-10%", y: "-10%", width: "120%", height: "120%" };
+  const hasCapturedRegion = options.maskUnits != null || options.region != null || options.userSpaceRegion != null;
+  if (!hasCapturedRegion) {
+    // Backward compatibility for serialized trees predating DM-2338: their
+    // def record carried no unit/region facts and the historical contract was
+    // an element-sized user-space mask.
+    return { x: elX, y: elY, width: elW, height: elH };
+  }
+  if (options.maskUnits === "userSpaceOnUse") {
+    const resolved = options.userSpaceRegion;
+    const zoom = options.effectiveZoom ?? 1;
+    return {
+      x: elX + (resolved?.x ?? (Number.parseFloat(region.x) || 0)) * zoom,
+      y: elY + (resolved?.y ?? (Number.parseFloat(region.y) || 0)) * zoom,
+      width: Math.max(0, (resolved?.width ?? (Number.parseFloat(region.width) || 0)) * zoom),
+      height: Math.max(0, (resolved?.height ?? (Number.parseFloat(region.height) || 0)) * zoom),
+    };
+  }
+  return {
+    x: elX + bboxTerm(region.x, elW, -0.1),
+    y: elY + bboxTerm(region.y, elH, -0.1),
+    width: Math.max(0, bboxTerm(region.width, elW, 1.2)),
+    height: Math.max(0, bboxTerm(region.height, elH, 1.2)),
+  };
+}
+
 /**
  * Materialize a captured `<mask>` into the generated SVG's root user space.
  * Blink supplies an HTML consumer's border box and EffectiveZoom to its SVG
@@ -97,14 +143,7 @@ export function rewriteFragmentMaskDef(
 export function positionFragmentMaskDef(
   rewrittenOuterHTML: string,
   elX: number, elY: number, elW: number, elH: number,
-  options: {
-    maskUnits?: "userSpaceOnUse" | "objectBoundingBox";
-    maskContentUnits?: "userSpaceOnUse" | "objectBoundingBox";
-    maskType?: "alpha" | "luminance";
-    effectiveZoom?: number;
-    region?: { x: string; y: string; width: string; height: string };
-    userSpaceRegion?: { x: number; y: number; width: number; height: number };
-  } = {},
+  options: FragmentMaskPositionOptions = {},
 ): string {
   // Find the opening <mask …> tag (anchored at start of string, since
   // rewriteFragmentMaskDef preserves the outerHTML structure of the captured
@@ -132,40 +171,7 @@ export function positionFragmentMaskDef(
     .replace(/\sheight\s*=\s*"[^"]*"/gi, "")
     .replace(/\sheight\s*=\s*'[^']*'/gi, "");
 
-  const bboxTerm = (token: string | undefined, span: number, fallback: number): number => {
-    const source = (token ?? "").trim();
-    const parsed = Number.parseFloat(source);
-    if (!Number.isFinite(parsed)) return fallback * span;
-    return source.endsWith("%") ? parsed / 100 * span : parsed * span;
-  };
-  const defaultRegion = { x: "-10%", y: "-10%", width: "120%", height: "120%" };
-  const region = options.region ?? defaultRegion;
-  let regionX: number;
-  let regionY: number;
-  let regionW: number;
-  let regionH: number;
-  const hasCapturedRegion = options.maskUnits != null || options.region != null || options.userSpaceRegion != null;
-  if (!hasCapturedRegion) {
-    // Backward compatibility for serialized trees predating DM-2338: their
-    // def record carried no unit/region facts and the historical contract was
-    // an element-sized user-space mask.
-    regionX = elX;
-    regionY = elY;
-    regionW = elW;
-    regionH = elH;
-  } else if (options.maskUnits === "userSpaceOnUse") {
-    const resolved = options.userSpaceRegion;
-    const zoom = options.effectiveZoom ?? 1;
-    regionX = elX + (resolved?.x ?? (Number.parseFloat(region.x) || 0)) * zoom;
-    regionY = elY + (resolved?.y ?? (Number.parseFloat(region.y) || 0)) * zoom;
-    regionW = Math.max(0, (resolved?.width ?? (Number.parseFloat(region.width) || 0)) * zoom);
-    regionH = Math.max(0, (resolved?.height ?? (Number.parseFloat(region.height) || 0)) * zoom);
-  } else {
-    regionX = elX + bboxTerm(region.x, elW, -0.1);
-    regionY = elY + bboxTerm(region.y, elH, -0.1);
-    regionW = Math.max(0, bboxTerm(region.width, elW, 1.2));
-    regionH = Math.max(0, bboxTerm(region.height, elH, 1.2));
-  }
+  const resolvedRegion = resolveFragmentMaskRegion(elX, elY, elW, elH, options);
 
   // The CSS layer's explicit mask-mode overrides the referenced mask's
   // computed mask-type; match-source retains the captured value. Normalize it
@@ -184,7 +190,7 @@ export function positionFragmentMaskDef(
     attrs += ` style="${esc(`${style}${style === "" ? "" : ";"}mask-type:${options.maskType}`)}"`;
   }
 
-  attrs += ` maskUnits="userSpaceOnUse" x="${r(regionX)}" y="${r(regionY)}" width="${r(regionW)}" height="${r(regionH)}"`;
+  attrs += ` maskUnits="userSpaceOnUse" x="${r(resolvedRegion.x)}" y="${r(resolvedRegion.y)}" width="${r(resolvedRegion.width)}" height="${r(resolvedRegion.height)}"`;
   const contentTransform = options.maskContentUnits === "objectBoundingBox"
     ? `translate(${r(elX)}, ${r(elY)}) scale(${r(elW)}, ${r(elH)})`
     : `translate(${r(elX)}, ${r(elY)})${(options.effectiveZoom ?? 1) === 1 ? "" : ` scale(${r(options.effectiveZoom ?? 1)})`}`;
@@ -615,6 +621,12 @@ export interface MaskFragmentGeometry {
   fragmentAxis?: string;
 }
 
+export interface MaterializedFragmentMaskLayer {
+  id: string;
+  /** Blink clips the layer's Porter-Duff draw to this SVG resource region. */
+  region: MaskImageRect;
+}
+
 interface MaskPaintArea extends MaskImageRect {
   clip?: MaskImageRect;
 }
@@ -972,12 +984,21 @@ export function buildMaskDef(
   fragmentGeometry?: MaskFragmentGeometry,
   /** Independent per-layer HTML mask-origin/mask-clip geometry (DM-2472). */
   originClip?: MaskOriginClipContext,
+  /**
+   * Local SVG mask-source layers already materialized into root-space SVG
+   * masks. The map key is the computed `mask-image` layer index. These
+   * sources ignore ordinary image geometry; each referenced mask has already
+   * baked that layer's effective alpha/luminance mode.
+   */
+  fragmentMaskLayers?: ReadonlyMap<number, MaterializedFragmentMaskLayer>,
 ): { id: string; def: string } {
   const layers = splitTopLevelCommas(maskImage);
   const sizeLayers = splitTopLevelCommas(sizeCss);
   const posLayers = splitTopLevelCommas(posCss);
   const repeatLayers = splitTopLevelCommas(repeatCss);
   const compositeLayers = splitTopLevelCommas(compositeCss);
+  const modeLayers = splitTopLevelCommas(maskMode);
+  const hasFragmentLayer = fragmentMaskLayers != null && fragmentMaskLayers.size > 0;
 
   // Determine mask-type per CSS mask-mode.
   //   - alpha: explicit author opt-in to alpha-channel masking.
@@ -991,17 +1012,18 @@ export function buildMaskDef(
   //     to luminance for spec compliance.
   const hasElementLayer = layers.some((l) => /^element\(\s*#/i.test(l.trim()));
   let maskType: "alpha" | "luminance";
-  if (maskMode === "luminance") maskType = "luminance";
+  if (hasFragmentLayer) maskType = "alpha";
+  else if (maskMode === "luminance") maskType = "luminance";
   else if (maskMode === "alpha") maskType = "alpha";
   else maskType = hasElementLayer ? "luminance" : "alpha";
 
   const borderBox = { x: elX, y: elY, width: w, height: h };
   const hasNoClipLayer = originClip != null && layers.some((_, layerIndex) =>
     resolveMaskOriginClipLayer(borderBox, layerIndex, originClip).clip === "no-clip");
-  const maskRegion = hasNoClipLayer
+  const maskRegion = hasNoClipLayer || hasFragmentLayer
     ? originClip?.noClipPaintingArea ?? borderBox
     : borderBox;
-  const explicitMaskRegion = hasNoClipLayer
+  const explicitMaskRegion = hasNoClipLayer || hasFragmentLayer
     ? ` x="${r(maskRegion.x)}" y="${r(maskRegion.y)}" width="${r(maskRegion.width)}" height="${r(maskRegion.height)}"`
     : "";
 
@@ -1021,7 +1043,19 @@ export function buildMaskDef(
   // what we want), so force emission of an empty mask when it's set.
   let forceHide = false;
   const cyclic = (values: string[], index: number, fallback: string): string => values.length > 0 ? values[index % values.length] : fallback;
+  const normalizedLayerDefs: string[] = [];
   for (let li = layers.length - 1; li >= 0; li--) {
+    const fragmentMask = fragmentMaskLayers?.get(li);
+    if (fragmentMask != null) {
+      // SVG mask-source layers bypass BackgroundImageGeometry in Blink:
+      // origin/clip/size/position/repeat do not alter them. Paint an opaque
+      // source through the already-positioned fragment mask so the existing
+      // compositor receives this layer's resulting alpha surface.
+      layerContents[li] = [
+        `<rect x="${r(maskRegion.x)}" y="${r(maskRegion.y)}" width="${r(maskRegion.width)}" height="${r(maskRegion.height)}" fill="#fff" mask="url(#${fragmentMask.id})" />`,
+      ];
+      continue;
+    }
     const contents: string[] = [];
     const paintAreas = resolvedMaskPaintAreas(
       { x: elX, y: elY, width: w, height: h },
@@ -1058,8 +1092,27 @@ export function buildMaskDef(
       }
       if (result.forceHide) forceHide = true;
     }
-    layerContents[li] = contents;
+    // A mixed fragment/image list is composited in alpha space after each
+    // layer has applied its own mode. Fragment masks are already normalized
+    // by their positioned definition; explicitly luminance ordinary layers
+    // need the equivalent one-layer conversion before entering that alpha
+    // recurrence. (`match-source` ordinary images/gradients are alpha.)
+    const layerMode = cyclic(modeLayers, li, "match-source").trim().toLowerCase();
+    const layerNeedsLuminance = layerMode === "luminance"
+      || (layerMode === "match-source" && /^element\(\s*#/i.test(layers[li].trim()));
+    if (hasFragmentLayer && layerNeedsLuminance && contents.length > 0) {
+      const normalizedId = `${id}mode${li}`;
+      normalizedLayerDefs.push(
+        `<mask id="${normalizedId}" maskUnits="userSpaceOnUse" x="${r(maskRegion.x)}" y="${r(maskRegion.y)}" width="${r(maskRegion.width)}" height="${r(maskRegion.height)}" mask-type="luminance">${contents.join("")}</mask>`,
+      );
+      layerContents[li] = [
+        `<rect x="${r(maskRegion.x)}" y="${r(maskRegion.y)}" width="${r(maskRegion.width)}" height="${r(maskRegion.height)}" fill="#fff" mask="url(#${normalizedId})" />`,
+      ];
+    } else {
+      layerContents[li] = contents;
+    }
   }
+  const withNormalizedLayers = (def: string): string => normalizedLayerDefs.join("") + def;
   // Drop empty layers (e.g. unsupported layer values) to simplify downstream.
   const activeLayers = layerContents.map((contents, index) => ({ contents, index })).filter((layer) => layer.contents.length > 0);
   const nonEmpty = activeLayers.map((layer) => layer.contents);
@@ -1067,7 +1120,7 @@ export function buildMaskDef(
     if (forceHide) {
       // Empty <mask> hides the referenced element — matches Chrome's empty
       // rendering for SVG url() mask sources.
-      return { id, def: `<mask id="${id}" maskUnits="userSpaceOnUse"${explicitMaskRegion} mask-type="${maskType}"></mask>` };
+      return { id, def: withNormalizedLayers(`<mask id="${id}" maskUnits="userSpaceOnUse"${explicitMaskRegion} mask-type="${maskType}"></mask>`) };
     }
     return { id, def: "" };
   }
@@ -1111,7 +1164,7 @@ export function buildMaskDef(
     if (items.length === 0) return items;
     const cloned = items.slice();
     const last = cloned[cloned.length - 1];
-    cloned[cloned.length - 1] = /\/>$/.test(last)
+    cloned[cloned.length - 1] = /\/>$/.test(last) && !/\smask\s*=/.test(last)
       ? last.replace(/\/>$/, ` mask="url(#${maskId})"/>`)
       : `<g mask="url(#${maskId})">${last}</g>`;
     return cloned;
@@ -1130,10 +1183,20 @@ export function buildMaskDef(
   // arbitrary lists and 3+ layers need the actual sequential recurrence.
   const operatorAt = (layerIndex: number): string => normaliseComposite(cyclic(compositeLayers, layerIndex, "add"));
   const topOperators = activeLayers.slice(0, -1).map((layer) => operatorAt(layer.index));
-  const needsSequentialComposition = activeLayers.length > 2 || new Set(topOperators).size > 1;
+  const needsSequentialComposition = activeLayers.length > 2
+    || new Set(topOperators).size > 1
+    || (hasFragmentLayer && activeLayers.length > 1);
   if (needsSequentialComposition) {
     const defs: string[] = [];
     const fullRect = (maskId: string): string => `<rect x="${r(maskRegion.x)}" y="${r(maskRegion.y)}" width="${r(maskRegion.width)}" height="${r(maskRegion.height)}" fill="#fff" mask="url(#${maskId})" />`;
+    const intersectRegions = (a: MaskImageRect, b: MaskImageRect): MaskImageRect => {
+      const x = Math.max(a.x, b.x), y = Math.max(a.y, b.y);
+      const right = Math.min(a.x + a.width, b.x + b.width);
+      const bottom = Math.min(a.y + a.height, b.y + b.height);
+      return { x, y, width: Math.max(0, right - x), height: Math.max(0, bottom - y) };
+    };
+    const rectPath = (rect: MaskImageRect): string =>
+      `M${r(rect.x)} ${r(rect.y)}H${r(rect.x + rect.width)}V${r(rect.y + rect.height)}H${r(rect.x)}Z`;
     const rawIds = new Map<number, string>();
     for (const layer of activeLayers) {
       const rawId = `${id}raw${layer.index}`;
@@ -1153,23 +1216,45 @@ export function buildMaskDef(
       const source = rawIds.get(layer.index)!;
       const combined = `${id}acc${position}`;
       const op = operatorAt(layer.index);
-      let body: string;
+      let operationBody: string;
       if (op === "intersect") {
-        body = `<g mask="url(#${source})">${fullRect(accumulated)}</g>`;
+        operationBody = `<g mask="url(#${source})">${fullRect(accumulated)}</g>`;
       } else if (op === "subtract") {
-        body = `<g mask="url(#${inverse(accumulated, `a${position}`)})">${fullRect(source)}</g>`;
+        operationBody = `<g mask="url(#${inverse(accumulated, `a${position}`)})">${fullRect(source)}</g>`;
       } else if (op === "exclude") {
         const notAccumulated = inverse(accumulated, `a${position}`);
         const notSource = inverse(source, `s${position}`);
-        body = `<g mask="url(#${notAccumulated})">${fullRect(source)}</g><g mask="url(#${notSource})">${fullRect(accumulated)}</g>`;
+        operationBody = `<g mask="url(#${notAccumulated})">${fullRect(source)}</g><g mask="url(#${notSource})">${fullRect(accumulated)}</g>`;
       } else {
-        body = `${fullRect(accumulated)}${fullRect(source)}`;
+        operationBody = `${fullRect(accumulated)}${fullRect(source)}`;
+      }
+
+      let body = operationBody;
+      const fragmentRegion = fragmentMaskLayers?.get(layer.index)?.region;
+      if (fragmentRegion != null) {
+        // SVGMaskPainter clips the graphics context to ResourceBoundingBox()
+        // before BeginLayer(composite_op). The Porter-Duff result therefore
+        // replaces the accumulated destination only inside this fragment's
+        // resource region; destination pixels outside it survive unchanged.
+        const operationRegion = intersectRegions(maskRegion, fragmentRegion);
+        const coversMaskRegion = operationRegion.x <= maskRegion.x
+          && operationRegion.y <= maskRegion.y
+          && operationRegion.x + operationRegion.width >= maskRegion.x + maskRegion.width
+          && operationRegion.y + operationRegion.height >= maskRegion.y + maskRegion.height;
+        if (operationRegion.width <= 0 || operationRegion.height <= 0) {
+          body = fullRect(accumulated);
+        } else if (!coversMaskRegion) {
+          const clipId = `${id}opclip${position}`;
+          defs.push(`<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><rect x="${r(operationRegion.x)}" y="${r(operationRegion.y)}" width="${r(operationRegion.width)}" height="${r(operationRegion.height)}" /></clipPath>`);
+          const outsideDestination = `<path d="${rectPath(maskRegion)}${rectPath(operationRegion)}" fill="#fff" fill-rule="evenodd" mask="url(#${accumulated})" />`;
+          body = `${outsideDestination}<g clip-path="url(#${clipId})">${operationBody}</g>`;
+        }
       }
       defs.push(`<mask id="${combined}" maskUnits="userSpaceOnUse" x="${r(maskRegion.x)}" y="${r(maskRegion.y)}" width="${r(maskRegion.width)}" height="${r(maskRegion.height)}" mask-type="alpha">${body}</mask>`);
       accumulated = combined;
     }
     defs.push(`<mask id="${id}" maskUnits="userSpaceOnUse" x="${r(maskRegion.x)}" y="${r(maskRegion.y)}" width="${r(maskRegion.width)}" height="${r(maskRegion.height)}" mask-type="alpha">${fullRect(accumulated)}</mask>`);
-    return { id, def: defs.join("") };
+    return { id, def: withNormalizedLayers(defs.join("")) };
   }
 
   // For the default add case (single layer OR all-add), flatten every
@@ -1178,13 +1263,13 @@ export function buildMaskDef(
   if (!isIntersect && !isSubtract && !isExclude) {
     const flat = nonEmpty.flat().join("");
     const def = `<mask id="${id}" maskUnits="userSpaceOnUse"${explicitMaskRegion} mask-type="${maskType}">${flat}</mask>`;
-    return { id, def };
+    return { id, def: withNormalizedLayers(def) };
   }
   if (nonEmpty.length === 1) {
     // Single-layer composite is just the layer itself regardless of op.
     const flat = nonEmpty[0].join("");
     const def = `<mask id="${id}" maskUnits="userSpaceOnUse"${explicitMaskRegion} mask-type="${maskType}">${flat}</mask>`;
-    return { id, def };
+    return { id, def: withNormalizedLayers(def) };
   }
 
   if (isIntersect) {
@@ -1202,7 +1287,7 @@ export function buildMaskDef(
       defs.push(`<mask id="${layerMaskId}" maskUnits="userSpaceOnUse"${explicitMaskRegion} mask-type="${maskType}">${items.join("")}</mask>`);
       innerId = layerMaskId;
     }
-    return { id, def: defs.join("") };
+    return { id, def: withNormalizedLayers(defs.join("")) };
   }
 
   if (isSubtract) {
@@ -1229,7 +1314,7 @@ export function buildMaskDef(
     // Outer mask: layer 0's paint, gated by the inverted-subsequent-layers chain.
     const outerItems = innerId != null ? gateLastWithMask(nonEmpty[0], innerId) : nonEmpty[0];
     defs.push(`<mask id="${id}" maskUnits="userSpaceOnUse"${explicitMaskRegion} mask-type="${maskType}">${outerItems.join("")}</mask>`);
-    return { id, def: defs.join("") };
+    return { id, def: withNormalizedLayers(defs.join("")) };
   }
 
   // Exclude: a XOR b = a * (1 - b) + b * (1 - a). Generalises to N layers as
@@ -1277,6 +1362,6 @@ export function buildMaskDef(
       outerContents.push(items.join(""));
     }
     defs.push(`<mask id="${id}" maskUnits="userSpaceOnUse"${explicitMaskRegion} mask-type="${maskType}">${outerContents.join("")}</mask>`);
-    return { id, def: defs.join("") };
+    return { id, def: withNormalizedLayers(defs.join("")) };
   }
 }

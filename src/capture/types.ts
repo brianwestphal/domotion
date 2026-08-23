@@ -2276,6 +2276,13 @@ export interface CapturedElement {
   /** Effective zoom of this HTML fragment-reference consumer. */
   fragmentReferenceZoom?: number;
   /**
+   * Ordered local SVG mask-source references inside the computed
+   * `mask-image` layer list. Each layer is resolved independently in the
+   * consumer's originating TreeScope; the index keeps its cyclic
+   * `mask-mode` and `mask-composite` entries attached during rendering.
+   */
+  maskFragmentReferences?: MaskFragmentReference[];
+  /**
    * <fieldset> with a top-aligned <legend>: Chrome's UA paints the fieldset's
    * top border at the legend's vertical center (not at fs.y) and notches the
    * border across the legend's horizontal extent. The captured x/y/width/
@@ -2453,6 +2460,15 @@ export interface MaskFragmentDef {
    * than the generated output SVG viewport.
    */
   userSpaceRegion?: { x: number; y: number; width: number; height: number };
+}
+
+export interface MaskFragmentReference {
+  /** Zero-based index in the computed `mask-image` list. */
+  layerIndex: number;
+  /** Original fragment id from that layer's `url(#id)`. */
+  id: string;
+  /** Document/shadow-root scope in which the layer resolved `id`. */
+  scope?: number;
 }
 
 export interface ClipPathFragmentDef {
