@@ -169,7 +169,7 @@ function fixture(): string {
     @keyframes composition-translate{from{transform:translate3d(0,0,0)}to{transform:translate3d(18px,10px,70px)}}
   </style></head><body><main id="stage">
     ${CASES.map(({ id, family }) => id === "grouping"
-      ? `<section id="${id}-host" class="case timeline" data-family="${family}" data-domotion-anim="${id}-host"><div id="grouping-middle"><div id="${id}-plane" class="plane" data-domotion-anim="${id}-plane"></div></div></section>`
+      ? `<section id="${id}-host" class="case timeline" data-family="${family}" data-domotion-anim="${id}-host"><div id="grouping-middle" data-domotion-anim="grouping-middle"><div id="${id}-plane" class="plane" data-domotion-anim="${id}-plane"></div></div></section>`
       : `<section id="${id}-host" class="case${["perspective", "preserve"].includes(id) ? " timeline" : ""}" data-family="${family}" data-domotion-anim="${id}-host"><div id="${id}-plane" class="plane${["rotate3d", "translate3d", "matrix3d", "origin"].includes(id) ? " timeline" : ""}" data-domotion-anim="${id}-plane"></div></section>`).join("")}
   </main></body></html>`;
 }
@@ -185,7 +185,7 @@ function flatten(elements: CapturedElement[]): CapturedElement[] {
 }
 
 async function measureDirectNodes(page: Page): Promise<Map<string, { quad: Quad; residual: number; computed: ProjectiveComputedFrame }>> {
-  const ids = CASES.flatMap(({ id }) => [`${id}-host`, `${id}-plane`]);
+  const ids = [...CASES.flatMap(({ id }) => [`${id}-host`, `${id}-plane`]), "grouping-middle"];
   const computed = await page.evaluate((nodeIds) => Object.fromEntries(nodeIds.map((id) => {
     const element = document.querySelector(`[data-domotion-anim="${id}"]`)!;
     const style = getComputedStyle(element);
@@ -237,7 +237,15 @@ async function measureDirectNodes(page: Page): Promise<Map<string, { quad: Quad;
 function expectedOwnerId(caseId: string, direct: Map<string, { quad: Quad; residual: number; computed: ProjectiveComputedFrame }>): string | null {
   const plane = direct.get(`${caseId}-plane`)!;
   if (plane.residual <= ANIMATED_PROJECTIVE_QUAD_TOLERANCE_CSS_PX) return null;
-  if (caseId === "perspective" || caseId === "grouping") return `${caseId}-host`;
+  // Perspective projects descendants but does not create a preserve-3d
+  // RenderingContextId. A grouping property forces the host's used
+  // transform-style flat; the preserving child then starts a fresh context.
+  if (caseId === "perspective") return `${caseId}-plane`;
+  if (caseId === "grouping") {
+    return direct.get("grouping-host")!.computed.overflowX === "visible"
+      ? "grouping-host"
+      : "grouping-middle";
+  }
   if (caseId === "preserve" && direct.get("preserve-host")!.computed.transformStyle === "preserve-3d") {
     return "preserve-host";
   }
@@ -309,7 +317,9 @@ export async function runAnimatedProjectiveFrameOracle(options: {
             const planeId = `${testCase.id}-plane`;
             const source = direct.get(planeId)!;
             const ownerId = expectedOwnerId(testCase.id, direct);
-            const caseOwners = owners.filter((element) => element.animId === `${testCase.id}-host` || element.animId === planeId);
+            const caseOwnerIds = new Set([`${testCase.id}-host`, planeId]);
+            if (testCase.id === "grouping") caseOwnerIds.add("grouping-middle");
+            const caseOwners = owners.filter((element) => element.animId != null && caseOwnerIds.has(element.animId));
             const actualOwner = caseOwners.length === 1 ? caseOwners[0] : undefined;
             const ownerMarkupExact = ownerId == null
               ? true

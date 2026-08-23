@@ -1035,6 +1035,9 @@ async function measureProjectivePaintQuads(
     inlineSvgRoot: number | null;
     role: ProjectiveSvgRole;
     computed: ProjectiveComputedState | null;
+    usedPreserve3d: boolean | null;
+    groupingReasons: string[];
+    preserve3dLayoutApplicable: boolean;
   }
 
   const prepared = await page.evaluate(({ sel, key, includeComputed }): Promise<PreparedNode[]> | PreparedNode[] => {
@@ -1134,6 +1137,55 @@ async function measureProjectivePaintQuads(
         : element.localName === "svg" && (element as SVGSVGElement).ownerSVGElement == null
           ? "svg-root-box"
           : "svg-graphics";
+      const style = getComputedStyle(element);
+      const tag = element.localName;
+      const replaced = !isSvg && /^(?:img|input|textarea|select|video|canvas|iframe|object|embed)$/.test(tag);
+      const preserve3dLayoutApplicable = role !== "svg-graphics"
+        && style.display !== "contents"
+        && (style.display !== "inline" || replaced);
+      const groupingReasons: string[] = [];
+      const willChange = new Set((style.willChange ?? "").split(",").map((v) => v.trim()));
+      let animatedOpacity = false;
+      let animatedFilter = false;
+      let animatedBackdrop = false;
+      try {
+        for (const animation of element.getAnimations()) {
+          if (animation.playState === "idle" || animation.playState === "finished") continue;
+          const effect = animation.effect;
+          if (!(effect instanceof KeyframeEffect) || effect.target !== element) continue;
+          for (const frame of effect.getKeyframes()) {
+            animatedOpacity ||= Object.prototype.hasOwnProperty.call(frame, "opacity");
+            animatedFilter ||= Object.prototype.hasOwnProperty.call(frame, "filter");
+            animatedBackdrop ||= Object.prototype.hasOwnProperty.call(frame, "backdropFilter");
+          }
+        }
+      } catch { /* Animation inspection unavailable: static used values remain authoritative. */ }
+      const extended = style as CSSStyleDeclaration & {
+        webkitBoxReflect?: string;
+        webkitMaskBoxImageSource?: string;
+        backdropFilter?: string;
+        webkitBackdropFilter?: string;
+        viewTransitionName?: string;
+      };
+      if (Number.parseFloat(style.opacity || "1") < 1 || willChange.has("opacity") || animatedOpacity) groupingReasons.push("opacity");
+      if (style.filter !== "none" || willChange.has("filter") || animatedFilter) groupingReasons.push("filter");
+      if ((extended.webkitBoxReflect ?? "none") !== "none") groupingReasons.push("reflection");
+      if (style.clipPath !== "none") groupingReasons.push("clip-path");
+      if (style.isolation !== "auto") groupingReasons.push("isolation");
+      if (style.maskImage !== "none" || (extended.webkitMaskBoxImageSource ?? "none") !== "none") groupingReasons.push("mask");
+      if (style.mixBlendMode !== "normal") groupingReasons.push("blend");
+      if ((extended.backdropFilter ?? extended.webkitBackdropFilter ?? "none") !== "none"
+        || willChange.has("backdrop-filter") || animatedBackdrop) groupingReasons.push("backdrop-filter");
+      if ((extended.viewTransitionName ?? "none") !== "none") groupingReasons.push("view-transition");
+      if ((style.position === "absolute" || style.position === "fixed") && style.clip !== "auto") groupingReasons.push("css-clip");
+      if (style.overflowX !== "visible" || style.overflowY !== "visible") groupingReasons.push("overflow");
+      let activeViewTransition: boolean | null = null;
+      try { activeViewTransition = document.documentElement.matches(":active-view-transition"); } catch { /* unsupported selector */ }
+      const usedPreserve3d = style.transformStyle !== "preserve-3d" || !preserve3dLayoutApplicable
+        ? false
+        : activeViewTransition == null || (activeViewTransition && !groupingReasons.includes("view-transition"))
+          ? null
+          : groupingReasons.length === 0;
       let inlineSvgRoot: number | null = null;
       let cursor: Element | null = element;
       while (cursor != null) {
@@ -1150,6 +1202,9 @@ async function measureProjectivePaintQuads(
         inlineSvgRoot,
         role,
         computed: computedByElement.get(element) ?? null,
+        usedPreserve3d,
+        groupingReasons,
+        preserve3dLayoutApplicable,
       });
     }
     return result;
@@ -1212,6 +1267,7 @@ async function measureProjectivePaintQuads(
     return {
       parent: node.parent,
       influenced: node.influenced,
+      usedPreserve3d: node.usedPreserve3d,
       nonAffine: node.activationPlane && (quad == null || isNonAffineProjectiveQuad(quad)),
       inlineSvgRoot: node.inlineSvgRoot,
       role: node.role,
@@ -1219,6 +1275,8 @@ async function measureProjectivePaintQuads(
       borderQuad: measured?.borderQuad ?? null,
       residual: quad == null ? null : projectiveQuadResidual(quad),
       computed: node.computed,
+      groupingReasons: node.groupingReasons,
+      preserve3dLayoutApplicable: node.preserve3dLayoutApplicable,
     };
   });
 
@@ -1682,6 +1740,16 @@ export async function captureElementTreeWithWarnings(
   }
   const typed = result as { tree: CapturedElement[]; warnings: CaptureWarning[] };
   const warnings = typed.warnings ?? [];
+  for (let index = 0; index < (projectiveProbe?.facts.length ?? 0); index++) {
+    const fact = projectiveProbe!.facts[index];
+    if (fact.usedPreserve3d !== null) continue;
+    warnings.push({
+      selector: `${selector} projective-node[${index}]`,
+      feature: "transform-style: preserve-3d",
+      detail: "Blink used rendering-context grouping state was not observable in the paused source frame; retained the conservative outer Chromium surface.",
+      status: "partial",
+    });
+  }
   warnings.push(...(scrollbarCapture?.warnings ?? []));
   warnings.push(...(pseudoFragmentProbe?.warnings ?? []));
   warnings.push(...(textPaintProbe?.warnings ?? []));

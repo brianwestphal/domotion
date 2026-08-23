@@ -17,6 +17,64 @@ export function doubleBorderStripeGeometry(width: number): { stripe: number; off
   return { stripe, offset: (snapped - stripe) / 2 };
 }
 
+export interface BorderReferenceRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Blink `ContouredBorderGeometry::PixelSnappedContouredBorder` rounds the
+ * physical outer edges before any uniform-border stripe geometry is derived.
+ * Round the far edges independently instead of rounding width/height so a
+ * fractional origin cannot move the opposite edge onto a different pixel.
+ */
+export function pixelSnappedBorderReferenceRect(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): BorderReferenceRect {
+  const right = Math.round(x + width);
+  const bottom = Math.round(y + height);
+  const left = Math.round(x);
+  const top = Math.round(y);
+  return { x: left, y: top, width: right - left, height: bottom - top };
+}
+
+export interface UniformDoubleBorderStripeBoxes {
+  strokeWidth: number;
+  outerInset: number;
+  innerInset: number;
+  outer: BorderReferenceRect;
+  inner: BorderReferenceRect;
+}
+
+/** Derive both uniform-double centerline boxes from one reference rectangle. */
+export function uniformDoubleBorderStripeBoxes(
+  reference: BorderReferenceRect,
+  borderWidth: number,
+  collapseShift = 0,
+): UniformDoubleBorderStripeBoxes {
+  const { stripe: strokeWidth, offset } = doubleBorderStripeGeometry(borderWidth);
+  const outerInset = borderWidth / 2 - offset - collapseShift;
+  const innerInset = borderWidth / 2 + offset - collapseShift;
+  const inset = (amount: number): BorderReferenceRect => ({
+    x: reference.x + amount,
+    y: reference.y + amount,
+    width: reference.width - 2 * amount,
+    height: reference.height - 2 * amount,
+  });
+  return {
+    strokeWidth,
+    outerInset,
+    innerInset,
+    outer: inset(outerInset),
+    inner: inset(innerInset),
+  };
+}
+
 /** Port of Skia/Blink SelectBestDashGap for open or closed strokes. */
 export function selectBestDashGap(strokeLength: number, dashLength: number, gapLength: number, closedPath: boolean): number {
   const available = strokeLength + (closedPath ? 0 : gapLength);

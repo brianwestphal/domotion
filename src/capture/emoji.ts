@@ -28,6 +28,7 @@ import {
   planBackdropIsolation,
   type SnapshotNode,
 } from "./backdrop-isolation.js";
+import { prepareBackdropEffectSpace } from "./backdrop-effect-neutralization.js";
 import { selectedGlyphRasterSpans } from "../render/text-to-path.js";
 import { capturedTextSegmentFontFeatures, parseFontVariationSettings } from "../render/text.js";
 
@@ -502,7 +503,8 @@ export async function rasterizeBackdropFilters(
   if (targets.length === 0) return;
 
   let cdp: CDPSession | undefined;
-  const captureCrop = async (target: Target): Promise<boolean> => {
+  const captureCrop = async (target: Target): Promise<{ captured: boolean; effectSpaceExact: boolean }> => {
+    const preparedEffectSpace = await prepareBackdropEffectSpace(page, target.raster);
     try {
       const clip = clipRectForScreenshot(target.raster, viewport);
       const buf = await page.screenshot({ clip, omitBackground: true, type: "png" });
@@ -511,14 +513,16 @@ export async function rasterizeBackdropFilters(
       target.raster.y = clip.y - viewport.y;
       target.raster.width = clip.width;
       target.raster.height = clip.height;
-      return true;
+      return { captured: true, effectSpaceExact: preparedEffectSpace.status === "exact" };
     } catch {
       appendBackdropRasterWarning(warnings, target.selector, {
         status: "unavailable",
         reason: "screenshot-failure",
         fallback: target.vectorFallback,
       });
-      return false;
+      return { captured: false, effectSpaceExact: preparedEffectSpace.status === "exact" };
+    } finally {
+      await preparedEffectSpace.restore();
     }
   };
   try {
@@ -561,7 +565,7 @@ export async function rasterizeBackdropFilters(
     for (const target of targets) {
       const plan = planBackdropIsolation(nodes, target.raster.token!);
       if (plan == null) {
-        if (await captureCrop(target)) {
+        if ((await captureCrop(target)).captured) {
           appendBackdropRasterWarning(warnings, target.selector, {
             status: "partial",
             reason: "planner-miss",
@@ -593,9 +597,16 @@ export async function rasterizeBackdropFilters(
             unresolvedNodeCount++;
           }
         }
-        if (await captureCrop(target)) {
+        const captured = await captureCrop(target);
+        if (captured.captured) {
           appendBackdropRasterWarning(warnings, target.selector, unresolvedNodeCount === 0
-            ? { status: "exact" }
+            ? captured.effectSpaceExact
+              ? { status: "exact" }
+              : {
+                status: "partial",
+                reason: "effect-space-unavailable",
+                fallback: "isolated final-effect-space Chromium crop",
+              }
             : {
               status: "partial",
               reason: "node-resolution-partial",
@@ -621,7 +632,7 @@ export async function rasterizeBackdropFilters(
     // DOMSnapshot is Chromium-only and mapping can fail for pseudo/fragments.
     // Fall back to the original full-page crop for every unresolved target.
     for (const target of targets) {
-      if (await captureCrop(target)) {
+      if ((await captureCrop(target)).captured) {
         appendBackdropRasterWarning(warnings, target.selector, {
           status: "partial",
           reason: "snapshot-unavailable",

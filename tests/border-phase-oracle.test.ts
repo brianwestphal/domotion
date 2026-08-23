@@ -20,17 +20,12 @@ describe("border phase oracle corpus", () => {
     expect(Math.max(...cases.map((c) => c.y))).toBeLessThan(32 * 60);
   });
 
-  it("ratifies only families with source-exact reference-box geometry", () => {
+  it("ratifies every family after uniform-double adopts the snapped reference box", () => {
     const rows = buildPhaseCases().map((phaseCase) => ({
       id: phaseCase.id,
       status: borderPhaseGeometryStatus(phaseCase),
     }));
-    expect(rows.filter(({ status }) => status === "source-exact")).toHaveLength(112);
-    expect(rows.filter(({ status }) => status !== "source-exact")).toEqual(
-      buildPhaseCases()
-        .filter(({ kind, style }) => kind === "border" && style === "double")
-        .map(({ id }) => ({ id, status: "unratified-border-double-snap" })),
-    );
+    expect(rows.filter(({ status }) => status === "source-exact")).toHaveLength(128);
     expect(borderPhaseGeometryStatus({ kind: "outline", style: "double" })).toBe("source-exact");
   });
 

@@ -90,6 +90,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt521g1uqf2e0gci",
+          "message": {
+            "text": "The animated oracle now measures the grouping intermediary and derives corrected owners: perspective owns its plane, while overflow flattening transfers ownership from the preserving host to the fresh preserving intermediary. The focused live gate passes 64/64 DPR-1/2 rows and kills 5/5 mutations; the static nested audit passes 26/26 owner rows with every vector sentinel retained.",
+            "markdown": "The animated oracle now measures the grouping intermediary and derives corrected owners: perspective owns its plane, while overflow flattening transfers ownership from the preserving host to the fresh preserving intermediary. The focused live gate passes 64/64 DPR-1/2 rows and kills 5/5 mutations; the static nested audit passes 26/26 owner rows with every vector sentinel retained."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/animated-projective-frame-oracle.ts"
+                },
+                "region": {
+                  "startLine": 238,
+                  "endLine": 252,
+                  "snippet": {
+                    "text": "  const plane = direct.get(`${caseId}-plane`)!;\n  if (plane.residual <= ANIMATED_PROJECTIVE_QUAD_TOLERANCE_CSS_PX) return null;\n  // Perspective projects descendants but does not create a preserve-3d\n  // RenderingContextId. A grouping property forces the host's used\n  // transform-style flat; the preserving child then starts a fresh context.\n  if (caseId === \"perspective\") return `${caseId}-plane`;\n  if (caseId === \"grouping\") {\n    return direct.get(\"grouping-host\")!.computed.overflowX === \"visible\"\n      ? \"grouping-host\"\n      : \"grouping-middle\";\n  }\n  if (caseId === \"preserve\" && direct.get(\"preserve-host\")!.computed.transformStyle === \"preserve-3d\") {\n    return \"preserve-host\";\n  }\n  return `${caseId}-plane`;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2492"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e6fe25d0b8d7e1f93667ca703a241eef"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "29b3f2625c907f6f4343d350ebd1098ea11632f5",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

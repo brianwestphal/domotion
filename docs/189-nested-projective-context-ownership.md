@@ -1,6 +1,6 @@
 # 189 — Nested projective-context raster ownership
 
-**Status:** investigation complete; production owner selection is known partial
+**Status:** production selector corrected by DM-2492; all-platform ratification remains DM-2493
 
 **Ticket:** DM-2356
 
@@ -12,12 +12,13 @@ properties? The answer is not “the outermost ancestor with a 3D symptom.” It
 Blink's used rendering-context root, or the non-affine plane itself when no
 rendering context exists.
 
-The audit found a production defect. `measureProjectivePaintQuads` marks every
+The audit found a production defect. Before DM-2492, `measureProjectivePaintQuads` marked every
 descendant of a 3D-signal element as influenced, and `selectProjectiveRasterOwners`
 then climbs through all influenced ancestors. That descendant-union model
 over-owns nine of thirteen source-discriminating families. The resulting SVG is
 visually close because the larger Chromium crop contains the right pixels, but
-unrelated vector siblings are unnecessarily baked into the bitmap.
+unrelated vector siblings were unnecessarily baked into the bitmap. DM-2492
+replaced that selector with the source-derived used-context walk below.
 
 ## Pinned source verdict
 
@@ -110,18 +111,16 @@ Local macOS evidence on the pinned Chromium is:
 | Evidence | DPR 1 | DPR 2 |
 | --- | ---: | ---: |
 | source-model rows | 13/13 | 13/13 |
-| minimal production owners | 4/13 | 4/13 |
-| over-owned production rows | 9/13 | 9/13 |
+| minimal production owners | 13/13 | 13/13 |
+| over-owned production rows | 0/13 | 0/13 |
 | atomic rasters emitted once | 13/13 | 13/13 |
-| over-owned rows that absorbed the vector sentinel | 9/9 | 9/9 |
-| source/generated changed-pixel fraction (diagnostic only) | 0.15997% | 0.07335% |
+| over-owned rows that absorbed the vector sentinel | 0 | 0 |
+| source/generated changed-pixel fraction (diagnostic only) | 0.16053% | 0.07388% |
 
-The four already-minimal families are a shared used-preserve context, a direct
-nested extension of that context, independent self-owned projective planes,
-and the affine negative. Perspective-only, ordinary/flat breaks, and all six
-grouping rows are over-owned. The tiny final-image deltas explain why the
-existing final-pixel gate was false-green: pixels can match while a vector
-sibling is irreversibly captured in an unnecessarily large bitmap.
+All thirteen source-discriminating families now select the same minimal owner
+as the independent model. Perspective-only and ordinary breaks own the plane;
+flat/grouping breaks allow the preserving descendant to start a fresh context;
+and every uniquely colored sentinel remains vector-owned.
 
 Six structural mutations are mandatory and all are detected: owner one level
 too high, owner one level too low, dropped owner, duplicate raster, baked vector
@@ -131,12 +130,10 @@ production failures as an audit failure.
 
 ## Existing-gate correction
 
-DM-2359's animation-time protocol, composed transform facts, quads, residuals,
-and atomic one-application checks remain valuable. Its owner oracle is not an
-independent minimality proof: `expectedOwnerId()` encodes the same outer-host
-assumption for perspective and grouping rows. The reported 64/64 result must
-therefore be read as exact timing/geometry against a stale owner expectation,
-not as proof that the selected raster boundary is smallest.
+DM-2492 corrected DM-2359's independent expectations: perspective owns its
+non-affine plane, while the animated overflow grouping row identifies the
+measured intermediary and expects that fresh root after the break. The focused
+gate is 64/64 at DPR 1/2 with 5/5 mutations.
 
 Likewise, the inline-SVG affine freeze and opaque-clone promotion in doc 162
 remain source-owned. What is partial is the HTML nested-context owner chosen
@@ -144,16 +141,16 @@ remain source-owned. What is partial is the HTML nested-context owner chosen
 
 ## Follow-up boundary
 
-This ticket changes no production capture or renderer code. Follow-up work must:
+DM-2492 changes production capture and selection by:
 
-- replace descendant-union ownership with frame-coherent used rendering-context
+- replacing descendant-union ownership with frame-coherent used rendering-context
   facts while retaining inline-SVG promotion and one-owner emission;
-- correct the animated oracle's expected owner and label the grouping
+- correcting the animated oracle's expected owner and labeling the grouping
   intermediary independently; and
-- promote this observational corpus to a strict native macOS/Linux/Windows
+- leaving promotion of this corpus to a strict native macOS/Linux/Windows
   DPR-1/2 release gate, preserving the vector sentinel and all six mutations.
 
 - **DM-2492** implements frame-coherent Blink used rendering-context owner
-  selection and corrects the animated expectation.
+  selection and corrects the animated expectation (complete in this source tree).
 - **DM-2493**, blocked on DM-2492, promotes this corpus to a strict native
   macOS/Linux/Windows DPR-1/2 release gate with lossless artifacts.

@@ -61,6 +61,10 @@ import {
   isWholeHostNativeAppearance,
 } from "../effective-appearance.js";
 import { nativeControlDecorationKinds } from "../native-control-decoration.js";
+import {
+  backdropEffectNeutralizations,
+  backdropRootReasons,
+} from "../backdrop-effect-space.js";
 
 const captureDocumentTree =
 (args) => {
@@ -246,6 +250,9 @@ const captureDocumentTree =
         residual: _projectiveFact.residual,
         nonAffine: _projectiveFact.nonAffine === true,
         ownsRasterBoundary: _nonAffineProjectiveRoots.has(el),
+        usedPreserve3d: _projectiveFact.usedPreserve3d,
+        groupingReasons: _projectiveFact.groupingReasons,
+        preserve3dLayoutApplicable: _projectiveFact.preserve3dLayoutApplicable === true,
         computed: _projectiveFact.computed,
       };
     }
@@ -1404,6 +1411,7 @@ const captureDocumentTree =
           height: rect.height,
           token,
           selector: sel,
+          effectSpace: _backdropEffectSpaceFor(el),
         };
       })(),
       // DM-2415: a CSS URL filter containing feConvolveMatrix needs Blink's
@@ -2014,6 +2022,68 @@ const captureDocumentTree =
     _ownershipEls.push(_ownershipAncestor);
     _ownershipAncestor = _ownershipAncestor.parentElement;
   }
+  // DM-2487: snapshot the ancestor effect tree before the transform walker can
+  // temporarily freeze rotate/skew declarations. This source-owned record is
+  // consumed by the Node screenshot pass; ordinary stacking, isolation,
+  // overflow, positioning, and transforms do not become Backdrop Roots.
+  const _backdropEffectFacts = new WeakMap();
+  const _backdropFactsFor = (_element, _style) => ({
+    isDocumentRoot: _element === _element.ownerDocument.documentElement,
+    opacity: _style.opacity || '1',
+    filter: _style.filter || 'none',
+    backdropFilter: _style.backdropFilter || _style.webkitBackdropFilter || 'none',
+    clipPath: _style.clipPath || 'none',
+    maskImage: _style.maskImage || 'none',
+    maskBorderSource: _style.maskBorderSource || 'none',
+    mixBlendMode: _style.mixBlendMode || 'normal',
+    willChange: _style.willChange || 'auto',
+    transform: _style.transform || 'none',
+    translate: _style.translate || 'none',
+    rotate: _style.rotate || 'none',
+    scale: _style.scale || 'none',
+  });
+  for (let _bi = 0; _bi < _ownershipEls.length; _bi++) {
+    const _element = _ownershipEls[_bi];
+    const _styleWindow = _element.ownerDocument?.defaultView ?? window;
+    _backdropEffectFacts.set(_element, _backdropFactsFor(_element, _styleWindow.getComputedStyle(_element)));
+  }
+  const _backdropEffectSpaceFor = (_target) => {
+    const _ancestors = [];
+    let _nearestRoot;
+    let _ancestor = _target.parentElement;
+    let _depth = 1;
+    while (_ancestor != null) {
+      const _styleWindow = _ancestor.ownerDocument?.defaultView ?? window;
+      const _facts = _backdropEffectFacts.get(_ancestor)
+        || _backdropFactsFor(_ancestor, _styleWindow.getComputedStyle(_ancestor));
+      const _reasons = backdropRootReasons(_facts);
+      const _neutralize = backdropEffectNeutralizations(_facts);
+      const _selector = shortSelector(_ancestor);
+      if (_nearestRoot == null && _reasons.length > 0) {
+        _nearestRoot = {
+          kind: _facts.isDocumentRoot ? 'document' : 'element',
+          depth: _depth,
+          selector: _selector,
+          reasons: _reasons,
+        };
+      }
+      if (_reasons.length > 0 || _neutralize.length > 0) {
+        _ancestors.push({ depth: _depth, selector: _selector, reasons: _reasons, neutralize: _neutralize });
+      }
+      _ancestor = _ancestor.parentElement;
+      _depth++;
+    }
+    // A connected HTML target always reaches documentElement. Keep this
+    // conservative fallback explicit for detached/custom-document probes.
+    if (_nearestRoot == null) {
+      _nearestRoot = { kind: 'document', depth: 0, selector: 'html', reasons: ['document-root'] };
+    }
+    return {
+      source: 'blink-backdrop-effect-tree-v1',
+      nearestRoot: _nearestRoot,
+      ancestors: _ancestors,
+    };
+  };
   const _probeUnsupportedTags = /^(?:AUDIO|CANVAS|EMBED|IFRAME|IMG|INPUT|METER|OBJECT|PROGRESS|SELECT|TEXTAREA|VIDEO)$/;
   for (let _oi = 0; _oi < _ownershipEls.length; _oi++) {
     const _owner = _ownershipEls[_oi];

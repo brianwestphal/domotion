@@ -285,6 +285,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt525vm3yftgehad",
+          "message": {
+            "text": "The full fixed-threshold DSF 1/2/4 by zoom 0.8/1/1.25 matrix now ratifies every row without widening any envelope. Two complete local runs each passed 1,152 of 1,152 rows; all 144 border.double rows measured zero edge error and zero profile RMSE, while the whole-matrix maxima stayed exactly at the existing dotted-outline ceilings. Both lossless artifact sets hashed to e0693e707f0ae983585a7f3cf364662ac653547d62c80b07447d64e2ab31145e. The existing workflow repeats this producer on macOS, Linux, and Windows before integration evidence is accepted.",
+            "markdown": "The full fixed-threshold DSF 1/2/4 by zoom 0.8/1/1.25 matrix now ratifies every row without widening any envelope. Two complete local runs each passed 1,152 of 1,152 rows; all 144 border.double rows measured zero edge error and zero profile RMSE, while the whole-matrix maxima stayed exactly at the existing dotted-outline ceilings. Both lossless artifact sets hashed to e0693e707f0ae983585a7f3cf364662ac653547d62c80b07447d64e2ab31145e. The existing workflow repeats this producer on macOS, Linux, and Windows before integration evidence is accepted."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/border-phase-oracle.ts"
+                },
+                "region": {
+                  "startLine": 32,
+                  "endLine": 43,
+                  "snippet": {
+                    "text": "/** Blink pixel-snaps the border/outline reference rect before paint. Every\n * straight border and square-outline branch, including both uniform-double\n * stripe boxes, now mirrors that decision locally. */\nexport function borderPhaseGeometryStatus(\n  _phaseCase: Pick<PhaseCase, \"kind\" | \"style\">,\n): \"source-exact\" {\n  return \"source-exact\";\n}\n\n/** Inputs consumed by Blink's `BoxBorderPainter::PaintBorderFastPath`.\n * This is a decision oracle, not an SVG implementation preference: keeping the\n * branch visible prevents a good corner screenshot from hiding that Domotion"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/border-phase-ratifier.test.ts"
+                },
+                "region": {
+                  "startLine": 98
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/border-phase-oracle.yml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2491"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "0a2f73ba0f0629195f944134989f686b"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "29b3f2625c907f6f4343d350ebd1098ea11632f5",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -104,6 +104,11 @@ true blur.
   `DOMSnapshot` paint-order comparator, and destructive no-surface/final-crop
   mutations. It confirms the narrow direct-target route and records the
   remaining Backdrop Root, generated-pseudo, and fixed-order gaps in doc 187.
+- DM-2487/doc 194 serializes the nearest Blink Backdrop Root and ancestor
+  effect-space facts, then reversibly neutralizes SVG-reapplied ancestor paint
+  for each crop. This closes filter-root replay and improves opacity,
+  transform, and mask rows without changing thresholds; atomic opacity/blend
+  roots, transformed coordinates, and target-filter grouping remain partial.
 
 The earlier solid body-color approximation remains documented in doc 19 for
 historical context and as the explicit unavailable fallback when no Chromium

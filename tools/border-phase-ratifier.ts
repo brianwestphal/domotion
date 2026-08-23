@@ -1,11 +1,10 @@
 #!/usr/bin/env tsx
-/** Strict adjudicator for the source-exact subset of the border phase matrix.
+/** Strict adjudicator for the source-exact border phase matrix.
  *
  * The native producer intentionally reports every row. This gate applies a
- * reviewed, fingerprinted paint envelope only to families whose reference-box
- * snap geometry mirrors pinned Blink. Rows with unresolved logical ownership
- * remain explicitly unratified and can never be converted into a pass by a
- * wider alpha tolerance.
+ * reviewed, fingerprinted paint envelope only after every family has
+ * source-owned reference-box geometry. A paint tolerance cannot substitute
+ * for that logical ownership.
  */
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -104,7 +103,7 @@ export interface RunEnvironment extends RunnerFingerprint {
 export interface BorderPhaseAdjudication {
   schemaVersion: 1;
   platform: string;
-  verdict: "ratified-source-exact-subset" | "drift";
+  verdict: "ratified-source-exact" | "drift";
   artifactSetSha256: string;
   ratifiedRows: number;
   unratifiedRows: number;
@@ -232,7 +231,7 @@ export function adjudicateBorderPhaseReport(
     findings.push(`report case count ${report.meta.casesPerScenario} != ${expectedCases.length}`);
   if (JSON.stringify(baseline.requiredScenarioIds) !== JSON.stringify(requiredScenarioIds))
     findings.push("baseline scenario inventory drift");
-  if (JSON.stringify(baseline.unratifiedFamilies) !== JSON.stringify(["border.double"]))
+  if (JSON.stringify(baseline.unratifiedFamilies) !== JSON.stringify([]))
     findings.push("baseline unratified-family inventory drift");
 
   const reportById = new Map(report.scenarios.map((scenario) => [scenario.scenario.id, scenario]));
@@ -274,11 +273,11 @@ export function adjudicateBorderPhaseReport(
     const unratified = scenario.rows.filter((row) => borderPhaseGeometryStatus(row) !== "source-exact");
     ratifiedRows += sourceExact.length;
     unratifiedRows += unratified.length;
-    if (sourceExact.length !== 112 || unratified.length !== 16)
-      findings.push(`${id} ownership split ${sourceExact.length}/${unratified.length} != 112/16`);
+    if (sourceExact.length !== 128 || unratified.length !== 0)
+      findings.push(`${id} ownership split ${sourceExact.length}/${unratified.length} != 128/0`);
     if (scenario.geometryOwnership.ratifiedRows !== sourceExact.length
         || scenario.geometryOwnership.unratifiedRows !== unratified.length
-        || JSON.stringify(scenario.geometryOwnership.unratifiedFamilies) !== JSON.stringify(["border.double"]))
+        || JSON.stringify(scenario.geometryOwnership.unratifiedFamilies) !== JSON.stringify([]))
       findings.push(`${id} serialized geometry ownership drift`);
     if (scenario.geometry.htmlSnapFits[0]?.rule !== "css-edge-round"
         || scenario.geometry.svgSnapFits[0]?.rule !== "css-edge-round")
@@ -320,11 +319,11 @@ export function adjudicateBorderPhaseReport(
   return {
     schemaVersion: 1,
     platform: report.meta.platform,
-    verdict: findings.length === 0 ? "ratified-source-exact-subset" : "drift",
+    verdict: findings.length === 0 ? "ratified-source-exact" : "drift",
     artifactSetSha256: artifactSetFingerprint(report),
     ratifiedRows,
     unratifiedRows,
-    unratifiedFamilies: ["border.double"],
+    unratifiedFamilies: [],
     findings,
     scenarios: scenarioResults,
   };
@@ -352,7 +351,7 @@ function main(): number {
   const output = `${JSON.stringify(result, null, 2)}\n`;
   if (jsonPath) writeFileSync(jsonPath, output);
   process.stdout.write(output);
-  return result.verdict === "ratified-source-exact-subset" ? 0 : 1;
+  return result.verdict === "ratified-source-exact" ? 0 : 1;
 }
 
 if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) {

@@ -158,10 +158,11 @@ crosses spans, unequal tracks, conflicts, joints, vertical-rl, and RTL at 0
 regions / 0.00%. The phase oracle now runs a parameterized zoom/device-scale
 matrix and records separate snap-geometry and paint-profile sections with OS,
 architecture, Node, Chromium, source, corpus, and artifact fingerprints.
-DM-2355/doc 191 reviewed the macOS/Linux/Windows evidence and promoted the 112
-source-exact rows per scenario to a hard per-platform envelope. The 16 uniform
-`border.double` rows remain explicitly unratified under DM-2491; a stable alpha
-profile cannot override their unsnapped logical reference geometry.
+DM-2355/doc 191 reviewed the macOS/Linux/Windows evidence and established the
+hard per-platform envelope. The later uniform `border.double` correction
+pixel-snaps one reference rect before deriving both stripe boxes, so all 128
+rows per scenario are now source-exact. All 144 local double rows across the
+DSF/zoom matrix are zero-error, and the existing ceilings did not widen.
 
 Fragmented collapsed tables keep that same global winner graph. Matching
 `TablePainter::PaintCollapsedBorders`, Domotion obtains physical table, section,

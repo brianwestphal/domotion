@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const workflow = readFileSync(".github/workflows/border-phase-oracle.yml", "utf8");
 
-describe("DM-2355 border phase ratification workflow", () => {
+describe("border phase ratification workflow", () => {
   it("is a hard pull-request/main gate on every supported desktop platform", () => {
     expect(workflow).toContain("macos-latest");
     expect(workflow).toContain("ubuntu-latest");
@@ -22,6 +22,7 @@ describe("DM-2355 border phase ratification workflow", () => {
     expect(workflow).toContain("borders:phase-oracle");
     expect(workflow).toContain("borders:phase-ratify");
     expect(workflow).toContain("border-phase-envelopes.json");
+    expect(workflow).toContain("src/render/borders.ts");
   });
 
   it("captures Linux in bounded tiles and preserves all evidence on failure", () => {

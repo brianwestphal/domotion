@@ -207,24 +207,29 @@ filters that earlier paint surface. Rebuilding the filter primitives in SVG
 would apply them to the wrong input.
 
 Capture: the DOM walk records a tokenized `backdropFilterRaster` border-box
-placeholder. `rasterizeBackdropFilters` in `src/capture/emoji.ts` uses a CDP
+placeholder plus its source-owned nearest Blink Backdrop Root and ancestor
+effect-space plan. `rasterizeBackdropFilters` in `src/capture/emoji.ts` uses a CDP
 DOM snapshot to hide only later-painted overlapping subtrees, screenshots the
 target while preserving its earlier backdrop and hiding descendant subtrees,
-restores the live DOM, and stores the PNG data URI. Snapshot or mapping failures fall back
+reversibly neutralizes ancestor effects already emitted by SVG, restores the
+live DOM, and stores the PNG data URI. Snapshot or mapping failures fall back
 to the ordinary full-page crop.
 
 Emit: `src/render/element-tree-to-svg.ts` emits the raster `<image>` at the
 element's paint position as its filtered box surface, then emits text and
 descendants as vectors above it.
 
-Boundary: the current PNG is a viewport-final crop, not a serialized Blink
-Backdrop Root Image. Ancestor opacity/filter/mask/blend/transform wrappers can
-therefore reprocess it, generated pseudos do not own this field, and one fixed
-sibling-order transition is known. See the source matrix and follow-up plan in
-[doc 187](../187-backdrop-source-surface-transitions.md).
+Boundary: source correlation and filter-root replay are now closed, but the PNG
+is not yet an atomic transparent root-local image. Opacity/blend roots,
+transformed effect-space coordinates, target-filter grouping, and one DPR-1
+mask edge remain partial. Generated pseudos and fixed order have separate exact
+owners in docs 193 and 192. See the source matrix in
+[doc 187](../187-backdrop-source-surface-transitions.md) and DM-2487 evidence in
+[doc 194](../194-ordinary-backdrop-effect-space.md).
 
-Docs: [126-backdrop-filter-isolation.md](../126-backdrop-filter-isolation.md)
-and [187-backdrop-source-surface-transitions.md](../187-backdrop-source-surface-transitions.md).
+Docs: [126-backdrop-filter-isolation.md](../126-backdrop-filter-isolation.md),
+[187-backdrop-source-surface-transitions.md](../187-backdrop-source-surface-transitions.md),
+and [194-ordinary-backdrop-effect-space.md](../194-ordinary-backdrop-effect-space.md).
 
 ### C0a. Advanced CSS gradient interpolation
 

@@ -18,8 +18,8 @@ export type BackdropRasterOutcome =
   | { status: "exact" }
   | {
     status: "partial";
-    reason: "planner-miss" | "snapshot-unavailable" | "node-resolution-partial";
-    fallback: "unisolated Chromium page crop" | "partially isolated Chromium crop";
+    reason: "planner-miss" | "snapshot-unavailable" | "node-resolution-partial" | "effect-space-unavailable";
+    fallback: "unisolated Chromium page crop" | "partially isolated Chromium crop" | "isolated final-effect-space Chromium crop";
     unresolvedNodeCount?: number;
   }
   | {
@@ -49,6 +49,8 @@ export function backdropRasterWarning(
   } else if (outcome.reason === "node-resolution-partial") {
     const count = outcome.unresolvedNodeCount ?? 1;
     reason = `${count} CDP paint ${count === 1 ? "owner was" : "owners were"} not resolved for isolation`;
+  } else if (outcome.reason === "effect-space-unavailable") {
+    reason = "captured Blink Backdrop Root/effect-space correlation was unavailable";
   } else if (outcome.reason === "missing-token") {
     reason = "capture record had no live-DOM isolation token";
   } else {

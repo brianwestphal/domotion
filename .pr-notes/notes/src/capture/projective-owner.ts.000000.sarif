@@ -79,6 +79,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt521fw305p6zw35",
+          "message": {
+            "text": "Blink rendering-context ownership propagates only across a direct parent whose used LayoutObject preserves 3D. Perspective and influenced descendants do not establish a context; a grouping/flat break resets propagation and a nested preserve node starts a fresh root. Explicit unknown facts retain the former larger Chromium surface rather than risk clipping.",
+            "markdown": "Blink rendering-context ownership propagates only across a direct parent whose used LayoutObject preserves 3D. Perspective and influenced descendants do not establish a context; a grouping/flat break resets propagation and a nested preserve node starts a fresh root. Explicit unknown facts retain the former larger Chromium surface rather than risk clipping."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/projective-owner.ts"
+                },
+                "region": {
+                  "startLine": 110,
+                  "endLine": 153,
+                  "snippet": {
+                    "text": " */\nexport function selectProjectiveRasterOwnerIndexes(\n  nodes: readonly ProjectiveOwnershipNode[],\n): number[] {\n  const contextRoot = new Map<number, number | null>();\n  const propagated = new Map<number, number | null>();\n  for (let index = 0; index < nodes.length; index++) {\n    const node = nodes[index];\n    const inherited = node.parent == null ? null : (propagated.get(node.parent) ?? null);\n    const root = inherited ?? (node.usedPreserve3d === true ? index : null);\n    contextRoot.set(index, root);\n    propagated.set(index, node.usedPreserve3d === true ? root : null);\n  }\n  const candidates = new Set<number>();\n\n  for (let index = 0; index < nodes.length; index++) {\n    const node = nodes[index];\n    if (node == null || !node.nonAffine) continue;\n\n    let owner = contextRoot.get(index) ?? index;\n    // A missing internal used-style fact cannot authorize a smaller crop.\n    // Retain the former descendant-union owner as an explicit conservative\n    // Chromium surface until the same-frame fact becomes observable.\n    let cursor: number | null = index;\n    let unknown = false;\n    while (cursor != null) {\n      if (nodes[cursor]?.usedPreserve3d == null) unknown = true;\n      cursor = nodes[cursor]?.parent ?? null;\n    }\n    if (unknown) {\n      owner = index;\n      let parent = node.parent;\n      while (parent != null && nodes[parent]?.influenced === true) {\n        owner = parent;\n        parent = nodes[parent]?.parent ?? null;\n      }\n    }\n\n    const inlineSvgRoot = node.inlineSvgRoot;\n    if (inlineSvgRoot != null && isAncestor(nodes, inlineSvgRoot, owner)) {\n      owner = inlineSvgRoot;\n    }\n    candidates.add(owner);\n  }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2492"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "0332254d4c3d30c1057220e036504088"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "29b3f2625c907f6f4343d350ebd1098ea11632f5",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

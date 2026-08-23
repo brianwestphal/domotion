@@ -3,9 +3,9 @@
 DM-2355 turns the diagnostic border/outline phase matrix from docs 127 and 129
 into a hard, source-scoped regression gate. The important qualification is
 **source-scoped**: a stable screenshot is not enough to ratify geometry that
-does not follow Chromium's paint ownership. The gate therefore approves 112
-of the 128 rows in each DSF/zoom scenario and keeps the remaining 16 rows named
-and unratified.
+does not follow Chromium's paint ownership. The gate now approves all 128 rows
+in each DSF/zoom scenario because every branch has a source-owned reference
+rectangle; no paint envelope substitutes for that decision.
 
 ## Source decision
 
@@ -28,11 +28,18 @@ The audit is pinned to Chromium
   `box_border_painter.cc`.
 
 Domotion's straight solid, dashed/dotted, and outline emitters round the
-reference edges consistently with that decision. Its uniform double-border
-emitter still derives its two stripe boxes from the unsnapped captured element
-coordinates. Consequently every `border.double` row remains
-`unratified-border-double-snap`, even when one sampled phase happens to align.
-DM-2491 owns that correction. No paint envelope includes those rows.
+reference edges consistently with that decision. Uniform double borders now
+call `pixelSnappedBorderReferenceRect` once, independently rounding near and
+far CSS edges, then derive both centerline boxes from that single result with
+Blink's integer big-third partition. Collapsed table borders keep their
+separate already-shared grid-edge ownership. Outline double remains on its
+existing integer outline path and is unchanged.
+
+The focused geometry test crosses widths 1/2/3/5 with phases 0/0.25/0.5/0.75
+and compares the production input against an explicit unsnapped mutation. A
+non-integral phase moves both stripe boxes by exactly the reference-edge delta;
+the integral phase is the neutral control. The ratifier also rejects a
+double-border paint row that drifts beyond the unchanged envelope.
 
 ## Reviewed native evidence
 
@@ -62,11 +69,20 @@ requires a fresh review; another platform's envelope is never substituted.
 
 ## Ratified envelope
 
-Each scenario contains 112 ratified rows and 16 explicit `border.double`
-rows. Thus one platform execution ratifies 1,008 rows and reports 144
-unratified rows. The three-platform workflow evaluates 3,024 source-exact rows.
+Each scenario contains 128 ratified rows and no unratified family. Thus one
+platform execution ratifies 1,152 rows, and the three-platform workflow
+evaluates 3,456 source-exact rows.
 Both the native and SVG arms must independently select `css-edge-round` as the
 best geometry model before a paint profile is considered.
+
+The complete local 3 × 3 matrix was repeated twice after the uniform-double
+change. Both runs produced artifact-set SHA-256
+`e0693e707f0ae983585a7f3cf364662ac653547d62c80b07447d64e2ab31145e`;
+all 144 double rows were exact at zero edge error and zero profile RMSE. The
+whole-matrix maxima stayed byte-for-byte at the values below, so no envelope
+changed. The existing macOS/Linux/Windows workflow is the required native
+integration evidence and uploads the same lossless artifacts before a runner
+fingerprint is accepted.
 
 The observed maxima below were identical across the complete macOS, Linux, and
 Windows evidence. Ceilings round an observed maximum upward to an 8-bit alpha
@@ -85,16 +101,15 @@ bucket and add only one further quantization step; they are not inherited from t
 | 4 / 1 | 0.016667 | 0.023530 | 0.011372 | 0.015687 |
 | 4 / 1.25 | 0 | 0.003922 | 0 | 0.003922 |
 
-At DSF 1 the maximum edge residual is the half-covered outer pixel of
+At DSF 1 the maximum edge residual remains the half-covered outer pixel of
 one-pixel dotted outlines. At DSF 2/4, the source-exact maxima are at most
-0.029412 CSS px and 0.012266 RMSE. The much larger whole-report maxima came
-from the unratified double-border family and are deliberately absent from this
-table.
+0.029412 CSS px and 0.012266 RMSE. Uniform double borders contribute zero to
+every maximum.
 
 ## Gate contract
 
 `tools/border-phase-oracle.ts` remains the independent native producer. Its
-schema-2 report serializes source pins, corpus identity, 112/16 ownership, the
+schema-2 report serializes source pins, corpus identity, 128/0 ownership, the
 source-exact residual summary, and artifact hashes. Large high-DPR pages are
 captured as bounded vertical tiles and stitched without resampling device
 pixels.
@@ -102,10 +117,11 @@ pixels.
 `tools/border-phase-ratifier.ts` is a separate fail-closed adjudicator. It
 requires the exact 3 × 3 scenario and 128-row inventories, checks every case's
 immutable kind/style/width/phase/geometry fields, verifies both snap-model
-winners, enforces only the source-exact envelope, retains the 16 unresolved
-rows, checks repeated reviewed evidence and runner fingerprints, and verifies
-the artifact files against the report. Mutation tests cover paint drift,
-double-border relabeling, and runner/evidence drift.
+winners, enforces the fixed source-exact envelope over every row, requires an
+empty unresolved-family set, checks repeated reviewed evidence and runner
+fingerprints, and verifies the artifact files against the report. Mutation
+tests cover ordinary paint drift, the retired unsnapped double-border geometry,
+and runner/evidence drift.
 
 `.github/workflows/border-phase-oracle.yml` is now a pull-request and `main`
 matrix gate on macOS, Linux, and Windows. It always uploads the lossless source

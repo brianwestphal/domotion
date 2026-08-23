@@ -430,6 +430,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt525jxduwnggs3v",
+          "message": {
+            "text": "One CSS-edge-snapped outer rectangle owns both uniform-double stripe boxes. Pinned Chromium 7d859f271c constructs BoxBorderPainter outer geometry with ContouredBorderGeometry::PixelSnappedContouredBorder, and DrawDoubleBorder applies integer big-third outsets to that same physical border rect. Rounding near and far edges independently preserves ToPixelSnappedRect size ownership; deriving either stripe from raw captured x/y recreates the retired quarter-phase defect. Collapsed table borders deliberately bypass this helper because their already-shared grid edge belongs to CollapsedBorderPainter.",
+            "markdown": "One CSS-edge-snapped outer rectangle owns both uniform-double stripe boxes. Pinned Chromium 7d859f271c constructs BoxBorderPainter outer geometry with ContouredBorderGeometry::PixelSnappedContouredBorder, and DrawDoubleBorder applies integer big-third outsets to that same physical border rect. Rounding near and far edges independently preserves ToPixelSnappedRect size ownership; deriving either stripe from raw captured x/y recreates the retired quarter-phase defect. Collapsed table borders deliberately bypass this helper because their already-shared grid edge belongs to CollapsedBorderPainter."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/borders.ts"
+                },
+                "region": {
+                  "startLine": 25,
+                  "endLine": 72,
+                  "snippet": {
+                    "text": "}\n\n/**\n * Blink `ContouredBorderGeometry::PixelSnappedContouredBorder` rounds the\n * physical outer edges before any uniform-border stripe geometry is derived.\n * Round the far edges independently instead of rounding width/height so a\n * fractional origin cannot move the opposite edge onto a different pixel.\n */\nexport function pixelSnappedBorderReferenceRect(\n  x: number,\n  y: number,\n  width: number,\n  height: number,\n): BorderReferenceRect {\n  const right = Math.round(x + width);\n  const bottom = Math.round(y + height);\n  const left = Math.round(x);\n  const top = Math.round(y);\n  return { x: left, y: top, width: right - left, height: bottom - top };\n}\n\nexport interface UniformDoubleBorderStripeBoxes {\n  strokeWidth: number;\n  outerInset: number;\n  innerInset: number;\n  outer: BorderReferenceRect;\n  inner: BorderReferenceRect;\n}\n\n/** Derive both uniform-double centerline boxes from one reference rectangle. */\nexport function uniformDoubleBorderStripeBoxes(\n  reference: BorderReferenceRect,\n  borderWidth: number,\n  collapseShift = 0,\n): UniformDoubleBorderStripeBoxes {\n  const { stripe: strokeWidth, offset } = doubleBorderStripeGeometry(borderWidth);\n  const outerInset = borderWidth / 2 - offset - collapseShift;\n  const innerInset = borderWidth / 2 + offset - collapseShift;\n  const inset = (amount: number): BorderReferenceRect => ({\n    x: reference.x + amount,\n    y: reference.y + amount,\n    width: reference.width - 2 * amount,\n    height: reference.height - 2 * amount,\n  });\n  return {\n    strokeWidth,\n    outerInset,\n    innerInset,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 1450
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/borders.test.ts"
+                },
+                "region": {
+                  "startLine": 50
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2491"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4811bb0a88efa337b3532eab353cf913"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "29b3f2625c907f6f4343d350ebd1098ea11632f5",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

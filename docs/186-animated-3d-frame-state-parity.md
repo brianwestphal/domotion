@@ -39,10 +39,8 @@ The pinned Chromium checkout is
 - `core/paint/paint_property_tree_builder.cc:1458-1466,1634-1651` assigns a
   rendering-context ID only through direct parents whose *used* style preserves
   3D. Perspective contributes a projection node but does not establish that
-  context (`paint_property_tree_builder_test.cc:3495-3523`). This later
-  DM-2356 audit invalidates the oracle's outer-host expectation for
-  perspective-only and grouping-break rows while leaving its time/quad evidence
-  intact.
+  context (`paint_property_tree_builder_test.cc:3495-3523`). DM-2492 replaces
+  the invalid outer-host expectation with that exact used-context rule.
 - `core/paint/paint_property_tree_builder.cc` owns transform/perspective
   composition and flattening. Pinned `SkMatrix::mapPointPerspective` performs
   homogeneous division, so a non-affine fourth corner cannot be fitted to an
@@ -114,15 +112,13 @@ required, and no projective 2D approximation in final SVG markup.
 Five destructive mutations must fail: stale timestamp, one-pixel quad shift,
 dropped owner/raster, apparent-2D fitting, and collapsed animation
 composition. The local macOS arm64 calibration was **64/64 rows and 5/5
-mutations** at DPR 1/2 against the then-encoded expectations.
+mutations** at DPR 1/2 against the corrected source-derived expectations.
 `.github/workflows/animated-projective-frame-parity.yml` runs the same matrix on
 native macOS, Linux, and Windows and uploads the fingerprinted JSON even when
-the gate fails. DM-2356 proves that `expectedOwnerId()` encoded the same
-outer-host assumption as production for perspective and grouping rows, so the
-64/64 owner result was false-green. Exact timeline synchronization, computed
-composition, CDP quads/residuals, raster materialization, and one-application
-evidence remain valid; smallest-owner claims do not until the follow-up replaces
-that expectation with Blink rendering-context roots.
+the gate fails. `expectedOwnerId()` now assigns perspective-only paint to the
+plane and assigns the overflow-grouped half of the grouping animation to the
+independently measured preserving intermediary. Production consumes the same
+paused-frame used-preserve facts.
 
 ## Explicit boundary
 

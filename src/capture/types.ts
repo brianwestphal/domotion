@@ -4,6 +4,10 @@ import type {
   PseudoContentItem as CapturedPseudoContentItem,
   PseudoFragment as CapturedPseudoFragment,
 } from "./pseudo-fragment-protocol.js";
+import type {
+  BackdropEffectNeutralization,
+  BackdropRootReason,
+} from "./backdrop-effect-space.js";
 
 /**
  * Capture-side types describing the serialisable element tree produced by the
@@ -1810,6 +1814,10 @@ export interface CapturedElement {
     residual: number | null;
     nonAffine: boolean;
     ownsRasterBoundary: boolean;
+    /** Blink used preserve-3d after grouping and layout applicability. */
+    usedPreserve3d: boolean | null;
+    groupingReasons: string[];
+    preserve3dLayoutApplicable: boolean;
     computed: {
       transform: string;
       translate: string;
@@ -2094,6 +2102,27 @@ export interface CapturedElement {
     dataUri?: string;
     /** Private warning context consumed by the Node materialization pass. */
     selector?: string;
+    /**
+     * DM-2487: the Blink Backdrop Root and every ancestor property whose SVG
+     * wrapper must consume this prior-device surface exactly once.
+     */
+    effectSpace?: {
+      source: "blink-backdrop-effect-tree-v1";
+      nearestRoot: {
+        kind: "document" | "element";
+        /** DOM-parent hops from the backdrop target. */
+        depth: number;
+        selector: string;
+        reasons: BackdropRootReason[];
+      };
+      ancestors: Array<{
+        /** DOM-parent hops from the backdrop target (parent is 1). */
+        depth: number;
+        selector: string;
+        reasons: BackdropRootReason[];
+        neutralize: BackdropEffectNeutralization[];
+      }>;
+    };
   };
   /**
    * DM-2415: Chromium-painted final surface for an HTML element whose CSS

@@ -16,7 +16,7 @@
     "dsf4.zoom1",
     "dsf4.zoom1.25"
   ],
-  "unratifiedFamilies": ["border.double"],
+  "unratifiedFamilies": [],
   "platforms": {
     "darwin": {
       "fingerprint": {

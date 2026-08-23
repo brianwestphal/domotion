@@ -427,12 +427,12 @@
       ],
       "exactStates": [
         "solid -> dotted/dashed",
+        "solid -> double",
         "round -> non-round corner",
         "uniform -> mixed sides",
         "unzoomed -> effective zoom"
       ],
       "uncoveredStates": [
-        "solid -> double",
         "unfragmented -> fragmented"
       ],
       "upstreamSources": [
@@ -440,6 +440,7 @@
         "external/skia/src/core"
       ],
       "productionOwners": [
+        "src/render/borders.ts",
         "src/render/element-tree-to-svg.ts",
         "src/capture/script/walker/borders-backgrounds.ts"
       ],
@@ -458,7 +459,7 @@
         "tests/features.ts#border-styles-variants"
       ],
       "coverage": "partial",
-      "boundary": "Reviewed macOS/Linux/Windows phase envelopes cover the 112 source-exact rows per scenario. Uniform border.double remains unratified until DM-2491 snaps its stripe reference geometry; fragmented-table coverage remains separate.",
+      "boundary": "The fixed macOS/Linux/Windows phase envelopes cover all 128 source-exact rows per scenario. Uniform border.double derives both stripe boxes from one CSS-edge-snapped reference rect, has explicit unsnapped mutation coverage across four widths and four quarter-pixel phases, and does not alter outline.double ownership. Fragmented-table coverage remains separate.",
       "featureIds": [
         "render.tree-to-svg"
       ],
@@ -974,7 +975,7 @@
         "tests/features.ts#perspective-fixed-containing-block-ownership"
       ],
       "coverage": "partial",
-      "boundary": "Computed perspective/origin, the non-box inline stacking/fixed-owner split, and perspective/preserve-3d fixed-containing-block ownership are source-audited and gated. DM-2469 captures transformed text as ordered all-transform-neutral physical fragments plus complete signed live-paint matrices, with zoom retained locally, exact restoration/correlation checks, same-origin frames, and explicit Chromium ownership for unavailable or projective facts. DM-2470 consumes that neutral bundle through one signed residual matrix across every text paint branch and removes transform-derived font magnitudes, unsigned ancestor products and anisotropic correction. DM-2471 independently gates direct live/neutral/restored quads and final Chromium-versus-SVG device-space ink/content over 25 cases at DPR 1/2 on macOS/Linux/Windows with eight mutations and no platform envelope. DM-2359 pauses every participating document timeline before any prepass and exactly exposes the sampled CDP quad/computed composition/residual, raster materialization, and atomic application across four frames and DPR 1/2 on all three platforms. DM-2356 proves smallest owner identity remains partial: production and the animated oracle both use a descendant-union outer-host assumption instead of Blink's direct-parent used-preserve rendering-context root. Its 13-family DPR-1/2 observational corpus passes 26/26 source-model rows and six mutations while identifying 18 vector-absorbing over-owners. Refused, drifting, changing-enumeration, or non-document timelines fail explicitly rather than being approximated in 2D. The affine plane and UTF-16 shaped origins/advances are browser/protocol owned; baseline still inherits the normal segment metric seam (explicit segment baseline, else captured ascent plus physical origin), behaviorally checked by final ink rather than a separately decoded Blink fragment-baseline protocol row. The animated viewBox path has source-derived function-first composed sweeps and explicit unknown retention, validated by doc 166's all-platform gate.",
+      "boundary": "Computed perspective/origin, the non-box inline stacking/fixed-owner split, and perspective/preserve-3d fixed-containing-block ownership are source-audited and gated. DM-2469 captures transformed text as ordered all-transform-neutral physical fragments plus complete signed live-paint matrices, with zoom retained locally, exact restoration/correlation checks, same-origin frames, and explicit Chromium ownership for unavailable or projective facts. DM-2470 consumes that neutral bundle through one signed residual matrix across every text paint branch and removes transform-derived font magnitudes, unsigned ancestor products and anisotropic correction. DM-2471 independently gates direct live/neutral/restored quads and final Chromium-versus-SVG device-space ink/content over 25 cases at DPR 1/2 on macOS/Linux/Windows with eight mutations and no platform envelope. DM-2359 pauses every participating document timeline before any prepass and exactly exposes sampled CDP quad/computed composition/residual, raster materialization, and atomic application. DM-2492 selects the smallest owner through Blink's direct-parent used-preserve context propagation: perspective owns the plane, ordinary/flat/grouping intermediaries break propagation, and a nested preserve subtree starts a fresh root. The 13-family DPR-1/2 corpus is 26/26 with every sentinel retained and six mutations; the animated corpus is 64/64 with five mutations. Unknown internal view-transition participation warns and retains a conservative Chromium surface. Refused, drifting, changing-enumeration, or non-document timelines fail explicitly rather than being approximated in 2D. The affine text baseline remains behaviorally gated rather than a separately decoded Blink fragment-baseline protocol row. The animated viewBox path has source-derived function-first composed sweeps and explicit unknown retention, validated by doc 166's all-platform gate.",
       "featureIds": [
         "capture.animated-projective-frame",
         "render.tree-to-svg",

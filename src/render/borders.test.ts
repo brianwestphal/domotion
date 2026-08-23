@@ -4,6 +4,8 @@ import {
   borderImageSpaceTiling,
   dashArrayForStyle,
   doubleBorderStripeGeometry,
+  pixelSnappedBorderReferenceRect,
+  uniformDoubleBorderStripeBoxes,
   snapNinePieceDestinationGrid,
   findOffGridCollapsedCells,
   injectSvgSize,
@@ -54,6 +56,41 @@ describe("doubleBorderStripeGeometry (DM-2244)", () => {
     expect(doubleBorderStripeGeometry(5)).toEqual({ stripe: 2, offset: 1.5 });
     expect(doubleBorderStripeGeometry(6)).toEqual({ stripe: 2, offset: 2 });
     expect(doubleBorderStripeGeometry(7)).toEqual({ stripe: 2, offset: 2.5 });
+  });
+
+  it("derives every uniform-double stripe from one CSS-edge-snapped reference box", () => {
+    for (const width of [1, 2, 3, 5]) {
+      for (const phase of [0, 0.25, 0.5, 0.75]) {
+        const raw = { x: 10 + phase, y: 20 + phase, width: 132, height: 34 };
+        const reference = pixelSnappedBorderReferenceRect(raw.x, raw.y, raw.width, raw.height);
+        const snapped = uniformDoubleBorderStripeBoxes(reference, width);
+        const unsnappedMutation = uniformDoubleBorderStripeBoxes(raw, width);
+        const expectedDelta = Math.round(phase) - phase;
+
+        expect(reference).toEqual({
+          x: 10 + Math.round(phase),
+          y: 20 + Math.round(phase),
+          width: 132,
+          height: 34,
+        });
+        expect(snapped.outer.x - unsnappedMutation.outer.x).toBeCloseTo(expectedDelta, 12);
+        expect(snapped.outer.y - unsnappedMutation.outer.y).toBeCloseTo(expectedDelta, 12);
+        expect(snapped.inner.x - unsnappedMutation.inner.x).toBeCloseTo(expectedDelta, 12);
+        expect(snapped.inner.y - unsnappedMutation.inner.y).toBeCloseTo(expectedDelta, 12);
+      }
+    }
+  });
+
+  it("rounds the far edges independently before deriving both stripe boxes", () => {
+    const reference = pixelSnappedBorderReferenceRect(10.25, 20.75, 31.5, 19.5);
+    expect(reference).toEqual({ x: 10, y: 21, width: 32, height: 19 });
+    expect(uniformDoubleBorderStripeBoxes(reference, 5)).toMatchObject({
+      strokeWidth: 2,
+      outerInset: 1,
+      innerInset: 4,
+      outer: { x: 11, y: 22, width: 30, height: 17 },
+      inner: { x: 14, y: 25, width: 24, height: 11 },
+    });
   });
 });
 

@@ -39,10 +39,12 @@ threshold therefore cannot disguise a changed logical snap decision.
 `.github/workflows/border-phase-oracle.yml` runs the 3 × 3 DSF/zoom matrix on
 macOS, Linux, and Windows and uploads the JSON plus visual evidence. The report
 fingerprints OS, architecture, Node, Chromium, the corpus/source pins, and each
-artifact. The separate strict adjudicator applies the reviewed envelope only
-to the 112 rows per scenario whose geometry is source-exact. Sixteen uniform
-`border.double` rows remain explicitly unratified under DM-2491; their paint
-residuals cannot be converted into a logical pass by widening a threshold.
+artifact. The separate strict adjudicator applies the reviewed envelope to all
+128 rows per scenario. The uniform `border.double` branch now rounds one outer
+reference rectangle before deriving both stripe boxes; an unsnapped-reference
+mutation is rejected across every width and quarter-pixel phase. This logical
+fix moved the local double rows to exact zero without widening a paint
+threshold.
 
 The first expanded run found and closed a shared effective-zoom boundary
 (DM-2323). Blink stores border widths and outline width/offset in zoomed integer
@@ -54,8 +56,9 @@ once from the memoized ancestor effective zoom. On the local DSF 1/2 × zoom
 inferred HTML/SVG snap rule agree in all four scenarios. Later outline snap
 work closed the logical dotted-outline discrepancy. DM-2355's repeated native
 review found the remaining DSF=1 dotted-outline coverage profile byte-stable
-across runners and separated it from the still-unratified double-border
-geometry; doc 191 records the exact ceilings and evidence fingerprints.
+across runners. The later uniform-double snap correction left those maxima and
+their ceilings unchanged; doc 191 records the exact geometry, ceilings, and
+evidence fingerprints.
 
 Collapsed table borders have a separate exact logical gate. The capture-side
 model mirrors Chromium's `TableBorders`: one logical edge grid, source merges

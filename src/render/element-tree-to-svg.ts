@@ -44,6 +44,8 @@ import {
   contouredRectIntersectionPaths,
   findOffGridCollapsedCells,
   doubleBorderStripeGeometry,
+  pixelSnappedBorderReferenceRect,
+  uniformDoubleBorderStripeBoxes,
   selectBestDashGap,
   type CornerRadii,
   type CornerRadiusPair,
@@ -1467,16 +1469,27 @@ function paintUniformDoubleBorder(
   // collapsed-border rect on the grid line).
   const collapse = el.styles.borderCollapse === "collapse" && !offGridCollapsedCells.has(el);
   const collapseShift = collapse ? bt.w / 2 : 0;
-  const { stripe: strokeW, offset } = doubleBorderStripeGeometry(bt.w);
-  const outerInset = bt.w / 2 - offset - collapseShift;
-  const innerInset = bt.w / 2 + offset - collapseShift;
+  // BoxBorderPainter initializes one pixel-snapped outer contour, then derives
+  // both uniform-double stripe contours from integer outsets of that reference.
+  // Collapsed borders have separate table-grid ownership and intentionally keep
+  // the already shared, unsnapped grid edge.
+  const reference = collapse
+    ? { x: el.x, y: el.y, width: el.width, height: el.height }
+    : pixelSnappedBorderReferenceRect(el.x, el.y, el.width, el.height);
+  const {
+    strokeWidth: strokeW,
+    outerInset,
+    innerInset,
+    outer,
+    inner,
+  } = uniformDoubleBorderStripeBoxes(reference, bt.w, collapseShift);
   const outerCorners = insetCornerRadii(corners, outerInset, outerInset, outerInset, outerInset);
   const innerCorners = insetCornerRadii(corners, innerInset, innerInset, innerInset, innerInset);
   ctx.svgParts.push(
-    `${indent}${roundedRectSvg(el.x + outerInset, el.y + outerInset, el.width - 2 * outerInset, el.height - 2 * outerInset, outerCorners, `fill="none" stroke="${colorStr(bt.color)}" stroke-width="${r(strokeW)}"`)}`,
+    `${indent}${roundedRectSvg(outer.x, outer.y, outer.width, outer.height, outerCorners, `fill="none" stroke="${colorStr(bt.color)}" stroke-width="${r(strokeW)}"`)}`,
   );
   ctx.svgParts.push(
-    `${indent}${roundedRectSvg(el.x + innerInset, el.y + innerInset, el.width - 2 * innerInset, el.height - 2 * innerInset, innerCorners, `fill="none" stroke="${colorStr(bt.color)}" stroke-width="${r(strokeW)}"`)}`,
+    `${indent}${roundedRectSvg(inner.x, inner.y, inner.width, inner.height, innerCorners, `fill="none" stroke="${colorStr(bt.color)}" stroke-width="${r(strokeW)}"`)}`,
   );
 }
 

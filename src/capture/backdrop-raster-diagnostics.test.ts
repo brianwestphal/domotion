@@ -5,7 +5,7 @@ import type { CapturedElement, CaptureWarning } from "./types.js";
 
 const viewport = { x: 0, y: 0, width: 120, height: 80 };
 
-function target(options: { token?: string; frosted?: boolean } = {}): CapturedElement {
+function target(options: { token?: string; frosted?: boolean; effectSpace?: boolean } = {}): CapturedElement {
   return {
     tag: "div",
     text: "",
@@ -22,6 +22,11 @@ function target(options: { token?: string; frosted?: boolean } = {}): CapturedEl
       height: 40,
       token: options.token,
       selector: "#glass",
+      effectSpace: options.effectSpace === false ? undefined : {
+        source: "blink-backdrop-effect-tree-v1",
+        nearestRoot: { kind: "document", depth: 1, selector: "html", reasons: ["document-root"] },
+        ancestors: [],
+      },
     },
   } as unknown as CapturedElement;
 }
@@ -72,7 +77,10 @@ function fakePage(options: {
       if (options.screenshotFails) throw new Error("screenshot failed");
       return Buffer.from("chromium-png");
     }),
-    evaluate: vi.fn(async () => undefined),
+    evaluate: vi.fn(async (_callback: unknown, argument?: unknown) =>
+      argument != null && typeof argument === "object" && "restoreToken" in argument
+        ? "exact"
+        : undefined),
   } as unknown as Page;
 }
 
@@ -94,6 +102,17 @@ describe("rasterizeBackdropFilters diagnostics", () => {
       feature: "backdrop-filter",
       status: "partial",
       detail: expect.stringContaining("fallback: unisolated Chromium page crop"),
+    })]);
+  });
+
+  it("reports a legacy final-effect-space crop when the source-owned record is absent", async () => {
+    const tree = [target({ token: "bf0", effectSpace: false })];
+    const warnings: CaptureWarning[] = [];
+    await rasterizeBackdropFilters(fakePage({ snapshot: snapshot({ token: "bf0" }) }), tree, viewport, warnings);
+    expect(tree[0].backdropFilterRaster?.dataUri).toMatch(/^data:image\/png;base64,/);
+    expect(warnings).toEqual([expect.objectContaining({
+      status: "partial",
+      detail: expect.stringContaining("effect-space correlation was unavailable"),
     })]);
   });
 

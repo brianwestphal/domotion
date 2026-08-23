@@ -47,9 +47,9 @@ function fixture(): { report: BorderPhaseReport; baseline: BorderPhaseEnvelope }
         svgSnapFits: [{ rule: "css-edge-round", mae: 0 }],
       },
       geometryOwnership: {
-        ratifiedRows: 112,
-        unratifiedRows: 16,
-        unratifiedFamilies: ["border.double"],
+        ratifiedRows: 128,
+        unratifiedRows: 0,
+        unratifiedFamilies: [],
       },
       ratifiedPaintResiduals: { worstEdge: 0.1, worstRmse: 0.1, failed: [] },
       artifacts: {
@@ -72,7 +72,7 @@ function fixture(): { report: BorderPhaseReport; baseline: BorderPhaseEnvelope }
     corpusFingerprint: "fixture-corpus",
     sourcePins: BORDER_PHASE_SOURCE_PINS,
     requiredScenarioIds: scenarios.map(({ id }) => id),
-    unratifiedFamilies: ["border.double"],
+    unratifiedFamilies: [],
     platforms: {
       darwin: {
         fingerprint,
@@ -94,15 +94,15 @@ function fixture(): { report: BorderPhaseReport; baseline: BorderPhaseEnvelope }
   return { report, baseline };
 }
 
-describe("DM-2355 border phase ratifier", () => {
-  it("ratifies the 112 source-owned rows while retaining all double-border rows", () => {
+describe("border phase ratifier", () => {
+  it("ratifies all 128 source-owned rows, including uniform double borders", () => {
     const { report, baseline } = fixture();
     const result = adjudicateBorderPhaseReport(report, baseline, fingerprint);
     expect(result).toMatchObject({
-      verdict: "ratified-source-exact-subset",
-      ratifiedRows: 1_008,
-      unratifiedRows: 144,
-      unratifiedFamilies: ["border.double"],
+      verdict: "ratified-source-exact",
+      ratifiedRows: 1_152,
+      unratifiedRows: 0,
+      unratifiedFamilies: [],
       findings: [],
     });
     expect(result.artifactSetSha256).toBe(artifactSetFingerprint(report));
@@ -120,18 +120,16 @@ describe("DM-2355 border phase ratifier", () => {
     expect(result.findings).toContain("dsf1.zoom0.8 ratified edge 0.25 > 0.2");
   });
 
-  it("does not hide the unsnapped double-border family inside a paint envelope", () => {
+  it("rejects the old unsnapped double-border geometry instead of hiding it in the envelope", () => {
     const { report, baseline } = fixture();
-    const result = adjudicateBorderPhaseReport(report, baseline, fingerprint);
-    expect(result.verdict).toBe("ratified-source-exact-subset");
-    expect(result.unratifiedRows).toBe(144);
-
-    const relabeled = structuredClone(report);
-    const double = relabeled.scenarios[0].rows.find(({ kind, style }) => kind === "border" && style === "double")!;
-    double.style = "solid";
-    const mutation = adjudicateBorderPhaseReport(relabeled, baseline, fingerprint);
+    const mutated = structuredClone(report);
+    const scenario = mutated.scenarios[0];
+    const double = scenario.rows.find(({ kind, style }) => kind === "border" && style === "double")!;
+    double.outerError = 0.25;
+    scenario.ratifiedPaintResiduals.worstEdge = 0.25;
+    const mutation = adjudicateBorderPhaseReport(mutated, baseline, fingerprint);
     expect(mutation.verdict).toBe("drift");
-    expect(mutation.findings).toContain(`${relabeled.scenarios[0].scenario.id}/${double.id} style corpus drift`);
+    expect(mutation.findings).toContain(`${scenario.scenario.id} ratified edge 0.25 > 0.2`);
   });
 
   it("fails closed on runner or repeated-evidence fingerprint drift", () => {

@@ -30,16 +30,12 @@ export const BORDER_PHASE_SOURCE_PINS = {
 } as const;
 
 /** Blink pixel-snaps the border/outline reference rect before paint. Every
- * square-outline branch and the solid/dashed/dotted border branches mirror
- * that decision locally. The uniform double-border emitter still places its
- * two stripes from the unsnapped captured box, so it must stay outside any
- * paint-profile envelope even when one sampled phase happens to coincide. */
+ * straight border and square-outline branch, including both uniform-double
+ * stripe boxes, now mirrors that decision locally. */
 export function borderPhaseGeometryStatus(
-  phaseCase: Pick<PhaseCase, "kind" | "style">,
-): "source-exact" | "unratified-border-double-snap" {
-  return phaseCase.kind === "border" && phaseCase.style === "double"
-    ? "unratified-border-double-snap"
-    : "source-exact";
+  _phaseCase: Pick<PhaseCase, "kind" | "style">,
+): "source-exact" {
+  return "source-exact";
 }
 
 /** Inputs consumed by Blink's `BoxBorderPainter::PaintBorderFastPath`.
@@ -296,7 +292,7 @@ async function main(): Promise<number> {
           geometryOwnership: {
             ratifiedRows: ratified.length,
             unratifiedRows: rows.length - ratified.length,
-            unratifiedFamilies: ["border.double"],
+            unratifiedFamilies: [],
           },
           paintResiduals: { worstEdge, worstRmse, failed: failed.map((row) => row.id) },
           ratifiedPaintResiduals: {

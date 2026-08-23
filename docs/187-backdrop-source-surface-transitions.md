@@ -1,7 +1,8 @@
 # 187 — Backdrop-filter source-surface transitions
 
-**Status: investigation complete (DM-2357); production changes are deferred to
-DM-2487–DM-2490.**
+**Status: investigation complete (DM-2357); generated-pseudo, fixed-order, and
+diagnostic follow-ups landed, while ordinary effect-space parity remains
+partial after DM-2487 ([doc 194](194-ordinary-backdrop-effect-space.md)).**
 
 ## Question
 
@@ -173,10 +174,12 @@ whether raster materialization succeeded.
 
 ## Follow-up plan
 
-- **DM-2487:** add source-owned Backdrop Root/effect-space facts and capture a
-  surface that ancestor effects/transforms consume exactly once. Promote this
-  audit to a strict DPR-1/2 macOS/Linux/Windows gate after the representation is
-  corrected.
+- **DM-2487 (partial; doc 194):** source-owned nearest-root/effect-space facts
+  and reversible screenshot neutralization landed. Filter-root replay is exact
+  and opacity/transform/mask drift is materially reduced at DPR 1/2, but atomic
+  opacity/blend roots, transformed effect-space coordinates, the target filter
+  group, and one DPR-1 mask edge remain. The audit is not promoted while those
+  unchanged-threshold rows remain non-exact.
 - **DM-2488:** give live generated pseudos their own backdrop source boundary at
   the captured pseudo paint slot; do not flatten the host. **Landed in doc
   193:** the focused 15-case DPR-1/2 gate reports 30/30 passing rows, 24/24
@@ -187,6 +190,6 @@ whether raster materialization succeeded.
   materialization and emit structured partial/unavailable diagnostics only
   from the authoritative post-pass.
 
-Until those land, doc 126's target snapshot remains a useful narrow fallback,
-but claims of general opacity ownership, ancestor effect ownership, and fixed
-paint-order parity are explicitly partial.
+Doc 126's target snapshot plus doc 194's source record remains a useful narrow
+fallback, but claims of general opacity/blend root ownership, transformed
+effect-space parity, and target-filter grouping are explicitly partial.

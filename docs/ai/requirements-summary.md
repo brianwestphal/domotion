@@ -130,15 +130,15 @@ they describe (see `CLAUDE.md` "Documentation"):
 
 ## Recent additions worth knowing about
 
-- **Cross-platform border/outline phase envelopes (DM-2355, docs 127/191) —
-  Shipped source-exact subset.** The native HTML-versus-img-rendered-SVG
+- **Cross-platform border/outline phase envelopes (DM-2355/DM-2491, docs
+  127/191) — Shipped source-exact matrix.** The native HTML-versus-img-rendered-SVG
   producer now fingerprints source pins, corpus, runner, and every lossless
   artifact; a separate strict macOS/Linux/Windows gate crosses DSF 1/2/4 and
-  zoom 0.8/1/1.25. Pinned Blink reference-box ownership ratifies 112/128 rows
-  per scenario with narrow stable paint ceilings. The 16 uniform
-  `border.double` rows remain explicitly unratified because their local stripe
-  boxes still start from unsnapped captured coordinates (DM-2491); no alpha
-  tolerance can convert that logical gap into a pass.
+  zoom 0.8/1/1.25. Pinned Blink reference-box ownership ratifies all 128 rows
+  per scenario with narrow stable paint ceilings. Uniform `border.double`
+  rounds one reference rectangle before deriving both Blink big-third stripe
+  boxes; the full local matrix repeats with all 144 double rows at zero error
+  and no envelope widening, while `outline.double` remains unchanged.
 
 - **Projective inline-SVG raster ownership (doc 162) — Shipped.** Chromium CDP
   content/border quads now distinguish actual non-affine paint from inert
@@ -1873,20 +1873,19 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   perspective/origin, preserve-to-flat ownership, overflow grouping flattening,
   and additive composition at 0/250/500/750ms; 64 rows and five mutations are
   locally green without fitting an apparent 2D matrix. DM-2356 proved that the
-  perspective/grouping expected owner was copied from production's
-  descendant-union assumption, so those green rows are not independent proof
-  of minimal ownership.
-- Nested projective owner selection is **investigated and known partial**
-  (DM-2356, [doc 189](../189-nested-projective-context-ownership.md)). Pinned
+  perspective/grouping expected owner was copied from production's former
+  descendant-union assumption; DM-2492 corrected both expectations and the
+  selector, and the focused gate is 64/64 with 5/5 mutations.
+- Nested projective owner selection is **source-derived and shipped**
+  (DM-2356/DM-2492, [doc 189](../189-nested-projective-context-ownership.md)). Pinned
   Blink source propagates a rendering-context ID only through a direct parent
   whose *used* style preserves 3D; perspective alone creates no context, and an
   ordinary, flat, opacity/filter/clip/mask/isolation, or non-visible-overflow
   intermediary breaks propagation. The DPR-1/2 observational corpus proves
-  26/26 source-model rows, but production selects the smallest owner in only
-  8/26 and absorbs the vector sentinel in all 18 over-owned rows. Atomic
-  one-image emission remains correct. Implementation must capture the
-  frame-coherent used context root, retain inline-SVG promotion, and fail closed
-  when an internal active view-transition grouping fact is unavailable.
+  26/26 source-model and production-owner rows with every vector sentinel
+  retained. Capture records frame-coherent used context roots, retains
+  inline-SVG promotion, and warns while retaining a conservative Chromium
+  surface when internal active view-transition grouping is unavailable.
 
 <!-- DM-2370 -->
 - URL background tile geometry, including sliced-fragment continuation, is
