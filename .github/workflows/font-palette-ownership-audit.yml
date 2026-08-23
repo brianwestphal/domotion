@@ -1,0 +1,85 @@
+name: Font palette selection ownership audit
+
+on:
+  pull_request:
+    paths:
+      - "src/capture/emoji.ts"
+      - "src/capture/types.ts"
+      - "src/capture/script/index.ts"
+      - "src/render/text-to-path.ts"
+      - "tools/font-palette-ownership-audit.ts"
+      - "tests/font-palette-ownership-audit.test.ts"
+      - "tests/font-palette-ownership-audit.e2e.test.ts"
+      - "tests/font-palette-ownership-workflow.test.ts"
+      - "tests/fixtures/font-palette/**"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/font-palette-ownership-audit.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/capture/emoji.ts"
+      - "src/capture/types.ts"
+      - "src/capture/script/index.ts"
+      - "src/render/text-to-path.ts"
+      - "tools/font-palette-ownership-audit.ts"
+      - "tests/font-palette-ownership-audit.test.ts"
+      - "tests/font-palette-ownership-audit.e2e.test.ts"
+      - "tests/font-palette-ownership-workflow.test.ts"
+      - "tests/fixtures/font-palette/**"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/font-palette-ownership-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22.21.0"
+
+jobs:
+  palette-ownership:
+    name: ${{ matrix.label }} palette ownership
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            label: macOS
+          - os: ubuntu-latest
+            label: Linux
+          - os: windows-latest
+            label: Windows
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium and Linux system dependencies
+        if: runner.os == 'Linux'
+        run: npx playwright install --with-deps chromium
+      - name: Install Chromium
+        if: runner.os != 'Linux'
+        run: npx playwright install chromium
+      - name: Validate source parser and hostile mutations
+        run: npx vitest run tests/font-palette-ownership-audit.test.ts tests/font-palette-ownership-workflow.test.ts
+      - name: Run source-owned DPR1/2 selection and raster-boundary audit
+        run: >-
+          npm run fonts:palette-ownership-audit --
+          --json tests/output/font-palette/${{ runner.os }}/report.json
+          --artifact-dir tests/output/font-palette/${{ runner.os }}
+      - name: Upload lossless selection and ownership evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: font-palette-ownership-${{ runner.os }}
+          path: tests/output/font-palette/${{ runner.os }}
+          if-no-files-found: error
+          retention-days: 30

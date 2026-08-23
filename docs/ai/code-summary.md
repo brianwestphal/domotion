@@ -187,6 +187,15 @@ shortest possible map:
   The strict native arm64 order/VS/CSS/family/ICU/representation matrix and
   clean `02-text-emoji` fixture prove closure; DM-2508 owns aggregate promotion,
   with no pixel-tolerance change.
+  Palette selection is a later identity dimension inside the selected color
+  gid. `tools/font-palette-ownership-audit.ts` (DM-2350/doc 202) pins a WPT
+  COLR/CPAL face, derives expected colors from its source tables, and proves
+  normal/theme/named/override/fallback selection at DPR 1/2. Its A/B plus
+  reverse-order full-capture control currently reports
+  `confirmed-palette-identity-gap`: `CapturedStyles` and the emoji screenshot
+  cache omit palette identity, so the first PNG is reused. The selected-glyph
+  Chromium raster boundary remains correct; production closure is follow-up
+  work and must not vectorize COLR paint or add a tolerance.
   `script-iso15924.generated.ts` maps UCD script names to the ISO 15924 tags
   passed to `hb_buffer_set_script` (derived from HarfBuzz's
   `hb-script-list.h`);

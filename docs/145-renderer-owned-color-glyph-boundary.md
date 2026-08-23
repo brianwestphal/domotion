@@ -128,3 +128,19 @@ logical correction before `selectedGlyphRasterSpans()`. See
 [doc 201](201-emoji-presentation-item-ownership.md). DM-2508 owns release-gate
 promotion only; this fix does not alter this boundary or authorize a pixel
 tolerance.
+
+## Palette selection is downstream of this boundary
+
+DM-2350 confirms that two uses of one selected custom face, gid, and `colr`
+representation may legitimately paint different CPAL palettes. Blink retains
+that palette in `FontDescription`/typeface cache identity and hands the
+resolved base plus overrides to Skia. It does not change the decision above:
+both uses still belong to one Chromium raster surface each.
+
+Domotion currently omits the computed/resolved palette from capture and from
+the screenshot cache key. The pinned webfont A/B discriminator therefore
+duplicates the first palette PNG, and reversing DOM order reverses the wrong
+result. [Doc 202](202-font-palette-selection-raster-boundary.md) records the
+source chain, exact CPAL colors, and follow-up boundary. Do not repair that gap
+by vectorizing COLR paint, reclassifying the glyph, or adding a pixel envelope.
+DM-2509 owns the cache-identity correction; DM-2510 owns strict gate promotion.

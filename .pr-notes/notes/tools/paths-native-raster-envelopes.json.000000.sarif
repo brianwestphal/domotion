@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5e7y1evzcdwb1g",
+          "message": {
+            "text": "GitHub Actions run 32621059647 produced 2,088 authenticated rows: 348 proposal plus 348 independent validation cells on macOS, Linux, and Windows. All logical facts were exact, all raster arms active, warnings were empty, and every validation residual was less than or equal to its exact proposal value; representative worst-residual pairs were visually reviewed as aligned geometry with terminal rasterization differences only.",
+            "markdown": "GitHub Actions run 32621059647 produced 2,088 authenticated rows: 348 proposal plus 348 independent validation cells on macOS, Linux, and Windows. All logical facts were exact, all raster arms active, warnings were empty, and every validation residual was less than or equal to its exact proposal value; representative worst-residual pairs were visually reviewed as aligned geometry with terminal rasterization differences only."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/paths-native-raster-envelopes.json"
+                },
+                "region": {
+                  "startLine": 2,
+                  "endLine": 6,
+                  "snippet": {
+                    "text": "  \"schemaVersion\": 2,\n  \"ratified\": true,\n  \"reviewer\": \"Codex logical-first source review; GitHub Actions run 32621059647; representative worst-case native/path visual review\",\n  \"reviewedAt\": \"2026-08-23T05:53:00.158Z\",\n  \"envelopes\": ["
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 100,
+          "workItemUris": [
+            "DM-2499"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "27e7ad7206313b5c5d7bd8027b85566e"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8532469c39a643195c96b27248741317dd45b102",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

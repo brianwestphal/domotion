@@ -67,6 +67,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5e7y1d4wjznuyp",
+          "message": {
+            "text": "Independent proposal and validation renders may be byte-identical, which is reproducibility evidence rather than artifact reuse. The gate therefore authenticates runner provenance and exact role hashes while requiring native and paths to differ within each run; role swaps remain rejected by the per-label reviewed hashes.",
+            "markdown": "Independent proposal and validation renders may be byte-identical, which is reproducibility evidence rather than artifact reuse. The gate therefore authenticates runner provenance and exact role hashes while requiring native and paths to differ within each run; role swaps remain rejected by the per-label reviewed hashes."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/paths-native-raster-gate.ts"
+                },
+                "region": {
+                  "startLine": 99,
+                  "endLine": 118,
+                  "snippet": {
+                    "text": "export const envelopeFileSchema = z.object({ schemaVersion: z.literal(2), ratified: z.boolean(), reviewer: z.string().min(1).optional(), reviewedAt: z.string().datetime().optional(), envelopes: z.array(envelopeSchema) }).strict().superRefine((file, ctx) => {\n  if (file.ratified && (file.reviewer == null || file.reviewedAt == null)) ctx.addIssue({ code: \"custom\", message: \"ratified envelopes require reviewer and reviewedAt\" });\n  if (file.ratified && file.envelopes.length === 0) ctx.addIssue({ code: \"custom\", message: \"ratified envelope file must contain reviewed rows\" });\n  const identities = new Set<string>();\n  for (let i = 0; i < file.envelopes.length; i++) {\n    const envelope = file.envelopes[i];\n    if (envelope.key !== dimensionsKey(envelope.dimensions)) ctx.addIssue({ code: \"custom\", message: \"envelope key does not match dimensions\", path: [\"envelopes\", i, \"key\"] });\n    const identity = `${envelope.fingerprintSha256}|${envelope.cellSha256}`;\n    if (identities.has(identity)) ctx.addIssue({ code: \"custom\", message: \"duplicate fingerprint/dimensions envelope\", path: [\"envelopes\", i] });\n    identities.add(identity);\n    for (const [label, reviewed] of Object.entries(envelope.reviewedArtifacts)) {\n      // Independent runs may be byte-identical; that is reproducibility, not\n      // reuse.  What must remain distinct is each run's native-vs-path arm.\n      if (reviewed.native === reviewed.paths) ctx.addIssue({\n        code: \"custom\",\n        message: `${label} native and paths artifact hashes must differ`,\n        path: [\"envelopes\", i, \"reviewedArtifacts\", label],\n      });\n    }\n  }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2499"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f1434fa2c81a74ccd140556666164a80"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8532469c39a643195c96b27248741317dd45b102",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

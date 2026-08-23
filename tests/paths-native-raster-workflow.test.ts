@@ -26,6 +26,13 @@ describe("paths/native raster workflow", () => {
     expect(workflow).toContain("TestCFF2VF.otf");
     expect(workflow).toContain("Reauthenticate PNGs and recompute residuals");
   });
+  it("fingerprints renderer and oracle inputs without a commit/envelope circularity", () => {
+    const collector = readFileSync("tools/paths-native-raster-collector.ts", "utf8");
+    expect(collector).toContain("rendererSourceSha256: sourceInputsSha256");
+    expect(collector).toContain("oracleSourceSha256: sourceInputsSha256");
+    expect(collector).not.toContain("GITHUB_SHA");
+    expect(collector).not.toContain('"tools/paths-native-raster-envelopes.json"');
+  });
   it("aggregates only after every producer and uses the reviewed envelope file", () => {
     expect(workflow).toMatch(/adjudicate:\n\s+needs: produce/);
     expect(workflow).toContain("tools/paths-native-raster-envelopes.json");

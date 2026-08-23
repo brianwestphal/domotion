@@ -48,7 +48,7 @@ function partialRow(cell = pathsNativeRasterMatrix()[0]): PathsRasterRow {
       chromium: "147", chromiumRevision: "r147", browserExecutableSha256: sha("f"),
       skia: `browser-binary:${sha("f")}`, harfbuzz: `browser-binary:${sha("f")}`,
       oracleSkiaRevision: "62efacd3", oracleHarfbuzzRevision: PATHS_NATIVE_RASTER_SOURCE.revision,
-      fontInventorySha256: sha("a"), rendererRevision: "deadbeef", consumerRasterizer: "chromium-svg-headless",
+      fontInventorySha256: sha("a"), rendererSourceSha256: sha("2"), oracleSourceSha256: sha("3"), consumerRasterizer: "chromium-svg-headless",
       playwrightVersion: "1.59.1", nodeVersion: "22.14.0", icuVersion: "77.1", sharpVersion: "0.34.5",
       libvipsVersion: "8.17.3", metricAlgorithm: "opaque-rgba-ink-edge-v2", launchFlags: ["headless"], locale: "en-US",
     },

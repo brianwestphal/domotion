@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { arch, platform, release } from "node:os";
-import { createReadStream, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { createReadStream, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { chromium, type Browser, type Page } from "@playwright/test";
@@ -64,11 +64,23 @@ async function sha256File(path: string): Promise<string> {
   });
 }
 
-function repositoryRevision(): string {
-  const supplied = process.env.GITHUB_SHA?.trim();
-  if (supplied != null && supplied !== "") return supplied;
-  try { return execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(); }
-  catch { return "unavailable"; }
+function sourceInputsSha256(inputs: string[]): string {
+  const files: string[] = [];
+  const visit = (entry: string): void => {
+    const absolute = resolve(entry);
+    if (statSync(absolute).isDirectory()) {
+      for (const child of readdirSync(absolute).sort()) visit(resolve(absolute, child));
+    } else files.push(absolute);
+  };
+  for (const input of inputs) visit(input);
+  const hash = createHash("sha256");
+  for (const file of files.sort()) {
+    hash.update(relative(resolve("."), file).replaceAll("\\", "/"));
+    hash.update("\0");
+    hash.update(readFileSync(file));
+    hash.update("\0");
+  }
+  return hash.digest("hex");
 }
 
 function runProvenance(): PathsRasterRow["runProvenance"] {
@@ -530,7 +542,17 @@ export async function collectPathsNativeRaster(options: CollectPathsRasterOption
       oracleSkiaRevision: PATHS_NATIVE_RASTER_SKIA_SOURCE,
       oracleHarfbuzzRevision: PATHS_NATIVE_RASTER_SOURCE.revision,
       fontInventorySha256: pathsRasterFixtureInventorySha256(fixtures),
-      rendererRevision: repositoryRevision(),
+      rendererSourceSha256: sourceInputsSha256(["src/render", "package-lock.json"]),
+      oracleSourceSha256: sourceInputsSha256([
+        "tools/paths-native-face-identity.ts",
+        "tools/paths-native-raster-collector.ts",
+        "tools/paths-native-raster-corpus.ts",
+        "tools/paths-native-raster-metrics.ts",
+        "tools/paths-native-raster-producer.ts",
+        "tools/paths-native-raster-aggregate.ts",
+        "tools/paths-native-raster-gate.ts",
+        ".github/workflows/paths-native-raster-floor.yml",
+      ]),
       consumerRasterizer: `playwright-${PLAYWRIGHT_VERSION}/chromium-svg-headless`,
       playwrightVersion: PLAYWRIGHT_VERSION,
       nodeVersion: process.versions.node,
