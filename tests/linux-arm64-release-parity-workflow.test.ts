@@ -10,6 +10,7 @@ describe("DM-2353 Linux arm64 release parity workflow", () => {
     expect(workflow).toContain("runs-on: ubuntu-22.04-arm");
     expect(workflow).toContain("mcr.microsoft.com/playwright:v1.59.1-noble");
     expect(workflow).toContain("node-version: 22.21.0");
+    expect(workflow).toMatch(/defaults:\s*\n\s*run:\s*\n\s*shell: bash/);
   });
 
   it("acquires published artifacts into a clean cache without building helpers", () => {

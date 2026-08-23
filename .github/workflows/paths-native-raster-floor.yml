@@ -1,0 +1,66 @@
+name: Paths/native raster floor evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      observation_bundle_base_url:
+        description: Base URL containing Darwin.zip, Linux.zip, and Windows.zip same-run observation bundles
+        required: true
+        type: string
+
+jobs:
+  produce:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Fetch lossless same-run observations
+        shell: bash
+        env:
+          BASE_URL: ${{ inputs.observation_bundle_base_url }}
+          RUNNER_OS_NAME: ${{ runner.os }}
+        run: |
+          curl --fail --location --silent --show-error "$BASE_URL/$RUNNER_OS_NAME.zip" --output observations.zip
+          unzip -q observations.zip -d observations
+      - name: Validate and fingerprint producer rows
+        shell: bash
+        run: npm run fonts:paths-raster:produce -- --observations observations/observations.json --out paths-native-raster-rows.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paths-native-raster-${{ runner.os }}
+          path: |
+            paths-native-raster-rows.json
+            observations/*.png
+          if-no-files-found: error
+          compression-level: 0
+
+  adjudicate:
+    needs: produce
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: paths-native-raster-*
+          path: artifacts
+      - name: Logical-first strict adjudication
+        run: npm run fonts:paths-raster:aggregate -- --artifacts artifacts --envelopes tools/paths-native-raster-envelopes.json --out paths-native-raster-report.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paths-native-raster-report
+          path: paths-native-raster-report.json
+          if-no-files-found: error
