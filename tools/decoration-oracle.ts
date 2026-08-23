@@ -437,6 +437,7 @@ async function measureChunk(page: Page, cdp?: CDPSession): Promise<PageMeasure[]
     return out;
   });
   if (cdp == null) return measures;
+  await cdp.send("DOM.enable");
   await cdp.send("CSS.enable");
   const { root } = await cdp.send("DOM.getDocument", { depth: -1, pierce: true });
   for (let i = 0; i < measures.length; i++) {
