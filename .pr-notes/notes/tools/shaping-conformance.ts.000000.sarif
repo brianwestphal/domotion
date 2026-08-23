@@ -79,6 +79,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5fh8xq4mep142a",
+          "message": {
+            "text": "The corpus carries a webfont only when the exact base64 bytes can be replayed to both Chrome and Domotion; every unretained source is excluded because fallback agreement would be vacuous. Layered feature-value rules are separately refused because Blink layer-priority fusion is not source order; DM-2513 owns that missing discriminator.",
+            "markdown": "The corpus carries a webfont only when the exact base64 bytes can be replayed to both Chrome and Domotion; every unretained source is excluded because fallback agreement would be vacuous. Layered feature-value rules are separately refused because Blink layer-priority fusion is not source order; DM-2513 owns that missing discriminator."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/shaping-conformance.ts"
+                },
+                "region": {
+                  "startLine": 333,
+                  "endLine": 444,
+                  "snippet": {
+                    "text": "      // Families this document defines with `@font-face`. A run in such a family\n      // can only be swept when the exact bytes can travel with it. A retained\n      // base64 data URL is self-contained; local(), file and remote URLs are not\n      // and remain excluded rather than being scored against a fallback.\n      //\n      // Measured on `20-font-face.html`, whose rules are `src: local(...)` only:\n      // the fixture paints `TestSerif` as Georgia and `TestMono` as Menlo, while\n      // the oracle's probe page paints them as Times and Courier. The runs scored\n      // 28 agree-exact / 4 agree-count — a clean-looking result about the wrong\n      // fonts.\n      //\n      // This is the same refusal principle as the whitespace rule: when the\n      // instrument cannot ask the fixture's question faithfully, drop it. The\n      // data-URL exception is intentionally narrow and source-owned: the same\n      // bytes are re-declared to Chrome and registered with Domotion.\n      const fontFaceFamilies = new Set<string>();\n      const harvestableFaces = new Map<string, {\n        family: string; mime: string; dataBase64: string;\n        weightDescriptor: string; styleDescriptor: string; stretchDescriptor: string;\n      }>();\n      const disqualifiedFaceFamilies = new Set<string>();\n      // Layer order is not ordinary source order. Refuse an alternates-bearing\n      // run whose family has a layered rule until the corpus models Blink's\n      // FontFeatureValuesStorage layer-priority fusion exactly.\n      const layeredFeatureValueFamilies = new Set<string>();\n      const featureTables: Record<string, Record<string, Record<string, number[]>>> = {};\n      const pendingRules: Array<{ rule: CSSRule; inLayer: boolean }> = [];\n      for (const sheet of Array.from(document.styleSheets)) {\n        try {\n          pendingRules.push(...Array.from(sheet.cssRules).map((rule) => ({ rule, inLayer: false })));\n        } catch {\n          // Cross-origin stylesheet — unreadable by design. Nothing to add.\n        }\n      }\n      while (pendingRules.length > 0) {\n        const { rule, inLayer } = pendingRules.shift()!;\n        if (rule.constructor.name === \"CSSFontFaceRule\") {\n          const style = (rule as CSSFontFaceRule).style;\n          const rawFamily = style.getPropertyValue(\"font-family\").trim();\n          const family = rawFamily.replace(/^[\"']|[\"']$/g, \"\");\n          const key = family.toLowerCase();\n          if (key === \"\") continue;\n          fontFaceFamilies.add(key);\n          const src = style.getPropertyValue(\"src\");\n          const data = /^\\s*url\\(\\s*[\"']?(data:([^;,]+)?;base64,([A-Za-z0-9+/=]+))[\"']?\\s*\\)/i.exec(src);\n          // Multiple declarations for one family involve Blink's descriptor\n          // matching and source order. Do not pretend one retained face owns\n          // that question; the dedicated fixture deliberately has one.\n          if (data == null || harvestableFaces.has(key) || disqualifiedFaceFamilies.has(key)) {\n            harvestableFaces.delete(key);\n            disqualifiedFaceFamilies.add(key);\n            continue;\n          }\n          harvestableFaces.set(key, {\n            family,\n            mime: data[2] || \"font/otf\",\n            dataBase64: data[3],\n            weightDescriptor: style.getPropertyValue(\"font-weight\") || \"400\",\n            styleDescriptor: style.getPropertyValue(\"font-style\") || \"normal\",\n            stretchDescriptor: style.getPropertyValue(\"font-stretch\") || \"100%\",\n          });\n          continue;\n        }\n        const featureRule = rule as CSSRule & {\n          fontFamily?: string;\n          annotation?: Map<string, number[]>; ornaments?: Map<string, number[]>;\n          stylistic?: Map<string, number[]>; swash?: Map<string, number[]>;\n          characterVariant?: Map<string, number[]>; styleset?: Map<string, number[]>;\n        };\n        if (typeof featureRule.fontFamily === \"string\" && featureRule.stylistic != null) {\n          const families = featureRule.fontFamily.match(/(?:\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*'|[^,])+/g) ?? [];\n          for (const rawFamily of families) {\n            const family = rawFamily.trim().replace(/^[\"']|[\"']$/g, \"\").toLowerCase();\n            if (family === \"\") continue;\n            if (inLayer) layeredFeatureValueFamilies.add(family);\n            const table = featureTables[family] || (featureTables[family] = {});\n            for (const category of [\"annotation\", \"ornaments\", \"stylistic\", \"swash\", \"characterVariant\", \"styleset\"] as const) {\n              const map = featureRule[category];\n              if (map == null) continue;\n              const aliases = table[category] || (table[category] = {});\n              for (const [name, values] of Array.from(map.entries())) aliases[name] = Array.from(values);\n            }\n          }\n          continue;\n        }\n        const nested = (rule as CSSRule & { cssRules?: CSSRuleList }).cssRules;\n        if (nested != null) {\n          const nestedInLayer = inLayer || rule.constructor.name === \"CSSLayerBlockRule\";\n          pendingRules.unshift(...Array.from(nested).map((child) => ({ rule: child, inLayer: nestedInLayer })));\n        }\n      }\n      for (const el of Array.from(document.querySelectorAll(\"*\"))) {\n        const cs = getComputedStyle(el as Element);\n        // Any family in the stack, not merely the first: a later entry only gets\n        // used when the earlier ones fail to resolve, and which of them Chrome\n        // lands on is exactly what differs between the fixture and the probe\n        // page. Written inline rather than as a named helper on purpose — this\n        // body is serialized into the page, where the `__name` wrapper that\n        // tsx/esbuild emits for a named function binding does not exist.\n        const stackFamilies = (cs.fontFamily.match(/(?:\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*'|[^,])+/g) ?? [])\n          .map((family) => family.trim().replace(/^[\"']|[\"']$/g, \"\").toLowerCase());\n        const declaredFaces = stackFamilies.filter((family) => fontFaceFamilies.has(family));\n        if (declaredFaces.some((family) => !harvestableFaces.has(family))) continue;\n        // More than one retained face would require preserving the complete\n        // descriptor-selection set. Refuse it rather than pick a convenient one.\n        if (declaredFaces.length > 1) continue;\n        const webfont = declaredFaces.length === 1 ? harvestableFaces.get(declaredFaces[0]) : undefined;\n        const fvs = cs.fontVariationSettings === \"\" ? \"normal\" : cs.fontVariationSettings;\n        const stretch = cs.fontStretch === \"\" ? \"100%\" : cs.fontStretch;\n        const ffs = cs.fontFeatureSettings === \"\" ? \"normal\" : cs.fontFeatureSettings;\n        const fva = cs.fontVariantAlternates === \"\" ? \"normal\" : cs.fontVariantAlternates;\n        if (fva !== \"normal\" && stackFamilies.some((family) => layeredFeatureValueFamilies.has(family))) continue;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/shaping-font-feature-values.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 112
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2349"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "9f39c8f81621a7d1f64a70e36721e153"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "b48db4e07b2745b477e31652e9653365503b761a",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
