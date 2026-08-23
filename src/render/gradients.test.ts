@@ -278,25 +278,41 @@ describe("background gradient magic corners (DM-2297)", () => {
   });
 });
 
-describe("buildLinearGradientDef: repeating tiles across the gradient line", () => {
-  it("emits multiple tiles spanning [0, 1] with calc-resolved offsets", () => {
+describe("buildLinearGradientDef: repeating domains", () => {
+  it("moves the vector to one calc-resolved period and uses native repeat", () => {
     // A 100px-wide rect with a repeating-linear-gradient running 90deg means
     // the gradient line length L=100. Period 10% = 10px → 10 tiles.
     const g = parseGradient(
       "repeating-linear-gradient(90deg, transparent 0px, transparent calc(10% - 1px), rgb(148, 163, 184) calc(10% - 1px), rgb(148, 163, 184) 10%)",
     )!;
     const svg = buildLinearGradientDef(g as any, "g0", { x: 0, y: 0, w: 100, h: 6 });
-    // 10 full tiles × 4 stops + the one boundary stop at offset 1 from the
-    // 11th tile's first stop — out-of-range stops within that tile are
-    // clipped out. Allow some slack for boundary/rounding.
     const stopCount = (svg.match(/<stop /g) || []).length;
-    expect(stopCount).toBeGreaterThanOrEqual(40);
-    expect(stopCount).toBeLessThanOrEqual(44);
+    expect(stopCount).toBe(4);
     expect(svg).toContain('id="g0"');
+    expect(svg).toContain('x1="0"');
+    expect(svg).toContain('x2="10"');
+    expect(svg).toContain('spreadMethod="repeat"');
     expect(svg).toContain('stop-color="rgb(148, 163, 184)"');
     // First and last offsets at the ends of the gradient line.
     expect(svg).toContain('offset="0"');
     expect(svg).toContain('offset="1"');
+  });
+
+  it("expands an over-line period and collapses coincident stops", () => {
+    const over = buildLinearGradientDef(parseLinearGradient("repeating-linear-gradient(90deg, red 0, blue 240px)")!, "over", { x: 0, y: 0, w: 100, h: 10 });
+    expect(over).toContain('x2="240"');
+    expect(over).toContain('spreadMethod="repeat"');
+
+    const solid = buildLinearGradientDef(parseLinearGradient("repeating-linear-gradient(90deg, red 8px, blue 8px)")!, "solid", { x: 0, y: 0, w: 100, h: 10 });
+    expect(solid).not.toContain("spreadMethod");
+    expect((solid.match(/stop-color="blue"/g) ?? []).length).toBe(2);
+  });
+
+  it("defaults omitted repeat endpoints before moving the vector", () => {
+    const svg = buildLinearGradientDef(parseLinearGradient("repeating-linear-gradient(90deg, red, blue)")!, "defaulted", { x: 0, y: 0, w: 100, h: 10 });
+    expect(svg).toContain('x1="0"');
+    expect(svg).toContain('x2="100"');
+    expect(svg).toContain('spreadMethod="repeat"');
   });
 
   it("non-repeating gradients still emit their two stops unchanged", () => {

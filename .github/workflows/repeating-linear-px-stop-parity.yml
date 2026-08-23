@@ -7,6 +7,7 @@ on:
       - "src/render/gradient-defs.ts"
       - "src/render/gradients.test.ts"
       - "tests/repeating-linear-px-stops.e2e.test.ts"
+      - "tests/repeating-linear-legacy-consumers.e2e.test.ts"
       - "tests/features.ts"
       - ".github/workflows/repeating-linear-px-stop-parity.yml"
   push:
@@ -38,4 +39,4 @@ jobs:
       - name: Validate source-derived repeat domains and zoom capture
         run: npx vitest run src/capture/script/walker/borders-backgrounds.test.ts src/render/gradients.test.ts tests/repeating-linear-px-stop-workflow.test.ts
       - name: Run DPR1/2 Chromium-to-SVG logical-interior gate
-        run: npx vitest run --config vitest.e2e.config.ts tests/repeating-linear-px-stops.e2e.test.ts
+        run: npx vitest run --config vitest.e2e.config.ts tests/repeating-linear-px-stops.e2e.test.ts tests/repeating-linear-legacy-consumers.e2e.test.ts

@@ -842,6 +842,7 @@
         "tests/features.ts#bg-conic-chromium-zoom-tile",
         "tests/svg-effect-combination-oracle.e2e.test.ts"
         ,"tests/repeating-linear-px-stops.e2e.test.ts"
+        ,"tests/repeating-linear-legacy-consumers.e2e.test.ts"
       ],
       "coverage": "partial",
       "boundary": "Legacy -webkit-gradient endpoint geometry remains unresolved. Repeating-linear px stops now have source-owned zoom/domain logic and no fixture relaxation.",

@@ -303,7 +303,7 @@ export function buildLinearGradientDef(
   id: string,
   rect: { x: number; y: number; w: number; h: number },
 ): string {
-  const { x1, y1, x2, y2 } = gradient.legacyEndpoints != null
+  let { x1, y1, x2, y2 } = gradient.legacyEndpoints != null
     ? computeLegacyUserSpaceLine(gradient.legacyEndpoints, rect)
     : computeUserSpaceLine(gradient.angleDeg, rect);
   // Resolve stop positions against this rect. Clone first so two callers
@@ -311,10 +311,28 @@ export function buildLinearGradientDef(
   // (different rects produce different L → different fractions for px stops).
   const resolved = gradient.stops.map((s) => ({ ...s }));
   const lineLength = Math.hypot(x2 - x1, y2 - y1);
-  resolveStops(resolved, lineLength, { skipFirstLastDefaults: gradient.repeating === true });
-  const tiled = gradient.repeating === true ? tileRepeatingStops(resolved) : resolved;
-  const stops = tiled.map((s) => stopMarkup(s)).join("");
-  return `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${num(x1)}" y1="${num(y1)}" x2="${num(x2)}" y2="${num(y2)}">${stops}</linearGradient>`;
+  resolveStops(resolved, lineLength);
+  let emitStops = resolved;
+  let repeat = gradient.repeating === true;
+  if (repeat && resolved.length >= 2) {
+    const first = resolved[0].offset ?? 0;
+    const last = resolved[resolved.length - 1].offset ?? 1;
+    const period = last - first;
+    if (period > Number.EPSILON) {
+      const originalX1 = x1, originalY1 = y1;
+      x1 = originalX1 + first * (x2 - originalX1);
+      y1 = originalY1 + first * (y2 - originalY1);
+      x2 = originalX1 + last * (x2 - originalX1);
+      y2 = originalY1 + last * (y2 - originalY1);
+      emitStops = resolved.map((stop) => ({ ...stop, offset: ((stop.offset ?? first) - first) / period }));
+    } else {
+      const final = resolved[resolved.length - 1];
+      emitStops = [{ ...final, offset: 0 }, { ...final, offset: 1 }];
+      repeat = false;
+    }
+  }
+  const stops = emitStops.map((s) => stopMarkup(s)).join("");
+  return `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${num(x1)}" y1="${num(y1)}" x2="${num(x2)}" y2="${num(y2)}"${repeat ? ' spreadMethod="repeat"' : ""}>${stops}</linearGradient>`;
 }
 
 function computeLegacyUserSpaceLine(endpoints: NonNullable<LinearGradient["legacyEndpoints"]>, rect: { x: number; y: number; w: number; h: number }) {
@@ -907,34 +925,28 @@ function resolveStops(stops: LinearStop[], gradientLineLength: number, opts?: { 
  * Stops without offsets are dropped from the tile (defensive: should not
  * happen for the well-formed test fixtures).
  */
+/** Radial gradients still expand one period across the declared 0..1 radius;
+ * linear gradients instead move their SVG vector and use spreadMethod. */
 function tileRepeatingStops(stops: LinearStop[]): LinearStop[] {
   if (stops.length < 2) return stops;
   const sorted = stops.filter((s): s is LinearStop & { offset: number } =>
-    typeof s.offset === "number" && Number.isFinite(s.offset),
-  );
+    typeof s.offset === "number" && Number.isFinite(s.offset));
   if (sorted.length < 2) return stops;
   const tileStart = sorted[0].offset;
-  const tileEnd = sorted[sorted.length - 1].offset;
-  const period = tileEnd - tileStart;
-  // No meaningful period (degenerate tile) — emit one copy clamped to 0..1.
+  const period = sorted[sorted.length - 1].offset - tileStart;
   if (period <= 0 || period > 1) return sorted.map((s) => ({ ...s, offset: Math.max(0, Math.min(1, s.offset)) }));
   const out: LinearStop[] = [];
-  // Shift backward until tileStart - n*period <= 0.
   let n = 0;
   while (tileStart - n * period > 0) n++;
-  // Then walk forward emitting tiles until we pass 1.
   for (let k = -n; ; k++) {
     const shift = k * period;
-    const tileFirst = tileStart + shift;
-    if (tileFirst > 1) break;
+    if (tileStart + shift > 1) break;
     for (const s of sorted) {
-      const off = s.offset + shift;
-      if (off < 0 - 1e-9 || off > 1 + 1e-9) continue;
-      out.push({ ...s, offset: Math.max(0, Math.min(1, off)) });
+      const offset = s.offset + shift;
+      if (offset >= -1e-9 && offset <= 1 + 1e-9) out.push({ ...s, offset: Math.max(0, Math.min(1, offset)) });
     }
   }
-  if (out.length === 0) return sorted.map((s) => ({ ...s, offset: Math.max(0, Math.min(1, s.offset)) }));
-  return out;
+  return out.length === 0 ? sorted.map((s) => ({ ...s, offset: Math.max(0, Math.min(1, s.offset)) })) : out;
 }
 
 function looksLikeRadialPrefix(tok: string): boolean {

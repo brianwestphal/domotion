@@ -144,6 +144,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5mvxbwhhnl94ui",
+          "message": {
+            "text": "The control/border builder now uses Blink's same first/last repeat-domain model as ordinary backgrounds: default endpoints, move the vector for every positive period, native repeat, and final-solid coincident collapse. Radial tiling remains separate because its SVG radius transcription has different geometry.",
+            "markdown": "The control/border builder now uses Blink's same first/last repeat-domain model as ordinary backgrounds: default endpoints, move the vector for every positive period, native repeat, and final-solid coincident collapse. Radial tiling remains separate because its SVG radius transcription has different geometry."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/gradients.ts"
+                },
+                "region": {
+                  "startLine": 301,
+                  "endLine": 340,
+                  "snippet": {
+                    "text": "export function buildLinearGradientDef(\n  gradient: LinearGradient,\n  id: string,\n  rect: { x: number; y: number; w: number; h: number },\n): string {\n  let { x1, y1, x2, y2 } = gradient.legacyEndpoints != null\n    ? computeLegacyUserSpaceLine(gradient.legacyEndpoints, rect)\n    : computeUserSpaceLine(gradient.angleDeg, rect);\n  // Resolve stop positions against this rect. Clone first so two callers\n  // sharing the same parsed gradient don't mutate each other's offsets\n  // (different rects produce different L → different fractions for px stops).\n  const resolved = gradient.stops.map((s) => ({ ...s }));\n  const lineLength = Math.hypot(x2 - x1, y2 - y1);\n  resolveStops(resolved, lineLength);\n  let emitStops = resolved;\n  let repeat = gradient.repeating === true;\n  if (repeat && resolved.length >= 2) {\n    const first = resolved[0].offset ?? 0;\n    const last = resolved[resolved.length - 1].offset ?? 1;\n    const period = last - first;\n    if (period > Number.EPSILON) {\n      const originalX1 = x1, originalY1 = y1;\n      x1 = originalX1 + first * (x2 - originalX1);\n      y1 = originalY1 + first * (y2 - originalY1);\n      x2 = originalX1 + last * (x2 - originalX1);\n      y2 = originalY1 + last * (y2 - originalY1);\n      emitStops = resolved.map((stop) => ({ ...stop, offset: ((stop.offset ?? first) - first) / period }));\n    } else {\n      const final = resolved[resolved.length - 1];\n      emitStops = [{ ...final, offset: 0 }, { ...final, offset: 1 }];\n      repeat = false;\n    }\n  }\n  const stops = emitStops.map((s) => stopMarkup(s)).join(\"\");\n  return `<linearGradient id=\"${id}\" gradientUnits=\"userSpaceOnUse\" x1=\"${num(x1)}\" y1=\"${num(y1)}\" x2=\"${num(x2)}\" y2=\"${num(y2)}\"${repeat ? ' spreadMethod=\"repeat\"' : \"\"}>${stops}</linearGradient>`;\n}\n\nfunction computeLegacyUserSpaceLine(endpoints: NonNullable<LinearGradient[\"legacyEndpoints\"]>, rect: { x: number; y: number; w: number; h: number }) {\n  const axis = (value: PosValue, origin: number, size: number) => origin + (value.kind === \"frac\" ? value.value * size : value.value);\n  return { x1: axis(endpoints.p1.x, rect.x, rect.w), y1: axis(endpoints.p1.y, rect.y, rect.h), x2: axis(endpoints.p2.x, rect.x, rect.w), y2: axis(endpoints.p2.y, rect.y, rect.h) };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2523"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e11a9358e1e6c1948bc57fe80ad76069"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "70e6b8e588bd85ddfebc23f36452efe4c97606d9",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

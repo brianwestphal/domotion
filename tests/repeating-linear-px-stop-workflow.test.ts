@@ -10,6 +10,7 @@ describe("repeating-linear px-stop parity workflow", () => {
     expect(workflow).toContain("windows-latest");
     expect(workflow).toContain("borders-backgrounds.test.ts");
     expect(workflow).toContain("repeating-linear-px-stops.e2e.test.ts");
+    expect(workflow).toContain("repeating-linear-legacy-consumers.e2e.test.ts");
     expect(workflow).not.toMatch(/continue-on-error|tolerance|percentage/i);
   });
 });
