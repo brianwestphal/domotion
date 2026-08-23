@@ -1801,6 +1801,14 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   boxes; they never fall back to a primary-face ascent merely because the
   selected physical face is helper-backed.
 
+- The Linux MathML Greek-italic re-audit (doc 203) finds the former significant
+  feature residual inactive on the current pinned noble image: six `<mi>`
+  tokens end at capture-owned raster overlays, operators remain paths, and the
+  focused run has zero significant regions without a threshold change. The
+  current logical oracle still assumes a paths-provenance row on Linux, so
+  exact face/gid/metric and native/path-floor ratification remain explicit
+  follow-ups rather than being inferred from the clean visual verdict.
+
 <!-- DM-2452 -->
 - The macOS SFNS mask/baseline oracle (doc 168) is diagnostic-only. It routes
   the exact `SFNS.ttf` bytes through Chromium, fixes
