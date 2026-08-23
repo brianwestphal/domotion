@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5pv5q1ah08yupm",
+          "message": {
+            "text": "The browser matrix observes one decoded stack across ordinary text, exact generated fragments, first-letter, generated line-clamp ellipsis, placeholder, and native listbox-option capture. Its UA rows separately prove kStandard propagation, and the same-face authored pseudo row guards the CSSOM ambiguity that motivated the author-rule join.",
+            "markdown": "The browser matrix observes one decoded stack across ordinary text, exact generated fragments, first-letter, generated line-clamp ellipsis, placeholder, and native listbox-option capture. Its UA rows separately prove kStandard propagation, and the same-face authored pseudo row guards the CSSOM ambiguity that motivated the author-rule join."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/font-family-stack-capture.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 111,
+                  "endLine": 154,
+                  "snippet": {
+                    "text": "  it(\"keeps one decoded stack across ordinary, generated, first-letter, clamp, and control owners\", () => {\n    expectAuthoredStack(byText(tree, \"ordinary-owner\").styles.fontFamilyStack);\n\n    const pseudo = byText(tree, \"pseudo-host\").pseudoFragments?.find((record) => record.pseudo === \"::before\");\n    expect(pseudo?.status).toBe(\"exact\");\n    expectAuthoredStack(pseudo?.typography.fontFamilyStack);\n\n    const first = allSegments(byText(tree, \"First-letter owner\"))\n      .find((segment) => segment.text.includes(\"F\") && segment.fontFamilyStack != null);\n    expectAuthoredStack(first?.fontFamilyStack);\n\n    expectAuthoredStack(marker(byText(tree, \"clamp-owner\")).fontFamilyStack);\n\n    const input = flatten(tree).find((element) => element.tag === \"input\");\n    expect(input?.placeholderFontFamily).toBeTruthy();\n    expectAuthoredStack(input?.placeholderFontFamilyStack);\n\n    const select = flatten(tree).find((element) => element.tag === \"select\");\n    expect(select?.styles.selectListboxOptions?.length).toBeGreaterThan(0);\n    expectAuthoredStack(select?.styles.selectListboxOptions?.[0].fontFamilyStack);\n  });\n\n  it(\"carries UA kStandardFamily through inherited generated, first-letter, and clamp paths\", () => {\n    const ordinary = byText(tree, \"ua-ordinary-owner\");\n    expect(ordinary.styles.fontFamily).toBe(\"-webkit-standard\");\n    expectStandardStack(ordinary.styles.fontFamilyStack);\n\n    const pseudo = byText(tree, \"ua-pseudo-host\").pseudoFragments?.find((record) => record.pseudo === \"::before\");\n    expectStandardStack(pseudo?.typography.fontFamilyStack);\n\n    const first = allSegments(byText(tree, \"Ua-first-letter owner\"))\n      .find((segment) => segment.text.includes(\"U\") && segment.fontFamilyStack != null);\n    expectStandardStack(first?.fontFamilyStack);\n\n    expectStandardStack(marker(byText(tree, \"ua-clamp-owner\")).fontFamilyStack);\n  });\n\n  it(\"does not relabel an authored same-face pseudo as inherited kStandardFamily\", () => {\n    const pseudo = byText(tree, \"ua-same-host\").pseudoFragments?.find((record) => record.pseudo === \"::before\");\n    expect(pseudo?.typography.fontFamilyStack?.genericFamily).toBe(\"none\");\n    expect(pseudo?.typography.fontFamilyStack?.entries).toEqual([\n      { name: expect.any(String), type: \"family-name\" },\n    ]);\n  });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/index.ts"
+                },
+                "region": {
+                  "startLine": 144
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/font-family-stack.ts"
+                },
+                "region": {
+                  "startLine": 174
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2518"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c35dbfab4fccff28fe5f7805cebb3b51"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "4098f14e9d38964f7882703ee9c07a73a337a899",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -31,7 +31,7 @@
 //     UA-rendered native widgets driven by author CSS in the same way the
 //     input pseudos are, so they slot naturally next to them.
 
-export const createFormControlsHandler = ({ normColor, resolvePseudo }) => {
+export const createFormControlsHandler = ({ normColor, resolvePseudo, fontFamilyStackFor }) => {
   const captureFormControls = (el, cs, tag) => {
     // DM-1115 / DM-1123: resolve the <summary> disclosure-marker state once.
     // `suppressed` → author hid the UA triangle (`list-style: none` or a
@@ -169,6 +169,7 @@ export const createFormControlsHandler = ({ normColor, resolvePseudo }) => {
                 paddingTop: parseFloat(ocs.paddingTop) || 0,
                 fontSize: parseFloat(ocs.fontSize) || undefined,
                 fontFamily: ocs.fontFamily || undefined,
+                fontFamilyStack: fontFamilyStackFor(o, ocs.fontFamily),
                 fontWeight: ocs.fontWeight || undefined,
                 fontStyle: ocs.fontStyle || undefined,
                 fontAscent,

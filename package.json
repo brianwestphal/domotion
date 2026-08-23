@@ -102,6 +102,7 @@
     "fonts:family-match:linux": "tsx tools/family-match-conformance-linux.ts",
     "fonts:family-match:win32": "tsx tools/family-match-conformance-win32.ts",
     "decorations:oracle": "tsx tools/decoration-oracle.ts",
+    "decorations:vertical-oracle": "vitest run tests/vertical-decoration-oracle.test.ts tests/vertical-decoration-browser-oracle.test.ts",
     "borders:phase-oracle": "tsx tools/border-phase-oracle.ts",
     "borders:phase-ratify": "tsx tools/border-phase-ratifier.ts",
     "paint:geometry-oracle": "tsx tools/paint-geometry-oracle.ts",

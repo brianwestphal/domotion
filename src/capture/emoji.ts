@@ -39,6 +39,7 @@ import {
 } from "./backdrop-composite-raster.js";
 import { selectedGlyphRasterSpans } from "../render/text-to-path.js";
 import { capturedTextSegmentFontFeatures, parseFontVariationSettings } from "../render/text.js";
+import { capturedFontFamilyCss } from "../font-family-stack.js";
 
 const APPLE_COLOR_EMOJI_PATH = "/System/Library/Fonts/Apple Color Emoji.ttc";
 let _aceFont: any = null;
@@ -231,7 +232,9 @@ function selectedRasterSpansForSegment(
 ): ReturnType<typeof selectedGlyphRasterSpans> {
   return selectedGlyphRasterSpans(seg.text, spans, {
     fontSize: seg.fontSize ?? (parseFloat(el.styles.fontSize) || 14),
-    fontFamily: seg.fontFamily ?? el.styles.fontFamily,
+    fontFamily: seg.fontFamily != null
+      ? capturedFontFamilyCss(seg.fontFamily, seg.fontFamilyStack)
+      : capturedFontFamilyCss(el.styles.fontFamily, el.styles.fontFamilyStack),
     fontWeight: seg.fontWeight ?? el.styles.fontWeight,
     fontStyle: seg.fontStyle ?? el.styles.fontStyle,
     fontStretch: el.styles.fontStretch,

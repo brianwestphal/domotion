@@ -224,7 +224,7 @@ export const resolveCharOrientation = (ch, textOrientation) => {
   return isMixedVerticalUpright(ch.codePointAt(0)) ? 'upright' : 'rotated';
 };
 
-const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, normColor, markGetsDottedCircle, finalizeLineClampText }) => {
+const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, normColor, markGetsDottedCircle, finalizeLineClampText, fontFamilyStackFor }) => {
   const finishLineClamp = (el, cs, result) => finalizeLineClampText == null
     ? result
     : finalizeLineClampText(el, cs, result);
@@ -647,6 +647,7 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
         xOffsets: xoff,
         color: normColor(flStyle.color),
         fontFamily: flStyle.fontFamily,
+        fontFamilyStack: fontFamilyStackFor(el, flStyle.fontFamily, '::first-letter'),
         fontSize: effectiveFs,
         fontWeight: flStyle.fontWeight !== cs.fontWeight ? flStyle.fontWeight : undefined,
         fontStyle: flStyle.fontStyle !== cs.fontStyle ? flStyle.fontStyle : undefined,
@@ -1090,6 +1091,10 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
       }
       if (flLineStyle.fontStyle !== '' && flLineStyle.fontStyle !== cs.fontStyle) {
         firstSeg.fontStyle = flLineStyle.fontStyle;
+      }
+      if (flLineStyle.fontFamily !== '' && flLineStyle.fontFamily !== cs.fontFamily) {
+        firstSeg.fontFamily = flLineStyle.fontFamily;
+        firstSeg.fontFamilyStack = fontFamilyStackFor(el, flLineStyle.fontFamily, '::first-line');
       }
       const flFs = parseFloat(flLineStyle.fontSize);
       const elFs2 = parseFloat(cs.fontSize);

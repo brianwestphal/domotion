@@ -2,6 +2,10 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  fuseFontFeatureValueRules,
+  IMPLICIT_OUTER_LAYER_ORDER,
+} from "../src/font-feature-values-cascade.js";
+import {
   exactFeatureValueSignature,
   exactWebfontFeatureRecord,
   resolvedFeatureValueList,
@@ -62,6 +66,42 @@ describe("doc 204 named alternates use Blink's exact OpenType feature list", () 
     expect(css).toContain("@ornaments{fleurons:1;}");
     expect(css).toContain("@annotation{circled:1;}");
   });
+
+  it("fuses alias keys by canonical layer order rather than rule source order", () => {
+    const fused = fuseFontFeatureValueRules([
+      {
+        // This higher-priority layer appears first in source order.
+        fontFamily: '"Layered, Fancy", serif',
+        layerOrder: 3,
+        table: { stylistic: { fancy: [1], unioned: [7] } },
+      },
+      {
+        fontFamily: '"Layered, Fancy", serif',
+        layerOrder: 1,
+        table: { stylistic: { fancy: [2] }, styleset: { display: [2, 3] } },
+      },
+    ]);
+
+    expect(fused["layered, fancy"]).toEqual({
+      stylistic: { fancy: [1], unioned: [7] },
+      styleset: { display: [2, 3] },
+    });
+    expect(fused.serif).toEqual(fused["layered, fancy"]);
+  });
+
+  it("lets a later rule win within one layer and the implicit layer win globally", () => {
+    const fused = fuseFontFeatureValueRules([
+      { fontFamily: "Esc\\61 ped", layerOrder: 4, table: { stylistic: { fancy: [1] } } },
+      { fontFamily: "Escaped", layerOrder: 4, table: { stylistic: { fancy: [2] } } },
+      {
+        fontFamily: "Escaped",
+        layerOrder: IMPLICIT_OUTER_LAYER_ORDER,
+        table: { stylistic: { fancy: [3] } },
+      },
+      { fontFamily: "Escaped", layerOrder: 99, table: { stylistic: { fancy: [4] } } },
+    ]);
+    expect(fused.escaped?.stylistic?.fancy).toEqual([3]);
+  });
 });
 
 describe("the pinned WPT webfont makes every alias anti-vacuous", () => {
@@ -100,6 +140,17 @@ describe("the pinned WPT webfont makes every alias anti-vacuous", () => {
     );
     expect(selector).toContain("FontFeatureValuesForFamily");
     expect(selector).toContain("GetFontVariantAlternates()->Resolve");
+    const storage = readFileSync(
+      "external/chromium/third_party/blink/renderer/core/css/style_rule_font_feature_values.cc",
+      "utf8",
+    );
+    expect(storage).toContain("other_layer_order >= existing_layer_order");
+    const scopedResolver = readFileSync(
+      "external/chromium/third_party/blink/renderer/core/css/resolver/scoped_style_resolver.cc",
+      "utf8",
+    );
+    expect(scopedResolver).toContain("Support @font-feature-values in shadow");
+    expect(scopedResolver).toContain("if (!GetTreeScope().RootNode().IsDocumentNode())");
     const harfbuzz = readFileSync("external/harfbuzz/src/hb-ot-shape.cc", "utf8");
     expect(harfbuzz).toContain("map->add_feature (feature->tag");
     expect(harfbuzz).toContain("feature->value");

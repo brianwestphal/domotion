@@ -66,6 +66,7 @@ import {
   backdropEffectNeutralizations,
   backdropRootReasons,
 } from "../backdrop-effect-space.js";
+import { captureFontFamilyStack } from "../../font-family-stack.js";
 
 const captureDocumentTree =
 (args) => {
@@ -136,7 +137,23 @@ const captureDocumentTree =
   const { markGetsDottedCircle } = createDottedCircleDetect();
   const { measureFontMetrics: _measureFontMetrics, substituteAliasedFamilies: _substituteAliasedFamilies } = createFontMetrics();
   const { resolvePlaceholderShownBg: _resolvePlaceholderShownBg } = createPlaceholderShown();
-  const { familyIsUADefault: _familyIsUADefault } = createFontFamilyDefault();
+  const {
+    familyIsUADefault: _familyIsUADefault,
+    pseudoFamilyIsAuthored: _pseudoFamilyIsAuthored,
+  } = createFontFamilyDefault();
+  const _fontFamilyStackFor = (el, computedFontFamily, pseudo) => {
+    // Generated/first-letter/placeholder styles inherit the host's
+    // kStandardFamily unless they resolve to a distinct family. CSSOM exposes
+    // only the concrete settings name, so join the pseudo back to the host's
+    // already-audited declaredness seam before creating the structured list.
+    const hostFamily = pseudo == null
+      ? computedFontFamily
+      : (el.ownerDocument?.defaultView ?? window).getComputedStyle(el).fontFamily;
+    const inheritedHostStandard = (pseudo == null || (computedFontFamily === hostFamily
+      && !_pseudoFamilyIsAuthored(el, pseudo)))
+      && _familyIsUADefault(el, hostFamily);
+    return captureFontFamilyStack(computedFontFamily, inheritedHostStandard);
+  };
   const { resolveFontPalette: _resolveFontPalette } = createFontPaletteResolver();
   const _fontFeatureValuesByDocument = new WeakMap();
   const _fontFeatureValuesFor = (doc) => {
@@ -161,7 +178,11 @@ const captureDocumentTree =
   const { captureListsCounters } = createListsCountersHandler({ normColor, resolveCounterStyle, isCustomCounterStyle, measureFontMetrics: _measureFontMetrics });
   const { handleReplacedElement } = createReplacedElementsHandler({ vp });
   const { discoverMasks, computeMaskIntrinsic, discoverClipPaths, discoverFilters, maskDefs: _maskDefs, maskRasters: _maskRasters, clipPathDefs: _clipPathDefs, filterDefs: _filterDefs } = createMasksClipsHandler({ vp, warn, referenceScopeFor: _svgReferenceScope });
-  const { captureFormControls } = createFormControlsHandler({ normColor, resolvePseudo: _resolvePseudo });
+  const { captureFormControls } = createFormControlsHandler({
+    normColor,
+    resolvePseudo: _resolvePseudo,
+    fontFamilyStackFor: _fontFamilyStackFor,
+  });
   const { wrapWithFrozenTransform, threadFrozenTransform } = createTransformsHandler();
   const { captureBordersBackgrounds, isTableCellHiddenByEmptyCells } = createBordersBackgroundsHandler({
     normColor,
@@ -189,13 +210,20 @@ const captureDocumentTree =
     composeEffectiveTransform,
     effectiveZoomFor: (el) => _effectiveZoomFor(el),
     physicalComputedCssPixelTerms,
+    fontFamilyStackFor: _fontFamilyStackFor,
   });
-  const { captureInputValue } = createInputValueHandler({ vp, normColor, measureFontMetrics: _measureFontMetrics });
+  const { captureInputValue } = createInputValueHandler({
+    vp,
+    normColor,
+    measureFontMetrics: _measureFontMetrics,
+    fontFamilyStackFor: _fontFamilyStackFor,
+  });
   const { finalizeLineClampText } = createLineClampHandler({
     vp,
     measureFontMetrics: _measureFontMetrics,
     normColor,
     effectiveZoomFor: (el) => _effectiveZoomFor(el),
+    fontFamilyStackFor: _fontFamilyStackFor,
   });
   const { captureTextSegments } = createTextSegmentsHandler({
     vp,
@@ -204,6 +232,7 @@ const captureDocumentTree =
     normColor,
     markGetsDottedCircle,
     finalizeLineClampText,
+    fontFamilyStackFor: _fontFamilyStackFor,
   });
   const { injectPseudoSegments } = createPseudoInjectHandler();
   const { captureResizeHandle } = createResizeHandleHandler({
@@ -232,6 +261,17 @@ const captureDocumentTree =
     const rect = el.getBoundingClientRect();
     const _textPaintFact = _textPaintFactFor(el);
     const _pseudoFragmentFacts = _pseudoFragmentFactsFor(el);
+    const _capturedFontFamilyStack = _fontFamilyStackFor(el, cs.fontFamily);
+    if (Array.isArray(_pseudoFragmentFacts)) {
+      for (const _pseudoFact of _pseudoFragmentFacts) {
+        if (_pseudoFact?.typography?.fontFamily == null) continue;
+        _pseudoFact.typography.fontFamilyStack = _fontFamilyStackFor(
+          el,
+          _pseudoFact.typography.fontFamily,
+          _pseudoFact.pseudo,
+        );
+      }
+    }
     let projectiveTransform;
     let projectiveHidden;
     let projectiveFrameState;
@@ -607,6 +647,7 @@ const captureDocumentTree =
           textWidth: _buttonTextWidth,
           fontSize: (parseFloat(_buttonStyle.fontSize) || 0) * _paintScale,
           fontFamily: _buttonStyle.fontFamily,
+          fontFamilyStack: _fontFamilyStackFor(el, _buttonStyle.fontFamily, '::file-selector-button'),
           fontWeight: _buttonStyle.fontWeight,
           fontStyle: _buttonStyle.fontStyle,
           fontAscent: _buttonMetrics.ascent * _paintScale,
@@ -627,6 +668,7 @@ const captureDocumentTree =
           textSegments: _statusText.textSegments,
           fontSize: (parseFloat(_statusStyle.fontSize) || 0) * _paintScale,
           fontFamily: _statusStyle.fontFamily,
+          fontFamilyStack: _fontFamilyStackFor(el, _statusStyle.fontFamily, '::file-selector-status'),
           fontWeight: _statusStyle.fontWeight,
           fontStyle: _statusStyle.fontStyle,
           fontAscent: (_statusText.fontAscent || 0) * _paintScale,
@@ -721,6 +763,8 @@ const captureDocumentTree =
     let placeholderColor;
     let placeholderFontStyle;
     let placeholderFontWeight;
+    let placeholderFontFamily;
+    let placeholderFontFamilyStack;
     let lineClampTextFragments = false;
     const textSegments = [];
     // ::before / ::after generated content — capture each matched pseudo as
@@ -774,6 +818,8 @@ const captureDocumentTree =
         placeholderColor = _iv.placeholderColor;
         placeholderFontStyle = _iv.placeholderFontStyle;
         placeholderFontWeight = _iv.placeholderFontWeight;
+        placeholderFontFamily = _iv.placeholderFontFamily;
+        placeholderFontFamilyStack = _iv.placeholderFontFamilyStack;
       } else {
         // Text-node walker — per-line textSegments via per-character
         // getClientRects, BiDi visual-fragment splitting, rasterGlyph
@@ -1192,7 +1238,10 @@ const captureDocumentTree =
         // `matchFamilyNameToKey("-webkit-standard", true, lang)` then routes it
         // script-keyed. A declared `font-family: Times` (identical computed
         // string, but Latin→Times / CJK→fallback) is left untouched.
-        fontFamily: _familyIsUADefault(el, cs.fontFamily) ? '-webkit-standard' : cs.fontFamily,
+        fontFamily: _capturedFontFamilyStack.genericFamily === 'standard'
+          ? '-webkit-standard'
+          : cs.fontFamily,
+        fontFamilyStack: _capturedFontFamilyStack,
         fontWeight: cs.fontWeight,
         fontStyle: cs.fontStyle,
         opacity: cs.opacity,
@@ -1335,6 +1384,8 @@ const captureDocumentTree =
       placeholderColor,
       placeholderFontStyle,
       placeholderFontWeight,
+      placeholderFontFamily,
+      placeholderFontFamilyStack,
       // Old-capture compatibility field. Current textarea and vertical text
       // capture is fully vector; see walker/text-segments.ts.
       elementRaster: computeElementRaster(el, cs, tag, rect, vp),

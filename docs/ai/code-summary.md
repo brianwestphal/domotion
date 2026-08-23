@@ -40,14 +40,15 @@ non-default-axis→default omissions and HarfBuzz's `TRAK.ttf` `ptem=9`→unset
 golden. Schema 3 requires complete expected glyph streams and exactly one
 changed field (`xAdvance`), and distinguishes missing, inert, and unexpectedly
 mutating fixtures without aborting the evidence artifact.
-`tools/shaping-conformance.ts` and
+`src/font-feature-values-cascade.ts`, `tools/shaping-conformance.ts`, and
 `tools/shaping-font-feature-values.ts` own doc 204's named-alternate gate:
-they harvest ordinary document-scoped `@font-feature-values` tables, retain a
-single authenticated data-URL webfont, partition synthetic pages by rule/face
+they harvest `@font-feature-values` tables with Blink's per-alias cascade-layer
+postorder and current document-only TreeScope boundary, retain a single
+authenticated data-URL webfont, partition synthetic pages by rule/face
 environment, and record the exact resolved feature list plus complete HarfBuzz
 cluster record. The real WPT face exercises stylistic/styleset/character-
-variant/swash/ornaments/annotation against direct-feature and missing-rule
-controls; layered fusion is refused rather than approximated.
+variant/swash/ornaments/annotation against direct-feature, layer/source-order,
+shadow-scope, and missing-rule controls.
 `tools/shaping-unicode-corpus.ts` (doc 205) makes the full ~312,822-run Unicode
 corpus usable: canonical SHA-256 identities drive bounded representative and
 eight-way exhaustive shards, resumable manifests carry doc-120 fingerprints,
@@ -591,14 +592,21 @@ shortest possible map:
 - **Generic-family semantic ownership audit** —
   `tools/generic-family-semantics-audit.ts` (`npm run
   fonts:generic-family-semantics`) freezes Blink's separate family-name/type and
-  descriptor-generic ownership before HarfBuzz/Skia. It compares exact Windows
-  Arabic/Hebrew candidate order with the current resolved-key reconstruction
+  descriptor-generic ownership before HarfBuzz/Skia. Production derives the
+  carrier from the unresolved stack; Windows hardcoded fallback and the
+  common-Skia generic-sensitive terminal consume it independently of concrete
+  face keys. The audit compares exact Windows Arabic/Hebrew candidate order
+  with the production carrier
   over ten named/generic/rightmost/quoted/non-occupying stacks, then repeats the
   20 rows in reverse without clearing caches. The all-platform workflow retains
   logical CDP/source/routing fingerprints and contains no visual tolerance. The
-  confirmed
-  false-positive and false-negative gap remains production-read-only here; see
-  doc 206 and the named production/gate follow-ups there.
+  terminal's repository-owned cassette suite separately forces family
+  exhaustion for named Courier, monospace, serif, system-ui, and math in both
+  cache orders, asserts the source-selected initial family and generic-agnostic
+  concrete-face cache, and shapes an uncovered U+E000 to distinguish the first
+  candidate's `.notdef` from the covering monospace terminal. It contains no
+  raster comparison. See doc 206; strict all-platform promotion remains the
+  named follow-up there.
 - **Synthetic stack corpus** — `tools/font-conformance-synthetic-stacks.ts`
   generates a SECOND corpus for the same oracle from a stated rule (the 13 CSS
   generic-family keywords × the 9-rung weight ladder × the 9 stretch keywords ×
@@ -662,7 +670,16 @@ shortest possible map:
   now pins coherent DPR-1 and DPR-4 lanes, while the arm64 finalizer rejects a
   cross-DPR report or widened `0.3px` envelope. Pure pieces are pinned by
   `tests/decoration-oracle.test.ts`; the emit snap by
-  `src/render/decoration-emit.test.ts`. No production geometry changed.
+  `src/render/decoration-emit.test.ts`. DM-2514 extends that source-owned
+  machinery to vertical text: `vertical-text.ts` resolves central-baseline
+  sides from locale script, flips underline/overline before distinct em-edge
+  geometry, suppresses upright blobs from skip-ink, accumulates inherited
+  declarations with target vertical UsedFont metrics, and transforms shared
+  line-relative markup once. `tools/vertical-decoration-oracle.ts` joins 26
+  exact DPR-qualified logical rows with ten destructive controls, including
+  `auto` versus `all` skip-ink and upright-blob suppression; the
+  separate browser oracle authenticates 16/16 native-painted sides without
+  using raster coverage to fit geometry.
 - **Shaper A/B** — `tools/shape-agreement.ts` (`npm run fonts:shaper-ab`)
   compares HarfBuzz against the platform helper at glyph-ID granularity. Both
   engines are opened at the SAME axis location; without that a variable face
@@ -972,6 +989,15 @@ collection is broad; Chromium paint and the selected-face HarfBuzz glyph stream
 own the decision. The shaped splitter carries its resolved script and concrete
 face metadata through `FontRun` into both emitters. Do not reintroduce block,
 plane, font, or script samples as routing gates.
+
+For captured font-family ownership, start at `src/font-family-stack.ts` and
+[doc 213](../213-structured-font-family-stack.md). Capture stores decoded
+`family-name`/`generic-family` entries plus Blink's independent rightmost legacy
+generic once, and every ordinary/generated/first-letter/line-clamp/control
+consumer serializes that record before resolving a face. Do not split CSS
+font-family strings on commas or infer generic identity from the selected key;
+quoted commas, escapes, quoted generic-looking literals, and kStandard are
+logical mutation gates.
 
 ## What this file is NOT
 

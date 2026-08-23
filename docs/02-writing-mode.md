@@ -87,14 +87,35 @@ macOS checks score `02-text-emphasis` at 2 trivial regions / 0.01% and
 selected-face metrics are platform-independent while each supported platform
 retains its native font resolver.
 
+## Vertical text-decoration geometry (DM-2514)
+
+Decorations are emitted as horizontal lines in the same line-relative plane as
+rotated text, using the shared Blink thickness/offset/style/snap/skip-ink
+machinery, then cross the existing physical matrix. The inline span is the
+captured column height; clockwise modes map line-under left and line-over
+right, while `sideways-lr` mirrors those sides. No column-edge offset is fitted.
+
+Blink uses a central baseline only for `vertical-rl/lr` mixed/upright text.
+There, the locale-derived `FontDescription` script owns the side rule: Japanese
+and Korean locales resolve `left` under and all no-`left` values over; other
+scripts resolve `right` over and all no-`right` values under. The glyph does not
+choose this branch. Sideways typography remains alphabetic and ignores
+left/right. A central over result swaps underline/overline before applying the
+distinct TopOfEmHeight/BottomOfEmHeight formulas, including the source rule
+that only the flipped effective overline retains `text-underline-offset`.
+
+Inherited decoration declarations still accumulate, but Blink disables a
+non-horizontal decorating box: target vertical font, locale, baseline, and
+UsedFont metrics resolve auto/from-font/percent geometry. Upright vertical
+glyph blobs never open skip-ink gaps; only rotated blobs contribute intercepts.
+The exact 26-row logical and 16-row live DPR-1/4 side matrix is run with
+`npm run decorations:vertical-oracle`; raster coverage remains a separately
+reported phase and does not tune geometry.
+
 ## Edge cases / out of scope
 
 - Per-glyph mixed-orientation choice comes from the complete Chromium-pinned ICU 17 `Vertical_Orientation` property: Blink keeps U, Tu, and Tr upright and rotates only R. Regenerate with `npm run unicode:vertical-orientation:generate`; the check and exhaustive digest prevent host-Unicode drift.
 - CSS logical properties (`inline-size`, `padding-block-*`) — captured pixel values from `getComputedStyle` are already physical, so layout sizing comes through. Only typography axes need new logic.
-
-## Follow-ups to file
-
-- Implementation ticket: "SK-???: implement vertical writing-mode + text-orientation in capture+render".
 
 ## Acceptance criteria
 

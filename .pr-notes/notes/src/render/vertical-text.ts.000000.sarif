@@ -220,6 +220,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5pjrq5jq0amwu4",
+          "message": {
+            "text": "The side decision must come from the captured locale script and baseline class, not from glyph Unicode or a physical column edge. Pinned Blink ResolveUnderlinePosition treats vertical mixed/upright as central, applies opposite Kana/Hangul versus other-script left/right rules, then represents line-over by swapping underline and overline before geometry; sideways typography remains alphabetic.",
+            "markdown": "The side decision must come from the captured locale script and baseline class, not from glyph Unicode or a physical column edge. Pinned Blink ResolveUnderlinePosition treats vertical mixed/upright as central, applies opposite Kana/Hangul versus other-script left/right rules, then represents line-over by swapping underline and overline before geometry; sideways typography remains alphabetic."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/vertical-text.ts"
+                },
+                "region": {
+                  "startLine": 171,
+                  "endLine": 200,
+                  "snippet": {
+                    "text": "export function resolveVerticalDecoration(\n  writingMode: string,\n  textOrientation: string | undefined,\n  underlinePositionCss: string | undefined,\n  lang: string | undefined,\n): VerticalDecorationResolution {\n  const tokens = (underlinePositionCss ?? \"auto\").trim().toLowerCase().split(/\\s+/);\n  const localeScript = localeToScriptCodeForFontSelection(lang ?? \"\");\n  const central = (writingMode === \"vertical-rl\" || writingMode === \"vertical-lr\")\n    && textOrientation !== \"sideways\";\n  if (!central) {\n    return {\n      baselineType: \"alphabetic\",\n      underlinePosition: tokens.includes(\"under\") ? \"under\"\n        : tokens.includes(\"from-font\") ? \"from-font\" : \"auto\",\n      flipUnderlineAndOverline: false,\n      localeScript,\n    };\n  }\n  const kanaOrHangul = localeScript === \"KATAKANA_OR_HIRAGANA\" || localeScript === \"HANGUL\";\n  const over = kanaOrHangul ? !tokens.includes(\"left\") : tokens.includes(\"right\");\n  return {\n    baselineType: \"central\",\n    // ResolveDecorationAt changes an over-side result to kUnder before it\n    // swaps the line bits; both central outcomes therefore feed the shared\n    // metric engine's under branch.\n    underlinePosition: \"under\",\n    flipUnderlineAndOverline: over,\n    localeScript,\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 96,
+          "workItemUris": [
+            "DM-2514"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c2fa584d0b9384eba718e643c1a2a8bb"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "4098f14e9d38964f7882703ee9c07a73a337a899",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

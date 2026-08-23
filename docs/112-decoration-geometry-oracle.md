@@ -186,12 +186,14 @@ whole-fixture pixel-diff inverted.
   smaller than itself; at auto thickness, fonts ≤ ~18px cannot discriminate a
   halved pad on their own (the explicit 5px/8px-thickness cases exist to
   discriminate hard).
-- **Scope** — vertical writing modes, decorating-box propagation, and wrapped
-  multi-fragment runs are not exercised; every case is a single fragment
-  decorated on its own span. The DM-2345 source audit identified the vertical
-  renderer's empirical thickness/offset and simplified side rules as a
-  separate logical divergence requiring a central-baseline, script-sensitive
-  oracle rather than a wider envelope.
+- **Scope** — this horizontal C/R/S corpus still does not exercise wrapped
+  multi-fragment runs. Vertical writing and its non-horizontal decorating-box
+  behavior are now closed by DM-2514's separate line-relative oracle
+  (`npm run decorations:vertical-oracle`): 26 exact logical rows with ten
+  destructive controls (including `auto`/`all` and upright-blob skip-ink)
+  plus 16 live Chromium side rows at coherent DPR 1/4.
+  That lane keeps native raster coverage separately classified and does not
+  widen this oracle's horizontal envelope.
 - **Platform** — the C/R/S gate is exact on macOS and pinned Linux arm64 with
   coherent device scale. Windows run 32624743248 ratifies the same 109/30/109
   exact gates at coherent DPR 1 and DPR 4 with fingerprinted artifacts (doc
@@ -201,6 +203,7 @@ whole-fixture pixel-diff inverted.
 
 ```sh
 npm run decorations:oracle                     # full grid, gates: transcription + skip-ink + svg-geometry
+npm run decorations:vertical-oracle            # central/script/sideways logical + live side gates
 npm run decorations:oracle -- --device-scale-factor 1 --json report-dpr1.json
 npx tsx tools/decoration-oracle.ts --only helvetica.24   # substring case filter
 npx tsx tools/decoration-oracle.ts --json report.json    # full per-case JSON dump

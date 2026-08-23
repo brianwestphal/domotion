@@ -8,6 +8,8 @@
 // the DOM measurement code below the walker does not grow a second, heuristic
 // model of the feature.
 
+import { parseCssFontFamilyEntries } from "../../font-family-stack.js";
+
 /** Parse Blink's computed `-webkit-line-clamp` value. */
 export const parseBlinkLineClampCount = (value) => {
   if (typeof value !== 'string' || !/^\s*[1-9]\d*\s*$/.test(value)) return null;
@@ -184,8 +186,7 @@ const behaviorallyClampsInClone = (el, cs, writingMode) => {
 };
 
 const firstFamily = (familyList) => {
-  const match = /^\s*(?:"([^"]+)"|'([^']+)'|([^,]+))/.exec(familyList || '');
-  return (match?.[1] || match?.[2] || match?.[3] || familyList || 'sans-serif').trim();
+  return parseCssFontFamilyEntries(familyList || '')[0]?.name || 'sans-serif';
 };
 
 // CSS Font Loading exposes exact unicode-range coverage for authored faces.
@@ -253,7 +254,7 @@ const measureMarker = (doc, cs, text, writingMode, scale) => {
  * text walker; a WeakMap makes the root analysis single-shot while descendants
  * reuse the exact logical-line ownership established for their clamp root.
  */
-export const createLineClampHandler = ({ vp, measureFontMetrics, normColor, effectiveZoomFor }) => {
+export const createLineClampHandler = ({ vp, measureFontMetrics, normColor, effectiveZoomFor, fontFamilyStackFor }) => {
   const contexts = new WeakMap();
   let probeSequence = 0;
 
@@ -347,6 +348,7 @@ export const createLineClampHandler = ({ vp, measureFontMetrics, normColor, effe
       inlineOffset: inlineStart - (vertical ? vp.y : vp.x),
       color: normColor(cs.color),
       fontFamily: cs.fontFamily,
+      fontFamilyStack: fontFamilyStackFor(el, cs.fontFamily),
       fontSize: Number.parseFloat(cs.fontSize) || undefined,
       fontWeight: cs.fontWeight,
       fontStyle: cs.fontStyle,

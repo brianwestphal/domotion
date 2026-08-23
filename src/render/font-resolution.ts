@@ -22,6 +22,13 @@ import { existsSync } from "node:fs";
 import * as nodePath from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
+import {
+  captureFontFamilyStack,
+  capturedFontFamilyHeadIdentity,
+  parseCssFontFamilyEntries,
+  type BlinkGenericFamily,
+} from "../font-family-stack.js";
+export type { BlinkGenericFamily } from "../font-family-stack.js";
 import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont, resolveFcFallbackFonts, resolveSystemUiFamily, resolveFaceTraitBold, resolveFaceTraitItalic, resolveFamilyStyleMatch, resolveLinuxFamilyMatch, clearGlyphHelperCodepointMemos, clearGlyphHelperCache, beginFcFallbackRendererScope, selectFcFallbackRendererScope, endFcFallbackRendererScope, type GlyphRasterRepresentation, type LinuxFamilyMatch } from "./glyph-helper.js";
 import { win32FamilySuffixAdjustment } from "./win32-family-suffix.js";
 import {
@@ -1519,9 +1526,9 @@ function pickWebfontVariantWithBuffer(family: string, weight: number, slant: num
  * stack matches a registered webfont (e.g. all generic / system fallbacks).
  */
 function firstWebfontFamilyInStack(fontFamily: string): string | null {
-  const names = fontFamily.split(",").map((n) => n.trim().replace(/^["']|["']$/g, "").toLowerCase());
-  for (const n of names) {
-    if (webfontRegistry.has(n)) return n;
+  for (const entry of parseCssFontFamilyEntries(fontFamily)) {
+    const name = entry.name.toLowerCase();
+    if (webfontRegistry.has(name)) return name;
   }
   return null;
 }
@@ -4724,15 +4731,18 @@ function linuxNominationWalkArmed(): boolean {
  * `kLastResort` lookup, and `FontMatchAliasesAsLastResort` is stable at the
  * tag, so each rung also gets the alias retry ("Arial" → "Helvetica").
  *
- * Our pipeline reaches this stage description-blind (the key model does not
- * carry the request's generic-family enum), so the first rung is always the
- * standard-description empty name; the generic-family keywords never get
- * here because their calibrated table entries resolve upstream.
+ * The first rung is descriptor state, not face state. Blink derives it from
+ * `FontDescription::GenericFamily` even after every family/settings value has
+ * been exhausted. `system-ui` and `math` do not occupy that legacy enum, so
+ * they preserve an earlier legacy generic or leave it at `kNoFamily` (the
+ * empty-name request). The later rungs are generic-independent.
  */
 function linuxLastResortMatch(
   style: { weight: number; italic?: boolean; stretch?: number },
+  genericFamily: BlinkGenericFamily,
 ): { match: LinuxFamilyMatch; acceptedFamily: string } | null {
-  for (const rung of ["", "Sans", "Arial", ""]) {
+  const initialFamily = skiaLastResortInitialFamily(genericFamily);
+  for (const rung of [initialFamily, "Sans", "Arial", ""]) {
     const hit = rung === ""
       ? (() => { const m = resolveLinuxFamilyMatch("", style); return m != null ? { match: m, acceptedFamily: "" } : null; })()
       : linuxFamilyMatchWithAlternate(rung, style);
@@ -4741,7 +4751,12 @@ function linuxLastResortMatch(
   return null;
 }
 
-/** Memo for `linuxPrimaryCutKey`, keyed on the key AND the full style. */
+/**
+ * Memo for `linuxPrimaryCutKey`. A normal by-name selection is keyed only by
+ * concrete key + style; an exhausted selection is additionally keyed by the
+ * source-selected terminal family. Thus the generic descriptor can distinguish
+ * the one decision it owns without contaminating the selected-face cache.
+ */
 const linuxPrimaryCutCache = new Map<string, { key: string; italic: boolean } | null>();
 
 /**
@@ -4802,6 +4817,7 @@ function linuxFcFamilyForKey(key: string): string | null {
  */
 function linuxPrimaryCutKey(
   key: string, weight: number, slant: number, stretch: number = 100,
+  semanticContext: FontFallbackSemanticContext = createFontFallbackSemanticContext(),
 ): { key: string; italic: boolean } | null {
   if (hostPlatform() !== "linux" || !_systemFallbackResolutionEnabled
       || !isGlyphHelperAvailable()) return null;
@@ -4809,11 +4825,18 @@ function linuxPrimaryCutKey(
   if (declaredFamily == null && !DARWIN_DECLARED_FAMILY_KEYS.has(key)) return null;
 
   const italicRequested = slant !== 0;
-  const cacheKey = `${key}|${weight}|${italicRequested ? 1 : 0}|${stretch}`;
-  const cached = linuxPrimaryCutCache.get(cacheKey);
-  if (cached !== undefined) return cached;
+  const primaryCacheKey = `${key}|${weight}|${italicRequested ? 1 : 0}|${stretch}`;
+  if (linuxPrimaryCutCache.has(primaryCacheKey)) {
+    return linuxPrimaryCutCache.get(primaryCacheKey)!;
+  }
+  const terminalFamily = skiaLastResortInitialFamily(semanticContext.genericFamily);
+  const terminalCacheKey = `${primaryCacheKey}|terminal:${terminalFamily}`;
+  if (linuxPrimaryCutCache.has(terminalCacheKey)) {
+    return linuxPrimaryCutCache.get(terminalCacheKey)!;
+  }
 
   let result: { key: string; italic: boolean } | null = null;
+  let usedLastResort = false;
   try {
     const style = { weight, italic: italicRequested, stretch };
     // A `sysfb:` key carries the ACCEPTED spelling from the nomination walk;
@@ -4825,8 +4848,11 @@ function linuxPrimaryCutKey(
     // families AND out of settings values, which is exactly when it runs
     // `GetLastResortFallbackFont` — so run the transcribed chain.
     const family = declaredFamily ?? linuxFcFamilyForKey(key);
-    const nominated = (family != null ? linuxFamilyMatchWithAlternate(family, style) : null)
-      ?? linuxLastResortMatch(style);
+    let nominated = family != null ? linuxFamilyMatchWithAlternate(family, style) : null;
+    if (nominated == null) {
+      usedLastResort = true;
+      nominated = linuxLastResortMatch(style, semanticContext.genericFamily);
+    }
     if (nominated != null) {
       const match: LinuxFamilyMatch | null = nominated.match;
       const baseSpec = resolveFontSpec(key);
@@ -4866,7 +4892,7 @@ function linuxPrimaryCutKey(
       }
     }
   } catch { result = null; }
-  linuxPrimaryCutCache.set(cacheKey, result);
+  linuxPrimaryCutCache.set(usedLastResort ? terminalCacheKey : primaryCacheKey, result);
   return result;
 }
 
@@ -5184,69 +5210,111 @@ export function createFontFallbackSemanticContext(declaredFamily?: string): Font
   return { declaredFamily, genericFamily: blinkGenericFamilyFromDeclaredStack(declaredFamily) };
 }
 
-export type BlinkGenericFamily =
-  | "none" | "standard" | "webkit-body" | "serif" | "sans-serif"
-  | "monospace" | "cursive" | "fantasy";
+/**
+ * The first family name in Blink's common-Skia last-resort walk.
+ *
+ * This is a direct transcription of `GetFallbackFontFamily`
+ * (`platform/fonts/alternate_font_family.h:107-123`, Chromium rev
+ * 7d859f27): only the five legacy CSS generics nominate a family. `none`,
+ * `standard`, and `webkit-body` all ask the platform default through an empty
+ * family name. `system-ui` and `math` cannot appear in `BlinkGenericFamily` at
+ * all; the stack parser leaves the preceding legacy enum in place, or `none`
+ * when there was none.
+ */
+export function skiaLastResortInitialFamily(genericFamily: BlinkGenericFamily): string {
+  switch (genericFamily) {
+    case "sans-serif":
+    case "serif":
+    case "monospace":
+    case "cursive":
+    case "fantasy":
+      return genericFamily;
+    case "none":
+    case "standard":
+    case "webkit-body":
+      return "";
+  }
+}
+
+/**
+ * Raw family questions in Blink's platform last-resort walk, before host font
+ * matching or Domotion's logical-key normalization.
+ *
+ * The common Skia order is transcribed from `font_cache_skia.cc:146-259`;
+ * Windows adds its six fixed names and locale-space probe there, while macOS
+ * uses the separate `font_cache_mac.mm:376-394` Times/Lucida Grande terminal
+ * (Chromium rev 7d859f27). The two unnamed markers are intentionally distinct:
+ * the first is the empty family returned by `GetFallbackFontFamily`, and the
+ * last is Skia's `legacyMakeTypeface(nullptr, ...)` match-anything query.
+ */
+export function skiaLastResortFamilyQuestionOrder(
+  genericFamily: BlinkGenericFamily,
+  platform: NodeJS.Platform = hostPlatform(),
+): string[] {
+  if (platform === "darwin") return ["Times", "Lucida Grande"];
+
+  const common = [
+    skiaLastResortInitialFamily(genericFamily) || "<unnamed-default>",
+    "Sans",
+    "Arial",
+  ];
+  if (platform !== "win32") return [...common, "<unnamed>"];
+
+  return [
+    ...common,
+    "MS UI Gothic",
+    "Microsoft Sans Serif",
+    "Segoe UI",
+    "Calibri",
+    "Times New Roman",
+    "Courier New",
+    "<locale-space-match>",
+    "<unnamed>",
+  ];
+}
+
+/**
+ * Existing cross-platform logical key for the source-selected initial family.
+ * The keys dispatch through the platform font tables; this is not a sampled
+ * family-name table. A null means Blink starts with the unnamed platform
+ * default before its explicit Sans/Arial rungs.
+ */
+export function skiaLastResortInitialKey(genericFamily: BlinkGenericFamily): string | null {
+  switch (genericFamily) {
+    case "sans-serif": return "helvetica";
+    case "serif": return "times";
+    case "monospace": return "courier";
+    case "cursive": return "apple-chancery";
+    case "fantasy": return "papyrus";
+    case "none":
+    case "standard":
+    case "webkit-body":
+      return null;
+  }
+}
 
 interface DeclaredFamilyToken { value: string; quoted: boolean }
 
-/** Parse the comma/quote boundary needed for Blink's FontFamily list. */
+/** Backward-compatible view over the shared CSS-aware family-list parser. */
 export function splitDeclaredFontFamily(value: string): DeclaredFamilyToken[] {
-  const out: DeclaredFamilyToken[] = [];
-  let token = "";
-  let quote = "";
-  let escaped = false;
-  const push = (): void => {
-    const entry = token.trim(); token = "";
-    if (entry === "") return;
-    const quoted = entry.length >= 2
-      && ((entry.startsWith('"') && entry.endsWith('"'))
-        || (entry.startsWith("'") && entry.endsWith("'")));
-    out.push({ value: quoted ? entry.slice(1, -1) : entry, quoted });
-  };
-  for (const ch of value) {
-    if (escaped) { token += ch; escaped = false; continue; }
-    if (ch === "\\") { token += ch; escaped = true; continue; }
-    if (quote !== "") { token += ch; if (ch === quote) quote = ""; continue; }
-    if (ch === '"' || ch === "'") { quote = ch; token += ch; continue; }
-    if (ch === ",") { push(); continue; }
-    token += ch;
-  }
-  push();
-  return out;
+  return parseCssFontFamilyEntries(value).map((entry) => ({
+    value: entry.name,
+    quoted: entry.quoted,
+  }));
 }
-
-const BLINK_GENERIC_FAMILIES: Readonly<Record<string, BlinkGenericFamily>> = {
-  serif: "serif", "sans-serif": "sans-serif", monospace: "monospace",
-  cursive: "cursive", fantasy: "fantasy", "-webkit-standard": "standard",
-  "-webkit-body": "webkit-body",
-};
 
 /** Blink reverses the list and sets the descriptor enum once, hence the
  * rightmost enum-bearing legacy generic wins. system-ui and math deliberately
  * do not occupy this enum; quoted generic spellings are named families. */
 export function blinkGenericFamilyFromDeclaredStack(value?: string): BlinkGenericFamily {
-  const families = splitDeclaredFontFamily(value ?? "");
-  for (let index = families.length - 1; index >= 0; index--) {
-    const family = families[index];
-    if (!family.quoted) {
-      const generic = BLINK_GENERIC_FAMILIES[family.value.toLowerCase()];
-      if (generic != null) return generic;
-    }
-  }
-  return "none";
+  return captureFontFamilyStack(value ?? "").genericFamily;
 }
 
 /** Stable identity for the declared head consumed by Linux/Windows system
  * fallback. The node kind prevents quoted `"monospace"` from aliasing the
  * monospace generic in the process-global memo. */
 export function declaredFamilyHeadIdentity(value?: string): string {
-  const head = splitDeclaredFontFamily(value ?? "")[0];
-  if (head == null) return "missing:";
-  const lowered = head.value.toLowerCase();
-  const kind = !head.quoted && (BLINK_GENERIC_FAMILIES[lowered] != null || lowered === "system-ui" || lowered === "math")
-    ? "generic" : "name";
-  return `${kind}:${lowered}`;
+  return capturedFontFamilyHeadIdentity(captureFontFamilyStack(value ?? ""));
 }
 
 
@@ -6067,6 +6135,7 @@ function resolveEffectiveCutKey(
   key: string, weight: number, slant: number, stretch: number,
   systemUiPrimary: boolean = false,
   declaredFamily?: string,
+  semanticContext: FontFallbackSemanticContext = createFontFallbackSemanticContext(),
 ): { key: string; routedItalicCut: boolean } {
   // SF Pro / SF Mono ship their italics as separate .ttf files rather than
   // exposing a `slnt` variable-axis on the upright file, so route italic
@@ -6214,7 +6283,7 @@ function resolveEffectiveCutKey(
   // Reads the BASE key and REPLACES the sibling routing, exactly like the
   // macOS branch; null leaves the two-slot result standing (no helper, an old
   // helper, or `DOMOTION_SYSTEM_FALLBACK=0`).
-  const linuxCut = linuxPrimaryCutKey(key, weight, slant, stretch);
+  const linuxCut = linuxPrimaryCutKey(key, weight, slant, stretch, semanticContext);
   if (linuxCut != null) {
     effectiveKey = linuxCut.key;
     // A matched face whose fontconfig slant is italic satisfies the request
@@ -6339,6 +6408,10 @@ function instantiateResolvedFont(
   systemUiPrimary: boolean = false,
   /** Original author family when a protected SF family shares `sf-pro`. */
   declaredFamily?: string,
+  /** Descriptor state used only if the common-Skia terminal is reached. Never
+   *  inferred from `declaredFamily`: that parameter identifies a selected SF
+   *  route, not the unresolved descriptor stack. */
+  semanticContext: FontFallbackSemanticContext = createFontFallbackSemanticContext(),
 ): FontInstance | null {
   // Webfont keys (`webfont:<lowercased family>`) resolve through the runtime
   // registry rather than the on-disk FONT_PATHS table.
@@ -6353,7 +6426,9 @@ function instantiateResolvedFont(
   // weight/italic — so Chrome's "no bold-italic declared → use italic 400"
   // behavior is preserved instead of silently substituting the on-disk
   // bold-italic sibling. DM-360.
-  const cut = resolveEffectiveCutKey(key, weight, slant, stretch, systemUiPrimary, declaredFamily);
+  const cut = resolveEffectiveCutKey(
+    key, weight, slant, stretch, systemUiPrimary, declaredFamily, semanticContext,
+  );
   const effectiveKey = cut.key;
   const routedItalicCut = cut.routedItalicCut;
 
@@ -6902,10 +6977,11 @@ export function getFontInstance(
   variationSettings?: Record<string, number>, stretch: number = 100,
   systemUiPrimary: boolean = false,
   declaredFamily?: string,
+  semanticContext: FontFallbackSemanticContext = createFontFallbackSemanticContext(),
 ): FontInstance | null {
   return instantiateResolvedFont(
     key, weight, fontSize, slant, variationSettings, stretch,
-    systemUiPrimary, declaredFamily,
+    systemUiPrimary, declaredFamily, semanticContext,
   );
 }
 
@@ -8150,16 +8226,13 @@ interface FontFamilyStackEntry {
  *  is the full unresolved comma-separated stack), carrying the
  *  generic-keyword-vs-literal-name bit per entry (see FontFamilyStackEntry). */
 function splitFontFamilyNames(fontFamily: string): FontFamilyStackEntry[] {
-  return fontFamily.split(",").map((s) => {
-    const trimmed = s.trim();
-    const unquoted = trimmed.replace(/^["']|["']$/g, "");
-    const wasQuoted = unquoted !== trimmed;
-    const name = unquoted.toLowerCase();
+  return parseCssFontFamilyEntries(fontFamily).map((entry) => {
+    const name = entry.name.toLowerCase();
     return {
       name,
-      lookupName: unquoted,
-      generic: !wasQuoted && unquoted === name && BLINK_GENERIC_FAMILY_SPELLINGS.has(name),
-      canonicalSystemUiName: unquoted === "system-ui",
+      lookupName: entry.name,
+      generic: entry.type === "generic-family",
+      canonicalSystemUiName: entry.name === "system-ui",
     };
   });
 }
@@ -9249,6 +9322,7 @@ export function resolveFont(
   lang?: string,
 ): FontInstance | null {
   const matchSize = computedFontSize(variationSettings, fontSize);
+  const semanticContext = createFontFallbackSemanticContext(fontFamily);
   // A generated family-name table can recognize a face that is absent from
   // this particular host inventory. Blink's kFontFamily stage keeps walking
   // the authored CSS stack when matching/loading that face fails; do the same
@@ -9264,13 +9338,16 @@ export function resolveFont(
       : variationSettings;
     const instance = getFontInstance(
       key, fontWeight, matchSize, slant, settings, stretch,
-      stackPrimaryIsSystemUi(entry.name),
+      stackPrimaryIsSystemUi(entry.name), undefined, semanticContext,
     );
     if (instance != null) return instance;
   }
 
   const standardKey = matchFamilyNameToKey("-webkit-standard", true, lang) ?? "times";
-  return getFontInstance(standardKey, fontWeight, matchSize, slant, variationSettings, stretch);
+  return getFontInstance(
+    standardKey, fontWeight, matchSize, slant, variationSettings, stretch,
+    false, undefined, semanticContext,
+  );
 }
 
 // ── Glyph Registry (for <defs>/<use> deduplication) ──

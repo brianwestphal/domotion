@@ -1,0 +1,10 @@
+{
+  "format": "font-env-cassette/1",
+  "platform": "linux",
+  "entries": {
+    "{\"fonts\":[],\"queries\":[{\"type\":\"familyMatch\",\"family\":\"WenQuanYi Zen Hei Mono\",\"cssWeight\":411,\"italic\":false,\"cssWidth\":100}]}": "{\"results\":[{\"type\":\"familyMatch\",\"found\":false}]}\n",
+    "{\"fonts\":[],\"queries\":[{\"type\":\"familyMatch\",\"family\":\"\",\"cssWeight\":411,\"italic\":false,\"cssWidth\":100}]}": "{\"results\":[{\"type\":\"familyMatch\",\"found\":true,\"path\":\"assets/fonts/fixture/DomotionFixtureSerif-Regular.ttf\",\"index\":0,\"family\":\"IBM Plex Serif\",\"postscriptName\":\"IBMPlexSerif-Regular\",\"weight\":400,\"width\":5,\"italic\":false}]}\n",
+    "{\"fonts\":[],\"queries\":[{\"type\":\"familyMatch\",\"family\":\"monospace\",\"cssWeight\":411,\"italic\":false,\"cssWidth\":100}]}": "{\"results\":[{\"type\":\"familyMatch\",\"found\":true,\"path\":\"assets/fonts/LastResortHE-Regular.ttf\",\"index\":0,\"family\":\"Last Resort High-Efficiency\",\"postscriptName\":\"LastResortHE-Regular\",\"weight\":400,\"width\":5,\"italic\":false}]}\n",
+    "{\"fonts\":[],\"queries\":[{\"type\":\"familyMatch\",\"family\":\"serif\",\"cssWeight\":411,\"italic\":false,\"cssWidth\":100}]}": "{\"results\":[{\"type\":\"familyMatch\",\"found\":true,\"path\":\"assets/fonts/fixture/DomotionFixtureSerif-Regular.ttf\",\"index\":0,\"family\":\"IBM Plex Serif\",\"postscriptName\":\"IBMPlexSerif-Regular\",\"weight\":400,\"width\":5,\"italic\":false}]}\n"
+  }
+}

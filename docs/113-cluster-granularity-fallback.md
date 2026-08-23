@@ -261,10 +261,18 @@ capture text
   explicit values win.
 - **The last-resort stage**: `GetLastResortFallbackFont` is shaped before the
   terminal — Times then Lucida Grande on macOS (`mac/font_cache_mac.mm:376-394`),
-  the "Sans"/"Arial" resolution of `skia/font_cache_skia.cc:146-175` mapped to
-  the calibrated `helvetica` (Linux) / `arial` (win32) keys — deduped like any
-  candidate, with `kFirstCandidateForNotdefGlyph` re-returning the first
-  candidate so ITS `.notdef` paints.
+  and on common Skia the descriptor-selected `GetFallbackFontFamily` first,
+  followed by the existing "Sans"/"Arial" tail
+  (`alternate_font_family.h:107-123`, `skia/font_cache_skia.cc:146-259`, rev
+  7d859f27). The five legacy generics map to their logical keys; none/standard/
+  webkit-body start unnamed, while `system-ui` and `math` do not occupy the
+  legacy enum. Candidates are deduped like every other stage, with
+  `kFirstCandidateForNotdefGlyph` re-returning the first candidate so ITS
+  `.notdef` paints. The exact family-exhaustion and reverse-cache-order checks
+  are in `src/render/skia-last-resort-routing.test.ts`; they compare logical
+  routes and instance identity, and include a shaped U+E000 `.notdef`
+  activation whose monospace terminal alone covers the queued cluster—never
+  pixels.
 - **U+3000 synthesized-space** (`harfbuzz_shaper.cc:684-691`): a U+3000 shaped
   to the current font's SPACE glyph reads `.notdef` unless shaping with the
   last font, so a font with a real ideographic-space glyph is found.

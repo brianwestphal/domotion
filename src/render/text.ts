@@ -12,6 +12,7 @@ import { r, esc } from "./format.js";
 import { wrapPseudoPaintEffects } from "./pseudo-filter.js";
 import type { CapturedElement, TextSegment } from "../capture/types.js";
 import { recordTextEmitterTransition } from "./text-run-provenance.js";
+import { capturedFontFamilyCss, parseCssFontFamilyEntries } from "../font-family-stack.js";
 
 // ── Rendering helpers ──
 
@@ -22,6 +23,17 @@ import { recordTextEmitterTransition } from "./text-run-provenance.js";
 // fences are handled earlier by `renderStretchyFenceGlyph` and never reach the
 // ink-metric path.
 const MATH_TOKEN_TAGS = new Set(["mo", "mi", "mn", "mtext", "ms"]);
+
+/** Structured capture is authoritative; old serialized trees use the string. */
+export function capturedElementFontFamily(el: CapturedElement): string {
+  return capturedFontFamilyCss(el.styles.fontFamily, el.styles.fontFamilyStack);
+}
+
+/** A segment override owns its stack; otherwise inherit the element record. */
+export function capturedSegmentFontFamily(el: CapturedElement, seg: TextSegment): string {
+  if (seg.fontFamily != null) return capturedFontFamilyCss(seg.fontFamily, seg.fontFamilyStack);
+  return capturedElementFontFamily(el);
+}
 
 /**
  * Emit `<line>` markup for each non-zero side border on a pseudo-element box.
@@ -147,7 +159,7 @@ export function renderTextEmphasisMarks(
     const segAscent = seg.fontAscent ?? el.fontAscent ?? segFs * 0.8;
     const segDescent = el.fontDescent ?? Math.max(0, segFs - segAscent);
     const baselineY = seg.y + segAscent;
-    const segFontFamily = seg.fontFamily ?? el.styles.fontFamily;
+    const segFontFamily = capturedSegmentFontFamily(el, seg);
     const segFontWeight = seg.fontWeight ?? el.styles.fontWeight;
     const segFontStyle = seg.fontStyle ?? el.styles.fontStyle;
     const metrics = measureEmphasisMarkMetrics(mark, {
@@ -305,7 +317,7 @@ export function rasterGlyphOverlays(seg: TextSegment, fallbackFontSize: number, 
  */
 /** Args for {@link renderTextDecoration} — an options object so the 15 fields
  *  can't be transposed at the (two) call sites. */
-interface TextDecorationOptions {
+export interface TextDecorationOptions {
   textDecorationLine: string | undefined;
   decorationColor: string;
   style: string | undefined;
@@ -332,6 +344,8 @@ interface TextDecorationOptions {
   fontFamily: string;
   fontWeight: string | number;
   fontStyle: string | undefined;
+  lang?: string;
+  variationSettings?: Record<string, number>;
   /** Computed CSS `font-stretch` (a percentage string). The decoration
    *  metrics and skip-ink intercepts must resolve the same cut / axis
    *  instance the glyphs came from, or a condensed run is underlined where
@@ -347,11 +361,18 @@ interface TextDecorationOptions {
    *  `right`). DM-1819: horizontal text ignored this entirely, so `under` drew
    *  through the descenders. */
   underlinePosition?: string;
-  /** Run text used to compute `text-decoration-skip-ink: auto` glyph
-   *  intercepts. Required for skip-ink to apply. DM-446. */
+  /** Blink font baseline used by TextDecorationOffset. Vertical mixed/upright
+   *  fragments pass `central`; horizontal and sideways fragments omit it. */
+  baselineType?: "alphabetic" | "central";
+  /** Central-baseline line-over resolution swaps underline/overline and uses
+   *  the source's distinct Top/BottomOfEmHeight offset rules. */
+  flipUnderlineAndOverline?: boolean;
+  /** Run text used to compute `text-decoration-skip-ink: auto | all` glyph
+   *  intercepts. Required for skip-ink to apply. DM-446 / DM-2514. */
   runText?: string;
-  /** CSS `text-decoration-skip-ink` — `auto` (default) or `none`. Only solid /
-   *  double underlines honor it (matches Chromium). DM-446. */
+  /** CSS `text-decoration-skip-ink` — `auto` (default), `all`, or `none`.
+   *  Blink applies it to every underline/overline style but never
+   *  line-through. DM-446 / DM-2514. */
   skipInk?: string;
   /** OpenType feature tags forwarded to fontkit shaping when computing skip-
    *  ink intercepts so small-caps / petite-caps glyphs match the painted text. */
@@ -717,7 +738,16 @@ export function decorationDashPattern(style: "dashed" | "dotted", thickness: num
   return { attrs: ` stroke-dasharray="0 ${r(gap + ti - 0.01)}" stroke-linecap="round"`, inset: ti / 2 };
 }
 
-function renderTextDecoration(opts: TextDecorationOptions): string {
+/** Swap the two applied line bits exactly where Blink does for a central-
+ * baseline line-over resolution. Exported for the vertical logical oracle. */
+export function resolvedTextDecorationLine(textDecorationLine: string, flip: boolean): string {
+  return flip
+    ? textDecorationLine.split(/\s+/).map((line) => line === "underline" ? "overline"
+      : line === "overline" ? "underline" : line).join(" ")
+    : textDecorationLine;
+}
+
+export function renderTextDecoration(opts: TextDecorationOptions): string {
   const {
     textDecorationLine, decorationColor, style, segX, fragTop, runBaselineY, segWidth,
     fontSize, fontFamily, fontWeight, fontStyle, fontStretch, thicknessOverride,
@@ -733,11 +763,16 @@ function renderTextDecoration(opts: TextDecorationOptions): string {
   const mFontWeight = opts.metricsFontWeight ?? fontWeight;
   const mFontStyle = opts.metricsFontStyle ?? fontStyle;
   const m = getDecorationMetrics(
-    { fontFamily: mFontFamily, fontSize: mFontSize, fontWeight: mFontWeight, fontStyle: mFontStyle, fontStretch },
+    { fontFamily: mFontFamily, fontSize: mFontSize, fontWeight: mFontWeight, fontStyle: mFontStyle,
+      fontStretch, lang: opts.lang, variationSettings: opts.variationSettings },
     { thicknessOverride, underlineOffsetCss: underlineOffset, underlinePositionCss: underlinePosition,
-      fontAscent: opts.fontAscent, fontDescent: opts.fontDescent, lengthScale: opts.lengthScale });
+      fontAscent: opts.fontAscent, fontDescent: opts.fontDescent, lengthScale: opts.lengthScale,
+      baselineType: opts.baselineType, flipUnderlineAndOverline: opts.flipUnderlineAndOverline });
   const lines: string[] = [];
-  const has = (k: string) => textDecorationLine.includes(k);
+  const effectiveDecorationLine = resolvedTextDecorationLine(
+    textDecorationLine, opts.flipUnderlineAndOverline === true,
+  );
+  const has = (k: string) => effectiveDecorationLine.includes(k);
   // Skip-ink is style-AGNOSTIC in Blink. `TextDecorationPainter` calls
   // `ClipDecorationLine` for underline and overline alike, reading only
   // `TextDecorationSkipInk()` and never the line style
@@ -748,14 +783,18 @@ function renderTextDecoration(opts: TextDecorationOptions): string {
   // This previously short-circuited dashed / dotted and cited
   // `decoration_line_painter.cc::Paint`, which contains no skip-ink logic at
   // all; the gating and the citation were both wrong.
-  const skipInkActive = (skipInk == null || skipInk === "auto") && runText != null && runText !== "";
+  const skipInkMode = skipInk === "all" ? "all" : "auto";
+  const skipInkActive = (skipInk == null || skipInk === "auto" || skipInk === "all")
+    && runText != null && runText !== "";
   // Compute X-range gaps where the underline rect crosses glyph ink. Returned
   // gaps are run-relative (0 = segX); subSegments() splits the underline span
   // around them.
   function computeGapsAt(yRel: number, thick: number, pad: number): Array<[number, number]> {
     if (!skipInkActive || runText == null) return [];
-    return computeSkipInkGaps(runText, { fontSize, fontFamily, fontWeight, fontStyle, fontStretch, features },
-      { decorationCenterYRel: yRel, decorationThickness: thick, interceptPad: pad, targetWidth: segWidth, charXOffsets: runXOffsets });
+    return computeSkipInkGaps(runText, { fontSize, fontFamily, fontWeight, fontStyle, fontStretch,
+      lang: opts.lang, variationSettings: opts.variationSettings, features },
+      { decorationCenterYRel: yRel, decorationThickness: thick, interceptPad: pad,
+        targetWidth: segWidth, charXOffsets: runXOffsets, skipInkMode });
   }
   // Split [segX, segX+segWidth] into sub-runs by removing gap intervals
   // (run-relative; gap[0]+segX is absolute screen X).
@@ -859,6 +898,16 @@ export function pickPropagatedBaseline(baselines: number[] | undefined, runBasel
   return d > 1 && d <= decoFontSize ? best : runBaselineY;
 }
 
+/** Scale absolute computed decoration lengths into Blink's used/effective-
+ * zoom paint space. Percentages and em lengths are resolved against the used
+ * font size downstream and therefore must not be multiplied here. */
+export function decorationLengthScale(styles: CapturedElement["styles"]): number {
+  const logical = parseFloat(styles.fontLogicalSize ?? styles.fontSize);
+  const effective = parseFloat(styles.fontSize);
+  return Number.isFinite(logical) && logical > 0 && Number.isFinite(effective)
+    ? effective / logical : 1;
+}
+
 function renderAppliedTextDecorations(
   el: CapturedElement,
   fallbackColor: string,
@@ -911,12 +960,7 @@ function renderAppliedTextDecorations(
       fontSize: run.fontSize, fontFamily: run.fontFamily, fontWeight: run.fontWeight, fontStyle: el.styles.fontStyle,
       fontStretch: el.styles.fontStretch,
       thicknessOverride: el.styles.textDecorationThickness, underlineOffset: el.styles.textUnderlineOffset,
-      lengthScale: (() => {
-        const logical = parseFloat(el.styles.fontLogicalSize ?? el.styles.fontSize);
-        const effective = parseFloat(el.styles.fontSize);
-        return Number.isFinite(logical) && logical > 0 && Number.isFinite(effective)
-          ? effective / logical : 1;
-      })(),
+      lengthScale: decorationLengthScale(el.styles),
       underlinePosition: el.styles.textUnderlinePosition,
       runText: run.runText, skipInk: el.styles.textDecorationSkipInk, features: run.features,
       runXOffsets: run.runXOffsets,
@@ -1316,9 +1360,8 @@ export function resolveFontVariantAlternates(
   tables: CapturedElement["styles"]["fontFeatureValues"],
 ): string[] | undefined {
   if (css == null || css === "" || css === "normal") return undefined;
-  const families = fontFamily.match(/(?:"[^"]*"|'[^']*'|[^,])+/g)?.map((name) =>
-    name.trim().replace(/^(['"])(.*)\1$/, "$2").toLowerCase(),
-  ) ?? [];
+  const families = parseCssFontFamilyEntries(fontFamily)
+    .map((entry) => entry.name.toLowerCase());
   // Blink resolves once per family while walking the CSS stack. Choose the
   // first family that owns an alias table; aliases declared for another family
   // must never leak into this request.
@@ -1351,7 +1394,7 @@ export function resolveFontVariantAlternates(
   return out.length ? out : undefined;
 }
 
-function elementFontFeatures(el: CapturedElement, fontFamily = el.styles.fontFamily): string[] | undefined {
+function elementFontFeatures(el: CapturedElement, fontFamily = capturedElementFontFamily(el)): string[] | undefined {
   const alternates = resolveFontVariantAlternates(el.styles.fontVariantAlternates, fontFamily, el.styles.fontFeatureValues);
   return mergeFeatureLists(alternates, parseFontFeatureSettings(el.styles.fontFeatureSettings));
 }
@@ -1361,7 +1404,7 @@ export function capturedTextSegmentFontFeatures(
   el: CapturedElement,
   seg: TextSegment,
 ): string[] | undefined {
-  const family = seg.fontFamily ?? el.styles.fontFamily;
+  const family = capturedSegmentFontFamily(el, seg);
   const ffs = elementFontFeatures(el, family);
   return mergeFeatureLists(
     mergeFeatureLists(
@@ -1467,7 +1510,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
     return `<image href="${ssSeg.rasterDataUri}" x="${r(rr.x)}" y="${r(rr.y)}" width="${r(rr.width)}" height="${r(rr.height)}" preserveAspectRatio="none"${rasterClip}/>`;
   }
   const fontSize = parseFloat(el.styles.fontSize) || 14;
-  const fontFamily = el.styles.fontFamily;
+  const fontFamily = capturedElementFontFamily(el);
   const fontWeight = el.styles.fontWeight;
   const tl = el.textLeft ?? el.x + 4;
   const tt = el.textTop ?? el.y;
@@ -1501,7 +1544,9 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   // DM-2470: shaped origins stay in Blink's pre-transform plane. The caller
   // applies the complete signed affine paint matrix to the whole text bundle.
   const xOffsetsRel = reordered.xOffsets;
-  const ffsFeatures = elementFontFeatures(el, singleSeg?.fontFamily ?? fontFamily);
+  const ffsFeatures = elementFontFeatures(el, singleSeg == null
+    ? fontFamily
+    : capturedSegmentFontFamily(el, singleSeg));
   const features = mergeFeatureLists(
     mergeFeatureLists(
       mergeFeatureLists(
@@ -1527,7 +1572,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   const segAscent = singleSeg?.fontAscent ?? el.fontAscent;
   // DM-513: pseudo-element font-family override (e.g. icon font on
   // `[class^="icon-"]:before { font-family: "sdicon" }`).
-  const segFontFamily = singleSeg?.fontFamily ?? fontFamily;
+  const segFontFamily = singleSeg == null ? fontFamily : capturedSegmentFontFamily(el, singleSeg);
   // Pseudo-element font-style override (Slashdot's `.carouselHeading::after`
   // is italic on a non-italic host). The multi-segment path already did the
   // `seg.fontStyle ?? el.styles.fontStyle` fallback below; the single-segment
@@ -1662,7 +1707,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
   const _ts = textStrokeParams(opts.el.styles);
   const { el, clipId, fillColor } = opts;
   const elFontSize = parseFloat(el.styles.fontSize) || 14;
-  const fontFamily = el.styles.fontFamily;
+  const fontFamily = capturedElementFontFamily(el);
   const elFontWeight = el.styles.fontWeight;
   const parts: string[] = [];
 
@@ -1745,7 +1790,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     const segFontStyle = seg.fontStyle ?? el.styles.fontStyle;
     // DM-513: pseudos with `font-family: 'sdicon'` etc. need their icon font
     // routed through the renderer, not the parent element's body font.
-    const segFontFamily = seg.fontFamily ?? fontFamily;
+    const segFontFamily = capturedSegmentFontFamily(el, seg);
     // Honor either segment-level font-variant override (::first-line) or
     // the element-level font-variant-caps. (DM-294, DM-361, DM-444). See
     // resolveCapsFeatures (module scope) for the full spec mapping. Merge with
@@ -1836,7 +1881,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
   const _ts = textStrokeParams(opts.el.styles);
   const { el, clipId, fillColor } = opts;
   const fontSize = parseFloat(el.styles.fontSize) || 14;
-  const fontFamily = el.styles.fontFamily;
+  const fontFamily = capturedElementFontFamily(el);
   const fontWeight = el.styles.fontWeight;
   const lhStr = el.styles.lineHeight;
   const lhParsed = parseFloat(lhStr);
@@ -1867,10 +1912,12 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
       const segFontWeight = seg.fontWeight ?? fontWeight;
       const segColor = seg.color ?? fillColor;
       const segAscent = seg.fontAscent ?? el.fontAscent;
+      const segFontFamily = capturedSegmentFontFamily(el, seg);
+      const segFeatures = elementFontFeatures(el, segFontFamily);
       const result = renderTextAsPath(reordered.text, seg.x, seg.y, {
-        fontSize: segFontSize, fontFamily, fontWeight: segFontWeight, fill: segColor,
+        fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight, fill: segColor,
         xOffsets: segXOffsets, fontStyle: el.styles.fontStyle, ascentOverride: segAscent,
-        features: ffsFeatures, lang: el.styles.lang, variationSettings: fvsAxes,
+        features: segFeatures, lang: el.styles.lang, variationSettings: fvsAxes,
         textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
         dottedCircleMarks: seg.dottedCircleMarks,
         bidiOverride: bidiOverrideFor(el), fontStretch: el.styles.fontStretch,
@@ -1919,7 +1966,9 @@ export function renderInputText(opts: RenderTextOpts): string {
     return `<image href="${er.dataUri}" x="${Math.round(er.x)}" y="${Math.round(er.y)}" width="${r(er.width)}" height="${r(er.height)}" preserveAspectRatio="none" clip-path="url(#${clipId})"/>`;
   }
   const fontSize = parseFloat(el.styles.fontSize) || 14;
-  const fontFamily = el.styles.fontFamily;
+  const fontFamily = el.isPlaceholderText && el.placeholderFontFamily != null
+    ? capturedFontFamilyCss(el.placeholderFontFamily, el.placeholderFontFamilyStack)
+    : capturedElementFontFamily(el);
   const fontWeight = el.styles.fontWeight;
   const textX = el.textLeft ?? el.x + 4;
   const tt = el.textTop ?? el.y;

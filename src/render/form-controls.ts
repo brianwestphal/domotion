@@ -8,6 +8,7 @@
  */
 
 import type { CapturedElement } from "../capture/types.js";
+import { capturedFontFamilyCss } from "../font-family-stack.js";
 import { isWholeHostNativeAppearance } from "../capture/effective-appearance.js";
 import { buildLinearGradientDef, buildRadialGradientDef, gradientCacheKey, parseGradient } from "./gradients.js";
 import { parseBoxShadow } from "./box-shadow.js";
@@ -598,6 +599,7 @@ function renderCapturedFileStatus(el: CapturedElement, indent: string, defCtx?: 
       color: status.color,
       fontSize: `${status.fontSize}px`,
       fontFamily: status.fontFamily,
+      fontFamilyStack: status.fontFamilyStack,
       fontWeight: status.fontWeight,
       fontStyle: status.fontStyle,
       writingMode: status.writingMode,
@@ -630,7 +632,7 @@ function renderCapturedFileStatus(el: CapturedElement, indent: string, defCtx?: 
     body = renderTextAsPath(status.text, status.x, status.y, {
       fontSize: status.fontSize,
       fontWeight: status.fontWeight,
-      fontFamily: status.fontFamily,
+      fontFamily: capturedFontFamilyCss(status.fontFamily, status.fontFamilyStack),
       fontStyle: status.fontStyle,
       fill: status.color,
       ascentOverride: status.fontAscent,
@@ -674,7 +676,7 @@ function renderFileInput(el: CapturedElement, indent: string, defCtx?: DefCtx): 
   const ascent = (button.height - button.fontAscent - button.fontDescent) / 2 + button.fontAscent;
   const labelPath = renderTextAsPath(button.text, button.x + (button.width - button.textWidth) / 2, button.y, {
     fontSize: button.fontSize, fontWeight: button.fontWeight,
-    fontFamily: button.fontFamily, fontStyle: button.fontStyle, fill: button.color,
+    fontFamily: capturedFontFamilyCss(button.fontFamily, button.fontFamilyStack), fontStyle: button.fontStyle, fill: button.color,
     targetWidth: button.textWidth, ascentOverride: ascent,
   });
   parts.push(`${indent}${labelPath}`);
@@ -761,7 +763,9 @@ function renderListbox(el: CapturedElement, indent: string): string {
       parts.push(`${indent}<rect x="${r(rx)}" y="${r(ry)}" width="${r(rw)}" height="${r(visibleHeight)}" fill="${selectedFill}" />`);
     }
     const optionFontSize = o.fontSize ?? parseFloat(el.styles.fontSize ?? "");
-    const fontFamily = o.fontFamily ?? el.styles.fontFamily;
+    const fontFamily = o.fontFamily != null
+      ? capturedFontFamilyCss(o.fontFamily, o.fontFamilyStack)
+      : capturedFontFamilyCss(el.styles.fontFamily, el.styles.fontFamilyStack);
     const color = o.color ?? el.styles.color;
     if (!Number.isFinite(optionFontSize) || optionFontSize <= 0
         || fontFamily == null || color == null) continue;
@@ -785,7 +789,7 @@ function renderSelectContent(el: CapturedElement, indent: string): string {
   const display = el.styles.selectDisplayText;
   if (display != null && display !== "") {
     const fontSize = parseFloat(el.styles.fontSize ?? "");
-    const fontFamily = el.styles.fontFamily;
+    const fontFamily = capturedFontFamilyCss(el.styles.fontFamily, el.styles.fontFamilyStack);
     const color = el.styles.color;
     const ascent = el.fontAscent;
     const descent = el.fontDescent;

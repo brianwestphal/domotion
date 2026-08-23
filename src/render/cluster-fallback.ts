@@ -64,8 +64,10 @@ import {
   FontVariantEmojiOverride,
   FontFallbackSemanticContext,
   createFontFallbackSemanticContext,
+  skiaLastResortFamilyQuestionOrder,
   registerFontEnvironmentInvalidator,
 } from "./font-resolution.js";
+import { hostPlatform } from "./host-platform.js";
 import { harfbuzzShapeRun, harfbuzzGlyphQuery, mirrorPairedCharacters } from "./harfbuzz-shaper.js";
 import { bidiLevelsFor, segmentForShaping } from "./script-segmentation.js";
 import {
@@ -472,17 +474,41 @@ function candidateIdentity(candidate: Candidate): string {
   return `${candidate.key}|${source?.path ?? ""}#${source?.faceIndex ?? "?"}|${source?.postscriptName ?? candidate.font.postscriptName ?? ""}`;
 }
 
-/** Blink's last-resort face, per platform:
- *  - macOS: Times, else Lucida Grande (`mac/font_cache_mac.mm:376-394`);
- *  - Linux/Windows: `GetFallbackFontFamily` (a CSS generic only when the
- *    description carries one — ours never does) → "Sans" → "Arial"
- *    (`skia/font_cache_skia.cc:146-175`). On the calibrated noble image "Sans"
- *    resolves to Liberation Sans (our `helvetica` key); on win32 the Arial
- *    stage is the first that exists. */
-function lastResortKeys(): string[] {
-  if (process.platform === "darwin") return ["times", "lucida-grande"];
-  if (process.platform === "win32") return ["arial"];
-  return ["helvetica"];
+/** Blink's raw platform last-resort questions normalized to the renderer's
+ * existing logical owners. The raw order remains observable through
+ * `skiaLastResortFamilyQuestionOrder`; collapsing Windows' fixed-name tail to
+ * `arial` and Linux's common tail to `helvetica` is a separate routing layer,
+ * not a claim that Chromium asks only those names. */
+function lastResortKeys(
+  semanticContext: FontFallbackSemanticContext,
+  platform: NodeJS.Platform = hostPlatform(),
+): string[] {
+  const rawQuestions = skiaLastResortFamilyQuestionOrder(
+    semanticContext.genericFamily, platform,
+  );
+  const tail = platform === "win32" ? "arial" : "helvetica";
+  const initialOwnerByQuestion = new Map<string, string>([
+    ["sans-serif", "helvetica"],
+    ["serif", "times"],
+    ["monospace", "courier"],
+    ["cursive", "apple-chancery"],
+    ["fantasy", "papyrus"],
+  ]);
+  const owners = rawQuestions.map((question, index) => {
+    if (platform === "darwin") {
+      return question === "Times" ? "times" : "lucida-grande";
+    }
+    return index === 0 ? initialOwnerByQuestion.get(question) ?? tail : tail;
+  });
+  return owners.filter((owner, index) => owners.indexOf(owner) === index);
+}
+
+/** Test seam for the source-derived terminal sequence; no host files queried. */
+export function __skiaLastResortKeysForTest(
+  semanticContext: FontFallbackSemanticContext,
+  platform: NodeJS.Platform = hostPlatform(),
+): string[] {
+  return lastResortKeys(semanticContext, platform);
 }
 
 /**
@@ -538,6 +564,7 @@ function splitShapedInner(
   fontFamily: string | undefined,
   opts: ShapedSplitOptions | undefined,
 ): FontRun[] {
+  const semanticContext = opts?.semanticContext ?? createFontFallbackSemanticContext(fontFamily);
   const primaryFace = hbFaceFor(primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings);
 
   const levels = bidiLevelsFor(text, opts?.bidiOverride);
@@ -674,7 +701,10 @@ function splitShapedInner(
               break;
             }
             familyIndex++;
-            const inst = entry.inst ?? getFontInstance(entry.key, weight, fontSize, slant);
+            const inst = entry.inst ?? getFontInstance(
+              entry.key, weight, fontSize, slant, undefined, 100,
+              false, undefined, semanticContext,
+            );
             if (inst == null) break;
             const isPrimary = entry.key === primaryFontKey && inst === primaryFont;
             const cand = candidateFor(entry.key, inst, isPrimary, inst.webfontUnicodeRange ?? null, "declared-family", isPrimary ? variationSettings : undefined);
@@ -697,7 +727,7 @@ function splitShapedInner(
               ? resolveColorEmojiKeyForCp(hint, weight, fontSize, slant, lang)
               : resolveSystemFallbackKeyForCp(
                   hint, weight, slant, fontSize, primaryFontKey,
-                  systemUiPrimary, lang, stretch, "text", opts?.semanticContext?.declaredFamily,
+                  systemUiPrimary, lang, stretch, "text", semanticContext.declaredFamily,
                   opts?.fallbackRawSlope, opts?.fallbackOrientation,
                 );
             if (key == null) break;
@@ -732,7 +762,7 @@ function splitShapedInner(
               hint, primaryFont, primaryFontKey, weight, fontSize, slant,
               variationSettings, lang, fontKeyChain, systemUiPrimary, stretch,
               effFve, fontFamily, opts?.fallbackRawSlope, opts?.fallbackOrientation,
-              opts?.semanticContext,
+              semanticContext,
             );
             if (!res.covered) { iter.stage = "lastResort"; break; }
             const font = res.fontOverride ?? (res.key === primaryFontKey ? primaryFont : getFontInstance(res.key, weight, fontSize, slant));
@@ -755,8 +785,11 @@ function splitShapedInner(
             // returned, and the face is still deduped (a Times primary skips
             // straight to the first candidate).
             iter.stage = "firstCandidate";
-            for (const key of lastResortKeys()) {
-              const inst = getFontInstance(key, weight, fontSize, slant);
+            for (const key of lastResortKeys(semanticContext)) {
+              const inst = getFontInstance(
+                key, weight, fontSize, slant, undefined, 100,
+                false, undefined, semanticContext,
+              );
               if (inst == null) continue;
               const cand = candidateFor(key, inst, false, null, "last-resort");
               const identity = candidateIdentity(cand);

@@ -90,6 +90,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5qjez8b8p9y2hg",
+          "message": {
+            "text": "The hostile controls distinguish layer priority and TreeScope ownership without fitting pixels. The pinned WPT face makes salt=1 and salt=2 different; exact same-Chromium screenshots require the alias to equal the source-owned direct setting and reject the source-order or shadow-local mutation, while stale effective tables fail before probing. The combined focused browser gate passes all 21 tests.",
+            "markdown": "The hostile controls distinguish layer priority and TreeScope ownership without fitting pixels. The pinned WPT face makes salt=1 and salt=2 different; exact same-Chromium screenshots require the alias to equal the source-owned direct setting and reject the source-order or shadow-local mutation, while stale effective tables fail before probing. The combined focused browser gate passes all 21 tests."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/shaping-font-feature-values.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 180,
+                  "endLine": 242,
+                  "snippet": {
+                    "text": "  it(\"uses Blink layer postorder, same-layer source order, and implicit-outer priority\", () => {\n    const named = (family: string) => corpus.runs.find((row) =>\n      row.fontFamily.includes(family) && row.fontVariantAlternates === \"stylistic(fancy)\");\n    expect(named(LAYERED_FAMILY)?.resolvedFontFeatures).toEqual([\"salt=1\"]);\n    expect(named(LAYERED_FAMILY)?.fontFeatureValues?.[LAYERED_FAMILY.toLowerCase()]).toEqual({\n      stylistic: { fancy: [1], unioned: [3] },\n    });\n    expect(named(SAME_LAYER_FAMILY)?.resolvedFontFeatures).toEqual([\"salt=1\"]);\n    expect(named(OUTER_FAMILY)?.resolvedFontFeatures).toEqual([\"salt=1\"]);\n  });\n\n  it(\"applies only document storage to shadow text and keeps a shadow-only alias inert\", () => {\n    const named = (family: string) => corpus.runs.find((row) =>\n      row.fontFamily.includes(family) && row.fontVariantAlternates === \"stylistic(fancy)\");\n    expect(named(SHADOW_FAMILY)?.resolvedFontFeatures).toEqual([\"salt=1\"]);\n    expect(named(SHADOW_FAMILY)?.fontFeatureValues?.[SHADOW_FAMILY.toLowerCase()]?.stylistic)\n      .toEqual({ fancy: [1] });\n    expect(named(SHADOW_ONLY_FAMILY)?.fontFeatureValues).toBeUndefined();\n    expect(named(SHADOW_ONLY_FAMILY)?.resolvedFontFeatures).toEqual([]);\n  });\n\n  it(\"makes wrong source-order and shadow-scope fusion fail the stale-table gate\", () => {\n    const layered = corpus.runs.find((row) =>\n      row.fontFamily.includes(LAYERED_FAMILY) && row.fontVariantAlternates === \"stylistic(fancy)\")!;\n    expect(() => shapingProbePageHtml([{\n      ...layered,\n      fontFeatureValues: {\n        [LAYERED_FAMILY.toLowerCase()]: { stylistic: { fancy: [2] } },\n      },\n    }])).toThrow(/stale font-feature-values row/);\n\n    const shadow = corpus.runs.find((row) =>\n      row.fontFamily.includes(SHADOW_FAMILY) && row.fontVariantAlternates === \"stylistic(fancy)\")!;\n    expect(() => shapingProbePageHtml([{\n      ...shadow,\n      fontFeatureValues: {\n        [SHADOW_FAMILY.toLowerCase()]: { stylistic: { fancy: [2] } },\n      },\n    }])).toThrow(/stale font-feature-values row/);\n  });\n\n  it(\"matches Chromium's live layered winner and rejects the source-order mutation\", async () => {\n    await page.setContent(fixture, { waitUntil: \"load\" });\n    await page.evaluate(() => document.fonts.ready);\n    const alias = await page.locator(\"#layered-alias\").screenshot();\n    const direct = await page.locator(\"#layered-direct\").screenshot();\n    const sourceOrder = await page.locator(\"#layered-source-order\").screenshot();\n    expect(alias.equals(direct)).toBe(true);\n    expect(alias.equals(sourceOrder)).toBe(false);\n  });\n\n  it(\"matches Chromium's live document-only shadow winner and inert shadow-only rule\", async () => {\n    await page.setContent(fixture, { waitUntil: \"load\" });\n    await page.evaluate(() => document.fonts.ready);\n    const shadow = page.locator(\"#shadow-host\");\n    const documentAlias = await shadow.locator(\"#shadow-document\").screenshot();\n    const documentDirect = await shadow.locator(\"#shadow-document-direct\").screenshot();\n    const shadowLocalMutation = await shadow.locator(\"#shadow-document-local\").screenshot();\n    const shadowOnly = await shadow.locator(\"#shadow-only\").screenshot();\n    const shadowOnlyNormal = await shadow.locator(\"#shadow-only-normal\").screenshot();\n    expect(documentAlias.equals(documentDirect)).toBe(true);\n    expect(documentAlias.equals(shadowLocalMutation)).toBe(false);\n    expect(shadowOnly.equals(shadowOnlyNormal)).toBe(true);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/font-feature-values-cascade.ts"
+                },
+                "region": {
+                  "startLine": 47
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/font-feature-values.ts"
+                },
+                "region": {
+                  "startLine": 107
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2513"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ce1934e31b4a3ea51f17515a83cc5306"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "4098f14e9d38964f7882703ee9c07a73a337a899",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -1024,6 +1024,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5puuymtest8xch",
+          "message": {
+            "text": "Generated text inherits the host's kStandardFamily sentinel only when no matching author pseudo rule owns font-family. CSSOM exposes the same concrete settings face for inherited standard and an authored declaration of that exact face, so comparing strings would mislabel the latter; the joined author-rule seam in font-family-default.ts preserves that distinction before one structured record is threaded to every capture owner.",
+            "markdown": "Generated text inherits the host's kStandardFamily sentinel only when no matching author pseudo rule owns font-family. CSSOM exposes the same concrete settings face for inherited standard and an authored declaration of that exact face, so comparing strings would mislabel the latter; the joined author-rule seam in font-family-default.ts preserves that distinction before one structured record is threaded to every capture owner."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/index.ts"
+                },
+                "region": {
+                  "startLine": 140,
+                  "endLine": 156,
+                  "snippet": {
+                    "text": "  const {\n    familyIsUADefault: _familyIsUADefault,\n    pseudoFamilyIsAuthored: _pseudoFamilyIsAuthored,\n  } = createFontFamilyDefault();\n  const _fontFamilyStackFor = (el, computedFontFamily, pseudo) => {\n    // Generated/first-letter/placeholder styles inherit the host's\n    // kStandardFamily unless they resolve to a distinct family. CSSOM exposes\n    // only the concrete settings name, so join the pseudo back to the host's\n    // already-audited declaredness seam before creating the structured list.\n    const hostFamily = pseudo == null\n      ? computedFontFamily\n      : (el.ownerDocument?.defaultView ?? window).getComputedStyle(el).fontFamily;\n    const inheritedHostStandard = (pseudo == null || (computedFontFamily === hostFamily\n      && !_pseudoFamilyIsAuthored(el, pseudo)))\n      && _familyIsUADefault(el, hostFamily);\n    return captureFontFamilyStack(computedFontFamily, inheritedHostStandard);\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/font-family-default.ts"
+                },
+                "region": {
+                  "startLine": 182
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/font-family-stack-capture.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 148
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2518"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "dd8205a0dc7ba6bd709b372be332986f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "4098f14e9d38964f7882703ee9c07a73a337a899",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

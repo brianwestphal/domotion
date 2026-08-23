@@ -7,6 +7,11 @@
  * serializable form so its synthetic probe page can ask the same question.
  */
 import { BufferFlag, ClusterLevel } from "../vendor/harfbuzzjs/dist/index.mjs";
+import type {
+  FontFeatureValueCategory,
+  FontFeatureValueTable,
+  FontFeatureValueTables,
+} from "../src/font-feature-values-cascade.js";
 import {
   harfbuzzShapeRun,
   registerHbBufferSource,
@@ -14,21 +19,11 @@ import {
 } from "../src/render/harfbuzz-shaper.js";
 import { resolveFontVariantAlternates } from "../src/render/text.js";
 
-export type FontFeatureValueCategory =
-  | "annotation"
-  | "ornaments"
-  | "stylistic"
-  | "swash"
-  | "characterVariant"
-  | "styleset";
-
-export type FontFeatureValueTable = Partial<Record<
+export type {
   FontFeatureValueCategory,
-  Record<string, number[]>
->>;
-
-/** Family names are normalized to lower case, matching Blink's FoldCase key. */
-export type FontFeatureValueTables = Record<string, FontFeatureValueTable>;
+  FontFeatureValueTable,
+  FontFeatureValueTables,
+} from "../src/font-feature-values-cascade.js";
 
 const SUBRULE: Record<FontFeatureValueCategory, string> = {
   annotation: "annotation",

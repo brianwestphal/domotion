@@ -71,6 +71,7 @@ const buildPseudoContentHandler = ({
   composeEffectiveTransform,
   effectiveZoomFor = () => 1,
   physicalComputedCssPixelTerms = (value) => value,
+  fontFamilyStackFor,
 }) => {
   // CSSOM serializes filter lengths before effective zoom, while every box
   // captured below is already in physical viewport coordinates. Scale only
@@ -820,6 +821,7 @@ const buildPseudoContentHandler = ({
         fontSize: elFontSize,
         fontWeight: pcs.fontWeight,
         fontFamily: pcs.fontFamily,
+        fontFamilyStack: fontFamilyStackFor(el, pcs.fontFamily, pseudo),
         fontStyle: pcs.fontStyle,
         fontAscent: pseudoMetrics.ascent,
       };

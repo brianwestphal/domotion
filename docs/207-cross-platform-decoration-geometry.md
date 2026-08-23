@@ -88,24 +88,49 @@ geometry** at each scale. Both reports retain Chromium `147.0.7727.15`, Windows
 `392187401c8583b0312798976fb8d50edb93f143195f3dca7cbf64b9bb314697`, and
 corpus SHA-256 `1447e6dd23fc6daada2247a7e27bde282a46b5b7740359eaa1f811b1ec7847d3`.
 
-## Audited residual: vertical writing
+## Vertical writing closure (DM-2514)
 
-The source audit found a separate pre-existing logical divergence in
-`src/render/vertical-text.ts`. Blink resolves vertical decorations around the
-central baseline and makes `left`/`right` script-sensitive (Japanese/Hangul
-reverse the default side relationship), then flips underline/overline when the
-resolved side is over. The current renderer instead uses an empirical
-`fontSize / 18` auto thickness, a fixed 1px offset, and simplified side rules.
+Vertical decorations now use the same source-owned thickness, offset, style,
+paint snap, double/wavy, and skip-ink emitter as horizontal text. Geometry is
+constructed in Blink's line-relative coordinate space and only then crosses
+`LineRelativeRect::ComputeRelativeToPhysicalTransform`; no physical column-edge
+constant remains.
 
-This is not covered up by the horizontal envelope. DM-2514 tracks the dedicated
-source transcription because it requires a vertical family/script/
-writing-mode matrix and a line-relative paint oracle rather than a small patch
-to the horizontal path.
+The vertical-only ownership is transcribed separately:
+
+- `vertical-rl/lr` mixed or upright typography uses the central baseline;
+  sideways writing and `text-orientation: sideways` stay alphabetic.
+- `FontDescription::GetScript()` comes from the captured locale, not glyph
+  Unicode. Kana/Hangul resolves `left` under and every no-`left` value over;
+  other scripts resolve `right` over and every no-`right` value under.
+- An over result swaps applied underline/overline bits before geometry. The
+  effective underline uses BottomOfEmHeight with an empty offset; the effective
+  overline uses TopOfEmHeight and retains the authored underline offset.
+- Central offsets use `FloatHeight/2`, integer central ascent, and half-em
+  normalized metrics with Blink's LayoutUnit/floor staging. Line-through still
+  uses the target used font's alphabetic FloatAscent.
+- Upright vertical blobs never open skip-ink gaps. Rotated blobs retain their
+  captured inline offsets; `auto` applies Blink's per-character exclusions,
+  while stable `all` requests every rotated-glyph intercept. Inherited
+  decoration declarations accumulate, but Blink's disabled non-horizontal
+  decorating box makes target run font/locale/baseline metrics authoritative.
+
+`tools/vertical-decoration-oracle.ts` independently joins 26 exact logical
+rows across both vertical modes, both sideways modes, mixed/upright/sideways
+orientation, en/ja/ko/zh locale controls, identical-glyph locale mutations,
+auto/from-font/under/left/right/compound positions, two fixture faces,
+absolute/percent/em lengths, zoom 0.8/1.25, and coherent DPR 1/4. Ten
+destructive mutations, including `auto`/`all` collapse and upright-intercept
+reintroduction, must fail. The separate live Chromium side lane records
+16/16 categorical native-paint rows at DPR 1/4. Native coverage coordinates
+are explicitly raster-phase observations and cannot alter logical constants.
 
 ## Validation
 
 - pinned Linux arm64 oracle: 109/109 + 30/30 + 109/109;
 - native Windows x64 DPR-1 and DPR-4 oracle: 109/109 + 30/30 + 109/109 each;
+- vertical logical oracle: 26/26 exact with 10/10 destructive controls;
+- live Chromium vertical side authentication: 16/16 at coherent DPR 1/4;
 - focused unit contracts for zoom resolution, propagation, report fingerprint,
   Linux release evidence, and Windows workflow wiring;
 - text-to-path decoration metric tests;

@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5pupw7ms8c08ha",
+          "message": {
+            "text": "The structured list preserves Blink node kind independently from decoded family text, so quoted generic-looking literals and genuine generics can never collapse onto the same cache or fallback identity. Chromium rev 7d859f27 source shows FontFamily stores the node kind, ConvertFontFamily reverse-walks the list for the rightmost legacy generic, and ValueForFamily serializes literal and generic nodes differently; the parser, descriptor derivation, and serializer mirror those three seams.",
+            "markdown": "The structured list preserves Blink node kind independently from decoded family text, so quoted generic-looking literals and genuine generics can never collapse onto the same cache or fallback identity. Chromium rev 7d859f27 source shows FontFamily stores the node kind, ConvertFontFamily reverse-walks the list for the rightmost legacy generic, and ValueForFamily serializes literal and generic nodes differently; the parser, descriptor derivation, and serializer mirror those three seams."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/font-family-stack.ts"
+                },
+                "region": {
+                  "startLine": 148,
+                  "endLine": 218,
+                  "snippet": {
+                    "text": "/** Parse CSSOM `font-family` without splitting quoted or escaped commas. */\nexport function parseCssFontFamilyEntries(value: string): ParsedFontFamilyEntry[] {\n  return splitCssFamilyTokens(value).map((token): ParsedFontFamilyEntry => {\n    const quote = token[0];\n    const quoted = token.length >= 2\n      && (quote === '\"' || quote === \"'\")\n      && token[token.length - 1] === quote;\n    const encoded = quoted ? token.slice(1, -1) : token;\n    const name = decodeCssFontFamilyName(encoded).trim();\n    const generic = !quoted && name === name.toLowerCase() && LIST_GENERIC_NAMES.has(name);\n    return { name, type: generic ? \"generic-family\" : \"family-name\", quoted };\n  }).filter((entry) => entry.name !== \"\");\n}\n\nexport function blinkGenericFamilyFromEntries(\n  entries: ReadonlyArray<Pick<CapturedFontFamilyEntry, \"name\" | \"type\">>,\n): BlinkGenericFamily {\n  for (let index = entries.length - 1; index >= 0; index--) {\n    const entry = entries[index];\n    if (entry.type !== \"generic-family\") continue;\n    const generic = LEGACY_GENERIC_NAMES[entry.name];\n    if (generic != null) return generic;\n  }\n  return \"none\";\n}\n\n/** Build the capture record. `uaStandard` represents Blink kStandardFamily. */\nexport function captureFontFamilyStack(\n  cssText: string,\n  uaStandard = false,\n): CapturedFontFamilyStack {\n  const entries: CapturedFontFamilyEntry[] = uaStandard\n    ? [{ name: \"-webkit-standard\", type: \"generic-family\" }]\n    : parseCssFontFamilyEntries(cssText).map(({ name, type }) => ({ name, type }));\n  return {\n    source: \"blink-font-family-stack-v1\",\n    entries,\n    genericFamily: uaStandard ? \"standard\" : blinkGenericFamilyFromEntries(entries),\n  };\n}\n\nfunction serializeCssString(value: string): string {\n  let output = '\"';\n  for (const ch of value) {\n    const cp = ch.codePointAt(0) ?? 0;\n    if (ch === '\"' || ch === \"\\\\\") output += `\\\\${ch}`;\n    else if (cp <= 0x1f || cp === 0x7f) output += `\\\\${cp.toString(16)} `;\n    else output += ch;\n  }\n  return `${output}\"`;\n}\n\n/**\n * Produce an unambiguous CSS spelling from the structured record. Literal\n * names are always quoted; genuine generics are the only bare identifiers.\n */\nexport function serializeCapturedFontFamilyStack(stack: CapturedFontFamilyStack): string {\n  return stack.entries.map((entry) => entry.type === \"generic-family\"\n    ? entry.name\n    : serializeCssString(entry.name)).join(\", \");\n}\n\n/** Structured capture wins; the raw string is only a legacy-tree fallback. */\nexport function capturedFontFamilyCss(\n  legacy: string,\n  stack?: CapturedFontFamilyStack,\n): string {\n  if (stack == null || stack.source !== \"blink-font-family-stack-v1\" || stack.entries.length === 0) {\n    return legacy;\n  }\n  return serializeCapturedFontFamilyStack(stack);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 8191
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text.ts"
+                },
+                "region": {
+                  "startLine": 27
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2518"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "022f2a677f42606c612f7aa9e6353694"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "4098f14e9d38964f7882703ee9c07a73a337a899",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -25,9 +25,13 @@
  * vertical advance).
  */
 
-import type { CapturedElement } from "../capture/types.js";
+import type { CapturedElement, TextSegment } from "../capture/types.js";
 import { measureEmphasisMarkMetrics, renderTextAsPath } from "./text-to-path.js";
-import { emphasisGraphemeSpans, parseTextEmphasisMark } from "./text.js";
+import {
+  capturedSegmentFontFamily, capturedTextSegmentFontFeatures, decorationLengthScale, emphasisGraphemeSpans,
+  parseFontVariationSettings, parseTextEmphasisMark, renderTextDecoration,
+} from "./text.js";
+import { localeToScriptCodeForFontSelection } from "./generic-script-families.js";
 import { esc } from "./format.js";
 
 /**
@@ -58,7 +62,7 @@ export function renderVerticalEmphasisMarks(el: CapturedElement, fillColor: stri
     const segFs = seg.fontSize ?? fontSize;
     const segAscent = seg.fontAscent ?? el.fontAscent ?? segFs * 0.8;
     const segDescent = el.fontDescent ?? Math.max(0, segFs - segAscent);
-    const segFamily = seg.fontFamily ?? el.styles.fontFamily;
+    const segFamily = capturedSegmentFontFamily(el, seg);
     const segWeight = seg.fontWeight ?? el.styles.fontWeight;
     const segStyle = seg.fontStyle ?? el.styles.fontStyle;
     const metrics = measureEmphasisMarkMetrics(mark, {
@@ -146,62 +150,168 @@ function hasVerticalFormPunctuation(ch: string): boolean {
   return ch.length >= 1 && VERTICAL_FORM_PUNCTUATION.has(ch.codePointAt(0)!);
 }
 
+export interface VerticalDecorationResolution {
+  baselineType: "alphabetic" | "central";
+  /** Position passed to the shared Blink offset transcription after vertical
+   *  side resolution. An over-side central result is represented by `flip`. */
+  underlinePosition: "auto" | "from-font" | "under";
+  flipUnderlineAndOverline: boolean;
+  localeScript: string;
+}
+
 /**
- * DM-997: emit a vertical text-decoration line (underline / overline /
- * line-through) for a column segment. Vertical text decorations paint
- * OUTSIDE the inline-box, parallel to the column axis, with position
- * driven by `text-underline-position` (`left` / `right` / `auto`). The
- * decoration line spans the column's full height (segment.y to
- * segment.y + segment.height).
+ * Blink `ResolveUnderlinePosition`, including its central-baseline locale
+ * branch (`text_decoration_info.cc:23-53`, pinned rev 7d859f27).
+ *
+ * `FontDescription::GetScript()` is derived from the element locale, not from
+ * the run's characters. Thus a Latin glyph under `lang=ja` takes the Japanese
+ * side rule, while a kana glyph under `lang=en` takes the Latin rule. Sideways
+ * writing modes are horizontal typographic modes and remain alphabetic.
+ */
+export function resolveVerticalDecoration(
+  writingMode: string,
+  textOrientation: string | undefined,
+  underlinePositionCss: string | undefined,
+  lang: string | undefined,
+): VerticalDecorationResolution {
+  const tokens = (underlinePositionCss ?? "auto").trim().toLowerCase().split(/\s+/);
+  const localeScript = localeToScriptCodeForFontSelection(lang ?? "");
+  const central = (writingMode === "vertical-rl" || writingMode === "vertical-lr")
+    && textOrientation !== "sideways";
+  if (!central) {
+    return {
+      baselineType: "alphabetic",
+      underlinePosition: tokens.includes("under") ? "under"
+        : tokens.includes("from-font") ? "from-font" : "auto",
+      flipUnderlineAndOverline: false,
+      localeScript,
+    };
+  }
+  const kanaOrHangul = localeScript === "KATAKANA_OR_HIRAGANA" || localeScript === "HANGUL";
+  const over = kanaOrHangul ? !tokens.includes("left") : tokens.includes("right");
+  return {
+    baselineType: "central",
+    // ResolveDecorationAt changes an over-side result to kUnder before it
+    // swaps the line bits; both central outcomes therefore feed the shared
+    // metric engine's under branch.
+    underlinePosition: "under",
+    flipUnderlineAndOverline: over,
+    localeScript,
+  };
+}
+
+/** Upright vertical blobs never contribute decoration intercepts in Blink,
+ * even for a skip-ink mode that otherwise asks for them. Preserve UTF-16
+ * indexing while replacing those glyphs with zero-ink, zero-width controls;
+ * rotated glyphs retain the captured y offsets as line-relative x anchors. */
+export function verticalDecorationSkipInkText(seg: TextSegment): string | undefined {
+  if (seg.verticalCombineUpright) return undefined;
+  const orientations = seg.verticalOrientations;
+  if (orientations == null) return seg.text;
+  let out = "";
+  for (let i = 0; i < seg.text.length;) {
+    const cp = seg.text.codePointAt(i)!;
+    const step = cp > 0xFFFF ? 2 : 1;
+    const ch = seg.text.slice(i, i + step);
+    out += orientations[i] === "upright" ? "\u200B".repeat(step) : ch;
+    i += step;
+  }
+  return out;
+}
+
+function verticalDecorationIdBase(el: CapturedElement, seg: TextSegment): string {
+  const key = [seg.text, seg.x, seg.y, seg.width, seg.height, seg.verticalWritingMode,
+    el.styles.lang, el.styles.textDecorationLine, el.styles.textDecorationStyle,
+    el.styles.textDecorationThickness, el.styles.textUnderlineOffset,
+    el.styles.textUnderlinePosition, el.styles.textDecorationSkipInk,
+    JSON.stringify(el.propagatedDecorations ?? [])].join("|");
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < key.length; i++) {
+    hash ^= key.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `vdec-${(hash >>> 0).toString(16)}`;
+}
+
+/**
+ * DM-2514: emit Blink text-decoration geometry in LINE-RELATIVE space, then
+ * hand it to the same physical transform as vertical glyphs. Thickness,
+ * offsets, styles, snapping, double/wavy geometry, and skip-ink all come from
+ * the shared horizontal source transcription rather than column-edge values.
  */
 function renderVerticalDecoration(
   el: CapturedElement,
-  seg: { x: number; y: number; width: number; height: number; verticalWritingMode?: string },
+  seg: TextSegment,
   fillColor: string,
 ): string {
-  const decoLine = el.styles.textDecorationLine;
-  if (decoLine == null || decoLine === "none" || decoLine === "") return "";
-  const decoColor = (el.styles.textDecorationColor && el.styles.textDecorationColor !== "currentcolor")
-    ? el.styles.textDecorationColor : fillColor;
-  const thicknessRaw = el.styles.textDecorationThickness;
-  const thickness = thicknessRaw && thicknessRaw !== "auto" && thicknessRaw !== ""
-    ? parseFloat(thicknessRaw) || 1
-    : Math.max(1, parseFloat(el.styles.fontSize) / 18); // ~1 px at body sizes
-  const underlinePos = (el.styles.textUnderlinePosition ?? "auto").trim();
+  const applied = [
+    ...(el.propagatedDecorations ?? []).map((pd) => ({
+      line: pd.line,
+      color: pd.color ?? fillColor,
+      style: pd.style,
+      thickness: pd.thickness,
+      underlineOffset: pd.underlineOffset,
+      lengthScale: pd.lengthScale ?? 1,
+    })),
+    ...((el.styles.textDecorationLine != null && el.styles.textDecorationLine !== ""
+      && el.styles.textDecorationLine !== "none") ? [{
+        line: el.styles.textDecorationLine,
+        color: (el.styles.textDecorationColor && el.styles.textDecorationColor !== "currentcolor")
+          ? el.styles.textDecorationColor : fillColor,
+        style: el.styles.textDecorationStyle,
+        thickness: el.styles.textDecorationThickness,
+        underlineOffset: el.styles.textUnderlineOffset,
+        lengthScale: decorationLengthScale(el.styles),
+      }] : []),
+  ];
+  if (applied.length === 0) return "";
   const wm = seg.verticalWritingMode ?? "vertical-rl";
-  // Default underline side for `auto`. Verified against Chrome's painted output
-  // (DM-1159): the `under`-baseline underline lands on the LEFT of the column
-  // for vertical-rl, vertical-lr AND sideways-rl, and on the RIGHT only for
-  // sideways-lr (its 90° COUNTER-clockwise rotation flips the under side to the
-  // right). The earlier "auto → right for vertical-rl" rule was backwards — the
-  // pos-auto cell painted its underline on the wrong (right) side.
-  const defaultRight = wm === "sideways-lr";
-  const onLeft = underlinePos === "left" || (underlinePos === "auto" && !defaultRight);
-  const onRight = underlinePos === "right" || (underlinePos === "auto" && defaultRight);
-  const offset = 1; // small offset from column edge
-  const lines: string[] = [];
-  const has = (k: string): boolean => decoLine.includes(k);
-  // X-coordinate for vertical underline / overline / line-through.
-  const colLeftX = seg.x - offset - thickness / 2;
-  const colRightX = seg.x + seg.width + offset + thickness / 2;
-  const colMidX = seg.x + seg.width / 2;
-  const yTop = seg.y;
-  const yBot = seg.y + seg.height;
-  if (has("underline")) {
-    const lineX = onLeft ? colLeftX : colRightX;
-    lines.push(`<line x1="${r(lineX)}" y1="${r(yTop)}" x2="${r(lineX)}" y2="${r(yBot)}" stroke="${decoColor}" stroke-width="${r(thickness)}" />`);
-  }
-  if (has("overline")) {
-    // Overline is the OPPOSITE side of underline.
-    const lineX = onLeft ? colRightX : colLeftX;
-    lines.push(`<line x1="${r(lineX)}" y1="${r(yTop)}" x2="${r(lineX)}" y2="${r(yBot)}" stroke="${decoColor}" stroke-width="${r(thickness)}" />`);
-  }
-  if (has("line-through")) {
-    // Line-through paints through the middle of the column (perpendicular
-    // to the column axis, so a VERTICAL line down the column's mid-x).
-    lines.push(`<line x1="${r(colMidX)}" y1="${r(yTop)}" x2="${r(colMidX)}" y2="${r(yBot)}" stroke="${decoColor}" stroke-width="${r(thickness)}" />`);
-  }
-  return lines.join("");
+  const segFontSize = seg.fontSize ?? (parseFloat(el.styles.fontSize) || 14);
+  const segFamily = capturedSegmentFontFamily(el, seg);
+  const segWeight = seg.fontWeight ?? el.styles.fontWeight;
+  const segStyle = seg.fontStyle ?? el.styles.fontStyle;
+  const segAscent = seg.fontAscent ?? el.fontAscent ?? segFontSize * 0.85;
+  const segDescent = el.fontDescent ?? Math.max(0, segFontSize - segAscent);
+  const resolution = resolveVerticalDecoration(
+    wm, el.styles.textOrientation, el.styles.textUnderlinePosition, el.styles.lang,
+  );
+  const runXOffsets = seg.yOffsets?.map((y) => y - seg.y);
+  const skipText = verticalDecorationSkipInkText(seg);
+  const features = capturedTextSegmentFontFeatures(el, seg);
+  const idBase = verticalDecorationIdBase(el, seg);
+  const lineRelative = applied.map((deco, index) => renderTextDecoration({
+    textDecorationLine: deco.line,
+    decorationColor: deco.color,
+    style: deco.style,
+    segX: seg.x,
+    fragTop: seg.y,
+    runBaselineY: seg.y + segAscent,
+    segWidth: seg.height,
+    fontAscent: segAscent,
+    fontDescent: segDescent,
+    fontSize: segFontSize,
+    fontFamily: segFamily,
+    fontWeight: segWeight,
+    fontStyle: segStyle,
+    fontStretch: el.styles.fontStretch,
+    lang: el.styles.lang,
+    variationSettings: parseFontVariationSettings(el.styles.fontVariationSettings),
+    // Blink disables a non-horizontal decorating box, so inherited
+    // declarations remain but UsedFont/metrics are the TARGET vertical run.
+    thicknessOverride: deco.thickness,
+    underlineOffset: deco.underlineOffset,
+    lengthScale: deco.lengthScale,
+    underlinePosition: resolution.underlinePosition,
+    baselineType: resolution.baselineType,
+    flipUnderlineAndOverline: resolution.flipUnderlineAndOverline,
+    runText: skipText,
+    skipInk: el.styles.textDecorationSkipInk,
+    features,
+    runXOffsets,
+    idBase: `${idBase}-${index}`,
+  })).join("");
+  if (lineRelative === "") return "";
+  return `<g transform="${lineRelativeToPhysicalTransform(seg.x, seg.y, seg.width, seg.height, wm)}">${lineRelative}</g>`;
 }
 
 /**
@@ -220,7 +330,7 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
     // Generated line-clamp fragments are styled from the IFC root, while a
     // retained inline run may carry its own face/weight/style.  Honor the
     // captured run facts rather than flattening every column to the host.
-    const fontFamily = seg.fontFamily ?? el.styles.fontFamily;
+    const fontFamily = capturedSegmentFontFamily(el, seg);
     const fontWeight = seg.fontWeight ?? el.styles.fontWeight;
     const fontStyle = seg.fontStyle ?? el.styles.fontStyle;
     // DM-2193: the baseline belongs to the captured vertical run. New captures

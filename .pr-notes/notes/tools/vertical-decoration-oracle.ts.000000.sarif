@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5pk2bg4emsnzva",
+          "message": {
+            "text": "The gate is upstream of raster fitting and is anti-vacuous. It joins 26 DPR-qualified source rows to production metrics, line swapping, and transforms; it separately proves auto versus all skip-ink and upright-blob suppression, and ten destructive mutations must all move the answer. The live Chromium companion authenticates only categorical physical sides, leaving native coverage explicitly non-authoritative for logical constants.",
+            "markdown": "The gate is upstream of raster fitting and is anti-vacuous. It joins 26 DPR-qualified source rows to production metrics, line swapping, and transforms; it separately proves auto versus all skip-ink and upright-blob suppression, and ten destructive mutations must all move the answer. The live Chromium companion authenticates only categorical physical sides, leaving native coverage explicitly non-authoritative for logical constants."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/vertical-decoration-oracle.ts"
+                },
+                "region": {
+                  "startLine": 315,
+                  "endLine": 365,
+                  "snippet": {
+                    "text": "  const byId = new Map(rows.map((entry) => [entry.id, entry]));\n  const ja = byId.get(\"vrl-ja-A-auto-over\")!;\n  const central = byId.get(\"vrl-en-A-auto-under\")!;\n  const zoom = byId.get(\"vrl-zoom-125-fixed\")!;\n  const slr = byId.get(\"slr-en-under\")!;\n  const fromFont = byId.get(\"vrl-sideways-from-font\")!;\n  const skipInkFont = { fontFamily: FAMILIES.serif, fontSize: 20, fontWeight: \"400\" };\n  const autoExcludedSlash = computeSkipInkGaps(\"/\", skipInkFont, {\n    decorationCenterYRel: 0, decorationThickness: 4, skipInkMode: \"auto\",\n  });\n  const allIncludedSlash = computeSkipInkGaps(\"/\", skipInkFont, {\n    decorationCenterYRel: 0, decorationThickness: 4, skipInkMode: \"all\",\n  });\n  const uprightProjection = verticalDecorationSkipInkText({\n    text: \"/\", verticalOrientations: [\"upright\"],\n  } as Parameters<typeof verticalDecorationSkipInkText>[0]) ?? \"\";\n  const rotatedProjection = verticalDecorationSkipInkText({\n    text: \"/\", verticalOrientations: [\"rotated\"],\n  } as Parameters<typeof verticalDecorationSkipInkText>[0]) ?? \"\";\n  const skipInk = {\n    autoExcludedSlashGapCount: autoExcludedSlash.length,\n    allIncludedSlashGapCount: allIncludedSlash.length,\n    uprightProjection,\n    rotatedProjection,\n    pass: autoExcludedSlash.length === 0 && allIncludedSlash.length > 0\n      && uprightProjection === \"\\u200B\" && rotatedProjection === \"/\",\n  };\n  const mutationControls = {\n    \"force-central-under\": ja.expected.flip !== false,\n    \"use-alphabetic-central-offset\": central.expected.underlineTop !== Math.trunc(Math.round(base.ascent) + 1),\n    \"drop-flipped-author-offset\": ja.expected.overlineTop !== sourceMetrics(\n      { ...caseById.get(\"vrl-ja-A-auto-over\")!, offset: \"auto\" }, faces.serif,\n    ).overlineTop,\n    \"skip-effective-zoom\": zoom.expected.thickness !== roundf(3),\n    \"multiply-logical-geometry-by-dpr\": byId.get(\"vrl-en-A-auto-under.dpr4\")!.expected.thickness * 4\n      !== byId.get(\"vrl-en-A-auto-under.dpr4\")!.actual.thickness,\n    \"reuse-clockwise-for-sideways-lr\": slr.expected.transform\n      !== sourceTransform({ ...caseById.get(\"slr-en-under\")!, writingMode: \"sideways-rl\" }),\n    \"derive-script-from-glyph\": ja.expected.flip\n      !== sourceResolution({ ...caseById.get(\"vrl-ja-A-auto-over\")!, scriptClass: \"other\" }).flip,\n    \"substitute-wrong-from-font-face\": fromFont.expected.thickness\n      !== Math.max(1, faces.mono.underlineThickness * caseById.get(\"vrl-sideways-from-font\")!.fontSize / faces.mono.unitsPerEm),\n    \"treat-skip-ink-all-as-auto\": autoExcludedSlash.length === 0 && allIncludedSlash.length > 0,\n    \"open-upright-vertical-intercepts\": uprightProjection !== rotatedProjection,\n  };\n  const pass = rows.every((entry) => entry.pass) && skipInk.pass\n    && Object.values(mutationControls).every(Boolean);\n  return {\n    chromiumRevision: \"7d859f271cbda744098ac69f44978d4edfa62be3\",\n    geometrySpace: \"line-relative-css-px\",\n    deviceScaleFactors: [1, 4],"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/vertical-decoration-browser-oracle.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2514"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "5d05cadef5def708f0176d0a750eb3ca"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "4098f14e9d38964f7882703ee9c07a73a337a899",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

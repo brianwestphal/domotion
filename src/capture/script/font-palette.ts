@@ -1,5 +1,7 @@
 // @ts-nocheck
 
+import { parseCssFontFamilyEntries } from "../../font-family-stack.js";
+
 /**
  * Capture Blink's author-facing palette ownership record. Computed style keeps
  * only the requested token, so named palettes must be joined back to the
@@ -28,7 +30,8 @@ export const createFontPaletteResolver = () => {
     cache.set(doc, rows);
     return rows;
   };
-  const families = (value) => value.split(",").map((part) => part.trim().replace(/^["']|["']$/g, "").toLowerCase());
+  const families = (value) => parseCssFontFamilyEntries(value)
+    .map((entry) => entry.name.toLowerCase());
   const resolveFontPalette = (el, cs) => {
     const token = cs.fontPalette || "normal";
     const record = { token, ruleFamily: null, basePalette: token, overrides: [] };

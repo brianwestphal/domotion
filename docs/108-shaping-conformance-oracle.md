@@ -284,14 +284,17 @@ So the zero is real: the fixtures ask for features from fonts that do not have t
 
 One reporting wart noticed while measuring, recorded so it is not mistaken for a finding: `ChromeShaping.width` reads `getBoundingClientRect().width` on a block-level `<div>`, so it reports the viewport width rather than the run's. It is carried in the report but not used by `compareShaping`, which compares glyph counts and positions.
 
-## Named `@font-feature-values` — exact document-scoped feature ownership
+## Named `@font-feature-values` — exact layer and TreeScope ownership
 
 Doc 204 closes the computed-token-only gap for `stylistic()`, `styleset()`,
 `character-variant()`, `swash()`, `ornaments()`, and `annotation()`.
-The extractor fuses ordinary document-scoped rules by family, persists the exact
-resolved list, and the probe page re-emits that environment. The report retains
-that list and, for an authenticated webfont, every HarfBuzz gid, cluster,
-source span, advance, offset, glyph flag, and unsafe-to-break bit.
+The extractor fuses document rules by Blink's canonical cascade-layer
+postorder, per-alias priority, and same-layer source order, persists the exact
+resolved list, and the probe page re-emits that effective environment. It also
+mirrors Blink's current TreeScope boundary: shadow-root rules are ignored while
+the document table resolves shadow text. The report retains that list and, for
+an authenticated webfont, every HarfBuzz gid, cluster, source span, advance,
+offset, glyph flag, and unsafe-to-break bit.
 
 The anti-vacuity matrix uses Chromium WPT's
 `FontWithFancyFeatures.otf` (SHA-256
@@ -301,9 +304,10 @@ Chrome and Domotion, while removing the matching rule must change both the
 same-browser raster and the exact logical record. CDP must identify the face as
 custom. No position or raster tolerance changed.
 
-Layered rule fusion is conservatively refused rather than approximated with
-source order, and shadow-tree scoping remains outside this claim. The complete
-source chain and matrix are in [doc 204](204-font-feature-values-shaping-conformance.md).
+Layer declaration/rule-order reversals, same-layer collisions, implicit-outer
+priority, conflicting shadow rules, and a shadow-only inert alias are hostile
+controls. The complete source chain and matrix are in
+[doc 204](204-font-feature-values-shaping-conformance.md).
 
 ## Related
 

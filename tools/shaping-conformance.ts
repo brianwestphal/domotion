@@ -68,6 +68,12 @@ import {
   type TextRunProvenanceDiagnostic,
 } from "../src/render/text-run-provenance.js";
 import { isHarfbuzzDefaultIgnorable } from "../src/render/unicode-classification.js";
+import { parseCssFontFamilyEntries } from "../src/font-family-stack.js";
+import {
+  fuseFontFeatureValueRules,
+  IMPLICIT_OUTER_LAYER_ORDER,
+  type FontFeatureValueRuleRecord,
+} from "../src/font-feature-values-cascade.js";
 import {
   exactWebfontFeatureRecord,
   resolvedFeatureValueList,
@@ -149,7 +155,9 @@ export interface RunSpec {
   fontFeatureSettings?: string;
   /**
    * Computed `font-variant-alternates` plus the effective family-scoped alias
-   * storage that made its named functions meaningful in the fixture.
+   * storage that made its named functions meaningful in the fixture. Storage
+   * is fused per alias by canonical cascade-layer postorder and follows Blink's
+   * current document-only TreeScope boundary.
    *
    * The computed property alone is not enough: `stylistic(fancy)` is only an
    * author-facing token. Blink resolves it for the candidate family in
@@ -399,7 +407,13 @@ export async function extractRuns(
     } catch {
       continue;
     }
-    const found = await page.evaluate((splitEvery: boolean) => {
+    const found = await page.evaluate(({
+      splitEvery,
+      implicitOuterLayerOrder,
+    }: {
+      splitEvery: boolean;
+      implicitOuterLayerOrder: number;
+    }) => {
       const out: string[] = [];
       // Families this document defines with `@font-face`. A run in such a family
       // can only be swept when the exact bytes can travel with it. A retained
@@ -422,21 +436,141 @@ export async function extractRuns(
         weightDescriptor: string; styleDescriptor: string; stretchDescriptor: string;
       }>();
       const disqualifiedFaceFamilies = new Set<string>();
-      // Layer order is not ordinary source order. Refuse an alternates-bearing
-      // run whose family has a layered rule until the corpus models Blink's
-      // FontFeatureValuesStorage layer-priority fusion exactly.
-      const layeredFeatureValueFamilies = new Set<string>();
-      const featureTables: Record<string, Record<string, Record<string, number[]>>> = {};
-      const pendingRules: Array<{ rule: CSSRule; inLayer: boolean }> = [];
-      for (const sheet of Array.from(document.styleSheets)) {
+      // Mirror Blink's CascadeLayerMap in the page, but leave family parsing
+      // and alias fusion to the shared production helper on the Node side.
+      // Canonical layer order is a postorder walk; the implicit root is 65535.
+      interface FeatureLayer {
+        children: FeatureLayer[];
+        named: Map<string, FeatureLayer>;
+        order: number;
+      }
+      const makeLayer = (): FeatureLayer => ({ children: [], named: new Map(), order: -1 });
+      const rootLayer = makeLayer();
+      const decodeLayerIdent = (value: string): string => {
+        let output = "";
+        for (let index = 0; index < value.length;) {
+          if (value[index] !== "\\") {
+            output += value[index++];
+            continue;
+          }
+          index++;
+          let hex = "";
+          while (index < value.length && hex.length < 6 && /[0-9a-f]/i.test(value[index])) {
+            hex += value[index++];
+          }
+          if (hex !== "") {
+            const cp = Number.parseInt(hex, 16);
+            output += cp === 0 || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff)
+              ? "\ufffd" : String.fromCodePoint(cp);
+            if (index < value.length && /[\t\n\f\r ]/.test(value[index])) index++;
+          } else if (index < value.length) {
+            output += value[index++];
+          }
+        }
+        return output;
+      };
+      const splitLayerName = (value: string): string[] => {
+        const parts: string[] = [];
+        let part = "";
+        for (let index = 0; index < value.length; index++) {
+          const char = value[index];
+          if (char === "\\") {
+            part += char;
+            if (index + 1 < value.length) part += value[++index];
+          } else if (char === ".") {
+            parts.push(decodeLayerIdent(part));
+            part = "";
+          } else {
+            part += char;
+          }
+        }
+        if (part !== "") parts.push(decodeLayerIdent(part));
+        return parts;
+      };
+      const addLayer = (parent: FeatureLayer, serializedName: string): FeatureLayer => {
+        if (serializedName === "") {
+          const anonymous = makeLayer();
+          parent.children.push(anonymous);
+          return anonymous;
+        }
+        let layer = parent;
+        for (const name of splitLayerName(serializedName)) {
+          let child = layer.named.get(name);
+          if (child == null) {
+            child = makeLayer();
+            layer.named.set(name, child);
+            layer.children.push(child);
+          }
+          layer = child;
+        }
+        return layer;
+      };
+      const mediaMatches = (value: string | null | undefined): boolean =>
+        value == null || value === "" || matchMedia(value).matches;
+      const supportsMatches = (value: string | null | undefined): boolean =>
+        value == null || value === "" || CSS.supports(value);
+      const pendingFeatureRules: Array<{
+        rule: CSSRule & {
+          fontFamily: string;
+          annotation?: Map<string, number[]>; ornaments?: Map<string, number[]>;
+          stylistic: Map<string, number[]>; swash?: Map<string, number[]>;
+          characterVariant?: Map<string, number[]>; styleset?: Map<string, number[]>;
+        };
+        layer: FeatureLayer;
+      }> = [];
+      const pendingRules: Array<{ rule: CSSRule; layer: FeatureLayer }> = [];
+      const sheets = [
+        ...Array.from(document.styleSheets),
+        ...Array.from(document.adoptedStyleSheets ?? []),
+      ];
+      for (const sheet of sheets) {
+        if (sheet.disabled || !mediaMatches(sheet.media?.mediaText)) continue;
         try {
-          pendingRules.push(...Array.from(sheet.cssRules).map((rule) => ({ rule, inLayer: false })));
+          pendingRules.push(...Array.from(sheet.cssRules).map((rule) => ({ rule, layer: rootLayer })));
         } catch {
           // Cross-origin stylesheet — unreadable by design. Nothing to add.
         }
       }
       while (pendingRules.length > 0) {
-        const { rule, inLayer } = pendingRules.shift()!;
+        const { rule, layer } = pendingRules.shift()!;
+        const kind = rule.constructor.name;
+        if (kind === "CSSLayerStatementRule") {
+          const names = (rule as CSSRule & { nameList?: Iterable<string> }).nameList;
+          for (const name of Array.from(names ?? [])) addLayer(layer, name);
+          continue;
+        }
+        if (kind === "CSSLayerBlockRule") {
+          const block = rule as CSSRule & { name?: string; cssRules?: CSSRuleList };
+          const nestedLayer = addLayer(layer, block.name ?? "");
+          pendingRules.unshift(...Array.from(block.cssRules ?? []).map((child) => ({
+            rule: child,
+            layer: nestedLayer,
+          })));
+          continue;
+        }
+        if (kind === "CSSImportRule") {
+          const imported = rule as CSSImportRule & { layerName?: string | null; supportsText?: string | null };
+          if (!mediaMatches(imported.media?.mediaText) || !supportsMatches(imported.supportsText)) continue;
+          const importLayer = imported.layerName == null
+            ? layer : addLayer(layer, imported.layerName);
+          try {
+            pendingRules.unshift(...Array.from(imported.styleSheet?.cssRules ?? []).map((child) => ({
+              rule: child,
+              layer: importLayer,
+            })));
+          } catch {
+            // Cross-origin import cannot provide authenticated alias storage.
+          }
+          continue;
+        }
+        if (kind === "CSSMediaRule") {
+          const media = rule as CSSMediaRule;
+          if (!mediaMatches(media.media?.mediaText || media.conditionText)) continue;
+        }
+        if (kind === "CSSSupportsRule") {
+          const supports = rule as CSSSupportsRule;
+          if (!supportsMatches(supports.conditionText)) continue;
+        }
         if (rule.constructor.name === "CSSFontFaceRule") {
           const style = (rule as CSSFontFaceRule).style;
           const rawFamily = style.getPropertyValue("font-family").trim();
@@ -471,28 +605,52 @@ export async function extractRuns(
           characterVariant?: Map<string, number[]>; styleset?: Map<string, number[]>;
         };
         if (typeof featureRule.fontFamily === "string" && featureRule.stylistic != null) {
-          const families = featureRule.fontFamily.match(/(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^,])+/g) ?? [];
-          for (const rawFamily of families) {
-            const family = rawFamily.trim().replace(/^["']|["']$/g, "").toLowerCase();
-            if (family === "") continue;
-            if (inLayer) layeredFeatureValueFamilies.add(family);
-            const table = featureTables[family] || (featureTables[family] = {});
-            for (const category of ["annotation", "ornaments", "stylistic", "swash", "characterVariant", "styleset"] as const) {
-              const map = featureRule[category];
-              if (map == null) continue;
-              const aliases = table[category] || (table[category] = {});
-              for (const [name, values] of Array.from(map.entries())) aliases[name] = Array.from(values);
-            }
-          }
+          pendingFeatureRules.push({
+            rule: featureRule as typeof pendingFeatureRules[number]["rule"],
+            layer,
+          });
           continue;
         }
         const nested = (rule as CSSRule & { cssRules?: CSSRuleList }).cssRules;
         if (nested != null) {
-          const nestedInLayer = inLayer || rule.constructor.name === "CSSLayerBlockRule";
-          pendingRules.unshift(...Array.from(nested).map((child) => ({ rule: child, inLayer: nestedInLayer })));
+          // @scope and @container affect style-rule matching, but Blink's
+          // feature-value storage remains document-global inside them.
+          pendingRules.unshift(...Array.from(nested).map((child) => ({ rule: child, layer })));
         }
       }
-      for (const el of Array.from(document.querySelectorAll("*"))) {
+
+      let nextLayerOrder = 0;
+      const assignPostorder = (owner: FeatureLayer): void => {
+        for (const child of owner.children) assignPostorder(child);
+        if (owner !== rootLayer) owner.order = nextLayerOrder++;
+      };
+      assignPostorder(rootLayer);
+      const featureValueRules = pendingFeatureRules.map(({ rule, layer }) => {
+        const table: Record<string, Record<string, number[]>> = {};
+        for (const category of ["annotation", "ornaments", "stylistic", "swash", "characterVariant", "styleset"] as const) {
+          const map = rule[category];
+          if (map == null) continue;
+          const entries = Array.from(map.entries());
+          if (entries.length === 0) continue;
+          table[category] = Object.fromEntries(entries.map(([name, values]) => [name, Array.from(values)]));
+        }
+        return {
+          fontFamily: rule.fontFamily,
+          layerOrder: layer === rootLayer ? implicitOuterLayerOrder : layer.order,
+          table,
+        };
+      });
+
+      const elements: Element[] = [];
+      const roots: Array<Document | ShadowRoot> = [document];
+      while (roots.length > 0) {
+        const owner = roots.shift()!;
+        for (const element of Array.from(owner.querySelectorAll("*"))) {
+          elements.push(element);
+          if (element.shadowRoot != null) roots.push(element.shadowRoot);
+        }
+      }
+      for (const el of elements) {
         const cs = getComputedStyle(el as Element);
         // Any family in the stack, not merely the first: a later entry only gets
         // used when the earlier ones fail to resolve, and which of them Chrome
@@ -512,13 +670,6 @@ export async function extractRuns(
         const stretch = cs.fontStretch === "" ? "100%" : cs.fontStretch;
         const ffs = cs.fontFeatureSettings === "" ? "normal" : cs.fontFeatureSettings;
         const fva = cs.fontVariantAlternates === "" ? "normal" : cs.fontVariantAlternates;
-        if (fva !== "normal" && stackFamilies.some((family) => layeredFeatureValueFamilies.has(family))) continue;
-        const relevantFeatureTables: Record<string, Record<string, Record<string, number[]>>> = {};
-        if (fva !== "normal") {
-          for (const family of stackFamilies) {
-            if (featureTables[family] != null) relevantFeatureTables[family] = featureTables[family];
-          }
-        }
         const ls = cs.letterSpacing === "" ? "normal" : cs.letterSpacing;
         const tr = cs.textRendering === "" ? "auto" : cs.textRendering;
         const fvl = cs.fontVariantLigatures === "" ? "normal" : cs.fontVariantLigatures;
@@ -585,7 +736,6 @@ export async function extractRuns(
               fontStretch: stretch,
               fontFeatureSettings: ffs,
               fontVariantAlternates: fva,
-              fontFeatureValues: Object.keys(relevantFeatureTables).length > 0 ? relevantFeatureTables : undefined,
               webfont,
               letterSpacing: ls,
               textRendering: tr,
@@ -594,11 +744,23 @@ export async function extractRuns(
           }
         }
       }
-      return out;
-    }, splitWords);
-    for (const s of found) {
+      return { runs: out, featureValueRules };
+    }, {
+      splitEvery: splitWords,
+      implicitOuterLayerOrder: IMPLICIT_OUTER_LAYER_ORDER,
+    });
+    const fusedFeatureValues = fuseFontFeatureValueRules(
+      found.featureValueRules as FontFeatureValueRuleRecord[],
+    );
+    for (const s of found.runs) {
       const spec = JSON.parse(s) as Omit<RunSpec, "fixtures" | "example">;
       if (spec.fontVariantAlternates != null && spec.fontVariantAlternates !== "normal") {
+        const relevant: FontFeatureValueTables = {};
+        for (const entry of parseCssFontFamilyEntries(spec.fontFamily)) {
+          const key = entry.name.toLowerCase();
+          if (fusedFeatureValues[key] != null) relevant[key] = fusedFeatureValues[key];
+        }
+        if (Object.keys(relevant).length > 0) spec.fontFeatureValues = relevant;
         spec.resolvedFontFeatures = resolvedFeatureValueList(
           spec.fontVariantAlternates,
           spec.fontFamily,

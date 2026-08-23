@@ -64,6 +64,19 @@ d("computeSkipInkGaps — excluded characters contribute no intercepts", () => {
     const mixed = gapsFor("日jp語");
     expect(mixed.length).toBeGreaterThanOrEqual(1);
   });
+
+  it("`all` bypasses the auto-mode character exclusions", () => {
+    // Blink switches from kTextIntercepts to kTextInterceptsAll, so the shape
+    // bloberizer does not call CanTextDecorationSkipInk for `/`. A thicker
+    // baseline-crossing band makes this outline assertion insensitive to
+    // the one-pixel edge inset used by the normal underline band.
+    const all = computeSkipInkGaps("/", FONT, {
+      decorationCenterYRel: 0,
+      decorationThickness: 4,
+      skipInkMode: "all",
+    });
+    expect(all.length).toBeGreaterThan(0);
+  });
 });
 
 d("computeSkipInkGaps — dilation is min(thickness, 13)", () => {

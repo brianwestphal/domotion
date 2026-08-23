@@ -9,6 +9,7 @@
  */
 
 import bidiFactory from "bidi-js";
+import { capturedFontFamilyCss } from "../font-family-stack.js";
 
 import type {
   CapturedElement,
@@ -171,7 +172,7 @@ function textOptions(record: CapturedPseudoFragmentSet, targetWidth?: number, vi
   const unicodeBidi = record.paint.unicodeBidi;
   return {
     fontSize: typography.paintFontSize,
-    fontFamily: typography.fontFamily,
+    fontFamily: capturedFontFamilyCss(typography.fontFamily, typography.fontFamilyStack),
     fontWeight: typography.fontWeight,
     fontStyle: typography.fontStyle,
     fontStretch: typography.fontStretch,

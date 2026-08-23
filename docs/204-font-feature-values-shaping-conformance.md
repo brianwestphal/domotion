@@ -2,8 +2,11 @@
 
 **Status:** shipped
 
-**Owners:** `tools/shaping-conformance.ts`, `tools/shaping-font-feature-values.ts`
-**Evidence:** `tests/shaping-font-feature-values.test.ts`, `tests/shaping-font-feature-values.e2e.test.ts`
+**Owners:** `src/font-feature-values-cascade.ts`,
+`src/capture/script/font-feature-values.ts`, `tools/shaping-conformance.ts`,
+`tools/shaping-font-feature-values.ts`
+**Evidence:** `tests/font-feature-values.e2e.test.ts`,
+`tests/shaping-font-feature-values.test.ts`, `tests/shaping-font-feature-values.e2e.test.ts`
 
 ## The missing half of the question
 
@@ -52,6 +55,28 @@ HarfBuzz then appends every exact user tag/value to its feature map
 (`external/harfbuzz/src/hb-ot-shape.cc:330-420`, pinned checkout `4de187d`).
 No raster threshold is involved in this ownership decision.
 
+### Cascade layers and TreeScopes
+
+Layer ownership follows Blink's storage update, not property-cascade source
+order. `CascadeLayerMap` merges named layer trees across active document
+stylesheets, assigns postorder numbers, and reserves `UINT16_MAX` for the
+implicit outer layer (`core/css/cascade_layer_map.cc:40-80`). Every alias key
+retains its own layer number. `FontFeatureValuesStorage::FuseUpdate` replaces a
+collision only when the incoming number is greater or equal; equality makes a
+later rule in the same layer win while unrelated aliases remain unioned
+(`core/css/style_rule_font_feature_values.cc:83-122`). Production capture and
+the shaping extractor share that final fusion helper.
+
+The shadow behavior is exact even though it is an upstream limitation. Blink
+currently returns before adding feature-value rules from a non-document
+TreeScope (`core/css/resolver/scoped_style_resolver.cc:355-386`), and
+`CSSFontSelector::GetFontData` consults only the document resolver rather than
+walking parent TreeScopes (`core/css/css_font_selector.cc:192-220`). Therefore
+document aliases apply to text inside an open shadow root, a conflicting shadow
+alias is ignored, and a shadow-only alias is inert. The gate mirrors this
+current Chromium behavior; it does not implement the behavior named by Blink's
+open scoping TODO.
+
 ## Non-vacuous real-font matrix
 
 The retained fixture is Chromium WPT's
@@ -87,11 +112,12 @@ choosing one declaration would let both sides agree on a fallback the fixture
 never painted. The retained bytes are declared to Chromium and registered with
 Domotion, and CDP's `isCustomFont` bit is the browser ownership proof.
 
-This work intentionally does not claim exact cascade-layer ordering or
-shadow-tree rule scoping. Blink itself records a shadow/scoping TODO around the
-font-feature-values update path. Those combinations must receive a separate
-source-owned discriminator before the conformance gate claims them; the shipped
-matrix covers ordinary document-scoped, unlayered author rules.
+The hostile matrix reverses layer declaration and rule source order, collides
+aliases within one layer, places a later explicit-layer rule after an
+unlayered rule, and mutates document-versus-shadow ownership. The pinned WPT
+font makes `salt=1` and `salt=2` select different logical glyphs. A source-order
+or shadow-local implementation therefore fails both the persisted feature-list
+check and the same-Chromium direct-feature discriminator.
 
 ## Commands
 

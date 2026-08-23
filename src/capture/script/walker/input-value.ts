@@ -67,7 +67,7 @@ const SKIP_VALUE_TYPES = new Set([
 
 const NOT_APPLIED = { applied: false };
 
-export const createInputValueHandler = ({ vp, normColor, measureFontMetrics }) => {
+export const createInputValueHandler = ({ vp, normColor, measureFontMetrics, fontFamilyStackFor }) => {
   const captureInputValue = (el, cs, tag, rect) => {
     if (tag !== 'input' && tag !== 'textarea') return NOT_APPLIED;
     const inputType = tag === 'input' ? (el.type || 'text') : '';
@@ -366,11 +366,15 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics }) =
     let placeholderColor;
     let placeholderFontStyle;
     let placeholderFontWeight;
+    let placeholderFontFamily;
+    let placeholderFontFamilyStack;
     if (isPlaceholderCapture) {
       const phCs = window.getComputedStyle(el, '::placeholder');
       placeholderColor = normColor(phCs.color || cs.color);
       placeholderFontStyle = phCs.fontStyle;
       placeholderFontWeight = phCs.fontWeight;
+      placeholderFontFamily = phCs.fontFamily;
+      placeholderFontFamilyStack = fontFamilyStackFor(el, phCs.fontFamily, '::placeholder');
     }
 
     return {
@@ -388,6 +392,8 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics }) =
       placeholderColor,
       placeholderFontStyle,
       placeholderFontWeight,
+      placeholderFontFamily,
+      placeholderFontFamilyStack,
     };
   };
 

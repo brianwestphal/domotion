@@ -19,6 +19,10 @@ import {
 const FAMILY = "DM2349 Fancy";
 const FAMILY_KEY = FAMILY.toLowerCase();
 const LAYERED_FAMILY = "DM2349 Layered";
+const SAME_LAYER_FAMILY = "DM2349 Same Layer";
+const OUTER_FAMILY = "DM2349 Outer";
+const SHADOW_FAMILY = "DM2349 Shadow";
+const SHADOW_ONLY_FAMILY = "DM2349 Shadow Only";
 const TEXT = "Xnophijklmqrstuvwxyz";
 const CASES = [
   ["stylistic(fancy)", ["salt=1"]],
@@ -38,6 +42,10 @@ const bytes = Buffer.from(base64, "base64");
 const fixture = `<!doctype html><html lang="en"><head><meta charset="utf-8"><style>
 @font-face { font-family: "${FAMILY}"; src: url(data:font/otf;base64,${base64}); }
 @font-face { font-family: "${LAYERED_FAMILY}"; src: url(data:font/otf;base64,${base64}); }
+@font-face { font-family: "${SAME_LAYER_FAMILY}"; src: url(data:font/otf;base64,${base64}); }
+@font-face { font-family: "${OUTER_FAMILY}"; src: url(data:font/otf;base64,${base64}); }
+@font-face { font-family: "${SHADOW_FAMILY}"; src: url(data:font/otf;base64,${base64}); }
+@font-face { font-family: "${SHADOW_ONLY_FAMILY}"; src: url(data:font/otf;base64,${base64}); }
 @font-feature-values "${FAMILY}" {
   @stylistic { fancy: 1; }
   @styleset { display: 1 2 3; }
@@ -46,15 +54,54 @@ const fixture = `<!doctype html><html lang="en"><head><meta charset="utf-8"><sty
   @ornaments { fleurons: 1; }
   @annotation { circled: 1; }
 }
-@layer feature-values {
-  @font-feature-values "${LAYERED_FAMILY}" { @stylistic { fancy: 1; } }
+/* high sorts after low, even though its rule appears first. */
+@layer low, high;
+@layer high {
+  @font-feature-values "${LAYERED_FAMILY}" { @stylistic { fancy: 1; unioned: 3; } }
 }
+@layer low {
+  @font-feature-values "${LAYERED_FAMILY}" { @stylistic { fancy: 2; } }
+}
+@layer same {
+  @font-feature-values "${SAME_LAYER_FAMILY}" { @stylistic { fancy: 2; } }
+  @font-feature-values "${SAME_LAYER_FAMILY}" { @stylistic { fancy: 1; } }
+}
+@font-feature-values "${OUTER_FAMILY}" { @stylistic { fancy: 1; } }
+@layer high { @font-feature-values "${OUTER_FAMILY}" { @stylistic { fancy: 2; } } }
+@font-feature-values "${SHADOW_FAMILY}" { @stylistic { fancy: 1; } }
 .probe { font-family: "${FAMILY}"; font-size: 32px; line-height: 1; }
-.layered { font-family: "${LAYERED_FAMILY}"; font-size: 32px; font-variant-alternates: stylistic(fancy); }
+.feature-probe { font-size: 32px; line-height: 1; margin: 0; display: inline-block; }
+.layered { font-family: "${LAYERED_FAMILY}"; font-variant-alternates: stylistic(fancy); }
+.same-layer { font-family: "${SAME_LAYER_FAMILY}"; font-variant-alternates: stylistic(fancy); }
+.outer { font-family: "${OUTER_FAMILY}"; font-variant-alternates: stylistic(fancy); }
 ${CASES.map(([value], index) => `.v${index}{font-variant-alternates:${value};}`).join("\n")}
 </style></head><body>
 ${CASES.map((_, index) => `<p class="probe v${index}">${TEXT}</p>`).join("\n")}
-<p class="layered">${TEXT}</p>
+<p id="layered-alias" class="feature-probe layered">${TEXT}</p>
+<p id="layered-direct" class="feature-probe" style="font-family:'${LAYERED_FAMILY}';font-feature-settings:'salt' 1">${TEXT}</p>
+<p id="layered-source-order" class="feature-probe" style="font-family:'${LAYERED_FAMILY}';font-feature-settings:'salt' 2">${TEXT}</p>
+<p class="feature-probe same-layer">${TEXT}</p>
+<p class="feature-probe outer">${TEXT}</p>
+<div id="shadow-host"></div>
+<script>
+(() => {
+  const shadow = document.querySelector('#shadow-host').attachShadow({ mode: 'open' });
+  shadow.innerHTML = '<style>'
+    + '@font-feature-values "${SHADOW_FAMILY}" { @stylistic { fancy: 2; } }'
+    + '@font-feature-values "${SHADOW_ONLY_FAMILY}" { @stylistic { fancy: 1; } }'
+    + '.p{font-size:32px;line-height:1;margin:0;display:inline-block;font-variant-alternates:stylistic(fancy)}'
+    + '.doc{font-family:"${SHADOW_FAMILY}"}.only{font-family:"${SHADOW_ONLY_FAMILY}"}'
+    + '.direct1{font-variant-alternates:normal;font-feature-settings:"salt" 1}'
+    + '.direct2{font-variant-alternates:normal;font-feature-settings:"salt" 2}'
+    + '.normal{font-variant-alternates:normal}'
+    + '</style>'
+    + '<p id="shadow-document" class="p doc">${TEXT}</p>'
+    + '<p id="shadow-document-direct" class="p doc direct1">${TEXT}</p>'
+    + '<p id="shadow-document-local" class="p doc direct2">${TEXT}</p>'
+    + '<p id="shadow-only" class="p only">${TEXT}</p>'
+    + '<p id="shadow-only-normal" class="p only normal">${TEXT}</p>';
+})();
+</script>
 </body></html>`;
 
 function featureSettings(features: readonly string[]): string {
@@ -130,10 +177,69 @@ describe("doc 204 shaping conformance harvests named feature values", () => {
     }
   });
 
-  it("refuses layered feature-value fusion rather than applying source-order semantics", () => {
-    expect(corpus.runs.some((row) => row.fontFamily.includes(LAYERED_FAMILY))).toBe(false);
-    expect(corpus.runs.filter((row) => row.fontFamily.toLowerCase().includes(FAMILY_KEY)))
-      .toHaveLength(CASES.length);
+  it("uses Blink layer postorder, same-layer source order, and implicit-outer priority", () => {
+    const named = (family: string) => corpus.runs.find((row) =>
+      row.fontFamily.includes(family) && row.fontVariantAlternates === "stylistic(fancy)");
+    expect(named(LAYERED_FAMILY)?.resolvedFontFeatures).toEqual(["salt=1"]);
+    expect(named(LAYERED_FAMILY)?.fontFeatureValues?.[LAYERED_FAMILY.toLowerCase()]).toEqual({
+      stylistic: { fancy: [1], unioned: [3] },
+    });
+    expect(named(SAME_LAYER_FAMILY)?.resolvedFontFeatures).toEqual(["salt=1"]);
+    expect(named(OUTER_FAMILY)?.resolvedFontFeatures).toEqual(["salt=1"]);
+  });
+
+  it("applies only document storage to shadow text and keeps a shadow-only alias inert", () => {
+    const named = (family: string) => corpus.runs.find((row) =>
+      row.fontFamily.includes(family) && row.fontVariantAlternates === "stylistic(fancy)");
+    expect(named(SHADOW_FAMILY)?.resolvedFontFeatures).toEqual(["salt=1"]);
+    expect(named(SHADOW_FAMILY)?.fontFeatureValues?.[SHADOW_FAMILY.toLowerCase()]?.stylistic)
+      .toEqual({ fancy: [1] });
+    expect(named(SHADOW_ONLY_FAMILY)?.fontFeatureValues).toBeUndefined();
+    expect(named(SHADOW_ONLY_FAMILY)?.resolvedFontFeatures).toEqual([]);
+  });
+
+  it("makes wrong source-order and shadow-scope fusion fail the stale-table gate", () => {
+    const layered = corpus.runs.find((row) =>
+      row.fontFamily.includes(LAYERED_FAMILY) && row.fontVariantAlternates === "stylistic(fancy)")!;
+    expect(() => shapingProbePageHtml([{
+      ...layered,
+      fontFeatureValues: {
+        [LAYERED_FAMILY.toLowerCase()]: { stylistic: { fancy: [2] } },
+      },
+    }])).toThrow(/stale font-feature-values row/);
+
+    const shadow = corpus.runs.find((row) =>
+      row.fontFamily.includes(SHADOW_FAMILY) && row.fontVariantAlternates === "stylistic(fancy)")!;
+    expect(() => shapingProbePageHtml([{
+      ...shadow,
+      fontFeatureValues: {
+        [SHADOW_FAMILY.toLowerCase()]: { stylistic: { fancy: [2] } },
+      },
+    }])).toThrow(/stale font-feature-values row/);
+  });
+
+  it("matches Chromium's live layered winner and rejects the source-order mutation", async () => {
+    await page.setContent(fixture, { waitUntil: "load" });
+    await page.evaluate(() => document.fonts.ready);
+    const alias = await page.locator("#layered-alias").screenshot();
+    const direct = await page.locator("#layered-direct").screenshot();
+    const sourceOrder = await page.locator("#layered-source-order").screenshot();
+    expect(alias.equals(direct)).toBe(true);
+    expect(alias.equals(sourceOrder)).toBe(false);
+  });
+
+  it("matches Chromium's live document-only shadow winner and inert shadow-only rule", async () => {
+    await page.setContent(fixture, { waitUntil: "load" });
+    await page.evaluate(() => document.fonts.ready);
+    const shadow = page.locator("#shadow-host");
+    const documentAlias = await shadow.locator("#shadow-document").screenshot();
+    const documentDirect = await shadow.locator("#shadow-document-direct").screenshot();
+    const shadowLocalMutation = await shadow.locator("#shadow-document-local").screenshot();
+    const shadowOnly = await shadow.locator("#shadow-only").screenshot();
+    const shadowOnlyNormal = await shadow.locator("#shadow-only-normal").screenshot();
+    expect(documentAlias.equals(documentDirect)).toBe(true);
+    expect(documentAlias.equals(shadowLocalMutation)).toBe(false);
+    expect(shadowOnly.equals(shadowOnlyNormal)).toBe(true);
   });
 
   it.each(CASES)("makes Chromium's %s alias identical to its low-level feature list", async (css, features) => {

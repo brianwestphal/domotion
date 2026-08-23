@@ -33,6 +33,8 @@
 //      `font` shorthand, since `rule.style.fontFamily` reflects it). font-family
 //      inherits, so a declaration on ANY ancestor makes the element non-initial.
 
+import { parseCssFontFamilyEntries } from "../../font-family-stack.js";
+
 // CSS generic-family keywords (+ the -webkit- / ui- forms Blink recognizes).
 // A computed first-family equal to one of these is a DECLARED or UA generic,
 // never the concrete standard initial value — so it is not this case.
@@ -48,28 +50,90 @@ export const createFontFamilyDefault = () => {
   // from several documents in one capture; consulting only the top document's
   // sheets makes an inherited iframe rule look like the UA default.
   const selectorsByDocument = new WeakMap();
-  const collect = (cssRules, familySelectors) => {
+  const splitSelectorList = (selectorText) => {
+    const selectors = [];
+    let token = '', quote = '', square = 0, round = 0;
+    for (let index = 0; index < selectorText.length; index++) {
+      const ch = selectorText[index];
+      if (ch === '\\') {
+        token += ch;
+        if (index + 1 < selectorText.length) token += selectorText[++index];
+        continue;
+      }
+      if (quote !== '') {
+        token += ch;
+        if (ch === quote) quote = '';
+        continue;
+      }
+      if (ch === '"' || ch === "'") { quote = ch; token += ch; continue; }
+      if (ch === '[') square++;
+      else if (ch === ']') square = Math.max(0, square - 1);
+      else if (ch === '(') round++;
+      else if (ch === ')') round = Math.max(0, round - 1);
+      if (ch === ',' && square === 0 && round === 0) {
+        if (token.trim() !== '') selectors.push(token.trim());
+        token = '';
+      } else token += ch;
+    }
+    if (token.trim() !== '') selectors.push(token.trim());
+    return selectors;
+  };
+  const pseudoNames = ['before', 'after', 'first-letter', 'first-line', 'placeholder', 'file-selector-button'];
+  const pseudoHostSelector = (selector, pseudoName) => {
+    const lower = selector.toLowerCase();
+    let quote = '', square = 0, round = 0;
+    for (let index = 0; index < selector.length; index++) {
+      const ch = selector[index];
+      if (ch === '\\') { index++; continue; }
+      if (quote !== '') { if (ch === quote) quote = ''; continue; }
+      if (ch === '"' || ch === "'") { quote = ch; continue; }
+      if (ch === '[') { square++; continue; }
+      if (ch === ']') { square = Math.max(0, square - 1); continue; }
+      if (ch === '(') { round++; continue; }
+      if (ch === ')') { round = Math.max(0, round - 1); continue; }
+      if (square !== 0 || round !== 0 || ch !== ':') continue;
+      const double = selector[index + 1] === ':';
+      const start = index + (double ? 2 : 1);
+      if (!lower.startsWith(pseudoName, start)) continue;
+      const end = start + pseudoName.length;
+      if (end < selector.length && /[-_a-z0-9]/i.test(selector[end])) continue;
+      // Legacy single-colon spelling exists only for CSS2 pseudos.
+      if (!double && !['before', 'after', 'first-letter', 'first-line'].includes(pseudoName)) continue;
+      return `${selector.slice(0, index)}${selector.slice(end)}`.trim() || '*';
+    }
+    return null;
+  };
+  const collect = (cssRules, familySelectors, pseudoFamilyRules) => {
     if (cssRules == null) return;
     for (let i = 0; i < cssRules.length; i++) {
       const rule = cssRules[i];
       if (rule == null) continue;
       const sel = rule.selectorText;
       if (typeof sel === "string" && rule.style != null && rule.style.fontFamily !== "") {
-        familySelectors.push(sel);
+        for (const selector of splitSelectorList(sel)) {
+          const pseudo = pseudoNames.map((name) => ({ name, hostSelector: pseudoHostSelector(selector, name) }))
+            .find((candidate) => candidate.hostSelector != null);
+          if (pseudo != null) {
+            pseudoFamilyRules.push({ pseudoName: pseudo.name, hostSelector: pseudo.hostSelector, value: rule.style.fontFamily });
+          } else {
+            familySelectors.push(selector);
+          }
+        }
       }
       // Recurse into @media / @supports / grouping rules.
-      if (rule.cssRules != null && rule.cssRules.length > 0) collect(rule.cssRules, familySelectors);
+      if (rule.cssRules != null && rule.cssRules.length > 0) collect(rule.cssRules, familySelectors, pseudoFamilyRules);
     }
   };
   const selectorsFor = (doc) => {
     const cached = selectorsByDocument.get(doc);
     if (cached != null) return cached;
-    const familySelectors = [];
+    const familySelectors = [], pseudoFamilyRules = [];
     for (let i = 0; i < doc.styleSheets.length; i++) {
-      try { collect(doc.styleSheets[i].cssRules, familySelectors); } catch (e) { /* CORS — skip */ }
+      try { collect(doc.styleSheets[i].cssRules, familySelectors, pseudoFamilyRules); } catch (e) { /* CORS — skip */ }
     }
-    selectorsByDocument.set(doc, familySelectors);
-    return familySelectors;
+    const result = { familySelectors, pseudoFamilyRules };
+    selectorsByDocument.set(doc, result);
+    return result;
   };
 
   // Form controls carry a UA `font: -webkit-small-control` (a CONCRETE family,
@@ -102,12 +166,9 @@ export const createFontFamilyDefault = () => {
   // rather than an author-declared or UA-generic family.
   const familyIsUADefault = (el, computedFontFamily) => {
     if (typeof computedFontFamily !== "string" || computedFontFamily === "") return false;
-    const familySelectors = selectorsFor(el.ownerDocument || document);
+    const { familySelectors } = selectorsFor(el.ownerDocument || document);
     // (1) concrete-name test on the first family.
-    let first = computedFontFamily.split(",")[0].trim();
-    if ((first.charCodeAt(0) === 34 || first.charCodeAt(0) === 39)) {
-      first = first.slice(1, -1); // strip surrounding quotes
-    }
+    const first = parseCssFontFamilyEntries(computedFontFamily)[0]?.name ?? "";
     if (first === "" || GENERIC_FAMILY_KEYWORDS[first.toLowerCase()] === 1) return false;
     // (2) no author font-family on self or any ancestor (font-family inherits).
     let n = el;
@@ -118,5 +179,24 @@ export const createFontFamilyDefault = () => {
     return true;
   };
 
-  return { familyIsUADefault };
+  // `getComputedStyle(host, pseudo)` cannot distinguish inherited kStandard
+  // from an authored declaration of the same concrete settings face. Join the
+  // pseudo back to matching author rules before inheriting the host sentinel.
+  const pseudoFamilyIsAuthored = (el, pseudo) => {
+    const pseudoName = String(pseudo || '').replace(/^:+/, '').toLowerCase();
+    if (pseudoName === '') return false;
+    const { pseudoFamilyRules } = selectorsFor(el.ownerDocument || document);
+    for (const rule of pseudoFamilyRules) {
+      if (rule.pseudoName !== pseudoName) continue;
+      let matches = false;
+      try { matches = el.matches(rule.hostSelector); } catch (e) { /* unsupported selector */ }
+      if (!matches) continue;
+      const value = String(rule.value || '').trim().toLowerCase();
+      if (value !== '' && value !== 'inherit' && value !== 'unset'
+          && value !== 'initial' && value !== 'revert' && value !== 'revert-layer') return true;
+    }
+    return false;
+  };
+
+  return { familyIsUADefault, pseudoFamilyIsAuthored };
 };

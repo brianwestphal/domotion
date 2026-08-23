@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5qjet82mdew7kf",
+          "message": {
+            "text": "This collector deliberately models Blink current ownership, including its known shadow-scoping limitation. ScopedStyleResolver returns before storing non-document TreeScope rules and CSSFontSelector consults the document resolver, so document aliases affect shadow text while conflicting or shadow-only aliases are ignored. Active document sheets share one canonical postorder before the per-alias fusion helper runs.",
+            "markdown": "This collector deliberately models Blink current ownership, including its known shadow-scoping limitation. ScopedStyleResolver returns before storing non-document TreeScope rules and CSSFontSelector consults the document resolver, so document aliases affect shadow text while conflicting or shadow-only aliases are ignored. Active document sheets share one canonical postorder before the per-alias fusion helper runs."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/font-feature-values.ts"
+                },
+                "region": {
+                  "startLine": 107,
+                  "endLine": 155,
+                  "snippet": {
+                    "text": "  const visitRules = (rules, parentLayer) => {\n    if (rules == null) return;\n    for (const rule of Array.from(rules)) {\n      const kind = rule.constructor.name;\n      if (kind === \"CSSLayerStatementRule\") {\n        for (const name of Array.from(rule.nameList || [])) addLayer(parentLayer, name);\n        continue;\n      }\n      if (kind === \"CSSLayerBlockRule\") {\n        visitRules(rule.cssRules, addLayer(parentLayer, rule.name || \"\"));\n        continue;\n      }\n      if (kind === \"CSSImportRule\") {\n        if (!mediaMatches(rule.media?.mediaText) || !supportsMatches(rule.supportsText)) continue;\n        const importLayer = rule.layerName == null\n          ? parentLayer : addLayer(parentLayer, rule.layerName || \"\");\n        try { visitRules(rule.styleSheet?.cssRules, importLayer); } catch { /* cross-origin import */ }\n        continue;\n      }\n      if (kind === \"CSSMediaRule\" && !mediaMatches(rule.media?.mediaText || rule.conditionText)) continue;\n      if (kind === \"CSSSupportsRule\" && !supportsMatches(rule.conditionText)) continue;\n      if (typeof rule.fontFamily === \"string\" && rule.stylistic != null) {\n        readFeatureRule(rule, parentLayer);\n      } else if (rule.cssRules != null) {\n        // Blink threads @scope and @container ownership into style rules, but\n        // FontFeatureValuesStorage itself is still document-global.\n        visitRules(rule.cssRules, parentLayer);\n      }\n    }\n  };\n\n  const sheets = [...Array.from(doc.styleSheets), ...Array.from(doc.adoptedStyleSheets || [])];\n  for (const sheet of sheets) {\n    if (sheet.disabled || !mediaMatches(sheet.media?.mediaText)) continue;\n    try { visitRules(sheet.cssRules, rootLayer); } catch { /* cross-origin sheet */ }\n  }\n\n  let nextOrder = 0;\n  const assignPostorder = (layer) => {\n    for (const child of layer.children) assignPostorder(child);\n    if (layer !== rootLayer) layer.order = nextOrder++;\n  };\n  assignPostorder(rootLayer);\n\n  return fuseFontFeatureValueRules(pending.map(({ fontFamily, layer, table }) => ({\n    fontFamily,\n    layerOrder: layer === rootLayer ? IMPLICIT_OUTER_LAYER_ORDER : layer.order,\n    table,\n  })));"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/font-feature-values-cascade.ts"
+                },
+                "region": {
+                  "startLine": 47
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2513"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b1ec0e57e41412d63646d655fe15ab1f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "4098f14e9d38964f7882703ee9c07a73a337a899",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

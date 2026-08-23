@@ -8,6 +8,7 @@ import type {
   BackdropEffectNeutralization,
   BackdropRootReason,
 } from "./backdrop-effect-space.js";
+import type { CapturedFontFamilyStack } from "../font-family-stack.js";
 
 export type BackdropCompositeConsumedEffect = "filter" | "clip-path" | "mask" | "mix-blend-mode";
 
@@ -104,6 +105,8 @@ export interface TextSegment {
    *  with `::before { content: '\\e87a' }` — the icon glyph routes through
    *  the icon webfont, not the parent element's body font). DM-513. */
   fontFamily?: string;
+  /** Structured Blink family list; authoritative over the legacy string. */
+  fontFamilyStack?: CapturedFontFamilyStack;
   /** Override font-variant (e.g. ::first-line { font-variant: small-caps }).
    *  When 'small-caps', renderer applies the OpenType `smcp` feature so
    *  lowercase letters shape as small uppercase forms — Chrome paints them
@@ -411,6 +414,7 @@ export interface CapturedTextPaintGeometry {
 /** Browser-computed face and line metrics retained with a generated pseudo. */
 export interface CapturedPseudoTypography {
   fontFamily: string;
+  fontFamilyStack?: CapturedFontFamilyStack;
   fontSize: number;
   paintFontSize: number;
   fontWeight: string;
@@ -982,6 +986,7 @@ export interface CapturedStyles {
     paddingTop?: number;
     fontSize?: number;
     fontFamily?: string;
+    fontFamilyStack?: CapturedFontFamilyStack;
     fontWeight?: string;
     fontStyle?: string;
     /** Canvas FontMetrics ascent for the resolved option font. */
@@ -1056,6 +1061,7 @@ export interface CapturedStyles {
     textWidth: number;
     fontSize: number;
     fontFamily: string;
+    fontFamilyStack?: CapturedFontFamilyStack;
     fontWeight: string;
     fontStyle: string;
     fontAscent: number;
@@ -1077,6 +1083,7 @@ export interface CapturedStyles {
     textSegments: TextSegment[];
     fontSize: number;
     fontFamily: string;
+    fontFamilyStack?: CapturedFontFamilyStack;
     fontWeight: string;
     fontStyle: string;
     fontAscent: number;
@@ -1202,6 +1209,8 @@ export interface CapturedStyles {
   /** Blink platform matching/metrics size after effective zoom, before transforms. */
   fontComputedSize?: string;
   fontFamily: string;
+  /** Structured Blink family list; authoritative over the legacy string. */
+  fontFamilyStack?: CapturedFontFamilyStack;
   fontWeight: string;
   /** 'italic' | 'oblique' | 'normal' — drives the SF Pro slnt axis in
    *  text-to-path so <em>, <i>, [style=font-style:italic] etc. render
@@ -1218,7 +1227,7 @@ export interface CapturedStyles {
   fontFeatureSettings: string;
   /** Computed font-variant-alternates syntax. */
   fontVariantAlternates?: string;
-  /** Author @font-feature-values aliases, keyed by normalized family name. */
+  /** Effective Blink-fused @font-feature-values aliases, keyed by normalized family name. */
   fontFeatureValues?: Record<string, {
     annotation?: Record<string, number[]>;
     ornaments?: Record<string, number[]>;
@@ -2078,6 +2087,9 @@ export interface CapturedElement {
   placeholderFontStyle?: string;
   /** Computed ::placeholder font-weight. Set when isPlaceholderText. */
   placeholderFontWeight?: string;
+  /** Computed ::placeholder family and its structured Blink list. */
+  placeholderFontFamily?: string;
+  placeholderFontFamilyStack?: CapturedFontFamilyStack;
   /** Legacy serialized-tree compatibility. Current textarea and vertical-text
    * captures use vector line/run geometry and never set this field. */
   elementRaster?: { x: number; y: number; width: number; height: number; dataUri?: string };

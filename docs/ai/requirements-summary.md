@@ -443,9 +443,16 @@ they describe (see `CLAUDE.md` "Documentation"):
   The DirectWrite helper now transports raw selected-face OS/2 typo metrics for
   `under`; integer solid snaps, wavy DPR-1 paint bounds, and patterned edge
   alpha are classified without changing the 0.2/0.3/0.9 envelopes. The
-  workflow retains exact fingerprinted reports; vertical writing's separate central-baseline and
-  script-sensitive side transcription is tracked rather than hidden by an
-  envelope. DM-2501 (doc 200) additionally
+  workflow retains exact fingerprinted reports. DM-2514 closes vertical
+  writing through the same shared line-relative emitter plus a dedicated
+  central-baseline resolver: locale-derived Kana/Hangul versus other-script
+  sides, semantic underline/overline flip, central em-edge offsets, target
+  UsedFont ownership for propagated declarations, and upright-glyph skip-ink
+  suppression, including the source distinction between `auto` exclusions and
+  `all` intercepts. Its independent 26-row logical oracle has ten destructive
+  controls; a separately classified live Chromium lane authenticates 16/16
+  sides at coherent DPR 1/4. Neither lane changes a raster envelope. DM-2501
+  (doc 200) additionally
   binds Chrome paint and Domotion capture to one DPR-qualified Blink fragment
   state: the original Linux arm64 run compared DPR 4 with DPR 1 and produced
   a false uniform `+1px`. Coherent DPR-1/DPR-4 regressions and the native-arm64
@@ -545,16 +552,23 @@ they describe (see `CLAUDE.md` "Documentation"):
   explicit and restored in `finally`; environment invalidation now also expires
   the memoized menu family, with a stale-before/fresh-after discriminator.
 - **Resolved keys do not own Blink's generic-family semantic (font-resolution
-  diagram §7, doc 206)** — **Windows hardcoded stage corrected.**
+  diagram §§3/7, doc 206)** — **Windows hardcoded and common-Skia terminal
+  stages corrected.**
   Blink preserves the rightmost enum-bearing generic in `FontDescription`
   independently of the concrete selected family. Domotion now derives that
   semantic once from the unresolved stack, carries it through fallback requests,
   and keys the OS fallback memo by normalized declared head plus node kind. A
   20-row Arabic/Hebrew source/production discriminator runs
   forward and reverse on macOS/Linux/Windows, requires exact candidate order
-  plus one CDP-painted glyph, and uses no pixel threshold. The Windows-routing
-  common-Skia-terminal gap and subsequent strict-gate promotion remain separate
-  follow-ups in doc 206.
+  plus one CDP-painted glyph, and uses no pixel threshold. When family/settings
+  selection exhausts, the common-Skia terminal now asks the descriptor's legacy
+  generic first (or unnamed for none/system-ui/math), keys only that terminal
+  result by the source-selected family, and leaves the concrete face/style cache
+  generic-agnostic. A repository-owned forward/reverse family-exhaustion suite
+  covers named Courier, monospace, serif, system-ui, math, and non-occupying
+  controls; its shaped U+E000 mutation distinguishes first-candidate `.notdef`
+  from a covering monospace last-resort face without host snapshots or raster
+  assertions. Strict-gate promotion remains the separate follow-up in doc 206.
 - **Family-match CI gates (docs 110/111, DM-1953)** — **Shipped (awaiting
   first-run baselines).** Regression-relative against env-keyed baseline SETS
   (`tools/family-match-baseline.ts`; one entry per environment fingerprint in
@@ -1547,13 +1561,14 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   12 agree-exact). Two properties that *are* selection
   inputs — `font-variant-alternates` and `font-variant-emoji`, both in the
   cache key — are modeled end to end. Doc 204 closes the shaping
-  corpus's named-alternate blind spot: it now harvests ordinary document-scoped
-  `@font-feature-values` aliases, retains one authenticated data-URL webfont,
-  re-emits both into environment-partitioned Chrome probes, and records exact
-  resolved feature lists plus complete HarfBuzz cluster records. A pinned WPT
-  font proves all six named functions against direct-feature and missing-rule
-  mutations without a pixel tolerance; layered/shadow-scoped fusion remains an
-  explicit refusal. Doc 205 extends the shaping evidence to the roughly
+  corpus's named-alternate blind spot: it now harvests `@font-feature-values`
+  aliases with Blink's per-key cascade-layer postorder and current
+  document-only TreeScope boundary, retains one authenticated data-URL webfont,
+  re-emits the effective table into environment-partitioned Chrome probes, and
+  records exact resolved feature lists plus complete HarfBuzz cluster records.
+  A pinned WPT font proves all six named functions against direct-feature,
+  layer/source-order, shadow-scope, and missing-rule mutations without a pixel
+  tolerance. Doc 205 extends the shaping evidence to the roughly
   312,822-run Unicode corpus through deterministic SHA-256 sharding. Pull
   requests gate a bounded representative profile on macOS/Linux/Windows;
   scheduled and manual runs cover eight exhaustive shards per platform.
@@ -2152,3 +2167,14 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
 
 <!-- Composed parity corpus -->
 - The composed integration corpus is **shipped** ([doc 183](../183-composed-metamorphic-parity-corpus.md)). Seven repository visual rows and one pinned html-test page cross multilingual fallback/bidi with flex/grid, controls with responsive fragmentation, gradient/mask/clip paint with stacking, SVG effects, zoom/transforms, same-origin iframe recursion, and dynamic canvas pixels frozen at capture. A live Chromium E2E leg proves the neutral-wrapper, equivalent-syntax, node-split, translation, scale, and DOM-order relations actually move or remain invariant as declared; the visual leg launches a fresh process per page so global cache history cannot become a hidden fixture-order axis. A hard native macOS/Linux/Windows workflow builds each platform resolver helper, records the producer fingerprint, and uploads source/SVG/raster/diff evidence. The primary macOS calibration is exact on all seven rows (zero regions and zero changed coverage).
+
+<!-- DM-2518 -->
+- Captured font-family ownership is **structured and source-semantic**
+  ([doc 213](../213-structured-font-family-stack.md)). Ordinary, generated,
+  first-letter/first-line, line-clamp, placeholder, listbox, and file text must
+  consume one decoded list of Blink `family-name`/`generic-family` nodes plus
+  the independent rightmost legacy generic. Quoted commas, CSS escapes, quoted
+  generic-looking literals, inherited kStandard, and an authored same-face
+  pseudo are exact logical controls. The legacy string is only an old-tree
+  fallback; selected face keys must not reconstruct the semantics. This
+  contract adds no pixel tolerance or font-name snapshot.

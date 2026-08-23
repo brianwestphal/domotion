@@ -35,6 +35,11 @@
 // candidate referenced by direct family name (which does match installed
 // system fonts). Whichever width matches is the one Chrome resolved.
 
+import {
+  captureFontFamilyStack,
+  serializeCapturedFontFamilyStack,
+} from "../../font-family-stack.js";
+
 export const createFontMetrics = () => {
   const metricsCache = new Map();
   const localFaceMap = new Map();
@@ -97,16 +102,15 @@ export const createFontMetrics = () => {
 
   const substituteAliasedFamilies = (ff) => {
     if (localFaceMap.size === 0) return ff;
-    const parts = ff.split(',').map((s) => s.trim());
+    const stack = captureFontFamilyStack(ff);
     let changed = false;
-    const out = parts.map((p) => {
-      const bare = p.replace(/^["']|["']$/g, '').toLowerCase();
-      const local = localFaceMap.get(bare);
-      if (local == null) return p;
+    const entries = stack.entries.map((entry) => {
+      const local = localFaceMap.get(entry.name.toLowerCase());
+      if (local == null) return entry;
       changed = true;
-      return /\s/.test(local) ? '"' + local + '"' : local;
+      return { name: local, type: 'family-name' };
     });
-    return changed ? out.join(', ') : ff;
+    return changed ? serializeCapturedFontFamilyStack({ ...stack, entries }) : ff;
   };
 
   const measureFontMetrics = (cs, fontSizeOverride) => {

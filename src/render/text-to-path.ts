@@ -3510,6 +3510,14 @@ export interface DecorationStyleOptions {
    *  when the face has no usable OS/2 typo metrics
    *  (`platform/fonts/simple_font_data.cc:384-388`). */
   fontDescent?: number;
+  /** Baseline used by `TextDecorationOffset`. Vertical mixed/upright text uses
+   *  Blink's central baseline; horizontal and sideways typography use the
+   *  alphabetic baseline. The default preserves the horizontal contract. */
+  baselineType?: "alphabetic" | "central";
+  /** `TextDecorationInfo::ResolveDecorationAt` flips underline/overline when
+   *  a central-baseline underline resolves to the line-over side. Besides
+   *  swapping the line bits, Blink changes the two em-edge offset rules. */
+  flipUnderlineAndOverline?: boolean;
 }
 
 /** `LayoutUnit::FromFloatRound` — round to the nearest 1/64 CSS px. */
@@ -3615,7 +3623,10 @@ export function getDecorationMetrics(
   decoration: DecorationStyleOptions = {},
 ): DecorationMetrics {
   const { fontFamily, fontSize, fontStyle, fontStretch, variationSettings } = fontOptions;
-  const { thicknessOverride, underlineOffsetCss, underlinePositionCss, lengthScale = 1 } = decoration;
+  const {
+    thicknessOverride, underlineOffsetCss, underlinePositionCss, lengthScale = 1,
+    baselineType = "alphabetic", flipUnderlineAndOverline = false,
+  } = decoration;
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
   const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretchPercent(fontStretch), fontOptions.lang);
@@ -3653,7 +3664,21 @@ export function getDecorationMetrics(
   // `left`/`right` resolve to auto.
   const posTokens = (underlinePositionCss ?? "").trim().toLowerCase().split(/\s+/);
   let underlineTop: number;
-  if (posTokens.includes("under")) {
+  if (baselineType === "central") {
+    // Central-baseline metrics are source-defined: FloatAscent is half the
+    // font height and NormalizedTypoDescent is half the used em. Once vertical
+    // resolution reaches the underline branch its position is kUnder. If the
+    // lines were flipped, this underline came from an original overline and
+    // therefore uses Blink's empty/auto offset rather than the author offset.
+    const centralAscent = (ascF + descF) / 2;
+    // `NormalizedTypoAscentAndDescent(kCentralBaseline)` first rounds the em
+    // to LayoutUnit and THEN integer-divides its raw 1/64 value. An odd raw
+    // em gives ascent the extra 1/64, and either parity discards pre-rounding
+    // residue; using `fontSize / 2` loses that staging.
+    const centralDescent = Math.trunc(Math.round(fontSize * 64) / 2) / 64;
+    const centralExtra = flipUnderlineAndOverline ? 0 : extra;
+    underlineTop = Math.floor(LU(centralAscent + centralDescent) + LU(centralExtra)) + 1;
+  } else if (posTokens.includes("under")) {
     // `ComputeUnderlineOffsetForUnder` with BottomOfEmHeight
     // (`text_decoration_offset.cc:52-89,112-118`): the LayoutUnit sum is
     // floored, then +1 on the line-under side.
@@ -3672,9 +3697,28 @@ export function getDecorationMetrics(
     underlineTop = Math.trunc(ascI + gap + roundHalfAwayFromZero(extra));
   }
 
-  // Overline — TextTop (`text_decoration_offset.cc:52-89`;
-  // `VerticalPosition(TextTop)` = int Ascent, `simple_font_data.cc:417-424`).
-  const overlineTop = Math.floor(LU(ascF - ascI)) - Math.floor(t);
+  // Overline — `ComputeOverlineLineData`. Alphabetic and unflipped central
+  // baselines use TextTop and ignore text-underline-offset. A flipped central
+  // underline uses TopOfEmHeight and DOES carry the author's offset, negated
+  // on the line-over side (`text_decoration_info.cc:359-379` and
+  // `text_decoration_offset.cc:52-89`).
+  let overlineTop: number;
+  if (baselineType === "central") {
+    const centralFloatAscent = (ascF + descF) / 2;
+    if (flipUnderlineAndOverline) {
+      const normalizedCentralHeight = LU(fontSize);
+      const normalizedCentralDescent = Math.trunc(Math.round(fontSize * 64) / 2) / 64;
+      const normalizedCentralAscent = normalizedCentralHeight - normalizedCentralDescent;
+      overlineTop = Math.floor(LU(centralFloatAscent - normalizedCentralAscent) - LU(extra))
+        - 1 - Math.floor(t);
+    } else {
+      const integerHeight = Math.round(ascF) + Math.round(descF);
+      const centralIntAscent = integerHeight - Math.trunc(integerHeight / 2);
+      overlineTop = Math.floor(LU(centralFloatAscent - centralIntAscent)) - Math.floor(t);
+    }
+  } else {
+    overlineTop = Math.floor(LU(ascF - ascI)) - Math.floor(t);
+  }
 
   // Line-through (`text_decoration_info.cc:385-386`), unrounded.
   const lineThroughTop = (2 * ascF) / 3 - t / 2;
@@ -4069,6 +4113,12 @@ export interface SkipInkOptions {
    *  wavy-underline skip-ink gaps mid-run even after the proportional
    *  `targetWidth` rescale (the rescale can only fix the endpoints). */
   charXOffsets?: number[];
+  /** CSS `text-decoration-skip-ink` mode. Blink's `all` path asks the shape
+   *  bloberizer for every glyph intercept, bypassing the per-character
+   *  `CanTextDecorationSkipInk` exclusions used by `auto`. Upright glyph
+   *  blobs in vertical text are still excluded by the caller, matching
+   *  `Font::GetTextIntercepts` (`font.cc:147-169`, rev 7d859f27). */
+  skipInkMode?: "auto" | "all";
 }
 
 export function computeSkipInkGaps(
@@ -4077,7 +4127,10 @@ export function computeSkipInkGaps(
   skipInk: SkipInkOptions = {},
 ): Array<[number, number]> {
   const { fontFamily, fontSize, fontStyle, fontStretch, variationSettings, features } = fontOptions;
-  const { decorationCenterYRel = 0, decorationThickness = 1, interceptPad, targetWidth, charXOffsets } = skipInk;
+  const {
+    decorationCenterYRel = 0, decorationThickness = 1, interceptPad,
+    targetWidth, charXOffsets, skipInkMode = "auto",
+  } = skipInk;
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
   const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretchPercent(fontStretch), fontOptions.lang);
@@ -4119,7 +4172,7 @@ export function computeSkipInkGaps(
     // them do not. The character is the glyph's own source character, which is
     // why this is read at `charCursor` rather than from the run.
     const srcCp = text.codePointAt(charCursor);
-    const range = srcCp != null && !canTextDecorationSkipInk(srcCp)
+    const range = skipInkMode !== "all" && srcCp != null && !canTextDecorationSkipInk(srcCp)
       ? null
       : glyphPathIntercepts(glyph.path, fkGlyphX, scale, yTop, yBot);
     if (range != null) {

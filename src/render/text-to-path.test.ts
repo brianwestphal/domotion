@@ -3024,6 +3024,31 @@ describe("getDecorationMetrics: Blink's transcribed decoration rules (Chromium r
     expect(getDecorationMetrics(base, { underlineOffsetCss: "6px", fontAscent: 15 }).overlineTop).toBe(-1);
   });
 
+  it("uses central half-height/em metrics and preserves flip-specific offset ownership", () => {
+    const central = { baselineType: "central" as const, underlinePositionCss: "under", fontAscent: 16.4, fontDescent: 4.2 };
+    const plain = getDecorationMetrics({ ...base, fontSize: 20 }, central);
+    // FloatAscent(central)=20.6/2=10.3; normalized central descent=20/2.
+    // floor(LU(10.3+10))+1 = 21. TextTop uses integer central ascent 10.
+    expect(plain.underlineTop).toBe(21);
+    expect(plain.overlineTop).toBe(-2);
+
+    const underWithOffset = getDecorationMetrics(
+      { ...base, fontSize: 20 }, { ...central, underlineOffsetCss: "3px" },
+    );
+    expect(underWithOffset.underlineTop).toBe(24);
+    expect(underWithOffset.overlineTop).toBe(-2); // ordinary overline ignores the offset
+
+    const flipped = getDecorationMetrics(
+      { ...base, fontSize: 20 },
+      { ...central, underlineOffsetCss: "3px", flipUnderlineAndOverline: true },
+    );
+    // Effective underline came from an original overline and drops the author
+    // offset; effective overline came from the underline and uses TopOfEm,
+    // the negated 3px offset, -1 line-over gap, and floor(thickness=2).
+    expect(flipped.underlineTop).toBe(21);
+    expect(flipped.overlineTop).toBe(-6);
+  });
+
   it("line-through top = 2·ascF/3 − t/2, unrounded (text_decoration_info.cc:385-386)", () => {
     expect(getDecorationMetrics(base, { fontAscent: 15 }).lineThroughTop).toBeCloseTo((2 * 15) / 3 - 0.8, 10);
     expect(getDecorationMetrics(base, { thicknessOverride: "5px", fontAscent: 15 }).lineThroughTop).toBeCloseTo(10 - 2.5, 10);

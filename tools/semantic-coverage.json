@@ -17,7 +17,8 @@
         "font-size/ptem",
         "lang",
         "platform-owned system-ui preference",
-        "FontDescription generic-family identity"
+        "FontDescription generic-family identity",
+        "structured captured font-family list identity"
       ],
       "states": [
         "declared face covers cluster -> declared face",
@@ -27,6 +28,8 @@
         "non-default variable coordinates -> omitted/default coordinates",
         "ptem 9 tracking -> unset ptem",
         "resolved face key aliases named/generic stacks -> retain Blink generic-family semantic",
+        "family/settings exhaustion -> descriptor-selected common-Skia initial family",
+        "computed CSS family list -> decoded typed Blink stack across all text owners",
         "helper available -> helper absent"
       ],
       "exactStates": [
@@ -36,19 +39,28 @@
         "default system-ui preference -> controlled platform preference",
         "non-default variable coordinates -> omitted/default coordinates",
         "ptem 9 tracking -> unset ptem",
-        "resolved face key aliases named/generic stacks -> retain Blink generic-family semantic"
+        "resolved face key aliases named/generic stacks -> retain Blink generic-family semantic",
+        "family/settings exhaustion -> descriptor-selected common-Skia initial family",
+        "computed CSS family list -> decoded typed Blink stack across all text owners"
       ],
       "uncoveredStates": [
         "helper available -> helper absent"
       ],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/platform/fonts",
-        "external/harfbuzz/src"
+        "external/harfbuzz/src",
+        "external/skia/src/ports"
       ],
       "productionOwners": [
         "src/capture/generic-font-probe.ts",
         "src/capture/index.ts",
         "src/capture/types.ts",
+        "src/font-family-stack.ts",
+        "src/capture/script/index.ts",
+        "src/capture/script/walker/text-segments.ts",
+        "src/render/text.ts",
+        "src/render/pseudo-fragments.ts",
+        "src/render/form-controls.ts",
         "src/capture/tree-envelope.ts",
         "src/render/font-resolution.ts",
         "src/render/element-tree-to-svg.ts",
@@ -65,6 +77,8 @@
         "tools/generic-family-preference-oracle.ts",
         "tools/system-ui-preference-route-oracle.ts",
         "tools/generic-family-semantics-audit.ts",
+        "src/font-family-stack.test.ts",
+        "tests/font-family-stack-capture.e2e.test.ts",
         "tools/linux-arm64-release-evidence.ts"
       ],
       "metamorphicTests": [
@@ -75,6 +89,8 @@
         "src/capture/tree-envelope.test.ts",
         "src/render/session-generic-overrides.test.ts",
         "src/render/captured-generic-family-ownership.test.ts",
+        "src/render/skia-last-resort-routing.test.ts",
+        "tests/cassettes/skia-last-resort-linux.json",
         "tests/generic-font-probe.e2e.test.ts",
         "tests/generic-family-preference-oracle.test.ts",
         "tests/generic-family-preference-workflow.test.ts",
@@ -86,6 +102,8 @@
         "tests/generic-family-semantics-audit.e2e.test.ts",
         "tests/generic-family-semantics-workflow.test.ts",
         ".github/workflows/generic-family-semantics-audit.yml",
+        "src/font-family-stack.test.ts",
+        "tests/font-family-stack-capture.e2e.test.ts",
         "tests/linux-arm64-release-evidence.test.ts",
         "tests/exact-shaping-control-fixtures.test.ts",
         "tests/fixtures/variable-axis/variable-axis.html",
@@ -98,7 +116,7 @@
         "tests/html-test-suite.tsx"
       ],
       "coverage": "partial",
-      "boundary": "Unified face/shaping evidence and a production per-run route ledger exist. Generic-family preferences are exact for the captured Page/tree contract: every capture re-probes live Common/script settings, serialized A/B roots render in order-independent scoped state, versioned JSON envelopes preserve authority through identity-checked descendant promotion, and DOMSnapshot supplies response-header plus closed-shadow language facts. That Settings workflow crosses pinned/full Chrome headed/headless with dynamically derived mutations and system-ui separation controls. A separate exact system-ui workflow now owns the platform path: CoreText UI handles, Linux renderer system-family preferences, and Windows menu-font metrics are joined to Domotion's live native answer under dynamically derived mutations, inventory/source fingerprints, and a stale-before/fresh-after cache discriminator, without pixels or answer snapshots. The pinned source audit and production carrier now agree before shaping: Windows hardcoded fallback consumes the descriptor generic derived once from the unresolved stack, independently of concrete face keys, and the OS memo distinguishes normalized declared heads plus node kinds. Its 20-row forward/reverse logical discriminator includes rightmost-generic plus system-ui/math non-occupying controls and does not reset between orders. DM-2517 still owns generic-sensitive Skia terminal routing and DM-2516 owns strict all-platform promotion. Isolated profile-to-WebPreferences propagation and authenticated per-target OOPIF divergence remain explicit separate boundaries; the first retained all-platform DM-2504 artifact is still required. The dispatch-only Linux arm64 gate consumes fingerprinted published helpers from a clean cache and requires exact logical plus selected visual evidence, with its first retained native run still required after integration. Source-owned Open Sans wght/wdth omission rows and HarfBuzz ptem=9-to-unset now make axes and ptem applicable independently of the installed host inventory, with complete logical-stream invariants and no raster tolerance. The renderer-route corpus is representative rather than exhaustive, and helper-absent behavior is intentionally degraded.",
+      "boundary": "Unified face/shaping evidence and a production per-run route ledger exist. Generic-family preferences are exact for the captured Page/tree contract: every capture re-probes live Common/script settings, serialized A/B roots render in order-independent scoped state, versioned JSON envelopes preserve authority through identity-checked descendant promotion, and DOMSnapshot supplies response-header plus closed-shadow language facts. That Settings workflow crosses pinned/full Chrome headed/headless with dynamically derived mutations and system-ui separation controls. A separate exact system-ui workflow now owns the platform path: CoreText UI handles, Linux renderer system-family preferences, and Windows menu-font metrics are joined to Domotion's live native answer under dynamically derived mutations, inventory/source fingerprints, and a stale-before/fresh-after cache discriminator, without pixels or answer snapshots. The pinned source audit and production carrier now agree before shaping: Windows hardcoded fallback and the common-Skia terminal consume the descriptor generic derived once from the unresolved stack, independently of concrete face keys. OS/terminal memos distinguish only their generic-sensitive inputs; selected face/style caches remain generic-agnostic. Capture now retains one decoded typed Blink family-list record across ordinary, generated, first-letter/first-line, line-clamp, placeholder, listbox, and file text; exact quoted-comma, escape, quoted-generic, kStandard, authored-same-face, raw-string, and node-type mutations prove that no selected key or naive comma split reconstructs it. The 20-row forward/reverse logical discriminator covers rightmost-generic plus system-ui/math non-occupying controls without resetting between orders, while a repository-owned exact family-exhaustion suite covers named Courier/monospace/serif terminal selection, the description-blind mutation, and reverse terminal cache order without host snapshots or raster assertions. DM-2516 owns strict all-platform promotion. Isolated profile-to-WebPreferences propagation and authenticated per-target OOPIF divergence remain explicit separate boundaries; the first retained all-platform DM-2504 artifact is still required. The dispatch-only Linux arm64 gate consumes fingerprinted published helpers from a clean cache and requires exact logical plus selected visual evidence, with its first retained native run still required after integration. Source-owned Open Sans wght/wdth omission rows and HarfBuzz ptem=9-to-unset now make axes and ptem applicable independently of the installed host inventory, with complete logical-stream invariants and no raster tolerance. The renderer-route corpus is representative rather than exhaustive, and helper-absent behavior is intentionally degraded.",
       "featureIds": [
         "render.text",
         "fonts.glyph-helper"
@@ -597,6 +615,7 @@
         "text-decoration-style",
         "text-decoration-thickness",
         "text-underline-offset",
+        "text-underline-position",
         "text-decoration-skip-ink"
       ],
       "states": [
@@ -604,37 +623,60 @@
         "solid -> double/dotted/dashed/wavy",
         "auto -> explicit thickness",
         "skip-ink none -> auto",
-        "local -> propagated decoration"
+        "skip-ink auto -> all",
+        "position auto -> under/from-font/left/right",
+        "local -> propagated decoration",
+        "horizontal -> vertical/sideways",
+        "Latin locale -> Kana/Hangul locale",
+        "DPR 1 -> DPR 4",
+        "single-fragment -> wrapped multi-fragment"
       ],
       "exactStates": [
         "none -> line",
         "solid -> double/dotted/dashed/wavy",
         "auto -> explicit thickness",
-        "skip-ink none -> auto"
+        "skip-ink none -> auto",
+        "skip-ink auto -> all",
+        "position auto -> under/from-font/left/right",
+        "local -> propagated decoration",
+        "horizontal -> vertical/sideways",
+        "Latin locale -> Kana/Hangul locale",
+        "DPR 1 -> DPR 4"
       ],
       "uncoveredStates": [
-        "local -> propagated decoration"
+        "single-fragment -> wrapped multi-fragment"
       ],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/layout/text_decoration_offset.cc",
         "external/chromium/third_party/blink/renderer/core/paint/text_decoration_info.cc",
         "external/chromium/third_party/blink/renderer/core/paint/text_decoration_painter.cc",
         "external/chromium/third_party/blink/renderer/core/paint/text_fragment_painter.cc",
+        "external/chromium/third_party/blink/renderer/core/paint/text_painter.cc",
+        "external/chromium/third_party/blink/renderer/core/paint/line_relative_rect.cc",
+        "external/chromium/third_party/blink/renderer/platform/fonts/font.cc",
+        "external/chromium/third_party/blink/renderer/platform/fonts/shaping/shape_result_bloberizer.cc",
         "external/chromium/third_party/blink/renderer/platform/fonts/font_metrics.cc",
+        "external/chromium/third_party/blink/renderer/platform/fonts/simple_font_data.cc",
         "external/chromium/third_party/blink/renderer/platform/fonts/font_platform_data.cc",
         "external/chromium/ui/gfx/font_render_params_linux.cc"
       ],
       "productionOwners": [
         "src/render/text.ts",
+        "src/render/text-to-path.ts",
+        "src/render/vertical-text.ts",
         "src/tree-ops/decoration-propagation.ts"
       ],
       "oracles": [
         "tools/decoration-oracle.ts",
+        "tools/vertical-decoration-oracle.ts",
+        "tools/vertical-decoration-browser-oracle.ts",
         ".github/workflows/linux-arm64-release-parity.yml"
       ],
       "metamorphicTests": [
         "tests/decoration-oracle.test.ts",
         "tests/decoration-coordinate-ownership.e2e.test.ts",
+        "tests/vertical-decoration-oracle.test.ts",
+        "tests/vertical-decoration-browser-oracle.test.ts",
         "tests/linux-arm64-release-evidence.test.ts",
         "tests/linux-arm64-release-parity-workflow.test.ts",
         "src/render/skip-ink-geometry.test.ts",
@@ -644,13 +686,14 @@
         "tests/features.ts#text-decorations"
       ],
       "coverage": "partial",
-      "boundary": "Local single-fragment geometry is exact on macOS and pinned Linux arm64 with Chrome paint and capture bound to one DPR-qualified Blink state; the unchanged 0.3 CSS-px envelope rejects a one-pixel mutation. Windows and propagated wavy/multi-fragment/vertical ownership remain uncovered.",
+      "boundary": "Single-fragment horizontal geometry is exact on macOS, Linux, and Windows under coherent DPR and the unchanged 0.3 CSS-px envelope. Vertical/sideways geometry and applied-declaration propagation are source-exact in line-relative space across 26 DPR-qualified rows with ten destructive controls, including auto/all and upright-blob skip-ink; 16 live Chromium rows authenticate sides while native coverage stays separately classified. Wrapped multi-fragment ownership remains uncovered.",
       "featureIds": [
         "render.text"
       ],
       "verifiedPlatforms": [
         "darwin",
-        "linux"
+        "linux",
+        "win32"
       ]
     },
     {

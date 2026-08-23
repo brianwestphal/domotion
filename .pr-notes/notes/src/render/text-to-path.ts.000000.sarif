@@ -1493,6 +1493,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5pjwv4lcj28wfn",
+          "message": {
+            "text": "Central-baseline offsets preserve Blink fixed-point staging and flip-specific offset ownership. The em is rounded to a 1/64 LayoutUnit before raw integer halving; a flipped effective underline drops the authored offset, while the effective overline uses TopOfEmHeight and retains it with line-over sign. The logical oracle includes an integer-boundary row that fails if fontSize is simply divided before LayoutUnit rounding.",
+            "markdown": "Central-baseline offsets preserve Blink fixed-point staging and flip-specific offset ownership. The em is rounded to a 1/64 LayoutUnit before raw integer halving; a flipped effective underline drops the authored offset, while the effective overline uses TopOfEmHeight and retains it with line-over sign. The logical oracle includes an integer-boundary row that fails if fontSize is simply divided before LayoutUnit rounding."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 3667,
+                  "endLine": 3713,
+                  "snippet": {
+                    "text": "  if (baselineType === \"central\") {\n    // Central-baseline metrics are source-defined: FloatAscent is half the\n    // font height and NormalizedTypoDescent is half the used em. Once vertical\n    // resolution reaches the underline branch its position is kUnder. If the\n    // lines were flipped, this underline came from an original overline and\n    // therefore uses Blink's empty/auto offset rather than the author offset.\n    const centralAscent = (ascF + descF) / 2;\n    // `NormalizedTypoAscentAndDescent(kCentralBaseline)` first rounds the em\n    // to LayoutUnit and THEN integer-divides its raw 1/64 value. An odd raw\n    // em gives ascent the extra 1/64, and either parity discards pre-rounding\n    // residue; using `fontSize / 2` loses that staging.\n    const centralDescent = Math.trunc(Math.round(fontSize * 64) / 2) / 64;\n    const centralExtra = flipUnderlineAndOverline ? 0 : extra;\n    underlineTop = Math.floor(LU(centralAscent + centralDescent) + LU(centralExtra)) + 1;\n  } else if (posTokens.includes(\"under\")) {\n    // `ComputeUnderlineOffsetForUnder` with BottomOfEmHeight\n    // (`text_decoration_offset.cc:52-89,112-118`): the LayoutUnit sum is\n    // floored, then +1 on the line-under side.\n    const ntd = normalizedTypoDescentPx(fontSize, font, ascF, descF);\n    underlineTop = Math.floor(LU(ascF + ntd) + LU(extra)) + 1;\n  } else if (posTokens.includes(\"from-font\") && font != null && Number.isFinite(font.underlinePosition)) {\n    // `ComputeUnderlineOffsetFromFont` (`text_decoration_offset.cc:37-48`).\n    // fontkit's post value is negative below the baseline; Skia's\n    // `fUnderlinePosition` is positive below, so negate.\n    const posPx = (-font.underlinePosition * fontSize) / upem;\n    underlineTop = roundHalfAwayFromZero(ascF + posPx + extra);\n  } else {\n    // `ComputeUnderlineOffsetAuto` (`text_decoration_offset.cc:16-35`) — also\n    // the from-font fallback when the face metric is unavailable (`:103-107`).\n    const gap = offIsAuto ? Math.max(1, Math.ceil(t / 2)) : 0;\n    underlineTop = Math.trunc(ascI + gap + roundHalfAwayFromZero(extra));\n  }\n\n  // Overline — `ComputeOverlineLineData`. Alphabetic and unflipped central\n  // baselines use TextTop and ignore text-underline-offset. A flipped central\n  // underline uses TopOfEmHeight and DOES carry the author's offset, negated\n  // on the line-over side (`text_decoration_info.cc:359-379` and\n  // `text_decoration_offset.cc:52-89`).\n  let overlineTop: number;\n  if (baselineType === \"central\") {\n    const centralFloatAscent = (ascF + descF) / 2;\n    if (flipUnderlineAndOverline) {\n      const normalizedCentralHeight = LU(fontSize);\n      const normalizedCentralDescent = Math.trunc(Math.round(fontSize * 64) / 2) / 64;\n      const normalizedCentralAscent = normalizedCentralHeight - normalizedCentralDescent;\n      overlineTop = Math.floor(LU(centralFloatAscent - normalizedCentralAscent) - LU(extra))\n        - 1 - Math.floor(t);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/vertical-decoration-oracle.ts"
+                },
+                "region": {
+                  "startLine": 130
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2514"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ae6782ca61dae19fd115a8af117a58f1"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "4098f14e9d38964f7882703ee9c07a73a337a899",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
