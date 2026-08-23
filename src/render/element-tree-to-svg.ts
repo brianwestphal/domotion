@@ -5287,7 +5287,12 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
     // filtered backdrop surface; its text and children must still be emitted
     // as vectors above it. In split paint, the box phase owns the snapshot.
     if (paintBoxPhase) {
-      svgParts.push(`${indent}<image href="${backdropFilterRaster.dataUri}" x="${r(backdropFilterRaster.x)}" y="${r(backdropFilterRaster.y)}" width="${r(backdropFilterRaster.width)}" height="${r(backdropFilterRaster.height)}" preserveAspectRatio="none"/>`);
+      const image = `<image data-domotion-no-hoist="effect-surface" href="${backdropFilterRaster.dataUri}" x="${r(backdropFilterRaster.x)}" y="${r(backdropFilterRaster.y)}" width="${r(backdropFilterRaster.width)}" height="${r(backdropFilterRaster.height)}" preserveAspectRatio="none"/>`;
+      const counter = backdropFilterRaster.layerSpace?.counterTransform;
+      const mapped = counter == null
+        ? image
+        : `<g transform="matrix(${counter.map((value) => Number(value.toFixed(8))).join(" ")})">${image}</g>`;
+      svgParts.push(`${indent}${mapped}`);
     }
     paintBoxPhase = false;
   }

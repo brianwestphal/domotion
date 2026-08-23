@@ -45,10 +45,10 @@
       "oracle": "tools/layout-stage-oracle.ts",
       "sourceAudit": "audited",
       "oracleStatus": "exact-stage-gate",
-      "generatedCoverage": "default plus isolated and pairwise transitions across direction, writing mode, spacing, wrapping, synthetic traits, and transforms; neutral-wrapper, node-split, computed-style, translation, and normalized-scale metamorphic relations",
+      "generatedCoverage": "declarative complete value-pair coverage across direction, unicode-bidi, writing mode/orientation/combine, whitespace/wrapping, line and word breaking, hyphenation, tabs, spacing, ruby, emphasis, justification, synthesis, zoom, transforms, and fragmentation; neutral-wrapper, shaping-safe node-split, computed-style, translation, and normalized-scale metamorphic relations",
       "platformCoverage": ["darwin", "linux", "win32"],
-      "knownGap": "Unsupported-layout classification remains intentionally narrow; newly supported CSS text-layout states must be added to the generated axes before claiming coverage.",
-      "nextAction": "Extend the generated axes when Chromium or Domotion adds a text-layout state that changes captured character origins."
+      "knownGap": "DOM Range exposes boxes rather than Blink glyph IDs and has union-box behavior at some wrap boundaries. Paint-only emphasis remains owned by the ink stage; only live production diagnostics can classify a state unsupported.",
+      "nextAction": "Keep the declarative inventory synchronized with production and treat any ruby/combine/bidi/fragment count or placement residual as a logical mismatch, not an inferred unsupported state."
     },
     {
       "id": "macos-sfns-mask-baseline",

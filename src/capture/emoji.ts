@@ -22,6 +22,7 @@ import * as fontkit from "fontkit";
 import sharp from "sharp";
 import type { CapturedElement, CaptureWarning, TextSegment } from "./types.js";
 import { clipRectForScreenshot } from "./clip-rect.js";
+import { backdropLayerMapping, type BackdropQuad } from "./backdrop-layer-space.js";
 import { forEachElement } from "../tree-ops/for-each-element.js";
 import {
   appendBackdropRasterWarning,
@@ -527,16 +528,38 @@ export async function rasterizeBackdropFilters(
   const remainingTargets = targets.filter((target) => !coveredRootRasters.has(target.raster));
 
   let cdp: CDPSession | undefined;
-  const captureCrop = async (target: Target): Promise<{ captured: boolean; effectSpaceExact: boolean }> => {
-    const preparedEffectSpace = await prepareBackdropEffectSpace(page, target.raster);
+  const captureCrop = async (
+    target: Target,
+    targetBackendNodeId?: number,
+  ): Promise<{ captured: boolean; effectSpaceExact: boolean }> => {
+    const hasRelativeTransform = target.raster.effectSpace?.ancestors.some((ancestor) =>
+      ancestor.neutralize.includes("rotate-skew")) === true;
+    let layerMapping: ReturnType<typeof backdropLayerMapping> = null;
+    if (hasRelativeTransform && cdp != null && targetBackendNodeId != null) {
+      try {
+        const box = await cdp.send("DOM.getBoxModel", { backendNodeId: targetBackendNodeId }) as any;
+        const border = box.model?.border as number[] | undefined;
+        if (border?.length === 8) {
+          const localQuad = border.map((coordinate, index) => coordinate - (index % 2 === 0 ? viewport.x : viewport.y)) as BackdropQuad;
+          layerMapping = backdropLayerMapping(target.raster, localQuad);
+        }
+      } catch { /* Retain the transform-neutral capture route below. */ }
+    }
+    const preparedEffectSpace = await prepareBackdropEffectSpace(page, target.raster, {
+      preserveRelativeTransform: layerMapping != null,
+    });
     try {
-      const clip = clipRectForScreenshot(target.raster, viewport);
+      const clip = clipRectForScreenshot(layerMapping?.bounds ?? target.raster, viewport);
       const buf = await page.screenshot({ clip, omitBackground: true, type: "png" });
       target.raster.dataUri = `data:image/png;base64,${Buffer.from(buf).toString("base64")}`;
       target.raster.x = clip.x - viewport.x;
       target.raster.y = clip.y - viewport.y;
       target.raster.width = clip.width;
       target.raster.height = clip.height;
+      target.raster.layerSpace = layerMapping == null ? undefined : {
+        source: "blink-skia-relative-device-v1",
+        counterTransform: layerMapping.inverse,
+      };
       if (target.atomicTargetFilter) {
         target.element.backdropCompositeRaster = {
           x: target.raster.x,
@@ -638,7 +661,7 @@ export async function rasterizeBackdropFilters(
             unresolvedNodeCount++;
           }
         }
-        const captured = await captureCrop(target);
+        const captured = await captureCrop(target, plan.targetBackendNodeId);
         if (captured.captured) {
           appendBackdropRasterWarning(warnings, target.selector, unresolvedNodeCount === 0
             ? captured.effectSpaceExact

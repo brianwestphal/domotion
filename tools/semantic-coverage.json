@@ -286,7 +286,7 @@
         "tests/vertical-font-metrics.e2e.test.ts"
       ],
       "coverage": "partial",
-      "boundary": "Mixed orientation uses a handwritten Unicode range table and sideways/combine states remain explicitly unsupported.",
+      "boundary": "Sideways and text-combine use captured production geometry and participate in the generated layout matrix. Mixed orientation still uses a handwritten Unicode range table; any source-owned fragment residual remains a logical mismatch.",
       "featureIds": [
         "render.text"
       ],
@@ -340,7 +340,7 @@
         "tests/features.ts#text-multiline"
       ],
       "coverage": "partial",
-      "boundary": "The generated layout axes do not yet enumerate every line-breaking and fragmentation interaction.",
+      "boundary": "The declarative matrix enumerates and pair-covers wrapping, emergency breaking, hyphenation, and multicol fragmentation; adversarial fragment count/placement residuals remain red until the production representation agrees.",
       "featureIds": [
         "render.text"
       ],

@@ -12,70 +12,35 @@ import { chromium, type Page } from "@playwright/test";
 import { CAPTURE_SCRIPT } from "../src/capture/script.generated.js";
 import type { CapturedElement, TextSegment } from "../src/capture/types.js";
 import { fingerprintComplete, parityEnvironment } from "./parity-environment.js";
+import { cssForAssignment, generatePairwiseAssignments, layoutAxes, type LayoutAssignment } from "./layout-stage-matrix.js";
 
 const output = (() => { const i = process.argv.indexOf("--json"); return i >= 0 ? process.argv[i + 1] : undefined; })();
 const tolerance = Number((() => { const i = process.argv.indexOf("--tolerance"); return i >= 0 ? process.argv[i + 1] : "0.001"; })());
 const skipControl = process.argv.includes("--skip-negative-control");
 
-type Axis = "direction" | "writingMode" | "spacing" | "wrap" | "traits" | "transform";
 interface Fixture {
   id: string;
   css: string;
   html: string;
-  axes: Record<Axis, string>;
+  axes: LayoutAssignment;
   normalizeScale?: number;
   metamorphicGroup?: string;
 }
 interface Origin { char: string; x: number; y: number }
 interface Geometry { box: { width: number; height: number }; origins: Origin[] }
 
-const axisValues: Record<Axis, string[]> = {
-  direction: ["ltr", "rtl"],
-  writingMode: ["horizontal-tb", "vertical-rl"],
-  spacing: ["normal", "spaced"],
-  wrap: ["wide", "narrow"],
-  traits: ["regular", "synthetic"],
-  transform: ["none", "scaled"],
-};
-
-function cssFor(axes: Record<Axis, string>): string {
-  const vertical = axes.writingMode !== "horizontal-tb";
-  return [
-    "position:absolute;left:40px;top:40px",
-    axes.traits === "synthetic" ? "font:italic 700 19px/27px sans-serif" : "font:19px/27px sans-serif",
-    `direction:${axes.direction}`,
-    `writing-mode:${axes.writingMode}`,
-    axes.spacing === "spaced" ? "letter-spacing:1.25px;word-spacing:3px" : "letter-spacing:normal;word-spacing:normal",
-    vertical
-      ? `height:${axes.wrap === "narrow" ? 72 : 220}px;width:80px`
-      : `width:${axes.wrap === "narrow" ? 116 : 300}px`,
-    axes.transform === "scaled" ? "transform:scale(1.125);transform-origin:0 0" : "transform:none",
-  ].join(";");
-}
-
-// Transition coverage: the base row, every isolated non-default state, then
-// every pair of non-default axis states. This is a covering array rather than
-// the old five hand-picked examples, while remaining cheap enough for CI.
-const defaults = Object.fromEntries(Object.entries(axisValues).map(([axis, values]) => [axis, values[0]])) as Record<Axis, string>;
-const axes = Object.keys(axisValues) as Axis[];
-const matrixAssignments: Array<Record<Axis, string>> = [{ ...defaults }];
-for (const axis of axes) {
-  matrixAssignments.push({ ...defaults, [axis]: axisValues[axis][1] });
-}
-for (let i = 0; i < axes.length; i++) {
-  for (let j = i + 1; j < axes.length; j++) {
-    matrixAssignments.push({ ...defaults, [axes[i]]: axisValues[axes[i]][1], [axes[j]]: axisValues[axes[j]][1] });
-  }
-}
+const defaults = Object.fromEntries(layoutAxes.map((axis) => [axis.id, axis.values[0].id]));
+const matrixAssignments = generatePairwiseAssignments();
+const baseCss = "position:absolute;left:40px;top:40px;margin:0;padding:0;border:0;font:19px/27px sans-serif;width:168px;max-height:120px;transform-origin:0 0";
 const fixtures: Fixture[] = matrixAssignments.map((assignment, i) => ({
   id: `matrix-${String(i).padStart(2, "0")}`,
-  css: cssFor(assignment),
-  html: "office A\u00adV e\u0301 אבג 12",
+  css: `${baseCss};${cssForAssignment(assignment)}`,
+  html: "office A\u00adV e\u0301 אבג 12\tかな<ruby>漢<rt>kan</rt></ruby>",
   axes: assignment,
 }));
 
 const metaAxes = { ...defaults };
-const metaCss = cssFor(metaAxes);
+const metaCss = `${baseCss};${cssForAssignment(metaAxes)}`;
 fixtures.push(
   { id: "meta-plain", css: metaCss, html: "AV office", axes: metaAxes, metamorphicGroup: "inline-equivalence" },
   { id: "meta-neutral-wrapper", css: metaCss, html: "<span>AV office</span>", axes: metaAxes, metamorphicGroup: "inline-equivalence" },
@@ -127,7 +92,10 @@ function capturedGeometry(tree: CapturedElement[], box: { x: number; y: number }
   const visitSegment = (seg: TextSegment): void => {
     for (const entry of codePointEntries(seg.sourceText ?? seg.text)) {
       if (/^\s+$/u.test(entry.char)) continue;
-      if (seg.verticalWritingMode != null) {
+      if (seg.verticalCombineUpright) {
+        const x = seg.verticalCombineXOffsets?.[entry.start];
+        if (x != null) origins.push({ char: entry.char, x: (seg.x + x - box.x) / scale, y: (seg.y - box.y) / scale });
+      } else if (seg.verticalWritingMode != null) {
         const y = seg.yOffsets?.[entry.start];
         if (y != null) origins.push({ char: entry.char, x: (seg.x - box.x) / scale, y: (y - box.y) / scale });
       } else {
@@ -181,7 +149,7 @@ function metamorphicDelta(baseExpected: Geometry, variantExpected: Geometry, bas
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ deviceScaleFactor: 1, viewport: { width: 900, height: 700 } });
-await page.setContent(`<style>body{margin:0}.probe{margin:0;padding:0;border:0}</style>${fixtures.map((f) => `<div class="probe" id="${f.id}" style="${f.css}">${f.html}</div>`).join("")}`);
+await page.setContent(`<style>body{margin:0}.probe{margin:0;padding:0;border:0}</style>${fixtures.map((f) => `<div class="probe" lang="en" id="${f.id}" style="${f.css}">${f.html}</div>`).join("")}`);
 const chromiumVersion = browser.version();
 const records = [];
 const expectedById = new Map<string, Geometry>();
@@ -191,19 +159,28 @@ for (const fixture of fixtures) {
   const selector = `#${fixture.id}`;
   const box = await page.locator(selector).evaluate((el) => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y }; });
   const expected = await chromiumGeometry(page, selector, fixture.normalizeScale ?? 1);
-  const raw = await page.evaluate(`(${CAPTURE_SCRIPT})({sel:${JSON.stringify(selector)},vp:{x:0,y:0,width:900,height:700},cof:""})`) as { tree: CapturedElement[] };
+  const raw = await page.evaluate(`(${CAPTURE_SCRIPT})({sel:${JSON.stringify(selector)},vp:{x:0,y:0,width:900,height:700},cof:""})`) as {
+    tree: CapturedElement[];
+    warnings?: Array<{ feature?: string; detail?: string }>;
+  };
   const actual = capturedGeometry(raw.tree, box, fixture.normalizeScale ?? 1);
   expectedById.set(fixture.id, expected);
   capturedById.set(fixture.id, actual);
   const delta = geometryDelta(expected, actual);
-  if (delta > tolerance) mismatches++;
-  records.push({ id: fixture.id, axes: fixture.axes, expected, actual, maxAbsDeltaCssPx: delta, pass: delta <= tolerance });
+  const diagnosticExpected = fixture.axes.justification === "justify" || fixture.axes.justification === "justify-last";
+  const diagnosticObserved = raw.warnings?.some((warning) => warning.feature === "text-align:justify") === true;
+  const route = diagnosticExpected ? "diagnostic" : "logical";
+  const pass = diagnosticExpected ? diagnosticObserved : delta <= tolerance;
+  if (!pass) mismatches++;
+  records.push({ id: fixture.id, axes: fixture.axes, route, diagnosticObserved, expected, actual, maxAbsDeltaCssPx: delta, pass });
 }
 
-const transitionControls = axes.map((axis) => {
-  const changed = records.filter((record) => record.axes[axis] !== defaults[axis]);
+const transitionControls = layoutAxes.map((axis) => {
+  const changed = records.filter((record) => record.axes[axis.id] !== defaults[axis.id]);
   const moved = changed.filter((record) => signature(record.actual) !== signature(records[0].actual)).length;
-  return { axis, exercisedRows: changed.length, movedRows: moved, moved: moved > 0 };
+  // Paint-only axes are proved by the pixel stage; diagnostic axes are proved
+  // by the capture warning below. Neither may counterfeit a layout movement.
+  return { axis: axis.id, verdict: axis.verdict, exercisedRows: changed.length, movedRows: moved, moved: axis.verdict === "logical" ? moved > 0 : true };
 });
 const baseMeta = capturedById.get("meta-plain")!;
 const baseMetaExpected = expectedById.get("meta-plain")!;
@@ -226,7 +203,7 @@ const completeEnvironment = fingerprintComplete(environment);
 const verdict = !completeEnvironment || !movementProven ? "verdict-withheld"
   : mismatches === 0 && metamorphicAgreement ? "exact-logical-agreement" : "logical-mismatch";
 const report = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   stage: "layout",
   verdict,
   environment,
@@ -236,6 +213,7 @@ const report = {
   chromium: chromiumVersion,
   toleranceCssPx: tolerance,
   generatedRows: matrixAssignments.length,
+  declaredAxes: layoutAxes.map((axis) => ({ id: axis.id, verdict: axis.verdict, values: axis.values.map((value) => value.id), diagnosticFeature: axis.diagnosticFeature })),
   metamorphicRows: metamorphic.length,
   mismatches,
   transitionControls,

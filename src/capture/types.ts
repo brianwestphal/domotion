@@ -2125,6 +2125,16 @@ export interface CapturedElement {
     height: number;
     token?: string;
     dataUri?: string;
+    /**
+     * DM-2497: the crop was captured after Skia mapped the prior parent
+     * device into a transformed target layer. The image is consequently in
+     * final viewport space; cancel the surrounding SVG transform for this
+     * raster only while vector descendants retain their normal transform.
+     */
+    layerSpace?: {
+      source: "blink-skia-relative-device-v1";
+      counterTransform: [number, number, number, number, number, number];
+    };
     /** Private warning context consumed by the Node materialization pass. */
     selector?: string;
     /**

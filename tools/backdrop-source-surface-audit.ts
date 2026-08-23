@@ -630,7 +630,7 @@ export async function runBackdropSourceSurfaceAudit(
             && caseFacts.targetBackdropFilter !== "none"
             && caseNode != null
             && (!rasterApplicable || (mutationDiscriminates(underComparison) && mutationDiscriminates(overComparison)))
-            && (!rasterApplicable || vectorOrder.rasterBeforeTargetVector != null)
+            && (!rasterApplicable || spec.kind === "pseudo" || vectorOrder.rasterBeforeTargetVector != null)
             && (spec.kind === "pseudo" || vectorOrder.matchesSourceSiblingOrder != null);
           rows.push({
             id: spec.id,

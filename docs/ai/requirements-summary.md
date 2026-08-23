@@ -44,10 +44,14 @@ representative production-funnel gate and the broader unified report pass;
 every new assignment owner or emitter transition requires its own route case
 and independent mutation control.
 
-The doc-116 text-layout stage is an exact CI gate: a generated covering array
-compares direct Chromium `Range` origins with production-captured
-`textSegments`, proves each transition axis moves, and checks five metamorphic
-relations without cloning the browser geometry into the Domotion leg.
+The doc-116 text-layout stage is an exact CI gate: a declarative multi-valued
+covering array proves every pair across Blink's bidi, writing, wrapping,
+breaking, ruby, emphasis, justification, synthesis, zoom, transform, and
+fragmentation inputs. It compares direct Chromium `Range` geometry with
+production-captured `textSegments`, proves logical axes move, and checks five
+metamorphic relations without cloning browser geometry into the Domotion leg.
+Paint-only axes and live production diagnostics are classified separately;
+stale standalone unsupported labels are forbidden.
 
 **Doc 128 (`docs/128-chromium-unicode-decision-audit.md`) — Supported-path
 migration complete; visual validation pending.** Both native companions are the

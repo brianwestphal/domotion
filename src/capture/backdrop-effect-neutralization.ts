@@ -60,6 +60,7 @@ const rootPreservingWillChange = (neutralize: AncestorPlan["neutralize"]): strin
 export async function prepareBackdropEffectSpace(
   page: Page,
   raster: BackdropRaster,
+  options: { preserveRelativeTransform?: boolean } = {},
 ): Promise<PreparedBackdropEffectSpace> {
   if (raster.effectSpace == null) {
     return { status: "unavailable", reason: "missing-effect-space", restore: async () => undefined };
@@ -67,8 +68,12 @@ export async function prepareBackdropEffectSpace(
   const restoreToken = `dm2487-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const plans = raster.effectSpace.ancestors.map((plan) => ({
     depth: plan.depth,
-    declarations: backdropNeutralizationDeclarations(plan.neutralize),
-    preserveRoot: rootPreservingWillChange(plan.neutralize),
+    declarations: backdropNeutralizationDeclarations(options.preserveRelativeTransform
+      ? plan.neutralize.filter((effect) => effect !== "rotate-skew")
+      : plan.neutralize),
+    preserveRoot: rootPreservingWillChange(options.preserveRelativeTransform
+      ? plan.neutralize.filter((effect) => effect !== "rotate-skew")
+      : plan.neutralize),
   }));
   let prepared: "exact" | "missing-target" | "detached-ancestor";
   try {
