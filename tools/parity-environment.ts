@@ -3,7 +3,9 @@ import { execFileSync } from "node:child_process";
 import { platform, release, arch } from "node:os";
 import { platformFontKeys, shapingFaceFor } from "../src/render/font-resolution.js";
 
-function revision(repo: string, ref = "HEAD"): string {
+function revision(repo: string, ref = "HEAD", environmentKey?: string): string {
+  const supplied = environmentKey == null ? undefined : process.env[environmentKey]?.trim();
+  if (supplied != null && supplied !== "") return supplied;
   try { return execFileSync("git", ["-C", repo, "rev-parse", "--short=12", ref], { encoding: "utf8" }).trim(); }
   catch { return "unavailable"; }
 }
@@ -28,8 +30,10 @@ export function parityEnvironment(input: {
     helper: { implementation: `${process.platform}-glyph-helper`, buildRecipe: "repository-native-helper", disabled: process.env.DOMOTION_DISABLE_HELPER === "1" },
     runtimes: {
       node: process.version, icu: process.versions.icu, unicode: process.versions.unicode,
-      chromiumSource: revision("external/chromium"), harfbuzzSource: revision("external/harfbuzz"),
-      skiaPinned: revision("external/skia", "62efacd3"), icuSource: revision("external/chromium/third_party/icu"),
+      chromiumSource: revision("external/chromium", "HEAD", "DOMOTION_CHROMIUM_REVISION"),
+      harfbuzzSource: revision("external/harfbuzz", "HEAD", "DOMOTION_HARFBUZZ_REVISION"),
+      skiaPinned: revision("external/skia", "62efacd3", "DOMOTION_SKIA_REVISION"),
+      icuSource: revision("external/chromium/third_party/icu", "HEAD", "DOMOTION_ICU_SOURCE_REVISION"),
     },
     viewport: { deviceScaleFactor: input.deviceScaleFactor, zoom: input.zoom, writingMode: input.writingMode, direction: input.direction },
     corpus: { identity: input.corpusIdentity, sample: input.sampleIdentity, cacheIsolation: "new-process/new-document", resources: "inline-or-host-inventory" },

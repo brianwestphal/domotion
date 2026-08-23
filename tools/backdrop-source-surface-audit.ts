@@ -2,12 +2,12 @@
 /**
  * DM-2357 source-surface transition audit for backdrop-filter.
  *
- * This is intentionally an investigation oracle, not a release gate.  It
- * records where Blink starts a Backdrop Root, compares Chromium with the
- * current SVG consumer, and proves the comparison is sensitive to both
- * under-capture (no backdrop surface) and over-capture (the final composited
- * target crop).  Known production gaps are findings; missing evidence makes
- * the audit incomplete.
+ * This is the strict ordinary-element backdrop release gate. It records where
+ * Blink starts a Backdrop Root, compares Chromium with the current SVG
+ * consumer, and proves the comparison is sensitive to both under-capture (no
+ * backdrop surface) and over-capture (the final composited owner crop).
+ * Consumer raster phase is accepted only when exact source-owned geometry is
+ * present and every changed pixel belongs to an edge in the Chromium source.
  */
 
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -215,8 +215,8 @@ export function backdropAuditFixtureHtml(): string {
   </style></head><body><main id="stage">${cases}</main><script>for(const node of document.querySelectorAll('[data-audit-scroll]'))node.scrollTop=Number(node.getAttribute('data-audit-scroll'));</script></body></html>`;
 }
 
-interface Rect { x: number; y: number; width: number; height: number }
-interface DecodedImage { width: number; height: number; channels: number; data: Buffer }
+export interface Rect { x: number; y: number; width: number; height: number }
+export interface DecodedImage { width: number; height: number; channels: number; data: Buffer }
 
 export interface PixelComparison {
   pixels: number;
@@ -224,6 +224,19 @@ export interface PixelComparison {
   changedFraction: number;
   meanAbsoluteChannelDelta: number;
   maxChannelDelta: number;
+}
+
+export interface SourceEdgeResidual {
+  changedPixels: number;
+  sourceEdgeChangedPixels: number;
+  logicalInteriorChangedPixels: number;
+  sourceEdgeOnly: boolean;
+}
+
+export interface OwnerGeometryEvidence {
+  checkedOwners: number;
+  exactOwners: number;
+  exact: boolean;
 }
 
 async function decodePng(png: Buffer): Promise<DecodedImage> {
@@ -266,6 +279,87 @@ export function compareDecodedRegion(left: DecodedImage, right: DecodedImage, re
   };
 }
 
+function channelDeltaAt(image: DecodedImage, leftOffset: number, rightOffset: number): number {
+  let maximum = 0;
+  for (let channel = 0; channel < 4; channel++) {
+    maximum = Math.max(maximum, Math.abs(image.data[leftOffset + channel] - image.data[rightOffset + channel]));
+  }
+  return maximum;
+}
+
+function isSourceEdgePixel(source: DecodedImage, x: number, y: number): boolean {
+  const offset = (y * source.width + x) * source.channels;
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      if (dx === 0 && dy === 0) continue;
+      const adjacentX = x + dx;
+      const adjacentY = y + dy;
+      if (adjacentX < 0 || adjacentY < 0 || adjacentX >= source.width || adjacentY >= source.height) continue;
+      const adjacentOffset = (adjacentY * source.width + adjacentX) * source.channels;
+      if (channelDeltaAt(source, offset, adjacentOffset) > BACKDROP_PIXEL_CHANNEL_TOLERANCE) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Separate consumer raster phase from logical paint drift without changing the
+ * pixel thresholds. A changed pixel is a raster-floor candidate only when the
+ * Chromium source itself has a paint edge at that device pixel. New or shifted
+ * output edges therefore remain logical-interior failures.
+ */
+export function classifySourceEdgeResidual(
+  source: DecodedImage,
+  rendered: DecodedImage,
+  rect: Rect,
+  dpr: number,
+): SourceEdgeResidual {
+  if (source.width !== rendered.width || source.height !== rendered.height || source.channels !== rendered.channels) {
+    throw new Error(`image shape mismatch: ${source.width}x${source.height}x${source.channels} vs ${rendered.width}x${rendered.height}x${rendered.channels}`);
+  }
+  const x0 = Math.max(0, Math.floor(rect.x * dpr));
+  const y0 = Math.max(0, Math.floor(rect.y * dpr));
+  const x1 = Math.min(source.width, Math.ceil((rect.x + rect.width) * dpr));
+  const y1 = Math.min(source.height, Math.ceil((rect.y + rect.height) * dpr));
+  let changedPixels = 0;
+  let sourceEdgeChangedPixels = 0;
+  for (let y = y0; y < y1; y++) {
+    for (let x = x0; x < x1; x++) {
+      const offset = (y * source.width + x) * source.channels;
+      let maximum = 0;
+      for (let channel = 0; channel < 4; channel++) {
+        maximum = Math.max(maximum, Math.abs(source.data[offset + channel] - rendered.data[offset + channel]));
+      }
+      if (maximum <= BACKDROP_PIXEL_CHANNEL_TOLERANCE) continue;
+      changedPixels++;
+      if (isSourceEdgePixel(source, x, y)) sourceEdgeChangedPixels++;
+    }
+  }
+  const logicalInteriorChangedPixels = changedPixels - sourceEdgeChangedPixels;
+  return {
+    changedPixels,
+    sourceEdgeChangedPixels,
+    logicalInteriorChangedPixels,
+    sourceEdgeOnly: changedPixels > 0 && logicalInteriorChangedPixels === 0,
+  };
+}
+
+export function rasterOwnerGeometryMatchesHost(record: Rect, host: Rect): boolean {
+  return record.x === Math.max(0, Math.floor(host.x))
+    && record.y === Math.max(0, Math.floor(host.y))
+    && record.width === Math.max(1, Math.ceil(host.width))
+    && record.height === Math.max(1, Math.ceil(host.height));
+}
+
+export function unionRects(rects: readonly Rect[]): Rect | null {
+  if (rects.length === 0) return null;
+  const left = Math.min(...rects.map((rect) => rect.x));
+  const top = Math.min(...rects.map((rect) => rect.y));
+  const right = Math.max(...rects.map((rect) => rect.x + rect.width));
+  const bottom = Math.max(...rects.map((rect) => rect.y + rect.height));
+  return { x: left, y: top, width: right - left, height: bottom - top };
+}
+
 export const mutationDiscriminates = (comparison: PixelComparison): boolean =>
   comparison.maxChannelDelta >= BACKDROP_MUTATION_MIN_CHANNEL_DELTA
   && comparison.changedFraction >= BACKDROP_MUTATION_MIN_CHANGED_FRACTION;
@@ -281,9 +375,10 @@ function findByAnimId(tree: CapturedElement[], animId: string): CapturedElement 
 interface BackdropOwnerRef {
   record: { dataUri?: string };
   rect: Rect;
+  hostRect?: Rect;
   ownerCount: number;
   screenshotPasses: number;
-  source: "ordinary-boundary" | "ordinary-composite" | "generated-pseudo";
+  source: "ordinary-boundary" | "ordinary-root-composite" | "relative-effect-terminal" | "generated-pseudo";
 }
 
 function backdropOwners(tree: CapturedElement[]): BackdropOwnerRef[] {
@@ -294,9 +389,12 @@ function backdropOwners(tree: CapturedElement[]): BackdropOwnerRef[] {
       owners.push({
         record: composite,
         rect: { x: composite.x, y: composite.y, width: composite.width, height: composite.height },
+        hostRect: { x: element.x, y: element.y, width: element.width, height: element.height },
         ownerCount: composite.ownerCount,
         screenshotPasses: composite.screenshotPasses,
-        source: "ordinary-composite",
+        source: composite.source === "chromium-relative-effect-layer-v1"
+          ? "relative-effect-terminal"
+          : "ordinary-root-composite",
       });
     } else {
       const raster = element.backdropFilterRaster;
@@ -304,6 +402,7 @@ function backdropOwners(tree: CapturedElement[]): BackdropOwnerRef[] {
         owners.push({
           record: raster,
           rect: { x: raster.x, y: raster.y, width: raster.width, height: raster.height },
+          hostRect: { x: element.x, y: element.y, width: element.width, height: element.height },
           ownerCount: 1,
           screenshotPasses: 1,
           source: "ordinary-boundary",
@@ -381,6 +480,9 @@ export interface BackdropAuditRow {
   ownershipComplete: boolean;
   capturePasses: { surfaces: number; screenshots: number };
   sourceVsRendered: PixelComparison;
+  pixelEquivalent: boolean;
+  sourceEdgeResidual: SourceEdgeResidual;
+  ownerGeometry: OwnerGeometryEvidence;
   productionEquivalent: boolean;
   underCapture: { applicable: boolean; comparison: PixelComparison; discriminated: boolean };
   overCapture: { applicable: boolean; comparison: PixelComparison; discriminated: boolean };
@@ -395,13 +497,14 @@ export interface BackdropAuditRow {
 }
 
 export interface BackdropSourceSurfaceReport {
-  schemaVersion: 1;
+  schemaVersion: 2;
   sourcePins: typeof BACKDROP_SOURCE_PINS;
   producer: { chromiumVersion: string; platform: NodeJS.Platform; architecture: string };
   sourceRules: {
     backdropAndRegularFilterUseSeparateEffectSurfaces: true;
     regularFilterIsAppendedToBackdropOperations: true;
     skiaBackdropSource: "prior-parent-device";
+    consumerRasterFloorRequiresExactOwnerAndSourceEdge: true;
     nonRootTransitions: readonly ["ordinary-stacking-context", "isolation", "transform", "scroll-container", "fixed", "sticky"];
   };
   requiredFamilies: typeof BACKDROP_REQUIRED_FAMILIES;
@@ -413,6 +516,7 @@ export interface BackdropSourceSurfaceReport {
   };
   rows: BackdropAuditRow[];
   warnings: string[];
+  backdropWarnings: string[];
   blockers: string[];
   productionGaps: string[];
   strictVerdict: "source-exact" | "production-gaps" | "incomplete";
@@ -539,6 +643,7 @@ export async function runBackdropSourceSurfaceAudit(
   const chromiumVersion = browser.version();
   const rows: BackdropAuditRow[] = [];
   const warnings: string[] = [];
+  const backdropWarnings: string[] = [];
   const blockers: string[] = [];
   try {
     for (const dpr of dprs) {
@@ -561,7 +666,14 @@ export async function runBackdropSourceSurfaceAudit(
         const capture = await captureElementTreeWithWarnings(sourcePage, "#stage", {
           x: 0, y: 0, width: BACKDROP_VIEWPORT.width, height: BACKDROP_VIEWPORT.height,
         });
-        warnings.push(...capture.warnings.map((warning) => `DPR${dpr}:${typeof warning === "string" ? warning : JSON.stringify(warning)}`));
+        for (const warning of capture.warnings) {
+          const formatted = `DPR${dpr}:${typeof warning === "string" ? warning : JSON.stringify(warning)}`;
+          warnings.push(formatted);
+          const feature = typeof warning === "object" && warning != null && "feature" in warning
+            ? String((warning as { feature?: unknown }).feature ?? "")
+            : "";
+          if (feature === "backdrop-filter" || feature === "generated-pseudo-backdrop-filter") backdropWarnings.push(formatted);
+        }
 
         const svg = elementTreeToSvg(capture.tree, BACKDROP_VIEWPORT.width, BACKDROP_VIEWPORT.height);
         const underTree = cloneTree(capture.tree);
@@ -591,20 +703,37 @@ export async function runBackdropSourceSurfaceAudit(
           const owners = caseNode == null ? [] : backdropOwners([caseNode]);
           const actualRasterOwners = owners.reduce((sum, owner) => sum + owner.ownerCount, 0);
           const sourceVsRendered = compareDecodedRegion(sourceImage, renderedImage, caseFacts.rect, dpr);
-          const underComparison = compareDecodedRegion(renderedImage, underImage, caseFacts.rect, dpr);
-          const overComparison = compareDecodedRegion(renderedImage, overImage, caseFacts.rect, dpr);
+          const atomicComposite = owners.some((owner) => owner.source === "ordinary-root-composite" || owner.source === "relative-effect-terminal");
+          const mutationRect = atomicComposite ? unionRects(owners.map((owner) => owner.rect)) ?? caseFacts.rect : caseFacts.rect;
+          const underComparison = compareDecodedRegion(renderedImage, underImage, mutationRect, dpr);
+          const overComparison = compareDecodedRegion(renderedImage, overImage, mutationRect, dpr);
+          const sourceEdgeResidual = classifySourceEdgeResidual(sourceImage, renderedImage, caseFacts.rect, dpr);
+          const geometryChecks = owners.filter((owner) => owner.source !== "generated-pseudo");
+          const exactGeometryOwners = geometryChecks.filter((owner) => owner.source === "relative-effect-terminal"
+            || (owner.hostRect != null && rasterOwnerGeometryMatchesHost(owner.rect, owner.hostRect))).length;
+          const ownerGeometry: OwnerGeometryEvidence = {
+            checkedOwners: geometryChecks.length,
+            exactOwners: exactGeometryOwners,
+            exact: exactGeometryOwners === geometryChecks.length,
+          };
+          const pixelEquivalent = sourceVsRendered.changedFraction <= BACKDROP_EQUIVALENT_CHANGED_FRACTION;
+          const sourceEdgeRasterFloor = !pixelEquivalent
+            && ownerGeometry.exact
+            && ownerGeometry.checkedOwners > 0
+            && sourceEdgeResidual.sourceEdgeOnly;
+          const productionEquivalent = pixelEquivalent || sourceEdgeRasterFloor;
           const targetUri = owners[0]?.record.dataUri;
           const targetRasterAt = targetUri == null ? -1 : svg.indexOf(targetUri);
           const vectorAt = svg.indexOf(`class="anim-bd-${spec.id}-vector"`);
           const laterAt = svg.indexOf(`class="anim-bd-${spec.id}-later"`);
           const rasterApplicable = actualRasterOwners > 0;
-          const atomicComposite = owners.some((owner) => owner.source === "ordinary-composite");
           const findings: string[] = [];
           if (root?.id !== expectedRoot) findings.push(`source-root classifier resolved ${root?.id ?? "none"}, expected ${expectedRoot}`);
           if (caseFacts.targetBackdropFilter === "none") findings.push("Chromium target backdrop-filter did not activate");
           if (actualRasterOwners !== spec.expectedRasterOwners) findings.push(`serialized ${actualRasterOwners}/${spec.expectedRasterOwners} required backdrop surfaces`);
-          if (sourceVsRendered.changedFraction > BACKDROP_EQUIVALENT_CHANGED_FRACTION) {
-            findings.push(`production differs from Chromium on ${(sourceVsRendered.changedFraction * 100).toFixed(2)}% of case pixels`);
+          if (!ownerGeometry.exact) findings.push(`serialized raster geometry matches ${ownerGeometry.exactOwners}/${ownerGeometry.checkedOwners} source-owned host clips`);
+          if (!productionEquivalent) {
+            findings.push(`production differs from Chromium on ${(sourceVsRendered.changedFraction * 100).toFixed(2)}% of case pixels (${sourceEdgeResidual.logicalInteriorChangedPixels} logical-interior pixels)`);
           }
           if (rasterApplicable && !mutationDiscriminates(underComparison)) findings.push("under-capture mutation did not move output");
           if (rasterApplicable && !mutationDiscriminates(overComparison)) findings.push("over-capture mutation did not move output");
@@ -629,6 +758,7 @@ export async function runBackdropSourceSurfaceAudit(
           const evidenceComplete = root?.id === expectedRoot
             && caseFacts.targetBackdropFilter !== "none"
             && caseNode != null
+            && ownerGeometry.exact
             && (!rasterApplicable || (mutationDiscriminates(underComparison) && mutationDiscriminates(overComparison)))
             && (!rasterApplicable || spec.kind === "pseudo" || vectorOrder.rasterBeforeTargetVector != null)
             && (spec.kind === "pseudo" || vectorOrder.matchesSourceSiblingOrder != null);
@@ -649,7 +779,10 @@ export async function runBackdropSourceSurfaceAudit(
               screenshots: owners.reduce((sum, owner) => sum + owner.screenshotPasses, 0),
             },
             sourceVsRendered,
-            productionEquivalent: sourceVsRendered.changedFraction <= BACKDROP_EQUIVALENT_CHANGED_FRACTION,
+            pixelEquivalent,
+            sourceEdgeResidual,
+            ownerGeometry,
+            productionEquivalent,
             underCapture: { applicable: rasterApplicable, comparison: underComparison, discriminated: rasterApplicable && mutationDiscriminates(underComparison) },
             overCapture: { applicable: rasterApplicable, comparison: overComparison, discriminated: rasterApplicable && mutationDiscriminates(overComparison) },
             vectorOrder,
@@ -680,6 +813,7 @@ export async function runBackdropSourceSurfaceAudit(
     const families = new Set(rows.filter((row) => row.dpr === dpr).map((row) => row.family));
     for (const family of BACKDROP_REQUIRED_FAMILIES) if (!families.has(family)) blockers.push(`DPR${dpr}:missing required family ${family}`);
   }
+  if (backdropWarnings.length > 0) blockers.push(...backdropWarnings.map((warning) => `materialization warning:${warning}`));
   blockers.push(...rows.filter((row) => !row.evidenceComplete).map((row) => `DPR${row.dpr}:${row.id}:incomplete evidence`));
   const productionGaps = [...new Set(rows.flatMap((row) => {
     const gaps: string[] = [];
@@ -692,13 +826,14 @@ export async function runBackdropSourceSurfaceAudit(
     return gaps;
   }))];
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     sourcePins: BACKDROP_SOURCE_PINS,
     producer: { chromiumVersion, platform: process.platform, architecture: process.arch },
     sourceRules: {
       backdropAndRegularFilterUseSeparateEffectSurfaces: true,
       regularFilterIsAppendedToBackdropOperations: true,
       skiaBackdropSource: "prior-parent-device",
+      consumerRasterFloorRequiresExactOwnerAndSourceEdge: true,
       nonRootTransitions: ["ordinary-stacking-context", "isolation", "transform", "scroll-container", "fixed", "sticky"],
     },
     requiredFamilies: BACKDROP_REQUIRED_FAMILIES,
@@ -710,6 +845,7 @@ export async function runBackdropSourceSurfaceAudit(
     },
     rows,
     warnings,
+    backdropWarnings,
     blockers,
     productionGaps,
     strictVerdict: blockers.length > 0 ? "incomplete" : productionGaps.length > 0 ? "production-gaps" : "source-exact",

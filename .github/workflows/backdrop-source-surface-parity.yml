@@ -1,0 +1,81 @@
+name: Ordinary backdrop source-surface parity
+
+on:
+  pull_request:
+    paths:
+      - "src/capture/backdrop-composite-raster.ts"
+      - "src/capture/backdrop-effect-neutralization.ts"
+      - "src/capture/backdrop-layer-space.ts"
+      - "src/capture/emoji.ts"
+      - "src/capture/types.ts"
+      - "src/render/element-tree-to-svg.ts"
+      - "tools/backdrop-source-surface-audit.ts"
+      - "tests/backdrop-source-surface-audit.test.ts"
+      - "tests/backdrop-source-surface-audit.e2e.test.ts"
+      - "tests/backdrop-source-surface-workflow.test.ts"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/backdrop-source-surface-parity.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/capture/backdrop-composite-raster.ts"
+      - "src/capture/backdrop-effect-neutralization.ts"
+      - "src/capture/backdrop-layer-space.ts"
+      - "src/capture/emoji.ts"
+      - "src/capture/types.ts"
+      - "src/render/element-tree-to-svg.ts"
+      - "tools/backdrop-source-surface-audit.ts"
+      - "tests/backdrop-source-surface-audit.test.ts"
+      - "tests/backdrop-source-surface-audit.e2e.test.ts"
+      - "tests/backdrop-source-surface-workflow.test.ts"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/backdrop-source-surface-parity.yml"
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "22.21.0"
+
+jobs:
+  parity:
+    name: ${{ matrix.label }} ordinary backdrop ownership
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            label: macOS
+          - os: ubuntu-latest
+            label: Linux
+          - os: windows-latest
+            label: Windows
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium with Linux system dependencies
+        if: runner.os == 'Linux'
+        run: npx playwright install --with-deps chromium
+      - name: Install Chromium
+        if: runner.os != 'Linux'
+        run: npx playwright install chromium
+      - name: Validate source ownership, layer mapping, and workflow contract
+        run: npx vitest run src/capture/backdrop-composite-raster.test.ts src/capture/backdrop-effect-neutralization.test.ts src/capture/backdrop-layer-space.test.ts src/capture/backdrop-raster-diagnostics.test.ts tests/backdrop-source-surface-audit.test.ts tests/backdrop-source-surface-workflow.test.ts
+      - name: Run unchanged-threshold DPR-1/2 Chromium source and mutation gate
+        run: npm run paint:backdrop-source-audit -- --dpr 1,2 --json tests/output/backdrop-source-${{ runner.os }}/report.json --artifact-dir tests/output/backdrop-source-${{ runner.os }}/artifacts
+      - name: Upload native source, rendered, mutation, SVG, and report artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backdrop-source-${{ runner.os }}
+          path: tests/output/backdrop-source-${{ runner.os }}
+          if-no-files-found: error
+          retention-days: 30

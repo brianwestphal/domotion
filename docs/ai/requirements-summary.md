@@ -52,6 +52,13 @@ cache reuse, then pass the font-selection, ICU, shaping, decoration, paint,
 HTML, and Unicode gates under one runner/font/browser fingerprint. The gate
 does not build helpers or widen native-raster envelopes; its first remote
 `exact-arm64-release-parity` artifact remains required after integration.
+Run 32611751700 reached 686 exact host shaping pairs but correctly withheld
+because the static image supplied no moving axes or ptem input. Doc 199 closes
+that activation gap with repository-owned Open Sans `wght`/`wdth` omission rows
+and pinned HarfBuzz `TRAK.ttf` `ptem=9`→unset, while schema 3 requires the full
+expected logical arrays and only `xAdvance` movement. Invalid, inert, or
+unexpected fixture rows withhold independently; pixels and raster thresholds
+remain outside this gate.
 
 Doc 197 defines the paths-mode native-raster floor as an evidence/ratification
 matrix, not a percentage exception. Every row must first match exact face bytes,
@@ -428,12 +435,14 @@ they describe (see `CLAUDE.md` "Documentation"):
   `system-ui` (a `FontCache::SystemFontFamily()` value, not a settings-table
   entry) remains un-transcribed; Playwright's Linux table has no per-script
   entries, so the content script never moves a Linux generic (doc 110).
-- **Script-keyed generic families on mac/win (font-resolution-diagram §2)** —
-  **Shipped.** The settings-mapped generics resolve per content script,
-  mirroring `FamilyNameFromSettings`'s `settings.<Generic>(script)` consult
-  with the values the capture session actually holds — Playwright's
-  `forScripts` tables (mac: jpan/hang/hans/hant; win: +cyrl/arab/grek;
-  linux: none, so `lang` never moves a Linux generic). `resolveFontKey` /
+- **Live Common/script generic-family preferences (font-resolution-diagram §2,
+  doc 198)** — **Shipped.** The settings-mapped generics resolve per content
+  script, mirroring `FamilyNameFromSettings`'s `settings.<Generic>(script)`
+  consult with the values the exact capture Page paints. Capture probes on
+  every call, serializes authority on the top-level tree roots, and render
+  selects it in a synchronous `try/finally` scope; no BrowserContext cache or
+  production process-global survives to contaminate another Page.
+  `resolveFontKey` /
   `resolveFontKeyChain` / `resolveFont` take the element's `lang`; the
   lang→script mapping is `LocaleToScriptCodeForFontSelection` transcribed in
   full (`src/render/generic-script-families.ts`, drift-guarded against the
@@ -442,8 +451,10 @@ they describe (see `CLAUDE.md` "Documentation"):
   pre-system-fallback entry. Quoted generic spellings stay literal family
   names (`splitFontFamilyNames` carries a per-entry generic bit;
   `system-ui`'s dispatch is name-keyed per `font_cache.cc:161-166` and
-  ignores the bit). Oracle-measured on macOS: lang=ja 645/645 agree-exact
-  (was 632 mismatches), ko / zh-Hans / zh-Hant zero.
+  ignores the bit). The strict logical gate crosses pinned/full Chrome,
+  headless/headed, Common + ten standing scripts + Page language scripts, and
+  dynamically derived preference mutations on macOS/Linux/Windows. It uses
+  `system-ui` only as a separation control and has no pixel tolerance.
 - **Family-match CI gates (docs 110/111, DM-1953)** — **Shipped (awaiting
   first-run baselines).** Regression-relative against env-keyed baseline SETS
   (`tools/family-match-baseline.ts`; one entry per environment fingerprint in
@@ -1603,20 +1614,22 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   `source-exact`; the fixed four-code stage bound and mutation thresholds were
   not widened, and no known-drift workflow allowance remains.
 
-<!-- DM-2357 -->
-- [Doc 187](../187-backdrop-source-surface-transitions.md) completes the
-  backdrop source-surface investigation without changing production. Pinned
-  Blink/Skia establishes a prior-parent-device Backdrop Root Image and separate
-  backdrop/regular-filter effect surfaces. The local 17-family DPR-1/2 audit
-  gets 34/34 nearest-root classifications, defeats under- and final-crop
-  over-capture mutations for all 32 serialized surfaces, and preserves
-  raster-before-target-vector order. It also proves three implementation gaps:
-  final viewport crops are reprocessed by ancestor effect/transform wrappers,
-  generated pseudos serialize no backdrop owner. DM-2489/doc 192 has since
-  closed the independently observed fixed-hoisting sibling reversal at DPR 1/2;
-  DM-2487, DM-2488 and DM-2490 own the remaining production,
-  pseudo, order, and diagnostic follow-ups; a native release gate waits for the
-  production representation rather than blessing current drift.
+<!-- Ordinary backdrop ownership -->
+- [Docs 187](../187-backdrop-source-surface-transitions.md),
+  [194](../194-ordinary-backdrop-effect-space.md), and
+  [195](../195-strict-ordinary-backdrop-ownership.md) establish and ship the
+  ordinary backdrop source boundary. Pinned Blink/Skia defines a
+  prior-parent-device Backdrop Root surface and separate backdrop/regular-filter
+  effect nodes. Opacity/blend/mask own an atomic captured root; rotate/skew owns
+  one final-space terminal compositor patch; scroll and sticky remain ordinary
+  document-root target surfaces. The strict schema-v2 17-family DPR-1/2 audit
+  requires 34/34 root and owner records, exact source clip/pass facts,
+  raster-before-vector and source sibling order, both destructive mutations,
+  and no backdrop materialization warning. The four-code and 1% diagnostics are
+  unchanged. Residuals above 1% pass only with exact source-owner geometry and
+  zero logical-interior changed pixels—all changes must already lie on a
+  Chromium source edge. A native macOS/Linux/Windows workflow persists the
+  reports and source/render/mutation artifacts.
 
 <!-- DM-2490 -->
 - `backdrop-filter` warnings describe the Node materialization outcome, not the

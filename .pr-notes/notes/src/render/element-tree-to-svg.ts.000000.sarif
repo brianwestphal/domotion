@@ -2029,6 +2029,106 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "codex-dm2351",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt56mg4puyoxo820",
+          "message": {
+            "text": "Generic-family authority must travel with the captured Page tree, not live in process-global renderer state. Chromium's Page.setFontFamilies writes one Page Settings object and its guard is per Inspector session, so capture A then capture B then render A deterministically read B under the retired ownership. Exact-Page capture records plus a synchronous try/finally render scope make A/B order-independent; partial or conflicting multi-root authority fails closed and canonical signatures accept equivalent JSON key orders.",
+            "markdown": "Generic-family authority must travel with the captured Page tree, not live in process-global renderer state. Chromium's Page.setFontFamilies writes one Page Settings object and its guard is per Inspector session, so capture A then capture B then render A deterministically read B under the retired ownership. Exact-Page capture records plus a synchronous try/finally render scope make A/B order-independent; partial or conflicting multi-root authority fails closed and canonical signatures accept equivalent JSON key orders."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 3586,
+                  "endLine": 3621,
+                  "snippet": {
+                    "text": "  const captured = capturedSessionGenericFamilies(args[0]);\n  return captured == null\n    ? render()\n    : withSessionGenericFamilyOverrides(captured, render);\n}\n\nexport function capturedSessionGenericFamilies(\n  elements: CapturedElement[],\n): SessionGenericFamilyOverrides | null {\n  const records = elements\n    .map((element) => element.sessionGenericFamilies)\n    .filter((record): record is CapturedSessionGenericFamilies => record != null);\n  if (records.length === 0) return null;\n  if (records.length !== elements.length) {\n    throw new Error(\"Cannot mix captured roots with and without generic-family preference authority\");\n  }\n  const signature = (record: CapturedSessionGenericFamilies): string => JSON.stringify({\n    source: record.source,\n    common: Object.entries(record.common).sort(([a], [b]) => a.localeCompare(b)),\n    byScript: Object.entries(record.byScript)\n      .sort(([a], [b]) => a.localeCompare(b))\n      .map(([script, families]) => [\n        script,\n        Object.entries(families).sort(([a], [b]) => a.localeCompare(b)),\n      ]),\n  });\n  const firstSignature = signature(records[0]);\n  if (records.some((record) => signature(record) !== firstSignature)) {\n    throw new Error(\"Cannot render roots captured from different generic-family preference sessions in one tree\");\n  }\n  return {\n    common: new Map(Object.entries(records[0].common)),\n    byScript: new Map(\n      Object.entries(records[0].byScript).map(([script, families]) => [script, new Map(Object.entries(families))]),\n    ),\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/generic-font-probe.ts"
+                },
+                "region": {
+                  "startLine": 302
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/index.ts"
+                },
+                "region": {
+                  "startLine": 1823
+                }
+              }
+            },
+            {
+              "id": 2,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 8296
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2351"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "179492e30222fea2fd203cba1baa9a4f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "787f6eae00ffcad8aca20c9e1573b33c08e8e77f",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

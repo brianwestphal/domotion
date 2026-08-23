@@ -18,6 +18,7 @@ import {
   __resolveFontSpecForTest,
   resolveFontKey,
   setSessionGenericFamilyOverrides,
+  withSessionGenericFamilyOverrides,
 } from "./font-resolution.js";
 import { hostPlatform } from "./host-platform.js";
 
@@ -93,5 +94,28 @@ describe("setSessionGenericFamilyOverrides", () => {
     setSessionGenericFamilyOverrides({ common: new Map([["monospace", "Menlo"]]), byScript: new Map() });
     setSessionGenericFamilyOverrides(null);
     expect(resolveFontKey("monospace")).toBe(before);
+  });
+
+  it("scopes two captured-session answers and restores the prior oracle setting", () => {
+    const prior = { common: new Map([["serif", installedTestFamily]]), byScript: new Map() };
+    const first = { common: new Map([["monospace", installedTestFamily]]), byScript: new Map() };
+    const second = { common: new Map([["standard", installedTestFamily]]), byScript: new Map() };
+    setSessionGenericFamilyOverrides(prior);
+
+    expect(withSessionGenericFamilyOverrides(first, () => {
+      expect(getSessionGenericFamilyOverrides()).toBe(first);
+      return withSessionGenericFamilyOverrides(second, () => getSessionGenericFamilyOverrides());
+    })).toBe(second);
+    expect(getSessionGenericFamilyOverrides()).toBe(prior);
+  });
+
+  it("restores the prior setting when a scoped render throws", () => {
+    const prior = { common: new Map([["serif", installedTestFamily]]), byScript: new Map() };
+    const captured = { common: new Map([["monospace", installedTestFamily]]), byScript: new Map() };
+    setSessionGenericFamilyOverrides(prior);
+    expect(() => withSessionGenericFamilyOverrides(captured, () => {
+      throw new Error("render failed");
+    })).toThrow("render failed");
+    expect(getSessionGenericFamilyOverrides()).toBe(prior);
   });
 });

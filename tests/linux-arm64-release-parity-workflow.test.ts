@@ -11,6 +11,9 @@ describe("DM-2353 Linux arm64 release parity workflow", () => {
     expect(workflow).toContain("mcr.microsoft.com/playwright:v1.59.1-noble");
     expect(workflow).toContain("node-version: 22.21.0");
     expect(workflow).toMatch(/defaults:\s*\n\s*run:\s*\n\s*shell: bash/);
+    for (const key of ["DOMOTION_CHROMIUM_REVISION", "DOMOTION_HARFBUZZ_REVISION", "DOMOTION_SKIA_REVISION", "DOMOTION_ICU_SOURCE_REVISION"]) {
+      expect(workflow).toContain(`${key}:`);
+    }
   });
 
   it("acquires published artifacts into a clean cache without building helpers", () => {
@@ -28,7 +31,12 @@ describe("DM-2353 Linux arm64 release parity workflow", () => {
     }
     expect(workflow).toContain("assert-linux-helper-in-loop.ts");
     expect(workflow).toContain("icu-conformance.ts");
+    expect(workflow.indexOf("font-conformance-synthetic-stacks.ts")).toBeLessThan(
+      workflow.indexOf("font-conformance.ts"),
+    );
     expect(workflow).toContain("font-conformance-stacks.synthetic.json");
+    expect(workflow).toContain("--variable-control-fixture tests/fixtures/variable-axis/variable-axis.html");
+    expect(workflow).toContain("--tracking-control-fixture tests/fixtures/exact-shaping/TRAK.ttf.base64");
     expect(workflow).toContain("paint-geometry-browser-oracle.ts");
     expect(workflow).toContain("tests/html-test-suite.tsx");
     expect(workflow).not.toMatch(/--tolerance|--threshold|--max-diff|TOLERANCE\s*=/i);

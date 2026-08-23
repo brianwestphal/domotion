@@ -8262,10 +8262,10 @@ function sessionProbedFaceKey(faceName: string): string | null {
 // `_setDefaultFontFamilies`), overriding blink's `WebPreferences` constructor
 // defaults (`third_party/blink/common/web_preferences/web_preferences.cc:25-41`,
 // rev 7d859f27); headed launches skip that and get the full binary's chrome
-// prefs layer (`locale_settings_<platform>.grd`) instead. When the capture
-// side probes the session (`src/capture/generic-font-probe.ts`), the probed
-// painted faces are installed here and the generic keywords route to them;
-// the calibrated static routes below are only the explicit/failure fallback.
+// prefs layer (`locale_settings_<platform>.grd`) instead. Capture serializes
+// the exact Page's painted faces on its tree; `elementTreeToSvgInner` scopes
+// those answers here for that one synchronous render. The calibrated static
+// routes below are only the explicit/failure/legacy-tree fallback.
 const SESSION_PROBED_GENERICS = new Set([
   "standard", "serif", "sans-serif", "monospace", "cursive", "fantasy", "math",
 ]);
@@ -8276,9 +8276,9 @@ export interface SessionGenericFamilyOverrides {
 }
 let sessionGenericFamilyOverrides: SessionGenericFamilyOverrides | null = null;
 
-/** Install (or clear, with null) the session's Common and per-script painted
- *  generic families. Generic keys are lower-case; script keys are Blink's
- *  UScriptCode names from `LocaleToScriptCodeForFontSelection`. */
+/** Explicit oracle/compatibility override. Production captured trees use
+ *  `withSessionGenericFamilyOverrides` instead, so independently captured
+ *  Pages never share this process-global slot. */
 export function setSessionGenericFamilyOverrides(
   overrides: SessionGenericFamilyOverrides | null,
 ): void {
@@ -8288,6 +8288,22 @@ export function setSessionGenericFamilyOverrides(
 /** Test/introspection accessor for the installed session overrides. */
 export function getSessionGenericFamilyOverrides(): SessionGenericFamilyOverrides | null {
   return sessionGenericFamilyOverrides;
+}
+
+/** Select captured page settings only for one synchronous render. Saving and
+ * restoring the prior explicit/oracle setting makes independently captured
+ * trees order-independent without introducing an async process-global scope. */
+export function withSessionGenericFamilyOverrides<T>(
+  overrides: SessionGenericFamilyOverrides,
+  render: () => T,
+): T {
+  const previous = sessionGenericFamilyOverrides;
+  sessionGenericFamilyOverrides = overrides;
+  try {
+    return render();
+  } finally {
+    sessionGenericFamilyOverrides = previous;
+  }
 }
 
 /** Blink aliases both legacy WebKit standard-family spellings to one setting. */

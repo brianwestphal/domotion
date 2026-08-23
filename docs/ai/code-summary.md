@@ -30,7 +30,12 @@ producer is `tools/collect-stage-evidence.ts` plus
 `tests/review-server.tsx` and `tests/review-client.tsx`.
 `tools/unified-shaping-oracle.ts` is the face→glyph→painted-origin logical record
 consumed by those stage-evidence artifacts; its lower-level exact glyph leg is
-`tools/exact-shaping-oracle.ts`.
+`tools/exact-shaping-oracle.ts`. `tools/exact-shaping-control-fixtures.ts`
+supplies doc 199's platform-independent applicability rows: two pinned Open Sans
+non-default-axis→default omissions and HarfBuzz's `TRAK.ttf` `ptem=9`→unset
+golden. Schema 3 requires complete expected glyph streams and exactly one
+changed field (`xAdvance`), and distinguishes missing, inert, and unexpectedly
+mutating fixtures without aborting the evidence artifact.
 `tools/pingfang-live-descriptor-oracle.mjs` and its macOS workflow capture the
 otherwise-ephemeral CoreText fallback descriptor, reopen arms, and matching CDP
 font/Range evidence for the PingFang Extension-B discriminator (doc 153).
@@ -195,7 +200,8 @@ shortest possible map:
   `.github/workflows/linux-arm64-release-parity.yml` (doc 196): no checkout
   build is accepted, and acquisition, ELF identity, pinned/sidecar/GitHub
   digests, live helper protocols, cache reuse, runner/font/browser fingerprint,
-  exact logical stages, and selected visual corpora must form one artifact;
+  exact logical stages, source-owned axes/ptem applicability controls, and
+  selected visual corpora must form one artifact;
   `unicode-classification.ts` owns the Unicode predicates;
   `synthesis-decision.ts` owns WHETHER a resolved face needs synthetic bold /
   oblique (`faceNeedsSyntheticBold` / `faceNeedsSyntheticOblique` — three
@@ -471,6 +477,17 @@ shortest possible map:
   `tests/font-conformance-baseline.test.ts`; see
   `docs/107-font-conformance-oracle.md`. `tools/chrome-font-agreement.ts` is its
   single-shot `FONTAGREE:` diagnostic sibling.
+- **Live generic-family preference ownership** —
+  `src/capture/generic-font-probe.ts` re-probes the exact capture Page and
+  serializes Common plus script-keyed painted faces on the captured top-level
+  roots. `elementTreeToSvgInner` scopes that record to one synchronous render;
+  no production capture writes the legacy process-global oracle slot. This
+  closes the deterministic A-capture/B-capture/A-render contamination and the
+  fresh-CDP-session mutation invalidation gap. `tools/generic-family-preference-oracle.ts`
+  (`npm run fonts:generic-preferences`) crosses pinned Chromium and full Chrome,
+  headless and headed, controlled live mutations, 77 settings rows, 11
+  `system-ui` separation controls, and 11 quoted-literal controls. The strict native three-platform workflow is
+  `.github/workflows/generic-family-preference-parity.yml`; see doc 198.
 - **Synthetic stack corpus** — `tools/font-conformance-synthetic-stacks.ts`
   generates a SECOND corpus for the same oracle from a stated rule (the 13 CSS
   generic-family keywords × the 9-rung weight ladder × the 9 stretch keywords ×
@@ -756,16 +773,20 @@ shortest possible map:
   no known-drift allowance, and the four-code pixel-stage bound plus mutation
   thresholds remain immutable.
 
-- **Backdrop source-surface investigation (DM-2357, doc 187)** —
-  `tools/backdrop-source-surface-audit.ts` derives the nearest Backdrop Root
-  from pinned Blink effect-tree triggers, records an independent pre-capture
-  `DOMSnapshot` sibling order, and compares Chromium with the complete SVG for
-  17 font-free transition families at DPR 1/2. Removing every backdrop raster
-  proves under-capture sensitivity; replacing it with the final Chromium crop
-  proves over-capture sensitivity. The investigation does not alter production:
-  it exposes final-crop replay under ancestor opacity/filter/mask/blend and
-  transforms, missing generated-pseudo ownership, and fixed-target sibling-order
-  drift for DM-2487–DM-2490.
+- **Strict ordinary backdrop ownership (docs 187/194/195)** —
+  `backdrop-composite-raster.ts` owns atomic opacity/blend/mask roots and the
+  narrower rotate/skew terminal compositor surface. `backdrop-layer-space.ts`
+  retains the ordinary counter-transform mapping; overflow, scroll, fixed, and
+  sticky never become terminal owners. `tools/backdrop-source-surface-audit.ts`
+  derives the nearest Backdrop Root from pinned Blink effect-tree triggers,
+  records independent `DOMSnapshot` sibling order, and gates 17 font-free
+  families at DPR 1/2. Schema v2 requires exact owner clips, pass counts,
+  warning-free backdrop materialization, vector/sibling order, and active
+  no-surface/final-composite mutations. A row above the unchanged 1% diagnostic
+  is accepted as consumer raster phase only when every changed pixel is already
+  an edge in Chromium's source; a new/shifted output edge remains a logical
+  failure. The native macOS/Linux/Windows workflow is
+  `.github/workflows/backdrop-source-surface-parity.yml`.
 
 - **Backdrop raster outcome diagnostics (DM-2490, docs 19/126)** — the
   synchronous capture walk records only backdrop intent, token, rect, and

@@ -1,8 +1,8 @@
 # 187 — Backdrop-filter source-surface transitions
 
-**Status: investigation complete (DM-2357); generated-pseudo, fixed-order, and
-diagnostic follow-ups landed, while ordinary effect-space parity remains
-partial after DM-2487 ([doc 194](194-ordinary-backdrop-effect-space.md)).**
+**Status: source investigation and all ownership follow-ups shipped. Ordinary
+effect-space parity is now a strict native gate in
+[doc 195](195-strict-ordinary-backdrop-ownership.md).**
 
 ## Question
 
@@ -13,8 +13,9 @@ surface owns those pixels* as the target crosses stacking contexts, Backdrop
 Roots, transforms, clips, masks, scrolling, generated content, and overlapping
 paint.
 
-This investigation adds an observational oracle only. It does not change the
-capture contract or renderer.
+The initial investigation added an observational oracle. Docs 192–195 record
+the production ownership, generated-pseudo, fixed-order, diagnostic, and final
+strict-gate work that followed from its findings.
 
 ## Source verdict
 
@@ -112,7 +113,7 @@ mutations must move at least 0.2% of pixels and one channel by at least 12 codes
 `--json` writes the complete report and `--artifact-dir` writes source,
 candidate, under-capture, over-capture, and SVG artifacts per DPR.
 
-## DPR 1/2 result
+## Initial DPR 1/2 result
 
 Both native runs returned `investigation-complete` with no evidence blockers:
 
@@ -172,14 +173,12 @@ still warn that backdrop-filter is only doc 19's solid frosted-glass
 approximation. Runtime warning ownership must move to the post-pass that knows
 whether raster materialization succeeded.
 
-## Follow-up plan
+## Follow-up completion
 
-- **DM-2487 (partial; doc 194):** source-owned nearest-root/effect-space facts
-  and reversible screenshot neutralization landed. Filter-root replay is exact
-  and opacity/transform/mask drift is materially reduced at DPR 1/2, but atomic
-  opacity/blend roots, transformed effect-space coordinates, the target filter
-  group, and one DPR-1 mask edge remain. The audit is not promoted while those
-  unchanged-threshold rows remain non-exact.
+- **Ordinary-element ownership (docs 194 and 195):** source-owned nearest-root
+  and effect-space facts, atomic opacity/blend/mask roots, target-filter
+  grouping, and the rotate/skew terminal surface landed. The final schema-v2
+  DPR-1/2 audit is strict and records zero logical-interior residual pixels.
 - **DM-2488:** give live generated pseudos their own backdrop source boundary at
   the captured pseudo paint slot; do not flatten the host. **Landed in doc
   193:** the focused 15-case DPR-1/2 gate reports 30/30 passing rows, 24/24
@@ -190,6 +189,7 @@ whether raster materialization succeeded.
   materialization and emit structured partial/unavailable diagnostics only
   from the authoritative post-pass.
 
-Doc 126's target snapshot plus doc 194's source record remains a useful narrow
-fallback, but claims of general opacity/blend root ownership, transformed
-effect-space parity, and target-filter grouping are explicitly partial.
+Doc 126's target snapshot remains the explicit fallback when authoritative
+source materialization is unavailable. Successful ordinary, fixed, and
+generated-pseudo ownership paths are now independently strict-gated; retained
+partial/unavailable output remains diagnostic rather than silently promoted.

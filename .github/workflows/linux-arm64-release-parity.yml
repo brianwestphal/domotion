@@ -24,6 +24,10 @@ jobs:
     env:
       DOMOTION_NO_NICE: '1'
       DOMOTION_TEST_WORKERS: '1'
+      DOMOTION_CHROMIUM_REVISION: 7d859f271cbda744098ac69f44978d4edfa62be3
+      DOMOTION_HARFBUZZ_REVISION: 4de187dd0a915d13c976fa8bd474c084229f3aab
+      DOMOTION_SKIA_REVISION: 62efacd37737505732dbe3d8daa62abd679626a1
+      DOMOTION_ICU_SOURCE_REVISION: d578f2e8b7bd5938e21cfb6bf15c079e0aa5b738
       GITHUB_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
@@ -77,6 +81,8 @@ jobs:
         continue-on-error: true
         run: |
           set -o pipefail
+          node --import tsx tools/font-conformance-synthetic-stacks.ts \
+            --out tools/font-conformance-stacks.synthetic.json
           node --import tsx tools/font-conformance.ts \
             --stacks tools/font-conformance-stacks.synthetic.json \
             --allow-foreign-corpus --sample-byte 00 --max-rows 2000 \
@@ -89,6 +95,8 @@ jobs:
         run: |
           set -o pipefail
           node --import tsx tools/exact-shaping-oracle.ts \
+            --variable-control-fixture tests/fixtures/variable-axis/variable-axis.html \
+            --tracking-control-fixture tests/fixtures/exact-shaping/TRAK.ttf.base64 \
             --json "$EVIDENCE_DIR/shaping.json" 2>&1 | tee "$EVIDENCE_DIR/logs/shaping.log"
 
       - name: Decoration geometry oracle

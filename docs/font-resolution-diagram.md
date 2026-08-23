@@ -129,9 +129,10 @@ restarts native-helper discovery, clears installed-family/style/trait and
 HarfBuzz file caches, forgets dynamically discovered system faces, and expires
 `local()` aliases so capture can rediscover
 them against the changed inventory. Downloaded webfont buffers remain valid.
-Launched-browser generic preferences live above Blink's font cache and remain
-installed; an actual preference/session change replaces them explicitly with
-`setSessionGenericFamilyOverrides()`.
+Launched-browser generic preferences live above Blink's font cache. Captured
+answers belong to their Page/tree and are selected only while that tree renders;
+`setSessionGenericFamilyOverrides()` remains an explicit oracle/compatibility
+control, not production session ownership.
 
 Linux has one intentionally non-pure exception inside the document/renderer
 scope: Chromium `WebSandboxSupportLinux::unicode_font_families_` is keyed only
@@ -344,19 +345,27 @@ script-keyed STANDARD family, matching Blink's `kFontFamily` iteration.
 > prefs layer's `locale_settings_<platform>.grd` applies only headed/full).
 > The capture funnel
 > (`captureElementTreeWithWarnings` → `src/capture/generic-font-probe.ts`)
-> instead probes the live session once per browser context — one hidden page
-> containing Common-script spans for the standard family and all six generics,
-> plus primary-covered spans for ja/ko/zh-Hans/zh-Hant/ru/ar/el across that
-> same family set. Two consecutive
+> probes the exact Page on every capture — author-important offscreen spans
+> containing Common-script values for the standard family and all six
+> generics, ten standing content scripts, and every additional script derived
+> from the Page's language facts across that same family set. Two consecutive
 > identical paints are required (up to three attempts), so a first-layout race
 > between Playwright's `Page.setFontFamilies` and Blink's constructor defaults
-> is not installed as truth. `setSessionGenericFamilyOverrides` installs both
-> Common and script-keyed answers; `matchFamilyNameToKey` prefers the exact
+> is not installed as truth. The Common and script-keyed answers are serialized
+> on the captured top-level roots; `elementTreeToSvgInner` selects that record
+> only for the tree's synchronous render and restores prior explicit oracle
+> state in `finally`. This ownership matters because `Page.setFontFamilies`
+> mutates one Page's Settings and a fresh Inspector session can mutate it again:
+> a BrowserContext/Page cache or process-global production setting is unsound.
+> Mixed annotated/legacy roots and conflicting Page records fail closed.
+> `matchFamilyNameToKey` prefers the exact
 > probed script answer over the static `forScripts` transcription, then uses
 > the probed Common answer ahead of calibrated static routes. CDP PostScript
 > identity is preserved so a settings-selected face is not rematched to a
 > different curated family cut. `DOMOTION_GENERIC_PROBE=0` explicitly selects
-> the degraded static path; probe failure otherwise falls back safely.
+> the degraded static path; probe failure or a legacy tree otherwise falls back
+> safely. The source verdict and four-launch, three-platform logical gate are
+> in [doc 198](198-live-generic-family-preference-parity.md).
 
 ```mermaid
 flowchart TD

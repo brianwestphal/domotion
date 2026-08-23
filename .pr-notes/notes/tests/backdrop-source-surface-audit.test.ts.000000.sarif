@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt568j9td7f6hy1h",
+          "message": {
+            "text": "The release gate separates logical ownership from native edge phase without loosening the 4-channel threshold. A residual qualifies only when every changed device pixel is already an edge in the Chromium source and the serialized owner geometry is exact; this negative proves that a rendered-only edge in a source-flat region remains a logical failure. The strict adjudicator (0) then covered all 34 DPR1/2 rows with zero logical-interior pixels, zero ownership blockers, and zero backdrop warnings; mask, scroll, and sticky residuals were source-edge-only, while transform was exact except one Chromium-owned DPR2 edge pixel.",
+            "markdown": "The release gate separates logical ownership from native edge phase without loosening the 4-channel threshold. A residual qualifies only when every changed device pixel is already an edge in the Chromium source and the serialized owner geometry is exact; this negative proves that a rendered-only edge in a source-flat region remains a logical failure. The [strict adjudicator](0) then covered all 34 DPR1/2 rows with zero logical-interior pixels, zero ownership blockers, and zero backdrop warnings; mask, scroll, and sticky residuals were source-edge-only, while transform was exact except one Chromium-owned DPR2 edge pixel."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/backdrop-source-surface-audit.test.ts"
+                },
+                "region": {
+                  "startLine": 95,
+                  "endLine": 132,
+                  "snippet": {
+                    "text": "  it(\"classifies only Chromium-owned paint-edge deltas as consumer raster phase\", () => {\n    const image = (values: number[]): DecodedImage => ({\n      width: 5,\n      height: 1,\n      channels: 4,\n      data: Buffer.from(values.flatMap((value) => [value, value, value, 255])),\n    });\n    const source = image([20, 20, 220, 220, 220]);\n    const edgeOnly = image([20, 20, 214, 220, 220]);\n    expect(classifySourceEdgeResidual(source, edgeOnly, { x: 0, y: 0, width: 5, height: 1 }, 1)).toEqual({\n      changedPixels: 1,\n      sourceEdgeChangedPixels: 1,\n      logicalInteriorChangedPixels: 0,\n      sourceEdgeOnly: true,\n    });\n\n    const flatSource = image([20, 20, 20, 20, 20]);\n    const inventedInterior = image([20, 20, 30, 20, 20]);\n    expect(classifySourceEdgeResidual(flatSource, inventedInterior, { x: 0, y: 0, width: 5, height: 1 }, 1)).toMatchObject({\n      logicalInteriorChangedPixels: 1,\n      sourceEdgeOnly: false,\n    });\n  });\n\n  it(\"requires screenshot geometry to be the exact outward host clip\", () => {\n    expect(rasterOwnerGeometryMatchesHost(\n      { x: 10, y: 20, width: 101, height: 81 },\n      { x: 10.4, y: 20.2, width: 100.2, height: 80.3 },\n    )).toBe(true);\n    expect(rasterOwnerGeometryMatchesHost(\n      { x: 11, y: 20, width: 101, height: 81 },\n      { x: 10.4, y: 20.2, width: 100.2, height: 80.3 },\n    )).toBe(false);\n    expect(unionRects([\n      { x: 2, y: 4, width: 8, height: 5 },\n      { x: 7, y: 1, width: 6, height: 10 },\n    ])).toEqual({ x: 2, y: 1, width: 11, height: 10 });\n  });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/backdrop-source-surface-audit.ts"
+                },
+                "region": {
+                  "startLine": 305
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/195-strict-ordinary-backdrop-ownership.md"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2497"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "002b9b238507338fe51a40a141cad98b"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c93b479360aa33fd59c325090bf38c8abbccc3c5",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
