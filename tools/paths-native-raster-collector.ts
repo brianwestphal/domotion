@@ -130,16 +130,22 @@ async function paintedFaceMetadata(page: Page): Promise<{
   isCustomFont: boolean;
 }> {
   const pageFacts = await page.locator("#native").evaluate((element) => {
-    const unquote = (serialized: string): string => serialized.trim().replace(/^(["'])(.*)\1$/, "$2");
-    const rules = Array.from(document.styleSheets).flatMap((sheet) => Array.from(sheet.cssRules))
-      .filter((rule) => rule.constructor.name === "CSSFontFaceRule") as CSSFontFaceRule[];
+    // Keep this browser callback self-contained: tsx decorates nested function
+    // expressions with a Node-side `__name` helper that is unavailable after
+    // Playwright serializes the callback into Chromium.
+    const rules: CSSFontFaceRule[] = [];
+    for (const sheet of Array.from(document.styleSheets)) {
+      for (const rule of Array.from(sheet.cssRules)) {
+        if (rule.constructor.name === "CSSFontFaceRule") rules.push(rule as CSSFontFaceRule);
+      }
+    }
     const source = rules[0]?.style.getPropertyValue("src") ?? "";
     const base64 = /base64,([A-Za-z0-9+/=]+)/.exec(source)?.[1] ?? "";
     return {
-      requestedFamily: unquote((element as SVGElement).style.fontFamily),
-      computedFamily: unquote(getComputedStyle(element).fontFamily),
+      requestedFamily: (element as SVGElement).style.fontFamily.trim().replace(/^(["'])(.*)\1$/, "$2"),
+      computedFamily: getComputedStyle(element).fontFamily.trim().replace(/^(["'])(.*)\1$/, "$2"),
       computedVariationSettings: getComputedStyle(element).fontVariationSettings,
-      fontFaceRuleFamily: unquote(rules[0]?.style.getPropertyValue("font-family") ?? ""),
+      fontFaceRuleFamily: (rules[0]?.style.getPropertyValue("font-family") ?? "").trim().replace(/^(["'])(.*)\1$/, "$2"),
       fontFaceRuleCount: rules.length,
       sourceBase64: base64,
     };
