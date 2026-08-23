@@ -71,6 +71,23 @@
       ]
     },
     {
+      "id": "text.paths-native-raster-floor",
+      "parityAreas": ["paths-native-raster-floor"],
+      "subjects": ["paths mode", "native Skia mask", "face/glyph/layout identity", "platform raster envelope"],
+      "states": ["logical mismatch -> gate failure", "logical exact -> unratified envelope", "unratified envelope -> reviewed platform envelope"],
+      "exactStates": ["logical mismatch -> gate failure", "logical exact -> unratified envelope"],
+      "uncoveredStates": ["unratified envelope -> reviewed platform envelope"],
+      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/layout/inline", "external/chromium/third_party/blink/renderer/platform/fonts/shaping", "external/harfbuzz/src", "external/skia/src/core"],
+      "productionOwners": ["src/render/text.ts", "src/render/text-to-path.ts", "src/render/text-run-provenance.ts"],
+      "oracles": ["tools/paths-native-raster-gate.ts", "tools/paths-native-raster-producer.ts", "tools/paths-native-raster-aggregate.ts"],
+      "metamorphicTests": ["tests/paths-native-raster-gate.test.ts", "tests/paths-native-raster-workflow.test.ts"],
+      "visualFixtures": [".github/workflows/paths-native-raster-floor.yml"],
+      "coverage": "partial",
+      "boundary": "Face/gid/cluster/advance/offset/baseline/matrix mismatches fail before raster evidence, and unratified envelopes withhold. No three-platform fingerprint/dimension envelope has been reviewed, so scalar visual-harness caps remain unchanged.",
+      "featureIds": ["render.text"],
+      "verifiedPlatforms": ["darwin", "linux", "win32"]
+    },
+    {
       "id": "text.macos-sfns-mask-baseline",
       "parityAreas": [
         "macos-sfns-mask-baseline"

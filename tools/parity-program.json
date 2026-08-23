@@ -51,6 +51,18 @@
       "nextAction": "Keep the declarative inventory synchronized with production and retain ruby/combine/bidi/fragment count or placement changes as logical failures, never inferred unsupported states."
     },
     {
+      "id": "paths-native-raster-floor",
+      "domotionSources": ["src/render/text.ts", "src/render/text-to-path.ts", "src/render/text-run-provenance.ts"],
+      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/layout/inline", "external/chromium/third_party/blink/renderer/platform/fonts/shaping", "external/harfbuzz/src", "external/skia/src/core/SkGlyph.cpp", "external/skia/src/core/SkScalerContext.cpp"],
+      "oracle": "tools/paths-native-raster-gate.ts",
+      "sourceAudit": "audited",
+      "oracleStatus": "partial-stage-gate",
+      "generatedCoverage": "strict fingerprinted rows across platform, font technology, size, weight, X/Y phase, transform and DPR; exact face/gid/cluster/advance/offset/baseline/matrix identity precedes artifact-reviewed residual envelopes; three-platform producer/aggregate workflow",
+      "platformCoverage": ["darwin", "linux", "win32"],
+      "knownGap": "No envelope is ratified. The workflow intentionally withholds rasterization-only acceptance, and existing scalar visual-harness caps remain unchanged.",
+      "nextAction": "Collect lossless same-run artifacts on all three platforms, review each fingerprint/dimension cell, and ratify envelopes in a separate change before considering any harness-cap replacement."
+    },
+    {
       "id": "macos-sfns-mask-baseline",
       "domotionSources": ["src/capture", "src/render/font-resolution.ts", "src/render/text-to-path.ts", "src/render/text-run-provenance.ts"],
       "upstreamSources": ["external/chromium/third_party/blink/renderer/platform/fonts/font_custom_platform_data.cc", "external/chromium/third_party/blink/renderer/platform/fonts/mac/font_platform_data_mac.mm", "external/skia/src/core/SkGlyph.cpp", "external/skia/src/core/SkScalerContext.cpp", "external/skia/src/ports/SkFontMgr_mac_ct.cpp", "external/skia/src/ports/SkScalerContext_mac_ct.cpp", "external/skia/src/ports/SkTypeface_mac_ct.cpp"],

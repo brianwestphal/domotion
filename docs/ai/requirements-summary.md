@@ -53,6 +53,14 @@ HTML, and Unicode gates under one runner/font/browser fingerprint. The gate
 does not build helpers or widen native-raster envelopes; its first remote
 `exact-arm64-release-parity` artifact remains required after integration.
 
+Doc 197 defines the paths-mode native-raster floor as an evidence/ratification
+matrix, not a percentage exception. Every row must first match exact face bytes,
+face index/axes, gid/cluster/advance/offset stream, baseline, and affine matrix.
+Only then may a reviewed envelope keyed by the complete platform fingerprint,
+font technology, size, weight, subpixel phase, transform, and DPR classify the
+residual as rasterization-only. The committed envelopes remain unratified, so
+the three-OS aggregate withholds and existing scalar harness caps stay intact.
+
 The doc-116 text-layout stage is an exact CI gate: a declarative multi-valued
 covering array proves every pair across Blink's bidi, writing, wrapping,
 breaking, ruby, emphasis, justification, synthesis, zoom, transform, and
