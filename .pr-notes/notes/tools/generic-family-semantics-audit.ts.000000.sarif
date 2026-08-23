@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex-dm2343",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5gmti753h2rhqe",
+          "message": {
+            "text": "The matrix keeps Blink generic identity independent from the resolved face key. Pinned Blink stores named families and the rightmost legacy generic as separate facts; system-ui and math do not occupy that legacy enum, so the paired order and non-occupying controls prevent a key-based shortcut from passing.",
+            "markdown": "The matrix keeps Blink generic identity independent from the resolved face key. Pinned Blink stores named families and the rightmost legacy generic as separate facts; system-ui and math do not occupy that legacy enum, so the paired order and non-occupying controls prevent a key-based shortcut from passing."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/generic-family-semantics-audit.ts"
+                },
+                "region": {
+                  "startLine": 59,
+                  "endLine": 106,
+                  "snippet": {
+                    "text": "const STACK_CASES: readonly StackCase[] = [\n  { id: \"declared-courier\", fontFamily: \"Courier\", expectedGeneric: \"none\" },\n  { id: \"generic-monospace\", fontFamily: \"monospace\", expectedGeneric: \"monospace\" },\n  { id: \"courier-then-monospace\", fontFamily: \"Courier, monospace\", expectedGeneric: \"monospace\" },\n  { id: \"arial-then-monospace\", fontFamily: \"Arial, monospace\", expectedGeneric: \"monospace\" },\n  { id: \"courier-then-serif\", fontFamily: \"Courier, serif\", expectedGeneric: \"serif\" },\n  { id: \"monospace-then-serif\", fontFamily: \"monospace, serif\", expectedGeneric: \"serif\" },\n  { id: \"serif-then-monospace\", fontFamily: \"serif, monospace\", expectedGeneric: \"monospace\" },\n  { id: \"courier-then-system-ui\", fontFamily: \"Courier, system-ui\", expectedGeneric: \"none\" },\n  { id: \"monospace-then-math\", fontFamily: \"monospace, math\", expectedGeneric: \"monospace\" },\n  { id: \"quoted-monospace-then-courier\", fontFamily: '\\\"monospace\\\", Courier', expectedGeneric: \"none\" },\n] as const;\n\nconst SCRIPT_CASES: readonly ScriptCase[] = [\n  { id: \"arabic\", lang: \"ar\", text: \"\\u0628\", codepoint: 0x0628, expectedStandardLead: \"Tahoma\" },\n  { id: \"hebrew\", lang: \"he\", text: \"\\u05d0\", codepoint: 0x05d0, expectedStandardLead: \"David\" },\n] as const;\n\nexport interface GenericFamilySemanticsCase {\n  id: string;\n  stackId: string;\n  scriptId: ScriptCase[\"id\"];\n  fontFamily: string;\n  expectedGeneric: BlinkGenericFamily;\n  lang: ScriptCase[\"lang\"];\n  text: string;\n  codepoint: number;\n  expectedStandardLead: ScriptCase[\"expectedStandardLead\"];\n}\n\nexport const GENERIC_FAMILY_SEMANTICS_CASES: readonly GenericFamilySemanticsCase[] =\n  SCRIPT_CASES.flatMap((script) => STACK_CASES.map((stack) => ({\n    ...stack,\n    ...script,\n    id: `${script.id}-${stack.id}`,\n    stackId: stack.id,\n    scriptId: script.id,\n  })));\n\nconst GENERIC_ENUM: ReadonlyMap<string, BlinkGenericFamily> = new Map([\n  [\"serif\", \"serif\"],\n  [\"sans-serif\", \"sans-serif\"],\n  [\"monospace\", \"monospace\"],\n  [\"cursive\", \"cursive\"],\n  [\"fantasy\", \"fantasy\"],\n  [\"-webkit-standard\", \"standard\"],\n  [\"-webkit-body\", \"webkit-body\"],\n]);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 5048
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/206-generic-family-semantic-ownership.md"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2343"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "1f2750d6f4a67957c9c48a2d535d8979"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5gmto82ns2mnd7",
+          "message": {
+            "text": "The logical audit confirms both directions of information loss without pixels. The final macOS Chromium run passed 40/40 forward/reverse observations and all eight semantic controls; caches are cleared once before the forward arm and deliberately retained into reverse, while CDP contributes only one-face/one-glyph corroboration.",
+            "markdown": "The logical audit confirms both directions of information loss without pixels. The final macOS Chromium run passed 40/40 forward/reverse observations and all eight semantic controls; caches are cleared once before the forward arm and deliberately retained into reverse, while CDP contributes only one-face/one-glyph corroboration."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/generic-family-semantics-audit.ts"
+                },
+                "region": {
+                  "startLine": 297,
+                  "endLine": 459,
+                  "snippet": {
+                    "text": "export function classifyGenericFamilySemanticsEvidence(\n  orders: readonly GenericFamilySemanticsOrder[],\n  legacySeamPresent: boolean,\n): Pick<GenericFamilySemanticsReport, \"controls\" | \"verdict\"> {\n  const expectedIds = GENERIC_FAMILY_SEMANTICS_CASES.map((row) => row.id).sort();\n  const completeMatrix = orders.length === 2\n    && orders.some((order) => order.order === \"forward\")\n    && orders.some((order) => order.order === \"reverse\")\n    && orders.every((order) => {\n      const ids = order.rows.map((row) => row.id).sort();\n      return JSON.stringify(ids) === JSON.stringify(expectedIds)\n        && order.rows.every((row) => row.pass);\n    });\n  const forward = orders.find((order) => order.order === \"forward\");\n  const reverse = orders.find((order) => order.order === \"reverse\");\n  const byId = forward == null ? new Map<string, GenericFamilySemanticsRow>() : indexedRows(forward);\n  const sourceDistinguishesDeclaredFromGeneric = SCRIPT_CASES.every((script) =>\n    byId.get(`${script.id}-declared-courier`)?.sourceFallbackMode === \"standard\"\n      && byId.get(`${script.id}-generic-monospace`)?.sourceFallbackMode === \"monospace\");\n  const rightmostGenericWins = SCRIPT_CASES.every((script) =>\n    byId.get(`${script.id}-monospace-then-serif`)?.sourceGeneric === \"serif\"\n      && byId.get(`${script.id}-serif-then-monospace`)?.sourceGeneric === \"monospace\");\n  const nonOccupyingGenericsPreserveLegacyEnum = SCRIPT_CASES.every((script) =>\n    byId.get(`${script.id}-courier-then-system-ui`)?.sourceGeneric === \"none\"\n      && byId.get(`${script.id}-monospace-then-math`)?.sourceGeneric === \"monospace\");\n  const quotedGenericIsLiteral = SCRIPT_CASES.every((script) =>\n    byId.get(`${script.id}-quoted-monospace-then-courier`)?.sourceGeneric === \"none\");\n  const currentRoutingLosesDeclaredCourier = SCRIPT_CASES.every((script) =>\n    byId.get(`${script.id}-declared-courier`)?.semanticLoss === true);\n  const currentRoutingLosesNonCourierMonospace = SCRIPT_CASES.every((script) =>\n    byId.get(`${script.id}-arial-then-monospace`)?.semanticLoss === true);\n  const reverseRows = reverse == null ? new Map<string, GenericFamilySemanticsRow>() : indexedRows(reverse);\n  const forwardReverseStable = forward != null && reverse != null\n    && expectedIds.every((id) => {\n      const a = byId.get(id);\n      const b = reverseRows.get(id);\n      return a != null && b != null && stableRowSignature(a) === stableRowSignature(b);\n    });\n  const controls = {\n    completeMatrix,\n    sourceDistinguishesDeclaredFromGeneric,\n    rightmostGenericWins,\n    nonOccupyingGenericsPreserveLegacyEnum,\n    quotedGenericIsLiteral,\n    currentRoutingLosesDeclaredCourier,\n    currentRoutingLosesNonCourierMonospace,\n    forwardReverseStable,\n  };\n  const logicalComplete = Object.values(controls).every(Boolean);\n  return {\n    controls,\n    verdict: !legacySeamPresent\n      ? \"source-drift\"\n      : logicalComplete\n        ? \"confirmed-information-loss\"\n        : \"invalid-evidence\",\n  };\n}\n\nfunction legacySeamEvidence(): GenericFamilySemanticsReport[\"legacySeam\"] {\n  const source = readFileSync(resolve(\"src/render/font-resolution.ts\"), \"utf8\");\n  const match = source.match(/generic:\\s*primaryKey === \"courier\" \\? \"monospace\" : \"standard\"/);\n  return {\n    present: match != null,\n    sha256: match == null ? null : createHash(\"sha256\").update(match[0]).digest(\"hex\"),\n  };\n}\n\nasync function paintedFacesForNode(\n  page: Page,\n  cdp: CDPSession,\n  rootNodeId: number,\n  selector: string,\n): Promise<PaintedFaceEvidence[]> {\n  const { nodeId } = await cdp.send(\"DOM.querySelector\", { nodeId: rootNodeId, selector });\n  const { fonts } = await cdp.send(\"CSS.getPlatformFontsForNode\", { nodeId });\n  return fonts.filter((font: PaintedFaceEvidence) => font.glyphCount > 0).map((font: PaintedFaceEvidence) => ({\n    familyName: font.familyName,\n    postScriptName: font.postScriptName,\n    isCustomFont: font.isCustomFont,\n    glyphCount: font.glyphCount,\n  }));\n}\n\nasync function collectOrder(\n  page: Page,\n  order: GenericFamilySemanticsOrder[\"order\"],\n): Promise<GenericFamilySemanticsOrder> {\n  const cases = order === \"forward\"\n    ? [...GENERIC_FAMILY_SEMANTICS_CASES]\n    : [...GENERIC_FAMILY_SEMANTICS_CASES].reverse();\n  await page.setContent(\"<!doctype html><meta charset=utf-8><main id=root></main>\");\n  await page.locator(\"#root\").evaluate((root, values) => {\n    for (const value of values) {\n      const span = document.createElement(\"span\");\n      span.id = value.id;\n      span.lang = value.lang;\n      span.textContent = value.text;\n      span.style.display = \"block\";\n      span.style.fontFamily = value.fontFamily;\n      span.style.fontSize = \"32px\";\n      root.append(span);\n    }\n  }, cases.map(({ id, lang, text, fontFamily }) => ({ id, lang, text, fontFamily })));\n  await page.evaluate(() => document.fonts.ready);\n\n  const cdp = await page.context().newCDPSession(page);\n  try {\n    await cdp.send(\"DOM.enable\");\n    await cdp.send(\"CSS.enable\");\n    const { root } = await cdp.send(\"DOM.getDocument\", { depth: -1, pierce: true });\n    const rows: GenericFamilySemanticsRow[] = [];\n    for (const spec of cases) {\n      const selector = `#${spec.id}`;\n      const computedFontFamily = await page.locator(selector).evaluate((element) =>\n        getComputedStyle(element).fontFamily);\n      const paintedFaces = await paintedFacesForNode(page, cdp, root.nodeId, selector);\n      const sourceGeneric = blinkGenericFamilyFromComputedStack(computedFontFamily);\n      const sourceFallback = sourceWinFallbackMode(sourceGeneric);\n      const primaryKey = resolveFontKey(computedFontFamily, spec.lang);\n      const keyFallback = keyInferredWinFallbackMode(primaryKey);\n      rows.push(adjudicateGenericFamilySemanticsRow({\n        id: spec.id,\n        order,\n        stackId: spec.stackId,\n        scriptId: spec.scriptId,\n        lang: spec.lang,\n        codepoint: spec.codepoint,\n        requestedFontFamily: spec.fontFamily,\n        computedFontFamily,\n        expectedGeneric: spec.expectedGeneric,\n        sourceGeneric,\n        sourceFallbackMode: sourceFallback,\n        primaryKey,\n        keyInferredFallbackMode: keyFallback,\n        sourceCandidateOrder: candidateOrder(spec.codepoint, sourceFallback),\n        keyInferredCandidateOrder: candidateOrder(spec.codepoint, keyFallback),\n        semanticLoss: sourceFallback !== keyFallback,\n        paintedFaces,\n      }));\n    }\n    return { order, rows };\n  } finally {\n    await cdp.detach();\n  }\n}\n\nexport async function runGenericFamilySemanticsAudit(): Promise<GenericFamilySemanticsReport> {\n  const browser = await chromium.launch({ headless: true });\n  try {\n    const context = await browser.newContext({ viewport: { width: 800, height: 640 } });\n    const orders: GenericFamilySemanticsOrder[] = [];\n    clearFontResolutionCaches();\n    for (const order of [\"forward\", \"reverse\"] as const) {\n      const page = await context.newPage();\n      try {\n        orders.push(await collectOrder(page, order));\n      } finally {\n        await page.close();\n      }\n    }\n    const legacySeam = legacySeamEvidence();\n    const classification = classifyGenericFamilySemanticsEvidence(orders, legacySeam.present);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/generic-family-semantics-audit.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/generic-family-semantics-audit.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2343"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "55dd5e2992dda28a934bd382bf9a2f86"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "14848bc294d60885a271deeece84290ff3d45c2b",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

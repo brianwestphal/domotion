@@ -536,6 +536,17 @@ shortest possible map:
   headless and headed, controlled live mutations, 77 settings rows, 11
   `system-ui` separation controls, and 11 quoted-literal controls. The strict native three-platform workflow is
   `.github/workflows/generic-family-preference-parity.yml`; see doc 198.
+- **Generic-family semantic ownership audit** —
+  `tools/generic-family-semantics-audit.ts` (`npm run
+  fonts:generic-family-semantics`) freezes Blink's separate family-name/type and
+  descriptor-generic ownership before HarfBuzz/Skia. It compares exact Windows
+  Arabic/Hebrew candidate order with the current resolved-key reconstruction
+  over ten named/generic/rightmost/quoted/non-occupying stacks, then repeats the
+  20 rows in reverse without clearing caches. The all-platform workflow retains
+  logical CDP/source/routing fingerprints and contains no visual tolerance. The
+  confirmed
+  false-positive and false-negative gap remains production-read-only here; see
+  doc 206 and the named production/gate follow-ups there.
 - **Synthetic stack corpus** — `tools/font-conformance-synthetic-stacks.ts`
   generates a SECOND corpus for the same oracle from a stated rule (the 13 CSS
   generic-family keywords × the 9-rung weight ladder × the 9 stretch keywords ×

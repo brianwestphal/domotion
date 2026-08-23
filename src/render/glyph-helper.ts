@@ -120,6 +120,9 @@ interface MetaResponse {
   underlineThickness?: number;
   strikeoutPosition?: number;
   strikeoutThickness?: number;
+  /** Raw OS/2 sTypo metrics used by Blink's normalized em-height geometry. */
+  typoAscender?: number;
+  typoDescender?: number;
   /** False when the helper could not guarantee the face is the requested
    *  PostScript name — the by-name-only route, where the platform substitutes a
    *  default for an unknown name rather than failing. Absent from older helper
@@ -717,7 +720,10 @@ export interface GlyphHelperFontInstance {
   descent: number;
   underlinePosition: number;
   underlineThickness: number;
-  "OS/2"?: { yStrikeoutPosition?: number; yStrikeoutSize?: number };
+  "OS/2"?: {
+    yStrikeoutPosition?: number; yStrikeoutSize?: number;
+    typoAscender?: number; typoDescender?: number;
+  };
   availableFeatures?: string[];
   /** DM-1033: batch-fetch coverage for every codepoint in `cps` in ONE helper
    *  round-trip, priming the cache so subsequent per-codepoint
@@ -1066,7 +1072,9 @@ export function createGlyphHelperFont(spec: {
     underlineThickness: metaResp.underlineThickness ?? 0,
     "OS/2": {
       yStrikeoutPosition: metaResp.strikeoutPosition,
-      yStrikeoutSize: metaResp.strikeoutThickness
+      yStrikeoutSize: metaResp.strikeoutThickness,
+      typoAscender: metaResp.typoAscender,
+      typoDescender: metaResp.typoDescender,
     },
     // DM-1880: CoreText's own bold trait, so the macOS synthetic-bold rule can
     // ask the question Blink asks instead of inferring it from a weight.

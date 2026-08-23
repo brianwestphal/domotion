@@ -4,6 +4,9 @@ import { describe, expect, it } from "vitest";
 const workflow = readFileSync(".github/workflows/shaping-unicode-conformance.yml", "utf8");
 describe("Unicode shaping conformance workflow", () => {
   it("gates representative evidence on every supported OS", () => {
+    // GitHub expressions contain braces; placing them in an unquoted YAML flow
+    // mapping makes the workflow invalid before any job is created.
+    expect(workflow).not.toMatch(/with:\s*\{[^\n]*\$\{\{/);
     expect(workflow).toContain("pull_request:");
     expect(workflow).toContain("[macos-14, ubuntu-24.04, windows-2025]");
     expect(workflow).toContain("--mode representative --shard 0/1");

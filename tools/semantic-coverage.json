@@ -15,7 +15,8 @@
         "font-stretch",
         "font-variation-settings",
         "font-size/ptem",
-        "lang"
+        "lang",
+        "FontDescription generic-family identity"
       ],
       "states": [
         "declared face covers cluster -> declared face",
@@ -23,6 +24,7 @@
         "generic family -> browser preference",
         "non-default variable coordinates -> omitted/default coordinates",
         "ptem 9 tracking -> unset ptem",
+        "resolved face key aliases named/generic stacks -> retain Blink generic-family semantic",
         "helper available -> helper absent"
       ],
       "exactStates": [
@@ -33,6 +35,7 @@
         "ptem 9 tracking -> unset ptem"
       ],
       "uncoveredStates": [
+        "resolved face key aliases named/generic stacks -> retain Blink generic-family semantic",
         "helper available -> helper absent"
       ],
       "upstreamSources": [
@@ -56,6 +59,7 @@
         "tools/unified-shaping-oracle.ts",
         "tools/renderer-font-route-oracle.ts",
         "tools/generic-family-preference-oracle.ts",
+        "tools/generic-family-semantics-audit.ts",
         "tools/linux-arm64-release-evidence.ts"
       ],
       "metamorphicTests": [
@@ -69,6 +73,10 @@
         "tests/generic-family-preference-oracle.test.ts",
         "tests/generic-family-preference-workflow.test.ts",
         ".github/workflows/generic-family-preference-parity.yml",
+        "tests/generic-family-semantics-audit.test.ts",
+        "tests/generic-family-semantics-audit.e2e.test.ts",
+        "tests/generic-family-semantics-workflow.test.ts",
+        ".github/workflows/generic-family-semantics-audit.yml",
         "tests/linux-arm64-release-evidence.test.ts",
         "tests/exact-shaping-control-fixtures.test.ts",
         "tests/fixtures/variable-axis/variable-axis.html",
@@ -81,7 +89,7 @@
         "tests/html-test-suite.tsx"
       ],
       "coverage": "partial",
-      "boundary": "Unified face/shaping evidence and a production per-run route ledger exist. Generic-family preferences are exact for the captured Page/tree contract: every capture re-probes live Common/script settings, serialized A/B roots render in order-independent scoped state, and the strict native workflow crosses pinned/full Chrome headed/headless with dynamically derived mutations and system-ui separation controls. Isolated profile-to-WebPreferences propagation, per-target OOPIF divergence, promoted descendants, shadow/header-only language facts, and system-ui platform routing remain explicit separate boundaries. The dispatch-only Linux arm64 gate consumes fingerprinted published helpers from a clean cache and requires exact logical plus selected visual evidence, with its first retained native run still required after integration. Source-owned Open Sans wght/wdth omission rows and HarfBuzz ptem=9-to-unset now make axes and ptem applicable independently of the installed host inventory, with complete logical-stream invariants and no raster tolerance. The renderer-route corpus is representative rather than exhaustive, and helper-absent behavior is intentionally degraded.",
+      "boundary": "Unified face/shaping evidence and a production per-run route ledger exist. Generic-family preferences are exact for the captured Page/tree contract: every capture re-probes live Common/script settings, serialized A/B roots render in order-independent scoped state, and the strict native workflow crosses pinned/full Chrome headed/headless with dynamically derived mutations and system-ui separation controls. The pinned source audit separately confirms a production semantic gap before shaping: Windows hardcoded fallback infers FontDescription generic identity from a concrete key, producing both named-Courier false positives and non-courier-key monospace false negatives. Its 20-row forward/reverse logical discriminator includes rightmost-generic plus system-ui/math non-occupying controls and does not reset caches between orders; it is exact as investigation evidence, but the transition stays uncovered until DM-2515 propagates the semantic through Windows routing/caches, DM-2517 closes generic-sensitive Skia terminal routing, and DM-2516 promotes source/production agreement. Isolated profile-to-WebPreferences propagation, per-target OOPIF divergence, promoted descendants, shadow/header-only language facts, and system-ui platform routing remain explicit separate boundaries. The dispatch-only Linux arm64 gate consumes fingerprinted published helpers from a clean cache and requires exact logical plus selected visual evidence, with its first retained native run still required after integration. Source-owned Open Sans wght/wdth omission rows and HarfBuzz ptem=9-to-unset now make axes and ptem applicable independently of the installed host inventory, with complete logical-stream invariants and no raster tolerance. The renderer-route corpus is representative rather than exhaustive, and helper-absent behavior is intentionally degraded.",
       "featureIds": [
         "render.text",
         "fonts.glyph-helper"

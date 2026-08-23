@@ -22,11 +22,11 @@
           "ruleId": "review-note",
           "ruleIndex": 0,
           "kind": "informational",
-          "level": "warning",
+          "level": "none",
           "guid": "mt5fyt056gd3an4e",
           "message": {
-            "text": "Windows evidence is wired but not yet ratified from an integrated revision. This job deliberately keeps every logical gate armed at DPR 1 and DPR 4, builds the DirectWrite helper, and retains fingerprinted reports; any mismatch must be classified before production changes. The shared dirty worktree was not published because it contains concurrent tickets.",
-            "markdown": "Windows evidence is wired but not yet ratified from an integrated revision. This job deliberately keeps every logical gate armed at DPR 1 and DPR 4, builds the DirectWrite helper, and retains fingerprinted reports; any mismatch must be classified before production changes. The shared dirty worktree was not published because it contains concurrent tickets."
+            "text": "Windows geometry is ratified at DPR 1 and DPR 4 without changing the 0.2/0.3/0.9 envelopes. Run 32624743248 passes 109/109 transcription, 30/30 skip-ink/pattern, and 109/109 SVG geometry at each scale; the workflow retains both fingerprinted reports and fails only after artifact upload when either exact lane is red.",
+            "markdown": "Windows geometry is ratified at DPR 1 and DPR 4 without changing the 0.2/0.3/0.9 envelopes. Run 32624743248 passes 109/109 transcription, 30/30 skip-ink/pattern, and 109/109 SVG geometry at each scale; the workflow retains both fingerprinted reports and fails only after artifact upload when either exact lane is red."
           },
           "locations": [
             {
@@ -46,9 +46,9 @@
           ],
           "properties": {
             "tags": [
-              "risk"
+              "test-evidence"
             ],
-            "ext-ai-tool-confidence": 0.97
+            "ext-ai-tool-confidence": 0.99
           },
           "relatedLocations": [
             {
@@ -63,7 +63,7 @@
               }
             }
           ],
-          "rank": 90,
+          "rank": 98,
           "workItemUris": [
             "DM-2345"
           ],

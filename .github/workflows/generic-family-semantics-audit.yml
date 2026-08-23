@@ -1,0 +1,75 @@
+name: Generic family semantic ownership
+
+on:
+  pull_request:
+    paths:
+      - "src/render/font-resolution.ts"
+      - "src/render/win-font-fallback.ts"
+      - "tools/generic-family-semantics-audit.ts"
+      - "tests/generic-family-semantics-audit.test.ts"
+      - "tests/generic-family-semantics-audit.e2e.test.ts"
+      - "tests/generic-family-semantics-workflow.test.ts"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/generic-family-semantics-audit.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/render/font-resolution.ts"
+      - "src/render/win-font-fallback.ts"
+      - "tools/generic-family-semantics-audit.ts"
+      - "tests/generic-family-semantics-audit.test.ts"
+      - "tests/generic-family-semantics-audit.e2e.test.ts"
+      - "tests/generic-family-semantics-workflow.test.ts"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/generic-family-semantics-audit.yml"
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "22.21.0"
+
+jobs:
+  semantic-ownership:
+    name: ${{ matrix.label }} logical generic ownership
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            label: macOS
+          - os: ubuntu-latest
+            label: Linux
+          - os: windows-latest
+            label: Windows
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Install pinned Chromium and Linux browser dependencies
+        if: runner.os == 'Linux'
+        run: npx playwright install --with-deps chromium
+      - name: Install pinned Chromium
+        if: runner.os != 'Linux'
+        run: npx playwright install chromium
+      - name: Validate logical adjudicator and workflow contract
+        run: npx vitest run tests/generic-family-semantics-audit.test.ts tests/generic-family-semantics-workflow.test.ts
+      - name: Capture source-owned generic identity in both cache orders
+        run: npm run fonts:generic-family-semantics -- --json generic-family-semantics-${{ runner.os }}.json
+      - name: Upload logical source, routing, face, and environment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: generic-family-semantics-${{ runner.os }}
+          path: generic-family-semantics-${{ runner.os }}.json
+          if-no-files-found: error
+          retention-days: 30

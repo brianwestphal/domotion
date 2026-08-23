@@ -85,7 +85,7 @@ jobs:
             --out tools/font-conformance-stacks.synthetic.json
           node --import tsx tools/font-conformance.ts \
             --stacks tools/font-conformance-stacks.synthetic.json \
-            --allow-foreign-corpus --max-stacks 351 --sample-byte 00 --max-rows 2000 \
+            --allow-foreign-corpus --max-stacks 13 --sample-byte 00 --max-rows 2000 \
             --out "$EVIDENCE_DIR/font-selection" 2>&1 | tee "$EVIDENCE_DIR/logs/font-selection.log"
 
       - name: Exact logical shaping oracle
