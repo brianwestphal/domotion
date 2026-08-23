@@ -125,9 +125,10 @@ Both native runs returned `investigation-complete` with no evidence blockers:
 | Raster/later sibling matches source | 15/16 | 15/16 |
 
 The missing owner is the generated-pseudo row; it has an active computed
-backdrop filter but serializes no source surface. The sibling-order miss is the
-fixed row; `DOMSnapshot` places the target before the later overlapping
-positioned sibling, while the generated SVG hoists the target raster after it.
+backdrop filter but serializes no source surface. DM-2489/doc 192 subsequently
+closed the fixed sibling-order miss: `DOMSnapshot` and generated SVG now both
+place the target raster and retained vectors before the later positioned
+sibling at DPR 1/2.
 
 The target-region changed-pixel fractions make the effect-space problem
 visible. Small edge differences remain diagnostic rather than being declared
@@ -141,7 +142,7 @@ pixel-exact:
 | clip-path root | 0.49% | 0.25% | Binary interior is stable; edge ownership still needs the root contract. |
 | mask root | 10.42% | 4.13% | Reapplying the ancestor mask changes coverage. |
 | scroll / sticky | 1.20% / 1.02% | 0.24% / 0.18% | They remain document-root transitions. |
-| fixed | 14.76% | 14.62% | Includes the independently proven sibling-order reversal. |
+| fixed | 0.45% | 0.22% | DM-2489 preserves the independently measured sibling order. |
 | generated pseudo | 91.55% | 91.85% | No serialized backdrop owner. |
 | nested / overlapping backdrops | 0.56% / 0.45% | 0.32% / 0.34% | Both targets serialize independent surfaces and preserve ordinary order. |
 | filter root | 88.18% | 87.89% | The already-final crop is filtered again by the ancestor root. |
@@ -177,9 +178,11 @@ whether raster materialization succeeded.
   audit to a strict DPR-1/2 macOS/Linux/Windows gate after the representation is
   corrected.
 - **DM-2488:** give live generated pseudos their own backdrop source boundary at
-  the captured pseudo paint slot; do not flatten the host.
-- **DM-2489:** preserve Chromium sibling order for fixed/hoisted backdrop
-  rasters, including trapped-fixed and equal-paint-group controls.
+  the captured pseudo paint slot; do not flatten the host. **Landed in doc
+  193:** the focused 15-case DPR-1/2 gate reports 30/30 passing rows, 24/24
+  active pseudo owners and both destructive mutations for every owner.
+- **DM-2489 (landed; doc 192):** Chromium sibling order is preserved for
+  fixed/hoisted backdrop rasters without weakening the oracle tolerance.
 - **DM-2490:** retire the pre-raster frosted-glass warning on successful
   materialization and emit structured partial/unavailable diagnostics only
   from the authoritative post-pass.

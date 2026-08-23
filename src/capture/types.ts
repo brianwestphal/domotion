@@ -415,6 +415,8 @@ export interface CapturedPseudoPaintStyle {
   borderRadius: string;
   opacity: number;
   filter: string;
+  /** Chromium's computed pseudo-owned backdrop operation (`none` when inactive). */
+  backdropFilter?: string;
   transform: string;
   transformOrigin: string;
   zIndex?: number;
@@ -447,6 +449,17 @@ export interface CapturedPseudoFragmentSet {
   fragments: CapturedPseudoFragment[];
   typography: CapturedPseudoTypography;
   paint: CapturedPseudoPaintStyle;
+  /**
+   * DM-2488: Chromium's filtered prior-device pixels at this pseudo's exact
+   * generated-child paint slot. The direct renderer emits this boundary
+   * before the record's source-owned box/text/image vectors.
+   */
+  backdropFilterRaster?: {
+    dataUri?: string;
+    rect: { x: number; y: number; width: number; height: number };
+    isolated: true;
+    source: "chromium-prior-parent-device";
+  };
   terminalRaster?: {
     dataUri?: string;
     rect: { x: number; y: number; width: number; height: number };
@@ -2072,7 +2085,16 @@ export interface CapturedElement {
     unavailableReason?: string;
   };
   /** Chromium-composited snapshot for a backdrop-filter isolation subtree. */
-  backdropFilterRaster?: { x: number; y: number; width: number; height: number; token?: string; dataUri?: string };
+  backdropFilterRaster?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    token?: string;
+    dataUri?: string;
+    /** Private warning context consumed by the Node materialization pass. */
+    selector?: string;
+  };
   /**
    * DM-2415: Chromium-painted final surface for an HTML element whose CSS
    * `filter: url(#id)` graph contains `feConvolveMatrix`. The primitive reads
@@ -2307,4 +2329,6 @@ export interface CaptureWarning {
   feature: string;
   /** Short detail about what's not supported and/or a tracking ticket. */
   detail: string;
+  /** Machine-readable fidelity state when a post-pass retained a fallback. */
+  status?: "partial" | "unavailable";
 }

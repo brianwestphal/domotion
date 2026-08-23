@@ -11,6 +11,11 @@
 import type { CDPSession, Frame, Page } from "@playwright/test";
 import sharp from "sharp";
 
+import { clipRectForScreenshot } from "./clip-rect.js";
+import {
+  planPseudoBackdropIsolation,
+  type PseudoBackdropSnapshotNode,
+} from "./pseudo-backdrop-isolation.js";
 import {
   decodePseudoFragmentProtocol,
   type PhysicalEdges,
@@ -38,6 +43,7 @@ interface CandidateStyle {
   margin: PhysicalEdges;
   typography: CapturedPseudoTypography;
   paint: CapturedPseudoPaintStyle;
+  content: string;
   contentUrls: string[];
 }
 
@@ -66,8 +72,17 @@ interface CdpNode {
 }
 
 interface SnapshotDocument {
-  nodes: { backendNodeId?: number[] };
-  layout: { nodeIndex: number[]; bounds: number[][]; text: number[] };
+  nodes: {
+    backendNodeId?: number[];
+    parentIndex?: number[];
+    nodeType?: number[];
+  };
+  layout: {
+    nodeIndex: number[];
+    bounds: number[][];
+    text: number[];
+    paintOrders?: number[];
+  };
   textBoxes: { layoutIndex: number[]; bounds: number[][]; start: number[]; length: number[] };
 }
 
@@ -281,10 +296,12 @@ async function setupFrame(
                 borderRadius: style.borderRadius,
                 opacity: number(style.opacity),
                 filter: style.filter,
+                backdropFilter: style.backdropFilter || style.getPropertyValue("-webkit-backdrop-filter") || "none",
                 transform: style.transform,
                 transformOrigin: style.transformOrigin,
                 ...(Number.isFinite(zIndex) ? { zIndex } : {}),
               },
+              content: style.content,
               contentUrls: cssUrls(style.content),
             },
           });
@@ -396,6 +413,335 @@ function snapshotRows(snapshot: SnapshotResult, backendNodeId: number): Snapshot
     return rows;
   }
   return [];
+}
+
+function unionSnapshotBounds(
+  left: [number, number, number, number] | undefined,
+  right: readonly number[],
+): [number, number, number, number] | undefined {
+  if (right.length !== 4 || !right.every(Number.isFinite) || right[2] < 0 || right[3] < 0) return left;
+  const row: [number, number, number, number] = [right[0], right[1], right[2], right[3]];
+  if (left == null) return row;
+  const x = Math.min(left[0], row[0]);
+  const y = Math.min(left[1], row[1]);
+  const rightEdge = Math.max(left[0] + left[2], row[0] + row[2]);
+  const bottomEdge = Math.max(left[1] + left[3], row[1] + row[3]);
+  return [x, y, rightEdge - x, bottomEdge - y];
+}
+
+/** Convert only the target pseudo's document into one paint row per node. */
+function snapshotPaintNodes(
+  snapshot: SnapshotResult,
+  targetBackendNodeId: number,
+): PseudoBackdropSnapshotNode[] {
+  const document = snapshot.documents.find((candidate) =>
+    (candidate.nodes.backendNodeId ?? []).includes(targetBackendNodeId));
+  if (document == null) return [];
+  const backendIds = document.nodes.backendNodeId ?? [];
+  const rows = backendIds.map((backendNodeId, nodeIndex): PseudoBackdropSnapshotNode => ({
+    backendNodeId,
+    parentIndex: document.nodes.parentIndex?.[nodeIndex] ?? -1,
+    nodeType: document.nodes.nodeType?.[nodeIndex] ?? 0,
+  }));
+  for (let layoutIndex = 0; layoutIndex < document.layout.nodeIndex.length; layoutIndex++) {
+    const nodeIndex = document.layout.nodeIndex[layoutIndex];
+    const node = rows[nodeIndex];
+    if (node == null) continue;
+    node.bounds = unionSnapshotBounds(node.bounds, document.layout.bounds[layoutIndex]);
+    const paintOrder = document.layout.paintOrders?.[layoutIndex];
+    if (paintOrder != null && (node.paintOrder == null || paintOrder < node.paintOrder)) {
+      node.paintOrder = paintOrder;
+      node.layoutOrder = layoutIndex;
+    } else if (node.layoutOrder == null || layoutIndex < node.layoutOrder) {
+      node.layoutOrder = layoutIndex;
+    }
+  }
+  return rows;
+}
+
+function activeBackdropFilter(candidate: Candidate): boolean {
+  const value = candidate.style.paint.backdropFilter ?? "none";
+  return value !== "" && value !== "none";
+}
+
+function pseudoOwnsVisiblePaint(record: CapturedPseudoFragmentSet): boolean {
+  return record.status === "exact"
+    && record.paint.visibility !== "hidden"
+    && record.paint.visibility !== "collapse"
+    && record.paint.opacity > 0
+    && record.boxFragments.some((box) => box.physicalRect.width > 0 && box.physicalRect.height > 0);
+}
+
+function pseudoBackdropRect(record: CapturedPseudoFragmentSet): Rect | null {
+  const rects = record.boxFragments.map((box) => box.physicalRect)
+    .filter((value) => value.width > 0 && value.height > 0
+      && [value.x, value.y, value.width, value.height].every(Number.isFinite));
+  if (rects.length === 0) return null;
+  const x = Math.min(...rects.map((value) => value.x));
+  const y = Math.min(...rects.map((value) => value.y));
+  const right = Math.max(...rects.map((value) => value.x + value.width));
+  const bottom = Math.max(...rects.map((value) => value.y + value.height));
+  return { x, y, width: right - x, height: bottom - y };
+}
+
+/**
+ * Replace generated content images with transparent, equal-intrinsic-size SVGs
+ * while the backdrop boundary is captured. Text stays in layout and is made
+ * transparent by the temporary pseudo rule.
+ */
+function neutralPseudoContent(
+  candidate: Candidate,
+  record: CapturedPseudoFragmentSet,
+): string | null | undefined {
+  const images = record.contentItems.filter((item) => item.kind === "image");
+  if (images.length === 0) return undefined;
+  const sizes = images.map((item) => {
+    const itemIndex = record.contentItems.indexOf(item);
+    const fragment = record.fragments.find((row) => row.kind === "image" && row.contentItemIndex === itemIndex);
+    if (fragment == null || !(fragment.localRect.width > 0) || !(fragment.localRect.height > 0)) return null;
+    const zoom = candidate.style.typography.effectiveZoom > 0
+      ? candidate.style.typography.effectiveZoom
+      : 1;
+    return { width: fragment.localRect.width / zoom, height: fragment.localRect.height / zoom };
+  });
+  if (sizes.some((value) => value == null)) return null;
+  let imageIndex = 0;
+  const expression = /url\(\s*(?:"[^"]*"|'[^']*'|[^)]*?)\s*\)/gi;
+  const content = candidate.style.content.replace(expression, () => {
+    const size = sizes[imageIndex++];
+    if (size == null) return "url(\"\")";
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size.width}" height="${size.height}"/>`;
+    return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+  });
+  return imageIndex === images.length ? content : null;
+}
+
+interface PseudoBackdropStyleInstallation {
+  dispose(): Promise<void>;
+}
+
+async function installPseudoBackdropStyles(
+  prepared: readonly PreparedFrame[],
+  target: Candidate,
+  hiddenPseudos: readonly Candidate[],
+  key: string,
+  neutralContent: string | undefined,
+): Promise<PseudoBackdropStyleInstallation> {
+  const marker = `dm${Date.now()}${Math.random().toString(36).slice(2)}`;
+  const styleId = `__domotionPseudoBackdrop_${marker}`;
+  const cleanupKey = `${marker}Cleanup`;
+  await Promise.all(prepared.map(({ frame }) => {
+    const hidden = hiddenPseudos.filter((candidate) => candidate.frame === frame)
+      .map((candidate) => ({ elementIndex: candidate.elementIndex, pseudo: candidate.pseudo }));
+    const ownsTarget = target.frame === frame;
+    if (!ownsTarget && hidden.length === 0) return Promise.resolve();
+    return frame.evaluate(({ key, styleId, cleanupKey, marker, ownsTarget, targetIndex, targetPseudo, hidden, neutralContent }) => {
+      const registry = (globalThis as typeof globalThis & Record<string, unknown>)[key] as {
+        elements?: Element[];
+        [name: string]: unknown;
+      } | undefined;
+      const style = document.createElement("style");
+      style.id = styleId;
+      (document.head ?? document.documentElement).appendChild(style);
+      const sheet = style.sheet as CSSStyleSheet | null;
+      if (registry == null || sheet == null) throw new Error("pseudo backdrop style registry unavailable");
+      const touched: Array<{ element: Element; attribute: string }> = [];
+      const mark = (element: Element, suffix: string): string => {
+        const attribute = `data-domotion-pseudo-backdrop-${marker}-${suffix}`;
+        element.setAttribute(attribute, "");
+        touched.push({ element, attribute });
+        return `[${attribute}]`;
+      };
+      const rule = (selector: string, properties: Array<[string, string]>): void => {
+        const index = sheet.insertRule(`${selector}{}`, sheet.cssRules.length);
+        const declaration = (sheet.cssRules[index] as CSSStyleRule).style;
+        for (const [property, value] of properties) declaration.setProperty(property, value, "important");
+      };
+
+      if (ownsTarget) {
+        const host = registry.elements?.[targetIndex];
+        if (host == null) throw new Error("pseudo backdrop target host unavailable");
+        const selector = `${mark(host, "target")}::${targetPseudo}`;
+        const properties: Array<[string, string]> = [
+          ["background-color", "transparent"],
+          ["background-image", "none"],
+          ["border-top-color", "transparent"],
+          ["border-right-color", "transparent"],
+          ["border-bottom-color", "transparent"],
+          ["border-left-color", "transparent"],
+          ["outline-color", "transparent"],
+          ["box-shadow", "none"],
+          ["text-shadow", "none"],
+          ["color", "transparent"],
+          ["-webkit-text-fill-color", "transparent"],
+          ["text-decoration-color", "transparent"],
+          // Regular filter/opacity are reapplied by the direct pseudo group;
+          // only backdrop-filter remains live in this materialization frame.
+          ["filter", "none"],
+          ["opacity", "1"],
+        ];
+        if (neutralContent != null) properties.push(["content", neutralContent]);
+        rule(selector, properties);
+
+        // The raster is serialized in viewport paint coordinates and then
+        // counter-transformed inside the host SVG wrapper. Neutralize ancestor
+        // opacity/filter without removing their Backdrop Root transition, so
+        // those effects apply exactly once when the final SVG group paints.
+        let ancestor: Element | null = host;
+        let ancestorIndex = 0;
+        while (ancestor != null) {
+          const computed = getComputedStyle(ancestor);
+          const properties: Array<[string, string]> = [];
+          const opacity = Number.parseFloat(computed.opacity);
+          if (Number.isFinite(opacity) && opacity < 1) properties.push(["opacity", ".999999"]);
+          if (computed.filter !== "" && computed.filter !== "none") properties.push(["filter", "opacity(1)"]);
+          if (properties.length > 0) rule(mark(ancestor, `ancestor-${ancestorIndex++}`), properties);
+          ancestor = ancestor.parentElement;
+        }
+      }
+
+      const seen = new Set<string>();
+      for (const candidate of hidden) {
+        const identity = `${candidate.elementIndex}:${candidate.pseudo}`;
+        if (seen.has(identity)) continue;
+        seen.add(identity);
+        const host = registry.elements?.[candidate.elementIndex];
+        if (host == null) continue;
+        rule(`${mark(host, `hide-${seen.size}`)}::${candidate.pseudo}`, [["visibility", "hidden"]]);
+      }
+      registry[cleanupKey] = touched;
+    }, {
+      key,
+      styleId,
+      cleanupKey,
+      marker,
+      ownsTarget,
+      targetIndex: target.elementIndex,
+      targetPseudo: target.pseudo,
+      hidden,
+      neutralContent,
+    });
+  }));
+  return {
+    dispose: async () => {
+      await Promise.all(prepared.map(({ frame }) => frame.evaluate(({ key, styleId, cleanupKey }) => {
+        const registry = (globalThis as typeof globalThis & Record<string, unknown>)[key] as {
+          [name: string]: unknown;
+        } | undefined;
+        const touched = registry?.[cleanupKey] as Array<{ element: Element; attribute: string }> | undefined;
+        for (const row of touched ?? []) row.element.removeAttribute(row.attribute);
+        if (registry != null) delete registry[cleanupKey];
+        document.getElementById(styleId)?.remove();
+      }, { key, styleId, cleanupKey }).catch(() => undefined)));
+    },
+  };
+}
+
+interface VisibilityRestore {
+  objectId: string;
+  value: string;
+  priority: string;
+}
+
+async function hideBackdropLaterNodes(
+  session: CDPSession,
+  backendNodeIds: readonly number[],
+): Promise<VisibilityRestore[]> {
+  const restores: VisibilityRestore[] = [];
+  try {
+    for (const backendNodeId of backendNodeIds) {
+      const resolved = await session.send("DOM.resolveNode", { backendNodeId });
+      const objectId = resolved.object.objectId;
+      if (objectId == null) throw new Error(`later paint node ${backendNodeId} had no runtime object`);
+      const changed = await session.send("Runtime.callFunctionOn", {
+        objectId,
+        functionDeclaration: "function(){if(!(this instanceof Element))return null;const v=this.style.getPropertyValue('visibility');const p=this.style.getPropertyPriority('visibility');this.style.setProperty('visibility','hidden','important');return {v,p};}",
+        returnByValue: true,
+      });
+      const value = changed.result.value as { v?: string; p?: string } | null | undefined;
+      if (value == null) {
+        await session.send("Runtime.releaseObject", { objectId }).catch(() => undefined);
+        throw new Error(`later paint node ${backendNodeId} was not a mutable element`);
+      }
+      restores.push({ objectId, value: value.v ?? "", priority: value.p ?? "" });
+    }
+    return restores;
+  } catch (error) {
+    await restoreBackdropLaterNodes(session, restores);
+    throw error;
+  }
+}
+
+async function restoreBackdropLaterNodes(
+  session: CDPSession,
+  restores: readonly VisibilityRestore[],
+): Promise<void> {
+  for (let index = restores.length - 1; index >= 0; index--) {
+    const restore = restores[index];
+    await session.send("Runtime.callFunctionOn", {
+      objectId: restore.objectId,
+      functionDeclaration: "function(v,p){if(v==='')this.style.removeProperty('visibility');else this.style.setProperty('visibility',v,p);}",
+      arguments: [{ value: restore.value }, { value: restore.priority }],
+    }).catch(() => undefined);
+    await session.send("Runtime.releaseObject", { objectId: restore.objectId }).catch(() => undefined);
+  }
+}
+
+async function capturePseudoBackdropBoundary(
+  page: Page,
+  session: CDPSession,
+  snapshot: SnapshotResult,
+  prepared: readonly PreparedFrame[],
+  candidates: readonly Candidate[],
+  candidate: Candidate,
+  record: CapturedPseudoFragmentSet,
+  key: string,
+  viewport: { x: number; y: number; width: number; height: number },
+): Promise<NonNullable<CapturedPseudoFragmentSet["backdropFilterRaster"]>> {
+  if (candidate.backendNodeId == null) throw new Error("pseudo backend node unavailable");
+  const rasterRect = pseudoBackdropRect(record);
+  if (rasterRect == null) throw new Error("pseudo backdrop has no painted border box");
+  const content = neutralPseudoContent(candidate, record);
+  if (content === null) throw new Error("pseudo generated-image paint could not be neutralized without relayout");
+  const nodes = snapshotPaintNodes(snapshot, candidate.backendNodeId);
+  const plan = planPseudoBackdropIsolation(nodes, candidate.backendNodeId);
+  if (plan == null) throw new Error("pseudo backend node had no independent DOMSnapshot paint-order row");
+  const candidateByBackendId = new Map(candidates.flatMap((row) =>
+    row.backendNodeId == null ? [] : [[row.backendNodeId, row] as const]));
+  const hiddenPseudos = plan.hideBackendNodeIds.flatMap((backendNodeId) => {
+    const row = candidateByBackendId.get(backendNodeId);
+    return row == null ? [] : [row];
+  });
+  const ordinaryBackendNodeIds = plan.hideBackendNodeIds
+    .filter((backendNodeId) => !candidateByBackendId.has(backendNodeId));
+  const styles = await installPseudoBackdropStyles(prepared, candidate, hiddenPseudos, key, content);
+  let restores: VisibilityRestore[] = [];
+  try {
+    restores = await hideBackdropLaterNodes(session, ordinaryBackendNodeIds);
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    const clip = clipRectForScreenshot(rasterRect, viewport);
+    const png = Buffer.from(await page.screenshot({
+      clip,
+      omitBackground: true,
+      type: "png",
+      animations: "allow",
+    }));
+    return {
+      dataUri: `data:image/png;base64,${png.toString("base64")}`,
+      rect: {
+        x: clip.x - viewport.x,
+        y: clip.y - viewport.y,
+        width: clip.width,
+        height: clip.height,
+      },
+      isolated: true,
+      source: "chromium-prior-parent-device",
+    };
+  } finally {
+    await restoreBackdropLaterNodes(session, restores);
+    await styles.dispose();
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))).catch(() => undefined);
+  }
 }
 
 async function addShapedAdvances(candidate: Candidate, rows: SnapshotLayoutRow[], key: string): Promise<SnapshotLayoutRow[]> {
@@ -708,6 +1054,29 @@ export async function preparePseudoFragmentGeometry(
           feature: FEATURE,
           detail: `authoritative Chromium pseudo geometry unavailable (${reason}); retained one isolated Chromium-painted pseudo surface`,
         });
+      }
+      if (activeBackdropFilter(candidate) && pseudoOwnsVisiblePaint(record)) {
+        try {
+          record.backdropFilterRaster = await capturePseudoBackdropBoundary(
+            page,
+            session,
+            snapshot,
+            prepared,
+            candidates,
+            candidate,
+            record,
+            key,
+            viewport,
+          );
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : String(error);
+          warnings.push({
+            selector: candidate.selector,
+            feature: "generated-pseudo-backdrop-filter",
+            status: "unavailable",
+            detail: `unavailable: Chromium pseudo backdrop boundary could not be isolated (${reason}); retained source-owned pseudo vectors without a sampled backdrop`,
+          });
+        }
       }
       const frameFacts = facts.get(candidate.token)!;
       (frameFacts[candidate.elementIndex] ??= []).push(record);

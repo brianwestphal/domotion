@@ -239,6 +239,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex DM-2488",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt51igu6323yijk5",
+          "message": {
+            "text": "Generated pseudos own a pseudo-local prior-device backdrop surface rather than a host-wide or final-composite crop. The prepass derives the target pseudo paint slot from one DOMSnapshot epoch, preserves the source geometry while neutralizing only reproducible pseudo paint, captures Chromium's prior-parent device surface, and fails closed to retained direct vectors without promoting ownership to the host. This follows pinned Blink paint-property/source-surface ownership and pairs with the renderer's raster-before-vector contract.",
+            "markdown": "Generated pseudos own a pseudo-local prior-device backdrop surface rather than a host-wide or final-composite crop. The prepass derives the target pseudo paint slot from one DOMSnapshot epoch, preserves the source geometry while neutralizing only reproducible pseudo paint, captures Chromium's prior-parent device surface, and fails closed to retained direct vectors without promoting ownership to the host. This follows pinned Blink paint-property/source-surface ownership and pairs with the renderer's raster-before-vector contract."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/pseudo-fragment-cdp.ts"
+                },
+                "region": {
+                  "startLine": 690,
+                  "endLine": 738,
+                  "snippet": {
+                    "text": "async function capturePseudoBackdropBoundary(\n  page: Page,\n  session: CDPSession,\n  snapshot: SnapshotResult,\n  prepared: readonly PreparedFrame[],\n  candidates: readonly Candidate[],\n  candidate: Candidate,\n  record: CapturedPseudoFragmentSet,\n  key: string,\n  viewport: { x: number; y: number; width: number; height: number },\n): Promise<NonNullable<CapturedPseudoFragmentSet[\"backdropFilterRaster\"]>> {\n  if (candidate.backendNodeId == null) throw new Error(\"pseudo backend node unavailable\");\n  const rasterRect = pseudoBackdropRect(record);\n  if (rasterRect == null) throw new Error(\"pseudo backdrop has no painted border box\");\n  const content = neutralPseudoContent(candidate, record);\n  if (content === null) throw new Error(\"pseudo generated-image paint could not be neutralized without relayout\");\n  const nodes = snapshotPaintNodes(snapshot, candidate.backendNodeId);\n  const plan = planPseudoBackdropIsolation(nodes, candidate.backendNodeId);\n  if (plan == null) throw new Error(\"pseudo backend node had no independent DOMSnapshot paint-order row\");\n  const candidateByBackendId = new Map(candidates.flatMap((row) =>\n    row.backendNodeId == null ? [] : [[row.backendNodeId, row] as const]));\n  const hiddenPseudos = plan.hideBackendNodeIds.flatMap((backendNodeId) => {\n    const row = candidateByBackendId.get(backendNodeId);\n    return row == null ? [] : [row];\n  });\n  const ordinaryBackendNodeIds = plan.hideBackendNodeIds\n    .filter((backendNodeId) => !candidateByBackendId.has(backendNodeId));\n  const styles = await installPseudoBackdropStyles(prepared, candidate, hiddenPseudos, key, content);\n  let restores: VisibilityRestore[] = [];\n  try {\n    restores = await hideBackdropLaterNodes(session, ordinaryBackendNodeIds);\n    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));\n    const clip = clipRectForScreenshot(rasterRect, viewport);\n    const png = Buffer.from(await page.screenshot({\n      clip,\n      omitBackground: true,\n      type: \"png\",\n      animations: \"allow\",\n    }));\n    return {\n      dataUri: `data:image/png;base64,${png.toString(\"base64\")}`,\n      rect: {\n        x: clip.x - viewport.x,\n        y: clip.y - viewport.y,\n        width: clip.width,\n        height: clip.height,\n      },\n      isolated: true,\n      source: \"chromium-prior-parent-device\","
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/pseudo-backdrop-isolation.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/pseudo-fragments.ts"
+                },
+                "region": {
+                  "startLine": 538
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2488"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4a7ce4129287fe8756f300bef5e539d6"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "15b2b59394f022f972879bbbfc008ac121fc81de",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

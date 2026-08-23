@@ -1,0 +1,75 @@
+name: Generated-pseudo backdrop source parity
+
+on:
+  pull_request:
+    paths:
+      - "src/capture/pseudo-fragment-cdp.ts"
+      - "src/capture/pseudo-backdrop-isolation.ts"
+      - "src/capture/types.ts"
+      - "src/render/pseudo-fragments.ts"
+      - "tools/pseudo-backdrop-source-oracle.ts"
+      - "tests/pseudo-backdrop-source-oracle.e2e.test.ts"
+      - "tests/pseudo-backdrop-source-workflow.test.ts"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/pseudo-backdrop-source-parity.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/capture/pseudo-fragment-cdp.ts"
+      - "src/capture/pseudo-backdrop-isolation.ts"
+      - "src/capture/types.ts"
+      - "src/render/pseudo-fragments.ts"
+      - "tools/pseudo-backdrop-source-oracle.ts"
+      - "tests/pseudo-backdrop-source-oracle.e2e.test.ts"
+      - "tests/pseudo-backdrop-source-workflow.test.ts"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/pseudo-backdrop-source-parity.yml"
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "22.21.0"
+
+jobs:
+  parity:
+    name: ${{ matrix.label }} generated-pseudo backdrop
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            label: macOS
+          - os: ubuntu-latest
+            label: Linux
+          - os: windows-latest
+            label: Windows
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium with Linux system dependencies
+        if: runner.os == 'Linux'
+        run: npx playwright install --with-deps chromium
+      - name: Install Chromium
+        if: runner.os != 'Linux'
+        run: npx playwright install chromium
+      - name: Validate pseudo-local source planning and direct paint order
+        run: npx vitest run src/capture/pseudo-backdrop-isolation.test.ts src/render/pseudo-fragments.test.ts tests/pseudo-backdrop-source-workflow.test.ts
+      - name: Run DPR-1/2 Chromium source and mutation gate
+        run: npm run pseudo:backdrop-source-oracle -- --dpr 1,2 --json tests/output/pseudo-backdrop-${{ runner.os }}/report.json --artifact-dir tests/output/pseudo-backdrop-${{ runner.os }}/artifacts
+      - name: Upload native source, rendered, mutation, SVG, and report artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pseudo-backdrop-source-${{ runner.os }}
+          path: tests/output/pseudo-backdrop-${{ runner.os }}
+          if-no-files-found: error
+          retention-days: 30

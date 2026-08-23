@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt50y1ugldvb03wn",
+          "message": {
+            "text": "Backdrop diagnostics are outcome-owned because only the Node pass can distinguish a Blink/Skia prior-device surface from a retained fallback. Chromium 7d859f27 creates BackdropFilterInfo and pinned Skia 62efacd3 samples priorDevice; therefore exact isolation is silent, while partial/unavailable outcomes carry a machine-readable status and name the output actually serialized.",
+            "markdown": "Backdrop diagnostics are outcome-owned because only the Node pass can distinguish a Blink/Skia prior-device surface from a retained fallback. Chromium 7d859f27 creates BackdropFilterInfo and pinned Skia 62efacd3 samples priorDevice; therefore exact isolation is silent, while partial/unavailable outcomes carry a machine-readable status and name the output actually serialized."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/backdrop-isolation.ts"
+                },
+                "region": {
+                  "startLine": 17,
+                  "endLine": 62,
+                  "snippet": {
+                    "text": "export type BackdropRasterOutcome =\n  | { status: \"exact\" }\n  | {\n    status: \"partial\";\n    reason: \"planner-miss\" | \"snapshot-unavailable\" | \"node-resolution-partial\";\n    fallback: \"unisolated Chromium page crop\" | \"partially isolated Chromium crop\";\n    unresolvedNodeCount?: number;\n  }\n  | {\n    status: \"unavailable\";\n    reason: \"missing-token\" | \"screenshot-failure\";\n    fallback: string;\n  };\n\n/**\n * Convert the Node-owned materialization outcome into the public warning\n * contract. Blink's effect node samples the previously painted surface and\n * Skia's backdrop saveLayer reads the prior device, so a completed isolated\n * Chromium crop is exact for this boundary and must remain silent. Source:\n * Chromium 7d859f27 paint_property_tree_builder.cc / paint_layer.cc and its\n * pinned Skia 62efacd3 src/core/SkCanvas.cpp.\n */\nexport function backdropRasterWarning(\n  selector: string,\n  outcome: BackdropRasterOutcome,\n): CaptureWarning | null {\n  if (outcome.status === \"exact\") return null;\n  let reason: string;\n  if (outcome.reason === \"planner-miss\") {\n    reason = \"DOMSnapshot token did not map to one painted layout owner\";\n  } else if (outcome.reason === \"snapshot-unavailable\") {\n    reason = \"Chromium DOMSnapshot isolation was unavailable\";\n  } else if (outcome.reason === \"node-resolution-partial\") {\n    const count = outcome.unresolvedNodeCount ?? 1;\n    reason = `${count} CDP paint ${count === 1 ? \"owner was\" : \"owners were\"} not resolved for isolation`;\n  } else if (outcome.reason === \"missing-token\") {\n    reason = \"capture record had no live-DOM isolation token\";\n  } else {\n    reason = \"Chromium backdrop screenshot failed\";\n  }\n  return {\n    selector,\n    feature: \"backdrop-filter\",\n    status: outcome.status,\n    detail: `${outcome.status}: ${reason}; fallback: ${outcome.fallback}`,\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/emoji.ts"
+                },
+                "region": {
+                  "startLine": 476
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2490"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "d605e19eaeedb629e4ec73fcd61ec6a5"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "15b2b59394f022f972879bbbfc008ac121fc81de",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

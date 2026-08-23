@@ -63,6 +63,12 @@ the existing affine wrappers. The pseudo renderer supplies their authoritative
 fragment geometry; it never reads host `textSegments`, host edges, or host
 font ascent to reconstruct placement.
 
+DM-2488/doc 193 extends that same record-local order for `backdrop-filter`.
+One Chromium prior-device raster paints first inside the already selected
+pseudo slot, followed by a separately marked direct box/text/image vector
+group. The raster never migrates to the host and does not terminate otherwise
+exact pseudo descendants.
+
 ## Independent paint gate
 
 `tools/pseudo-fragment-render-oracle.ts` captures one adversarial live Chromium

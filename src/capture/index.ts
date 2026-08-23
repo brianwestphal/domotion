@@ -1743,6 +1743,7 @@ export async function captureElementTreeWithWarnings(
   }
   await rasterizeBitmapGlyphs(page, typed.tree, viewport, {
     includeElement: (element) => element.textPaintGeometry?.neutral == null,
+    warnings,
   });
   await rasterizeReplacedElements(page, typed.tree, viewport, { sourceImagePath: opts?.rasterizeFromImagePath });
   await rasterizeMaskSources(page, typed.tree, viewport);

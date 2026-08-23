@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex DM-2488",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt51ilwe3xvk41j9",
+          "message": {
+            "text": "The strict DM-2488 matrix is source-exact without tolerance tuning. A full local DPR 1/2 run passed all 30 rows, all 24 active pseudo owners, all 24 no-surface mutations, and all 24 final-composite mutations with zero warnings; maximum active mean absolute channel delta was 3.917222433943089 against the fixed seven-channel bound. The matrix spans before, after, checkmark, positioned and signed stacking slots, generated text/image/box paint, ancestor-root, zoom, nested and overlapping controls.",
+            "markdown": "The strict DM-2488 matrix is source-exact without tolerance tuning. A full local DPR 1/2 run passed all 30 rows, all 24 active pseudo owners, all 24 no-surface mutations, and all 24 final-composite mutations with zero warnings; maximum active mean absolute channel delta was 3.917222433943089 against the fixed seven-channel bound. The matrix spans before, after, checkmark, positioned and signed stacking slots, generated text/image/box paint, ancestor-root, zoom, nested and overlapping controls."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/pseudo-backdrop-source-oracle.ts"
+                },
+                "region": {
+                  "startLine": 300,
+                  "endLine": 371,
+                  "snippet": {
+                    "text": "          const sourceVsRendered = rect == null ? null : comparePseudoBackdropRegion(sourceImage, renderedImage, rect, dpr);\n          const underComparison = rect == null ? null : comparePseudoBackdropRegion(renderedImage, underImage, rect, dpr);\n          const overComparison = rect == null ? null : comparePseudoBackdropRegion(renderedImage, overImage, rect, dpr);\n          const recordMarkup = record == null ? \"\" : renderPseudoFragmentRecord(record, { imageHref: (url) => url });\n          const rasterAt = raster?.dataUri == null ? -1 : recordMarkup.indexOf(raster.dataUri);\n          const backdropOwnerAt = raster?.dataUri == null ? -1 : recordMarkup.lastIndexOf(\"data-domotion-pseudo-backdrop-owner\", rasterAt);\n          const vectorAt = backdropOwnerAt < 0 ? -1 : recordMarkup.indexOf(\"data-domotion-pseudo-vector-owner\", rasterAt);\n          const findings: string[] = [];\n          if (record == null && spec.id !== \"empty\") findings.push(\"missing source-owned pseudo record\");\n          if (actualSlot != null && actualSlot !== spec.slot) findings.push(`slot ${actualSlot}, expected ${spec.slot}`);\n          if (actualRasterOwners !== expectedRasterOwners) findings.push(`serialized ${actualRasterOwners}/${expectedRasterOwners} pseudo backdrop owners`);\n          if (host?.backdropFilterRaster != null) findings.push(\"backdrop was flattened onto the host\");\n          if (spec.active && sourceVsRendered != null\n              && sourceVsRendered.meanAbsoluteChannelDelta > PSEUDO_BACKDROP_THRESHOLDS.sourceMeanAbsoluteChannelDelta) {\n            findings.push(`source/render drift ${sourceVsRendered.changedFraction.toFixed(4)} changed, ${sourceVsRendered.meanAbsoluteChannelDelta.toFixed(3)} mean delta`);\n          }\n          if (spec.active && (underComparison == null || !mutationDiscriminates(underComparison))) findings.push(\"under-capture mutation was inert\");\n          if (spec.active && (overComparison == null || !mutationDiscriminates(overComparison))) findings.push(\"final-composite over-capture mutation was inert\");\n          if (spec.active && !(backdropOwnerAt >= 0 && vectorAt > rasterAt)) findings.push(\"pseudo vector did not follow its backdrop boundary\");\n          rows.push({\n            id: spec.id,\n            pseudo: spec.pseudo,\n            dpr,\n            expectedSlot: spec.slot,\n            actualSlot,\n            expectedRasterOwners,\n            actualRasterOwners,\n            noHostWideRaster: host?.backdropFilterRaster == null,\n            sourceVsRendered,\n            underCapture: { applicable: spec.active, comparison: underComparison, discriminated: spec.active && underComparison != null && mutationDiscriminates(underComparison) },\n            overCapture: { applicable: spec.active, comparison: overComparison, discriminated: spec.active && overComparison != null && mutationDiscriminates(overComparison) },\n            rasterBeforeVector: spec.active ? backdropOwnerAt >= 0 && vectorAt > rasterAt : null,\n            findings,\n            pass: findings.length === 0,\n          });\n        }\n\n        if (artifactDir != null) {\n          mkdirSync(artifactDir, { recursive: true });\n          writeFileSync(`${artifactDir}/source-dpr${dpr}.png`, source);\n          writeFileSync(`${artifactDir}/rendered-dpr${dpr}.png`, rendered);\n          writeFileSync(`${artifactDir}/under-capture-dpr${dpr}.png`, under);\n          writeFileSync(`${artifactDir}/over-capture-dpr${dpr}.png`, over);\n          writeFileSync(`${artifactDir}/rendered-dpr${dpr}.svg`, svg);\n        }\n      } finally {\n        await renderPage.close();\n        await sourcePage.close();\n        await context.close();\n      }\n    }\n  } finally {\n    await browser.close();\n  }\n\n  for (const dpr of dprs) {\n    const states = new Set(PSEUDO_BACKDROP_CASES.flatMap((spec) => spec.states));\n    for (const state of PSEUDO_BACKDROP_REQUIRED_STATES) if (!states.has(state)) blockers.push(`DPR${dpr}:missing state ${state}`);\n  }\n  blockers.push(...warnings.filter((warning) => warning.includes(\"backdrop\")));\n  blockers.push(...rows.filter((row) => !row.pass).map((row) => `DPR${row.dpr}:${row.id}:${row.findings.join(\"; \")}`));\n  return {\n    schemaVersion: 1,\n    sourcePins: PSEUDO_BACKDROP_SOURCE_PINS,\n    producer: { chromiumVersion: browser.version(), platform: process.platform, architecture: process.arch },\n    requiredStates: PSEUDO_BACKDROP_REQUIRED_STATES,\n    thresholds: PSEUDO_BACKDROP_THRESHOLDS,\n    rows,\n    warnings,\n    blockers,\n    verdict: blockers.length === 0 ? \"source-exact\" : \"source-drift\",\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/pseudo-backdrop-source-oracle.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/pseudo-backdrop-source-parity.yml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2488"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "5a9810fe56818d56320f0ace2785eb7e"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "15b2b59394f022f972879bbbfc008ac121fc81de",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

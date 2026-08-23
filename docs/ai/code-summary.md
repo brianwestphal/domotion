@@ -753,6 +753,26 @@ shortest possible map:
   transforms, missing generated-pseudo ownership, and fixed-target sibling-order
   drift for DM-2487–DM-2490.
 
+- **Backdrop raster outcome diagnostics (DM-2490, docs 19/126)** — the
+  synchronous capture walk records only backdrop intent, token, rect, and
+  selector. `rasterizeBackdropFilters` owns the fidelity decision after its
+  DOMSnapshot plan, CDP node isolation, and screenshot complete: an isolated
+  Chromium crop is silent; an unisolated/partially-isolated crop reports
+  `status: partial`; a missing token or screenshot reports
+  `status: unavailable` and names the retained vector/frosted box fallback.
+  `backdrop-isolation.ts` holds the pure outcome-to-warning contract.
+
+- **Generated-pseudo backdrop ownership (DM-2488, doc 193)** —
+  `pseudo-fragment-cdp.ts` retains the computed pseudo backdrop operation and
+  uses the real pseudo backend node plus `pseudo-backdrop-isolation.ts` to keep
+  prior paint, hide later overlapping owners, and neutralize only reproducible
+  pseudo paint. `CapturedPseudoFragmentSet.backdropFilterRaster` owns the
+  Chromium prior-device crop. `pseudo-fragments.ts` emits it before the direct
+  box/text/image vector group in the record's existing negative/before/after/
+  positioned/positive slot. `pseudo-backdrop-source-oracle.ts` gates 15 states
+  at DPR 1/2 with under-capture and final-composite over-capture mutations on
+  macOS, Linux and Windows.
+
 ## Upstream source is checked out locally — read it
 
 Two gitignored checkouts under `external/`. Between them they answer essentially every "what does Chrome actually do here" question this project asks, and reading them beats probing every time it has been tested.

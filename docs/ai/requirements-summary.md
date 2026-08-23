@@ -1584,10 +1584,31 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   over-capture mutations for all 32 serialized surfaces, and preserves
   raster-before-target-vector order. It also proves three implementation gaps:
   final viewport crops are reprocessed by ancestor effect/transform wrappers,
-  generated pseudos serialize no backdrop owner, and fixed hoisting reverses
-  one independently observed sibling order. DM-2487–DM-2490 own the production,
+  generated pseudos serialize no backdrop owner. DM-2489/doc 192 has since
+  closed the independently observed fixed-hoisting sibling reversal at DPR 1/2;
+  DM-2487, DM-2488 and DM-2490 own the remaining production,
   pseudo, order, and diagnostic follow-ups; a native release gate waits for the
   production representation rather than blessing current drift.
+
+<!-- DM-2490 -->
+- `backdrop-filter` warnings describe the Node materialization outcome, not the
+  presence of the computed property. A successfully isolated Chromium source
+  surface emits no warning. Planner/snapshot misses and unresolved CDP paint
+  owners emit a machine-readable `partial` warning naming the unisolated or
+  partially isolated crop; a missing token or screenshot emits
+  `unavailable` and names the vector/frosted box fallback. The synchronous DOM
+  walk must never revive the retired unconditional “no true blur” warning.
+
+<!-- DM-2488 -->
+- A live `::before`, `::after`, or `::checkmark` with non-`none`
+  `backdrop-filter` owns one Chromium prior-device raster on its source-owned
+  pseudo record. It must paint first inside the captured generated-child slot;
+  retained pseudo box/text/image vectors follow directly. `none`, hidden and
+  empty records own no raster. Capture must use the pseudo backend node's
+  independent paint order, restore every temporary mutation, and must never
+  substitute a host-wide raster. The native DPR-1/2 gate requires exact owner
+  counts, all five pseudo slots, ancestor-root/zoom/nested/overlap rows, no
+  warnings, and discriminating no-surface plus final-composite mutations.
 
 ## What this file is NOT
 

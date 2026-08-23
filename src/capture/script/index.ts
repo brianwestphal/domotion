@@ -624,9 +624,10 @@ const captureDocumentTree =
     if (cs.transform && cs.transform.startsWith('matrix3d')) {
       warn(sel, 'transform-3d', 'static 3D plane projected to vector SVG from Chromium-measured corners');
     }
-    if (cs.backdropFilter && cs.backdropFilter !== 'none') {
-      warn(sel, 'backdrop-filter', 'approximated via a frosted-glass background fallback for the transparent-backdrop case (doc 19); no true backdrop blur');
-    }
+    // DM-2490: backdrop-filter diagnostics belong to the Node post-pass. The
+    // synchronous walk can declare a source-surface owner, but only the later
+    // DOMSnapshot / CDP isolation and screenshot steps know whether Chromium
+    // materialized it exactly or retained a partial/unavailable fallback.
     // writing-mode != horizontal-tb is handled via elementRaster (SK-1128)
     // — the text region is screenshot-rasterized so vertical text and
     // sideways glyph rotation come from Chromes own paint. No warning.
@@ -1396,7 +1397,14 @@ const captureDocumentTree =
         if (value === '' || value === 'none' || rect.width <= 0 || rect.height <= 0) return undefined;
         const token = 'bf' + (_backdropRasterSeq++);
         el.setAttribute('data-domotion-backdrop-raster', token);
-        return { x: rect.left - vp.x, y: rect.top - vp.y, width: rect.width, height: rect.height, token };
+        return {
+          x: rect.left - vp.x,
+          y: rect.top - vp.y,
+          width: rect.width,
+          height: rect.height,
+          token,
+          selector: sel,
+        };
       })(),
       // DM-2415: a CSS URL filter containing feConvolveMatrix needs Blink's
       // original layer-space SourceGraphic pixels. The Node post-pass replaces

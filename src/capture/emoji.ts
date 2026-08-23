@@ -20,10 +20,14 @@ import { existsSync } from "node:fs";
 import type { CDPSession, Page } from "@playwright/test";
 import * as fontkit from "fontkit";
 import sharp from "sharp";
-import type { CapturedElement, TextSegment } from "./types.js";
+import type { CapturedElement, CaptureWarning, TextSegment } from "./types.js";
 import { clipRectForScreenshot } from "./clip-rect.js";
 import { forEachElement } from "../tree-ops/for-each-element.js";
-import { planBackdropIsolation, type SnapshotNode } from "./backdrop-isolation.js";
+import {
+  appendBackdropRasterWarning,
+  planBackdropIsolation,
+  type SnapshotNode,
+} from "./backdrop-isolation.js";
 import { selectedGlyphRasterSpans } from "../render/text-to-path.js";
 import { capturedTextSegmentFontFeatures, parseFontVariationSettings } from "../render/text.js";
 
@@ -469,16 +473,54 @@ async function calibrateSbixOverlays(
   }
 }
 
-async function rasterizeBackdropFilters(
+export async function rasterizeBackdropFilters(
   page: Page,
   tree: CapturedElement[],
   viewport: { x: number; y: number; width: number; height: number },
+  warnings: CaptureWarning[],
 ): Promise<void> {
-  const targets: NonNullable<CapturedElement["backdropFilterRaster"]>[] = [];
-  forEachElement(tree, (el) => { if (el.backdropFilterRaster?.token != null) targets.push(el.backdropFilterRaster); });
+  type Raster = NonNullable<CapturedElement["backdropFilterRaster"]>;
+  type Target = { raster: Raster; selector: string; vectorFallback: string };
+  const targets: Target[] = [];
+  forEachElement(tree, (el) => {
+    const raster = el.backdropFilterRaster;
+    if (raster == null) return;
+    const selector = raster.selector ?? el.tag;
+    const vectorFallback = el.styles.frostedBgFallback != null
+      ? "captured frosted-background color without a sampled backdrop"
+      : "captured vector box/background without a sampled backdrop";
+    if (raster.token == null || raster.token === "") {
+      appendBackdropRasterWarning(warnings, selector, {
+        status: "unavailable",
+        reason: "missing-token",
+        fallback: vectorFallback,
+      });
+      return;
+    }
+    targets.push({ raster, selector, vectorFallback });
+  });
   if (targets.length === 0) return;
 
   let cdp: CDPSession | undefined;
+  const captureCrop = async (target: Target): Promise<boolean> => {
+    try {
+      const clip = clipRectForScreenshot(target.raster, viewport);
+      const buf = await page.screenshot({ clip, omitBackground: true, type: "png" });
+      target.raster.dataUri = `data:image/png;base64,${Buffer.from(buf).toString("base64")}`;
+      target.raster.x = clip.x - viewport.x;
+      target.raster.y = clip.y - viewport.y;
+      target.raster.width = clip.width;
+      target.raster.height = clip.height;
+      return true;
+    } catch {
+      appendBackdropRasterWarning(warnings, target.selector, {
+        status: "unavailable",
+        reason: "screenshot-failure",
+        fallback: target.vectorFallback,
+      });
+      return false;
+    }
+  };
   try {
     cdp = await page.context().newCDPSession(page);
     const snap = await cdp.send("DOMSnapshot.captureSnapshot", {
@@ -517,32 +559,51 @@ async function rasterizeBackdropFilters(
     });
 
     for (const target of targets) {
-      const plan = planBackdropIsolation(nodes, target.token!);
+      const plan = planBackdropIsolation(nodes, target.raster.token!);
+      if (plan == null) {
+        if (await captureCrop(target)) {
+          appendBackdropRasterWarning(warnings, target.selector, {
+            status: "partial",
+            reason: "planner-miss",
+            fallback: "unisolated Chromium page crop",
+          });
+        }
+        continue;
+      }
       const restores: Array<{ objectId: string; value: string; priority: string }> = [];
+      let unresolvedNodeCount = 0;
       try {
-        if (plan != null) {
-          for (const backendNodeId of plan.hideBackendNodeIds) {
-            try {
-              const resolved = await cdp.send("DOM.resolveNode", { backendNodeId }) as any;
-              const objectId = resolved.object?.objectId as string | undefined;
-              if (objectId == null) continue;
-              const changed = await cdp.send("Runtime.callFunctionOn", {
-                objectId,
-                functionDeclaration: "function(){const v=this.style.getPropertyValue('visibility');const p=this.style.getPropertyPriority('visibility');this.style.setProperty('visibility','hidden','important');return {v,p};}",
-                returnByValue: true,
-              }) as any;
-              restores.push({ objectId, value: changed.result?.value?.v ?? "", priority: changed.result?.value?.p ?? "" });
-            } catch { /* conservative fallback: leave this node painted */ }
+        for (const backendNodeId of plan.hideBackendNodeIds) {
+          try {
+            const resolved = await cdp.send("DOM.resolveNode", { backendNodeId }) as any;
+            const objectId = resolved.object?.objectId as string | undefined;
+            if (objectId == null) {
+              unresolvedNodeCount++;
+              continue;
+            }
+            const changed = await cdp.send("Runtime.callFunctionOn", {
+              objectId,
+              functionDeclaration: "function(){const v=this.style.getPropertyValue('visibility');const p=this.style.getPropertyPriority('visibility');this.style.setProperty('visibility','hidden','important');return {v,p};}",
+              returnByValue: true,
+            }) as any;
+            restores.push({ objectId, value: changed.result?.value?.v ?? "", priority: changed.result?.value?.p ?? "" });
+          } catch {
+            // The crop is still useful, but it contains paint that the exact
+            // isolation plan said must be absent. Report that partial state.
+            unresolvedNodeCount++;
           }
         }
-        const clip = clipRectForScreenshot(target, viewport);
-        const buf = await page.screenshot({ clip, omitBackground: true, type: "png" });
-        target.dataUri = `data:image/png;base64,${Buffer.from(buf).toString("base64")}`;
-        target.x = clip.x - viewport.x;
-        target.y = clip.y - viewport.y;
-        target.width = clip.width;
-        target.height = clip.height;
-      } catch { /* retain vector fallback if screenshot itself fails */ }
+        if (await captureCrop(target)) {
+          appendBackdropRasterWarning(warnings, target.selector, unresolvedNodeCount === 0
+            ? { status: "exact" }
+            : {
+              status: "partial",
+              reason: "node-resolution-partial",
+              fallback: "partially isolated Chromium crop",
+              unresolvedNodeCount,
+            });
+        }
+      }
       finally {
         for (let i = restores.length - 1; i >= 0; i--) {
           const restore = restores[i];
@@ -560,11 +621,13 @@ async function rasterizeBackdropFilters(
     // DOMSnapshot is Chromium-only and mapping can fail for pseudo/fragments.
     // Fall back to the original full-page crop for every unresolved target.
     for (const target of targets) {
-      try {
-        const clip = clipRectForScreenshot(target, viewport);
-        const buf = await page.screenshot({ clip, omitBackground: true, type: "png" });
-        target.dataUri = `data:image/png;base64,${Buffer.from(buf).toString("base64")}`;
-      } catch { /* leave dataUri absent */ }
+      if (await captureCrop(target)) {
+        appendBackdropRasterWarning(warnings, target.selector, {
+          status: "partial",
+          reason: "snapshot-unavailable",
+          fallback: "unisolated Chromium page crop",
+        });
+      }
     }
   } finally {
     await cdp?.detach().catch(() => undefined);
@@ -585,9 +648,13 @@ export async function rasterizeBitmapGlyphs(
     includeElement?: (element: CapturedElement) => boolean;
     /** Supply the authoritative segment plane for selected elements. */
     textSegmentsFor?: (element: CapturedElement) => TextSegment[] | undefined;
+    /** Capture-local sink for Node-owned materialization diagnostics. */
+    warnings?: CaptureWarning[];
   } = {},
 ): Promise<void> {
-  if (options.skipBackdropFilters !== true) await rasterizeBackdropFilters(page, tree, viewport);
+  if (options.skipBackdropFilters !== true) {
+    await rasterizeBackdropFilters(page, tree, viewport, options.warnings ?? []);
+  }
   // Two kinds of candidates share the pipeline:
   //  - Segment-level rasterRect (SK-1058): the whole pseudo text is a color-
   //    bitmap run; renderer emits one <image> and skips the text path.

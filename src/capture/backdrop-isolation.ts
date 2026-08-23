@@ -1,3 +1,5 @@
+import type { CaptureWarning } from "./types.js";
+
 export interface SnapshotNode {
   backendNodeId: number;
   parentIndex: number;
@@ -10,6 +12,70 @@ export interface SnapshotNode {
 export interface IsolationPlan {
   targetBackendNodeId: number;
   hideBackendNodeIds: number[];
+}
+
+export type BackdropRasterOutcome =
+  | { status: "exact" }
+  | {
+    status: "partial";
+    reason: "planner-miss" | "snapshot-unavailable" | "node-resolution-partial";
+    fallback: "unisolated Chromium page crop" | "partially isolated Chromium crop";
+    unresolvedNodeCount?: number;
+  }
+  | {
+    status: "unavailable";
+    reason: "missing-token" | "screenshot-failure";
+    fallback: string;
+  };
+
+/**
+ * Convert the Node-owned materialization outcome into the public warning
+ * contract. Blink's effect node samples the previously painted surface and
+ * Skia's backdrop saveLayer reads the prior device, so a completed isolated
+ * Chromium crop is exact for this boundary and must remain silent. Source:
+ * Chromium 7d859f27 paint_property_tree_builder.cc / paint_layer.cc and its
+ * pinned Skia 62efacd3 src/core/SkCanvas.cpp.
+ */
+export function backdropRasterWarning(
+  selector: string,
+  outcome: BackdropRasterOutcome,
+): CaptureWarning | null {
+  if (outcome.status === "exact") return null;
+  let reason: string;
+  if (outcome.reason === "planner-miss") {
+    reason = "DOMSnapshot token did not map to one painted layout owner";
+  } else if (outcome.reason === "snapshot-unavailable") {
+    reason = "Chromium DOMSnapshot isolation was unavailable";
+  } else if (outcome.reason === "node-resolution-partial") {
+    const count = outcome.unresolvedNodeCount ?? 1;
+    reason = `${count} CDP paint ${count === 1 ? "owner was" : "owners were"} not resolved for isolation`;
+  } else if (outcome.reason === "missing-token") {
+    reason = "capture record had no live-DOM isolation token";
+  } else {
+    reason = "Chromium backdrop screenshot failed";
+  }
+  return {
+    selector,
+    feature: "backdrop-filter",
+    status: outcome.status,
+    detail: `${outcome.status}: ${reason}; fallback: ${outcome.fallback}`,
+  };
+}
+
+export function appendBackdropRasterWarning(
+  warnings: CaptureWarning[],
+  selector: string,
+  outcome: BackdropRasterOutcome,
+): void {
+  const warning = backdropRasterWarning(selector, outcome);
+  const matches = (entry: CaptureWarning) => entry.feature === "backdrop-filter"
+    && entry.selector === selector;
+  // The Node post-pass is authoritative even for a tree produced by an older
+  // bundled walk: exact materialization removes the retired eager warning.
+  for (let index = warnings.length - 1; index >= 0; index--) {
+    if (matches(warnings[index])) warnings.splice(index, 1);
+  }
+  if (warning != null) warnings.push(warning);
 }
 
 function overlaps(a: [number, number, number, number], b: [number, number, number, number]): boolean {

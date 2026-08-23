@@ -59,6 +59,7 @@ function lowerThirdTree(): CapturedElement[] {
   const panel: CapturedElement = {
     tag: "div", text: "", x: 10, y: 10, width: 140, height: 40, children: [accent, content],
     animId: "B",
+    animatedProperties: ["transform"],
     styles: {
       ...BASE_STYLES, display: "flex", overflowX: "hidden", overflowY: "hidden",
       backgroundColor: "rgb(255,255,255)",
@@ -67,6 +68,7 @@ function lowerThirdTree(): CapturedElement[] {
   const lt: CapturedElement = {
     tag: "div", text: "", x: 10, y: 10, width: 140, height: 40, children: [panel],
     animId: "A",
+    animatedProperties: ["opacity"],
     styles: { ...BASE_STYLES, display: "flex" } as CapturedElement["styles"],
   };
   return [lt];
@@ -93,5 +95,41 @@ describe("intra-frame animation keeps its subtree nested in the anim wrapper", (
     // i.e. inside the sliding panel, not hoisted out as later siblings.
     const accentAt = svg.indexOf("rgb(255,0,0)");
     expect(accentAt).toBeGreaterThan(openB);
+  });
+
+  it("does not let a marker-only ancestor reverse a viewport-fixed backdrop target", () => {
+    const vector: CapturedElement = {
+      tag: "i", text: "vector descendant", x: 24, y: 24, width: 24, height: 12, children: [], animId: "vector",
+      styles: { ...BASE_STYLES, backgroundColor: "rgb(1,2,3)" },
+    };
+    const fixed: CapturedElement = {
+      tag: "div", text: "", x: 20, y: 20, width: 40, height: 30,
+      children: [vector], animId: "fixed-target",
+      backdropFilterRaster: {
+        x: 20, y: 20, width: 40, height: 30,
+        dataUri: "data:image/png;base64,DM2489",
+      },
+      styles: { ...BASE_STYLES, position: "fixed", zIndex: "0" },
+    };
+    const later: CapturedElement = {
+      tag: "b", text: "", x: 42, y: 35, width: 30, height: 20, children: [],
+      animId: "later", styles: {
+        ...BASE_STYLES, position: "absolute", zIndex: "1",
+        backgroundColor: "rgb(4,5,6)",
+      },
+    };
+    const markerOnlyAncestor: CapturedElement = {
+      tag: "section", text: "", x: 0, y: 0, width: 100, height: 80,
+      children: [fixed, later], animId: "correlation-only",
+      styles: { ...BASE_STYLES, position: "absolute" },
+    };
+
+    const svg = elementTreeToSvgInner([markerOnlyAncestor], 100, 80);
+    const rasterAt = svg.indexOf("DM2489");
+    const vectorAt = svg.indexOf("vector descendant");
+    const laterAt = svg.indexOf('class="anim-later"');
+    expect(rasterAt).toBeGreaterThanOrEqual(0);
+    expect(vectorAt).toBeGreaterThan(rasterAt);
+    expect(laterAt).toBeGreaterThan(vectorAt);
   });
 });

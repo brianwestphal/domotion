@@ -1017,14 +1017,14 @@
         "non-stacking -> stacking context",
         "in-flow -> positioned/floating",
         "normal -> pseudo filter",
+        "element backdrop -> generated-pseudo backdrop",
         "non-atomic -> atomic",
         "viewport fixed -> trapped fixed"
       ],
       "uncoveredStates": [
         "normal -> blend/backdrop",
         "document surface -> effect-created Backdrop Root",
-        "target final crop -> Backdrop Root/effect-space surface",
-        "element backdrop -> generated-pseudo backdrop"
+        "target final crop -> Backdrop Root/effect-space surface"
       ],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/paint/filter_effect_builder.cc",
@@ -1042,13 +1042,20 @@
         "src/render/element-tree-to-svg.ts",
         "src/render/text.ts",
         "src/capture/script/walker/pseudo-content.ts",
-        "src/capture/backdrop-isolation.ts"
+        "src/capture/backdrop-isolation.ts",
+        "src/capture/pseudo-fragment-cdp.ts",
+        "src/capture/pseudo-backdrop-isolation.ts",
+        "src/capture/emoji.ts",
+        "src/capture/types.ts",
+        "src/render/pseudo-fragments.ts"
       ],
       "oracles": [
         "tools/paint-order-oracle.ts",
         "tools/raster-boundary-oracle.ts",
         "tools/blend-filter-pixel-stage-oracle.ts",
-        "tools/backdrop-source-surface-audit.ts"
+        "tools/backdrop-source-surface-audit.ts",
+        "tools/pseudo-backdrop-source-oracle.ts",
+        ".github/workflows/pseudo-backdrop-source-parity.yml"
       ],
       "metamorphicTests": [
         "src/stacking-context.test.ts",
@@ -1060,7 +1067,13 @@
         "tests/blend-filter-pixel-stage-oracle.e2e.test.ts",
         "tests/blend-filter-pixel-stage-workflow.test.ts",
         "tests/backdrop-source-surface-audit.test.ts",
-        "tests/backdrop-source-surface-audit.e2e.test.ts"
+        "tests/backdrop-source-surface-audit.e2e.test.ts",
+        "src/capture/backdrop-raster-diagnostics.test.ts",
+        "src/capture/backdrop-isolation.e2e.test.ts",
+        "src/capture/pseudo-backdrop-isolation.test.ts",
+        "src/render/pseudo-fragments.test.ts",
+        "tests/pseudo-backdrop-source-oracle.e2e.test.ts",
+        "tests/pseudo-backdrop-source-workflow.test.ts"
       ],
       "visualFixtures": [
         "tests/features.ts#z-index-order",
@@ -1070,7 +1083,7 @@
         "tests/fixtures/html-test/37-blend-filter-pixel-stage.html"
       ],
       "coverage": "partial",
-      "boundary": "Pseudo shorthand filter functions are exact native-vector effects with function-list, mutation, clip/transform/stack-slot, zoom, and DPR evidence. DM-2360 pins and gates the browser pixel stage for all 17 premultiplied blend modes, author-order sRGB shorthand chains, opacity, decal blur, fractional drop-shadow, isolation and reverse-painted background blends at DPR 1/2 on macOS/Linux/Windows. Independent filter/blend/isolation mutations and six ownership rows prevent a wrong source surface from passing an end-image tolerance. Computed alpha preserves Blink's legacy two/three-decimal and modern six-decimal forms, so the strict report is source-exact with no known-drift allowance. DM-2357 observationally covers 17 backdrop transitions at DPR 1/2 with exact source-root classification, independent sibling order, raster-before-vector checks, and under/final-crop mutations. Coverage remains partial: viewport-final crops replay ancestor effect/transform space, generated pseudos lack an owner, fixed hoisting reverses one sibling order, and the upstream mixed reference-linearRGB/shorthand-sRGB seam is not locally emulated.",
+      "boundary": "Pseudo shorthand filter functions are exact native-vector effects with function-list, mutation, clip/transform/stack-slot, zoom, and DPR evidence. DM-2360 pins and gates the browser pixel stage for all 17 premultiplied blend modes, author-order sRGB shorthand chains, opacity, decal blur, fractional drop-shadow, isolation and reverse-painted background blends at DPR 1/2 on macOS/Linux/Windows. Independent filter/blend/isolation mutations and six ownership rows prevent a wrong source surface from passing an end-image tolerance. Computed alpha preserves Blink's legacy two/three-decimal and modern six-decimal forms, so the strict report is source-exact with no known-drift allowance. DM-2357 observationally covers 17 backdrop transitions at DPR 1/2 with exact source-root classification, independent sibling order, raster-before-vector checks, and under/final-crop mutations; DM-2488/doc 193 closes generated-pseudo ownership with pseudo-local prior-device rasters, retained direct vectors, exact slot placement, and independent no-surface/final-composite mutations at DPR 1/2; DM-2489/doc 192 closes its fixed-hoisting sibling-order miss; DM-2490 makes exact host and generated-pseudo materializations silent and emits named status diagnostics only for retained partial/unavailable output. Coverage remains partial: ordinary-element viewport-final crops replay ancestor effect/transform space, and the upstream mixed reference-linearRGB/shorthand-sRGB seam is not locally emulated.",
       "featureIds": [
         "render.tree-to-svg"
       ],
@@ -1095,7 +1108,8 @@
         "inline box edges",
         "fragmentation",
         "checkable generated indicators",
-        "summary disclosure marker geometry"
+        "summary disclosure marker geometry",
+        "generated-pseudo backdrop source surface"
       ],
       "states": [
         "content none -> generated string",
@@ -1113,7 +1127,8 @@
         "appearance none/base checkable -> before/after/checkmark source ownership",
         "authoritative empty checkable facts -> no generic indicator",
         "native auto checkable -> Chromium native ownership",
-        "details closed/open/suppressed -> source-owned disclosure marker"
+        "details closed/open/suppressed -> source-owned disclosure marker",
+        "pseudo backdrop none/hidden/empty -> exact before/after/checkmark source ownership"
       ],
       "exactStates": [
         "content none -> generated string",
@@ -1131,7 +1146,8 @@
         "appearance none/base checkable -> before/after/checkmark source ownership",
         "authoritative empty checkable facts -> no generic indicator",
         "native auto checkable -> Chromium native ownership",
-        "details closed/open/suppressed -> source-owned disclosure marker"
+        "details closed/open/suppressed -> source-owned disclosure marker",
+        "pseudo backdrop none/hidden/empty -> exact before/after/checkmark source ownership"
       ],
       "uncoveredStates": [],
       "upstreamSources": [
@@ -1150,6 +1166,7 @@
       "productionOwners": [
         "src/capture/pseudo-fragment-protocol.ts",
         "src/capture/pseudo-fragment-cdp.ts",
+        "src/capture/pseudo-backdrop-isolation.ts",
         "src/capture/summary-marker-cdp.ts",
         "src/capture/script/walker/pseudo-content.ts",
         "src/capture/script/walker/pseudo-inject.ts",
@@ -1168,6 +1185,9 @@
         "tests/pseudo-fragment-capture.e2e.test.ts",
         "tools/pseudo-fragment-render-oracle.ts",
         "tests/pseudo-fragment-render-oracle.e2e.test.ts",
+        "tools/pseudo-backdrop-source-oracle.ts",
+        "tests/pseudo-backdrop-source-oracle.e2e.test.ts",
+        ".github/workflows/pseudo-backdrop-source-parity.yml",
         "tests/checkable-pseudo-indicators.e2e.test.ts",
         "tests/summary-disclosure-marker.e2e.test.ts",
         ".github/workflows/summary-disclosure-marker-parity.yml",
@@ -1181,7 +1201,9 @@
         "src/render/form-controls.test.ts",
         "tests/flex-after-pseudo-position.e2e.test.ts",
         "tests/pseudo-before-marker.e2e.test.ts",
-        "src/render/list-marker-geometry.test.ts"
+        "src/render/list-marker-geometry.test.ts",
+        "src/capture/pseudo-backdrop-isolation.test.ts",
+        "tests/pseudo-backdrop-source-workflow.test.ts"
       ],
       "visualFixtures": [
         "tests/features.ts#pseudo-after-badge",

@@ -40,7 +40,7 @@ live DOM and produces a serializable element tree the renderer can consume.
 | `CaptureElementTreeOptions` | type | Direct tree-capture options, including strict `animationTimeMs` frame seeking. |
 | `SeekAnimationsToFrameOptions`, `StableAnimationDocumentState`, `StableAnimationFrameState` | type | Strict/include-frame controls and auditable per-document/result records for an exact animation-frame seek. |
 | `CapturedElement` | type | The serializable element-tree node — the contract between capture and render. |
-| `CaptureWarning` | type | `{ selector, feature, detail }` entries reported by `getLastCaptureWarnings`. |
+| `CaptureWarning` | type | `{ selector, feature, detail, status? }` entries reported by `getLastCaptureWarnings`; Node-owned fallback diagnostics may set `status` to `partial` or `unavailable`. |
 
 ## Render
 

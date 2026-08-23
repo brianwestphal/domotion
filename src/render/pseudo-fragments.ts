@@ -534,7 +534,17 @@ export function renderPseudoFragmentRecord(
   if (errors.length > 0) return `<g ${attrs} data-domotion-pseudo-boundary="${esc(errors.join("; "))}"/>`;
 
   const matrices = record.boxFragments.map((box) => pseudoFragmentAffine(box)!);
-  const pieces = record.boxFragments.map((box, index) => renderBox(record, box, matrices[index], options));
+  const pieces: string[] = [];
+  const backdrop = record.backdropFilterRaster;
+  if (backdrop?.dataUri != null && finiteRect(backdrop.rect)) {
+    // Skia initializes the pseudo's effect layer from the prior parent device.
+    // This viewport-space Chromium crop is therefore the first paint inside
+    // the pseudo's captured slot; box/text/image vectors remain direct and
+    // retain their existing generated-child order above the boundary.
+    pieces.push(`<g data-domotion-pseudo-backdrop-owner="${backdrop.source}"><image href="${esc(backdrop.dataUri)}" x="${r(backdrop.rect.x)}" y="${r(backdrop.rect.y)}" width="${r(backdrop.rect.width)}" height="${r(backdrop.rect.height)}" preserveAspectRatio="none"/></g>`);
+  }
+  const vectorStart = pieces.length;
+  pieces.push(...record.boxFragments.map((box, index) => renderBox(record, box, matrices[index], options)));
   const fragments = [...record.fragments].sort((a, b) => a.visualOrder - b.visualOrder);
   for (const fragment of fragments) {
     const boxMatrix = matrices[fragment.boxFragmentIndex];
@@ -547,6 +557,10 @@ export function renderPseudoFragmentRecord(
     const href = options.imageHref?.(item.resolvedUrl, fragment.localRect.width, fragment.localRect.height) ?? item.resolvedUrl;
     const image = `<image href="${esc(href)}" x="${r(fragment.localRect.x)}" y="${r(fragment.localRect.y)}" width="${r(fragment.localRect.width)}" height="${r(fragment.localRect.height)}" preserveAspectRatio="xMidYMid meet"/>`;
     pieces.push(wrapMatrix(boxMatrix, image));
+  }
+  if (vectorStart > 0 && pieces.length > vectorStart) {
+    const vectors = pieces.splice(vectorStart);
+    pieces.push(`<g data-domotion-pseudo-vector-owner="source-fragments">${vectors.join("")}</g>`);
   }
   const effectAttrs = [
     record.paint.opacity < 1 ? ` opacity="${r(record.paint.opacity)}"` : "",

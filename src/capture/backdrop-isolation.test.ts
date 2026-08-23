@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { planBackdropIsolation, type SnapshotNode } from "./backdrop-isolation.js";
+import {
+  appendBackdropRasterWarning,
+  backdropRasterWarning,
+  planBackdropIsolation,
+  type SnapshotNode,
+} from "./backdrop-isolation.js";
+import type { CaptureWarning } from "./types.js";
 
 const n = (backendNodeId: number, parentIndex: number, paintOrder: number, bounds: [number, number, number, number], attributes: string[] = []): SnapshotNode =>
   ({ backendNodeId, parentIndex, paintOrder, layoutOrder: backendNodeId, bounds, attributes });
@@ -29,5 +35,66 @@ describe("planBackdropIsolation", () => {
       n(3, 0, 1, [40, 40, 100, 100]),
     ];
     expect(planBackdropIsolation(nodes, "bf0")?.hideBackendNodeIds).toEqual([3]);
+  });
+});
+
+describe("backdrop raster diagnostics", () => {
+  it("stays silent when Chromium materialized the isolated source surface", () => {
+    expect(backdropRasterWarning("#glass", { status: "exact" })).toBeNull();
+    const warnings: CaptureWarning[] = [{
+      selector: "#host::before",
+      feature: "backdrop-filter",
+      detail: "legacy eager warning",
+    }];
+    appendBackdropRasterWarning(warnings, "#host::before", { status: "exact" });
+    expect(warnings).toEqual([]);
+  });
+
+  it("reports a planner miss as a partial unisolated Chromium crop", () => {
+    expect(backdropRasterWarning("#glass", {
+      status: "partial",
+      reason: "planner-miss",
+      fallback: "unisolated Chromium page crop",
+    })).toEqual({
+      selector: "#glass",
+      feature: "backdrop-filter",
+      status: "partial",
+      detail: "partial: DOMSnapshot token did not map to one painted layout owner; fallback: unisolated Chromium page crop",
+    });
+  });
+
+  it("reports unresolved CDP isolation owners and the retained partial crop", () => {
+    expect(backdropRasterWarning("#glass", {
+      status: "partial",
+      reason: "node-resolution-partial",
+      fallback: "partially isolated Chromium crop",
+      unresolvedNodeCount: 2,
+    })).toMatchObject({
+      status: "partial",
+      detail: "partial: 2 CDP paint owners were not resolved for isolation; fallback: partially isolated Chromium crop",
+    });
+  });
+
+  it("reports screenshot failure as unavailable and names the vector fallback", () => {
+    expect(backdropRasterWarning("#glass", {
+      status: "unavailable",
+      reason: "screenshot-failure",
+      fallback: "captured frosted-background color without a sampled backdrop",
+    })).toMatchObject({
+      status: "unavailable",
+      detail: "unavailable: Chromium backdrop screenshot failed; fallback: captured frosted-background color without a sampled backdrop",
+    });
+  });
+
+  it("keeps generated-pseudo ownership distinct from the host selector", () => {
+    expect(backdropRasterWarning("#host::before", {
+      status: "unavailable",
+      reason: "missing-token",
+      fallback: "captured vector box/background without a sampled backdrop",
+    })).toMatchObject({
+      selector: "#host::before",
+      status: "unavailable",
+      detail: expect.stringContaining("capture record had no live-DOM isolation token"),
+    });
   });
 });

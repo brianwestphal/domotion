@@ -81,7 +81,14 @@ export function establishesStackingContext(el: CapturedElement, parentDisplay?: 
   // empty so the animation moves nothing; and a flex item that slides leaves
   // its own text/children behind. The lower-third template (panel that fades +
   // slides) hit exactly this — only the panel's background animated.
-  if (el.animId != null && el.animId !== "") return true;
+  // `data-domotion-anim` is only a correlation hook.  It has no CSS paint
+  // effect in Blink by itself, so it must not manufacture an atomic stacking
+  // context before tree-ops has attached an actual animation track.  Besides
+  // being source-correct, this matters for viewport-fixed descendants: a
+  // marker-only ancestor used to trap the ordinary later sibling in one SVG
+  // group while the fixed child was pulled out and appended after that group,
+  // reversing Chromium's equal-bucket/source order (DM-2489).
+  if (el.animId != null && el.animId !== "" && (el.animatedProperties?.length ?? 0) > 0) return true;
   const positioned = s.position != null && s.position !== "static";
   const zRaw = s.zIndex;
   if (positioned && zRaw != null && zRaw !== "" && zRaw !== "auto") return true;
@@ -429,15 +436,22 @@ export function isOverflowOnlySC(el: CapturedElement): boolean {
   // `anim-<id>` wrapper (see establishesStackingContext). Treating it as a
   // pass-through overflow-only scroller would hoist its children out and the
   // animation would only move the element's own box, not its content.
-  if (el.animId != null && el.animId !== "") return false;
+  if (el.animId != null && el.animId !== "" && (el.animatedProperties?.length ?? 0) > 0) return false;
   // Must actually create an SC via overflow
   const ox = s.overflowX;
   const oy = s.overflowY;
   const overflowIsSC = (ox != null && ox !== "visible") || (oy != null && oy !== "visible");
   if (!overflowIsSC) return false;
   // Must have NO other SC-creating property
-  const positioned = s.position != null && s.position !== "static";
-  if (positioned) return false;
+  // Positioned + z-index:auto is not a Blink stacking-context boundary.  The
+  // SVG overflow wrapper still clips this element's own paint, but descendants
+  // that escape the clip (notably viewport-fixed content) must continue into
+  // the ancestor paint list.  An explicit z-index was already classified as a
+  // real SC by establishesStackingContext above.  Treating every positioned
+  // overflow owner as atomic reversed a fixed backdrop target with a later
+  // positioned sibling in DM-2489.
+  const zRaw = s.zIndex;
+  if (zRaw != null && zRaw !== "" && zRaw !== "auto") return false;
   if (transformRelated && s.transform != null && s.transform !== "" && s.transform !== "none") return false;
   if (transformRelated && s.transformCreatesSc) return false;
   if (transformRelated && s.transformStyle != null && s.transformStyle !== "" && s.transformStyle !== "flat") return false;

@@ -95,6 +95,7 @@ function record(pseudo: "::checkmark" | "::before" | "::after" = "::before"): Ca
       borderRadius: "2px",
       opacity: 1,
       filter: "none",
+      backdropFilter: "none",
       transform: "none",
       transformOrigin: "20px 10px",
     },
@@ -132,6 +133,29 @@ describe("DM-2468 direct generated-pseudo paint", () => {
     expect(pseudoFragmentPaintSlot(before)).toBe("negative");
     after.paint.zIndex = 4;
     expect(pseudoFragmentPaintSlot(after)).toBe("positive");
+  });
+
+  it("emits one Chromium prior-device boundary before pseudo box/text vectors", () => {
+    const source = record("::after");
+    source.paint.backdropFilter = "blur(6px) saturate(1.2)";
+    source.backdropFilterRaster = {
+      dataUri: "data:image/png;base64,QkFDS0RST1A=",
+      rect: { x: 89, y: 39, width: 42, height: 22 },
+      isolated: true,
+      source: "chromium-prior-parent-device",
+    };
+    const markup = renderPseudoFragmentRecord(source);
+    const rasterAt = markup.indexOf("data-domotion-pseudo-backdrop-owner");
+    const boxAt = markup.indexOf('fill="rgb(240, 230, 220)"');
+    const textAt = markup.indexOf('transform="matrix(1 0 0 1 95 54)"');
+    expect(rasterAt).toBeGreaterThan(0);
+    expect(rasterAt).toBeLessThan(boxAt);
+    expect(rasterAt).toBeLessThan(textAt);
+    expect(markup.match(/data-domotion-pseudo-backdrop-owner/g)).toHaveLength(1);
+
+    source.backdropFilterRaster.dataUri = undefined;
+    expect(renderPseudoFragmentRecord(source)).not.toContain("data-domotion-pseudo-backdrop-owner");
+    expect(renderPseudoFragmentRecord(source)).toContain('data-domotion-pseudo-owner="source-fragments"');
   });
 
   it("fails closed for collapsed baselines/quads instead of reviving legacy anchors", () => {

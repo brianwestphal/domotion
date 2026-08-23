@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt510hk07xwqi709",
+          "message": {
+            "text": "The warning contract is exercised through the real Node post-pass, not only its formatter. Focused tests pass 13/13 across exact isolation, planner miss, unresolved CDP owner, screenshot failure, and missing token; the Chromium E2E passes 2/2 and additionally proves an exact generated-pseudo boundary stays separate from the host and emits neither backdrop warning.",
+            "markdown": "The warning contract is exercised through the real Node post-pass, not only its formatter. Focused tests pass 13/13 across exact isolation, planner miss, unresolved CDP owner, screenshot failure, and missing token; the Chromium E2E passes 2/2 and additionally proves an exact generated-pseudo boundary stays separate from the host and emits neither backdrop warning."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/backdrop-raster-diagnostics.test.ts"
+                },
+                "region": {
+                  "startLine": 79,
+                  "endLine": 135,
+                  "snippet": {
+                    "text": "describe(\"rasterizeBackdropFilters diagnostics\", () => {\n  it(\"emits no warning for a fully isolated Chromium materialization\", async () => {\n    const tree = [target({ token: \"bf0\" })];\n    const warnings: CaptureWarning[] = [];\n    await rasterizeBackdropFilters(fakePage({ snapshot: snapshot({ token: \"bf0\" }) }), tree, viewport, warnings);\n    expect(tree[0].backdropFilterRaster?.dataUri).toMatch(/^data:image\\/png;base64,/);\n    expect(warnings).toEqual([]);\n  });\n\n  it(\"reports a planner miss after retaining an unisolated Chromium crop\", async () => {\n    const tree = [target({ token: \"bf0\" })];\n    const warnings: CaptureWarning[] = [];\n    await rasterizeBackdropFilters(fakePage({ snapshot: snapshot() }), tree, viewport, warnings);\n    expect(tree[0].backdropFilterRaster?.dataUri).toMatch(/^data:image\\/png;base64,/);\n    expect(warnings).toEqual([expect.objectContaining({\n      feature: \"backdrop-filter\",\n      status: \"partial\",\n      detail: expect.stringContaining(\"fallback: unisolated Chromium page crop\"),\n    })]);\n  });\n\n  it(\"reports a CDP node-resolution miss after retaining the partial crop\", async () => {\n    const tree = [target({ token: \"bf0\" })];\n    const warnings: CaptureWarning[] = [];\n    await rasterizeBackdropFilters(fakePage({\n      snapshot: snapshot({ token: \"bf0\", laterOwner: true }),\n      resolveFails: true,\n    }), tree, viewport, warnings);\n    expect(tree[0].backdropFilterRaster?.dataUri).toMatch(/^data:image\\/png;base64,/);\n    expect(warnings).toEqual([expect.objectContaining({\n      status: \"partial\",\n      detail: expect.stringContaining(\"1 CDP paint owner was not resolved\"),\n    })]);\n  });\n\n  it(\"reports screenshot failure as unavailable and keeps the real frosted fallback\", async () => {\n    const tree = [target({ token: \"bf0\", frosted: true })];\n    const warnings: CaptureWarning[] = [];\n    await rasterizeBackdropFilters(fakePage({\n      snapshot: snapshot({ token: \"bf0\" }),\n      screenshotFails: true,\n    }), tree, viewport, warnings);\n    expect(tree[0].backdropFilterRaster?.dataUri).toBeUndefined();\n    expect(warnings).toEqual([expect.objectContaining({\n      status: \"unavailable\",\n      detail: expect.stringContaining(\"captured frosted-background color without a sampled backdrop\"),\n    })]);\n  });\n\n  it(\"reports a missing live token before attempting CDP\", async () => {\n    const tree = [target()];\n    const warnings: CaptureWarning[] = [];\n    const page = fakePage({ snapshot: snapshot({ token: \"bf0\" }) });\n    await rasterizeBackdropFilters(page, tree, viewport, warnings);\n    expect(page.context().newCDPSession).toBeDefined();\n    expect(warnings).toEqual([expect.objectContaining({\n      status: \"unavailable\","
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/backdrop-isolation.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 80
+                }
+              }
+            }
+          ],
+          "rank": 88,
+          "workItemUris": [
+            "DM-2490"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ec390ab9e96d0709f4b8da94a8f559fb"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "15b2b59394f022f972879bbbfc008ac121fc81de",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

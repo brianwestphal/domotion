@@ -87,7 +87,7 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 - [x] `::before` / `::after` filter function lists on empty, text, raster-glyph, and image generated content — the authoritative computed list stays on a native SVG CSS-filter group, preserving Blink's list order, sRGB operation space, premultiplication, moving-pixel bounds, transform/opacity nesting, clipping, and existing paint slot (DM-2367; [doc 38](38-pseudo-element-paint.md)).
 - [x] mix-blend-mode
 - [x] background-blend-mode — each image layer blends with the background stack below it, including the element's background color, inside an isolated group
-- [~] backdrop-filter — active element boxes use an isolated Chromium raster because an img-rendered SVG cannot address the prior backdrop surface. Direct document-root, ordinary stacking/isolation, clip, nested, and overlapping cases retain the narrow boundary; ancestor opacity/filter/mask/blend/transform ownership, generated pseudos, and one fixed sibling order remain explicit gaps from the 17-family DPR-1/2 audit. The legacy “frosted-glass/no true blur” warning is stale on successful raster materialization (DM-2490). See [docs 126](126-backdrop-filter-isolation.md) and [187](187-backdrop-source-surface-transitions.md).
+- [~] backdrop-filter — active element boxes use an isolated Chromium raster because an img-rendered SVG cannot address the prior backdrop surface. Direct document-root, ordinary stacking/isolation, clip, nested, and overlapping cases retain the narrow boundary; ancestor opacity/filter/mask/blend/transform ownership remains the explicit ordinary-element gap from the 17-family DPR-1/2 audit. Generated `::before`, `::after`, and `::checkmark` pseudos now own a pseudo-local Chromium prior-device surface in their captured paint slot, emitted before retained direct box/text/image vectors and guarded by independent no-surface/final-composite mutations (DM-2488; [doc 193](193-generated-pseudo-backdrop-source-ownership.md)). A successful isolated raster is silent. Only a retained unisolated/partially-isolated crop (`status: "partial"`) or a vector/frosted box fallback (`status: "unavailable"`) emits a `backdrop-filter` warning, and its detail names that output. See [docs 126](126-backdrop-filter-isolation.md) and [187](187-backdrop-source-surface-transitions.md).
 - [x] clip-path: inset(), circle(), ellipse(), polygon()
 - [x] clip-path: path() — supported (emitted as an SVG `<path>` clip; `src/render/clip-path.ts`)
 - [x] mask (mask-image gradient/url() fragment/element() paint refs) — emitted as SVG `<mask>`. See `20-css-mask-emission.md` / `21` / `22`.
@@ -115,7 +115,7 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 - [x] writing-mode: vertical-rl/vertical-lr/sideways-* — upright + rotated vertical runs, text-combine-upright. See `02-writing-mode.md`.
 - [x] Color-bitmap glyphs (emoji, author color symbols, etc.): rasterized via Playwright `page.screenshot` and embedded as `<image>`. Blink's pinned whole-sequence grammar drives presentation priority; VS15/VS16 and `font-variant-emoji` follow the real declared-family/fallback walk. The selected shaped glyph's physical sbix/COLR/CBDT/SVG representation—not a codepoint range, font name, or pixel-color probe—owns the raster boundary. See [145-renderer-owned-color-glyph-boundary.md](145-renderer-owned-color-glyph-boundary.md).
 - [x] ::first-letter drop caps (rasterized when font-size differs from element) — SK-1114
-- [x] `::before` / `::after` generated content — new captures retain Blink's anonymous text/image items, UTF-16 visual fragments, used-font baselines, every `vertical-align` class, bidi/writing planes, slice/clone edges, and fragmentainer translations. The renderer paints that record directly in captured before/after/positioned/stacking slots; it never reconstructs live geometry from host text. Invalid facts fail closed to the scoped Chromium pseudo surface, while old serialized aggregate fields remain readable. The structural and native DPR-1/2 gates are documented in [docs 157](157-pseudo-generated-fragment-geometry-audit.md), [175](175-pseudo-fragment-protocol-oracle.md), [176](176-source-owned-pseudo-fragment-capture.md), and [178](178-direct-pseudo-fragment-rendering.md).
+- [x] `::before` / `::after` generated content — new captures retain Blink's anonymous text/image items, UTF-16 visual fragments, used-font baselines, every `vertical-align` class, bidi/writing planes, slice/clone edges, and fragmentainer translations. The renderer paints that record directly in captured before/after/positioned/stacking slots; it never reconstructs live geometry from host text. Active generated-pseudo backdrop filters additionally carry a pseudo-owned prior-device surface before those direct vectors; under-capture never deletes the source fragments. Invalid facts fail closed to the scoped Chromium pseudo surface, while old serialized aggregate fields remain readable. The structural and native DPR-1/2 gates are documented in [docs 157](157-pseudo-generated-fragment-geometry-audit.md), [175](175-pseudo-fragment-protocol-oracle.md), [176](176-source-owned-pseudo-fragment-capture.md), [178](178-direct-pseudo-fragment-rendering.md), and [193](193-generated-pseudo-backdrop-source-ownership.md).
 - [x] `background-clip: text` (gradient, source-selected URL image, and non-transparent bottom-layer color inside glyph shapes) — DM-462/DM-2366. The renderer uses an alpha SVG mask that retains Blink's text-stroke geometry, paints every clipped background entry bottom→top with exact URL size/position/repeat/origin/attachment facts, then paints ordinary vector foreground fill/stroke. Descendant glyphs consume the nearest ancestor owner and slice fragments use the captured stitched positioning box; no text raster is admitted by the DPR-1/2 gate. See [doc 18](18-background-clip-text.md) and [doc 181](181-background-clip-text-url-color-semantics.md).
 
 ### Images
@@ -188,7 +188,7 @@ const tree = await captureElementTree(page, "body", viewport);
 logCaptureWarnings();      // stderr one-line-per-warning
 // or structured:
 for (const w of getLastCaptureWarnings()) {
-  console.log(w.selector, w.feature, w.detail);
+  console.log(w.selector, w.feature, w.status, w.detail);
 }
 ```
 
@@ -196,6 +196,9 @@ Each warning has:
 - `selector`: a short CSS-selectorish path (up to 5 ancestors) identifying the element.
 - `feature`: the feature name (e.g. `transform`, `backdrop-filter`, `<iframe>`, `scrollbar`, `text-align:justify`).
 - `detail`: one sentence on what's not supported and/or a tracking ticket reference.
+- `status` (optional): machine-readable `partial` or `unavailable` when a
+  post-pass retained a known fallback. Its absence preserves the historical
+  warning shape for features that have not adopted outcome states.
 
 Warnings are deduped by `(feature, selector)` within one capture. They're stored in `html-test-suite.tsx`'s `results.json` under the `warnings` key for each test file, and shown as a badge `(Nw)` next to failing lines in the console output.
 
