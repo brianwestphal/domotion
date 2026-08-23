@@ -68,7 +68,11 @@ stream and source outlines. Baseline, outer matrix, and synthetic paint plan
 are parsed back from renderer-emitted markup rather than copied from the
 requested cell. On Windows variable faces, the fingerprinted DirectWrite
 helper independently reopens the exact source bytes and confirms face index
-plus the resolved axis tuple. CDP's platform family/PostScript name and the
+plus every CSS-requested axis. Its full WSS vector is retained separately as
+platform metadata because DirectWrite adds standard default `ital`/`slnt` and
+sometimes `wdth` coordinates that were not CSS variation requests; those
+defaults must not be misrepresented as requested font-instance identity.
+CDP's platform family/PostScript name and the
 helper's name-ID-6 value are retained as possibly empty display metadata:
 DirectWrite may expose different WSS aliases for the same source face, so
 equality, prefixes, and suffix allowlists are not identity evidence.

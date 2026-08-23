@@ -42,6 +42,7 @@ const logicalSchema = z.object({
 const helperFaceSchema = z.object({
   postscriptDisplayName: z.string(), sourceSha256: z.string().regex(/^[a-f0-9]{64}$/),
   faceIndex: z.number().int().nonnegative(), resolvedAxes: z.record(z.string(), finite),
+  platformResolvedAxes: z.record(z.string(), finite).optional(),
   helperSha256: z.string().regex(/^[a-f0-9]{64}$/),
 }).strict();
 const nativeFaceSchema = z.object({

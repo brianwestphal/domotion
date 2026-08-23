@@ -27,6 +27,8 @@ export interface PathsNativeHelperFaceEvidence {
   sourceSha256: string;
   faceIndex: number;
   resolvedAxes: Record<string, number>;
+  /** Full DirectWrite WSS vector; axes outside the CSS request are metadata. */
+  platformResolvedAxes?: Record<string, number>;
   helperSha256: string;
 }
 

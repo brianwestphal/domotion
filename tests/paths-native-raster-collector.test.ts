@@ -162,6 +162,7 @@ describe("paths/native source-owned collection contract", () => {
           // presentation alias; neither string participates in identity.
           postscriptDisplayName: "Roboto-Regular",
           resolvedAxes: { wdth: 90, wght: 600 },
+          platformResolvedAxes: { wdth: 90, wght: 600, ital: 0, slnt: 0 },
           sourceSha256: sha("a"),
           faceIndex: 0,
           helperSha256: sha("b"),
