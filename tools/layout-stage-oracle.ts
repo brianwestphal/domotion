@@ -89,12 +89,17 @@ async function chromiumGeometry(page: Page, selector: string, scale: number): Pr
 
 function capturedGeometry(tree: CapturedElement[], box: { x: number; y: number }, scale: number): Geometry {
   const origins: Origin[] = [];
-  const visitSegment = (seg: TextSegment): void => {
+  const visitSegment = (seg: TextSegment, owner: CapturedElement): void => {
     for (const entry of codePointEntries(seg.sourceText ?? seg.text)) {
       if (/^\s+$/u.test(entry.char)) continue;
       if (seg.verticalCombineUpright) {
         const x = seg.verticalCombineXOffsets?.[entry.start];
-        if (x != null) origins.push({ char: entry.char, x: (seg.x + x - box.x) / scale, y: (seg.y - box.y) / scale });
+        // Blink's vertical-lr combine cell can extend one ascent before its
+        // owning border box. In that representation `y` is the cell top and
+        // the renderer paints at `y + fontAscent`; ordinary ruby annotation
+        // combine cells already expose their physical top and need no shift.
+        const physicalY = seg.y < owner.y ? seg.y + (seg.fontAscent ?? 0) : seg.y;
+        if (x != null) origins.push({ char: entry.char, x: (seg.x + x - box.x) / scale, y: (physicalY - box.y) / scale });
       } else if (seg.verticalWritingMode != null) {
         const y = seg.yOffsets?.[entry.start];
         if (y != null) origins.push({ char: entry.char, x: (seg.x - box.x) / scale, y: (y - box.y) / scale });
@@ -105,7 +110,7 @@ function capturedGeometry(tree: CapturedElement[], box: { x: number; y: number }
     }
   };
   const visit = (element: CapturedElement): void => {
-    for (const seg of element.textSegments ?? []) visitSegment(seg);
+    for (const seg of element.textSegments ?? []) visitSegment(seg, element);
     for (const child of element.children ?? []) visit(child);
   };
   for (const element of tree) visit(element);

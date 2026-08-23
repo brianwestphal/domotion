@@ -43,19 +43,23 @@
         "tools/font-conformance.ts",
         "tools/exact-shaping-oracle.ts",
         "tools/unified-shaping-oracle.ts",
-        "tools/renderer-font-route-oracle.ts"
+        "tools/renderer-font-route-oracle.ts",
+        "tools/linux-arm64-release-evidence.ts"
       ],
       "metamorphicTests": [
         "src/render/font-stack-availability.test.ts",
         "src/render/cluster-fallback-features.test.ts",
-        "src/render/text-run-provenance.test.ts"
+        "src/render/text-run-provenance.test.ts",
+        "tests/linux-arm64-release-evidence.test.ts",
+        "tests/linux-arm64-release-parity-workflow.test.ts",
+        ".github/workflows/linux-arm64-release-parity.yml"
       ],
       "visualFixtures": [
         "tests/features.ts#text-system-ui-cjk-fallback",
         "tests/html-test-suite.tsx"
       ],
       "coverage": "partial",
-      "boundary": "Unified face/shaping evidence and a production per-run route ledger exist; generic preference profiles remain incomplete, the renderer-route corpus is representative rather than exhaustive, and helper-absent behavior is intentionally degraded.",
+      "boundary": "Unified face/shaping evidence and a production per-run route ledger exist; the dispatch-only Linux arm64 gate consumes fingerprinted published helpers from a clean cache and requires exact logical plus selected visual evidence, with its first retained native run still required after integration. Generic preference profiles remain incomplete, the renderer-route corpus is representative rather than exhaustive, and helper-absent behavior is intentionally degraded.",
       "featureIds": [
         "render.text",
         "fonts.glyph-helper"
@@ -317,12 +321,11 @@
       ],
       "exactStates": [
         "unwrapped -> soft wrap",
-        "hidden soft hyphen -> painted hyphen"
-      ],
-      "uncoveredStates": [
         "ordinary break -> emergency break",
+        "hidden soft hyphen -> painted hyphen",
         "single fragment -> multiple fragments"
       ],
+      "uncoveredStates": [],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/layout/inline"
       ],
@@ -339,8 +342,7 @@
       "visualFixtures": [
         "tests/features.ts#text-multiline"
       ],
-      "coverage": "partial",
-      "boundary": "The declarative matrix enumerates and pair-covers wrapping, emergency breaking, hyphenation, and multicol fragmentation; adversarial fragment count/placement residuals remain red until the production representation agrees.",
+      "coverage": "exact",
       "featureIds": [
         "render.text"
       ],

@@ -958,6 +958,72 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "version": "gpt-5",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt54ygnzm8qzj2wj",
+          "message": {
+            "text": "Blink ruby base and annotation children belong to one ruby-column fragment. In sideways/vertical rows their DOMRects may fall outside the viewport while the first non-ruby parent remains visible; independent generic child culling dropped 4 source characters. Capture now climbs through ruby/rt/rp and retains the fragment only when that non-ruby owner intersects the viewport. The unchanged 56-row logical gate then reports zero mismatches.",
+            "markdown": "Blink ruby base and annotation children belong to one ruby-column fragment. In sideways/vertical rows their DOMRects may fall outside the viewport while the first non-ruby parent remains visible; independent generic child culling dropped 4 source characters. Capture now climbs through ruby/rt/rp and retains the fragment only when that non-ruby owner intersects the viewport. The unchanged 56-row logical gate then reports zero mismatches."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/index.ts"
+                },
+                "region": {
+                  "startLine": 310,
+                  "endLine": 335,
+                  "snippet": {
+                    "text": "    // whole subtree. But position:fixed / position:sticky descendants escape\n    // their containing-block flow and can paint INSIDE the viewport even when\n    // their DOM-tree parent is offscreen (e.g. slashdot's #mongo-stick-it ad\n    // bar is position:fixed at top:710px but its parent <footer id=\"ft\"> is\n    // at y=7140 in the document flow). Don't return null for an ancestor that\n    // has at least one position:fixed/sticky descendant in-viewport — instead\n    // capture the element as a transparent container (no own paint, but walk\n    // children) so the in-viewport descendants are reached. _fixedAncestors\n    // is precomputed in the pre-pass below.\n    const outsideViewport = isOutsideCaptureViewport(rect, vp);\n    // DM-2498: ruby base/annotation boxes are fragments of the parent's ruby\n    // column. In sideways/vertical layout their physical child DOMRects can\n    // lie outside the capture viewport even while the retained parent paints\n    // the column inside it (ruby annotations in particular live outside the\n    // base line box). Blink keeps these as kOpenRubyColumn/kCloseRubyColumn/\n    // kRubyLinePlaceholder inline items; culling the DOM child independently\n    // drops source-owned base/annotation text from an otherwise visible row.\n    // Retain only when the direct parent intersects the viewport, so a wholly\n    // offscreen ruby subtree still takes the ordinary culling path.\n    const _rubyTag = el.tagName == null ? '' : el.tagName.toLowerCase();\n    let _rubyOwner = el.parentElement;\n    while (_rubyOwner != null) {\n      const _ownerTag = _rubyOwner.tagName == null ? '' : _rubyOwner.tagName.toLowerCase();\n      if (_ownerTag !== 'ruby' && _ownerTag !== 'rt' && _ownerTag !== 'rp') break;\n      _rubyOwner = _rubyOwner.parentElement;\n    }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2498"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c6afa50420492b9bd11515404035053d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "b8764b69430535a15f11d419eb1c65e5b08e7808",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

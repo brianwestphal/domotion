@@ -5277,6 +5277,21 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
     // chrome here would turn an observable capture failure into wrong pixels.
     return;
   }
+  const terminalBackdropComposite = el.backdropCompositeRaster?.source === "chromium-relative-effect-layer-v1"
+    && el.backdropCompositeRaster.dataUri != null
+    ? el.backdropCompositeRaster
+    : undefined;
+  if (terminalBackdropComposite != null) {
+    // The patch already occupies Blink's final compositor/scroll paint space;
+    // it must not inherit the reconstructed transform, mask, or scroll clip.
+    // Split-phase roots emit the atomic surface once in their box pass.
+    if (phase !== "inline") {
+      const image = `<image data-domotion-no-hoist="effect-surface" href="${terminalBackdropComposite.dataUri}" x="${r(terminalBackdropComposite.x)}" y="${r(terminalBackdropComposite.y)}" width="${r(terminalBackdropComposite.width)}" height="${r(terminalBackdropComposite.height)}" preserveAspectRatio="none"/>`;
+      svgParts.push(`${indent}${wrapAtomicRasterTimeline(el, image)}`);
+      appendBoxReflection(state, el, reflectionFragmentStart, depth);
+    }
+    return;
+  }
   // DM-2171 / DM-2206: Blink evaluates backdrop-filter against a previously
   // painted backdrop surface. SVG has no way to address that prior surface,
   // so stamp Chromium's isolated box snapshot before its vector descendants.

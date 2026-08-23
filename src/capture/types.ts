@@ -23,7 +23,8 @@ export interface CapturedBackdropCompositeRaster {
   width: number;
   height: number;
   dataUri?: string;
-  source: "chromium-isolated-backdrop-root-v1" | "chromium-target-filter-chain-v1";
+  source: "chromium-isolated-backdrop-root-v1" | "chromium-target-filter-chain-v1"
+    | "chromium-relative-effect-layer-v1";
   /** Effects already present in `dataUri`; the SVG wrapper must not repeat them. */
   consumedEffects: BackdropCompositeConsumedEffect[];
   /** Outward effects removed for capture and intentionally re-applied by SVG. */
@@ -31,7 +32,7 @@ export interface CapturedBackdropCompositeRaster {
   /** Number of ordinary backdrop owners represented by this atomic surface. */
   ownerCount: number;
   /** Explicit live screenshot count (mask calibration owns source/base/alpha). */
-  screenshotPasses: 1 | 3;
+  screenshotPasses: 1 | 2 | 3;
 }
 
 /**

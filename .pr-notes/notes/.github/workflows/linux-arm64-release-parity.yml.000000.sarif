@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt54wjm7y6r3spg0",
+          "message": {
+            "text": "The arm64 job preserves evidence from every red leg before enforcing one aggregate verdict. Local proof covers the pure gate and workflow structure (8/8), YAML parsing, tool import, ESLint, and all four metadata gates; the native consumer result is deliberately pending until this new workflow exists on a remote ref.",
+            "markdown": "The arm64 job preserves evidence from every red leg before enforcing one aggregate verdict. Local proof covers the pure gate and workflow structure (8/8), YAML parsing, tool import, ESLint, and all four metadata gates; the native consumer result is deliberately pending until this new workflow exists on a remote ref."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/linux-arm64-release-parity.yml"
+                },
+                "region": {
+                  "startLine": 40,
+                  "endLine": 157,
+                  "snippet": {
+                    "text": "          mkdir -p \"$EVIDENCE_DIR/logs\" \"$EVIDENCE_DIR/font-selection\" \"$EVIDENCE_DIR/html\" \"$EVIDENCE_DIR/unicode\"\n\n      - name: Acquire and authenticate published arm64 helpers\n        id: acquisition\n        continue-on-error: true\n        run: |\n          set -o pipefail\n          node --import tsx tools/linux-arm64-release-evidence.ts acquire \\\n            --cache-root \"$CACHE_ROOT\" \\\n            --json \"$EVIDENCE_DIR/acquisition.json\" \\\n            --run-env \"$EVIDENCE_DIR/run-env.json\" \\\n            --github-env \"$GITHUB_ENV\" 2>&1 | tee \"$EVIDENCE_DIR/logs/acquisition.log\"\n\n      - name: Prove the acquired fontconfig helper is in the renderer loop\n        id: helper\n        if: steps.acquisition.outcome == 'success'\n        continue-on-error: true\n        run: |\n          set -o pipefail\n          node --import tsx tools/assert-linux-helper-in-loop.ts 2>&1 | tee \"$EVIDENCE_DIR/logs/helper.log\"\n\n      - name: Prove the acquired Chromium-matched ICU companion\n        id: icu\n        if: steps.acquisition.outcome == 'success'\n        continue-on-error: true\n        run: |\n          set -o pipefail\n          node --import tsx tools/icu-conformance.ts 2>&1 | tee \"$EVIDENCE_DIR/logs/icu.log\"\n\n      - name: Exact synthetic font-selection slice\n        id: font_selection\n        if: steps.acquisition.outcome == 'success'\n        continue-on-error: true\n        run: |\n          set -o pipefail\n          node --import tsx tools/font-conformance.ts \\\n            --stacks tools/font-conformance-stacks.synthetic.json \\\n            --allow-foreign-corpus --sample-byte 00 --max-rows 2000 \\\n            --out \"$EVIDENCE_DIR/font-selection\" 2>&1 | tee \"$EVIDENCE_DIR/logs/font-selection.log\"\n\n      - name: Exact logical shaping oracle\n        id: shaping\n        if: steps.acquisition.outcome == 'success'\n        continue-on-error: true\n        run: |\n          set -o pipefail\n          node --import tsx tools/exact-shaping-oracle.ts \\\n            --json \"$EVIDENCE_DIR/shaping.json\" 2>&1 | tee \"$EVIDENCE_DIR/logs/shaping.log\"\n\n      - name: Decoration geometry oracle\n        id: decoration\n        if: steps.acquisition.outcome == 'success'\n        continue-on-error: true\n        run: |\n          set -o pipefail\n          node --import tsx tools/decoration-oracle.ts \\\n            --json \"$EVIDENCE_DIR/decoration.json\" 2>&1 | tee \"$EVIDENCE_DIR/logs/decoration.log\"\n\n      - name: Full source and live-browser paint geometry oracles\n        id: paint\n        if: steps.acquisition.outcome == 'success'\n        continue-on-error: true\n        run: |\n          set -o pipefail\n          {\n            node --import tsx tools/paint-geometry-oracle.ts --json \"$EVIDENCE_DIR/paint-geometry.json\"\n            node --import tsx tools/paint-geometry-browser-oracle.ts --json \"$EVIDENCE_DIR/paint-browser.json\"\n          } 2>&1 | tee \"$EVIDENCE_DIR/logs/paint.log\"\n\n      - name: Known-exact Linux HTML font/text fixtures\n        id: html\n        if: steps.acquisition.outcome == 'success'\n        continue-on-error: true\n        env:\n          HTML_TEST_DIR: external/html-test\n        run: |\n          set -o pipefail\n          export HTML_TEST_OUTPUT_DIR=\"$EVIDENCE_DIR/html\"\n          node --import tsx tests/html-test-suite.tsx \\\n            --only 20-font-family,20-font-face,02-text-emoji,20-deep-writing-mode-mixed \\\n            2>&1 | tee \"$EVIDENCE_DIR/logs/html.log\"\n\n      - name: Known-exact Linux Unicode script fixtures\n        id: unicode\n        if: steps.acquisition.outcome == 'success'\n        continue-on-error: true\n        env:\n          HTML_TEST_DIR: external/html-test/unicode\n        run: |\n          set -o pipefail\n          export HTML_TEST_OUTPUT_DIR=\"$EVIDENCE_DIR/unicode\"\n          node --import tsx tests/html-test-suite.tsx \\\n            --only 0250-02AF-ipa-extensions,0370-03FF-greek-and-coptic,11F00-11F5F-kawi,FE00-FE0F-variation-selectors \\\n            2>&1 | tee \"$EVIDENCE_DIR/logs/unicode.log\"\n\n      - name: Build strict aggregate report\n        id: finalize\n        if: always()\n        continue-on-error: true\n        run: |\n          node --import tsx tools/linux-arm64-release-evidence.ts finalize \\\n            --acquisition \"$EVIDENCE_DIR/acquisition.json\" \\\n            --artifacts-root \"$EVIDENCE_DIR\" \\\n            --outcomes \"acquisition=${{ steps.acquisition.outcome }},helper=${{ steps.helper.outcome }},icu=${{ steps.icu.outcome }},font-selection=${{ steps.font_selection.outcome }},shaping=${{ steps.shaping.outcome }},decoration=${{ steps.decoration.outcome }},paint=${{ steps.paint.outcome }},html=${{ steps.html.outcome }},unicode=${{ steps.unicode.outcome }}\" \\\n            --json \"$EVIDENCE_DIR/final.json\"\n\n      - name: Upload arm64 acquisition, logical, visual, and fingerprint evidence\n        if: always()\n        uses: actions/upload-artifact@v4\n        with:\n          name: linux-arm64-release-parity-${{ github.run_id }}-${{ github.run_attempt }}\n          path: ${{ steps.paths.outputs.evidence_dir }}/\n          if-no-files-found: error\n\n      - name: Enforce exact arm64 release parity after upload\n        if: always()\n        run: |\n          node -e 'const r=require(process.env.EVIDENCE_DIR + \"/final.json\"); if (r.verdict !== \"exact-arm64-release-parity\") { console.error(r); process.exit(1); }'"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/linux-arm64-release-parity-workflow.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/linux-arm64-release-evidence.ts"
+                },
+                "region": {
+                  "startLine": 565
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2353"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f2e05587072b3d1fb67f4e808c435156"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "b8764b69430535a15f11d419eb1c65e5b08e7808",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

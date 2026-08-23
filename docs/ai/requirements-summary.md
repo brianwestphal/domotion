@@ -44,6 +44,15 @@ representative production-funnel gate and the broader unified report pass;
 every new assignment owner or emitter transition requires its own route case
 and independent mutation control.
 
+Doc 196 adds the release-consumer leg missing from Linux arm64 coverage. A
+native `ubuntu-22.04-arm` job must acquire the pinned glyph and ICU assets via
+the public production APIs into a never-used cache, prove AArch64 ELF identity,
+three release checksum authorities plus the ratified digest, live protocols and
+cache reuse, then pass the font-selection, ICU, shaping, decoration, paint,
+HTML, and Unicode gates under one runner/font/browser fingerprint. The gate
+does not build helpers or widen native-raster envelopes; its first remote
+`exact-arm64-release-parity` artifact remains required after integration.
+
 The doc-116 text-layout stage is an exact CI gate: a declarative multi-valued
 covering array proves every pair across Blink's bidi, writing, wrapping,
 breaking, ruby, emphasis, justification, synthesis, zoom, transform, and

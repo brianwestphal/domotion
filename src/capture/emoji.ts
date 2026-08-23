@@ -31,7 +31,9 @@ import {
 } from "./backdrop-isolation.js";
 import { prepareBackdropEffectSpace } from "./backdrop-effect-neutralization.js";
 import {
+  materializeBackdropTerminalComposites,
   materializeBackdropRootComposites,
+  planBackdropTerminalComposites,
   planBackdropRootComposites,
   targetNeedsAtomicFilterComposite,
 } from "./backdrop-composite-raster.js";
@@ -515,17 +517,23 @@ export async function rasterizeBackdropFilters(
   });
   if (targets.length === 0) return;
 
+  const terminalRasters = await materializeBackdropTerminalComposites(
+    page,
+    planBackdropTerminalComposites(tree),
+    viewport,
+  );
   const coveredRootRasters = await materializeBackdropRootComposites(
     page,
     planBackdropRootComposites(tree),
     viewport,
   );
   for (const target of targets) {
-    if (coveredRootRasters.has(target.raster)) {
+    if (terminalRasters.has(target.raster) || coveredRootRasters.has(target.raster)) {
       appendBackdropRasterWarning(warnings, target.selector, { status: "exact" });
     }
   }
-  const remainingTargets = targets.filter((target) => !coveredRootRasters.has(target.raster));
+  const remainingTargets = targets.filter((target) =>
+    !terminalRasters.has(target.raster) && !coveredRootRasters.has(target.raster));
 
   let cdp: CDPSession | undefined;
   const captureCrop = async (

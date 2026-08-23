@@ -270,13 +270,14 @@ integers).
 
 ## Distribution
 
-Per doc 16: release asset `domotion-glyph-paths-linux-x64`, built on an
-`ubuntu-22.04` GitHub runner (a `linux-glyph-extractor` job in
+Per doc 16: release assets `domotion-glyph-paths-linux-x64` and
+`domotion-glyph-paths-linux-arm64`, built on native `ubuntu-22.04` GitHub
+runners (the Linux jobs in
 `.github/workflows/release-helpers.yml`, alongside the macOS job), uploaded with
 a SHA-256 sidecar, downloaded on demand into the Linux user-cache dir
 (`$XDG_DATA_HOME/domotion/<version>/bin/`, default `~/.local/share/...`), `chmod +x`,
-reused thereafter. Extends DM-393's engine-agnostic acquisition logic. (arm64 is
-not yet built — see open questions.)
+reused thereafter. Extends DM-393's engine-agnostic acquisition logic. Doc 196
+defines the native arm64 clean-cache consumer gate over the published bytes.
 
 ## Validation
 
@@ -309,10 +310,13 @@ not yet built — see open questions.)
    a concrete `fontPath` and does not link fontconfig — the capture side already
    resolves families to files via the platform font-path map (DM-258). A
    family-name-only request fails loudly rather than guessing.
-3. **arm64** — still open. The release builds `linux-x64` only (GitHub
-   `ubuntu-*` runners are x64). `domotion-glyph-paths-linux-arm64` can be added
-   when there's demand (the source is arch-agnostic; it builds + passes parity on
-   arm64, verified locally on Apple-Silicon Docker).
+3. **arm64** — *RESOLVED for distribution; live consumer gate added in
+   DM-2353.* `release-helpers.yml` builds `domotion-glyph-paths-linux-arm64` on
+   `ubuntu-22.04-arm`; v0.24.0 carries the binary and sidecar. Doc 196's
+   dispatch-only workflow consumes those release bytes from a never-used cache,
+   verifies native AArch64 identity and exact fingerprints, and runs the parity
+   matrix. The first post-integration native artifact remains the operational
+   evidence; producer success alone is not relabeled as consumer validation.
 
 ## Out of scope
 
@@ -354,4 +358,6 @@ not yet built — see open questions.)
   DM-886 (`src/render/helper-acquire.ts`; lazy first-render fetch, see docs/50).
 - ✅ **arm64 asset** — `linux-arm64` (and `win32-arm64`) build+upload jobs added
   to `release-helpers.yml` and resolved by the acquisition layer (DM-886). The
-  arm64 jobs run on GitHub arm64 runners; not yet validated by a real release.
+  arm64 jobs run on GitHub arm64 runners. DM-2353/doc 196 adds the missing
+  native Linux consumer gate; its first remote dispatch is intentionally kept
+  distinct from the already-green producer job.

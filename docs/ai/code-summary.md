@@ -190,7 +190,12 @@ shortest possible map:
   `clearFontResolutionCaches()`, which is what keeps an exhaustive sweep inside
   a bounded heap. `DOMOTION_HELPER_NO_SERVE=1` forces the one-shot `spawnSync`
   transport so the channel's *cost* can be measured without changing the
-  *answers* (doc 107 § Verifying the instrument);
+  *answers* (doc 107 § Verifying the instrument). The native Linux arm64 release
+  consumer is guarded by `tools/linux-arm64-release-evidence.ts` and
+  `.github/workflows/linux-arm64-release-parity.yml` (doc 196): no checkout
+  build is accepted, and acquisition, ELF identity, pinned/sidecar/GitHub
+  digests, live helper protocols, cache reuse, runner/font/browser fingerprint,
+  exact logical stages, and selected visual corpora must form one artifact;
   `unicode-classification.ts` owns the Unicode predicates;
   `synthesis-decision.ts` owns WHETHER a resolved face needs synthetic bold /
   oblique (`faceNeedsSyntheticBold` / `faceNeedsSyntheticOblique` — three

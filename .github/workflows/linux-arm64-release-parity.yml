@@ -1,0 +1,157 @@
+name: Linux arm64 release parity
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-arm64-release-parity-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-consumer:
+    runs-on: ubuntu-22.04-arm
+    timeout-minutes: 120
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble
+    env:
+      DOMOTION_NO_NICE: '1'
+      DOMOTION_TEST_WORKERS: '1'
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.21.0
+          cache: npm
+      - run: npm ci
+      - name: Clone pinned visual fixture corpus input
+        run: git clone --depth 1 https://github.com/brianwestphal/html-test.git external/html-test
+      - name: Allocate evidence and never-before-used cache roots
+        id: paths
+        run: |
+          EVIDENCE_DIR="$RUNNER_TEMP/domotion-linux-arm64-evidence-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          CACHE_ROOT="$RUNNER_TEMP/domotion-linux-arm64-cache-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "EVIDENCE_DIR=$EVIDENCE_DIR" >> "$GITHUB_ENV"
+          echo "CACHE_ROOT=$CACHE_ROOT" >> "$GITHUB_ENV"
+          echo "evidence_dir=$EVIDENCE_DIR" >> "$GITHUB_OUTPUT"
+          mkdir -p "$EVIDENCE_DIR/logs" "$EVIDENCE_DIR/font-selection" "$EVIDENCE_DIR/html" "$EVIDENCE_DIR/unicode"
+
+      - name: Acquire and authenticate published arm64 helpers
+        id: acquisition
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          node --import tsx tools/linux-arm64-release-evidence.ts acquire \
+            --cache-root "$CACHE_ROOT" \
+            --json "$EVIDENCE_DIR/acquisition.json" \
+            --run-env "$EVIDENCE_DIR/run-env.json" \
+            --github-env "$GITHUB_ENV" 2>&1 | tee "$EVIDENCE_DIR/logs/acquisition.log"
+
+      - name: Prove the acquired fontconfig helper is in the renderer loop
+        id: helper
+        if: steps.acquisition.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          node --import tsx tools/assert-linux-helper-in-loop.ts 2>&1 | tee "$EVIDENCE_DIR/logs/helper.log"
+
+      - name: Prove the acquired Chromium-matched ICU companion
+        id: icu
+        if: steps.acquisition.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          node --import tsx tools/icu-conformance.ts 2>&1 | tee "$EVIDENCE_DIR/logs/icu.log"
+
+      - name: Exact synthetic font-selection slice
+        id: font_selection
+        if: steps.acquisition.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          node --import tsx tools/font-conformance.ts \
+            --stacks tools/font-conformance-stacks.synthetic.json \
+            --allow-foreign-corpus --sample-byte 00 --max-rows 2000 \
+            --out "$EVIDENCE_DIR/font-selection" 2>&1 | tee "$EVIDENCE_DIR/logs/font-selection.log"
+
+      - name: Exact logical shaping oracle
+        id: shaping
+        if: steps.acquisition.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          node --import tsx tools/exact-shaping-oracle.ts \
+            --json "$EVIDENCE_DIR/shaping.json" 2>&1 | tee "$EVIDENCE_DIR/logs/shaping.log"
+
+      - name: Decoration geometry oracle
+        id: decoration
+        if: steps.acquisition.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          node --import tsx tools/decoration-oracle.ts \
+            --json "$EVIDENCE_DIR/decoration.json" 2>&1 | tee "$EVIDENCE_DIR/logs/decoration.log"
+
+      - name: Full source and live-browser paint geometry oracles
+        id: paint
+        if: steps.acquisition.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          {
+            node --import tsx tools/paint-geometry-oracle.ts --json "$EVIDENCE_DIR/paint-geometry.json"
+            node --import tsx tools/paint-geometry-browser-oracle.ts --json "$EVIDENCE_DIR/paint-browser.json"
+          } 2>&1 | tee "$EVIDENCE_DIR/logs/paint.log"
+
+      - name: Known-exact Linux HTML font/text fixtures
+        id: html
+        if: steps.acquisition.outcome == 'success'
+        continue-on-error: true
+        env:
+          HTML_TEST_DIR: external/html-test
+        run: |
+          set -o pipefail
+          export HTML_TEST_OUTPUT_DIR="$EVIDENCE_DIR/html"
+          node --import tsx tests/html-test-suite.tsx \
+            --only 20-font-family,20-font-face,02-text-emoji,20-deep-writing-mode-mixed \
+            2>&1 | tee "$EVIDENCE_DIR/logs/html.log"
+
+      - name: Known-exact Linux Unicode script fixtures
+        id: unicode
+        if: steps.acquisition.outcome == 'success'
+        continue-on-error: true
+        env:
+          HTML_TEST_DIR: external/html-test/unicode
+        run: |
+          set -o pipefail
+          export HTML_TEST_OUTPUT_DIR="$EVIDENCE_DIR/unicode"
+          node --import tsx tests/html-test-suite.tsx \
+            --only 0250-02AF-ipa-extensions,0370-03FF-greek-and-coptic,11F00-11F5F-kawi,FE00-FE0F-variation-selectors \
+            2>&1 | tee "$EVIDENCE_DIR/logs/unicode.log"
+
+      - name: Build strict aggregate report
+        id: finalize
+        if: always()
+        continue-on-error: true
+        run: |
+          node --import tsx tools/linux-arm64-release-evidence.ts finalize \
+            --acquisition "$EVIDENCE_DIR/acquisition.json" \
+            --artifacts-root "$EVIDENCE_DIR" \
+            --outcomes "acquisition=${{ steps.acquisition.outcome }},helper=${{ steps.helper.outcome }},icu=${{ steps.icu.outcome }},font-selection=${{ steps.font_selection.outcome }},shaping=${{ steps.shaping.outcome }},decoration=${{ steps.decoration.outcome }},paint=${{ steps.paint.outcome }},html=${{ steps.html.outcome }},unicode=${{ steps.unicode.outcome }}" \
+            --json "$EVIDENCE_DIR/final.json"
+
+      - name: Upload arm64 acquisition, logical, visual, and fingerprint evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-arm64-release-parity-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.paths.outputs.evidence_dir }}/
+          if-no-files-found: error
+
+      - name: Enforce exact arm64 release parity after upload
+        if: always()
+        run: |
+          node -e 'const r=require(process.env.EVIDENCE_DIR + "/final.json"); if (r.verdict !== "exact-arm64-release-parity") { console.error(r); process.exit(1); }'

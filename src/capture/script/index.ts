@@ -317,7 +317,27 @@ const captureDocumentTree =
     // children) so the in-viewport descendants are reached. _fixedAncestors
     // is precomputed in the pre-pass below.
     const outsideViewport = isOutsideCaptureViewport(rect, vp);
-    if (outsideViewport && !_fixedAncestors.has(el) && !_transformInfluenced.has(el) && !_animInfluenced.has(el)) return null;
+    // DM-2498: ruby base/annotation boxes are fragments of the parent's ruby
+    // column. In sideways/vertical layout their physical child DOMRects can
+    // lie outside the capture viewport even while the retained parent paints
+    // the column inside it (ruby annotations in particular live outside the
+    // base line box). Blink keeps these as kOpenRubyColumn/kCloseRubyColumn/
+    // kRubyLinePlaceholder inline items; culling the DOM child independently
+    // drops source-owned base/annotation text from an otherwise visible row.
+    // Retain only when the direct parent intersects the viewport, so a wholly
+    // offscreen ruby subtree still takes the ordinary culling path.
+    const _rubyTag = el.tagName == null ? '' : el.tagName.toLowerCase();
+    let _rubyOwner = el.parentElement;
+    while (_rubyOwner != null) {
+      const _ownerTag = _rubyOwner.tagName == null ? '' : _rubyOwner.tagName.toLowerCase();
+      if (_ownerTag !== 'ruby' && _ownerTag !== 'rt' && _ownerTag !== 'rp') break;
+      _rubyOwner = _rubyOwner.parentElement;
+    }
+    const _rubyFragmentOfVisibleParent = (_rubyTag === 'ruby' || _rubyTag === 'rt' || _rubyTag === 'rp')
+      && _rubyOwner != null
+      && !isOutsideCaptureViewport(_rubyOwner.getBoundingClientRect(), vp);
+    if (outsideViewport && !_rubyFragmentOfVisibleParent
+      && !_fixedAncestors.has(el) && !_transformInfluenced.has(el) && !_animInfluenced.has(el)) return null;
 
     // visibility: collapse on table-row/column/group collapses that section
     // (Chrome zero-sizes the row/col, so the zeroSized check below handles it).

@@ -4,15 +4,15 @@
   "areas": [
     {
       "id": "font-selection",
-      "domotionSources": ["src/render/font-resolution.ts", "src/render/glyph-helper.ts", "src/render/text-run-provenance.ts"],
+      "domotionSources": ["src/render/font-resolution.ts", "src/render/glyph-helper.ts", "src/render/text-run-provenance.ts", "tools/linux-arm64-release-evidence.ts", "tests/linux-arm64-release-evidence.test.ts", "tests/linux-arm64-release-parity-workflow.test.ts", ".github/workflows/linux-arm64-release-parity.yml"],
       "upstreamSources": ["external/chromium/third_party/blink/renderer/platform/fonts"],
       "oracle": "tools/font-conformance.ts",
       "sourceAudit": "audited",
       "oracleStatus": "exact-stage-gate",
-      "generatedCoverage": "synthetic stack matrix crossed with rotating Unicode buckets; ordered macOS ideograph renderer-lifetime transitions",
+      "generatedCoverage": "synthetic stack matrix crossed with rotating Unicode buckets; ordered macOS ideograph renderer-lifetime transitions; native Linux arm64 clean-cache published-helper acquisition, fingerprints, exact logical stages, and selected known-exact visual corpora",
       "platformCoverage": ["darwin", "linux", "win32"],
-      "knownGap": "The exhaustive resolver oracle and representative renderer-route oracle prove different stages; helper-absent paths remain intentionally degraded and full renderer-route transition enumeration is expanded alongside new mechanisms.",
-      "nextAction": "Keep resolver, renderer-route, and tools/ideograph-fallback-cache-oracle.ts green and add a route case/control whenever production gains a new assignment or emitter transition."
+      "knownGap": "The exhaustive resolver oracle and representative renderer-route oracle prove different stages; helper-absent paths remain intentionally degraded and full renderer-route transition enumeration is expanded alongside new mechanisms. The Linux arm64 workflow is dispatch-only, and only a retained exact native artifact counts as release-consumer proof.",
+      "nextAction": "Keep resolver, renderer-route, tools/ideograph-fallback-cache-oracle.ts, and the native Linux arm64 release-consumer gate green; add a route case/control whenever production gains a new assignment or emitter transition."
     },
     {
       "id": "unicode-decisions",
@@ -47,8 +47,8 @@
       "oracleStatus": "exact-stage-gate",
       "generatedCoverage": "declarative complete value-pair coverage across direction, unicode-bidi, writing mode/orientation/combine, whitespace/wrapping, line and word breaking, hyphenation, tabs, spacing, ruby, emphasis, justification, synthesis, zoom, transforms, and fragmentation; neutral-wrapper, shaping-safe node-split, computed-style, translation, and normalized-scale metamorphic relations",
       "platformCoverage": ["darwin", "linux", "win32"],
-      "knownGap": "DOM Range exposes boxes rather than Blink glyph IDs and has union-box behavior at some wrap boundaries. Paint-only emphasis remains owned by the ink stage; only live production diagnostics can classify a state unsupported.",
-      "nextAction": "Keep the declarative inventory synchronized with production and treat any ruby/combine/bidi/fragment count or placement residual as a logical mismatch, not an inferred unsupported state."
+      "knownGap": "DOM Range exposes boxes rather than Blink glyph IDs and has union-box behavior at some wrap boundaries. Paint-only emphasis remains owned by the ink stage; only live production diagnostics can classify a state unsupported. DM-2498 closes the expanded matrix ruby and vertical-lr combine residuals.",
+      "nextAction": "Keep the declarative inventory synchronized with production and retain ruby/combine/bidi/fragment count or placement changes as logical failures, never inferred unsupported states."
     },
     {
       "id": "macos-sfns-mask-baseline",

@@ -25,6 +25,14 @@ export interface BackdropRootCompositeJob {
   neutralizedEffects: BackdropEffectNeutralization[];
 }
 
+export interface BackdropTerminalCompositeJob {
+  root: CapturedElement;
+  targets: BackdropCompositeTarget[];
+  /** DOM-parent hops from the first target to the terminal paint owner. */
+  rootDepth: number;
+  reason: "relative-transform";
+}
+
 const activeFilter = (element: CapturedElement): boolean =>
   element.styles.filter != null && element.styles.filter !== "" && element.styles.filter !== "none";
 
@@ -78,6 +86,58 @@ export function planBackdropRootComposites(tree: CapturedElement[]): BackdropRoo
       existing.targets.push(target);
       existing.consumedEffects = unique([...existing.consumedEffects, ...consumed]);
       existing.neutralizedEffects = unique([...existing.neutralizedEffects, ...neutralized]);
+    }
+  }
+  return [...jobs.values()];
+}
+
+/**
+ * Select a Chromium terminal surface only where SVG cannot preserve Blink's
+ * relative paint space: a rotated/skewed compositor layer. This is not a
+ * Backdrop Root; the record retains the document-root classification while
+ * crossing the narrower source-owned compositor layer.
+ */
+export function planBackdropTerminalComposites(tree: CapturedElement[]): BackdropTerminalCompositeJob[] {
+  const parents = new Map<CapturedElement, CapturedElement>();
+  const elements: CapturedElement[] = [];
+  const visit = (element: CapturedElement): void => {
+    elements.push(element);
+    for (const child of element.children ?? []) {
+      parents.set(child, element);
+      visit(child);
+    }
+  };
+  for (const element of tree) visit(element);
+
+  const jobs = new Map<CapturedElement, BackdropTerminalCompositeJob>();
+  for (const element of elements) {
+    const raster = element.backdropFilterRaster;
+    if (raster?.token == null || raster.effectSpace?.nearestRoot.kind !== "document") continue;
+    const transformDepths = new Set(raster.effectSpace.ancestors
+      .filter((ancestor) => ancestor.neutralize.includes("rotate-skew"))
+      .map((ancestor) => ancestor.depth));
+    let root: CapturedElement | undefined = element;
+    let selected: { root: CapturedElement; depth: number; reason: BackdropTerminalCompositeJob["reason"] } | undefined;
+    for (let depth = 1; root != null; depth++) {
+      root = parents.get(root);
+      if (root == null) break;
+      if (transformDepths.has(depth)) {
+        selected = { root, depth, reason: "relative-transform" };
+        break;
+      }
+    }
+    if (selected == null) continue;
+    const target = { element, raster, selector: raster.selector ?? element.tag };
+    const existing = jobs.get(selected.root);
+    if (existing == null) {
+      jobs.set(selected.root, {
+        root: selected.root,
+        targets: [target],
+        rootDepth: selected.depth,
+        reason: selected.reason,
+      });
+    } else {
+      existing.targets.push(target);
     }
   }
   return [...jobs.values()];
@@ -205,6 +265,117 @@ async function calibrateTransparentComposite(
     }
   }
   return sharp(data, { raw: { width: alpha.info.width, height: alpha.info.height, channels: 4 } }).png().toBuffer();
+}
+
+/**
+ * Preserve Chromium's final premultiplied/color-space result without trying
+ * to reverse it into an invented straight-alpha foreground. Pixels unchanged
+ * by the owner stay transparent; every changed pixel carries Chromium's final
+ * source color opaquely. Replaying that sparse patch at the same paint slot is
+ * exact and remains distinguishable from an opaque final-viewport crop.
+ */
+export async function exactCompositeDelta(sourcePng: Buffer, basePng: Buffer): Promise<Buffer> {
+  const [source, base] = await Promise.all([
+    sharp(sourcePng).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
+    sharp(basePng).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
+  ]);
+  if (source.info.width !== base.info.width || source.info.height !== base.info.height) return sourcePng;
+  const data = Buffer.alloc(source.data.length);
+  for (let offset = 0; offset < data.length; offset += 4) {
+    const changed = source.data[offset] !== base.data[offset]
+      || source.data[offset + 1] !== base.data[offset + 1]
+      || source.data[offset + 2] !== base.data[offset + 2]
+      || source.data[offset + 3] !== base.data[offset + 3];
+    if (!changed) continue;
+    data[offset] = source.data[offset];
+    data[offset + 1] = source.data[offset + 1];
+    data[offset + 2] = source.data[offset + 2];
+    data[offset + 3] = 255;
+  }
+  return sharp(data, { raw: { width: source.info.width, height: source.info.height, channels: 4 } }).png().toBuffer();
+}
+
+/** Capture one sparse final-space patch at a compositor/scroll paint owner. */
+export async function materializeBackdropTerminalComposites(
+  page: Page,
+  jobs: BackdropTerminalCompositeJob[],
+  viewport: { x: number; y: number; width: number; height: number },
+): Promise<Set<BackdropRaster>> {
+  const covered = new Set<BackdropRaster>();
+  for (const job of jobs) {
+    const token = job.targets[0]?.raster.token ?? "";
+    const facts = await page.evaluate(({ token, rootDepth }) => {
+      let target: HTMLElement | null = null;
+      const candidates = document.querySelectorAll<HTMLElement>("[data-domotion-backdrop-raster]");
+      for (let index = 0; index < candidates.length; index++) {
+        if (candidates[index].getAttribute("data-domotion-backdrop-raster") === token) {
+          target = candidates[index];
+          break;
+        }
+      }
+      let root: HTMLElement | null = target;
+      for (let depth = 0; depth < rootDepth; depth++) root = root?.parentElement ?? null;
+      if (root == null) return null;
+      const rect = root.getBoundingClientRect();
+      return {
+        rect: { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
+        visibility: root.style.getPropertyValue("visibility"),
+        priority: root.style.getPropertyPriority("visibility"),
+      };
+    }, { token, rootDepth: job.rootDepth }).catch(() => null);
+    if (facts == null || !(facts.rect.width > 0 && facts.rect.height > 0)) continue;
+    const clip = clipRectForScreenshot(facts.rect, viewport);
+    try {
+      const source = Buffer.from(await page.screenshot({ clip, omitBackground: true, type: "png" }));
+      await page.evaluate(({ token, rootDepth }) => {
+        let target: HTMLElement | null = null;
+        const candidates = document.querySelectorAll<HTMLElement>("[data-domotion-backdrop-raster]");
+        for (let index = 0; index < candidates.length; index++) {
+          if (candidates[index].getAttribute("data-domotion-backdrop-raster") === token) {
+            target = candidates[index];
+            break;
+          }
+        }
+        let root: HTMLElement | null = target;
+        for (let depth = 0; depth < rootDepth; depth++) root = root?.parentElement ?? null;
+        root?.style.setProperty("visibility", "hidden", "important");
+      }, { token, rootDepth: job.rootDepth });
+      const base = Buffer.from(await page.screenshot({ clip, omitBackground: true, type: "png" }));
+      const png = await exactCompositeDelta(source, base);
+      job.root.backdropCompositeRaster = {
+        x: clip.x - viewport.x,
+        y: clip.y - viewport.y,
+        width: clip.width,
+        height: clip.height,
+        dataUri: `data:image/png;base64,${png.toString("base64")}`,
+        source: "chromium-relative-effect-layer-v1",
+        consumedEffects: [],
+        neutralizedEffects: [],
+        ownerCount: job.targets.length,
+        screenshotPasses: 2,
+      };
+      for (const target of job.targets) covered.add(target.raster);
+    } catch {
+      // The ordinary target-boundary path remains the explicit fallback.
+    } finally {
+      await page.evaluate(({ token, rootDepth, visibility, priority }) => {
+        let target: HTMLElement | null = null;
+        const candidates = document.querySelectorAll<HTMLElement>("[data-domotion-backdrop-raster]");
+        for (let index = 0; index < candidates.length; index++) {
+          if (candidates[index].getAttribute("data-domotion-backdrop-raster") === token) {
+            target = candidates[index];
+            break;
+          }
+        }
+        let root: HTMLElement | null = target;
+        for (let depth = 0; depth < rootDepth; depth++) root = root?.parentElement ?? null;
+        if (root == null) return;
+        if (visibility === "") root.style.removeProperty("visibility");
+        else root.style.setProperty("visibility", visibility, priority);
+      }, { token, rootDepth: job.rootDepth, visibility: facts.visibility, priority: facts.priority }).catch(() => undefined);
+    }
+  }
+  return covered;
 }
 
 async function prepareIsolatedBackdropRoot(
@@ -375,12 +546,9 @@ export async function materializeBackdropRootComposites(
       const captured = Buffer.from(await page.screenshot({ clip, omitBackground: true, type: "png" }));
       const png = maskCalibration == null
         ? captured
-        : await calibrateTransparentComposite(
-          captured,
-          maskCalibration.source,
-          maskCalibration.base,
-          job.consumedEffects.includes("mask"),
-        );
+        : job.consumedEffects.includes("mask")
+          ? await exactCompositeDelta(maskCalibration.source, maskCalibration.base)
+          : await calibrateTransparentComposite(captured, maskCalibration.source, maskCalibration.base, false);
       const composite: CapturedBackdropCompositeRaster = {
         x: clip.x - viewport.x,
         y: clip.y - viewport.y,

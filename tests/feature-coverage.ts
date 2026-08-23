@@ -222,7 +222,7 @@ export const FEATURES: FeatureEntry[] = [
     behavior: "Acquire the platform glyph-extraction helper and Chromium-pinned ICU classification companion.",
     doc: "docs/80-cross-platform-system-fallback-resolver.md",
     exports: ["acquireGlyphHelper", "acquireIcuCompanion"],
-    tests: ["src/render/helper-acquire.test.ts", "src/render/glyph-helper.test.ts", "src/render/icu-helper-acquire.test.ts", "src/render/icu-helper.test.ts"],
+    tests: ["src/render/helper-acquire.test.ts", "src/render/glyph-helper.test.ts", "src/render/icu-helper-acquire.test.ts", "src/render/icu-helper.test.ts", "tests/linux-arm64-release-evidence.test.ts", "tests/linux-arm64-release-parity-workflow.test.ts"],
   },
 
   // ── Scroll (STATEFUL: pattern → executor state machine) ─────────────────

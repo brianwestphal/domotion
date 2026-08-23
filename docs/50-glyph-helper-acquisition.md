@@ -34,17 +34,18 @@ release for each pushed `vX.Y.Z` tag (repo `brianwestphal/domotion`):
 | Platform | Asset name | Sidecar | Arch coverage |
 | --- | --- | --- | --- |
 | macOS | `domotion-glyph-paths-darwin-universal` | `…​.sha256` | universal (arm64 + x86_64), codesigned + notarized |
-| Linux | `domotion-glyph-paths-linux-x64` | `…​.sha256` | x86_64 only |
-| Windows | `domotion-glyph-paths-win32-x64.exe` | `…​.sha256` | x86_64 only |
+| Linux | `domotion-glyph-paths-linux-{x64,arm64}` | `…​.sha256` | x86_64 + arm64 |
+| Windows | `domotion-glyph-paths-win32-{x64,arm64}.exe` | `…​.sha256` | x86_64 + arm64 |
 
 Each `.sha256` sidecar is the `shasum -a 256` / `sha256sum` output (hex digest +
 filename). The asset is keyed to the package version via the release tag.
 
-> **Observed gap (2026-05-26):** the `v0.5.0` release currently has **only the
-> macOS asset** attached — the Linux/Windows `release-helpers.yml` jobs have not
-> uploaded theirs for this tag. So this layer is end-to-end testable on macOS
-> today, but Linux/Windows acquisition can't be validated against a real release
-> until those jobs run + upload. (See open decision 4.)
+> **Current Linux arm64 contract (DM-2353):** v0.24.0 carries the native glyph
+> asset + sidecar and `icu-v78.2-domotion.1` carries the arm64 executable/data +
+> sidecars. Doc 196 pins their digests and adds a clean-cache native consumer
+> workflow. The pre-gate release audit found zero downloads, so the first
+> post-integration `exact-arm64-release-parity` artifact—not the producer build
+> alone—is the live consumer proof.
 
 ## Proposed design
 
@@ -138,6 +139,12 @@ The maintainer's calls on the open questions (all implemented):
   offline) + a loopback-HTTP-server exercise of download/verify/install (good /
   bad-SHA / 404). The full sync path was validated end-to-end against the real
   `v0.5.0` darwin release asset (downloads, verifies, installs, the binary runs).
+- **Linux arm64 release consumer (DM-2353 / doc 196):** the dispatch-only native
+  workflow uses the production async acquisition APIs in a never-used cache,
+  requires the pinned digest, sidecar, GitHub digest, ELF architecture and live
+  protocols to agree, proves cache reuse, then runs the exact logical and
+  selected visual parity matrix. Its first remote result remains pending until
+  the workflow is integrated and dispatched.
 
 ## Relationship to other work
 

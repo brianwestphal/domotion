@@ -1,0 +1,98 @@
+# Linux arm64 published-helper and parity gate
+
+DM-2353 closes a release-validation blind spot: building an arm64 helper on an
+arm64 producer proves that the source compiles, but it does not prove that a
+fresh **consumer** can acquire and execute the bytes attached to the release.
+The dedicated `.github/workflows/linux-arm64-release-parity.yml` workflow runs
+only on demand on GitHub's native `ubuntu-22.04-arm` runner, inside the same
+pinned Playwright Noble image used by Linux visual CI.
+
+## Release facts and trust boundary
+
+The current package release, `v0.24.0`, contains
+`domotion-glyph-paths-linux-arm64` and its checksum sidecar. The producer job
+(`release-helpers.yml` run 31917759532, job 95092429915) completed successfully.
+The independently versioned `icu-v78.2-domotion.1` release contains both the
+arm64 executable and `icudtl.dat`, again with sidecars. The ratified bytes are:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| glyph helper | `68546de5c29a60efbe1bdb86e61d14d9ba10f00020c5b50583f5bc336718c250` |
+| ICU executable | `dcb7be05a66b98530d0eee0759bc79d8670fe383c338a73e873f0a346b13e6bf` |
+| ICU data | `9f48c7f9c7c94d516a14870707e910ab94d75ae640ff6842c4af53276cd26ebe` |
+
+Linux ELF helpers are not code-signed. The gate therefore requires four facts
+to agree before execution: the checked-in ratified digest, the release
+sidecar, GitHub's asset digest, and the downloaded bytes. It additionally
+requires executable mode and a little-endian ELF64 header whose `e_machine` is
+183 (AArch64). A changed release asset is a source/integrity failure, never a
+reason to update a visual envelope.
+
+The release audit preceding this workflow found zero downloads for all three
+arm64 assets. That is why producer success is not recorded as consumer proof.
+The first native workflow artifact with verdict
+`exact-arm64-release-parity` is the evidence that closes that final operational
+claim; until it is dispatched after integration, the gate exists but the live
+consumer result remains pending.
+
+## Clean-cache acquisition leg
+
+`tools/linux-arm64-release-evidence.ts acquire` refuses any process other than
+native `linux/arm64` and refuses a non-empty cache root. It calls the same async
+`acquireGlyphHelper` and `acquireIcuCompanion` exports available to a published
+consumer—there is no helper build in the workflow. It then:
+
+1. authenticates the three downloaded artifacts as described above;
+2. runs glyph-helper version and Fontations/fontconfig readiness probes;
+3. exercises `familyMatch` at the discriminating Arial weight, batched Latin +
+   Han `fcfallback`, metadata, and a real `H` outline;
+4. checks the ICU protocol/version and exhaustive property digest;
+5. acquires both companions a second time and requires identical paths, bytes,
+   and mtimes, proving reuse rather than a hidden second install; and
+6. exports the acquired paths to later workflow steps.
+
+The acquisition report fingerprints the native architecture, OS/kernel/glibc,
+GitHub image, Node/ICU/Unicode, launched Chromium, Playwright, fontconfig, full
+font inventory, checkout, and all release asset digests. Volatile timestamps
+remain outside the fingerprint.
+
+## Parity matrix and verdict
+
+After acquisition succeeds, the workflow runs eight independently named legs:
+
+- helper-in-renderer-loop activation;
+- exact ICU classification;
+- a deterministic synthetic-stack font-selection slice;
+- exact logical shaping with movement controls;
+- decoration geometry;
+- the complete source-transcribed paint corpus plus the live browser source
+  discriminator;
+- known-exact Linux HTML font/text fixtures; and
+- known-exact Linux Unicode fixtures spanning IPA, Greek, Kawi, and variation
+  selectors.
+
+Each leg is allowed to finish red so its log/report/PNG/SVG evidence survives.
+The finalizer independently checks required reports, logical verdicts,
+non-empty visual results, native arm64 identity, step outcomes, and recursive
+artifact hashes. Artifacts upload under `if: always()` before a separate step
+enforces `exact-arm64-release-parity`.
+
+Logical gates are exact. The HTML/Unicode legs retain the repository's existing
+Linux native-raster acceptance floor and fixture classifications; this work
+does not add a threshold, widen a tolerance, or fit pixels. A logical mismatch
+cannot be reclassified as raster noise.
+
+## Maintainer commands
+
+The pure ELF/fingerprint/finalizer and workflow-structure contracts run on any
+host:
+
+```sh
+npx vitest run tests/linux-arm64-release-evidence.test.ts \
+  tests/linux-arm64-release-parity-workflow.test.ts
+```
+
+The acquisition command is intentionally not runnable on macOS/x64. Dispatch
+`Linux arm64 release parity` after the workflow is present on the remote ref,
+then retain `final.json`, `acquisition.json`, `run-env.json`, all logical
+reports, visual results, and images as one evidence artifact.

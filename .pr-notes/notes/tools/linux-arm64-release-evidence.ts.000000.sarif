@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt54wjm7wqjq3kl2",
+          "message": {
+            "text": "The checked-in hashes are an independent release authority, not visual tolerances. Comparing only the downloaded bytes, sidecar, and GitHub digest would let a clobbered release pass when all three moved together; requiring this ratified v0.24.0 value turns replacement into an explicit source review.",
+            "markdown": "The checked-in hashes are an independent release authority, not visual tolerances. Comparing only the downloaded bytes, sidecar, and GitHub digest would let a clobbered release pass when all three moved together; requiring this ratified v0.24.0 value turns replacement into an explicit source review."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/linux-arm64-release-evidence.ts"
+                },
+                "region": {
+                  "startLine": 38,
+                  "endLine": 50,
+                  "snippet": {
+                    "text": "// These are release facts, not tolerances.  A clobbered asset must make the\n// gate red even when the replacement sidecar and GitHub API agree with each\n// other.  A later Domotion release deliberately has to ratify new bytes here.\nconst PINNED_ARM64_RELEASES: Record<string, {\n  glyph: string;\n  icuExecutable: string;\n  icuData: string;\n}> = {\n  \"0.24.0\": {\n    glyph: \"68546de5c29a60efbe1bdb86e61d14d9ba10f00020c5b50583f5bc336718c250\",\n    icuExecutable: \"dcb7be05a66b98530d0eee0759bc79d8670fe383c338a73e873f0a346b13e6bf\",\n    icuData: \"9f48c7f9c7c94d516a14870707e910ab94d75ae640ff6842c4af53276cd26ebe\",\n  },"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/196-linux-arm64-release-parity.md"
+                },
+                "region": {
+                  "startLine": 11
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2353"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ad075ee95aedf85beaae69e13bb46d80"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "b8764b69430535a15f11d419eb1c65e5b08e7808",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
