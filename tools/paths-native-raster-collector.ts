@@ -38,6 +38,11 @@ import {
 } from "./paths-native-raster-corpus.js";
 import type { PathsRasterRow } from "./paths-native-raster-gate.js";
 import { measurePathsRasterResidual } from "./paths-native-raster-metrics.js";
+import {
+  assessPathsNativeFaceIdentity,
+  pathsRasterCssFamily,
+  type PathsNativeHelperFaceEvidence,
+} from "./paths-native-face-identity.js";
 
 const require = createRequire(import.meta.url);
 const PLAYWRIGHT_VERSION = (require("@playwright/test/package.json") as { version: string }).version;
@@ -80,10 +85,6 @@ function html(value: string): string {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
 
-function cssFamily(id: string): string {
-  return `DomotionPathsRaster_${id.replace(/[^A-Za-z0-9_]/g, "_")}`;
-}
-
 function cssVariation(axes: Record<string, number>): string {
   const entries = Object.entries(axes);
   return entries.length === 0 ? "normal" : entries.map(([tag, value]) => `&quot;${html(tag)}&quot; ${value}`).join(", ");
@@ -106,88 +107,53 @@ function fontFaceCss(family: string, loaded: LoadedPathsRasterFixture): string {
   return `@font-face{font-family:'${family}';src:url(data:${fontMime(loaded)};base64,${loaded.bytes.toString("base64")}) format('${fontFormat(loaded)}');font-style:normal;font-weight:${range};font-display:block}`;
 }
 
-export type PaintedPostscriptMatch =
-  | "source-postscript"
-  | "blink-coordinate-suffix"
-  | "directwrite-variable-face"
-  | "mismatch";
-
-export interface DirectWriteVariableFaceEvidence {
-  postscriptName: string;
-  resolvedAxes: Record<string, number>;
-  sourceSha256: string;
-  faceIndex: number;
-  helperSha256: string;
-}
-
-export interface PaintedPostscriptIdentity {
-  sourcePostscript: string | null;
-  sourceSha256: string;
-  faceIndex: number;
-  variationAxes: Record<string, number>;
-  paintedPostscript: string;
-  isCustomFont: boolean;
-  isVariable: boolean;
-  platform: NodeJS.Platform;
-  fingerprintHelperSha256?: string;
-  directWrite?: DirectWriteVariableFaceEvidence;
-}
-
 const canonical = (value: unknown): string => JSON.stringify(
   value != null && typeof value === "object" && !Array.isArray(value)
     ? Object.fromEntries(Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)))
     : value,
 );
 
-/**
- * Canonicalize CDP's painted face without treating a backend presentation name
- * as a different source face. DirectWrite creates an IDWriteFontFace5 at the
- * requested axis values, but its informational PostScript string can be an
- * arbitrary WSS presentation alias rather than name ID 6 (and need not denote
- * an exact fvar named instance). Such an alias is accepted only when the native
- * helper independently reopens the same source SHA/face on the same runtime,
- * resolves the exact axis tuple, and reports the identical string. Source SHA,
- * face index, axes, glyph stream, and outlines stay mandatory logical facts.
- */
-export function logicalPaintedPostscriptName(identity: PaintedPostscriptIdentity): {
-  logical: string;
-  sourceMatch: boolean;
-  match: PaintedPostscriptMatch;
-} {
-  const {
-    sourcePostscript,
-    sourceSha256,
-    faceIndex,
-    variationAxes,
-    paintedPostscript,
-    isCustomFont,
-    isVariable,
-    platform: targetPlatform,
-    fingerprintHelperSha256,
-    directWrite,
-  } = identity;
-  const logical = sourcePostscript ?? paintedPostscript;
-  if (paintedPostscript === logical) return { logical, sourceMatch: true, match: "source-postscript" };
-  if (sourcePostscript != null && paintedPostscript.startsWith(`${logical}_`)) {
-    return { logical, sourceMatch: true, match: "blink-coordinate-suffix" };
-  }
-  if (targetPlatform === "win32" && isVariable && isCustomFont && directWrite != null
-      && fingerprintHelperSha256 != null
-      && directWrite.helperSha256 === fingerprintHelperSha256
-      && directWrite.sourceSha256 === sourceSha256
-      && directWrite.faceIndex === faceIndex
-      && canonical(directWrite.resolvedAxes) === canonical(variationAxes)
-      && directWrite.postscriptName === paintedPostscript) {
-    return { logical, sourceMatch: true, match: "directwrite-variable-face" };
-  }
-  return { logical, sourceMatch: false, match: "mismatch" };
-}
-
 function documentFor(body: string, family: string, loaded: LoadedPathsRasterFixture): string {
   return `<!doctype html><style>html,body{margin:0;width:${VIEWPORT.width}px;height:${VIEWPORT.height}px;overflow:hidden;background:#fff}${fontFaceCss(family, loaded)}</style>${body}`;
 }
 
-async function paintedPostscriptName(page: Page): Promise<{ familyName: string; postscriptName: string; glyphCount: number; isCustomFont: boolean }> {
+async function paintedFaceMetadata(page: Page): Promise<{
+  requestedFamily: string;
+  computedFamily: string;
+  fontFaceRuleFamily: string;
+  fontFaceRuleCount: number;
+  sourceSha256: string;
+  computedVariationAxes: Record<string, number>;
+  familyName: string;
+  postscriptName: string;
+  glyphCount: number;
+  isCustomFont: boolean;
+}> {
+  const pageFacts = await page.locator("#native").evaluate((element) => {
+    const unquote = (serialized: string): string => serialized.trim().replace(/^(["'])(.*)\1$/, "$2");
+    const rules = Array.from(document.styleSheets).flatMap((sheet) => Array.from(sheet.cssRules))
+      .filter((rule) => rule.constructor.name === "CSSFontFaceRule") as CSSFontFaceRule[];
+    const source = rules[0]?.style.getPropertyValue("src") ?? "";
+    const base64 = /base64,([A-Za-z0-9+/=]+)/.exec(source)?.[1] ?? "";
+    return {
+      requestedFamily: unquote((element as SVGElement).style.fontFamily),
+      computedFamily: unquote(getComputedStyle(element).fontFamily),
+      computedVariationSettings: getComputedStyle(element).fontVariationSettings,
+      fontFaceRuleFamily: unquote(rules[0]?.style.getPropertyValue("font-family") ?? ""),
+      fontFaceRuleCount: rules.length,
+      sourceBase64: base64,
+    };
+  });
+  if (pageFacts.sourceBase64 === "") throw new Error("native arm CSSFontFaceRule omitted its data-URL source bytes");
+  const computedVariationAxes: Record<string, number> = {};
+  if (pageFacts.computedVariationSettings !== "normal") {
+    const matches = Array.from(pageFacts.computedVariationSettings.matchAll(/["']([^"']{4})["']\s+([-+.\deE]+)/g));
+    if (matches.length === 0) throw new Error(`cannot parse native computed variation axes: ${pageFacts.computedVariationSettings}`);
+    for (const match of matches) computedVariationAxes[match[1]] = Number(match[2]);
+    if (Object.values(computedVariationAxes).some((value) => !Number.isFinite(value))) {
+      throw new Error(`non-finite native computed variation axes: ${pageFacts.computedVariationSettings}`);
+    }
+  }
   const cdp = await page.context().newCDPSession(page);
   try {
     await cdp.send("DOM.enable"); await cdp.send("CSS.enable");
@@ -195,16 +161,27 @@ async function paintedPostscriptName(page: Page): Promise<{ familyName: string; 
     const { nodeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector: "#native" });
     const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
     const painted = fonts.filter((font) => font.glyphCount > 0);
-    if (painted.length !== 1 || painted[0].postScriptName.trim() === "") {
+    if (painted.length !== 1) {
       throw new Error(`native arm painted ${painted.length} concrete faces: ${JSON.stringify(painted)}`);
     }
-    return { familyName: painted[0].familyName, postscriptName: painted[0].postScriptName, glyphCount: painted[0].glyphCount, isCustomFont: painted[0].isCustomFont };
+    return {
+      requestedFamily: pageFacts.requestedFamily,
+      computedFamily: pageFacts.computedFamily,
+      fontFaceRuleFamily: pageFacts.fontFaceRuleFamily,
+      fontFaceRuleCount: pageFacts.fontFaceRuleCount,
+      sourceSha256: sha256(Buffer.from(pageFacts.sourceBase64, "base64")),
+      computedVariationAxes,
+      familyName: painted[0].familyName,
+      postscriptName: painted[0].postScriptName,
+      glyphCount: painted[0].glyphCount,
+      isCustomFont: painted[0].isCustomFont,
+    };
   } finally {
     await cdp.detach();
   }
 }
 
-const directWriteEvidenceCache = new Map<string, DirectWriteVariableFaceEvidence>();
+const directWriteEvidenceCache = new Map<string, PathsNativeHelperFaceEvidence>();
 
 function win32IdentityHelperPath(): string {
   return resolve(
@@ -218,7 +195,7 @@ function directWriteVariableFaceEvidence(
   loaded: LoadedPathsRasterFixture,
   variationAxes: Record<string, number>,
   helperSha256: string,
-): DirectWriteVariableFaceEvidence {
+): PathsNativeHelperFaceEvidence {
   const key = `${helperSha256}|${loaded.sha256}|0|${canonical(variationAxes)}`;
   const cached = directWriteEvidenceCache.get(key);
   if (cached != null) return cached;
@@ -241,14 +218,14 @@ function directWriteVariableFaceEvidence(
   const parsed = JSON.parse(raw) as { results?: Array<Record<string, unknown>> };
   const result = parsed.results?.[0];
   if (result?.type !== "meta" || typeof result.postscriptName !== "string"
-      || result.postscriptName.trim() === "" || !Number.isInteger(result.faceIndex)
+      || !Number.isInteger(result.faceIndex)
       || result.resolvedAxes == null || typeof result.resolvedAxes !== "object"
       || Array.isArray(result.resolvedAxes)
       || Object.values(result.resolvedAxes).some((value) => typeof value !== "number" || !Number.isFinite(value))) {
     throw new Error(`DirectWrite identity helper returned incomplete evidence: ${raw}`);
   }
-  const evidence: DirectWriteVariableFaceEvidence = {
-    postscriptName: result.postscriptName,
+  const evidence: PathsNativeHelperFaceEvidence = {
+    postscriptDisplayName: result.postscriptName,
     resolvedAxes: result.resolvedAxes as Record<string, number>,
     sourceSha256: loaded.sha256,
     faceIndex: result.faceIndex as number,
@@ -383,7 +360,7 @@ async function collectCell(
   artifactDir: string,
   runLabel: PathsRasterRow["runLabel"],
 ): Promise<PathsRasterRow> {
-  const family = cssFamily(cell.id);
+  const family = pathsRasterCssFamily(cell.id);
   const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: cell.dimensions.deviceScaleFactor, locale: fingerprint.locale });
   const page = await context.newPage();
   try {
@@ -391,7 +368,7 @@ async function collectCell(
     const group = matrixAttribute(cell.matrix);
     const nativeSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${VIEWPORT.width}" height="${VIEWPORT.height}" viewBox="0 0 ${VIEWPORT.width} ${VIEWPORT.height}"><rect width="100%" height="100%" fill="#fff"/><g transform="${group}"><text id="native" x="${ORIGIN_X}" y="${BASELINE_Y}" fill="#000" style="font-family:'${family}';font-size:${cell.dimensions.fontSizePx}px;font-weight:${cell.dimensions.weight};font-style:normal;font-variation-settings:${variation};font-kerning:none;font-feature-settings:'kern' 0,'liga' 0,'clig' 0">${html(loaded.fixture.text)}</text></g></svg>`;
     const native = await rasterize(page, nativeSvg, family, loaded);
-    const painted = await paintedPostscriptName(page);
+    const painted = await paintedFaceMetadata(page);
 
     clearWebfonts(); clearGlyphDefs(); resetTextRunProvenance();
     registerWebfont(family, 400, "normal", loaded.bytes, undefined, undefined,
@@ -424,33 +401,57 @@ async function collectCell(
     if (painted.glyphCount !== expected.length) warnings.push(`painted glyph count ${painted.glyphCount} != HarfBuzz ${expected.length}`);
     if (!painted.isCustomFont) warnings.push("native arm did not report the pinned data-URL face as a custom font");
     if (actual.postscriptName === "") warnings.push("production path run omitted PostScript identity");
-    // Keep name ID 6 as metadata, not the face-instance identity. Blink may
-    // append encoded coordinates; DirectWrite may instead expose a WSS alias
-    // unrelated to an exact fvar named tuple. The latter is accepted only when
-    // the same-runtime helper reopens these bytes and confirms its exact axes.
-    const paintedIdentity = logicalPaintedPostscriptName({
-      sourcePostscript: loaded.postscriptName,
-      sourceSha256: loaded.sha256,
-      faceIndex: 0,
-      variationAxes: cell.variationAxes,
-      paintedPostscript: painted.postscriptName,
-      isCustomFont: painted.isCustomFont,
-      isVariable: loaded.fixture.technology.startsWith("variable-"),
-      platform: fingerprint.platform,
-      fingerprintHelperSha256: fingerprint.nativeIdentityHelperSha256,
-      ...(fingerprint.platform === "win32" && loaded.fixture.technology.startsWith("variable-")
-        ? { directWrite: directWriteVariableFaceEvidence(loaded, cell.variationAxes, fingerprint.nativeIdentityHelperSha256!) }
-        : {}),
-    });
-    const logicalPostscript = paintedIdentity.logical;
-    if (!paintedIdentity.sourceMatch) {
-      warnings.push(`painted PostScript ${painted.postscriptName} is not source face ${logicalPostscript}`);
-    }
+    const logicalPostscript = loaded.postscriptName ?? actual.postscriptName;
     const actualPostscript = actual.postscriptName || logicalPostscript;
     const expectedPaintPlan = {
       syntheticBold: !cell.fixture.technology.startsWith("variable-") && cell.dimensions.weight >= 600,
       syntheticOblique: false,
     };
+    const nativeFace: PathsRasterRow["nativeFace"] = {
+      requestedFamily: painted.requestedFamily,
+      computedFamily: painted.computedFamily,
+      fontFaceRuleFamily: painted.fontFaceRuleFamily,
+      fontFaceRuleCount: painted.fontFaceRuleCount,
+      sourceSha256: painted.sourceSha256,
+      computedVariationAxes: painted.computedVariationAxes,
+      paintedFamilyDisplayName: painted.familyName,
+      postscriptDisplayName: painted.postscriptName,
+      isCustomFont: painted.isCustomFont,
+      glyphCount: painted.glyphCount,
+      ...(fingerprint.platform === "win32" && loaded.fixture.technology.startsWith("variable-")
+        ? { helper: directWriteVariableFaceEvidence(loaded, cell.variationAxes, fingerprint.nativeIdentityHelperSha256!) }
+        : {}),
+    };
+    const expectedLogical: PathsRasterRow["expectedLogical"] = {
+      postscriptName: logicalPostscript,
+      sourceSha256: loaded.sha256,
+      faceIndex: 0,
+      variationAxes: cell.variationAxes,
+      glyphs: expected,
+      baseline: BASELINE_Y,
+      matrix: cell.matrix,
+      paintPlan: expectedPaintPlan,
+    };
+    const actualLogical: PathsRasterRow["actualLogical"] = {
+      postscriptName: actualPostscript,
+      sourceSha256: actual.sourceSha256,
+      faceIndex: actual.faceIndex,
+      variationAxes: actual.variationAxes,
+      glyphs: actual.glyphs,
+      baseline: rendererPlacement.baseline,
+      matrix: rendererPlacement.matrix,
+      paintPlan: rendererPlacement.paintPlan,
+    };
+    const nativeIdentity = assessPathsNativeFaceIdentity({
+      platform: fingerprint.platform,
+      isVariable: loaded.fixture.technology.startsWith("variable-"),
+      expectedFamily: family,
+      fingerprintHelperSha256: fingerprint.nativeIdentityHelperSha256,
+      expected: expectedLogical,
+      actual: actualLogical,
+      native: nativeFace,
+    });
+    if (!nativeIdentity.pass) warnings.push(`native face identity: ${nativeIdentity.blockers.join(",")}`);
     return {
       id: cell.id,
       runLabel,
@@ -458,26 +459,9 @@ async function collectCell(
       cellSha256: pathsRasterCellSha256(cell),
       fingerprint,
       dimensions: cell.dimensions,
-      expectedLogical: {
-        postscriptName: logicalPostscript,
-        sourceSha256: loaded.sha256,
-        faceIndex: 0,
-        variationAxes: cell.variationAxes,
-        glyphs: expected,
-        baseline: BASELINE_Y,
-        matrix: cell.matrix,
-        paintPlan: expectedPaintPlan,
-      },
-      actualLogical: {
-        postscriptName: actualPostscript,
-        sourceSha256: actual.sourceSha256,
-        faceIndex: actual.faceIndex,
-        variationAxes: actual.variationAxes,
-        glyphs: actual.glyphs,
-        baseline: rendererPlacement.baseline,
-        matrix: rendererPlacement.matrix,
-        paintPlan: rendererPlacement.paintPlan,
-      },
+      expectedLogical,
+      actualLogical,
+      nativeFace,
       residual,
       nativeArtifact: { path: nativePath.relative, sha256: sha256(native), width: VIEWPORT.width * cell.dimensions.deviceScaleFactor, height: VIEWPORT.height * cell.dimensions.deviceScaleFactor },
       pathsArtifact: { path: pathsPath.relative, sha256: sha256(paths), width: VIEWPORT.width * cell.dimensions.deviceScaleFactor, height: VIEWPORT.height * cell.dimensions.deviceScaleFactor },

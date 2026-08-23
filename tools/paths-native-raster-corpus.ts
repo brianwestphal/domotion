@@ -284,7 +284,26 @@ export function requiredPathsRasterIds(): string[] {
   return pathsNativeRasterMatrix().map((cell) => cell.id).sort();
 }
 
-export function assertCompletePathsRasterMatrix(rows: readonly Pick<PathsRasterRow, "id" | "dimensions" | "cellSha256">[]): void {
+type DeclaredPathsRasterRow = Pick<PathsRasterRow, "id" | "dimensions" | "cellSha256">
+  & Partial<Pick<PathsRasterRow, "expectedLogical">>;
+
+/** Bind caller-supplied logical expectations back to the source-owned cell. */
+export function assertPathsRasterRowDeclaration(row: DeclaredPathsRasterRow): void {
+  const cell = pathsNativeRasterMatrix().find((candidate) => candidate.id === row.id);
+  if (cell == null) throw new Error(`undeclared paths/native raster row id: ${row.id}`);
+  if (JSON.stringify(cell.dimensions) !== JSON.stringify(row.dimensions)) throw new Error(`${row.id}: dimensions do not match the declared matrix`);
+  if (pathsRasterCellSha256(cell) !== row.cellSha256) throw new Error(`${row.id}: cellSha256 does not match the declared corpus`);
+  if (row.expectedLogical != null) {
+    const sourceSha256 = cell.fixture.derivedSha256 ?? cell.fixture.upstreamSha256;
+    if (row.expectedLogical.sourceSha256 !== sourceSha256) throw new Error(`${row.id}: expected sourceSha256 does not match the declared fixture`);
+    if (row.expectedLogical.faceIndex !== 0) throw new Error(`${row.id}: expected faceIndex does not match the declared fixture`);
+    if (JSON.stringify(stable(row.expectedLogical.variationAxes)) !== JSON.stringify(stable(cell.variationAxes))) {
+      throw new Error(`${row.id}: expected variationAxes do not match the declared matrix`);
+    }
+  }
+}
+
+export function assertCompletePathsRasterMatrix(rows: readonly DeclaredPathsRasterRow[]): void {
   const expected = new Map(pathsNativeRasterMatrix().map((cell) => [cell.id, {
     dimensions: JSON.stringify(cell.dimensions),
     cellSha256: pathsRasterCellSha256(cell),
@@ -293,10 +312,7 @@ export function assertCompletePathsRasterMatrix(rows: readonly Pick<PathsRasterR
   for (const row of rows) {
     if (seen.has(row.id)) throw new Error(`duplicate paths/native raster row id: ${row.id}`);
     seen.add(row.id);
-    const declaration = expected.get(row.id);
-    if (declaration == null) throw new Error(`undeclared paths/native raster row id: ${row.id}`);
-    if (declaration.dimensions !== JSON.stringify(row.dimensions)) throw new Error(`${row.id}: dimensions do not match the declared matrix`);
-    if (declaration.cellSha256 !== row.cellSha256) throw new Error(`${row.id}: cellSha256 does not match the declared corpus`);
+    assertPathsRasterRowDeclaration(row);
   }
   const missing = [...expected.keys()].filter((id) => !seen.has(id));
   if (missing.length > 0) throw new Error(`incomplete paths/native raster matrix: missing ${missing.join(", ")}`);

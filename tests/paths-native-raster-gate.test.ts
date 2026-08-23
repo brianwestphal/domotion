@@ -15,6 +15,7 @@ function row(): PathsRasterRow { return {
   dimensions: { fontTechnology: "glyf-unhinted", fontSizePx: 16, weight: 400, phaseX: .25, phaseY: .5, transform: "scale", deviceScaleFactor: 2 },
   expectedLogical: { postscriptName: "FreeSans", sourceSha256: sha("b"), faceIndex: 0, variationAxes: {}, glyphs: [{ gid: 42, cluster: 0, advanceX: 512, advanceY: 0, offsetX: 0, offsetY: 0, outlineSha256: sha("1"), outlineCommandCount: 8 }], baseline: 17.25, matrix: [1.25, 0, 0, 1.25, 10, 20], paintPlan: { syntheticBold: false, syntheticOblique: false } },
   actualLogical: { postscriptName: "FreeSans", sourceSha256: sha("b"), faceIndex: 0, variationAxes: {}, glyphs: [{ gid: 42, cluster: 0, advanceX: 512, advanceY: 0, offsetX: 0, offsetY: 0, outlineSha256: sha("1"), outlineCommandCount: 8 }], baseline: 17.25, matrix: [1.25, 0, 0, 1.25, 10, 20], paintPlan: { syntheticBold: false, syntheticOblique: false } },
+  nativeFace: { requestedFamily: "DomotionPathsRaster_glyf_16_400_quarter_scale_dpr2", computedFamily: "DomotionPathsRaster_glyf_16_400_quarter_scale_dpr2", fontFaceRuleFamily: "DomotionPathsRaster_glyf_16_400_quarter_scale_dpr2", fontFaceRuleCount: 1, sourceSha256: sha("b"), computedVariationAxes: {}, paintedFamilyDisplayName: "Fixture", postscriptDisplayName: "backend-display-name", isCustomFont: true, glyphCount: 1 },
   residual: { changedPixels: 8, area: 6, width: 3, height: 4, maxEdgeDistance: 1, severity: 12, totalChannelDelta: 12240, nativeInk: { area: 100, x: 10, y: 12, width: 20, height: 24 }, pathsInk: { area: 94, x: 10, y: 12, width: 17, height: 20 } },
   nativeArtifact: { path: "native.png", sha256: sha("c"), width: 32, height: 32 }, pathsArtifact: { path: "paths.png", sha256: sha("d"), width: 32, height: 32 }, warnings: [],
 }; }
@@ -39,6 +40,33 @@ describe("paths-mode native-raster gate", () => {
     expect(() => adjudicatePathsRasterRows([r], envelopes(r, false))).toThrow(/identity-helper fingerprint/);
     r.fingerprint.nativeIdentityHelperSha256 = sha("7");
     expect(adjudicatePathsRasterRows([r], envelopes(r, false)).rows[0].verdict).toBe("envelope-unratified");
+  });
+  it.each([
+    ["wrong requested family", (r: PathsRasterRow) => { r.nativeFace.requestedFamily = "HostFallback"; r.nativeFace.computedFamily = "HostFallback"; }, "requested-family,computed-family"],
+    ["non-custom fallback", (r: PathsRasterRow) => { r.nativeFace.isCustomFont = false; }, "non-custom-font"],
+    ["wrong native glyph count", (r: PathsRasterRow) => { r.nativeFace.glyphCount = 2; }, "glyph-count"],
+    ["wrong native source", (r: PathsRasterRow) => { r.nativeFace.sourceSha256 = sha("0"); }, "native-source-bytes"],
+    ["wrong native axes", (r: PathsRasterRow) => { r.nativeFace.computedVariationAxes = { wght: 700 }; }, "native-variation-axes"],
+  ])("rejects hostile %s evidence before envelopes", (_label, mutate, reason) => {
+    const r = row(); mutate(r);
+    expect(adjudicatePathsRasterRows([r], envelopes(r, false)).rows[0]).toEqual({
+      id: r.id, verdict: "invalid-evidence", reason: `native-face-identity:${reason}`,
+    });
+  });
+  it("requires exact helper source/face/axes for a Windows variable face", () => {
+    const r = row();
+    r.fingerprint.platform = "win32";
+    r.fingerprint.nativeIdentityHelperSha256 = sha("7");
+    r.dimensions.fontTechnology = "variable-glyf";
+    r.expectedLogical.variationAxes = { wdth: 90, wght: 600 };
+    r.actualLogical.variationAxes = { wght: 600, wdth: 90 };
+    r.nativeFace.computedVariationAxes = { wdth: 90, wght: 600 };
+    r.nativeFace.helper = { postscriptDisplayName: "Roboto-Regular", sourceSha256: sha("b"), faceIndex: 0, resolvedAxes: { wdth: 90, wght: 600 }, helperSha256: sha("7") };
+    expect(adjudicatePathsRasterRows([r], envelopes(r, false)).rows[0].verdict).toBe("envelope-unratified");
+    r.nativeFace.helper.resolvedAxes.wght = 500;
+    expect(adjudicatePathsRasterRows([r], envelopes(r, false)).rows[0]).toEqual({
+      id: r.id, verdict: "invalid-evidence", reason: "native-face-identity:helper-variation-axes",
+    });
   });
   it("retains run/role identity so swapping symmetric raster arms cannot pass", () => { const r = row(); [r.nativeArtifact, r.pathsArtifact] = [r.pathsArtifact, r.nativeArtifact]; expect(adjudicatePathsRasterRows(pair(r), envelopes(row())).rows[0]).toEqual({ id: r.id, verdict: "missing-envelope", reason: "unreviewed-artifact-role" }); });
   it("rejects widened proposal maxima and same-runner validation", () => { const r = row(); const widened = envelopes(r); widened.envelopes[0].max.changedPixels++; expect(() => adjudicatePathsRasterRows(pair(r), widened)).toThrow(/must equal.*proposal/); const sameRunner = pair(r); sameRunner[1].runProvenance.runnerName = sameRunner[0].runProvenance.runnerName; expect(() => adjudicatePathsRasterRows(sameRunner, envelopes(r))).toThrow(/independent validation/); });

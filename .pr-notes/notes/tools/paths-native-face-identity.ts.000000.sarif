@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "version": "1",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5cut3fv986gum9",
+          "message": {
+            "text": "DM-2499: CDP platform family/PostScript strings and the DirectWrite helper name-ID-6 string are display metadata, not variable-face identity. The authenticated native identity is the deterministic cell CSS alias read back from inline/computed style, the sole CSSFontFaceRule family/data-URL SHA, custom-font state/glyph count, exact native computed axes, exact production source/face/glyph/outline facts, and on Windows variable faces the fingerprinted helper source/face/resolved-axis witness. This rejects wrong-family/noncustom/source/axes mutations without a prefix allowlist.",
+            "markdown": "DM-2499: CDP platform family/PostScript strings and the DirectWrite helper name-ID-6 string are display metadata, not variable-face identity. The authenticated native identity is the deterministic cell CSS alias read back from inline/computed style, the sole CSSFontFaceRule family/data-URL SHA, custom-font state/glyph count, exact native computed axes, exact production source/face/glyph/outline facts, and on Windows variable faces the fingerprinted helper source/face/resolved-axis witness. This rejects wrong-family/noncustom/source/axes mutations without a prefix allowlist."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/paths-native-face-identity.ts"
+                },
+                "region": {
+                  "startLine": 1,
+                  "endLine": 146,
+                  "snippet": {
+                    "text": "/**\n * Source-owned identity adjudicator for the native `<text>` arm of the\n * paths/native raster floor (DM-2499).\n *\n * CDP's `postScriptName` is deliberately NOT an identity input.  On Windows,\n * DirectWrite exposes weight/stretch/style presentation names (for example\n * `Roboto`, `Roboto-Medium`, or `Roboto-ExtraBold`) for one variable face.\n * The durable identity is the unique requested CSS family plus custom-font\n * provenance, followed by the independently authenticated source/face/axes\n * and production glyph/outline facts.\n */\n\nexport interface PathsNativeIdentityGlyph {\n  gid: number;\n  cluster: number;\n  advanceX: number;\n  advanceY: number;\n  offsetX: number;\n  offsetY: number;\n  outlineSha256: string;\n  outlineCommandCount: number;\n}\n\nexport interface PathsNativeHelperFaceEvidence {\n  /** Informational name-ID-6 metadata; never compared with CDP's display name. */\n  postscriptDisplayName: string;\n  sourceSha256: string;\n  faceIndex: number;\n  resolvedAxes: Record<string, number>;\n  helperSha256: string;\n}\n\nexport interface PathsNativeFaceObservation {\n  requestedFamily: string;\n  computedFamily: string;\n  fontFaceRuleFamily: string;\n  fontFaceRuleCount: number;\n  sourceSha256: string;\n  computedVariationAxes: Record<string, number>;\n  /** Informational platform/internal family metadata; not an identity key. */\n  paintedFamilyDisplayName: string;\n  /** Informational backend presentation metadata; not an identity key. */\n  postscriptDisplayName: string;\n  isCustomFont: boolean;\n  glyphCount: number;\n  helper?: PathsNativeHelperFaceEvidence;\n}\n\nexport interface PathsNativeFaceIdentityEvidence {\n  platform: NodeJS.Platform;\n  isVariable: boolean;\n  expectedFamily: string;\n  fingerprintHelperSha256?: string;\n  expected: {\n    sourceSha256: string;\n    faceIndex: number;\n    variationAxes: Record<string, number>;\n    glyphs: PathsNativeIdentityGlyph[];\n  };\n  actual: {\n    sourceSha256: string;\n    faceIndex: number;\n    variationAxes: Record<string, number>;\n    glyphs: PathsNativeIdentityGlyph[];\n  };\n  native: PathsNativeFaceObservation;\n}\n\nconst stable = (value: unknown): unknown => Array.isArray(value)\n  ? value.map(stable)\n  : value != null && typeof value === \"object\"\n    ? Object.fromEntries(Object.entries(value as Record<string, unknown>)\n      .sort(([a], [b]) => a.localeCompare(b))\n      .map(([key, entry]) => [key, stable(entry)]))\n    : value;\n\nconst equal = (a: unknown, b: unknown): boolean => JSON.stringify(stable(a)) === JSON.stringify(stable(b));\n\nexport type PathsNativeFaceIdentityBlocker =\n  | \"requested-family\"\n  | \"computed-family\"\n  | \"font-face-rule-count\"\n  | \"font-face-rule-family\"\n  | \"non-custom-font\"\n  | \"glyph-count\"\n  | \"native-source-bytes\"\n  | \"native-variation-axes\"\n  | \"source-bytes\"\n  | \"face-index\"\n  | \"variation-axes\"\n  | \"glyph-outline-stream\"\n  | \"missing-win32-variable-helper\"\n  | \"helper-fingerprint\"\n  | \"helper-source-bytes\"\n  | \"helper-face-index\"\n  | \"helper-variation-axes\";\n\nexport function assessPathsNativeFaceIdentity(evidence: PathsNativeFaceIdentityEvidence): {\n  pass: boolean;\n  blockers: PathsNativeFaceIdentityBlocker[];\n} {\n  const { expected, actual, native } = evidence;\n  const blockers: PathsNativeFaceIdentityBlocker[] = [];\n  if (native.requestedFamily !== evidence.expectedFamily) blockers.push(\"requested-family\");\n  if (native.computedFamily !== evidence.expectedFamily) blockers.push(\"computed-family\");\n  if (native.fontFaceRuleCount !== 1) blockers.push(\"font-face-rule-count\");\n  if (native.fontFaceRuleFamily !== evidence.expectedFamily) blockers.push(\"font-face-rule-family\");\n  if (!native.isCustomFont) blockers.push(\"non-custom-font\");\n  if (native.glyphCount !== expected.glyphs.length) blockers.push(\"glyph-count\");\n  if (native.sourceSha256 !== expected.sourceSha256) blockers.push(\"native-source-bytes\");\n  if (!equal(native.computedVariationAxes, expected.variationAxes)) blockers.push(\"native-variation-axes\");\n  if (actual.sourceSha256 !== expected.sourceSha256) blockers.push(\"source-bytes\");\n  if (actual.faceIndex !== expected.faceIndex) blockers.push(\"face-index\");\n  if (!equal(actual.variationAxes, expected.variationAxes)) blockers.push(\"variation-axes\");\n  if (!equal(actual.glyphs, expected.glyphs)) blockers.push(\"glyph-outline-stream\");\n\n  if (evidence.platform === \"win32\" && evidence.isVariable) {\n    const helper = native.helper;\n    if (helper == null) {\n      blockers.push(\"missing-win32-variable-helper\");\n    } else {\n      if (evidence.fingerprintHelperSha256 == null\n          || helper.helperSha256 !== evidence.fingerprintHelperSha256) blockers.push(\"helper-fingerprint\");\n      if (helper.sourceSha256 !== expected.sourceSha256) blockers.push(\"helper-source-bytes\");\n      if (helper.faceIndex !== expected.faceIndex) blockers.push(\"helper-face-index\");\n      if (!equal(helper.resolvedAxes, expected.variationAxes)) blockers.push(\"helper-variation-axes\");\n    }\n  }\n  return { pass: blockers.length === 0, blockers };\n}\n\n/** Source/cell-owned alias; never inferred from CDP platform display names. */\nexport function pathsRasterCssFamily(id: string): string {\n  return `DomotionPathsRaster_${id.replace(/[^A-Za-z0-9_]/g, \"_\")}`;\n}\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "workItemUris": [
+            "DM-2499"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "091fc5290bac1a97545dfa3660f7c2ac"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "285f61dc4a270d313e4568cd555ff1f3af01506c",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -79,6 +79,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "version": "1",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5cut3f3r2b4yac",
+          "message": {
+            "text": "DM-2499 rerun 32619202876 falsified CDP/helper PostScript alias equality on Windows: CDP reported Roboto, Roboto-Medium, and Roboto-ExtraBold while the exact source/axes/glyph/outline facts agreed. Focused tests prove display labels are non-authoritative and reject hostile wrong-family (including mutating requested+computed together), noncustom, native source-byte, native computed-axis, helper source/axis, glyph-outline, and joint all-witness source/axis forgeries.",
+            "markdown": "DM-2499 rerun 32619202876 falsified CDP/helper PostScript alias equality on Windows: CDP reported Roboto, Roboto-Medium, and Roboto-ExtraBold while the exact source/axes/glyph/outline facts agreed. Focused tests prove display labels are non-authoritative and reject hostile wrong-family (including mutating requested+computed together), noncustom, native source-byte, native computed-axis, helper source/axis, glyph-outline, and joint all-witness source/axis forgeries."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/paths-native-raster-collector.test.ts"
+                },
+                "region": {
+                  "startLine": 124,
+                  "endLine": 220,
+                  "snippet": {
+                    "text": "      matrix: [1.04, 0.13, -0.09, 0.96, 2.75, -1.5],\n      paintPlan: { syntheticBold: true, syntheticOblique: false },\n    });\n  });\n\n  it(\"uses the unique custom CSS family and source facts, never a backend display alias\", () => {\n    const glyphs = [{\n      gid: 1, cluster: 0, advanceX: 500, advanceY: 0, offsetX: 0, offsetY: 0,\n      outlineSha256: sha(\"1\"), outlineCommandCount: 8,\n    }];\n    const identity = {\n      platform: \"win32\" as const,\n      isVariable: true,\n      expectedFamily: \"DomotionPathsRaster_variable_glyf\",\n      fingerprintHelperSha256: sha(\"b\"),\n      expected: { sourceSha256: sha(\"a\"), faceIndex: 0, variationAxes: { wdth: 90, wght: 600 }, glyphs },\n      actual: { sourceSha256: sha(\"a\"), faceIndex: 0, variationAxes: { wght: 600, wdth: 90 }, glyphs: structuredClone(glyphs) },\n      native: {\n        requestedFamily: \"DomotionPathsRaster_variable_glyf\",\n        computedFamily: \"DomotionPathsRaster_variable_glyf\",\n        fontFaceRuleFamily: \"DomotionPathsRaster_variable_glyf\",\n        fontFaceRuleCount: 1,\n        sourceSha256: sha(\"a\"),\n        computedVariationAxes: { wdth: 90, wght: 600 },\n        paintedFamilyDisplayName: \"Roboto\",\n        postscriptDisplayName: \"Roboto-Medium\",\n        isCustomFont: true,\n        glyphCount: 1,\n        helper: {\n          // DirectWrite's helper reports name ID 6 while CDP exposes a WSS\n          // presentation alias; neither string participates in identity.\n          postscriptDisplayName: \"Roboto-Regular\",\n          resolvedAxes: { wdth: 90, wght: 600 },\n          sourceSha256: sha(\"a\"),\n          faceIndex: 0,\n          helperSha256: sha(\"b\"),\n        },\n      },\n    };\n    expect(assessPathsNativeFaceIdentity(identity)).toEqual({ pass: true, blockers: [] });\n    expect(assessPathsNativeFaceIdentity({\n      ...identity,\n      native: { ...identity.native, paintedFamilyDisplayName: \"\", postscriptDisplayName: \"\" },\n    })).toEqual({ pass: true, blockers: [] });\n\n    const mutations = [\n      { expected: \"requested-family\", value: { ...identity, native: { ...identity.native, requestedFamily: \"HostFallback\", computedFamily: \"HostFallback\" } } },\n      { expected: \"native-source-bytes\", value: { ...identity, native: { ...identity.native, sourceSha256: sha(\"c\") } } },\n      { expected: \"native-variation-axes\", value: { ...identity, native: { ...identity.native, computedVariationAxes: { wdth: 90, wght: 500 } } } },\n      { expected: \"non-custom-font\", value: { ...identity, native: { ...identity.native, isCustomFont: false } } },\n      { expected: \"source-bytes\", value: { ...identity, actual: { ...identity.actual, sourceSha256: sha(\"c\") } } },\n      { expected: \"variation-axes\", value: { ...identity, actual: { ...identity.actual, variationAxes: { wdth: 90, wght: 500 } } } },\n      { expected: \"helper-source-bytes\", value: { ...identity, native: { ...identity.native, helper: { ...identity.native.helper!, sourceSha256: sha(\"c\") } } } },\n      { expected: \"helper-variation-axes\", value: { ...identity, native: { ...identity.native, helper: { ...identity.native.helper!, resolvedAxes: { wdth: 90, wght: 500 } } } } },\n      { expected: \"glyph-outline-stream\", value: { ...identity, actual: { ...identity.actual, glyphs: [{ ...glyphs[0], outlineSha256: sha(\"c\") }] } } },\n    ];\n    for (const mutation of mutations) {\n      const result = assessPathsNativeFaceIdentity(mutation.value);\n      expect(result.pass, mutation.expected).toBe(false);\n      expect(result.blockers, mutation.expected).toContain(mutation.expected);\n    }\n  });\n\n  it(\"rehashes bytes and recomputes residuals instead of trusting supplied observations\", async () => {\n    const root = mkdtempSync(join(tmpdir(), \"dm2499-producer-\")); roots.push(root);\n    const native = await pngWithInk(1, 1), paths = await pngWithInk(2, 1);\n    writeFileSync(join(root, \"native.png\"), native); writeFileSync(join(root, \"paths.png\"), paths);\n    const rows = await producePathsRasterRows([partialRow()], root, { requireComplete: false });\n    expect(rows[0].nativeArtifact.sha256).toBe(createHash(\"sha256\").update(native).digest(\"hex\"));\n    expect(rows[0].pathsArtifact.sha256).toBe(createHash(\"sha256\").update(paths).digest(\"hex\"));\n    expect(rows[0].residual).toEqual(expect.objectContaining({ changedPixels: 2, area: 0, width: 0, height: 0, maxEdgeDistance: 1 }));\n    expect(rows[0].residual.severity).toBeCloseTo(1.5, 12);\n  });\n\n  it.each([\"source\", \"axes\"] as const)(\"rejects a joint all-witness %s forgery against the declared cell\", async (kind) => {\n    const cell = pathsNativeRasterMatrix().find((candidate) => candidate.fixture.technology === \"variable-glyf\")!;\n    const row = partialRow(cell);\n    row.fingerprint.platform = \"win32\";\n    row.fingerprint.nativeIdentityHelperSha256 = sha(\"7\");\n    row.nativeFace.helper = {\n      postscriptDisplayName: \"Roboto-Regular\",\n      sourceSha256: row.expectedLogical.sourceSha256,\n      faceIndex: 0,\n      resolvedAxes: structuredClone(row.expectedLogical.variationAxes),\n      helperSha256: sha(\"7\"),\n    };\n    if (kind === \"source\") {\n      row.expectedLogical.sourceSha256 = sha(\"0\");\n      row.actualLogical.sourceSha256 = sha(\"0\");\n      row.nativeFace.sourceSha256 = sha(\"0\");\n      row.nativeFace.helper.sourceSha256 = sha(\"0\");\n    } else {\n      const forged = { wdth: 100, wght: 500 };\n      row.expectedLogical.variationAxes = structuredClone(forged);\n      row.actualLogical.variationAxes = structuredClone(forged);\n      row.nativeFace.computedVariationAxes = structuredClone(forged);\n      row.nativeFace.helper.resolvedAxes = structuredClone(forged);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "workItemUris": [
+            "DM-2499"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "cbdc93d13cf80b00593ee29deb823363"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "285f61dc4a270d313e4568cd555ff1f3af01506c",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

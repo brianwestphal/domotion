@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { z } from "zod";
+import { assessPathsNativeFaceIdentity, pathsRasterCssFamily } from "./paths-native-face-identity.js";
 
 const finite = z.number().finite();
 const fingerprintSchema = z.object({
@@ -38,6 +39,19 @@ const logicalSchema = z.object({
   matrix: z.tuple([finite, finite, finite, finite, finite, finite]),
   paintPlan: z.object({ syntheticBold: z.boolean(), syntheticOblique: z.boolean() }).strict(),
 }).strict();
+const helperFaceSchema = z.object({
+  postscriptDisplayName: z.string(), sourceSha256: z.string().regex(/^[a-f0-9]{64}$/),
+  faceIndex: z.number().int().nonnegative(), resolvedAxes: z.record(z.string(), finite),
+  helperSha256: z.string().regex(/^[a-f0-9]{64}$/),
+}).strict();
+const nativeFaceSchema = z.object({
+  requestedFamily: z.string().min(1), computedFamily: z.string().min(1),
+  fontFaceRuleFamily: z.string().min(1), fontFaceRuleCount: z.number().int().positive(),
+  sourceSha256: z.string().regex(/^[a-f0-9]{64}$/), computedVariationAxes: z.record(z.string(), finite),
+  paintedFamilyDisplayName: z.string(),
+  postscriptDisplayName: z.string(), isCustomFont: z.boolean(),
+  glyphCount: z.number().int().positive(), helper: helperFaceSchema.optional(),
+}).strict();
 const dimensionsSchema = z.object({
   fontTechnology: z.enum(["glyf-hinted", "glyf-unhinted", "cff", "cff2", "variable-glyf", "variable-cff2"]),
   fontSizePx: finite.positive(), weight: z.number().int().min(1).max(1000), phaseX: finite, phaseY: finite,
@@ -65,7 +79,7 @@ export const pathsRasterRowSchema = z.object({
     runnerName: z.string().min(1), workflowRef: z.string().min(1),
   }).strict(),
   cellSha256: z.string().regex(/^[a-f0-9]{64}$/), fingerprint: fingerprintSchema, dimensions: dimensionsSchema,
-  expectedLogical: logicalSchema, actualLogical: logicalSchema, residual: residualSchema,
+  expectedLogical: logicalSchema, actualLogical: logicalSchema, nativeFace: nativeFaceSchema, residual: residualSchema,
   nativeArtifact: artifactSchema, pathsArtifact: artifactSchema, warnings: z.array(z.string()),
 }).strict();
 export type PathsRasterRow = z.infer<typeof pathsRasterRowSchema>;
@@ -155,6 +169,20 @@ export function adjudicatePathsRasterRows(rawRows: unknown, rawEnvelopes: unknow
     if (row.warnings.length > 0 || row.nativeArtifact.sha256 === row.pathsArtifact.sha256) return { id: row.id, verdict: "invalid-evidence", reason: row.warnings.length > 0 ? "warnings" : "inert-raster-arm" };
     const logical = firstLogicalMismatch(row.expectedLogical, row.actualLogical);
     if (logical != null) return { id: row.id, verdict: "logical-mismatch", reason: logical };
+    const nativeIdentity = assessPathsNativeFaceIdentity({
+      platform: row.fingerprint.platform,
+      isVariable: row.dimensions.fontTechnology.startsWith("variable-"),
+      expectedFamily: pathsRasterCssFamily(row.id),
+      fingerprintHelperSha256: row.fingerprint.nativeIdentityHelperSha256,
+      expected: row.expectedLogical,
+      actual: row.actualLogical,
+      native: row.nativeFace,
+    });
+    if (!nativeIdentity.pass) return {
+      id: row.id,
+      verdict: "invalid-evidence",
+      reason: `native-face-identity:${nativeIdentity.blockers.join(",")}`,
+    };
     if (!envelopeFile.ratified) return { id: row.id, verdict: "envelope-unratified" };
     const fingerprint = fingerprintSha256(row.fingerprint);
     const envelope = envelopes.get(`${fingerprint}|${row.cellSha256}`);
