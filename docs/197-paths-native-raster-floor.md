@@ -11,9 +11,12 @@ HTML/Unicode visual harness.
 Each row carries one complete environment fingerprint, matrix dimensions, lossless native/paths PNG provenance, expected Chromium logical facts, actual Domotion logical facts, and terminal residual measurements. `tools/paths-native-raster-gate.ts` checks in this order:
 
 1. Reject partial evidence, warnings, or a byte-identical/inert raster arm.
-2. Require exact PostScript face, selected source bytes, face index, variation
-   axes, glyph IDs, clusters, advances, offsets, source-outline hashes,
+2. Require the exact cell-owned requested/computed CSS family, sole
+   `@font-face` source bytes, custom-font state, face index, variation axes,
+   glyph IDs, clusters, advances, offsets, source-outline hashes,
    renderer-emitted baseline and affine matrix, and synthetic paint plan.
+   CDP platform-family and PostScript strings remain diagnostic display
+   metadata, not face identity.
 3. Require a ratified envelope keyed by the complete environment fingerprint
    and a canonical SHA-256 of the complete declared corpus cell.
 4. Require proposal and independent-validation native/path hashes to be among
@@ -57,13 +60,18 @@ rasterizer. Corpus strings are deliberately one-glyph-per-Latin-scalar with
 kerning and standard ligatures disabled on both arms. That makes glyph IDs,
 clusters, advances, and outlines source-table facts rather than an unobservable
 claim about Chromium's embedded HarfBuzz build. Before pixels are measured,
-the collector requires CDP's painted PostScript face/glyph count, those direct
-source-table facts, and production provenance for selected registered bytes,
-request axes, glyph stream and source outlines. Baseline, outer matrix, and
-synthetic paint plan are parsed back from renderer-emitted markup rather than
-copied from the requested cell. A generated PostScript suffix for a variable instance is
-accepted only when its base name matches and the coordinates remain explicit
-in `variationAxes`.
+the collector reads back the exact cell-derived inline/computed family, the
+sole CSSFontFaceRule family and data-URL bytes, computed variation axes, CDP's
+custom-font state and painted glyph count, direct source-table facts, and
+production provenance for selected registered bytes, request axes, glyph
+stream and source outlines. Baseline, outer matrix, and synthetic paint plan
+are parsed back from renderer-emitted markup rather than copied from the
+requested cell. On Windows variable faces, the fingerprinted DirectWrite
+helper independently reopens the exact source bytes and confirms face index
+plus the resolved axis tuple. CDP's platform family/PostScript name and the
+helper's name-ID-6 value are retained as possibly empty display metadata:
+DirectWrite may expose different WSS aliases for the same source face, so
+equality, prefixes, and suffix allowlists are not identity evidence.
 
 ## Producer and workflow
 

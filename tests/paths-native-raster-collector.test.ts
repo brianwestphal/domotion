@@ -15,7 +15,8 @@ import {
 import type { PathsRasterRow } from "../tools/paths-native-raster-gate.js";
 import { measureDecodedPathsRasterResidual } from "../tools/paths-native-raster-metrics.js";
 import { producePathsRasterRows } from "../tools/paths-native-raster-producer.js";
-import { logicalPaintedPostscriptName, rendererPlacementFromMarkup } from "../tools/paths-native-raster-collector.js";
+import { rendererPlacementFromMarkup } from "../tools/paths-native-raster-collector.js";
+import { assessPathsNativeFaceIdentity } from "../tools/paths-native-face-identity.js";
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -34,8 +35,9 @@ async function pngWithInk(x: number, y: number): Promise<Buffer> {
 }
 
 function partialRow(cell = pathsNativeRasterMatrix()[0]): PathsRasterRow {
+  const sourceSha256 = cell.fixture.derivedSha256 ?? cell.fixture.upstreamSha256;
   const logical = {
-    postscriptName: "Fixture-Regular", sourceSha256: sha("b"), faceIndex: 0, variationAxes: cell.variationAxes,
+    postscriptName: "Fixture-Regular", sourceSha256, faceIndex: 0, variationAxes: cell.variationAxes,
     glyphs: [{ gid: 1, cluster: 0, advanceX: 500, advanceY: 0, offsetX: 0, offsetY: 0, outlineSha256: sha("e"), outlineCommandCount: 4 }],
     baseline: 92, matrix: cell.matrix, paintPlan: { syntheticBold: false, syntheticOblique: false },
   };
@@ -52,6 +54,18 @@ function partialRow(cell = pathsNativeRasterMatrix()[0]): PathsRasterRow {
     },
     dimensions: cell.dimensions,
     expectedLogical: structuredClone(logical), actualLogical: structuredClone(logical),
+    nativeFace: {
+      requestedFamily: `DomotionPathsRaster_${cell.id.replace(/[^A-Za-z0-9_]/g, "_")}`,
+      computedFamily: `DomotionPathsRaster_${cell.id.replace(/[^A-Za-z0-9_]/g, "_")}`,
+      fontFaceRuleFamily: `DomotionPathsRaster_${cell.id.replace(/[^A-Za-z0-9_]/g, "_")}`,
+      fontFaceRuleCount: 1,
+      sourceSha256,
+      computedVariationAxes: cell.variationAxes,
+      paintedFamilyDisplayName: "Fixture",
+      postscriptDisplayName: "backend-display-name",
+      isCustomFont: true,
+      glyphCount: logical.glyphs.length,
+    },
     residual: {
       changedPixels: 999, area: 999, width: 999, height: 999, maxEdgeDistance: 999, severity: 999,
       totalChannelDelta: 999, nativeInk: { area: 1, x: 1, y: 1, width: 1, height: 1 },
@@ -112,63 +126,61 @@ describe("paths/native source-owned collection contract", () => {
     });
   });
 
-  it("keeps a variable source face logical while validating Blink's coordinate suffix", () => {
+  it("uses the unique custom CSS family and source facts, never a backend display alias", () => {
+    const glyphs = [{
+      gid: 1, cluster: 0, advanceX: 500, advanceY: 0, offsetX: 0, offsetY: 0,
+      outlineSha256: sha("1"), outlineCommandCount: 8,
+    }];
     const identity = {
-      sourcePostscript: "Roboto-Regular",
-      sourceSha256: sha("a"),
-      faceIndex: 0,
-      variationAxes: { wdth: 90, wght: 400 },
-      isCustomFont: true,
-      isVariable: true,
-      platform: "linux" as const,
-    };
-    expect(logicalPaintedPostscriptName({
-      ...identity, paintedPostscript: "Roboto-Regular_wght2580000_wdth5A0000",
-    })).toEqual({
-      logical: "Roboto-Regular", sourceMatch: true, match: "blink-coordinate-suffix",
-    });
-    expect(logicalPaintedPostscriptName({ ...identity, paintedPostscript: "Fallback-Regular" })).toEqual({
-      logical: "Roboto-Regular", sourceMatch: false, match: "mismatch",
-    });
-  });
-
-  it("accepts a DirectWrite alias only with the same helper, source face, and exact axes", () => {
-    const identity = {
-      sourcePostscript: "Roboto-Regular",
-      sourceSha256: sha("a"),
-      faceIndex: 0,
-      variationAxes: { wdth: 90, wght: 600 },
-      paintedPostscript: "Roboto-Medium",
-      isCustomFont: true,
-      isVariable: true,
       platform: "win32" as const,
+      isVariable: true,
+      expectedFamily: "DomotionPathsRaster_variable_glyf",
       fingerprintHelperSha256: sha("b"),
-      directWrite: {
-        postscriptName: "Roboto-Medium",
-        resolvedAxes: { wght: 600, wdth: 90 },
+      expected: { sourceSha256: sha("a"), faceIndex: 0, variationAxes: { wdth: 90, wght: 600 }, glyphs },
+      actual: { sourceSha256: sha("a"), faceIndex: 0, variationAxes: { wght: 600, wdth: 90 }, glyphs: structuredClone(glyphs) },
+      native: {
+        requestedFamily: "DomotionPathsRaster_variable_glyf",
+        computedFamily: "DomotionPathsRaster_variable_glyf",
+        fontFaceRuleFamily: "DomotionPathsRaster_variable_glyf",
+        fontFaceRuleCount: 1,
         sourceSha256: sha("a"),
-        faceIndex: 0,
-        helperSha256: sha("b"),
+        computedVariationAxes: { wdth: 90, wght: 600 },
+        paintedFamilyDisplayName: "Roboto",
+        postscriptDisplayName: "Roboto-Medium",
+        isCustomFont: true,
+        glyphCount: 1,
+        helper: {
+          // DirectWrite's helper reports name ID 6 while CDP exposes a WSS
+          // presentation alias; neither string participates in identity.
+          postscriptDisplayName: "Roboto-Regular",
+          resolvedAxes: { wdth: 90, wght: 600 },
+          sourceSha256: sha("a"),
+          faceIndex: 0,
+          helperSha256: sha("b"),
+        },
       },
     };
-    expect(logicalPaintedPostscriptName(identity)).toEqual({
-      logical: "Roboto-Regular", sourceMatch: true, match: "directwrite-variable-face",
-    });
-    for (const mutation of [
-      { paintedPostscript: "Roboto-Regularized" },
-      { paintedPostscript: "RobotoFallback" },
-      { sourceSha256: sha("c") },
-      { faceIndex: 1 },
-      { variationAxes: { wdth: 100, wght: 600 } },
-      { isCustomFont: false },
-      { isVariable: false },
-      { platform: "linux" as const },
-      { fingerprintHelperSha256: sha("c") },
-      { directWrite: { ...identity.directWrite, resolvedAxes: { wdth: 90, wght: 500 } } },
-    ]) {
-      expect(logicalPaintedPostscriptName({
-        ...identity, ...mutation,
-      })).toEqual({ logical: "Roboto-Regular", sourceMatch: false, match: "mismatch" });
+    expect(assessPathsNativeFaceIdentity(identity)).toEqual({ pass: true, blockers: [] });
+    expect(assessPathsNativeFaceIdentity({
+      ...identity,
+      native: { ...identity.native, paintedFamilyDisplayName: "", postscriptDisplayName: "" },
+    })).toEqual({ pass: true, blockers: [] });
+
+    const mutations = [
+      { expected: "requested-family", value: { ...identity, native: { ...identity.native, requestedFamily: "HostFallback", computedFamily: "HostFallback" } } },
+      { expected: "native-source-bytes", value: { ...identity, native: { ...identity.native, sourceSha256: sha("c") } } },
+      { expected: "native-variation-axes", value: { ...identity, native: { ...identity.native, computedVariationAxes: { wdth: 90, wght: 500 } } } },
+      { expected: "non-custom-font", value: { ...identity, native: { ...identity.native, isCustomFont: false } } },
+      { expected: "source-bytes", value: { ...identity, actual: { ...identity.actual, sourceSha256: sha("c") } } },
+      { expected: "variation-axes", value: { ...identity, actual: { ...identity.actual, variationAxes: { wdth: 90, wght: 500 } } } },
+      { expected: "helper-source-bytes", value: { ...identity, native: { ...identity.native, helper: { ...identity.native.helper!, sourceSha256: sha("c") } } } },
+      { expected: "helper-variation-axes", value: { ...identity, native: { ...identity.native, helper: { ...identity.native.helper!, resolvedAxes: { wdth: 90, wght: 500 } } } } },
+      { expected: "glyph-outline-stream", value: { ...identity, actual: { ...identity.actual, glyphs: [{ ...glyphs[0], outlineSha256: sha("c") }] } } },
+    ];
+    for (const mutation of mutations) {
+      const result = assessPathsNativeFaceIdentity(mutation.value);
+      expect(result.pass, mutation.expected).toBe(false);
+      expect(result.blockers, mutation.expected).toContain(mutation.expected);
     }
   });
 
@@ -181,6 +193,37 @@ describe("paths/native source-owned collection contract", () => {
     expect(rows[0].pathsArtifact.sha256).toBe(createHash("sha256").update(paths).digest("hex"));
     expect(rows[0].residual).toEqual(expect.objectContaining({ changedPixels: 2, area: 0, width: 0, height: 0, maxEdgeDistance: 1 }));
     expect(rows[0].residual.severity).toBeCloseTo(1.5, 12);
+  });
+
+  it.each(["source", "axes"] as const)("rejects a joint all-witness %s forgery against the declared cell", async (kind) => {
+    const cell = pathsNativeRasterMatrix().find((candidate) => candidate.fixture.technology === "variable-glyf")!;
+    const row = partialRow(cell);
+    row.fingerprint.platform = "win32";
+    row.fingerprint.nativeIdentityHelperSha256 = sha("7");
+    row.nativeFace.helper = {
+      postscriptDisplayName: "Roboto-Regular",
+      sourceSha256: row.expectedLogical.sourceSha256,
+      faceIndex: 0,
+      resolvedAxes: structuredClone(row.expectedLogical.variationAxes),
+      helperSha256: sha("7"),
+    };
+    if (kind === "source") {
+      row.expectedLogical.sourceSha256 = sha("0");
+      row.actualLogical.sourceSha256 = sha("0");
+      row.nativeFace.sourceSha256 = sha("0");
+      row.nativeFace.helper.sourceSha256 = sha("0");
+    } else {
+      const forged = { wdth: 100, wght: 500 };
+      row.expectedLogical.variationAxes = structuredClone(forged);
+      row.actualLogical.variationAxes = structuredClone(forged);
+      row.nativeFace.computedVariationAxes = structuredClone(forged);
+      row.nativeFace.helper.resolvedAxes = structuredClone(forged);
+    }
+    const root = mkdtempSync(join(tmpdir(), "dm2499-producer-")); roots.push(root);
+    writeFileSync(join(root, "native.png"), await pngWithInk(1, 1));
+    writeFileSync(join(root, "paths.png"), await pngWithInk(2, 1));
+    await expect(producePathsRasterRows([row], root, { requireComplete: false }))
+      .rejects.toThrow(kind === "source" ? /sourceSha256.*declared fixture/ : /variationAxes.*declared matrix/);
   });
 
   it("rejects artifact paths outside the authenticated observation root", async () => {

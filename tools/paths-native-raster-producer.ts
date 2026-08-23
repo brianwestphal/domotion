@@ -3,7 +3,7 @@ import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { assertCompletePathsRasterMatrix } from "./paths-native-raster-corpus.js";
+import { assertCompletePathsRasterMatrix, assertPathsRasterRowDeclaration } from "./paths-native-raster-corpus.js";
 import { pathsRasterRowSchema, type PathsRasterRow } from "./paths-native-raster-gate.js";
 import { decodePathsRasterPng, measurePathsRasterResidual } from "./paths-native-raster-metrics.js";
 
@@ -47,7 +47,13 @@ export async function producePathsRasterRows(
       bytes[role] = image;
     }
     candidate.residual = await measurePathsRasterResidual(bytes.nativeArtifact!, bytes.pathsArtifact!);
-    rows.push(pathsRasterRowSchema.parse(candidate));
+    const row = pathsRasterRowSchema.parse(candidate);
+    // `cellSha256` authenticates the declaration, but cannot by itself stop a
+    // caller from jointly forging every supplied logical witness. Re-derive
+    // source bytes, face index, and axes from the declared corpus cell before
+    // accepting either complete or deliberately partial evidence.
+    assertPathsRasterRowDeclaration(row);
+    rows.push(row);
   }
   const ids = new Set<string>();
   for (const row of rows) {
