@@ -352,6 +352,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex DM-2525",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5ul5aqdd1ar2vj",
+          "message": {
+            "text": "The column must preserve two independent owners: Blink decides orientation/combine semantics, while live Range rectangles decide physical placement. Sideways-lr advances in reverse physical Y order, so first/last logical characters cannot define its envelope; the Range union fixes the negative-height failure without changing logical yOffsets.",
+            "markdown": "The column must preserve two independent owners: Blink decides orientation/combine semantics, while live Range rectangles decide physical placement. Sideways-lr advances in reverse physical Y order, so first/last logical characters cannot define its envelope; the Range union fixes the negative-height failure without changing logical yOffsets."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/text-segments.ts"
+                },
+                "region": {
+                  "startLine": 300,
+                  "endLine": 397,
+                  "snippet": {
+                    "text": "    const tcu = cs.textCombineUpright || cs.webkitTextCombine || '';\n    // LayoutTextCombine::IsSupportedMode rejects every horizontal typographic\n    // mode. Blink defines sideways-lr/sideways-rl as horizontal typographic,\n    // so authored `all` is ordinary sideways text in those modes.\n    const isCombineAll = blinkUsesTextCombine(wm, tcu);\n    if (isCombineAll) {\n      const metricsC = measureFontMetrics(cs);\n      // Shared cell top/height (all combined chars sit in one column cell), and\n      // the horizontal span of the combined glyphs (Chrome's painted extent).\n      let cellTop = Infinity, cellBot = -Infinity, minX = Infinity, maxX = -Infinity;\n      for (const c of allChars) {\n        cellTop = Math.min(cellTop, c.y);\n        cellBot = Math.max(cellBot, c.y + c.h);\n        minX = Math.min(minX, c.x);\n        maxX = Math.max(maxX, c.x + c.w);\n      }\n      const combinedText = allChars.map((c) => c.ch).join('').replace(/[\\t\\n\\r]/g, ' ');\n      const xOffsets = allChars.map((c) => c.x - minX);\n      textSegments.push({\n        text: combinedText,\n        x: minX - vp.x,\n        y: cellTop - vp.y,\n        width: maxX - minX,\n        height: cellBot - cellTop,\n        verticalWritingMode: wm,\n        verticalCombineUpright: true,\n        verticalCombineXOffsets: xOffsets,\n        fontAscent: metricsC.ascent,\n      });\n      return {\n        applied: true,\n        text: combinedText,\n        textSegments,\n        textLeft: minX - vp.x,\n        textTop: cellTop - vp.y,\n        textWidth: maxX - minX,\n        textHeight: cellBot - cellTop,\n        fontAscent: metricsC.ascent,\n        fontDescent: metricsC.descent,\n      };\n    }\n    // Group chars by COLUMN — matching `x` ±1 px. Within each column,\n    // chars stack top-to-bottom in increasing `y` (their natural source\n    // order, since Range follows DOM order).\n    const columns = [];\n    let curCol = null;\n    for (const c of allChars) {\n      if (curCol == null || Math.abs(c.x - curCol.x) > 1) {\n        if (curCol != null) columns.push(curCol);\n        curCol = { x: c.x, width: c.w, chars: [c] };\n      } else {\n        curCol.chars.push(c);\n      }\n    }\n    if (curCol != null) columns.push(curCol);\n    // Emit one segment per column.\n    const metrics = measureFontMetrics(cs);\n    for (const col of columns) {\n      // Physical order is not uniformly top-to-bottom: sideways-lr advances\n      // bottom-to-top. Own the column envelope from the captured Range union,\n      // while retaining logical-order yOffsets for glyph placement.\n      const colLeft = Math.min(...col.chars.map((c) => c.x));\n      const colTop = Math.min(...col.chars.map((c) => c.y));\n      const colRight = Math.max(...col.chars.map((c) => c.x + c.w));\n      const colBot = Math.max(...col.chars.map((c) => c.y + c.h));\n      const visualText = col.chars.map((c) => c.ch).join('').replace(/[\\t\\n\\r]/g, ' ');\n      if (visualText.replace(/\\s/g, '') === '') continue;\n      const yOffsets = [];\n      // Blink's OrientationIterator keeps the current base orientation for\n      // Grapheme_Extend scalars. Resolve the whole visual run at once rather\n      // than classifying each scalar/UTF-16 record independently.\n      const verticalOrientations = resolveVerticalOrientations(visualText, effectiveTextOrientation);\n      const verticalAdvances = [];\n      const verticalNaturalWidths = [];\n      for (const c of col.chars) {\n        for (let k = 0; k < c.ch.length; k++) {\n          yOffsets.push(c.y - vp.y);\n          verticalAdvances.push(c.h);\n          verticalNaturalWidths.push(c.naturalW);\n        }\n      }\n      textSegments.push({\n        text: visualText,\n        x: colLeft - vp.x,\n        y: colTop - vp.y,\n        width: colRight - colLeft,\n        height: colBot - colTop,\n        verticalWritingMode: wm,\n        verticalOrientations,\n        yOffsets,\n        verticalAdvances,\n        verticalNaturalWidths,\n        fontAscent: metrics.ascent,\n      });\n      minLeft = Math.min(minLeft, colLeft);\n      minTop = Math.min(minTop, colTop);\n      maxRight = Math.max(maxRight, colRight);\n      maxBottom = Math.max(maxBottom, colBot);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/vertical-orientation-capture.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 75
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2525"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "05343a96ca989d581650f27be2c57a71"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "82dbd68771cf715fe5d58c393990d1dbfaee3995",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -10,6 +10,7 @@
 
 import bidiFactory from "bidi-js";
 import { capturedFontFamilyCss } from "../font-family-stack.js";
+import { resolveCharOrientation } from "../vertical-orientation.js";
 
 import type {
   CapturedElement,
@@ -183,11 +184,9 @@ function textOptions(record: CapturedPseudoFragmentSet, targetWidth?: number, vi
     features: fontFeatures(record),
     lang: typography.language,
     variationSettings: parseFontVariationSettings(typography.fontVariationSettings),
-    ...(visualOrder
-      ? { bidiOverride: { direction: "ltr" as const, unicodeBidi: "bidi-override" } }
-      : unicodeBidi === "bidi-override" || unicodeBidi === "isolate-override"
-      ? { bidiOverride: { direction: record.direction, unicodeBidi } }
-      : {}),
+    bidiOverride: visualOrder
+      ? { direction: "ltr" as const, unicodeBidi: "bidi-override" }
+      : { direction: record.direction, unicodeBidi },
   };
 }
 
@@ -292,15 +291,10 @@ function graphemes(text: string): string[] {
 }
 
 function uprightVertical(text: string): boolean {
-  const cp = text.codePointAt(0) ?? 0;
-  return (cp >= 0x1100 && cp <= 0x11ff)
-    || (cp >= 0x2e80 && cp <= 0xa4cf)
-    || (cp >= 0xac00 && cp <= 0xd7af)
-    || (cp >= 0xf900 && cp <= 0xfaff)
-    || (cp >= 0xfe10 && cp <= 0xfe6f)
-    || (cp >= 0xff01 && cp <= 0xff60)
-    || (cp >= 0x1f200 && cp <= 0x1f2ff)
-    || cp >= 0x20000;
+  // The pseudo protocol exposes grapheme cells rather than Blink's private
+  // glyph list. Classify each cell through the same Chromium-pinned property
+  // route as ordinary and UA-shadow text; no host Unicode range guesses.
+  return resolveCharOrientation(text, "mixed") === "upright";
 }
 
 function renderVerticalMixed(

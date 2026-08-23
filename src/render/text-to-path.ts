@@ -39,7 +39,7 @@ import { UNICODE_FONT_PATHS, UNICODE_FONT_RANGES } from "./unicode-font-routing.
 import { UNICODE_FONT_PATHS_LINUX, UNICODE_FONT_RANGES_LINUX } from "./unicode-font-routing.linux.generated.js";
 import { UNICODE_FONT_FILES_WIN32, UNICODE_FONT_RANGES_WIN32 } from "./unicode-font-routing.win32.generated.js";
 // Unicode-classification predicates (mathAlphaToBase, isRtlScriptCodepoint, isStretchyFenceChar, complex-shaper / matra / rtl ranges, …) moved to ./unicode-classification.ts (DM-1305).
-import { bidiLevelsFor, segmentForShaping } from "./script-segmentation.js";
+import { bidiLevelsFor, segmentForShaping, type BidiParagraphContext } from "./script-segmentation.js";
 import { SCRIPT_NAME_TO_ISO15924 } from "./script-iso15924.generated.js";
 
 const BLINK_CURSIVE_SPACING_SCRIPTS = new Set([
@@ -253,8 +253,8 @@ export function splitTextIntoGlyphPathRuns(
   fontFamily: string,
   /** OpenType features used by Blink's shape-then-requeue coverage verdict. */
   features?: string[],
-  /** CSS bidi override applied before Blink's script/run segmentation. */
-  bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string },
+  /** CSS paragraph bidi context applied before Blink's script/run segmentation. */
+  bidiOverride?: BidiParagraphContext,
   /** Exact Blink cache-key request state; neither field changes shaping. */
   fallbackRequest?: { rawSlope: number; orientation: number },
 ): FontRun[] {
@@ -549,9 +549,9 @@ function renderTextPathRuns(
    *  (e.g. `{ opsz: 30, wght: 450 }` from framer.com's body P). Wins over the
    *  CSS-weight / font-size-derived defaults. DM-578. */
   variationSettings?: Record<string, number>,
-  /** The element's `direction` + `unicode-bidi`; only the override values act.
-   *  See `bidiLevelsFor`, which is where it is consumed and why. */
-  bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string },
+  /** The element's `direction` + `unicode-bidi` paragraph context. See
+   *  `bidiLevelsFor`, which is where it is consumed and why. */
+  bidiOverride?: BidiParagraphContext,
   /** Computed CSS `font-stretch` (e.g. `"75%"`). Selects the family's condensed /
    *  expanded cut in the declared-family style matcher — see `stretchPercent`. */
   fontStretch?: string,
@@ -1012,7 +1012,9 @@ function renderTextPathRuns(
           // the content is an override, where Blink's injected LRO/RLO makes the
           // level authoritative by construction — which is the whole point of
           // the property.
-          const flipToNative = bidiOverride != null && seg.rtl !== contentIsRtl;
+          const forceDirection = bidiOverride?.unicodeBidi === "bidi-override"
+            || bidiOverride?.unicodeBidi === "isolate-override";
+          const flipToNative = forceDirection && seg.rtl !== contentIsRtl;
           const shapeText = flipToNative ? [...segText].reverse().join("") : segText;
           // Once flipped, the run IS native, so hand the shaper the direction its
           // content implies rather than the paragraph's.
@@ -1166,7 +1168,7 @@ export function textToPathMarkup(
   features?: string[],
   lang?: string,
   variationSettings?: Record<string, number>,
-  bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string },
+  bidiOverride?: BidiParagraphContext,
   fontStretch?: string,
   fontVariantEmoji?: FontVariantEmojiOverride,
   fontSynthesis?: FontSynthesisAllowance,
@@ -2018,7 +2020,7 @@ function splitTextIntoFontRuns(
   fontFamily?: string,
   /** OpenType features used by Blink's shape-then-requeue coverage verdict. */
   features?: string[],
-  bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string },
+  bidiOverride?: BidiParagraphContext,
   fallbackRequest?: { rawSlope: number; orientation: number },
 ): FontRun[] {
   const semanticContext = createFontFallbackSemanticContext(fontFamily);
@@ -2306,8 +2308,8 @@ function renderEmbeddedGlyphRuns(
   fontVariantEmoji?: FontVariantEmojiOverride,
   /** DM-1971: the run's `font-synthesis` permissions. Absent = `auto`. */
   fontSynthesis?: FontSynthesisAllowance,
-  /** CSS bidi override applied before Blink's script/run segmentation. */
-  bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string },
+  /** CSS paragraph bidi context applied before Blink's script/run segmentation. */
+  bidiOverride?: BidiParagraphContext,
   fallbackRequest?: { rawSlope: number; orientation: number },
 ): EmbeddedTextAttempt {
   const { weight, slant, stretch } = textFontRequest(fontWeight, fontStyle, fontStretch);
@@ -3014,7 +3016,7 @@ function renderTextAsEmbedded(
   fontStretch?: string,
   fontVariantEmoji?: FontVariantEmojiOverride,
   fontSynthesis?: FontSynthesisAllowance,
-  bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string },
+  bidiOverride?: BidiParagraphContext,
   fallbackRequest?: { rawSlope: number; orientation: number },
 ): EmbeddedTextAttempt {
   return renderEmbeddedGlyphRuns(
@@ -3245,9 +3247,10 @@ export interface RenderTextOptions extends TextFontOptions {
    *  layer detected Chrome auto-circles. Forwarded to `insertSyntheticDottedCircles`. */
   dottedCircleMarks?: number[];
   /**
-   * The element's resolved `direction` and `unicode-bidi`. Only the OVERRIDE
-   * values matter here, and they matter because they are the one bidi input
-   * that cannot be recovered from the text: `bidi-override` /
+   * The element's resolved `direction` and `unicode-bidi`. Ordinary blocks
+   * need the explicit paragraph direction, `plaintext` needs UAX #9 auto, and
+   * the OVERRIDE values additionally cannot be recovered from the text:
+   * `bidi-override` /
    * `isolate-override` instruct the algorithm to disregard each character's
    * own bidi type and treat it as strong in `direction`. Running the UBA over
    * the characters — which is what deriving levels from the text does — asks
@@ -3255,7 +3258,7 @@ export interface RenderTextOptions extends TextFontOptions {
    * `bidi-override; direction: ltr` shaped right-to-left where Chrome forces it
    * left-to-right.
    */
-  bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string };
+  bidiOverride?: BidiParagraphContext;
 }
 
 export type SourceOwnedTextBoundaryReason =

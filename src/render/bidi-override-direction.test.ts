@@ -43,21 +43,22 @@ describe("unicode-bidi: bidi-override forces the embedding direction", () => {
   // per-character x ASCENDS with logical index under the override, and descends
   // without it), while the unmodified algorithm reports level 1 and the shaper
   // reverses the run.
-  it("forces Hebrew to level 0 under bidi-override + direction: ltr", () => {
+  it("forces Hebrew to Blink's exact even override level under direction: ltr", () => {
     const levels = bidiLevelsFor(HEB, OVERRIDE_LTR)!;
     expect(levels.length).toBe(HEB.length);
-    expect([...levels].every((l) => (l & 1) === 0)).toBe(true);
+    expect([...levels]).toEqual([2, 2, 2, 2]);
     expect(dirOf(HEB, OVERRIDE_LTR)).toEqual(["ltr"]);
   });
 
   it("forces LATIN to an odd level under bidi-override + direction: rtl", () => {
     const levels = bidiLevelsFor(LAT, OVERRIDE_RTL)!;
     expect(levels.length).toBe(LAT.length);
-    expect([...levels].every((l) => (l & 1) === 1)).toBe(true);
+    expect([...levels]).toEqual([3, 3, 3, 3, 3]);
     expect(dirOf(LAT, OVERRIDE_RTL)).toEqual(["rtl"]);
   });
 
   it("leaves Hebrew right-to-left under bidi-override + direction: rtl", () => {
+    expect([...bidiLevelsFor(HEB, OVERRIDE_RTL)!]).toEqual([3, 3, 3, 3]);
     expect(dirOf(HEB, OVERRIDE_RTL)).toEqual(["rtl"]);
   });
 

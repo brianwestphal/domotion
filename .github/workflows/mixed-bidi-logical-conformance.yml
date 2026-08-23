@@ -1,0 +1,68 @@
+name: Mixed-script bidi logical conformance
+
+on:
+  pull_request:
+    paths:
+      - "src/render/script-segmentation.ts"
+      - "src/render/mixed-bidi-logical.test.ts"
+      - "src/render/text.ts"
+      - "src/render/text-to-path.ts"
+      - "src/render/cluster-fallback.ts"
+      - "src/render/pseudo-fragments.ts"
+      - "tools/mixed-bidi-logical-oracle.ts"
+      - "tests/mixed-bidi-logical-workflow.test.ts"
+      - "package.json"
+      - ".github/workflows/mixed-bidi-logical-conformance.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/render/script-segmentation.ts"
+      - "src/render/mixed-bidi-logical.test.ts"
+      - "src/render/text.ts"
+      - "src/render/text-to-path.ts"
+      - "src/render/cluster-fallback.ts"
+      - "src/render/pseudo-fragments.ts"
+      - "tools/mixed-bidi-logical-oracle.ts"
+      - "tests/mixed-bidi-logical-workflow.test.ts"
+      - "package.json"
+      - ".github/workflows/mixed-bidi-logical-conformance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exact-logical-records:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, ubuntu-24.04, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    env:
+      DOMOTION_CHROMIUM_REVISION: 7d859f271cbda744098ac69f44978d4edfa62be3
+      DOMOTION_HARFBUZZ_REVISION: 4de187dd0a915d13c976fa8bd474c084229f3aab
+      DOMOTION_SKIA_REVISION: 62efacd37737505732dbe3d8daa62abd679626a1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.21.0
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium
+      - name: Assert exact paragraph levels and item records
+        run: npx vitest run src/render/mixed-bidi-logical.test.ts src/render/bidi-override-direction.test.ts
+      - name: Record captured origins and exact HarfBuzz glyph streams
+        shell: bash
+        run: |
+          mkdir -p "tests/output/mixed-bidi/${{ runner.os }}"
+          npm run fonts:mixed-bidi-logical -- --json "tests/output/mixed-bidi/${{ runner.os }}/report.json"
+      - name: Upload exact logical evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mixed-bidi-logical-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: tests/output/mixed-bidi/${{ runner.os }}/report.json
+          if-no-files-found: error
+          retention-days: 30

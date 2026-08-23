@@ -53,13 +53,13 @@ The existing per-char raster path (SK-1090) needs to copy the rotation transform
 
 ## tate-chu-yoko (`text-combine-upright`)
 
-`text-combine-upright: all` (and `digits`) combines a short run — typically the digits of a date — into ONE upright, horizontally-laid glyph group occupying a single ~1em column cell, rather than letting each char take its own column position. Chrome paints "31" as two upright digits side by side, squeezed into the cell.
+`text-combine-upright: all` combines a short run — typically the digits of a date — into ONE upright, horizontally-laid glyph group occupying a single ~1em column cell, rather than letting each char take its own column position. Chrome paints "31" as two upright digits side by side, squeezed into the cell. The pinned Chromium target computes unsupported `digits` declarations to `none`.
 
 Captured as a dedicated combined segment rather than column-split:
 
-- **Capture** (`src/capture/script/walker/text-segments.ts`): a vertical element whose computed `text-combine-upright` is `all` — or `digits` when the run is entirely ASCII digits (the common authored case: a span wrapping just the digits) — emits ONE `verticalCombineUpright` segment carrying the whole combined text plus `verticalCombineXOffsets[]` (each glyph's captured x relative to the cell's leftmost glyph). Without this the column grouping (group chars by `x` ±1 px) splits "31" into two single-char columns and rotates each, scattering the digits.
+- **Capture** (`src/capture/script/walker/text-segments.ts`): an element whose computed `text-combine-upright` is `all` emits ONE `verticalCombineUpright` segment only when Blink's `LayoutTextCombine::IsSupportedMode` accepts its writing mode: `vertical-rl` and `vertical-lr`. Blink calls `horizontal-tb`, `sideways-rl`, and `sideways-lr` horizontal typographic modes, so `all` remains ordinary text in all three. The combined record carries the whole text plus `verticalCombineXOffsets[]` (each glyph's captured x relative to the cell's leftmost glyph). Without this the column grouping (group chars by `x` ±1 px) splits "31" into two single-char columns and rotates each, scattering the digits.
 - **Render** (`src/render/vertical-text.ts`): the combined segment is emitted as a single `renderTextAsPath` call anchored at the captured cell left with each glyph at its captured `verticalCombineXOffsets[i]`, on the same captured-metric upright baseline (`cell-top + segment.fontAscent`, `ascentOverride = 0`) as the per-char upright path. Anchoring at Chrome's painted per-char positions reproduces the side-by-side layout — and any sub-1em condensing Chrome applied — without re-deriving the combine geometry. Verified pixel-clean against Chrome on the `20-deep-writing-mode-mixed` date line (the digit cells show zero diff; the residual fixture diff is CJK-ideograph sub-pixel font differences, unrelated).
-- **Known limit**: a `text-combine-upright: digits` run that mixes digits with non-digit chars falls through to normal column flow (no fixture exercises it). Heavy condensing (4+ digits squeezed well below 1em) anchors each glyph at the compressed x but does not horizontally scale the glyph *shapes*, so wide glyphs could touch; the date-style 1–2 digit runs that are the overwhelming real-world case render exactly.
+- **Known limit**: heavy condensing (4+ digits squeezed well below 1em) anchors each glyph at the captured compressed x but does not horizontally scale the glyph *shapes*, so wide glyphs could touch; the date-style 1–2 digit runs that are the overwhelming real-world case render exactly.
 
 ## Vertical-form punctuation (`vert`)
 
@@ -114,7 +114,7 @@ reported phase and does not tune geometry.
 
 ## Edge cases / out of scope
 
-- Per-glyph mixed-orientation choice comes from the complete Chromium-pinned ICU 17 `Vertical_Orientation` property: Blink keeps U, Tu, and Tr upright and rotates only R. Regenerate with `npm run unicode:vertical-orientation:generate`; the check and exhaustive digest prevent host-Unicode drift.
+- Per-glyph mixed-orientation choice comes from Chromium `7d859f271c` and its pinned ICU Unicode 17 data. Blink keeps `Vertical_Orientation` U, Tu, and Tr upright and rotates only R. Its `OrientationIterator` changes that choice only at a scalar that is not `Grapheme_Extend`, so combining marks and variation selectors inherit their current base orientation. Both properties are generated together; regenerate with `npm run unicode:vertical-orientation:generate`, and use the source-image check plus native ICU oracle to prevent a silent Unicode roll. The full evidence contract is [doc 216](216-vertical-orientation-ownership.md).
 - CSS logical properties (`inline-size`, `padding-block-*`) — captured pixel values from `getComputedStyle` are already physical, so layout sizing comes through. Only typography axes need new logic.
 
 ## Acceptance criteria

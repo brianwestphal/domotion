@@ -148,7 +148,17 @@ shortest possible map:
   residual matrix across normal, wrapped, vertical, bitmap, decoration, shadow,
   stroke, background-clip and input branches. The legacy transform-derived font
   magnitude, unsigned cumulative axes and anisotropic correction are removed
-  (DM-2469/2470, docs 159/177). DM-2468 now consumes DM-2467 pseudo records
+  (DM-2469/2470, docs 159/177). DM-2544's investigation-only
+  `tools/text-affine-baseline-protocol-oracle.ts` independently joins whole-Range
+  and per-UTF-16-unit rects, CDP text-node quads, a baseline witness, captured
+  fragments, and emitted SVG CTMs without a screenshot (doc 215). It proves the
+  one-fragment horizontal route keeps ascent in the neutral plane before one
+  complete affine map. It also records two follow-up seams: mixed-script
+  `FragmentItem`s outnumber line-grouped `TextSegment`s before correlation
+  (DM-2546), and the vertical scalar documented as physical x actually carries
+  `segment.x + ascent` until render subtracts x (DM-2547). Do not fit either
+  correction from pixels or widen an existing visual tolerance.
+  DM-2468 now consumes DM-2467 pseudo records
   directly; an unavailable generated clamp marker retains the outer raster.
   `tools/text-transform-geometry-audit.ts` is the hard two-leg release gate:
   direct Chromium live/neutral/restored quads versus capture, then final source
@@ -211,6 +221,12 @@ shortest possible map:
   trigger an implicit per-codepoint restart. `DOMOTION_CLUSTER_FALLBACK=0`
   restores the legacy per-codepoint walk in both) — see
   `docs/113-cluster-granularity-fallback.md`.
+  `script-segmentation.ts` also owns Blink's block paragraph base (DM-2524,
+  doc 214): ordinary text uses captured `direction`, `unicode-bidi: plaintext`
+  uses first-strong auto, and override controls resolve inside that same base.
+  `tools/mixed-bidi-logical-oracle.ts` records exact forward/reverse levels,
+  item spans, HarfBuzz glyph/cluster geometry, captured origins, and baselines
+  with active wrong-level/cluster/origin mutations on all three native OSes.
   Declared-family ordering and segmented `@font-face` capability-group/range
   construction are source-mapped in
   `docs/122-declared-family-segmented-face-parity.md`.
@@ -407,6 +423,14 @@ shortest possible map:
   Chromium and final-SVG edges at a fixed four-device-pixel bound for DPR 1/2,
   while `.github/workflows/pseudo-fragment-render-parity.yml` runs native
   macOS/Linux/Windows reports and uploads both surfaces (doc 178).
+  DM-2525 centralizes ordinary, broken-image-shadow, and generated-pseudo
+  vertical classification in `src/vertical-orientation.ts`: generated pinned
+  ICU 17 `Vertical_Orientation` plus `Grapheme_Extend` tables transcribe
+  Blink's UTF-16 `OrientationIterator`, while `LayoutTextCombine` ownership is
+  limited to vertical-rl/lr. `tools/vertical-orientation-oracle.ts` checks all
+  1,114,112 source-image code-point slots plus every generated range transition
+  against the native ICU companion, and the live capture gate compares exact
+  Range rectangles across the representative three-platform corpus (doc 216).
   DM-2459 includes Blink's real `::checkmark` node in that record protocol and
   routes `appearance:none`/`base` checkbox and radio indicators through it.
   `src/render/form-controls.ts` suppresses generic tick/dot/switch synthesis

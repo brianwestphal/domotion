@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex DM-2525",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5ul58qx3c13l0l",
+          "message": {
+            "text": "This is a direct decision-stage transcription, not a Unicode heuristic. Chromium 7d859f271c changes mixed orientation only on non-Grapheme_Extend scalars, substitutes U+FFFD for unpaired surrogates, and treats sideways modes as horizontal typographic for LayoutTextCombine; the generated ICU 17 properties supply the two source predicates.",
+            "markdown": "This is a direct decision-stage transcription, not a Unicode heuristic. Chromium 7d859f271c changes mixed orientation only on non-Grapheme_Extend scalars, substitutes U+FFFD for unpaired surrogates, and treats sideways modes as horizontal typographic for LayoutTextCombine; the generated ICU 17 properties supply the two source predicates."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/vertical-orientation.ts"
+                },
+                "region": {
+                  "startLine": 53,
+                  "endLine": 123,
+                  "snippet": {
+                    "text": "/**\n * Blink `OrientationIterator` transcribed from\n * `platform/fonts/orientation_iterator.cc` at Chromium 7d859f271c.\n *\n * In mixed text the first scalar chooses an orientation. A later scalar may\n * change it only when that scalar is not `Grapheme_Extend`; marks and\n * variation selectors therefore stay with their base. Upright/sideways are\n * single-orientation routes and never consult the Unicode tables.\n */\nexport function blinkVerticalOrientationRuns(\n  text: string,\n  textOrientation: string | undefined,\n): VerticalOrientationRun[] {\n  if (text === \"\") return [];\n  if (textOrientation === \"upright\") {\n    return [{ start: 0, end: text.length, orientation: \"upright\" }];\n  }\n  if (textOrientation === \"sideways\") {\n    return [{ start: 0, end: text.length, orientation: \"rotated\" }];\n  }\n\n  const runs: VerticalOrientationRun[] = [];\n  let current: VerticalGlyphOrientation | undefined;\n  let runStart = 0;\n  for (let offset = 0; offset < text.length;) {\n    const { cp, length } = blinkCodePointAt(text, offset);\n    const next = current == null || !isBlinkGraphemeExtend(cp)\n      ? (isMixedVerticalUpright(cp) ? \"upright\" : \"rotated\")\n      : current;\n    if (current != null && next !== current) {\n      runs.push({ start: runStart, end: offset, orientation: current });\n      runStart = offset;\n    }\n    current = next;\n    offset += length;\n  }\n  runs.push({ start: runStart, end: text.length, orientation: current! });\n  return runs;\n}\n\n/** One orientation entry per UTF-16 code unit, matching captured text arrays. */\nexport function resolveVerticalOrientations(\n  text: string,\n  textOrientation: string | undefined,\n): VerticalGlyphOrientation[] {\n  const result = new Array<VerticalGlyphOrientation>(text.length);\n  for (const run of blinkVerticalOrientationRuns(text, textOrientation)) {\n    result.fill(run.orientation, run.start, run.end);\n  }\n  return result;\n}\n\n/** Compatibility helper for owners that classify a one-scalar record. */\nexport function resolveCharOrientation(\n  text: string,\n  textOrientation: string | undefined,\n): VerticalGlyphOrientation {\n  return resolveVerticalOrientations(text, textOrientation)[0] ?? \"rotated\";\n}\n\n/**\n * Blink `LayoutTextCombine::IsSupportedMode`: text combine is owned only by\n * vertical typographic modes. `sideways-*` are horizontal typographic modes,\n * so an authored `all` declaration remains ordinary sideways text there.\n */\nexport function blinkUsesTextCombine(\n  writingMode: string | undefined,\n  textCombine: string | undefined,\n): boolean {\n  return textCombine === \"all\"\n    && (writingMode === \"vertical-rl\" || writingMode === \"vertical-lr\");"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/platform/fonts/orientation_iterator.cc"
+                },
+                "region": {
+                  "startLine": 19
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2525"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "a81f3eb1e587c2e3269591fc9e133c58"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "82dbd68771cf715fe5d58c393990d1dbfaee3995",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

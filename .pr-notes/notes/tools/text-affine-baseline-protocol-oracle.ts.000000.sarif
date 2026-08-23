@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5upqq7fdom2fht",
+          "message": {
+            "text": "Investigation success here means the discriminator distinguishes a correct decoded vector from two current production gaps. The mixed row must prove Blink exposes more physical fragments and that capture fails closed before SVG text emission; the vertical row must prove the stored scalar recovers only ascent and differs from the independently rotated physical baseline. This avoids blessing either gap as parity and keeps final pixels out of the answer.",
+            "markdown": "Investigation success here means the discriminator distinguishes a correct decoded vector from two current production gaps. The mixed row must prove Blink exposes more physical fragments and that capture fails closed before SVG text emission; the vertical row must prove the stored scalar recovers only ascent and differs from the independently rotated physical baseline. This avoids blessing either gap as parity and keeps final pixels out of the answer."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/text-affine-baseline-protocol-oracle.ts"
+                },
+                "region": {
+                  "startLine": 494,
+                  "endLine": 530,
+                  "snippet": {
+                    "text": "    const sharedControls = {\n      liveAndRestoredQuadsMatch: logical.maxRestorationDeltaCssPx <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,\n      rangeAndCdpFragmentCountsMatch: neutral.rangeClientRects.length === neutral.quads.length,\n      everyRangeFragmentHasSourceOffsets: logical.rangeFragmentSourceSpans.every((fragment) => fragment.sourceOffsets.length > 0),\n    };\n    let dispositionControls: Record<string, boolean>;\n    if (test.expectedDisposition === \"decoded-vector\") {\n      dispositionControls = {\n        oneSourceFragment: neutral.quads.length === 1,\n        capturedOneVectorFragment: captured.fragments.length === 1 && captured.rasterOwnerCount === 0,\n        capturedMatrixMatchesIndependent: logical.maxCapturedMatrixDelta <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,\n        capturedBaselineIsNeutralWitness: Math.abs((firstFragment?.baseline ?? Infinity) - neutral.baselineWitness.y) <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,\n        matrixMapsBaselineBeforeTransform: pointDistance(live.baselineWitness, liveBaselinePoint) <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,\n        capturedBaselineMapsToLive: logical.maxLiveCaptureBaselineDeltaCssPx <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,\n        emittedBaselineMapsToLive: logical.maxLiveEmittedBaselineDeltaCssPx <= TEXT_BASELINE_EMITTED_SERIALIZATION_EPSILON_CSS_PX,\n        noRelevantWarnings: captured.relevantWarnings.length === 0,\n      };\n    } else if (test.expectedDisposition === \"mixed-fragment-correlation-gap\") {\n      dispositionControls = {\n        blinkExposesMultipleFragments: neutral.quads.length > 1,\n        rangeExposesSameFragmentCount: neutral.rangeClientRects.length === neutral.quads.length,\n        captureCollapsedToFewerSegments: captured.segmentCount < neutral.quads.length,\n        captureFailedClosedBeforeEmit: captured.fragments.length === 0 && captured.rasterOwnerCount === 1,\n        emittedChromiumSurface: emitted.textCount === 0 && emitted.imageCount >= 1,\n        correlationWarningPresent: captured.relevantWarnings.some((warning) => /could not be correlated/i.test(warning)),\n      };\n    } else {\n      const segment = captured.segments[0];\n      const decodedX = decodedVertical?.physical.x ?? Infinity;\n      const stored = firstFragment?.baseline ?? Infinity;\n      dispositionControls = {\n        verticalRl: neutral.computed.writingMode === \"vertical-rl\",\n        capturedVectorFragment: captured.fragments.length === 1 && captured.rasterOwnerCount === 0,\n        decodedRotationMovesBaselineToPhysicalX: Number.isFinite(decodedX),\n        storedScalarRecoversAscentOnly: segment != null && Math.abs(stored - segment.x - sourceAscent) <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,\n        storedScalarIsNotDecodedPhysicalBaseline: Math.abs(stored - decodedX) > 1,\n        emittedUsesLineRelativeInlineBaseline: emitted.localBaselines.length > 0 && Math.abs(emitted.localBaselines[0] - (segment?.y ?? 0) - sourceAscent) <= TEXT_BASELINE_EMITTED_SERIALIZATION_EPSILON_CSS_PX,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/text-fragment-geometry.ts"
+                },
+                "region": {
+                  "startLine": 221
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/types.ts"
+                },
+                "region": {
+                  "startLine": 371
+                }
+              }
+            },
+            {
+              "id": 2,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-affine.ts"
+                },
+                "region": {
+                  "startLine": 152
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2544"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e661e75cb43c55f6ae3012d70d896499"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5upqwf32tua72v",
+          "message": {
+            "text": "The complete logical discriminator is active on the local pinned browser. Running npm run transform:text-baseline-protocol -- --json /tmp/dm2544-baseline-protocol.json passed 4/4 rows and all seven mutations: wrong post-transform ascent, ascent-after-affine, post-affine snap, double zoom, dropped origin translation, 3-to-1 fragment collapse, and wrong vertical plane. The focused Vitest file passed 5/5 and targeted ESLint was clean; no screenshot or pixel leg ran.",
+            "markdown": "The complete logical discriminator is active on the local pinned browser. Running npm run transform:text-baseline-protocol -- --json /tmp/dm2544-baseline-protocol.json passed 4/4 rows and all seven mutations: wrong post-transform ascent, ascent-after-affine, post-affine snap, double zoom, dropped origin translation, 3-to-1 fragment collapse, and wrong vertical plane. The focused Vitest file passed 5/5 and targeted ESLint was clean; no screenshot or pixel leg ran."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/text-affine-baseline-protocol-oracle.ts"
+                },
+                "region": {
+                  "startLine": 545,
+                  "endLine": 610,
+                  "snippet": {
+                    "text": "export function evaluateTextBaselineMutations(rows: readonly TextBaselineProtocolRow[]): TextBaselineMutationResult[] {\n  const fractional = rows.find((row) => row.id === \"fractional-horizontal\");\n  const zoom = rows.find((row) => row.id === \"nested-zoom-horizontal\");\n  const mixed = rows.find((row) => row.id === \"mixed-script-fragments\");\n  const vertical = rows.find((row) => row.id === \"vertical-rl-plane\");\n  const matrix = fractional?.independentMatrix ?? null;\n  const neutral = fractional?.neutral;\n  const live = fractional?.live;\n  const correct = fractional?.logical.liveBaselinePoint ?? null;\n  const ascent = fractional?.logical.sourceAscent ?? Infinity;\n  const postTransform = live == null ? null : { x: live.baselineWitness.x, y: live.rangeBounds.y + ascent };\n  const addAscentAfter = matrix == null || neutral == null ? null : (() => {\n    const top = mapTextBaselinePoint(matrix, { x: neutral.baselineWitness.x, y: neutral.rangeBounds.y });\n    return { x: top.x, y: top.y + ascent };\n  })();\n  const snapped = correct == null ? null : { x: Math.round(correct.x), y: Math.round(correct.y) };\n  const originless = matrix == null || neutral == null ? null\n    : mapTextBaselinePoint([matrix[0], matrix[1], matrix[2], matrix[3], 0, 0], neutral.baselineWitness);\n\n  const zoomMatrix = zoom?.independentMatrix ?? null;\n  const zoomNeutral = zoom?.neutral;\n  const zoomCorrect = zoom?.logical.liveBaselinePoint ?? null;\n  const zoomAscent = zoom?.logical.sourceAscent ?? Infinity;\n  const doubleZoom = zoomMatrix == null || zoomNeutral == null ? null : mapTextBaselinePoint(zoomMatrix, {\n    x: zoomNeutral.baselineWitness.x,\n    y: zoomNeutral.rangeBounds.y + zoomAscent * zoomNeutral.computed.effectiveZoom,\n  });\n\n  const verticalStored = vertical?.logical.capturedVerticalBaselineScalar ?? Infinity;\n  const verticalDecoded = vertical?.logical.decodedVerticalPhysicalBaselinePoint?.x ?? Infinity;\n  return [\n    mutationResult(\"post-transform-aabb-plus-ascent\", 0, pointDistance(correct, postTransform), 1),\n    mutationResult(\"ascent-after-affine\", 0, pointDistance(correct, addAscentAfter), 1),\n    mutationResult(\"snap-after-affine\", 0, pointDistance(correct, snapped), TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX),\n    mutationResult(\"double-apply-zoom\", 0, pointDistance(zoomCorrect, doubleZoom), 1),\n    mutationResult(\"drop-transform-origin-translation\", 0, pointDistance(correct, originless), 1),\n    mutationResult(\"collapse-mixed-fragments\", mixed?.neutral.quads.length ?? Infinity, mixed?.captured.segmentCount ?? Infinity, 0),\n    mutationResult(\"vertical-horizontal-plane\", 0, Math.abs(verticalStored - verticalDecoded), 1),\n  ].map((mutation) => mutation.kind === \"collapse-mixed-fragments\"\n    ? { ...mutation, moved: Number.isFinite(mutation.baseline) && Number.isFinite(mutation.mutated) && mutation.baseline > mutation.mutated && mutation.baseline > 1 }\n    : mutation);\n}\n\nexport async function runTextAffineBaselineProtocolOracle(): Promise<TextBaselineProtocolReport> {\n  const corpusErrors = validateTextBaselineProtocolCorpus();\n  if (corpusErrors.length > 0) throw new Error(`invalid text baseline protocol corpus: ${corpusErrors.join(\"; \")}`);\n  process.env.DOMOTION_HELPER_NO_SERVE = \"1\";\n  const capture = await import(\"../src/capture/index.js\");\n  const render = await import(\"../src/render/element-tree-to-svg.js\");\n  const require = createRequire(import.meta.url);\n  const playwrightVersion = (require(\"playwright/package.json\") as { version: string }).version;\n  const browser = await chromium.launch({ headless: true });\n  try {\n    const context = await browser.newContext({ viewport: { width: 900, height: 520 }, deviceScaleFactor: 1 });\n    try {\n      const source = await context.newPage();\n      const output = await context.newPage();\n      const userAgent = await source.evaluate(() => navigator.userAgent);\n      const rows: TextBaselineProtocolRow[] = [];\n      for (const test of TEXT_BASELINE_PROTOCOL_CASES) rows.push(await runCase(source, output, test, capture, render));\n      const mutations = evaluateTextBaselineMutations(rows);\n      const controls = {\n        everyRequestedRowPresent: rows.length === TEXT_BASELINE_PROTOCOL_CASES.length,\n        everyRowDiscriminatorActive: rows.every((row) => row.pass),\n        everyWrongPlaneMutationMoves: mutations.length === REQUIRED_TEXT_BASELINE_MUTATIONS.length && mutations.every((mutation) => mutation.moved),\n        noPixelOrScreenshotLeg: true,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/text-affine-baseline-protocol-oracle.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/215-affine-text-baseline-protocol.md"
+                },
+                "region": {
+                  "startLine": 93
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2544"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "3ab34a759fee8ad2bf50d38b10050768"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "82dbd68771cf715fe5d58c393990d1dbfaee3995",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

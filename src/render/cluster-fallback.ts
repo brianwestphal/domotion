@@ -69,7 +69,7 @@ import {
 } from "./font-resolution.js";
 import { hostPlatform } from "./host-platform.js";
 import { harfbuzzShapeRun, harfbuzzGlyphQuery, mirrorPairedCharacters } from "./harfbuzz-shaper.js";
-import { bidiLevelsFor, segmentForShaping } from "./script-segmentation.js";
+import { bidiLevelsFor, segmentForShaping, type BidiParagraphContext } from "./script-segmentation.js";
 import {
   applyFontVariantEmojiToPriority,
   type SourceFallbackPriority,
@@ -125,10 +125,10 @@ export interface ShapedSplitOptions {
   /** Retained for call-site compatibility. Face selection and shaping are now
    * identical for both emitters; neither mode owns a fallback prepass. */
   mode?: "embedded" | "paths";
-  /** CSS bidi override captured from the live run. Blink applies this before
-   * RunSegmenter, so fallback shaping must use the same forced direction as
-   * the final glyph emitter. */
-  bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string };
+  /** CSS bidi paragraph context captured from the live run. Blink resolves
+   * the paragraph level before RunSegmenter, so fallback shaping must use the
+   * same base direction/auto/override result as the final glyph emitter. */
+  bidiOverride?: BidiParagraphContext;
   /**
    * The run's OpenType features (HarfBuzz feature strings), threaded into the
    * shape-then-requeue verdict below. Blink's `ShapeRange` passes the run's

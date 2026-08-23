@@ -265,18 +265,32 @@ function withBmpStandIns(text: string): string {
 }
 
 /**
- * Per-code-unit bidi embedding levels for `text`, or `undefined` when the text
- * cannot contain a direction boundary.
+ * Per-code-unit bidi embedding levels for `text`, or `undefined` for the
+ * explicit-LTR all-zero fast path.
  *
  * Returning `undefined` for the overwhelmingly common all-LTR case is what keeps
- * this off the hot path: bidi resolution is not free, and text with no RTL
- * character has a single level by definition.
+ * this off the hot path: bidi resolution is not free. RTL-base and plaintext
+ * paragraphs still return their exact absolute levels even when every glyph
+ * ultimately shapes LTR.
  */
+export interface BidiParagraphContext {
+  /** Blink's explicit paragraph direction for ordinary blocks. */
+  direction: "ltr" | "rtl";
+  /** Captured computed `unicode-bidi`; `plaintext` selects UAX #9 auto. */
+  unicodeBidi: string;
+}
+
 export function bidiLevelsFor(
   text: string,
   /**
-   * The element's `direction` + `unicode-bidi`. Only the OVERRIDE values change
-   * anything: CSS `unicode-bidi: bidi-override` / `isolate-override` is defined
+   * Blink's paragraph context. `InlineNode::SegmentBidiRuns` passes the block's
+   * resolved direction to `BidiParagraph::SetParagraph`, except for
+   * `unicode-bidi: plaintext`, where it passes no direction and ICU resolves
+   * the paragraph level from the first strong character
+   * (`core/layout/inline/inline_node.cc:1333-1366`, rev 7d859f27).
+   *
+   * The OVERRIDE values additionally change the character types. CSS
+   * `unicode-bidi: bidi-override` / `isolate-override` is defined
    * as treating every character as strong in the embedding direction, i.e. as
    * suppressing the algorithm's inspection of the characters' own bidi types
    * (css-writing-modes-4 §2.2). Since this function derives levels by running
@@ -312,20 +326,28 @@ export function bidiLevelsFor(
    * a level onto embedded LTR text inside an RTL override, onto neutrals, and
    * onto nested overrides — cases the real algorithm resolves and a fill() cannot.
    */
-  bidiOverride?: { direction: "ltr" | "rtl"; unicodeBidi: string },
+  bidiContext?: BidiParagraphContext,
 ): Uint8Array | undefined {
   if (text === "") return undefined;
-  const ub = bidiOverride?.unicodeBidi;
+  const ub = bidiContext?.unicodeBidi;
+  // Blink supplies an explicit block direction for every ordinary paragraph.
+  // `plaintext` is the one block value that asks ICU to determine it.
+  const paragraphDirection = ub === "plaintext"
+    ? "auto"
+    : (bidiContext?.direction ?? "ltr");
   const isOverride = ub === "bidi-override" || ub === "isolate-override";
   if (isOverride) {
     // U+202D LRO / U+202E RLO … U+202C PDF — Blink's exact pair.
     // U+202E RIGHT-TO-LEFT OVERRIDE / U+202D LEFT-TO-RIGHT OVERRIDE.
-    const enter = bidiOverride!.direction === "rtl" ? "\u202E" : "\u202D";
+    const enter = bidiContext!.direction === "rtl" ? "\u202E" : "\u202D";
     try {
       // withBmpStandIns is 1-for-1 on code units, so the composed string's
       // length \u2014 and therefore the slice offsets below \u2014 are unaffected by
       // the substitution.
-      const levels = _bidi.getEmbeddingLevels(withBmpStandIns(enter + text + "\u202C"), "ltr").levels;
+      const levels = _bidi.getEmbeddingLevels(
+        withBmpStandIns(enter + text + "\u202C"),
+        paragraphDirection,
+      ).levels;
       // Drop the level of the injected opener; the trailing PDF's level is past
       // the end of the slice already. What remains is one level per SOURCE
       // character, so every caller's indexing into `text` still lines up.
@@ -334,11 +356,14 @@ export function bidiLevelsFor(
       return undefined;
     }
   }
-  if (!_RTL_RE.test(text)) return undefined;
+  // Only an explicit LTR paragraph containing no RTL/control character is the
+  // all-zero fast path. An RTL base gives even level 2 to embedded Latin, and
+  // `plaintext` must run P2/P3 even when CSS `direction` says LTR.
+  if (paragraphDirection === "ltr" && !_RTL_RE.test(text)) return undefined;
   try {
     // withBmpStandIns is 1-for-1 on code units, so the returned `levels`
     // array still indexes by `text`'s own code units.
-    return _bidi.getEmbeddingLevels(withBmpStandIns(text), "ltr").levels;
+    return _bidi.getEmbeddingLevels(withBmpStandIns(text), paragraphDirection).levels;
   } catch {
     // Never fail a render over bidi analysis — without levels the segmenter
     // still splits by script, which is the larger half of the fix.

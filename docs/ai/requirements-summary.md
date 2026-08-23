@@ -104,6 +104,15 @@ metamorphic relations without cloning browser geometry into the Domotion leg.
 Paint-only axes and live production diagnostics are classified separately;
 stale standalone unsupported labels are forbidden.
 
+DM-2524/doc 214 makes bidi paragraph ownership exact before shaping. Ordinary
+blocks must resolve UAX #9 with captured CSS `direction`; `unicode-bidi:
+plaintext` must use first-strong auto; and LRO/RLO overrides must resolve inside
+the same paragraph base. Forward/reverse pointed-Hebrew + Arabic + digit rows
+retain exact levels, scripts, gids, clusters, UTF-16 spans, advances, offsets,
+captured/emitted origins, and baselines. Opposite-level, collapsed-cluster, and
+logical-start-origin mutations must all move on macOS, Linux, and Windows.
+This logical gate changes no visual tolerance.
+
 **Doc 128 (`docs/128-chromium-unicode-decision-audit.md`) — Supported-path
 migration complete; visual validation pending.** Both native companions are the
 Chromium-fidelity contract. With them validated, pinned ICU supplies Unicode
@@ -342,6 +351,16 @@ they describe (see `CLAUDE.md` "Documentation"):
   text-combine segments carry the captured run's font ascent; upright glyphs,
   rotated origins, and combined runs use that metric. Element ascent and then
   `0.85em` remain compatibility fallbacks for older captured trees only.
+
+- **Vertical orientation ownership (DM-2525, docs 02/216) — Shipped.** Mixed
+  orientation uses the complete Chromium-pinned ICU 17
+  `Vertical_Orientation` property and Blink's `Grapheme_Extend` inheritance at
+  UTF-16 boundaries; ordinary text, pierced broken-image fallback text, and
+  generated pseudos share one owner. Text combine is valid only for
+  vertical-rl/lr, never sideways-rl/lr, and sideways-lr physical envelopes
+  come from the exact captured Range union rather than logical first/last
+  order. Transition/source-digest checks, four active mutations, and an exact
+  live placement corpus run on macOS/Linux/Windows with no visual fitting.
 
 - **Gradient computed lengths (DM-2194, docs 07/10) — Shipped.** Chromium's
   computed-style serialization is the context-sensitive boundary: font/root/
@@ -2180,3 +2199,20 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   pseudo are exact logical controls. The legacy string is only an old-tree
   fallback; selected face keys must not reconstruct the semantics. This
   contract adds no pixel tolerance or font-name snapshot.
+
+<!-- DM-2544 -->
+- Affine text baseline ownership is a **separately decoded logical protocol**
+  ([doc 215](../215-affine-text-baseline-protocol.md)), not an inference from
+  final glyph pixels. Range rectangles and CDP text-node quads must retain the
+  same ordered physical `FragmentItem` count and UTF-16 ownership after
+  effective-zoom adjustment. Blink rounds the containing paint offset, retains
+  the fragment-relative fractional top, adds the selected primary font's
+  integer ascent in line-relative space, applies the writing-mode rotation, and
+  only then applies the complete transform-origin-aware paint matrix. CSS zoom
+  remains a local metric/layout input and must not be applied twice. The exact
+  fractional, nested-zoom, mixed-script, and vertical-rl rows plus all seven
+  wrong-plane mutations must remain active without screenshots. DM-2546 owns
+  pre-correlation physical-fragment/source-span splitting; DM-2547 owns the
+  structured line-relative/physical baseline record. Native glyph
+  antialiasing and all existing visual tolerances remain outside this geometry
+  requirement.

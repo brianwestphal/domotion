@@ -17,7 +17,7 @@ import type {
   TextSegment,
 } from "./types.js";
 import { captureBrokenImageIconRaster } from "./broken-image-icon-raster.js";
-import { resolveCharOrientation } from "./script/walker/text-segments.js";
+import { resolveVerticalOrientations } from "../vertical-orientation.js";
 
 const FEATURE = "broken-image-fallback";
 
@@ -235,18 +235,18 @@ function buildTextSegments(probe: TextProbe): TextSegment[] {
     const yOffsets: number[] = [];
     const verticalAdvances: number[] = [];
     const verticalNaturalWidths: number[] = [];
-    const verticalOrientations: Array<"upright" | "rotated"> = [];
+    const effectiveOrientation = /^(?:sideways)-/.test(probe.style.writingMode)
+      ? "sideways"
+      : probe.style.textOrientation;
+    const verticalOrientations = vertical
+      ? resolveVerticalOrientations(text, effectiveOrientation)
+      : [];
     for (const { point, rect } of group) {
-      const effectiveOrientation = /^(?:sideways)-/.test(probe.style.writingMode)
-        ? "sideways"
-        : probe.style.textOrientation;
-      const orientation = resolveCharOrientation(point.text, effectiveOrientation) as "upright" | "rotated";
-      for (let offset = point.start; offset < point.end; offset++) {
+      for (let offset = 0; offset < point.text.length; offset++) {
         xOffsets.push(rect.x);
         yOffsets.push(rect.y);
         verticalAdvances.push(rect.height);
         verticalNaturalWidths.push(point.naturalAdvance);
-        verticalOrientations.push(orientation);
       }
     }
     const sidewaysLr = probe.style.writingMode === "sideways-lr";

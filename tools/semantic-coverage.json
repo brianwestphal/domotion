@@ -515,35 +515,55 @@
         "horizontal -> vertical-rl",
         "vertical-rl -> vertical-lr",
         "mixed upright -> rotated",
-        "none -> text combine"
+        "base orientation -> Grapheme_Extend inheritance",
+        "mixed -> upright and sideways",
+        "none -> vertical text combine",
+        "vertical combine -> sideways ordinary text",
+        "top-to-bottom -> sideways-lr bottom-to-top envelope",
+        "Unicode 16 source image -> Unicode 17 source image"
       ],
       "exactStates": [
         "horizontal -> vertical-rl",
-        "vertical-rl -> vertical-lr"
-      ],
-      "uncoveredStates": [
+        "vertical-rl -> vertical-lr",
         "mixed upright -> rotated",
-        "none -> text combine"
+        "base orientation -> Grapheme_Extend inheritance",
+        "mixed -> upright and sideways",
+        "none -> vertical text combine",
+        "vertical combine -> sideways ordinary text",
+        "top-to-bottom -> sideways-lr bottom-to-top envelope",
+        "Unicode 16 source image -> Unicode 17 source image"
       ],
+      "uncoveredStates": [],
       "upstreamSources": [
-        "external/chromium/third_party/blink/renderer/core/layout/inline",
-        "external/chromium/third_party/blink/renderer/platform/text"
+        "external/chromium/third_party/blink/renderer/platform/fonts/orientation_iterator.cc",
+        "external/chromium/third_party/blink/renderer/platform/fonts/utf16_text_iterator.cc",
+        "external/chromium/third_party/blink/renderer/platform/text/character.cc",
+        "external/chromium/third_party/blink/renderer/platform/text/character.h",
+        "external/chromium/third_party/blink/renderer/core/layout/layout_text_combine.h",
+        "external/chromium/third_party/blink/renderer/platform/text/writing_mode.h",
+        "external/chromium/third_party/icu/source/data/unidata/ppucd.txt"
       ],
       "productionOwners": [
+        "src/vertical-orientation.ts",
         "src/capture/script/walker/text-segments.ts",
+        "src/capture/broken-image-fallback.ts",
+        "src/render/pseudo-fragments.ts",
         "src/render/vertical-text.ts"
       ],
       "oracles": [
-        "tools/layout-stage-oracle.ts"
+        "tools/vertical-orientation-oracle.ts",
+        "tests/vertical-orientation-capture.e2e.test.ts"
       ],
       "metamorphicTests": [
-        "src/render/vertical-text.test.ts"
+        "src/vertical-orientation.test.ts",
+        "src/capture/script/vertical-orientation.generated.test.ts",
+        "tests/vertical-orientation-workflow.test.ts"
       ],
       "visualFixtures": [
-        "tests/vertical-font-metrics.e2e.test.ts"
+        "tests/vertical-font-metrics.e2e.test.ts",
+        "tests/vertical-orientation-capture.e2e.test.ts"
       ],
-      "coverage": "partial",
-      "boundary": "Sideways and text-combine use captured production geometry and participate in the generated layout matrix. Mixed orientation still uses a handwritten Unicode range table; any source-owned fragment residual remains a logical mismatch.",
+      "coverage": "exact",
       "featureIds": [
         "render.text"
       ],
@@ -1201,7 +1221,9 @@
         "transform-style",
         "projective raster owner",
         "animation timeline",
-        "zoom"
+        "zoom",
+        "physical text FragmentItem",
+        "line-relative text baseline"
       ],
       "states": [
         "identity -> affine",
@@ -1212,7 +1234,9 @@
         "static -> animated",
         "descendant-union owner -> used rendering-context root",
         "document timeline -> scroll/view/rAF timeline",
-        "unzoomed -> zoomed"
+        "unzoomed -> zoomed",
+        "single text segment -> multiple physical text fragments",
+        "horizontal baseline plane -> vertical line-relative/physical planes"
       ],
       "exactStates": [
         "identity -> affine",
@@ -1225,7 +1249,9 @@
       ],
       "uncoveredStates": [
         "descendant-union owner -> used rendering-context root",
-        "document timeline -> scroll/view/rAF timeline"
+        "document timeline -> scroll/view/rAF timeline",
+        "single text segment -> multiple physical text fragments",
+        "horizontal baseline plane -> vertical line-relative/physical planes"
       ],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/layout",
@@ -1257,6 +1283,7 @@
         "tests/text-transform-parity-gate.test.ts",
         "tools/transform-geometry-oracle.ts",
         "tools/text-transform-geometry-audit.ts",
+        "tools/text-affine-baseline-protocol-oracle.ts",
         "tools/animated-projective-frame-oracle.ts",
         "tests/animation-frame.e2e.test.ts",
         "tests/animated-projective-frame.e2e.test.ts",
@@ -1281,6 +1308,7 @@
         "tests/projective-owner-release-gate.test.ts",
         "tests/projective-owner-release-workflow.test.ts",
         "src/render/text-affine.test.ts",
+        "tests/text-affine-baseline-protocol-oracle.test.ts",
         "src/render/projective-transform.test.ts",
         "src/stacking-context.test.ts",
         "src/capture/perspective-ownership.e2e.test.ts",
@@ -1299,7 +1327,7 @@
         "tests/features.ts#perspective-fixed-containing-block-ownership"
       ],
       "coverage": "partial",
-      "boundary": "Computed perspective/origin, transformed text, inline SVG and fixed-containing-block ownership are source-audited and gated. Axis-aligned transformed flex descendants additionally cross 24 scale/origin/wrapper states with fractional local geometry, exact live/capture facts, documented one-decimal emitted SVG geometry, six active logical mutations, and no fixture relaxation in a native three-platform workflow. DM-2492 selects the smallest owner through Blink's direct-parent used-preserve propagation. DM-2493 crosses 25 context/grouping/negative families with four static/animated/environment profiles at DPR 1/2; its schema-v2 macOS/Linux/Windows aggregate requires exact owners, one direct atomic image, retained vector sentinels, restoration and warning integrity, lossless SHA/crop provenance, complete Cartesian artifacts, nine mutations and a secondary four-device-pixel bound. Unknown internal view-transition participation still warns and retains a conservative Chromium surface. Scroll/view/rAF timelines remain outside the deterministic document-timeline contract. The affine text baseline remains behaviorally gated rather than a separately decoded Blink fragment-baseline protocol row.",
+      "boundary": "Computed perspective/origin, transformed text, inline SVG and fixed-containing-block ownership are source-audited and gated. Axis-aligned transformed flex descendants additionally cross 24 scale/origin/wrapper states with fractional local geometry, exact live/capture facts, documented one-decimal emitted SVG geometry, six active logical mutations, and no fixture relaxation in a native three-platform workflow. DM-2492 selects the smallest owner through Blink's direct-parent used-preserve propagation. DM-2493 crosses 25 context/grouping/negative families with four static/animated/environment profiles at DPR 1/2; its schema-v2 macOS/Linux/Windows aggregate requires exact owners, one direct atomic image, retained vector sentinels, restoration and warning integrity, lossless SHA/crop provenance, complete Cartesian artifacts, nine mutations and a secondary four-device-pixel bound. Unknown internal view-transition participation still warns and retains a conservative Chromium surface. Scroll/view/rAF timelines remain outside the deterministic document-timeline contract. DM-2544 now independently decodes the Range/CDP/paint-snap/ascent/writing-plane/transform-origin baseline protocol without pixels. Production still lacks pre-correlation splitting for multiple physical text fragments (DM-2546) and a structured vertical line-relative/physical baseline record (DM-2547), so both transitions remain explicitly uncovered.",
       "featureIds": [
         "capture.animated-projective-frame",
         "render.tree-to-svg",

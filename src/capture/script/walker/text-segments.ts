@@ -1,5 +1,12 @@
 // @ts-nocheck
-import { MIXED_VERTICAL_UPRIGHT_RANGES } from "../vertical-orientation.generated.js";
+import {
+  blinkUsesTextCombine,
+  isMixedVerticalUpright,
+  resolveCharOrientation,
+  resolveVerticalOrientations,
+} from "../../../vertical-orientation.js";
+
+export { isMixedVerticalUpright, resolveCharOrientation };
 //
 // Text-node walker: builds the per-line `textSegments` array from the host
 // element's child text nodes by walking each character's
@@ -200,30 +207,6 @@ export const transformTextWithSourceSpans = (source, transform, lang) => {
 // controls and other Cf scalars are removed/itemized by different stages.
 export const isShapingTransparentControl = (ch) => ch === "\u200C" || ch === "\u200D";
 
-// Blink treats U, Tu, and Tr as upright in mixed vertical text; the complete
-// pinned ICU property is generated so supplementary planes and Unicode rolls
-// cannot drift with the host JavaScript runtime.
-
-export const isMixedVerticalUpright = (cp) => {
-  if (cp == null) return false;
-  let lo = 0;
-  let hi = MIXED_VERTICAL_UPRIGHT_RANGES.length - 1;
-  while (lo <= hi) {
-    const mid = (lo + hi) >>> 1;
-    const range = MIXED_VERTICAL_UPRIGHT_RANGES[mid];
-    if (cp < range[0]) hi = mid - 1;
-    else if (cp > range[1]) lo = mid + 1;
-    else return true;
-  }
-  return false;
-};
-
-export const resolveCharOrientation = (ch, textOrientation) => {
-  if (textOrientation === 'upright') return 'upright';
-  if (textOrientation === 'sideways') return 'rotated';
-  return isMixedVerticalUpright(ch.codePointAt(0)) ? 'upright' : 'rotated';
-};
-
 const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, normColor, markGetsDottedCircle, finalizeLineClampText, fontFamilyStackFor }) => {
   const finishLineClamp = (el, cs, result) => finalizeLineClampText == null
     ? result
@@ -315,7 +298,10 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
     // branch was dead/never-fired; re-probe Chrome and revisit if a future
     // version ships `digits`).
     const tcu = cs.textCombineUpright || cs.webkitTextCombine || '';
-    const isCombineAll = tcu === 'all';
+    // LayoutTextCombine::IsSupportedMode rejects every horizontal typographic
+    // mode. Blink defines sideways-lr/sideways-rl as horizontal typographic,
+    // so authored `all` is ordinary sideways text in those modes.
+    const isCombineAll = blinkUsesTextCombine(wm, tcu);
     if (isCombineAll) {
       const metricsC = measureFontMetrics(cs);
       // Shared cell top/height (all combined chars sit in one column cell), and
@@ -352,9 +338,9 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
         fontDescent: metricsC.descent,
       };
     }
-    // Group chars by COLUMN — matching `x` ±1 px. Within each column,
-    // chars stack top-to-bottom in increasing `y` (their natural source
-    // order, since Range follows DOM order).
+    // Group chars by COLUMN — matching `x` ±1 px. Retain DOM/logical order
+    // within the column; physical Y rises for sideways-lr and falls for the
+    // other vertical modes.
     const columns = [];
     let curCol = null;
     for (const c of allChars) {
@@ -369,27 +355,34 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
     // Emit one segment per column.
     const metrics = measureFontMetrics(cs);
     for (const col of columns) {
-      const colTop = col.chars[0].y;
-      const colBot = col.chars[col.chars.length - 1].y + col.chars[col.chars.length - 1].h;
+      // Physical order is not uniformly top-to-bottom: sideways-lr advances
+      // bottom-to-top. Own the column envelope from the captured Range union,
+      // while retaining logical-order yOffsets for glyph placement.
+      const colLeft = Math.min(...col.chars.map((c) => c.x));
+      const colTop = Math.min(...col.chars.map((c) => c.y));
+      const colRight = Math.max(...col.chars.map((c) => c.x + c.w));
+      const colBot = Math.max(...col.chars.map((c) => c.y + c.h));
       const visualText = col.chars.map((c) => c.ch).join('').replace(/[\t\n\r]/g, ' ');
       if (visualText.replace(/\s/g, '') === '') continue;
       const yOffsets = [];
-      const verticalOrientations = [];
+      // Blink's OrientationIterator keeps the current base orientation for
+      // Grapheme_Extend scalars. Resolve the whole visual run at once rather
+      // than classifying each scalar/UTF-16 record independently.
+      const verticalOrientations = resolveVerticalOrientations(visualText, effectiveTextOrientation);
       const verticalAdvances = [];
       const verticalNaturalWidths = [];
       for (const c of col.chars) {
         for (let k = 0; k < c.ch.length; k++) {
           yOffsets.push(c.y - vp.y);
-          verticalOrientations.push(resolveCharOrientation(c.ch, effectiveTextOrientation));
           verticalAdvances.push(c.h);
           verticalNaturalWidths.push(c.naturalW);
         }
       }
       textSegments.push({
         text: visualText,
-        x: col.x - vp.x,
+        x: colLeft - vp.x,
         y: colTop - vp.y,
-        width: col.width,
+        width: colRight - colLeft,
         height: colBot - colTop,
         verticalWritingMode: wm,
         verticalOrientations,
@@ -398,9 +391,9 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
         verticalNaturalWidths,
         fontAscent: metrics.ascent,
       });
-      minLeft = Math.min(minLeft, col.x);
+      minLeft = Math.min(minLeft, colLeft);
       minTop = Math.min(minTop, colTop);
-      maxRight = Math.max(maxRight, col.x + col.width);
+      maxRight = Math.max(maxRight, colRight);
       maxBottom = Math.max(maxBottom, colBot);
     }
     return {

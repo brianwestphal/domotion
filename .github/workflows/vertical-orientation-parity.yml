@@ -1,0 +1,98 @@
+name: Vertical orientation parity
+
+on:
+  pull_request:
+    paths:
+      - "src/vertical-orientation.ts"
+      - "src/vertical-orientation.test.ts"
+      - "src/capture/script/vertical-orientation.generated.ts"
+      - "src/capture/script/vertical-orientation.generated.test.ts"
+      - "src/capture/script/walker/text-segments.ts"
+      - "src/capture/broken-image-fallback.ts"
+      - "src/render/pseudo-fragments.ts"
+      - "tools/generate-vertical-orientation-ranges.mjs"
+      - "tools/vertical-orientation-oracle.ts"
+      - "tests/vertical-orientation-capture.e2e.test.ts"
+      - "tests/vertical-orientation-workflow.test.ts"
+      - "docs/02-writing-mode.md"
+      - "docs/216-vertical-orientation-ownership.md"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/vertical-orientation-parity.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/vertical-orientation.ts"
+      - "src/vertical-orientation.test.ts"
+      - "src/capture/script/vertical-orientation.generated.ts"
+      - "src/capture/script/vertical-orientation.generated.test.ts"
+      - "src/capture/script/walker/text-segments.ts"
+      - "src/capture/broken-image-fallback.ts"
+      - "src/render/pseudo-fragments.ts"
+      - "tools/generate-vertical-orientation-ranges.mjs"
+      - "tools/vertical-orientation-oracle.ts"
+      - "tests/vertical-orientation-capture.e2e.test.ts"
+      - "tests/vertical-orientation-workflow.test.ts"
+      - "docs/02-writing-mode.md"
+      - "docs/216-vertical-orientation-ownership.md"
+      - "tools/parity-program.json"
+      - "tools/semantic-coverage.json"
+      - "package.json"
+      - ".github/workflows/vertical-orientation-parity.yml"
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "22.21.0"
+  ICU_REVISION: "d578f2e8b7bd5938e21cfb6bf15c079e0aa5b738"
+
+jobs:
+  exact-logical-parity:
+    name: ${{ runner.os }} exact logical parity
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium
+      - name: Acquire pinned Chromium ICU property source
+        shell: bash
+        run: >-
+          node --input-type=module -e 'import fs from "node:fs";
+          const revision=process.env.ICU_REVISION;
+          const url=`https://chromium.googlesource.com/chromium/deps/icu/+/${revision}/source/data/unidata/ppucd.txt?format=TEXT`;
+          const response=await fetch(url); if(!response.ok) throw new Error(`source fetch failed: ${response.status}`);
+          const target="external/chromium/third_party/icu/source/data/unidata/ppucd.txt";
+          fs.mkdirSync(target.slice(0,target.lastIndexOf("/")),{recursive:true});
+          fs.writeFileSync(target,Buffer.from(await response.text(),"base64"));'
+      - name: Acquire authenticated pinned ICU companion
+        shell: bash
+        run: >-
+          node --import tsx --input-type=module -e 'import fs from "node:fs";
+          import { acquireIcuCompanion } from "./src/render/icu-helper-acquire.ts";
+          const helper=await acquireIcuCompanion(); if(helper==null) throw new Error("authenticated ICU companion unavailable");
+          fs.appendFileSync(process.env.GITHUB_ENV,`DOMOTION_ICU_HELPER_PATH=${helper}\n`);'
+      - name: Verify generated source image and logical contracts
+        run: |
+          npm run unicode:vertical-orientation:check
+          npx vitest run src/vertical-orientation.test.ts src/capture/script/vertical-orientation.generated.test.ts tests/vertical-orientation-workflow.test.ts
+      - name: Compare pinned ICU transitions and representative corpus
+        run: npm run unicode:vertical-orientation:oracle -- --require-source --json tests/output/vertical-orientation-${{ runner.os }}.json
+      - name: Verify exact live Range-to-capture placement
+        run: npm run test:e2e -- tests/vertical-orientation-capture.e2e.test.ts
+      - name: Upload fingerprinted logical report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vertical-orientation-${{ runner.os }}
+          path: tests/output/vertical-orientation-${{ runner.os }}.json
+          if-no-files-found: error
+          retention-days: 30

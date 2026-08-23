@@ -13,6 +13,7 @@ import { wrapPseudoPaintEffects } from "./pseudo-filter.js";
 import type { CapturedElement, TextSegment } from "../capture/types.js";
 import { recordTextEmitterTransition } from "./text-run-provenance.js";
 import { capturedFontFamilyCss, parseCssFontFamilyEntries } from "../font-family-stack.js";
+import { bidiLevelsFor, type BidiParagraphContext } from "./script-segmentation.js";
 
 // ── Rendering helpers ──
 
@@ -975,17 +976,18 @@ const _bidi = bidiFactory();
 const _RTL_RE = /[֐-ࣿיִ-ﻼ]/;
 
 /**
- * The element's bidi override, in the shape `renderTextAsPath` wants. Only
- * `bidi-override` / `isolate-override` change any behaviour downstream; every
- * other `unicode-bidi` value leaves the algorithm to read the characters, which
- * is what it should do. Returns undefined when there is nothing to force, so the
- * common path stays byte-identical.
+ * The element's block bidi paragraph context, in the shape
+ * `renderTextAsPath` wants. Blink resolves ordinary paragraphs against the
+ * block's computed direction and resolves `unicode-bidi: plaintext` with an
+ * automatic base level; override values additionally replace character types.
+ * This cannot be reconstructed from the source characters alone.
  */
-function bidiOverrideFor(el: { styles: { direction?: string; unicodeBidi?: string } }):
-  { direction: "ltr" | "rtl"; unicodeBidi: string } | undefined {
-  const ub = el.styles.unicodeBidi;
-  if (ub !== "bidi-override" && ub !== "isolate-override") return undefined;
-  return { direction: el.styles.direction === "rtl" ? "rtl" : "ltr", unicodeBidi: ub };
+function bidiContextFor(el: { styles: { direction?: string; unicodeBidi?: string } }):
+  { direction: "ltr" | "rtl"; unicodeBidi: string } {
+  return {
+    direction: el.styles.direction === "rtl" ? "rtl" : "ltr",
+    unicodeBidi: el.styles.unicodeBidi ?? "normal",
+  };
 }
 
 /**
@@ -999,12 +1001,13 @@ function bidiOverrideFor(el: { styles: { direction?: string; unicodeBidi?: strin
  * the visual order still comes out right because per-char xOffsets already
  * reflect Chrome's BiDi visual layout.
  *
- * paragraphDir comes from the element's CSS `direction` (default 'ltr').
+ * `bidiContext` comes from the element's CSS paragraph style.
  * Returns the input text with mirror substitutions applied; xOffsets pass
  * through unchanged.
  */
-function applyBidi(text: string, xOffsets: number[] | undefined, paragraphDir: "ltr" | "rtl"): { text: string; xOffsets?: number[] } {
-  if (!_RTL_RE.test(text) && paragraphDir !== "rtl") return { text, xOffsets };
+function applyBidi(text: string, xOffsets: number[] | undefined, bidiContext: BidiParagraphContext): { text: string; xOffsets?: number[] } {
+  const levels = bidiLevelsFor(text, bidiContext);
+  if (levels == null) return { text, xOffsets };
   // DM-940: re-confirmed via probe — Chrome's per-char xOffset for a logical
   // `(` at an odd embedding level returns the visual x where the MIRRORED
   // glyph `)` is painted. So to faithfully reproduce Chrome's paint we
@@ -1015,14 +1018,13 @@ function applyBidi(text: string, xOffsets: number[] | undefined, paragraphDir: "
   // from DM-940 instead of an xOffset-monotonicity heuristic. The earlier
   // attempt to skip mirroring when xOffsets were present was wrong: it
   // produced `)one(` (correct letters, wrong brackets) instead of `(one)`.
-  const embeddingLevels = _bidi.getEmbeddingLevels(text, paragraphDir);
   // bidi-js's getMirroredCharactersMap is keyed for a post-reorder pipeline
   // and returns empty when we haven't reordered, so apply mirroring directly:
   // any paired bracket at an odd (RTL) embedding level gets swapped.
   let outText = "";
   let anyMirror = false;
   for (let i = 0; i < text.length; i++) {
-    const level = embeddingLevels.levels[i];
+    const level = levels[i];
     if (level % 2 === 1) {
       const m = _bidi.getMirroredCharacter(text[i]);
       if (m != null) { outText += m; anyMirror = true; continue; }
@@ -1044,7 +1046,7 @@ function applyBidi(text: string, xOffsets: number[] | undefined, paragraphDir: "
  * `fullText`. `suppressGlyphChars` preserves length, so the line's bracket
  * positions align 1:1 with `levels[base + i]`. xOffsets pass through unchanged.
  */
-function applyBidiAt(text: string, xOffsets: number[] | undefined, levels: number[], base: number): { text: string; xOffsets?: number[] } {
+function applyBidiAt(text: string, xOffsets: number[] | undefined, levels: ArrayLike<number>, base: number): { text: string; xOffsets?: number[] } {
   let out = "";
   let any = false;
   for (let i = 0; i < text.length; i++) {
@@ -1539,7 +1541,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   const pathTextRaw = suppressGlyphChars(pathTextRawSrc, singleSeg);
   const xOffsetsRelRaw = singleSeg?.xOffsets != null ? singleSeg.xOffsets.map((v) => v - tl) : undefined;
   const dir = el.styles.direction === "rtl" ? "rtl" : "ltr";
-  const reordered = applyBidi(pathTextRaw, xOffsetsRelRaw, dir);
+  const reordered = applyBidi(pathTextRaw, xOffsetsRelRaw, bidiContextFor(el));
   const pathText = reordered.text;
   // DM-2470: shaped origins stay in Blink's pre-transform plane. The caller
   // applies the complete signed affine paint matrix to the whole text bundle.
@@ -1627,7 +1629,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
     targetWidth: el.textWidth, xOffsets: xOffsetsRel, fontStyle: segFontStyle,
     ascentOverride: renderAscent, features, lang: el.styles.lang, variationSettings,
     textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
-    dottedCircleMarks: singleSeg?.dottedCircleMarks, bidiOverride: bidiOverrideFor(el),
+    dottedCircleMarks: singleSeg?.dottedCircleMarks, bidiOverride: bidiContextFor(el),
     fontStretch: el.styles.fontStretch, fontVariantEmoji: fontVariantEmojiOf(el.styles),
     fontSynthesis: fontSynthesisOf(el.styles),
   });
@@ -1716,8 +1718,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
   // once, so a paired bracket split across soft-wrapped segments mirrors the
   // same as Chrome. Resolving per-segment (below) sees a lone bracket and
   // over-mirrors it. `_segBidiOffset` walks each segment's slice of the levels.
-  const _segBidiNeeded = dir === "rtl" || _RTL_RE.test(el.text);
-  const _segFullLevels = _segBidiNeeded ? _bidi.getEmbeddingLevels(el.text, dir).levels : null;
+  const _segFullLevels = bidiLevelsFor(el.text, bidiContextFor(el)) ?? null;
   let _segBidiOffset = 0;
   const elVariationSettings = opticalVariationSettings(el);
   // Per-fragment counter feeding each segment's decoration clip-path id base
@@ -1824,7 +1825,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
       reordered = applyBidiAt(_segRaw, xOffsetsRelRaw, _segFullLevels, _base);
       _segBidiOffset = _base + seg.text.length;
     } else {
-      reordered = applyBidi(_segRaw, xOffsetsRelRaw, dir);
+      reordered = applyBidi(_segRaw, xOffsetsRelRaw, bidiContextFor(el));
     }
     const segXOffsets = reordered.xOffsets;
     const segAscent = seg.fontAscent ?? el.fontAscent;
@@ -1834,7 +1835,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
       features: segFeatures, lang: el.styles.lang, variationSettings: elVariationSettings,
       textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
       dottedCircleMarks: seg.dottedCircleMarks,
-      bidiOverride: bidiOverrideFor(el), fontStretch: el.styles.fontStretch,
+      bidiOverride: bidiContextFor(el), fontStretch: el.styles.fontStretch,
       fontVariantEmoji: fontVariantEmojiOf(el.styles), fontSynthesis: fontSynthesisOf(el.styles),
     });
     segParts.push(result);
@@ -1906,7 +1907,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
     const dir = el.styles.direction === "rtl" ? "rtl" : "ltr";
     for (const seg of el.textSegments) {
       const xOffsetsRelRaw = seg.xOffsets != null ? seg.xOffsets.map((v) => v - seg.x) : undefined;
-      const reordered = applyBidi(suppressGlyphChars(seg.text, seg), xOffsetsRelRaw, dir);
+      const reordered = applyBidi(suppressGlyphChars(seg.text, seg), xOffsetsRelRaw, bidiContextFor(el));
       const segXOffsets = reordered.xOffsets;
       const segFontSize = seg.fontSize ?? fontSize;
       const segFontWeight = seg.fontWeight ?? fontWeight;
@@ -1920,7 +1921,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
         features: segFeatures, lang: el.styles.lang, variationSettings: fvsAxes,
         textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
         dottedCircleMarks: seg.dottedCircleMarks,
-        bidiOverride: bidiOverrideFor(el), fontStretch: el.styles.fontStretch,
+        bidiOverride: bidiContextFor(el), fontStretch: el.styles.fontStretch,
         fontVariantEmoji: fontVariantEmojiOf(el.styles), fontSynthesis: fontSynthesisOf(el.styles),
       });
       parts.push(`  ${result}`);
@@ -1936,7 +1937,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
         fontStyle: el.styles.fontStyle, ascentOverride: el.fontAscent,
         features: ffsFeatures, lang: el.styles.lang, variationSettings: fvsAxes,
         textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
-        bidiOverride: bidiOverrideFor(el), fontStretch: el.styles.fontStretch,
+        bidiOverride: bidiContextFor(el), fontStretch: el.styles.fontStretch,
         fontVariantEmoji: fontVariantEmojiOf(el.styles), fontSynthesis: fontSynthesisOf(el.styles),
       });
       parts.push(`  ${result}`);
@@ -2002,7 +2003,7 @@ export function renderInputText(opts: RenderTextOpts): string {
         xOffsets: segXOffsetsRel, fontStyle: textFontStyle, ascentOverride: el.fontAscent,
         features: inputFeatures, lang: el.styles.lang, variationSettings: inputAxes,
         textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
-        bidiOverride: bidiOverrideFor(el), fontStretch: el.styles.fontStretch,
+        bidiOverride: bidiContextFor(el), fontStretch: el.styles.fontStretch,
         fontVariantEmoji: fontVariantEmojiOf(el.styles), fontSynthesis: fontSynthesisOf(el.styles),
       });
       segParts.push(segResult);
@@ -2014,7 +2015,7 @@ export function renderInputText(opts: RenderTextOpts): string {
     xOffsets: xOffsetsRel, fontStyle: textFontStyle, ascentOverride: el.fontAscent,
     features: inputFeatures, lang: el.styles.lang, variationSettings: inputAxes,
     textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
-    bidiOverride: bidiOverrideFor(el), fontStretch: el.styles.fontStretch,
+    bidiOverride: bidiContextFor(el), fontStretch: el.styles.fontStretch,
     fontVariantEmoji: fontVariantEmojiOf(el.styles),
   });
   // Clip the path-rendered text to the input's content rect so values that
