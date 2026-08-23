@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   physicalComputedPaintLength,
+  physicalComputedGradientImage,
   physicalComputedTileSize,
   tableGridRectFromCaptions,
 } from "./borders-backgrounds.js";
@@ -14,6 +15,13 @@ describe("zoomed border and outline paint lengths (DM-2323)", () => {
     expect(physicalComputedPaintLength("2.5px", 0.8)).toBe("2px");
     expect(physicalComputedPaintLength("4.8px", 1.25)).toBe("6px");
     expect(physicalComputedPaintLength("2.4px", 1.25)).toBe("3px");
+  });
+
+  it("crosses effective zoom once for gradient px terms without touching URL layers", () => {
+    expect(physicalComputedGradientImage(
+      'url("data:image/svg+xml,<svg id=\\"8px\\"/>") , repeating-linear-gradient(37deg, red -5px 7px, blue calc(11px + 10%))',
+      2,
+    )).toBe('url("data:image/svg+xml,<svg id=\\"8px\\"/>") , repeating-linear-gradient(37deg, red -10px 14px, blue calc(22px + 10%))');
   });
 
   it("preserves unzoomed bytes and signed offsets", () => {

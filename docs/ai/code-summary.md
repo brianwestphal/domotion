@@ -843,6 +843,8 @@ shortest possible map:
   the captured rectangles in Blink background/button/track/piece/thumb and
   horizontal/vertical/corner order, reusing the ordinary vector background,
   gradient, per-side border, radius, shadow, opacity, clip, and zoom machinery.
+  Computed gradient-only px terms cross effective zoom in the background walker;
+  ordinary repeating-linear vectors normalize to their complete first/last domain.
   A dynamic-only winner or unsupported author effect is a same-source-frame
   owner-part crop; all other parts remain vector. `native-scrollbar-raster.ts`
   captures one unmodified compositor frame, derives visible overlay ink with a

@@ -186,7 +186,6 @@ export const tests: FeatureTest[] = [
     // exactly one tile period (`spreadMethod="repeat"` then tiles outward).
     name: "bg-repeating-linear-px-stops",
     html: `<div style="padding: 20px;"><div style="width: 160px; height: 160px; background: repeating-linear-gradient(45deg, #fef3c7 0 8px, #fde68a 8px 16px); border: 1px solid #b45309;"></div></div>`,
-    relaxedDiffPct: 0.5,
   },
   {
     // Advanced hue interpolation cannot be reproduced by the CPU fallback.

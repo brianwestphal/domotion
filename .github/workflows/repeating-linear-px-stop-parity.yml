@@ -1,0 +1,41 @@
+name: Repeating linear px-stop parity
+
+on:
+  pull_request:
+    paths:
+      - "src/capture/script/walker/borders-backgrounds.ts"
+      - "src/render/gradient-defs.ts"
+      - "src/render/gradients.test.ts"
+      - "tests/repeating-linear-px-stops.e2e.test.ts"
+      - "tests/features.ts"
+      - ".github/workflows/repeating-linear-px-stop-parity.yml"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-geometry:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.21.0"
+          cache: npm
+      - run: npm ci
+      - if: runner.os == 'Linux'
+        run: npx playwright install --with-deps chromium
+      - if: runner.os != 'Linux'
+        run: npx playwright install chromium
+      - name: Validate source-derived repeat domains and zoom capture
+        run: npx vitest run src/capture/script/walker/borders-backgrounds.test.ts src/render/gradients.test.ts tests/repeating-linear-px-stop-workflow.test.ts
+      - name: Run DPR1/2 Chromium-to-SVG logical-interior gate
+        run: npx vitest run --config vitest.e2e.config.ts tests/repeating-linear-px-stops.e2e.test.ts

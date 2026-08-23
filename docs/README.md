@@ -15,7 +15,7 @@ Requirements / design docs for the rendering pipeline. Numbered to match the ord
 | [07-gradient-fills.md](07-gradient-fills.md) | CSS `linear-gradient` / `radial-gradient` → SVG `<linearGradient>` / `<radialGradient>` with px-positioned stops. |
 | [08-animation-model.md](08-animation-model.md) | Animated-SVG composition: transitions (`crossfade` / `push-left` / `scroll` / `cut`), per-frame overlays, intra-frame property animations, frame-local SVG overlays, slide-in entrance sugar. |
 | [09-vertical-range.md](09-vertical-range.md) | Vertical-axis `<input type=range>` via `writing-mode: vertical-*` + `direction` semantics. |
-| [10-repeating-gradients.md](10-repeating-gradients.md) | `repeating-linear-gradient` / `repeating-radial-gradient` and `calc(N% ± Mpx)` stop positions. |
+| [10-repeating-gradients.md](10-repeating-gradients.md) | `repeating-linear-gradient` / `repeating-radial-gradient`, `calc(N% ± Mpx)` stop positions, effective-zoom px ownership, and exact negative/over-line/coincident repeat domains. |
 | [11-custom-checkbox-radio.md](11-custom-checkbox-radio.md) | **Source-owned checkable indicators** (DM-2459) — exact `appearance:none` `::before`/`::after` and `appearance:base` `::checkmark` capture/paint, authoritative-empty synthesis suppression, old-tree-only compatibility, and native three-OS DPR gate. |
 | [12-diff-scoring.md](12-diff-scoring.md) | `tests/html-test-suite.tsx` visual-diff metric — Yee anti-aliasing filter, threshold rationale, diff-image legend. |
 | [13-cursor-overlay.md](13-cursor-overlay.md) | Cursor / touch / click overlay simulation API — proposed design, awaiting feedback (DM-277). |

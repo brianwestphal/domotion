@@ -72,6 +72,40 @@ export const physicalComputedTileSize = (value, effectiveZoom) => {
     `${Math.round(parseFloat(number) * effectiveZoom * 1e6) / 1e6}px`);
 };
 
+/** Computed gradient stop lengths are serialized before effective zoom, while
+ * Blink resolves them against the zoomed concrete-image gradient line. Scale
+ * only px tokens inside gradient functions; URL/data payloads and unrelated
+ * background layers remain byte-identical. */
+export const physicalComputedGradientImage = (value, effectiveZoom) => {
+  if (effectiveZoom === 1 || value == null || value === "" || value === "none") return value;
+  const start = /\b(?:repeating-)?(?:linear|radial|conic)-gradient\(/gi;
+  let out = "";
+  let cursor = 0;
+  for (;;) {
+    start.lastIndex = cursor;
+    const match = start.exec(value);
+    if (match == null) return out + value.slice(cursor);
+    out += value.slice(cursor, match.index);
+    let depth = 1;
+    let quote = "";
+    let escaped = false;
+    let end = start.lastIndex;
+    for (; end < value.length && depth > 0; end++) {
+      const ch = value[end];
+      if (escaped) { escaped = false; continue; }
+      if (ch === "\\") { escaped = true; continue; }
+      if (quote !== "") { if (ch === quote) quote = ""; continue; }
+      if (ch === '"' || ch === "'") { quote = ch; continue; }
+      if (ch === "(") depth++;
+      else if (ch === ")") depth--;
+    }
+    const call = value.slice(match.index, end).replace(/(-?(?:\d+(?:\.\d+)?|\.\d+))px\b/g, (_token, number) =>
+      `${Math.round(parseFloat(number) * effectiveZoom * 1e6) / 1e6}px`);
+    out += call;
+    cursor = end;
+  }
+};
+
 /** Reconstruct Blink's caption-excluding TableGridRect from the already-laid-
  * out caption fragments. `table_layout_algorithm.cc` advances a logical block
  * offset by each top caption's start margin, fragment size, and end margin,
@@ -609,7 +643,7 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
       return {};
     })(),
     frostedBgFallback: computeFrostedBgFallback(cs),
-    backgroundImage: normGradientColors(cs.backgroundImage, cs.color),
+    backgroundImage: physicalComputedGradientImage(normGradientColors(cs.backgroundImage, cs.color), effectiveZoom),
     backgroundSize: physicalComputedTileSize(cs.backgroundSize, effectiveZoom),
     // Computed px terms are serialized before effective zoom, while the
     // captured positioning/painting DOMRects are already physical. Blink's

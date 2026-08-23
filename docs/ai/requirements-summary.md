@@ -349,7 +349,11 @@ they describe (see `CLAUDE.md` "Documentation"):
   style context, percentages remain relative through capture, and the renderer
   resolves px/%/flat calc sums against the gradient line or radial reference
   box. Raw unresolved context-dependent units are rejected rather than coerced
-  from their numeric prefix or against an assumed 16px font.
+  from their numeric prefix or against an assumed 16px font. Repeating-linear
+  px stops cross effective zoom exactly once. Negative and
+  over-line repeat domains move the SVG vector; coincident domains paint the
+  final solid color. A DPR1/2 three-platform logical-interior gate replaces the
+  retired per-fixture relaxation without fitting antialiased edge pixels.
 
 - **Doc 119 (`docs/119-degraded-font-resolution.md`, DM-2195) — Adopted.**
   Helper-absent macOS/Linux rendering remains supported as a deterministic,

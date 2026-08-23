@@ -818,6 +818,8 @@
         "external/skia/src/core"
       ],
       "productionOwners": [
+        "src/capture/script/walker/borders-backgrounds.ts",
+        "src/render/gradient-defs.ts",
         "src/render/gradients.ts",
         "src/render/advanced-gradient-raster.ts",
         "src/render/conic-raster.ts",
@@ -833,14 +835,16 @@
         "src/render/color-hint-interpolation.test.ts",
         "src/render/color-table-lookup.test.ts",
         "tests/svg-effect-combination-corpus.test.ts"
+        ,"tests/repeating-linear-px-stop-workflow.test.ts"
       ],
       "visualFixtures": [
         "tests/features.ts#gradient-radial-negative-domain",
         "tests/features.ts#bg-conic-chromium-zoom-tile",
         "tests/svg-effect-combination-oracle.e2e.test.ts"
+        ,"tests/repeating-linear-px-stops.e2e.test.ts"
       ],
       "coverage": "partial",
-      "boundary": "Legacy -webkit-gradient endpoint geometry and one repeating-linear threshold remain unresolved.",
+      "boundary": "Legacy -webkit-gradient endpoint geometry remains unresolved. Repeating-linear px stops now have source-owned zoom/domain logic and no fixture relaxation.",
       "featureIds": [
         "render.tree-to-svg"
       ],

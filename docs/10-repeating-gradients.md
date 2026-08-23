@@ -79,4 +79,16 @@ When both a gradient image and a non-transparent track background color are capt
 - `parseGradient` populates `calcOffset` for `calc(N% ± Mpx)` stop positions.
 - `buildLinearGradientDef` tiles a 10%-period gradient into 40+ stops over a 100px gradient line.
 
+The ordinary background path has a separate source-owned gate. Capture scales
+only px terms inside computed gradient functions by Blink's `EffectiveZoom`
+(never URL/data payload text). Its SVG builder moves the linear-gradient vector
+to every non-degenerate first/last repeat domain, including negative starts and
+periods longer than the original line; coincident stops become the final solid
+color. `tests/repeating-linear-px-stops.e2e.test.ts` crosses asymmetric 37°/143°
+boxes, zoom 1/2, negative, over-line, coincident, and omitted endpoints at DPR
+1/2. It requires exact source-owned interior classifications and kills a removed
+repeat mutation; native antialiased boundary pixels are not used to infer CSS
+geometry. The three-platform workflow is
+`.github/workflows/repeating-linear-px-stop-parity.yml`.
+
 The `06-forms-style-range` html-test fixture is the visual regression: its section 4 tick-marks are now painted (previously a flat gray track).

@@ -180,12 +180,16 @@ export function buildLinearGradientDef(id: string, args: string, repeating: bool
     const first = stops[0].pos;
     const last = stops[stops.length - 1].pos;
     const period = last - first;
-    if (period > 0 && period < 1) {
+    if (period > Number.EPSILON) {
       vx1 = x1 + first * (x2 - x1);
       vy1 = y1 + first * (y2 - y1);
       vx2 = x1 + last * (x2 - x1);
       vy2 = y1 + last * (y2 - y1);
       emitStops = stops.map((s) => ({ ...s, pos: (s.pos - first) / period }));
+    } else {
+      const final = stops[stops.length - 1];
+      emitStops = [{ ...final, pos: 0 }, { ...final, pos: 1 }];
+      repeating = false;
     }
   }
 

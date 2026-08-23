@@ -284,6 +284,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5mhtbmzcvp7f7p",
+          "message": {
+            "text": "Blink resolves computed gradient px lengths with EffectiveZoom against the already-zoomed concrete-image line. This scanner crosses that ownership exactly once and is deliberately confined to parsed gradient calls so URL/data payload text cannot be rewritten.",
+            "markdown": "Blink resolves computed gradient px lengths with EffectiveZoom against the already-zoomed concrete-image line. This scanner crosses that ownership exactly once and is deliberately confined to parsed gradient calls so URL/data payload text cannot be rewritten."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/borders-backgrounds.ts"
+                },
+                "region": {
+                  "startLine": 75,
+                  "endLine": 108,
+                  "snippet": {
+                    "text": "/** Computed gradient stop lengths are serialized before effective zoom, while\n * Blink resolves them against the zoomed concrete-image gradient line. Scale\n * only px tokens inside gradient functions; URL/data payloads and unrelated\n * background layers remain byte-identical. */\nexport const physicalComputedGradientImage = (value, effectiveZoom) => {\n  if (effectiveZoom === 1 || value == null || value === \"\" || value === \"none\") return value;\n  const start = /\\b(?:repeating-)?(?:linear|radial|conic)-gradient\\(/gi;\n  let out = \"\";\n  let cursor = 0;\n  for (;;) {\n    start.lastIndex = cursor;\n    const match = start.exec(value);\n    if (match == null) return out + value.slice(cursor);\n    out += value.slice(cursor, match.index);\n    let depth = 1;\n    let quote = \"\";\n    let escaped = false;\n    let end = start.lastIndex;\n    for (; end < value.length && depth > 0; end++) {\n      const ch = value[end];\n      if (escaped) { escaped = false; continue; }\n      if (ch === \"\\\\\") { escaped = true; continue; }\n      if (quote !== \"\") { if (ch === quote) quote = \"\"; continue; }\n      if (ch === '\"' || ch === \"'\") { quote = ch; continue; }\n      if (ch === \"(\") depth++;\n      else if (ch === \")\") depth--;\n    }\n    const call = value.slice(match.index, end).replace(/(-?(?:\\d+(?:\\.\\d+)?|\\.\\d+))px\\b/g, (_token, number) =>\n      `${Math.round(parseFloat(number) * effectiveZoom * 1e6) / 1e6}px`);\n    out += call;\n    cursor = end;\n  }\n};\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2335"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "cc80d76c2d7a773fc5fef17de71869be"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "656ebdf8007f70c7e49b4e5468d796c30f7b5ac4",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

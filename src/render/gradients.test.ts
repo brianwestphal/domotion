@@ -304,6 +304,34 @@ describe("buildLinearGradientDef: repeating tiles across the gradient line", () 
     const svg = buildLinearGradientDef(g, "g1", { x: 0, y: 0, w: 100, h: 10 });
     expect((svg.match(/<stop /g) || []).length).toBe(2);
   });
+
+  it("normalizes negative and over-line repeat domains by moving the vector", () => {
+    const negative = buildBackgroundLinearGradientDef("negative", "90deg, red -5px, blue 11px", true, 100, 70);
+    expect(negative).toContain('x1="-5"');
+    expect(negative).toContain('x2="11"');
+    expect(negative).toContain('spreadMethod="repeat"');
+    expect(negative).toContain('offset="0"');
+    expect(negative).toContain('offset="1"');
+
+    const overLine = buildBackgroundLinearGradientDef("over", "90deg, red 0, blue 240px", true, 100, 70);
+    expect(overLine).toContain('x1="0"');
+    expect(overLine).toContain('x2="240"');
+    expect(overLine).toContain('spreadMethod="repeat"');
+  });
+
+  it("collapses a coincident repeating domain to the final color", () => {
+    const svg = buildBackgroundLinearGradientDef("solid", "90deg, red 8px, blue 8px", true, 100, 70);
+    expect(svg).not.toContain("spreadMethod");
+    expect((svg.match(/stop-color="rgb\(0,0,255\)"/g) ?? []).length).toBe(2);
+    expect(svg).not.toContain('stop-color="rgb(255,0,0)"');
+  });
+
+  it("defaults omitted repeating endpoints before normalization", () => {
+    const svg = buildBackgroundLinearGradientDef("defaulted", "37deg, red, blue", true, 180, 70);
+    expect(svg).toContain('spreadMethod="repeat"');
+    expect(svg).toContain('offset="0"');
+    expect(svg).toContain('offset="1"');
+  });
 });
 
 describe("DM-2308: CSS gradient interpolation space", () => {
