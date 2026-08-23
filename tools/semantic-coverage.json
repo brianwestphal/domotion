@@ -420,16 +420,27 @@
         "local -> propagated decoration"
       ],
       "upstreamSources": [
-        "external/chromium/third_party/blink/renderer/core/paint"
+        "external/chromium/third_party/blink/renderer/core/layout/text_decoration_offset.cc",
+        "external/chromium/third_party/blink/renderer/core/paint/text_decoration_info.cc",
+        "external/chromium/third_party/blink/renderer/core/paint/text_decoration_painter.cc",
+        "external/chromium/third_party/blink/renderer/core/paint/text_fragment_painter.cc",
+        "external/chromium/third_party/blink/renderer/platform/fonts/font_metrics.cc",
+        "external/chromium/third_party/blink/renderer/platform/fonts/font_platform_data.cc",
+        "external/chromium/ui/gfx/font_render_params_linux.cc"
       ],
       "productionOwners": [
         "src/render/text.ts",
         "src/tree-ops/decoration-propagation.ts"
       ],
       "oracles": [
-        "tools/decoration-oracle.ts"
+        "tools/decoration-oracle.ts",
+        ".github/workflows/linux-arm64-release-parity.yml"
       ],
       "metamorphicTests": [
+        "tests/decoration-oracle.test.ts",
+        "tests/decoration-coordinate-ownership.e2e.test.ts",
+        "tests/linux-arm64-release-evidence.test.ts",
+        "tests/linux-arm64-release-parity-workflow.test.ts",
         "src/render/skip-ink-geometry.test.ts",
         "src/tree-ops/decoration-propagation.test.ts"
       ],
@@ -437,12 +448,13 @@
         "tests/features.ts#text-decorations"
       ],
       "coverage": "partial",
-      "boundary": "Exact geometry is macOS-only and propagated wavy phase retains an empirical decision.",
+      "boundary": "Local single-fragment geometry is exact on macOS and pinned Linux arm64 with Chrome paint and capture bound to one DPR-qualified Blink state; the unchanged 0.3 CSS-px envelope rejects a one-pixel mutation. Windows and propagated wavy/multi-fragment/vertical ownership remain uncovered.",
       "featureIds": [
         "render.text"
       ],
       "verifiedPlatforms": [
-        "darwin"
+        "darwin",
+        "linux"
       ]
     },
     {

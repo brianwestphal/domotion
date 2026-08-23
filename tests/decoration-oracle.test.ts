@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  compareBars,
   compareSegments,
+  decorationOracleScalePlan,
+  decorationOracleScalePlanErrors,
   expandDashSegments,
   lengthPx,
   parseSvgDecorations,
@@ -9,6 +12,27 @@ import {
   type CaseSpec,
   type PageMeasure,
 } from "../tools/decoration-oracle.js";
+
+describe("DM-2501 decoration coordinate ownership", () => {
+  it("binds Chrome paint and Domotion capture to one device scale", () => {
+    expect(decorationOracleScalePlan()).toEqual({ chromePaint: 4, domotionCapture: 4 });
+    expect(decorationOracleScalePlan(2)).toEqual({ chromePaint: 2, domotionCapture: 2 });
+    expect(decorationOracleScalePlanErrors(decorationOracleScalePlan())).toEqual([]);
+  });
+
+  it("rejects the cross-DPR comparison that produced the arm64 +1 CSS-px false failure", () => {
+    expect(decorationOracleScalePlanErrors({ chromePaint: 4, domotionCapture: 1 })).toEqual([
+      "cross-DPR decoration geometry comparison is invalid: Chrome=4, capture=1",
+    ]);
+    expect(() => decorationOracleScalePlan(0)).toThrow(/finite and positive/);
+  });
+
+  it("keeps the 0.3px geometry envelope strict against a one-pixel origin mutation", () => {
+    const expected = [{ top: 134, height: 1 }];
+    expect(compareBars(expected, [{ top: 134, height: 1, x0: 0, x1: 10, segments: [] }], 0.3, "rule", "svg").ok).toBe(true);
+    expect(compareBars(expected, [{ top: 135, height: 1, x0: 0, x1: 10, segments: [] }], 0.3, "rule", "svg").ok).toBe(false);
+  });
+});
 
 // Hand-computed expectations against the transcribed Blink rules
 // (Chromium rev 7d859f27): thickness `core/paint/text_decoration_info.cc:65-92`

@@ -385,8 +385,14 @@ they describe (see `CLAUDE.md` "Documentation"):
   `getDecorationMetrics` / `emitDecorationLine` emit Blink's rules exactly —
   fragment-top anchoring on the captured FloatAscent, fs/10 auto thickness,
   gap `max(1, ceil(t/2))` zeroed by an explicit offset, per-style paint snap
-  — and ALL THREE legs pass and gate by default (transcription 84/84,
-  skip-ink 7/7, rule-vs-SVG 84/84). Discrimination proven: restoring the
+  — and ALL THREE legs pass and gate by default (transcription 106/106,
+  skip-ink/pattern 29/29, rule-vs-SVG 106/106). DM-2501 (doc 200) additionally
+  binds Chrome paint and Domotion capture to one DPR-qualified Blink fragment
+  state: the original Linux arm64 run compared DPR 4 with DPR 1 and produced
+  a false uniform `+1px`. Coherent DPR-1/DPR-4 regressions and the native-arm64
+  aggregate now reject cross-DPR evidence and any widening of the `0.3px`
+  geometry envelope; no production renderer change was required.
+  Discrimination proven: restoring the
   known-wrong skip-ink dilation (`max(0.5, t/2)` vs Blink's `min(t, 13)`)
   drops the skip-ink leg from 4/7 to 1/7 with edge errors growing from
   ≤1.45px to 3.95px.

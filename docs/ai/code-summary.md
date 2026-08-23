@@ -539,13 +539,19 @@ shortest possible map:
   grades text-decoration GEOMETRY (bar y/thickness, skip-ink painted segments)
   three ways per case: Chrome's paint measured out of a dsf-4 screenshot with
   the decoration forced red, Blink's transcribed rules fed with in-page
-  inputs, and Domotion's emitted SVG parsed analytically. Exists because
+  inputs, and Domotion's emitted SVG captured at that same device scale and
+  parsed analytically. Exists because
   whole-fixture pixel-diff structurally rewards the WRONG decoration
   constants (they were fitted against the rasterization gap — since removed:
   `getDecorationMetrics` / `emitDecorationLine` now transcribe Blink's rules
-  and all three legs pass and gate by default, 84/84 + 7/7 + 84/84). Pure
-  pieces pinned by `tests/decoration-oracle.test.ts`; the emit snap by
-  `src/render/decoration-emit.test.ts`.
+  and all three legs pass and gate by default, 106/106 + 29/29 + 106/106).
+  DM-2501 made the DPR ownership explicit after the first Linux arm64 run
+  compared DPR-4 Chrome paint with a DPR-1 captured fragment and produced a
+  false uniform `+1px`; `tests/decoration-coordinate-ownership.e2e.test.ts`
+  now pins coherent DPR-1 and DPR-4 lanes, while the arm64 finalizer rejects a
+  cross-DPR report or widened `0.3px` envelope. Pure pieces are pinned by
+  `tests/decoration-oracle.test.ts`; the emit snap by
+  `src/render/decoration-emit.test.ts`. No production geometry changed.
 - **Shaper A/B** — `tools/shape-agreement.ts` (`npm run fonts:shaper-ab`)
   compares HarfBuzz against the platform helper at glyph-ID granularity. Both
   engines are opened at the SAME axis location; without that a variable face

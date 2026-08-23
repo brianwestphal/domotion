@@ -79,6 +79,106 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex DM-2501",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt580iilr6l791h9",
+          "message": {
+            "text": "The release finalizer now proves coherent-DPR decoration evidence rather than trusting a successful process exit. The final pinned Playwright 1.59.1 Noble linux/arm64 run records Chromium 147.0.7727.0, DPR 4/4, the unchanged 0.3px envelope, and exact 106/106 transcription + 29/29 skip-ink/pattern + 106/106 SVG geometry; the focused browser regression independently passes DPR 1 and DPR 4.",
+            "markdown": "The release finalizer now proves coherent-DPR decoration evidence rather than trusting a successful process exit. The final pinned Playwright 1.59.1 Noble linux/arm64 run records Chromium 147.0.7727.0, DPR 4/4, the unchanged 0.3px envelope, and exact 106/106 transcription + 29/29 skip-ink/pattern + 106/106 SVG geometry; the focused browser regression independently passes DPR 1 and DPR 4."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/linux-arm64-release-evidence.ts"
+                },
+                "region": {
+                  "startLine": 574,
+                  "endLine": 608,
+                  "snippet": {
+                    "text": "export function decorationEvidenceErrors(decoration: DecorationEvidenceReport): string[] {\n  const errors: string[] = [];\n  const ownership = decoration.coordinateOwnership;\n  if (decoration.platform !== \"linux\" || decoration.architecture !== \"arm64\") {\n    errors.push(\"decoration report is not native linux/arm64 evidence\");\n  }\n  if (ownership?.source !== \"blink-physical-text-fragment-same-dpr-v1\"\n    || ownership.chromePaintDeviceScaleFactor !== 4\n    || ownership.domotionCaptureDeviceScaleFactor !== 4) {\n    errors.push(\"decoration report does not bind Chrome paint and Domotion capture to the required DPR 4 Blink state\");\n  }\n  if (decoration.tolerances?.svgGeometry !== 0.3) {\n    errors.push(\"decoration SVG geometry tolerance is not the source-owned 0.3 CSS px envelope\");\n  }\n  if (decoration.gates?.transcription !== true\n    || decoration.gates.skipInk !== true\n    || decoration.gates.svgGeometry !== true) {\n    errors.push(\"decoration report does not arm every logical gate\");\n  }\n  if (!Array.isArray(decoration.results) || decoration.results.length !== 106) {\n    errors.push(\"decoration report is not the complete 106-row matrix\");\n  } else {\n    const skipInkRows = decoration.results.filter((row) => row.skipInk != null);\n    if (skipInkRows.length !== 29) errors.push(\"decoration report is not the complete 29-row skip-ink/pattern matrix\");\n    if (decoration.results.some((row) => row.transcription?.ok !== true\n      || row.svgGeometry?.ok !== true\n      || (row.skipInk != null && row.skipInk.ok !== true))) {\n      errors.push(\"decoration report contains a gated mismatch\");\n    }\n  }\n  return errors;\n}\n\nfunction semanticArtifactErrors(root: string): string[] {\n  const errors: string[] = [];"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/decoration-oracle.ts"
+                },
+                "region": {
+                  "startLine": 1229
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/linux-arm64-release-evidence.test.ts"
+                },
+                "region": {
+                  "startLine": 50
+                }
+              }
+            },
+            {
+              "id": 2,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/decoration-coordinate-ownership.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 28
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2501"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "6ff9443716c004636fe94a63f557c20b"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "84fa5b2683f26a8a7cf92747c8fddfbba092770b",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -20,13 +20,13 @@ geometry, not on aggregate pixel difference.
 | --- | --- | --- |
 | **C** Chrome-measured | Chromium's painted output | `deviceScaleFactor: 4` screenshot; decoration forced to pure red (`text-decoration-color: #ff0000`) so its pixels are separable from black glyph ink by channel arithmetic; geometry recovered by coverage-weighted row/column profiles (~±0.06 CSS px) |
 | **R** Rule-predicted | Blink source, transcribed | The formulas below, fed with inputs measured from the same page (fragment top from layout; `FloatAscent` from canvas `measureText().fontBoundingBoxAscent`, which is exactly `FontMetrics::FloatAscent` at the alphabetic baseline — `core/html/canvas/text_metrics.cc:133-138`) |
-| **S** SVG-emitted | Domotion's output markup | Parsed analytically — `<line>` y / stroke-width / x-extent under accumulated `translate` transforms. Never rasterized: rasterization belongs to the consumer |
+| **S** SVG-emitted | Domotion's output markup | Captured at the same device scale as C, then parsed analytically — `<line>` y / stroke-width / x-extent under accumulated `translate` transforms. Never rasterized: rasterization belongs to the consumer |
 
 ## The three checks and their gates
 
 - **C vs R — "transcription"** (always gates): validates the transcription and
   the oracle's own measurement against Chrome's paint. If this leg fails, the
-  oracle must not be trusted to judge anything. Status at landing: **84/84**
+  oracle must not be trusted to judge anything. Current status: **106/106**
   cases pass on macOS across families (Helvetica / Times / Menlo) × sizes
   (12–48, incl. fractional 32.5) × lines (underline / line-through / overline)
   × styles (solid / double) × thickness (`auto` / `from-font` / px / % / em) ×
@@ -34,7 +34,8 @@ geometry, not on aggregate pixel difference.
   `text-underline-position` (auto / `under` / `from-font`).
 - **C vs S — "skip-ink"** (gates by default; `--no-gate-skip-ink` to demote):
   compares the PAINTED SEGMENTS of the decoration (positive space — see below)
-  between Chrome's paint and the emitted SVG, per edge. Status: **7/7** since
+  between Chrome's paint and the emitted SVG, per edge. Current status:
+  **29/29** across skip-ink and patterned-style rows since
   the decoration-geometry transcription landed. (At the oracle's landing it
   was 4/7 — the 3 failures were precisely attributed to the renderer's
   then-empirical constants: dilation driven by a `ceil(fontSize/20)`
@@ -42,7 +43,7 @@ geometry, not on aggregate pixel difference.
   than Blink's. Correcting the constants greened them, as predicted.)
 - **R vs S — "svg-geometry"** (gates by default; `--no-gate-svg-geometry` to
   demote): the acceptance gate for the renderer's decoration geometry.
-  Status: **84/84** — `getDecorationMetrics` + `emitDecorationLine` emit
+  Status: **106/106** — `getDecorationMetrics` + `emitDecorationLine` emit
   Blink's transcribed rules exactly (fragment-top anchoring on the captured
   FloatAscent, per-style paint snap at emit). While the renderer carried its
   empirical constants this leg failed 61/84 by design and was off by
@@ -137,6 +138,22 @@ runs of the bar — rather than gap intervals. Two reasons:
    white dilation margin — and takes segment edges from red columns only, so
    ink neither splits a continuous bar nor smears an edge.
 
+## Device-scale ownership
+
+Every C/R/S comparison must describe one Blink paint state. DM-2501 found
+that the Linux arm64 release gate had measured C and R on a DPR-4 page but
+captured S on an implicit DPR-1 page. Pinned Linux Blink laid out the same
+12px span at fragment top 122 on DPR 4 and 123 on DPR 1 while reporting ascent
+11 on both. The resulting `+1px` was a comparison between two valid,
+device-scale-qualified fragment states, not a renderer defect.
+
+The full gate now binds both pages to DPR 4 and emits a
+`blink-physical-text-fragment-same-dpr-v1` ownership record. The Linux arm64
+finalizer rejects a cross-DPR report, a missing gate, an incomplete 106/29-row
+matrix, or any change to the `0.3px` SVG-geometry envelope. The focused browser
+test separately exercises coherent DPR-1 and DPR-4 capture/render lanes so the
+default-DPR production path remains covered. See [doc 200](200-linux-arm64-decoration-coordinate-ownership.md).
+
 ## Discrimination proof
 
 The oracle was validated by feeding it the known-wrong dilation constant
@@ -153,9 +170,9 @@ whole-fixture pixel-diff inverted.
 
 ## Blind spots (what this oracle cannot see)
 
-- **Dotted / dashed / wavy / spelling / grammar lines** — only solid and
-  double are graded. Dash phase, dot geometry, and the wavy tile are not
-  measured at all.
+- **Spelling / grammar lines** — the CSS solid, double, dotted, dashed, and
+  wavy families are graded; browser-owned spelling and grammar annotations are
+  not exposed as author decoration rows.
 - **X-extent vs a rule** — segment edges are compared C-vs-S, but the run's
   overall start/end is not checked against a transcribed rule; a run painted
   short at both ends by the same amount on both sides would pass.
@@ -173,8 +190,8 @@ whole-fixture pixel-diff inverted.
   (decorations inherited from an ancestor box), and wrapped multi-fragment
   runs are not exercised; every case is a single fragment decorated on its
   own span.
-- **Platform** — the rules are platform-generic, but the C-leg has been
-  validated on macOS only.
+- **Platform** — the C/R/S gate is exact on macOS and pinned Linux arm64 with
+  coherent device scale. Windows remains unverified by this oracle.
 
 ## Usage
 
@@ -192,7 +209,9 @@ error. Failures print a per-case geometry report (predicted vs measured top /
 height / segment edges, with deltas).
 
 Unit coverage for the pure pieces (rule algebra, SVG parsing, segment
-comparison) lives in `tests/decoration-oracle.test.ts`.
+comparison, and scale ownership) lives in `tests/decoration-oracle.test.ts`.
+`tests/decoration-coordinate-ownership.e2e.test.ts` pins same-page fragment,
+font-metric, capture, and emitted-SVG agreement at DPR 1 and DPR 4.
 
 Related: the font-selection analogue is `tools/font-conformance.ts`
 ([107](107-font-conformance-oracle.md)); the shaping analogue is

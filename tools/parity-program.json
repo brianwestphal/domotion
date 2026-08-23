@@ -77,15 +77,16 @@
     },
     {
       "id": "text-decoration",
-      "domotionSources": ["src/render/text-to-path.ts"],
-      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/paint"],
+      "domotionSources": ["src/render/text.ts", "src/render/text-to-path.ts", "tools/decoration-oracle.ts", "tools/linux-arm64-release-evidence.ts", "tests/decoration-oracle.test.ts", "tests/decoration-coordinate-ownership.e2e.test.ts", "tests/linux-arm64-release-evidence.test.ts", "tests/linux-arm64-release-parity-workflow.test.ts", ".github/workflows/linux-arm64-release-parity.yml"],
+      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/layout/text_decoration_offset.cc", "external/chromium/third_party/blink/renderer/core/paint/text_decoration_info.cc", "external/chromium/third_party/blink/renderer/core/paint/text_decoration_painter.cc", "external/chromium/third_party/blink/renderer/core/paint/text_fragment_painter.cc", "external/chromium/third_party/blink/renderer/platform/fonts/font_metrics.cc", "external/chromium/third_party/blink/renderer/platform/fonts/font_platform_data.cc", "external/chromium/ui/gfx/font_render_params_linux.cc"],
       "oracle": "tools/decoration-oracle.ts",
+      "browserOracle": ".github/workflows/linux-arm64-release-parity.yml",
       "sourceAudit": "audited",
       "oracleStatus": "exact-stage-gate",
-      "generatedCoverage": "family, size, line, style, thickness, offset, position, and skip-ink matrix",
-      "platformCoverage": ["darwin"],
-      "knownGap": "The exact geometry gate is macOS-primary and does not yet exercise the full platform matrix.",
-      "nextAction": "Run and baseline the logical geometry oracle on Linux and Windows."
+      "generatedCoverage": "106 coherent-DPR rows across family, size, line, style, thickness, offset, position, and 29 skip-ink/pattern rows. Chrome paint, source rules, captured fragments, and emitted SVG share one DPR-qualified Blink state; the Linux arm64 finalizer rejects cross-DPR evidence, an incomplete matrix, a disabled gate, or any change to the 0.3 CSS-px SVG envelope.",
+      "platformCoverage": ["darwin", "linux"],
+      "knownGap": "Local single-fragment horizontal decoration geometry is exact on macOS and pinned Linux arm64. Windows and propagated/multi-fragment/vertical decoration ownership remain separate gates.",
+      "nextAction": "Retain the coherent-DPR Linux arm64 artifact after integration, then add the Windows logical geometry row without changing the source-owned envelope."
     },
     {
       "id": "borders-outlines",
