@@ -133,3 +133,9 @@ Blink `core/layout/inline` owns native line placement and baseline; Skia
 generation to `SkFontHost_FreeType.cpp`, `SkScalerContext_mac_ct.cpp`, and
 `SkScalerContext_win_dw.cpp`. Only that terminal platform-mask difference is
 eligible for an envelope.
+
+Doc 210 defines a separate Linux-only FreeSans MathML supplement. It keeps the
+348-cell substitution-free core and its ratified envelopes byte-for-byte
+unchanged while adding one browser `math-auto` cell, an isolated package/font
+inventory, and an authenticated hinting-off control under its own schema and
+envelope.

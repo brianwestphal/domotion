@@ -52,13 +52,12 @@ boundary. The focused Linux SVG contains six `<image>` overlays for the six
 significant FreeSans outline/native-mask residual is now below the feature
 suite's region classifier.
 
-The existing `fonts:mathml-italic` logical oracle cannot yet ratify this Linux
-classification. On the same image it fails at its first `ascii` row because it
-assumes exactly one paths-provenance run, while Linux reaches the source-owned
-raster boundary and records none. DM-2511 tracks repairing that oracle so face,
-source bytes, gid, advance, offsets, and transition ownership are proved before
-pixels. DM-2512 tracks adding the exact runner FreeSans mathematical-Greek cell
-to the authenticated native/path raster matrix. Until those land, the honest
-classification is: **the visual residual is inactive and consistent with a
-source-owned raster terminal; the complete current Linux logical join is not
-yet ratified**.
+The repaired logical oracle consumes DM-2512's token-only pre-terminal
+projection instead of demanding paths provenance from a capture-owned raster
+terminal. DM-2512 also implements an isolated Linux supplement for the exact
+Noble FreeSans package, mathematical-Greek gids/outlines/subsets, captured
+baselines, native/paths PNGs, and an active no-hint control; see doc 210. Its
+checked-in envelope remains deliberately empty until two independent
+`ubuntu-24.04` collections are reviewed. The honest classification is:
+**source/logical collection is implemented without a threshold change, while
+terminal raster ratification remains pending independent Linux evidence**.

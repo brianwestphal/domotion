@@ -80,6 +80,13 @@ reauthenticate real-path-confined PNG bytes through
 and validation runs on macOS/Linux/Windows without an external bundle.
 Envelopes remain a separate four-artifact human review with exact cell hashes,
 never a percentage cap.
+`linux-mathml-greek-raster-{contract,collector,gate}.ts` adds doc 210's
+Linux-only supplement without extending that 348-cell corpus. It authenticates
+the exact Noble FreeSans package and one-file Fontconfig inventory, records
+four live `math-auto` Greek tokens through CDP/source outlines/capture-owned
+baselines, and produces native, production-path, and no-hint PNG arms. Its pure
+token validator is reusable by the MathML logical oracle; its separate envelope
+remains unratified until independent Linux evidence is reviewed.
 
 The same orientation lives in `CLAUDE.md` "Code Organization" but the
 shortest possible map:
