@@ -96,3 +96,63 @@ jobs:
           name: paths-native-raster-report
           path: paths-native-raster-report.json
           if-no-files-found: error
+
+  mathml-collect:
+    strategy:
+      fail-fast: false
+      matrix:
+        evidence: [proposal, validation]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Acquire authenticated Ubuntu Noble FreeSans package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .linux-mathml-font/extracted
+          curl --fail --location --silent --show-error \
+            'https://archive.ubuntu.com/ubuntu/pool/main/f/fonts-freefont/fonts-freefont-ttf_20211204%2Bsvn4273-2_all.deb' \
+            --output .linux-mathml-font/fonts-freefont-ttf.deb
+          echo 'c8283ec9ca390e6ad8d2114cb0942182db62bb97f5142c2f955218fc5f2027b4  .linux-mathml-font/fonts-freefont-ttf.deb' | sha256sum --check --strict
+          dpkg-deb --extract .linux-mathml-font/fonts-freefont-ttf.deb .linux-mathml-font/extracted
+          echo '350badd6ab6a58e7fd7a0ea2ae0c10174941a08e1cd06b3c6010e10b3d5ae319  .linux-mathml-font/extracted/usr/share/fonts/truetype/freefont/FreeSans.ttf' | sha256sum --check --strict
+      - name: Collect and reauthenticate MathML supplement
+        run: |
+          npm run fonts:paths-raster:linux-mathml:collect -- --deb .linux-mathml-font/fonts-freefont-ttf.deb --font .linux-mathml-font/extracted/usr/share/fonts/truetype/freefont/FreeSans.ttf --out observations/observations.json --artifact-dir observations --run-label ${{ matrix.evidence }}
+          npm run fonts:paths-raster:linux-mathml:gate -- produce --observations observations/observations.json --out observations/linux-mathml-greek-raster-rows.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-mathml-greek-raster-${{ matrix.evidence }}
+          path: observations/
+          if-no-files-found: error
+          compression-level: 0
+
+  mathml-aggregate:
+    needs: mathml-collect
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: linux-mathml-greek-raster-*
+          path: artifacts
+      - name: Build strict ratification candidate
+        run: npm run fonts:paths-raster:linux-mathml:gate -- aggregate --artifacts artifacts --envelopes tools/linux-mathml-greek-raster-envelopes.json --out linux-mathml-greek-raster-report.json --allow-unratified
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-mathml-greek-raster-report
+          path: linux-mathml-greek-raster-report.json
+          if-no-files-found: error
