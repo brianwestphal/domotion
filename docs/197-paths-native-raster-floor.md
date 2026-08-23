@@ -122,6 +122,8 @@ exact logical identity, zero warnings, active non-identical raster arms, and
 validation residuals no greater than their proposal values. Representative
 worst-residual native/path pairs were visually reviewed as aligned glyph
 geometry with terminal antialiasing/hinting differences only.
+The subsequent unchanged-source workflow run `32622211663` passed all six
+native producers and the aggregate against the committed manifest.
 
 Source boundary: authenticated sfnt cmap/HVAR/outline tables own this corpus's
 substitution-free glyph IDs, clusters, advances, and outlines; renderer
