@@ -28,6 +28,9 @@ describe("DM-2353 Linux arm64 release parity workflow", () => {
     }
     expect(workflow).toContain("assert-linux-helper-in-loop.ts");
     expect(workflow).toContain("icu-conformance.ts");
+    expect(workflow.indexOf("font-conformance-synthetic-stacks.ts")).toBeLessThan(
+      workflow.indexOf("font-conformance.ts"),
+    );
     expect(workflow).toContain("font-conformance-stacks.synthetic.json");
     expect(workflow).toContain("paint-geometry-browser-oracle.ts");
     expect(workflow).toContain("tests/html-test-suite.tsx");

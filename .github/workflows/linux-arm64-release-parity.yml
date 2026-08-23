@@ -75,6 +75,8 @@ jobs:
         continue-on-error: true
         run: |
           set -o pipefail
+          node --import tsx tools/font-conformance-synthetic-stacks.ts \
+            --out tools/font-conformance-stacks.synthetic.json
           node --import tsx tools/font-conformance.ts \
             --stacks tools/font-conformance-stacks.synthetic.json \
             --allow-foreign-corpus --sample-byte 00 --max-rows 2000 \
