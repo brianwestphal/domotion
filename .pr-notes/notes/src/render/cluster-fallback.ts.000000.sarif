@@ -866,6 +866,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex /root/dm2452_sfns_oracle",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt59qtywh5gsjqd7",
+          "message": {
+            "text": "CSS presentation is applied once to the complete source-owned item, after segmentation. This preserves explicit VS15/VS16 precedence and separate iterator state even when font-variant-emoji makes adjacent items share the same effective priority; declared families still run before the priority face.",
+            "markdown": "CSS presentation is applied once to the complete source-owned item, after segmentation. This preserves explicit VS15/VS16 precedence and separate iterator state even when font-variant-emoji makes adjacent items share the same effective priority; declared families still run before the priority face."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/cluster-fallback.ts"
+                },
+                "region": {
+                  "startLine": 547,
+                  "endLine": 550,
+                  "snippet": {
+                    "text": "    // Chromium applies CSS after SymbolsIterator has fixed this source range;\n    // even equal effective priorities retain distinct iterator instances.\n    const effectivePriority = applyFontVariantEmojiToPriority(seg.sourcePriority, fontVariantEmoji);\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/emoji-presentation-priority.ts"
+                },
+                "region": {
+                  "startLine": 103
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/emoji-presentation-ownership-audit.ts"
+                },
+                "region": {
+                  "startLine": 253
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2507"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "99271150d6472b671e4a96b53052bfab"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2b1bf3ebe3efea427ad57b4346de9074c95b653a",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

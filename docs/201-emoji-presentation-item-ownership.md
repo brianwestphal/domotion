@@ -1,10 +1,11 @@
-# Emoji presentation shaping-item ownership
+# Emoji presentation shaping-item ownership and closure
 
-DM-2502 investigates the sole significant HTML residual in native Linux arm64
-run `32611751700`. It does not change production rendering or any pixel
-tolerance. The source and logical discriminator agree on one root cause:
-Domotion omits Blink's `SymbolsIterator` fallback-priority boundary when it
-creates shaping items.
+DM-2502 investigated the sole significant HTML residual in native Linux arm64
+run `32611751700`; DM-2507 closes the resulting production ownership defect.
+Neither ticket changes a pixel tolerance. The source, logical discriminator,
+strict native route matrix, and focused HTML fixture agree: Domotion now
+intersects Blink's `SymbolsIterator` fallback-priority ranges with independent
+bidi/script ranges before it creates fallback iterators.
 
 ## Artifact verdict
 
@@ -50,14 +51,13 @@ FreeSans face that covers U+2757 owns it under normal presentation, while
 `font-variant-emoji: emoji` rejects the contradictory outline and proceeds to
 the color face.
 
-## Domotion's missing boundary
+## Historical Domotion boundary
 
-`script-segmentation.ts:309-318` documents that Blink's item is script ×
-orientation × fallback priority, but `ShapingSegment` carries only script and
-direction. `segmentForShaping()` at `:422-469` splits only on bidi-level or
-script-set changes, so it returns one `[0,52)` Latin/LTR item for this line.
-`cluster-fallback.ts:559-595` then allocates one iterator for the whole line and
-`:634-668` derives priority later from the first currently queued hint.
+Before DM-2507, `ShapingSegment` carried only script and direction.
+`segmentForShaping()` split only on bidi-level or script-set changes, so it
+returned one `[0,52)` Latin/LTR item for this line. `cluster-fallback.ts` then
+allocated one iterator for the whole line and derived priority later from the
+first currently queued hint.
 
 Liberation Sans covers the prose and requeues U+2713, U+2717, and U+2757.
 The shared text iterator asks U+2713 first, then U+2717; the latter selects
@@ -83,24 +83,29 @@ The exact helper digests used by the retained run and the reproduction are:
 | arm64 ICU helper | `dcb7be05a66b98530d0eee0759bc79d8670fe383c338a73e873f0a346b13e6bf` |
 | ICU 78.2 data | `9f48c7f9c7c94d516a14870707e910ab94d75ae640ff6842c4af53276cd26ebe` |
 
-The exact native result is order-sensitive, which a raster-floor explanation
-cannot produce:
+The pre-fix result was order-sensitive, which a raster-floor explanation could
+not produce. After DM-2507, the schema-2 discriminator requires the exact
+source split and this order-invariant native result:
 
 | case | selected U+2757 face | representation | priority asks |
 | --- | --- | --- | ---: |
-| retained fixture order | FreeSans | outline | 0 |
-| `✗ ❗` | FreeSans | outline | 0 |
+| retained fixture order | Noto Color Emoji | CBDT bitmap | 1 |
+| `✗ ❗` | Noto Color Emoji | CBDT bitmap | 1 |
 | `❗ ✗` | Noto Color Emoji | CBDT bitmap | 1 |
-| `✗ ❗️` | Noto Color Emoji | CBDT bitmap | 0 (VS mismatch requeue) |
-| `✗ ❗︎` | FreeSans | outline | 0 |
+| `✗ ❗️` with CSS text | Noto Color Emoji | CBDT bitmap | 1 |
+| `✗ ❗︎` with CSS emoji | FreeSans | outline | ≥1 (text-priority selector) |
 | bare U+2757 with `font-variant-emoji:text` | FreeSans | outline | 0 |
 | declared FreeSans, normal | FreeSans | outline | 0 |
 | declared FreeSans, CSS emoji | Noto Color Emoji | CBDT bitmap | 1 |
 
 The pinned ICU helper returns binary properties `0x98` for U+2757, including
 both `Emoji` and `Emoji_Presentation`; classification and helper transport are
-not the defect. The audit verdict is
-`confirmed-missing-symbols-item-boundary`. It contains no raster tolerance.
+not the defect. The closure verdict is `resolved-symbols-item-boundary`. Every
+one of its eleven source, environment, order, selector, CSS, family, face, and
+representation checks passes in the authenticated Linux arm64 container. The
+unchanged `02-text-emoji` fixture is also clean: zero significant regions and
+zero changed area, including the former `(336,150,33×24)` region. Neither gate
+contains a raster tolerance specific to this fix.
 
 ## Downstream source boundary
 
@@ -113,15 +118,18 @@ and performs BGRA-to-ARGB conversion in `_common.cpp:320-330`; neither stage
 chooses a fallback face. Those source boundaries and the six healthy raster
 rows rule out a native raster floor.
 
-## Follow-up work
+## Production closure and follow-up
 
-- **DM-2507** ports source-priority itemization into production. It must
-  intersect SymbolsIterator ranges with bidi/script ranges before iterator
-  allocation, retain source boundaries after CSS overrides, and remove
-  first-hint ownership. The order pair, VS15/VS16, CSS text, and declared-family
-  rows above are mandatory controls.
-- **DM-2508**, blocked by DM-2507, flips this known-gap discriminator into a
-  resolved regression gate, reruns `02-text-emoji`, and incorporates the exact
-  report into the Linux arm64 release aggregate.
+- **DM-2507** adds `emoji-presentation-priority.ts`, computes maximal source
+  states independently of bidi/script, and intersects both iterator families
+  by their next minimum endpoint. A priority split inherits the already
+  resolved script and direction. `cluster-fallback.ts` creates a fresh iterator
+  per resulting item, applies CSS afterward, and no longer derives iterator
+  ownership from a queued hint. The order pair, opposite-CSS VS15/VS16 rows,
+  CSS text, and declared-family rows above are strict controls.
+- **DM-2508** promotes the now-resolved report and focused HTML result into the
+  Linux arm64 release aggregate. That integration step is not a remaining
+  production ownership gap.
 
-Neither follow-up may widen a logical or raster threshold.
+Neither this closure nor the aggregate follow-up may widen a logical or raster
+threshold.

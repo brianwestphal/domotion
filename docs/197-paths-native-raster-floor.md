@@ -1,22 +1,114 @@
 # Paths-mode native-raster floor matrix
 
-DM-2352 separates logical text identity from the terminal raster difference between Chromium's native Skia glyph masks and consumer-rasterized unhinted SVG outlines. It is an evidence and ratification gate; it does not change the scalar caps in the HTML/Unicode visual harness.
+DM-2352 separates logical text identity from the terminal raster difference
+between Chromium's native Skia glyph masks and consumer-rasterized SVG
+outlines. DM-2499 adds the missing authenticated collector. This remains an
+evidence and ratification gate; it does not change the scalar caps in the
+HTML/Unicode visual harness.
 
 ## Ordering contract
 
 Each row carries one complete environment fingerprint, matrix dimensions, lossless native/paths PNG provenance, expected Chromium logical facts, actual Domotion logical facts, and terminal residual measurements. `tools/paths-native-raster-gate.ts` checks in this order:
 
 1. Reject partial evidence, warnings, or a byte-identical/inert raster arm.
-2. Require exact PostScript face, source bytes, face index, variation axes, glyph IDs, clusters, advances, offsets, baseline, and six-entry affine matrix.
-3. Require a ratified envelope keyed by the complete fingerprint and by font technology, size, weight, subpixel X/Y phase, transform class, and DPR.
-4. Require both lossless artifact hashes to be among the reviewed envelope's source artifacts, then compare edge/area/bounds/severity measurements.
+2. Require exact PostScript face, selected source bytes, face index, variation
+   axes, glyph IDs, clusters, advances, offsets, source-outline hashes,
+   renderer-emitted baseline and affine matrix, and synthetic paint plan.
+3. Require a ratified envelope keyed by the complete environment fingerprint
+   and a canonical SHA-256 of the complete declared corpus cell.
+4. Require proposal and independent-validation native/path hashes to be among
+   the reviewed source artifacts, then compare per-cell edge/ink/bounds/channel
+   measurements.
 
-A zero-pixel row with the wrong face, gid, advance, baseline, or matrix is therefore `logical-mismatch`; a visually close wrong answer can never become `accepted-rasterization-only`. Fingerprints are not portable between OS images, architectures, Chromium/Skia/HarfBuzz revisions, font inventories, renderer revisions, consumer rasterizers, launch flags, or locales.
+A zero-pixel row with the wrong face, gid, outline, advance, baseline, matrix,
+or paint plan is therefore `logical-mismatch`; a visually close wrong answer
+can never become `accepted-rasterization-only`. Fingerprints are not portable
+between OS images/releases, architectures, authenticated Chromium binaries,
+font inventories, renderer revisions, consumer rasterizers, Node/ICU,
+Sharp/libvips, metric algorithms, launch flags, or locales. Chromium does not
+report embedded Skia/HarfBuzz revisions at runtime, so the fingerprint names
+the executable SHA for both binary-owned components and records the logical
+oracle source revisions separately; it does not mislabel source pins as the
+browser's binary provenance.
+
+## Source-owned corpus and complete matrix
+
+`tools/paths-native-raster-corpus.ts` pins five upstream test files at HarfBuzz
+revision `4de187dd0a915d13c976fa8bd474c084229f3aab`, verifies their SHA-256 values
+and table signatures, and derives the sixth face by removing Open Sans glyf
+hinting with the repository's pinned `hb-subset` build. The six declared
+technologies are hinted and unhinted glyf, static CFF and CFF2, and variable
+glyf and CFF2. Each technology independently covers 12/20/32 px, weights
+400/600/800, all sixteen quarter-pixel X/Y phases, all five transform classes,
+and DPR 1/2. The hinted-glyf anchor additionally crosses every phase with
+rotate and affine instead of hiding interactions in a diagonal covering row.
+This explicit 348-row union per run is the complete corpus; producer and
+aggregate reject missing, duplicate, undeclared, dimension-mutated, or
+cell-hash-mutated rows. Static weights above the face's declared 400 cut are
+intentional synthetic-bold cells, and that paint-plan bit must agree before
+pixels.
+
+The native and paths screenshots are generated in the same pinned Chromium
+process from the same exact `@font-face` bytes. CDP must report that face as a
+custom font. The native arm is SVG `<text>`
+and therefore enters Chromium's platform Skia glyph-mask terminal. The paths
+arm is production `renderTextAsPath` output consumed by Chromium's SVG path
+rasterizer. Corpus strings are deliberately one-glyph-per-Latin-scalar with
+kerning and standard ligatures disabled on both arms. That makes glyph IDs,
+clusters, advances, and outlines source-table facts rather than an unobservable
+claim about Chromium's embedded HarfBuzz build. Before pixels are measured,
+the collector requires CDP's painted PostScript face/glyph count, those direct
+source-table facts, and production provenance for selected registered bytes,
+request axes, glyph stream and source outlines. Baseline, outer matrix, and
+synthetic paint plan are parsed back from renderer-emitted markup rather than
+copied from the requested cell. A generated PostScript suffix for a variable instance is
+accepted only when its base name matches and the coordinates remain explicit
+in `variationAxes`.
 
 ## Producer and workflow
 
-`tools/paths-native-raster-producer.ts` accepts a same-run observation bundle, recomputes PNG SHA-256 values from bytes, validates every strict row, and emits normalized platform evidence. `.github/workflows/paths-native-raster-floor.yml` runs this producer on macOS, Linux, and Windows, preserves PNGs losslessly, and aggregates only after all three arms finish. Missing platform artifacts fail closed.
+`tools/paths-native-raster-collector.ts` creates the complete same-run bundle.
+`tools/paths-native-raster-producer.ts` then resolves real paths and confines
+artifact paths to that bundle, rejects path reuse, reopens every PNG, verifies its dimensions, recomputes both SHA-256
+values, and recomputes the residual from bytes; caller-supplied hashes or
+metrics are not trusted. The residual records exact changed pixels, both
+role-specific ink areas and `{x,y,width,height}` bounds, absolute area/size
+deltas, symmetric edge Hausdorff distance in device pixels, an exact integer
+total channel delta, and its normalized severity projection. These are independent
+per-cell quantities, not a global image percentage.
 
-The committed `tools/paths-native-raster-envelopes.json` is deliberately `ratified: false`. A maintainer must review captured artifacts, publish per-fingerprint envelopes with reviewer/time provenance, and rerun the aggregate before this evidence gate can pass. Until then the adjudicator returns `envelope-unratified`, and the existing scalar visual-harness caps remain unchanged.
+`.github/workflows/paths-native-raster-floor.yml` checks out the pinned font
+files directly, runs separate proposal and validation jobs/browser processes for
+all 348 cells on macOS, Linux, and Windows, preserves all lossless PNGs, and
+aggregates only after all six evidence arms finish. The
+aggregate reauthenticates downloaded PNG bytes rather than trusting the
+producer JSON. Missing platform/run artifacts, a non-homogeneous fingerprint,
+or any incomplete 348-row matrix fails closed; no external observation bundle
+is accepted.
 
-Source boundary: Blink `core/layout/inline` owns line placement and baseline; pinned HarfBuzz owns glyph IDs, clusters, advances and offsets; Skia `src/core/SkGlyph.cpp`, `SkScalerContext.cpp`, and platform scaler contexts own native mask generation. Only the last boundary is eligible for an envelope.
+The committed `tools/paths-native-raster-envelopes.json` remains deliberately
+`ratified: false` until all six workflow artifacts are reviewed. Ratification
+must list the exact fingerprint/canonical cell hash, all four proposal and
+validation native/path hashes, the proposal maxima, reviewer, and UTC review
+time. The envelope maxima must equal the authenticated proposal residual, and
+the independent validation run must remain inside those values;
+if it exceeds one, proposal evidence must be recollected rather than widening
+an already-reviewed envelope in place. A logical mismatch,
+warning, inert pair, missing artifact, or unreviewed hash is never an envelope
+candidate. Until review lands, the adjudicator returns `envelope-unratified`
+and the existing scalar visual-harness caps remain unchanged.
+
+Local macOS arm64 evidence on 2026-08-23 produced 174/174 exact logical DPR1
+rows, zero warnings, and active non-identical raster arms after the expanded
+source-owned matrix and provenance hardening. DPR2, independent-validation,
+and the three native CI platforms remain intentionally unratified. This is a
+collector proof, not an envelope ratification.
+
+Source boundary: authenticated sfnt cmap/HVAR/outline tables own this corpus's
+substitution-free glyph IDs, clusters, advances, and outlines; renderer
+provenance owns the selected source, axes, and emitted placement/paint plan;
+Blink `core/layout/inline` owns native line placement and baseline; Skia
+`src/core/SkGlyph.cpp` and `SkScalerContext.cpp` dispatch native image
+generation to `SkFontHost_FreeType.cpp`, `SkScalerContext_mac_ct.cpp`, and
+`SkScalerContext_win_dw.cpp`. Only that terminal platform-mask difference is
+eligible for an envelope.

@@ -1,13 +1,12 @@
 #!/usr/bin/env tsx
 /**
- * DM-2502 investigation oracle: Blink SymbolsIterator ownership versus the
- * current script-only shaping itemizer.
+ * DM-2507 closure oracle: Blink SymbolsIterator ownership in the shaping
+ * itemizer and its native Linux arm64 fallback route.
  *
- * This intentionally diagnoses the known gap; it is not the production fix.
- * A successful strict Linux arm64 run means the source-owned discriminator was
- * reproduced: a preceding text-presentation miss can make bare U+2757 inherit
- * an ordinary fallback face, while reversing the two symbols reaches the color
- * emoji priority face. No pixel threshold participates in the verdict.
+ * A successful strict Linux arm64 run proves that source-priority boundaries
+ * are order-invariant, explicit selectors beat CSS overrides, and declared
+ * families still precede the one-shot priority face. No pixel threshold
+ * participates in the verdict.
  */
 
 import { createHash } from "node:crypto";
@@ -15,7 +14,6 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { scanEmojiPresentation } from "../src/capture/script/emoji-detect.js";
 import {
   _clusterFallbackCounters,
   splitTextIntoFontRunsShaped,
@@ -30,10 +28,16 @@ import {
   type FontRun,
   type FontVariantEmojiOverride,
 } from "../src/render/font-resolution.js";
+import {
+  sourcePriorityItems,
+  type SourcePriorityItem,
+} from "../src/render/emoji-presentation-priority.js";
 import { isGlyphHelperAvailable } from "../src/render/glyph-helper.js";
 import { ICU_BINARY, icuCodepointProperties, isIcuHelperAvailable } from "../src/render/icu-helper.js";
 import { bidiLevelsFor, segmentForShaping } from "../src/render/script-segmentation.js";
 import { selectedGlyphRasterSpans } from "../src/render/text-to-path.js";
+
+export { sourcePriorityItems } from "../src/render/emoji-presentation-priority.js";
 
 export const EMOJI_OWNERSHIP_SOURCE_PINS = {
   chromium: "7d859f271cbda744098ac69f44978d4edfa62be3",
@@ -51,87 +55,13 @@ export const EMOJI_OWNERSHIP_HELPER_DIGESTS = {
 export const EMOJI_OWNERSHIP_FIXTURE = "Status: done ✓ and flagged ✗ with emphasis ❗ nearby.";
 export const EMOJI_OWNERSHIP_TARGET = "❗";
 
-type ScannerCategory =
-  | "keycap" | "keycap-mark" | "circle-backslash" | "zwj" | "vs15" | "vs16"
-  | "tag-base" | "tag-sequence" | "tag-term" | "modifier-base" | "modifier"
-  | "regional-indicator" | "emoji-default" | "text-default" | "other";
-
-export type SourceFallbackPriority = "text" | "emoji" | "text-vs" | "emoji-vs";
-
-export interface SourcePriorityItem {
-  start: number;
-  end: number;
-  text: string;
-  priority: SourceFallbackPriority;
-}
-
-/** ICU-backed category input for the same pinned scanner grammar as Blink. */
-function pinnedCategory(cp: number): ScannerCategory {
-  if (cp <= 0x7f) return cp === 0x23 || cp === 0x2a || (cp >= 0x30 && cp <= 0x39) ? "keycap" : "other";
-  if (cp === 0x20e3) return "keycap-mark";
-  if (cp === 0x20e0) return "circle-backslash";
-  if (cp === 0x200d) return "zwj";
-  if (cp === 0xfe0e) return "vs15";
-  if (cp === 0xfe0f) return "vs16";
-  if (cp === 0x1f3f4) return "tag-base";
-  if (cp >= 0xe0020 && cp <= 0xe007e) return "tag-sequence";
-  if (cp === 0xe007f) return "tag-term";
-  if (cp >= 0x1f1e6 && cp <= 0x1f1ff) return "regional-indicator";
-  const row = icuCodepointProperties(cp);
-  if (row == null) {
-    const ch = String.fromCodePoint(cp);
-    if (/\p{Emoji_Modifier_Base}/u.test(ch)) return "modifier-base";
-    if (/\p{Emoji_Modifier}/u.test(ch)) return "modifier";
-    if (/\p{Emoji_Presentation}/u.test(ch)) return "emoji-default";
-    return /\p{Emoji}/u.test(ch) ? "text-default" : "other";
-  }
-  const bits = row.binaryProperties;
-  if ((bits & ICU_BINARY.EMOJI_MODIFIER_BASE) !== 0) return "modifier-base";
-  if ((bits & ICU_BINARY.V2) !== 0 && (bits & ICU_BINARY.EMOJI_MODIFIER) !== 0) return "modifier";
-  if ((bits & ICU_BINARY.V2) === 0 && /\p{Emoji_Modifier}/u.test(String.fromCodePoint(cp))) return "modifier";
-  if ((bits & ICU_BINARY.EMOJI_PRESENTATION) !== 0) return "emoji-default";
-  if ((bits & ICU_BINARY.EMOJI) !== 0) return "text-default";
-  if (row.generalCategory === 0 && (bits & ICU_BINARY.EXTENDED_PICTOGRAPHIC) !== 0) return "text-default";
-  return "other";
-}
-
-/**
- * Maximal SymbolsIterator source states. Ordinary gaps around scanner tokens
- * are text; adjacent identical states coalesce. CSS font-variant-emoji is not
- * an input because Blink applies it after these source boundaries are fixed.
- */
-export function sourcePriorityItems(text: string): SourcePriorityItem[] {
-  if (text.length === 0) return [];
-  const tokens = scanEmojiPresentation(text, pinnedCategory)
-    .map((span) => ({
-      ...span,
-      priority: span.hasVs
-        ? (span.presentation === "emoji" ? "emoji-vs" : "text-vs")
-        : (span.presentation === "emoji" ? "emoji" : "text"),
-    }))
-    .sort((a, b) => a.start - b.start);
-  const raw: Array<{ start: number; end: number; priority: SourceFallbackPriority }> = [];
-  let cursor = 0;
-  for (const token of tokens) {
-    if (token.start > cursor) raw.push({ start: cursor, end: token.start, priority: "text" });
-    raw.push({ start: token.start, end: token.end, priority: token.priority });
-    cursor = Math.max(cursor, token.end);
-  }
-  if (cursor < text.length) raw.push({ start: cursor, end: text.length, priority: "text" });
-  const merged: typeof raw = [];
-  for (const item of raw) {
-    const previous = merged[merged.length - 1];
-    if (previous != null && previous.end === item.start && previous.priority === item.priority) previous.end = item.end;
-    else merged.push({ ...item });
-  }
-  return merged.map((item) => ({ ...item, text: text.slice(item.start, item.end) }));
-}
-
 export interface StructuralOwnershipEvidence {
   sourcePriorityItems: SourcePriorityItem[];
   currentSegments: ReturnType<typeof segmentForShaping>;
   missingSourceBoundaries: number[];
+  priorityMismatches: string[];
   rootCausePresent: boolean;
+  rootCauseClosed: boolean;
 }
 
 export function structuralOwnershipEvidence(text = EMOJI_OWNERSHIP_FIXTURE): StructuralOwnershipEvidence {
@@ -142,15 +72,20 @@ export function structuralOwnershipEvidence(text = EMOJI_OWNERSHIP_FIXTURE): Str
     .flatMap((item) => [item.start, item.end])
     .filter((boundary, index, all) => boundary > 0 && boundary < text.length
       && all.indexOf(boundary) === index && !currentBoundaries.has(boundary));
-  const target = text.indexOf(EMOJI_OWNERSHIP_TARGET);
-  const targetItem = sourceItems.find((item) => item.start === target);
+  const priorityMismatches = currentSegments.flatMap((segment) => {
+    const source = sourceItems.find((item) => segment.start >= item.start && segment.end <= item.end);
+    return source != null && source.priority === segment.sourcePriority
+      ? []
+      : [`[${segment.start},${segment.end}) expected ${source?.priority ?? "one source item"}, got ${segment.sourcePriority}`];
+  });
+  const rootCauseClosed = missingSourceBoundaries.length === 0 && priorityMismatches.length === 0;
   return {
     sourcePriorityItems: sourceItems,
     currentSegments,
     missingSourceBoundaries,
-    rootCausePresent: targetItem?.priority === "emoji"
-      && missingSourceBoundaries.includes(target)
-      && missingSourceBoundaries.includes(target + EMOJI_OWNERSHIP_TARGET.length),
+    priorityMismatches,
+    rootCausePresent: !rootCauseClosed,
+    rootCauseClosed,
   };
 }
 
@@ -184,8 +119,8 @@ export const EMOJI_OWNERSHIP_ROUTE_CASES: readonly RouteCase[] = [
   { id: "fixture-order", text: EMOJI_OWNERSHIP_FIXTURE, target: EMOJI_OWNERSHIP_TARGET },
   { id: "text-before-emoji", text: "✗ ❗", target: EMOJI_OWNERSHIP_TARGET },
   { id: "emoji-before-text", text: "❗ ✗", target: EMOJI_OWNERSHIP_TARGET },
-  { id: "explicit-vs16", text: "✗ ❗\ufe0f", target: "❗\ufe0f" },
-  { id: "explicit-vs15", text: "✗ ❗\ufe0e", target: "❗\ufe0e" },
+  { id: "explicit-vs16", text: "✗ ❗\ufe0f", target: "❗\ufe0f", fontVariantEmoji: "text" },
+  { id: "explicit-vs15", text: "✗ ❗\ufe0e", target: "❗\ufe0e", fontVariantEmoji: "emoji" },
   { id: "text-negative", text: "✗", target: "✗" },
   { id: "css-text-negative", text: "❗", target: "❗", fontVariantEmoji: "text" },
   { id: "declared-face-precedes-priority", text: "❗", target: "❗", fontFamily: "FreeSans" },
@@ -255,9 +190,10 @@ function sha256File(file: string | undefined): string | null {
 }
 
 export interface EmojiOwnershipAuditReport {
-  schemaVersion: 1;
-  ticket: "DM-2502";
-  verdict: "confirmed-missing-symbols-item-boundary" | "source-gap-confirmed-native-inapplicable" | "discriminator-failed";
+  schemaVersion: 2;
+  ticket: "DM-2507";
+  originTicket: "DM-2502";
+  verdict: "resolved-symbols-item-boundary" | "source-boundary-resolved-native-inapplicable" | "discriminator-failed";
   sourcePins: typeof EMOJI_OWNERSHIP_SOURCE_PINS;
   environment: {
     platform: NodeJS.Platform;
@@ -279,7 +215,7 @@ export function buildEmojiOwnershipAudit(options: { requireLinuxArm64?: boolean 
   const structural = structuralOwnershipEvidence();
   const nativeApplicable = process.platform === "linux" && process.arch === "arm64";
   if (options.requireLinuxArm64 && !nativeApplicable) {
-    throw new Error(`DM-2502 native audit requires linux/arm64, got ${process.platform}/${process.arch}`);
+    throw new Error(`DM-2507 native audit requires linux/arm64, got ${process.platform}/${process.arch}`);
   }
   const glyphHelperAvailable = isGlyphHelperAvailable();
   const icuHelperAvailable = isIcuHelperAvailable();
@@ -300,9 +236,13 @@ export function buildEmojiOwnershipAudit(options: { requireLinuxArm64?: boolean 
     const route = byId.get(id);
     return `${route?.targetFontKey ?? ""}|${route?.targetPostscriptName ?? ""}`.toLowerCase().includes("emoji");
   };
+  const isFreeSans = (id: string): boolean => {
+    const route = byId.get(id);
+    return `${route?.targetFontKey ?? ""}|${route?.targetPostscriptName ?? ""}`.includes("FreeSans");
+  };
   const checks = {
     sourceMarksU2757EmojiPresentation: u2757.emoji && u2757.emojiPresentation,
-    currentItemizerMissesBothU2757Boundaries: structural.rootCausePresent,
+    currentItemizerCarriesExactSourcePriorities: structural.rootCauseClosed,
     nativeEnvironmentExact: !nativeApplicable || (
       glyphHelperAvailable
       && icuHelperAvailable
@@ -310,35 +250,62 @@ export function buildEmojiOwnershipAudit(options: { requireLinuxArm64?: boolean 
       && icuHelperSha256 === EMOJI_OWNERSHIP_HELPER_DIGESTS.icuExecutable
       && icuDataSha256 === EMOJI_OWNERSHIP_HELPER_DIGESTS.icuData
     ),
-    fixtureReproducesFreeSansOutline: !nativeApplicable || (
-      (byId.get("fixture-order")?.targetPostscriptName ?? "").includes("FreeSans")
-      && !isRaster("fixture-order")
-      && byId.get("fixture-order")?.priorityAsked === 0
+    fixturePromotesU2757ToEmojiBitmap: !nativeApplicable || (
+      isRaster("fixture-order")
+      && isEmojiFace("fixture-order")
+      && byId.get("fixture-order")?.routeMechanism === "priority-emoji"
+      && (byId.get("fixture-order")?.priorityAsked ?? 0) > 0
     ),
-    orderMutationActivatesEmojiPriority: !nativeApplicable || (
-      !isRaster("text-before-emoji")
+    orderMutationIsInvariant: !nativeApplicable || (
+      isRaster("text-before-emoji")
       && isRaster("emoji-before-text")
+      && isEmojiFace("text-before-emoji")
       && isEmojiFace("emoji-before-text")
+      && byId.get("text-before-emoji")?.routeMechanism === "priority-emoji"
+      && byId.get("emoji-before-text")?.routeMechanism === "priority-emoji"
+      && (byId.get("text-before-emoji")?.priorityAsked ?? 0) > 0
       && (byId.get("emoji-before-text")?.priorityAsked ?? 0) > 0
     ),
-    explicitVs16StillColor: !nativeApplicable || (isRaster("explicit-vs16") && isEmojiFace("explicit-vs16")),
-    explicitVs15StillText: !nativeApplicable || !isRaster("explicit-vs15"),
-    textSymbolNegativeStillOutline: !nativeApplicable || !isRaster("text-negative"),
-    cssTextNegativeStillOutline: !nativeApplicable || !isRaster("css-text-negative"),
+    explicitVs16BeatsCssText: !nativeApplicable || (
+      isRaster("explicit-vs16")
+      && isEmojiFace("explicit-vs16")
+      && (byId.get("explicit-vs16")?.priorityAsked ?? 0) > 0
+    ),
+    explicitVs15BeatsCssEmoji: !nativeApplicable || (
+      !isRaster("explicit-vs15")
+      && isFreeSans("explicit-vs15")
+      && (byId.get("explicit-vs15")?.priorityAsked ?? 0) > 0
+    ),
+    textSymbolNegativeStillOutline: !nativeApplicable || (
+      !isRaster("text-negative")
+      && isFreeSans("text-negative")
+      && byId.get("text-negative")?.priorityAsked === 0
+    ),
+    cssTextNegativeStillOutline: !nativeApplicable || (
+      !isRaster("css-text-negative")
+      && isFreeSans("css-text-negative")
+      && byId.get("css-text-negative")?.priorityAsked === 0
+    ),
     declaredFacePrecedesPriority: !nativeApplicable || (
       !isRaster("declared-face-precedes-priority")
-      && (byId.get("declared-face-precedes-priority")?.targetPostscriptName ?? "").includes("FreeSans")
+      && isFreeSans("declared-face-precedes-priority")
+      && byId.get("declared-face-precedes-priority")?.routeMechanism === "declared-family"
+      && byId.get("declared-face-precedes-priority")?.priorityAsked === 0
     ),
     declaredFaceCssEmojiRequeuesToColor: !nativeApplicable || (
-      isRaster("declared-face-css-emoji") && isEmojiFace("declared-face-css-emoji")
+      isRaster("declared-face-css-emoji")
+      && isEmojiFace("declared-face-css-emoji")
+      && byId.get("declared-face-css-emoji")?.routeMechanism === "priority-emoji"
+      && (byId.get("declared-face-css-emoji")?.priorityAsked ?? 0) > 0
     ),
   };
   const allChecksPass = Object.values(checks).every(Boolean);
   return {
-    schemaVersion: 1,
-    ticket: "DM-2502",
+    schemaVersion: 2,
+    ticket: "DM-2507",
+    originTicket: "DM-2502",
     verdict: allChecksPass
-      ? (nativeApplicable ? "confirmed-missing-symbols-item-boundary" : "source-gap-confirmed-native-inapplicable")
+      ? (nativeApplicable ? "resolved-symbols-item-boundary" : "source-boundary-resolved-native-inapplicable")
       : "discriminator-failed",
     sourcePins: EMOJI_OWNERSHIP_SOURCE_PINS,
     environment: {

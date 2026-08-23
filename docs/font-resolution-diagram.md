@@ -62,7 +62,7 @@ flowchart TD
 
   subgraph REN["Render time — src/render/text.ts → text-to-path.ts"]
     B0["renderTextAsPath(text, ...)<br/>(one call per text segment)"] --> B1{"currentRenderTextMode"}
-    B1 -->|"embedded-font (DEFAULT)"| B2["splitTextIntoFontRuns()<br/>→ splitTextIntoFontRunsShaped() (cluster-fallback.ts, DEFAULT)<br/>shape-then-requeue at shaped-cluster granularity (docs/113):<br/>segmentForShaping itemization → per segment, hb-shape the<br/>queued ranges with full-text context + resolved features and<br/>requeue only the .notdef clusters; resolveFontForCodepoint =<br/>kSystemFonts, asked for ChooseHintIndex once per hint.<br/>Dotted circles + canonical decomposition belong to the<br/>selected candidate shape; source text is never pre-committed.<br/>An unopenable candidate stays queued (no legacy restart).<br/>Assembly never merges across a shaping item and carries its<br/>resolved direction + ISO script on FontRun.<br/>→ harfbuzzShapedRunOverride() per assembled run<br/>(ALL runs when glyph + pinned-ICU companions validate;<br/>outlines stay with the base engine).<br/>DOMOTION_CLUSTER_FALLBACK=0 → explicit degraded legacy walk.<br/>→ layout(run.text, …, run.shapingScript, …)<br/>→ trackGlyphInEmbedFont()<br/>subset TTF + &lt;text&gt; w/ PUA cps"]
+    B1 -->|"embedded-font (DEFAULT)"| B2["splitTextIntoFontRuns()<br/>→ splitTextIntoFontRunsShaped() (cluster-fallback.ts, DEFAULT)<br/>shape-then-requeue at shaped-cluster granularity (docs/113):<br/>segmentForShaping independently computes bidi/script and<br/>SymbolsIterator source-priority ranges, intersects by min end,<br/>then per item hb-shapes queued ranges with full-text context +<br/>resolved features and requeues only .notdef clusters;<br/>font-variant-emoji applies after the source split and declared<br/>families stay before the one-shot priority face.<br/>resolveFontForCodepoint = kSystemFonts, asked for<br/>ChooseHintIndex once per hint. Dotted circles + canonical<br/>decomposition belong to the selected candidate shape; source<br/>text is never pre-committed. An unopenable candidate stays<br/>queued (no legacy restart). Assembly never merges across a<br/>shaping item and carries its resolved direction + ISO script.<br/>→ harfbuzzShapedRunOverride() per assembled run<br/>(ALL runs when glyph + pinned-ICU companions validate;<br/>outlines stay with the base engine).<br/>DOMOTION_CLUSTER_FALLBACK=0 → explicit degraded legacy walk.<br/>→ layout(run.text, …, run.shapingScript, …)<br/>→ trackGlyphInEmbedFont()<br/>subset TTF + &lt;text&gt; w/ PUA cps"]
     B1 -->|"paths"| B3["textToPathMarkup()<br/>→ splitTextIntoGlyphPathRuns()<br/>→ splitTextIntoFontRunsShaped(…, mode:'paths') (SAME splitter, DEFAULT)<br/>raster emoji follow the ordinary Chromium face/terminal;<br/>the captured image overlay owns paint only<br/>+ authored source range preserved through selected shaping<br/>+ shaping-item boundary/direction preserved like embedded mode<br/>+ harfbuzzShapedRunOverride() per assembled run (same as embedded).<br/>DOMOTION_CLUSTER_FALLBACK=0 → explicit legacy per-cp walk.<br/>→ per-glyph &lt;path&gt;/&lt;use&gt; defs<br/>(ensureGlyphDef registry)"]
     B2 --> C0
     B3 --> C0
@@ -1912,6 +1912,14 @@ Three consequences worth holding onto:
   named-but-unopenable `fontRef` instead of quietly substituting Helvetica.
 - **An emoji-presentation token gets a one-shot priority face after declared
   families and before system fallback** (DM-1884, refined by DM-2392).
+  DM-2507 makes the owner of that stage source-exact: the pinned
+  `SymbolsIterator` produces maximal text/emoji/VS ranges independently of
+  bidi/script, `segmentForShaping` intersects their endpoints without resetting
+  script state, and every intersection receives a fresh iterator. CSS
+  `font-variant-emoji` changes the effective priority only after source
+  partitioning; explicit selectors win and declared families still run first.
+  The iterator's priority is never inferred from whichever fallback hint is
+  dequeued first.
   Once the fallback iterator reaches that priority stage,
   `PlatformFallbackFontForCharacter` short-circuits at its very top
   (`mac/font_cache_mac.mm:319-324`): if the run's fallback priority is emoji

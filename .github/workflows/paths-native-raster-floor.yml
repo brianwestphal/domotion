@@ -2,11 +2,6 @@ name: Paths/native raster floor evidence
 
 on:
   workflow_dispatch:
-    inputs:
-      observation_bundle_base_url:
-        description: Base URL containing Darwin.zip, Linux.zip, and Windows.zip same-run observation bundles
-        required: true
-        type: string
 
 jobs:
   produce:
@@ -14,31 +9,57 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest, ubuntu-latest, windows-latest]
+        evidence: [proposal, validation]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - name: Check out pinned source-owned font corpus
+        uses: actions/checkout@v4
+        with:
+          repository: harfbuzz/harfbuzz
+          ref: 4de187dd0a915d13c976fa8bd474c084229f3aab
+          path: .native-raster-fonts
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            test/api/fonts/OpenSans-Regular.ttf
+            test/api/fonts/SourceSansPro-Regular.abc.otf
+            test/api/fonts/AdobeVFPrototype.abc.static.otf
+            test/api/fonts/Roboto-Variable.abc.ttf
+            test/api/fonts/TestCFF2VF.otf
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Fetch lossless same-run observations
+      - name: Install pinned Chromium with Linux system dependencies
+        if: runner.os == 'Linux'
+        run: npx playwright install --with-deps chromium
+      - name: Install pinned Chromium
+        if: runner.os != 'Linux'
+        run: npx playwright install chromium
+      - name: Collect native and paths observations
         shell: bash
-        env:
-          BASE_URL: ${{ inputs.observation_bundle_base_url }}
-          RUNNER_OS_NAME: ${{ runner.os }}
-        run: |
-          curl --fail --location --silent --show-error "$BASE_URL/$RUNNER_OS_NAME.zip" --output observations.zip
-          unzip -q observations.zip -d observations
-      - name: Validate and fingerprint producer rows
+        run: >-
+          npm run fonts:paths-raster:collect --
+          --font-root .native-raster-fonts/test/api/fonts
+          --out observations/observations.json
+          --artifact-dir observations
+          --run-label ${{ matrix.evidence }}
+      - name: Reauthenticate PNGs and recompute residuals
         shell: bash
-        run: npm run fonts:paths-raster:produce -- --observations observations/observations.json --out paths-native-raster-rows.json
+        run: >-
+          npm run fonts:paths-raster:produce --
+          --observations observations/observations.json
+          --out observations/paths-native-raster-rows.json
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: paths-native-raster-${{ runner.os }}
+          name: paths-native-raster-${{ runner.os }}-${{ matrix.evidence }}
           path: |
-            paths-native-raster-rows.json
-            observations/*.png
+            observations/paths-native-raster-rows.json
+            observations/*-native.png
+            observations/*-paths.png
           if-no-files-found: error
           compression-level: 0
 
@@ -57,7 +78,11 @@ jobs:
           pattern: paths-native-raster-*
           path: artifacts
       - name: Logical-first strict adjudication
-        run: npm run fonts:paths-raster:aggregate -- --artifacts artifacts --envelopes tools/paths-native-raster-envelopes.json --out paths-native-raster-report.json
+        run: >-
+          npm run fonts:paths-raster:aggregate --
+          --artifacts artifacts
+          --envelopes tools/paths-native-raster-envelopes.json
+          --out paths-native-raster-report.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:

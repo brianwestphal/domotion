@@ -10,7 +10,7 @@ import {
   structuralOwnershipEvidence,
 } from "../tools/emoji-presentation-ownership-audit.js";
 
-describe("DM-2502 emoji presentation ownership investigation", () => {
+describe("DM-2507 emoji presentation ownership closure", () => {
   it("pins the exact Chromium/HarfBuzz/Skia/ICU source handoff", () => {
     expect(EMOJI_OWNERSHIP_SOURCE_PINS).toEqual({
       chromium: "7d859f271cbda744098ac69f44978d4edfa62be3",
@@ -34,13 +34,17 @@ describe("DM-2502 emoji presentation ownership investigation", () => {
     ]);
   });
 
-  it("proves the current script-only itemizer omits both U+2757 boundaries", () => {
+  it("proves the itemizer intersects Blink's source-priority boundaries", () => {
     const evidence = structuralOwnershipEvidence();
     expect(evidence.currentSegments).toEqual([
-      { start: 0, end: 52, script: "Latin", rtl: false },
+      { start: 0, end: 43, script: "Latin", rtl: false, sourcePriority: "text" },
+      { start: 43, end: 44, script: "Latin", rtl: false, sourcePriority: "emoji" },
+      { start: 44, end: 52, script: "Latin", rtl: false, sourcePriority: "text" },
     ]);
-    expect(evidence.missingSourceBoundaries).toEqual([43, 44]);
-    expect(evidence.rootCausePresent).toBe(true);
+    expect(evidence.missingSourceBoundaries).toEqual([]);
+    expect(evidence.priorityMismatches).toEqual([]);
+    expect(evidence.rootCausePresent).toBe(false);
+    expect(evidence.rootCauseClosed).toBe(true);
   });
 
   it("retains source VS15/VS16 states and order/declared-family controls", () => {
@@ -61,17 +65,23 @@ describe("DM-2502 emoji presentation ownership investigation", () => {
       "declared-face-precedes-priority",
       "declared-face-css-emoji",
     ]);
+    expect(EMOJI_OWNERSHIP_ROUTE_CASES.find((row) => row.id === "explicit-vs16")?.fontVariantEmoji).toBe("text");
+    expect(EMOJI_OWNERSHIP_ROUTE_CASES.find((row) => row.id === "explicit-vs15")?.fontVariantEmoji).toBe("emoji");
   });
 
-  it("reports the source gap without pretending a non-arm64 host is native proof", () => {
+  it("reports source closure without pretending a non-arm64 host is native proof", () => {
     const report = buildEmojiOwnershipAudit();
-    expect(report.structural.rootCausePresent).toBe(true);
+    expect(report.schemaVersion).toBe(2);
+    expect(report.ticket).toBe("DM-2507");
+    expect(report.originTicket).toBe("DM-2502");
+    expect(report.structural.rootCauseClosed).toBe(true);
     expect(report.checks.sourceMarksU2757EmojiPresentation).toBe(true);
+    expect(report.checks.currentItemizerCarriesExactSourcePriorities).toBe(true);
     if (process.platform === "linux" && process.arch === "arm64") {
-      expect(report.verdict).toBe("confirmed-missing-symbols-item-boundary");
+      expect(report.verdict).toBe("resolved-symbols-item-boundary");
       expect(report.routes).toHaveLength(EMOJI_OWNERSHIP_ROUTE_CASES.length);
     } else {
-      expect(report.verdict).toBe("source-gap-confirmed-native-inapplicable");
+      expect(report.verdict).toBe("source-boundary-resolved-native-inapplicable");
       expect(report.routes).toEqual([]);
     }
   });

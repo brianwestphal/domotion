@@ -38,11 +38,11 @@
  *    `SymbolsIterator` (`shaping/run_segmenter.h:24-26`), so a segment is a
  *    maximal span of one script × one orientation × one fallback priority.
  *
- * We mirror both: split on a change of bidi embedding level OR of script.
- * Orientation is horizontal-only here (vertical text takes the raster path —
- * see the raster-fallback index), and font-fallback-priority is already handled
- * upstream by per-codepoint font resolution, which is what produces the runs fed
- * to this function.
+ * We mirror the horizontal subset: compute maximal bidi/script ranges and
+ * maximal SymbolsIterator source-priority ranges independently, then intersect
+ * them exactly as RunSegmenter takes the minimum iterator limit. Orientation is
+ * horizontal-only here (vertical text takes the raster path — see the
+ * raster-fallback index).
  *
  * ## Common, Inherited, and Script_Extensions
  *
@@ -103,6 +103,7 @@
  */
 import bidiFactory from "bidi-js";
 import { getScript } from "unicode-properties";
+import { sourcePriorityItems, type SourceFallbackPriority } from "./emoji-presentation-priority.js";
 import { SCRIPT_EXTENSIONS_RANGES, type ScriptExtensionsRange } from "./script-extensions.generated.js";
 
 const _bidi = bidiFactory();
@@ -315,6 +316,8 @@ export interface ShapingSegment {
   script: string;
   /** Whether this segment shapes right-to-left (odd bidi embedding level). */
   rtl: boolean;
+  /** SymbolsIterator source state before CSS font-variant-emoji is applied. */
+  sourcePriority: SourceFallbackPriority;
 }
 
 /**
@@ -419,10 +422,13 @@ function resolveSegmentScript(openSet: ScriptSet, preferred?: string): string {
  * Always returns at least one segment for non-empty text, so callers can shape
  * unconditionally rather than special-casing.
  */
-export function segmentForShaping(text: string, levels?: ArrayLike<number>): ShapingSegment[] {
+type ScriptSegment = Omit<ShapingSegment, "sourcePriority">;
+
+/** Compute only Blink's independent bidi/script iterator ranges. */
+function scriptSegmentsForShaping(text: string, levels?: ArrayLike<number>): ScriptSegment[] {
   if (text.length === 0) return [];
 
-  const segments: ShapingSegment[] = [];
+  const segments: ScriptSegment[] = [];
   let segStart = 0;
   // The run's accumulated script constraint — the wildcard sentinel while the
   // segment has seen only neutrals (plain Common/Inherited, or a Common
@@ -469,6 +475,39 @@ export function segmentForShaping(text: string, levels?: ArrayLike<number>): Sha
   return segments;
 }
 
+export function segmentForShaping(text: string, levels?: ArrayLike<number>): ShapingSegment[] {
+  if (text.length === 0) return [];
+  const scriptSegments = scriptSegmentsForShaping(text, levels);
+  const priorityItems = sourcePriorityItems(text);
+  const segments: ShapingSegment[] = [];
+  let scriptIndex = 0;
+  let priorityIndex = 0;
+
+  // RunSegmenter advances ScriptRunIterator and SymbolsIterator independently,
+  // then emits the range ending at the lesser limit (run_segmenter.cc:48-69).
+  // Intersect complete ranges instead of resetting script state at an emoji
+  // boundary: a Common emoji inside a Latin script run must inherit Latin.
+  while (scriptIndex < scriptSegments.length && priorityIndex < priorityItems.length) {
+    const script = scriptSegments[scriptIndex];
+    const priority = priorityItems[priorityIndex];
+    const start = Math.max(script.start, priority.start);
+    const end = Math.min(script.end, priority.end);
+    if (start < end) {
+      segments.push({
+        start,
+        end,
+        script: script.script,
+        rtl: script.rtl,
+        sourcePriority: priority.priority,
+      });
+    }
+    if (script.end === end) scriptIndex++;
+    if (priority.end === end) priorityIndex++;
+  }
+
+  return segments;
+}
+
 /**
  * True when `text` needs more than one shaping call.
  *
@@ -486,6 +525,9 @@ export function segmentForShaping(text: string, levels?: ArrayLike<number>): Sha
  * the old broken behavior for exactly the case this module now fixes.
  */
 export function needsSegmentation(text: string, levels?: ArrayLike<number>): boolean {
+  // The 8-bit fast path remains valid: SymbolsIterator has no non-text source
+  // token in Latin-1, and Blink bypasses RunSegmenter for these strings.
+  if (sourcePriorityItems(text).length > 1) return true;
   const level0 = levels?.[0] ?? 0;
   let openSet: ScriptSet = ANY_SCRIPT;
   for (let i = 0; i < text.length;) {

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt5a1f997pbjxdw7",
+          "message": {
+            "text": "Expanded macOS arm64 DPR1 evidence is 174/174 logically exact, with zero warnings and zero inert raster pairs. The collector now observes the selected webfont bytes and requested axes, source-outline identities, CDP custom-font ownership, and renderer-emitted baseline/matrix/synthetic paint plan; the strict gate returns only envelope-unratified. DPR2 and both three-OS proposal/validation jobs remain intentionally unclaimed.",
+            "markdown": "Expanded macOS arm64 DPR1 evidence is 174/174 logically exact, with zero warnings and zero inert raster pairs. The collector now observes the selected webfont bytes and requested axes, source-outline identities, CDP custom-font ownership, and renderer-emitted baseline/matrix/synthetic paint plan; the strict gate returns only envelope-unratified. DPR2 and both three-OS proposal/validation jobs remain intentionally unclaimed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/paths-native-raster-collector.ts"
+                },
+                "region": {
+                  "startLine": 174,
+                  "endLine": 243,
+                  "snippet": {
+                    "text": "    const variation = cssVariation(cell.variationAxes);\n    const group = matrixAttribute(cell.matrix);\n    const nativeSvg = `<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"${VIEWPORT.width}\" height=\"${VIEWPORT.height}\" viewBox=\"0 0 ${VIEWPORT.width} ${VIEWPORT.height}\"><rect width=\"100%\" height=\"100%\" fill=\"#fff\"/><g transform=\"${group}\"><text id=\"native\" x=\"${ORIGIN_X}\" y=\"${BASELINE_Y}\" fill=\"#000\" style=\"font-family:'${family}';font-size:${cell.dimensions.fontSizePx}px;font-weight:${cell.dimensions.weight};font-style:normal;font-variation-settings:${variation};font-kerning:normal\">${html(loaded.fixture.text)}</text></g></svg>`;\n    const native = await rasterize(page, nativeSvg, family, loaded);\n    const painted = await paintedPostscriptName(page);\n\n    clearWebfonts(); clearGlyphDefs(); resetTextRunProvenance();\n    registerWebfont(family, 400, \"normal\", loaded.bytes, undefined, undefined,\n      loaded.fixture.technology.startsWith(\"variable-\") ? \"100 900\" : \"400\", \"normal\");\n    setRenderTextMode(\"paths\"); setTextRunProvenanceEnabled(true);\n    const ascent = loaded.ascent * cell.dimensions.fontSizePx / loaded.unitsPerEm;\n    const pathsMarkup = renderTextAsPath(loaded.fixture.text, ORIGIN_X, BASELINE_Y - ascent, {\n      fontSize: cell.dimensions.fontSizePx,\n      fontFamily: family,\n      fontWeight: String(cell.dimensions.weight),\n      fontStyle: \"normal\",\n      variationSettings: cell.variationAxes,\n      ascentOverride: ascent,\n      fill: \"#000\",\n      lang: \"en\",\n    });\n    const actual = actualGlyphs(cell);\n    const defs = getGlyphDefs();\n    const pathsSvg = `<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"${VIEWPORT.width}\" height=\"${VIEWPORT.height}\" viewBox=\"0 0 ${VIEWPORT.width} ${VIEWPORT.height}\"><rect width=\"100%\" height=\"100%\" fill=\"#fff\"/><defs>${defs}</defs><g transform=\"${group}\">${pathsMarkup}</g></svg>`;\n    const paths = await rasterize(page, pathsSvg, family, loaded);\n    const residual = await measurePathsRasterResidual(native, paths);\n    const nativePath = artifactPath(observationRoot, artifactDir, `${cell.id}-native.png`);\n    const pathsPath = artifactPath(observationRoot, artifactDir, `${cell.id}-paths.png`);\n    writeFileSync(nativePath.absolute, native); writeFileSync(pathsPath.absolute, paths);\n\n    const expected = expectedGlyphs(loaded, cell);\n    const warnings = [...actual.warnings];\n    if (painted.glyphCount !== expected.length) warnings.push(`painted glyph count ${painted.glyphCount} != HarfBuzz ${expected.length}`);\n    if (actual.postscriptName === \"\") warnings.push(\"production path run omitted PostScript identity\");\n    // Blink gives some variable instances a generated PostScript suffix whose\n    // encoded coordinates are already represented exactly by variationAxes.\n    // The logical face name stays the source face's PostScript name; require\n    // the painted name to be that name or a Blink-generated instance of it.\n    const paintedIdentity = logicalPaintedPostscriptName(loaded.postscriptName, painted.postscriptName);\n    const logicalPostscript = paintedIdentity.logical;\n    if (!paintedIdentity.sourceMatch) {\n      warnings.push(`painted PostScript ${painted.postscriptName} is not source face ${logicalPostscript}`);\n    }\n    const actualPostscript = actual.postscriptName || logicalPostscript;\n    return {\n      id: cell.id,\n      fingerprint,\n      dimensions: cell.dimensions,\n      expectedLogical: {\n        postscriptName: logicalPostscript,\n        sourceSha256: loaded.sha256,\n        faceIndex: 0,\n        variationAxes: cell.variationAxes,\n        glyphs: expected,\n        baseline: BASELINE_Y,\n        matrix: cell.matrix,\n      },\n      actualLogical: {\n        postscriptName: actualPostscript,\n        sourceSha256: loaded.sha256,\n        faceIndex: 0,\n        variationAxes: cell.variationAxes,\n        glyphs: actual.glyphs,\n        baseline: actual.baseline,\n        matrix: cell.matrix,\n      },\n      residual,\n      nativeArtifact: { path: nativePath.relative, sha256: sha256(native), width: VIEWPORT.width * cell.dimensions.deviceScaleFactor, height: VIEWPORT.height * cell.dimensions.deviceScaleFactor },\n      pathsArtifact: { path: pathsPath.relative, sha256: sha256(paths), width: VIEWPORT.width * cell.dimensions.deviceScaleFactor, height: VIEWPORT.height * cell.dimensions.deviceScaleFactor },\n      warnings,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 100,
+          "workItemUris": [
+            "DM-2499"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "a38ba126e0b6e50178082061ef244d40"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2b1bf3ebe3efea427ad57b4346de9074c95b653a",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

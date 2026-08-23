@@ -571,4 +571,12 @@ Measured in the Playwright `noble` image, with and without the substitution:
 
 `⌚ → FreeSerif` is exactly the failure the FIXME describes. The two bottom rows are the control: non-emoji queries are untouched, and U+2600 still varies with the locale, so the locale substitution is scoped to emoji rather than applied globally.
 
-The predicate is `isEmojiPresentationCp` — `Emoji_Presentation` minus `Emoji_Modifier`, from Unicode properties rather than a hand-listed range set. It is the closest a per-codepoint resolver can come to Blink's `IsEmojiPresentationEmoji`, which is a property of the segmented **run** (`kEmojiEmoji | kEmojiEmojiWithVS`): a text-presentation codepoint followed by U+FE0F is emoji-presentation for Blink and is not here.
+`isEmojiPresentationCp` — `Emoji_Presentation` minus `Emoji_Modifier`, from
+Unicode properties rather than a hand-listed range set — remains the
+per-codepoint resolver predicate. Production shaped fallback no longer asks it
+to own the item boundary: DM-2507's pinned `SymbolsIterator` port creates
+maximal `text` / `emoji` / explicit-VS source items, intersects them with
+bidi/script ranges, then calls the platform priority route for that complete
+item. This is what represents Blink's `kEmojiEmoji | kEmojiEmojiWithVS`,
+including a text-default base followed by U+FE0F; see
+[doc 201](201-emoji-presentation-item-ownership.md).

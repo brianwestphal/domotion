@@ -5,7 +5,7 @@
     {
       "tool": {
         "driver": {
-          "name": "Codex DM-2502 investigator",
+          "name": "Codex /root/dm2452_sfns_oracle",
           "rules": [
             {
               "id": "review-note",
@@ -23,10 +23,10 @@
           "ruleIndex": 0,
           "kind": "informational",
           "level": "none",
-          "guid": "mt58vcm4yl26721k",
+          "guid": "mt59qtz3czor2en7",
           "message": {
-            "text": "The source-owned partition proves the defect is missing itemization, not raster noise. Pinned Blink splits the 52-code-unit line at 43 and 44 around emoji-presentation U+2757; Domotion's current bidi/script item remains 0-52. The native arm64 route matrix then reproduces the order-sensitive FreeSans-versus-Noto ownership change while keeping VS15, VS16, CSS, and declared-family controls fixed.",
-            "markdown": "The source-owned partition proves the defect is missing itemization, not raster noise. Pinned Blink splits the 52-code-unit line at 43 and 44 around emoji-presentation U+2757; Domotion's current bidi/script item remains 0-52. The native arm64 route matrix then reproduces the order-sensitive FreeSans-versus-Noto ownership change while keeping VS15, VS16, CSS, and declared-family controls fixed."
+            "text": "The authenticated Linux arm64 closure matrix passed all eleven checks, and the unchanged 02-text-emoji fixture passed with zero significant regions. Both symbol orders select Noto Color Emoji bitmap ownership; opposite-CSS VS15/VS16, CSS-text, text-symbol, and declared-family controls remain exact, with no tolerance change.",
+            "markdown": "The authenticated Linux arm64 closure matrix passed all eleven checks, and the unchanged 02-text-emoji fixture passed with zero significant regions. Both symbol orders select Noto Color Emoji bitmap ownership; opposite-CSS VS15/VS16, CSS-text, text-symbol, and declared-family controls remain exact, with no tolerance change."
           },
           "locations": [
             {
@@ -35,10 +35,10 @@
                   "uri": "tools/emoji-presentation-ownership-audit.ts"
                 },
                 "region": {
-                  "startLine": 137,
-                  "endLine": 154,
+                  "startLine": 253,
+                  "endLine": 301,
                   "snippet": {
-                    "text": "export function structuralOwnershipEvidence(text = EMOJI_OWNERSHIP_FIXTURE): StructuralOwnershipEvidence {\n  const sourceItems = sourcePriorityItems(text);\n  const currentSegments = segmentForShaping(text, bidiLevelsFor(text));\n  const currentBoundaries = new Set(currentSegments.flatMap((segment) => [segment.start, segment.end]));\n  const missingSourceBoundaries = sourceItems\n    .flatMap((item) => [item.start, item.end])\n    .filter((boundary, index, all) => boundary > 0 && boundary < text.length\n      && all.indexOf(boundary) === index && !currentBoundaries.has(boundary));\n  const target = text.indexOf(EMOJI_OWNERSHIP_TARGET);\n  const targetItem = sourceItems.find((item) => item.start === target);\n  return {\n    sourcePriorityItems: sourceItems,\n    currentSegments,\n    missingSourceBoundaries,\n    rootCausePresent: targetItem?.priority === \"emoji\"\n      && missingSourceBoundaries.includes(target)\n      && missingSourceBoundaries.includes(target + EMOJI_OWNERSHIP_TARGET.length),\n  };"
+                    "text": "    fixturePromotesU2757ToEmojiBitmap: !nativeApplicable || (\n      isRaster(\"fixture-order\")\n      && isEmojiFace(\"fixture-order\")\n      && byId.get(\"fixture-order\")?.routeMechanism === \"priority-emoji\"\n      && (byId.get(\"fixture-order\")?.priorityAsked ?? 0) > 0\n    ),\n    orderMutationIsInvariant: !nativeApplicable || (\n      isRaster(\"text-before-emoji\")\n      && isRaster(\"emoji-before-text\")\n      && isEmojiFace(\"text-before-emoji\")\n      && isEmojiFace(\"emoji-before-text\")\n      && byId.get(\"text-before-emoji\")?.routeMechanism === \"priority-emoji\"\n      && byId.get(\"emoji-before-text\")?.routeMechanism === \"priority-emoji\"\n      && (byId.get(\"text-before-emoji\")?.priorityAsked ?? 0) > 0\n      && (byId.get(\"emoji-before-text\")?.priorityAsked ?? 0) > 0\n    ),\n    explicitVs16BeatsCssText: !nativeApplicable || (\n      isRaster(\"explicit-vs16\")\n      && isEmojiFace(\"explicit-vs16\")\n      && (byId.get(\"explicit-vs16\")?.priorityAsked ?? 0) > 0\n    ),\n    explicitVs15BeatsCssEmoji: !nativeApplicable || (\n      !isRaster(\"explicit-vs15\")\n      && isFreeSans(\"explicit-vs15\")\n      && (byId.get(\"explicit-vs15\")?.priorityAsked ?? 0) > 0\n    ),\n    textSymbolNegativeStillOutline: !nativeApplicable || (\n      !isRaster(\"text-negative\")\n      && isFreeSans(\"text-negative\")\n      && byId.get(\"text-negative\")?.priorityAsked === 0\n    ),\n    cssTextNegativeStillOutline: !nativeApplicable || (\n      !isRaster(\"css-text-negative\")\n      && isFreeSans(\"css-text-negative\")\n      && byId.get(\"css-text-negative\")?.priorityAsked === 0\n    ),\n    declaredFacePrecedesPriority: !nativeApplicable || (\n      !isRaster(\"declared-face-precedes-priority\")\n      && isFreeSans(\"declared-face-precedes-priority\")\n      && byId.get(\"declared-face-precedes-priority\")?.routeMechanism === \"declared-family\"\n      && byId.get(\"declared-face-precedes-priority\")?.priorityAsked === 0\n    ),\n    declaredFaceCssEmojiRequeuesToColor: !nativeApplicable || (\n      isRaster(\"declared-face-css-emoji\")\n      && isEmojiFace(\"declared-face-css-emoji\")\n      && byId.get(\"declared-face-css-emoji\")?.routeMechanism === \"priority-emoji\"\n      && (byId.get(\"declared-face-css-emoji\")?.priorityAsked ?? 0) > 0\n    ),\n  };"
                   }
                 }
               }
@@ -46,7 +46,7 @@
           ],
           "properties": {
             "tags": [
-              "proof"
+              "test-evidence"
             ],
             "ext-ai-tool-confidence": 1
           },
@@ -55,10 +55,10 @@
               "id": 0,
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "src/render/script-segmentation.ts"
+                  "uri": "tests/emoji-presentation-ownership-audit.test.ts"
                 },
                 "region": {
-                  "startLine": 422
+                  "startLine": 37
                 }
               }
             },
@@ -66,27 +66,27 @@
               "id": 1,
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "src/render/cluster-fallback.ts"
+                  "uri": "docs/201-emoji-presentation-item-ownership.md"
                 },
                 "region": {
-                  "startLine": 559
+                  "startLine": 69
                 }
               }
             }
           ],
-          "rank": 95,
+          "rank": 98,
           "workItemUris": [
-            "DM-2502"
+            "DM-2507"
           ],
           "partialFingerprints": {
-            "prNoteAnchor/v1": "842036c2a74e63256bc30a3296f9733f"
+            "prNoteAnchor/v1": "4d9c3ee2ed1750e9ed7c847292b7ceef"
           }
         }
       ],
       "versionControlProvenance": [
         {
           "repositoryUri": "git@github.com:brianwestphal/domotion.git",
-          "revisionId": "c547fb040878997a6c3e41bdc791589d91951501",
+          "revisionId": "2b1bf3ebe3efea427ad57b4346de9074c95b653a",
           "branch": "main"
         }
       ]

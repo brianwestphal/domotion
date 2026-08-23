@@ -6,7 +6,19 @@ describe("paths/native raster workflow", () => {
   it("produces lossless evidence on all three native runner OSes", () => {
     expect(workflow).toContain("macos-latest, ubuntu-latest, windows-latest");
     expect(workflow).toContain("compression-level: 0");
+    expect(workflow).toContain("fonts:paths-raster:collect");
     expect(workflow).toContain("fonts:paths-raster:produce");
+    expect(workflow).toContain("evidence: [proposal, validation]");
+    expect(workflow).toContain("--run-label ${{ matrix.evidence }}");
+    expect(workflow).toContain("npx playwright install --with-deps chromium");
+    expect(workflow).not.toContain("observation_bundle_base_url");
+  });
+  it("acquires the exact source-owned corpus instead of downloading preauthored observations", () => {
+    expect(workflow).toContain("repository: harfbuzz/harfbuzz");
+    expect(workflow).toContain("ref: 4de187dd0a915d13c976fa8bd474c084229f3aab");
+    expect(workflow).toContain("OpenSans-Regular.ttf");
+    expect(workflow).toContain("TestCFF2VF.otf");
+    expect(workflow).toContain("Reauthenticate PNGs and recompute residuals");
   });
   it("aggregates only after every producer and uses the reviewed envelope file", () => {
     expect(workflow).toMatch(/adjudicate:\n\s+needs: produce/);

@@ -60,25 +60,33 @@ expected logical arrays and only `xAdvance` movement. Invalid, inert, or
 unexpected fixture rows withhold independently; pixels and raster thresholds
 remain outside this gate.
 
-DM-2502/doc 201 classifies the same run's lone significant HTML residual as a
-logical shaping-item ownership defect. Blink intersects `SymbolsIterator`
-source-priority ranges with bidi/script ranges before creating a fallback
-iterator; Domotion currently creates only bidi/script items and derives emoji
-priority later from a queued hint. In `✗ ❗`, FreeSans selected for the first
-text-priority miss therefore covers bare U+2757 before an emoji-priority lookup,
-while reversing the symbols reaches Noto Color Emoji. Exact VS15/VS16,
-`font-variant-emoji`, declared-family, ICU-property, selected-glyph, and healthy
-raster controls rule out classification and paint. The investigation gate has
-no pixel threshold; DM-2507 owns source-priority itemization and DM-2508 owns
-arm64 aggregate promotion.
+DM-2502/doc 201 classified the same run's lone significant HTML residual as a
+logical shaping-item ownership defect; DM-2507 closes it. Domotion now computes
+Blink's maximal `SymbolsIterator` source-priority ranges independently of
+bidi/script and intersects both streams before fallback allocation. CSS applies
+after that split, explicit selectors win, declared-family faces retain
+precedence, and priority no longer comes from a queued hint. Both `✗ ❗` and
+`❗ ✗` route bare U+2757 to Noto Color Emoji, opposite-CSS VS15/VS16 and text
+negatives remain exact, and `02-text-emoji` is clean. The gate has no pixel
+threshold; DM-2508 owns arm64 aggregate promotion only.
 
 Doc 197 defines the paths-mode native-raster floor as an evidence/ratification
-matrix, not a percentage exception. Every row must first match exact face bytes,
-face index/axes, gid/cluster/advance/offset stream, baseline, and affine matrix.
-Only then may a reviewed envelope keyed by the complete platform fingerprint,
-font technology, size, weight, subpixel phase, transform, and DPR classify the
-residual as rasterization-only. The committed envelopes remain unratified, so
-the three-OS aggregate withholds and existing scalar harness caps stay intact.
+matrix, not a percentage exception. Its self-contained collector uses six
+SHA-pinned source-owned faces, all five transform classes, every quarter-pixel
+phase, and DPR 1/2 for 348 declared cells per run. One-glyph-per-scalar samples
+disable substitutions so sfnt tables—not an unobservable browser-HarfBuzz
+claim—own expected logical facts. Every row must first match exact custom face
+bytes, face index/axes, gid/cluster/advance/offset/source-outline stream, and
+renderer-emitted baseline/matrix/synthetic paint plan.
+The producer and aggregate reopen the lossless PNGs and recompute hashes and
+residuals; supplied metrics and external observation bundles are not trusted.
+Only then may a reviewed envelope keyed by the authenticated browser/toolchain
+fingerprint and canonical cell hash classify the residual as rasterization-
+only. Proposal and independent validation runs must both be reviewed and the
+second must stay inside the first maxima. Local macOS arm64 DPR1 is 174/174
+logically exact with active raster arms; the committed envelopes remain
+unratified until DPR2 and the two-run three-OS review, so the aggregate
+withholds and scalar harness caps stay intact.
 
 The doc-116 text-layout stage is an exact CI gate: a declarative multi-valued
 covering array proves every pair across Blink's bidi, writing, wrapping,
@@ -388,11 +396,11 @@ they describe (see `CLAUDE.md` "Documentation"):
   system-stage decisions on macOS and 0 of 780k on Linux. The existing
   unicode-grid sweeps are one-codepoint-per-cell and structurally cannot grade
   this mechanism (gating corpus tracked separately).
-  DM-2502 narrows that shipped claim: bidi/script boundaries are preserved, but
-  Blink's independent source-presentation boundary is not yet represented.
-  `tools/emoji-presentation-ownership-audit.ts` makes the missing mixed-symbol
-  transition explicit and leaves the family/selector/raster negatives exact;
-  production closure is tracked by DM-2507 and release activation by DM-2508.
+  DM-2502 found one omitted independent source-presentation boundary; DM-2507
+  closes it with Blink's min-end intersection and per-intersection iterator.
+  `tools/emoji-presentation-ownership-audit.ts` now requires order-invariant
+  color ownership while leaving family, selector, CSS, and raster negatives
+  exact. DM-2508 tracks release activation, not a renderer ownership gap.
 - **Doc 112 (`docs/112-decoration-geometry-oracle.md`, DM-2009)** —
   **Shipped.** `tools/decoration-oracle.ts` (`npm run decorations:oracle`)
   grades text-decoration GEOMETRY against Chrome's paint and Blink's

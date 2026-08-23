@@ -131,6 +131,7 @@
     "broken-image:hybrid-e2e": "vitest run --config vitest.e2e.config.ts src/capture/broken-image-fallback.e2e.test.ts tests/broken-image-fallback-render.e2e.test.ts",
     "broken-image:parity-gate": "tsx tools/broken-image-fallback-oracle.ts",
     "fonts:macos-terminal-raster": "tsx tools/macos-terminal-raster-oracle.ts",
+    "fonts:paths-raster:collect": "tsx tools/paths-native-raster-collector.ts",
     "fonts:paths-raster:produce": "tsx tools/paths-native-raster-producer.ts",
     "fonts:paths-raster:adjudicate": "tsx tools/paths-native-raster-gate.ts",
     "fonts:paths-raster:aggregate": "tsx tools/paths-native-raster-aggregate.ts",

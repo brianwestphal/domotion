@@ -51,6 +51,17 @@ quarter-pixel origins cross Chromium, direct CoreText mask, pinned-Skia
 CoreText path, and production Domotion path arms, while baseline/typographic
 metrics and cold/warm evidence remain separate. It authorizes no renderer or
 tolerance change.
+`tools/paths-native-raster-collector.ts` and
+`tools/paths-native-raster-corpus.ts` own doc 197's terminal raster evidence:
+six SHA-pinned outline technologies, a declared 348-cell source-table-owned
+matrix per run, native SVG text and production path SVG in one authenticated
+Chromium binary, and exact custom-face/source/axes/gid/advance/outline/emitted-
+placement/paint-plan agreement before pixels. The producer and aggregate
+reauthenticate real-path-confined PNG bytes through
+`paths-native-raster-metrics.ts`; the workflow collects independent proposal
+and validation runs on macOS/Linux/Windows without an external bundle.
+Envelopes remain a separate four-artifact human review with exact cell hashes,
+never a percentage cap.
 
 The same orientation lives in `CLAUDE.md` "Code Organization" but the
 shortest possible map:
@@ -147,8 +158,8 @@ shortest possible map:
   current font, requeue only the `.notdef` clusters — and is the DEFAULT run
   splitter for BOTH render modes (`splitTextIntoFontRuns` for the embedded-font
   pipeline; `splitTextIntoGlyphPathRuns` invokes it in "paths" mode for the
-  glyph-path emitter, preserving every currently materialized bidi/script
-  shaping-item boundary and
+  glyph-path emitter, preserving every materialized bidi/script × source-
+  priority shaping-item boundary and
   its resolved direction plus ISO 15924 script (`FontRun.shapingDirection` /
   `FontRun.shapingScript`), while raster emoji use the same Chromium terminal
   as embedded mode. Dotted-circle insertion and canonical decomposition remain
@@ -167,14 +178,15 @@ shortest possible map:
   `text.ts` suppresses exactly the returned UTF-16 span. See
   `docs/145-renderer-owned-color-glyph-boundary.md`; no codepoint/block/font-name
   allowlist or canvas-color probe participates.
-  DM-2502/doc 201 records one explicit upstream exception: the itemizer does
-  not yet intersect Blink's source-priority `SymbolsIterator` ranges with the
-  bidi/script ranges. A preceding text-priority miss can therefore lend its
-  outline face to a following emoji-presentation scalar before the otherwise
-  exact selected-glyph raster boundary runs. The strict native arm64 ownership
-  audit pins order, VS15/VS16, CSS, family, ICU, and representation controls;
-  DM-2507 owns the production fix and DM-2508 owns aggregate promotion, with no
-  pixel-tolerance change.
+  DM-2502/doc 201 identified an upstream exception; DM-2507 closes it.
+  `emoji-presentation-priority.ts` produces Blink's maximal source-priority
+  ranges, `script-segmentation.ts` intersects them with independently resolved
+  bidi/script ranges by their next endpoint, and `cluster-fallback.ts` creates
+  a fresh iterator per intersection. CSS applies afterward, selectors win,
+  declared families retain precedence, and queued hints no longer own priority.
+  The strict native arm64 order/VS/CSS/family/ICU/representation matrix and
+  clean `02-text-emoji` fixture prove closure; DM-2508 owns aggregate promotion,
+  with no pixel-tolerance change.
   `script-iso15924.generated.ts` maps UCD script names to the ISO 15924 tags
   passed to `hb_buffer_set_script` (derived from HarfBuzz's
   `hb-script-list.h`);

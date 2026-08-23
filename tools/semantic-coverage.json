@@ -96,18 +96,18 @@
       "id": "text.paths-native-raster-floor",
       "parityAreas": ["paths-native-raster-floor"],
       "subjects": ["paths mode", "native Skia mask", "face/glyph/layout identity", "platform raster envelope"],
-      "states": ["logical mismatch -> gate failure", "logical exact -> unratified envelope", "unratified envelope -> reviewed platform envelope"],
-      "exactStates": ["logical mismatch -> gate failure", "logical exact -> unratified envelope"],
+      "states": ["declared source-owned cell -> authenticated native/paths observation", "logical mismatch -> gate failure", "logical exact -> unratified envelope", "unratified envelope -> reviewed platform envelope"],
+      "exactStates": ["declared source-owned cell -> authenticated native/paths observation", "logical mismatch -> gate failure", "logical exact -> unratified envelope"],
       "uncoveredStates": ["unratified envelope -> reviewed platform envelope"],
-      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/layout/inline", "external/chromium/third_party/blink/renderer/platform/fonts/shaping", "external/harfbuzz/src", "external/skia/src/core"],
+      "upstreamSources": ["external/chromium/third_party/blink/renderer/core/layout/inline", "external/chromium/third_party/blink/renderer/platform/fonts/shaping", "external/harfbuzz/src", "external/skia/src/core", "external/skia/src/ports/SkFontHost_FreeType.cpp", "external/skia/src/ports/SkScalerContext_mac_ct.cpp", "external/skia/src/ports/SkScalerContext_win_dw.cpp"],
       "productionOwners": ["src/render/text.ts", "src/render/text-to-path.ts", "src/render/text-run-provenance.ts"],
-      "oracles": ["tools/paths-native-raster-gate.ts", "tools/paths-native-raster-producer.ts", "tools/paths-native-raster-aggregate.ts"],
-      "metamorphicTests": ["tests/paths-native-raster-gate.test.ts", "tests/paths-native-raster-workflow.test.ts"],
+      "oracles": ["tools/paths-native-raster-collector.ts", "tools/paths-native-raster-corpus.ts", "tools/paths-native-raster-metrics.ts", "tools/paths-native-raster-gate.ts", "tools/paths-native-raster-producer.ts", "tools/paths-native-raster-aggregate.ts"],
+      "metamorphicTests": ["tests/paths-native-raster-collector.test.ts", "tests/paths-native-raster-gate.test.ts", "tests/paths-native-raster-workflow.test.ts"],
       "visualFixtures": [".github/workflows/paths-native-raster-floor.yml"],
       "coverage": "partial",
-      "boundary": "Face/gid/cluster/advance/offset/baseline/matrix mismatches fail before raster evidence, and unratified envelopes withhold. No three-platform fingerprint/dimension envelope has been reviewed, so scalar visual-harness caps remain unchanged.",
+      "boundary": "The self-contained collector runs a canonical 348-cell union per proposal/validation arm and requires CDP custom face, source-table gid/advance/outline facts, selected production bytes/axes/glyph stream/source outlines, and emitted baseline/matrix/synthetic paint plan before pixels; producer and aggregate resolve confined real paths, reopen PNG bytes, and recompute hashes/residuals. Local macOS arm64 DPR1 is 174/174 exact with zero warnings. DPR2 and no two-run three-platform fingerprint/cell envelope have been reviewed, so unratified rows withhold and scalar visual-harness caps remain unchanged.",
       "featureIds": ["render.text"],
-      "verifiedPlatforms": ["darwin", "linux", "win32"]
+      "verifiedPlatforms": ["darwin"]
     },
     {
       "id": "text.macos-sfns-mask-baseline",
@@ -165,6 +165,7 @@
       "id": "text.emoji-presentation",
       "parityAreas": [
         "font-selection",
+        "shaping-clusters-glyphs",
         "raster-fallback-boundary"
       ],
       "subjects": [
@@ -188,17 +189,18 @@
         "text -> emoji",
         "emoji -> text",
         "VS15 -> VS16",
-        "monochrome face -> color face"
-      ],
-      "uncoveredStates": [
+        "monochrome face -> color face",
         "text-priority miss before bare emoji -> isolated emoji priority"
       ],
+      "uncoveredStates": [],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/platform/fonts",
         "external/chromium/third_party/blink/renderer/platform/text"
       ],
       "productionOwners": [
         "src/capture/script/emoji-detect.ts",
+        "src/render/emoji-presentation-priority.ts",
+        "src/render/script-segmentation.ts",
         "src/render/cluster-fallback.ts",
         "src/render/font-resolution.ts",
         "src/capture/emoji.ts",
@@ -213,6 +215,7 @@
       ],
       "metamorphicTests": [
         "src/render/emoji-presentation-fallback.test.ts",
+        "src/render/emoji-presentation-priority.test.ts",
         "src/capture/script/emoji-detect.test.ts",
         "src/render/cluster-fallback.test.ts",
         "src/render/emoji-raster-kind.test.ts",
@@ -226,8 +229,7 @@
         "tests/features.ts#text-font-variant-emoji",
         ".github/workflows/emoji-presentation-ownership-audit.yml"
       ],
-      "coverage": "partial",
-      "boundary": "DM-2502 proves with the retained Linux arm64 artifact, pinned Chromium source, and an order-sensitive native matrix that Domotion omits Blink's SymbolsIterator boundary before fallback allocation. U+2757 can therefore inherit a prior text-priority outline face; ICU classification, selected-glyph representation, HarfBuzz, and Skia raster ownership are exact downstream. DM-2507 owns the production itemization fix and DM-2508 owns promotion into the release aggregate; no pixel tolerance is implicated.",
+      "coverage": "exact",
       "featureIds": [
         "capture.emoji-detect",
         "render.text"

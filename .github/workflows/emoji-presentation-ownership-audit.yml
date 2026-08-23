@@ -1,10 +1,12 @@
-name: Emoji presentation ownership audit
+name: Emoji presentation source-priority gate
 
 on:
   pull_request:
     paths:
       - "src/render/cluster-fallback.ts"
       - "src/render/script-segmentation.ts"
+      - "src/render/emoji-presentation-priority.ts"
+      - "src/render/emoji-presentation-priority.test.ts"
       - "src/render/font-resolution.ts"
       - "src/render/text-to-path.ts"
       - "src/capture/script/emoji-detect.ts"
@@ -20,6 +22,8 @@ on:
     paths:
       - "src/render/cluster-fallback.ts"
       - "src/render/script-segmentation.ts"
+      - "src/render/emoji-presentation-priority.ts"
+      - "src/render/emoji-presentation-priority.test.ts"
       - "src/render/font-resolution.ts"
       - "src/render/text-to-path.ts"
       - "src/capture/script/emoji-detect.ts"
@@ -65,7 +69,7 @@ jobs:
             --json "$EVIDENCE_DIR/acquisition.json" \
             --run-env "$EVIDENCE_DIR/run-env.json" \
             --github-env "$GITHUB_ENV"
-      - name: Validate source partition and exact arm64 face ownership
+      - name: Validate source-priority intersection and exact arm64 face ownership
         run: npm run fonts:emoji-presentation-ownership-audit -- --require-linux-arm64 --json "$EVIDENCE_DIR/emoji-presentation-ownership.json"
       - name: Upload authenticated source and route evidence
         if: always()

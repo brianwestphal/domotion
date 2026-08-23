@@ -12,7 +12,10 @@ open remains in iterator order as an unshaped candidate; it does not restart
 the text through a different assignment algorithm. Both entry points score
 **10/10** on the Chrome probe corpus of
 §2 (the design-time prototype scored 9/10; script itemization closed its one
-miss; the legacy per-codepoint walk scores 6/10). Unit corpora:
+miss; the legacy per-codepoint walk scores 6/10). DM-2507 additionally mirrors
+Blink's independent `SymbolsIterator`: source emoji-presentation ranges are
+intersected with complete bidi/script ranges before fallback allocation, and
+CSS `font-variant-emoji` is applied only afterward. Unit corpora:
 `src/render/cluster-fallback.test.ts` (embedded) and
 `src/render/glyph-path-run-split.test.ts` (paths — its cases fail against the
 legacy walk, the discrimination requirement). The multi-codepoint face oracle
@@ -169,7 +172,8 @@ The shipped implementation (`src/render/cluster-fallback.ts`) replaces
 
 ```
 capture text
-  → script itemization (segmentForShaping — Blink: RunSegmenter)   [MUST come first]
+  → independent bidi/script + SymbolsIterator source ranges
+  → intersect at each next minimum endpoint (segmentForShaping)    [MUST come first]
   → per segment: shape-then-requeue loop
        queue = [segment]
        font cycle: primary → remaining declared families → STANDARD (kFontGroupFonts)
@@ -208,6 +212,18 @@ capture text
 
 ### Blink details the shipped implementation carries (closed from the prototype)
 
+- **Source priority is an item boundary, not a queued-hint property**:
+  `sourcePriorityItems()` ports the pinned emoji scanner into maximal `text`,
+  `emoji`, `text-vs`, and `emoji-vs` ranges. `segmentForShaping()` computes the
+  complete bidi/script ranges independently, then intersects the two streams as
+  `RunSegmenter` does. It does not restart script resolution at a priority
+  boundary: the Common U+2757 in `A❗B` inherits Latin on both sides. Each
+  intersection owns a fresh fallback iterator. CSS may change that iterator's
+  effective priority after the split, but explicit selectors win and equal
+  effective priorities never merge source iterators. Declared families remain
+  before the one-shot priority face. The authenticated Linux arm64 order,
+  selector, CSS, and family matrix plus `02-text-emoji` gate this ownership;
+  see [doc 201](201-emoji-presentation-item-ownership.md).
 - **Script itemization first**: `segmentForShaping` (the RunSegmenter mirror,
   with bidi levels from `bidiLevelsFor`) runs before the requeue loop; each
   segment gets its own FontFallbackIterator, exactly as `ShapeSegment` is
