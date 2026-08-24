@@ -233,6 +233,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6vknxz5douktqy",
+          "message": {
+            "text": "DM-2536 rerun refinement: strict equality is evaluated over every authenticated source-owned native horizontal/vertical/corner raster region, byte for byte. Whole-scene border/content differences remain retained evidence but are not attributed to scrollbar ownership. The zoom2 headless discriminator passes 20/20 rows with every native owned region exact.",
+            "markdown": "DM-2536 rerun refinement: strict equality is evaluated over every authenticated source-owned native horizontal/vertical/corner raster region, byte for byte. Whole-scene border/content differences remain retained evidence but are not attributed to scrollbar ownership. The zoom2 headless discriminator passes 20/20 rows with every native owned region exact."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/native-scrollbar-ownership-audit.ts"
+                },
+                "region": {
+                  "startLine": 700,
+                  "endLine": 755,
+                  "snippet": {
+                    "text": "): Promise<boolean> {\n  if (captured == null) return false;\n  const rasters = [\n    captured.horizontalNativeRaster,\n    captured.verticalNativeRaster,\n    captured.nativeCornerRaster,\n  ].filter((raster): raster is NativeRasterFacts => raster != null && raster.empty === false);\n  if (rasters.length === 0) return false;\n  for (const raster of rasters) {\n    const region = {\n      left: Math.round(raster.x * dpr),\n      top: Math.round(raster.y * dpr),\n      width: raster.pixelWidth,\n      height: raster.pixelHeight,\n    };\n    const [source, generated] = await Promise.all([\n      sharp(sourcePng).extract(region).raw().toBuffer(),\n      sharp(generatedPng).extract(region).raw().toBuffer(),\n    ]);\n    if (!source.equals(generated)) return false;\n  }\n  return true;\n}\n\nfunction rowPass(row: Omit<AuditRow, \"pass\">): boolean {\n  if (row.expectedRoute === \"marker-free-control\") {\n    return row.sourcePixels.markerPixels === 0\n      && row.generatedPixels.markerPixels === 0\n      && row.generatedGenericThumbs === 0;\n  }\n  if (row.expectedRoute === \"custom-vector\") {\n    return row.sourcePixels.markerPixels >= 120\n      && row.generatedPixels.markerPixels >= 120\n      && row.sourcePixels.markers.track != null\n      // overflow:scroll creates disabled track chrome even when there is no\n      // scroll range; Blink correctly has no thumb in that activation row.\n      && (row.id === \"custom-scroll-no-overflow\" || row.sourcePixels.markers.thumb != null)\n      && markerBoundsMatchWithinOneDevicePixel(row.sourcePixels, row.generatedPixels)\n      && row.generatedGenericThumbs === 0\n      && row.warnings.length === 0\n      && row.captured?.scrollbarStatus === \"captured\"\n      && row.captured.missingFacts.length === 0\n      && [row.captured.horizontalRoute, row.captured.verticalRoute].includes(\"author-custom\")\n      && (row.id !== \"custom-resizer-overlap\" || (\n        row.sourcePixels.markers.resizer != null\n        && row.generatedPixels.markers.resizer != null\n        && row.captured.resizeHandle != null\n        && row.captured.resizerOverlap?.paintOrder === \"corner-before-resizer\"\n      ));\n  }\n  if (row.expectedRoute === \"suppressed-captured-absence\") {\n    return row.sourcePixels.markerPixels === 0\n      && row.generatedPixels.markerPixels === 0\n      && row.generatedGenericThumbs === 0\n      && row.warnings.length === 0\n      && row.captured?.scrollbarStatus === \"absent\""
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 1,
+          "workItemUris": [
+            "DM-2536"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f6b17f13894ef9913ba716e555794b24"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a2cf827393e686ac86c0e2ef3b27b1a83e187a6f",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

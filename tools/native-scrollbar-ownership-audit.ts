@@ -202,6 +202,8 @@ interface AuditRow {
   captured: CapturedFacts | null;
   sourcePixels: PixelFacts;
   generatedPixels: PixelFacts;
+  /** Exact byte equality restricted to source-owned native raster regions. */
+  nativeOwnedPixelsExact: boolean | null;
   generatedGenericThumbs: number;
   artifacts: Array<{
     role: "source" | "generated";
@@ -679,14 +681,6 @@ function markerBoundsMatchWithinOneDevicePixel(
   });
 }
 
-function pixelFactsMatchExactly(source: PixelFacts, generated: PixelFacts): boolean {
-  return source.width === generated.width
-    && source.height === generated.height
-    && source.markerPixels === generated.markerPixels
-    && JSON.stringify(source.markers) === JSON.stringify(generated.markers)
-    && JSON.stringify(source.edges) === JSON.stringify(generated.edges);
-}
-
 function rasterFactsAreAuthenticated(facts: NativeRasterFacts | null, dpr: number): boolean {
   return facts != null
     && facts.empty === false
@@ -696,6 +690,35 @@ function rasterFactsAreAuthenticated(facts: NativeRasterFacts | null, dpr: numbe
     && /^[a-f0-9]{64}$/.test(facts.sourceFrameSha256)
     && facts.cropSha256 != null
     && /^[a-f0-9]{64}$/.test(facts.cropSha256);
+}
+
+async function nativeOwnedPixelsMatchExactly(
+  sourcePng: Buffer,
+  generatedPng: Buffer,
+  captured: CapturedFacts | null,
+  dpr: number,
+): Promise<boolean> {
+  if (captured == null) return false;
+  const rasters = [
+    captured.horizontalNativeRaster,
+    captured.verticalNativeRaster,
+    captured.nativeCornerRaster,
+  ].filter((raster): raster is NativeRasterFacts => raster != null && raster.empty === false);
+  if (rasters.length === 0) return false;
+  for (const raster of rasters) {
+    const region = {
+      left: Math.round(raster.x * dpr),
+      top: Math.round(raster.y * dpr),
+      width: raster.pixelWidth,
+      height: raster.pixelHeight,
+    };
+    const [source, generated] = await Promise.all([
+      sharp(sourcePng).extract(region).raw().toBuffer(),
+      sharp(generatedPng).extract(region).raw().toBuffer(),
+    ]);
+    if (!source.equals(generated)) return false;
+  }
+  return true;
 }
 
 function rowPass(row: Omit<AuditRow, "pass">): boolean {
@@ -733,7 +756,7 @@ function rowPass(row: Omit<AuditRow, "pass">): boolean {
       && row.captured.missingFacts.length === 0;
   }
   if (row.expectedRoute === "native-raster") {
-    return pixelFactsMatchExactly(row.sourcePixels, row.generatedPixels)
+    return row.nativeOwnedPixelsExact === true
       && row.generatedGenericThumbs === 0
       && row.warnings.length === 0
       && row.captured?.scrollbarStatus === "captured"
@@ -1000,6 +1023,9 @@ export async function runNativeScrollbarOwnershipAudit(options: NativeScrollbarA
           );
           await settle(generatedPage);
           const generatedPng = await generatedPage.screenshot({ type: "png" });
+          const nativeOwnedPixelsExact = test.expectedRoute === "native-raster"
+            ? await nativeOwnedPixelsMatchExactly(sourcePng, generatedPng, captured, deviceScaleFactor)
+            : null;
           const artifacts: AuditRow["artifacts"] = [];
           if (options.artifactDir != null) {
             mkdirSync(options.artifactDir, { recursive: true });
@@ -1027,6 +1053,7 @@ export async function runNativeScrollbarOwnershipAudit(options: NativeScrollbarA
             captured,
             sourcePixels: await pixelFacts(sourcePng, source, deviceScaleFactor),
             generatedPixels: await pixelFacts(generatedPng, source, deviceScaleFactor),
+            nativeOwnedPixelsExact,
             generatedGenericThumbs: countGenericThumbs(svg),
             artifacts,
             warnings: warnings.map((warning) => `${warning.feature}: ${warning.detail}`),

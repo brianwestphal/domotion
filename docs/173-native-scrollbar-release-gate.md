@@ -53,7 +53,11 @@ retain:
   Cartesian cell (the deliberately clipped-border row scales its own source
   clip by the same zoom); and
 - row-level scheme, forced-colors state, capture route/status, source state,
-  and lossless source/generated PNG metadata and SHA-256; and
+and lossless source/generated PNG metadata and SHA-256; and
+- byte-exact equality for every authenticated native horizontal, vertical, and
+  corner raster region in the generated PNG (the rest of the screenshot stays
+  available as evidence but is not falsely assigned to scrollbar ownership);
+  and
 - canonical hashes over logical rows, complete rows, and the artifact manifest,
   plus an explicit declaration that dynamic overlay fade is a separate
   platform-terminal leg rather than an observational success route.
