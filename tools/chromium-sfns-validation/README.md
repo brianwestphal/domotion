@@ -1,7 +1,7 @@
 # Pinned Chromium SFNS validation hook
 
-These files are the reproducible, test-only Chromium/Skia overlay used by
-DM-2575. They apply only to Chromium
+These files are the reproducible, test-only Chromium/Skia validation overlay.
+They apply only to Chromium
 `7d859f271cbda744098ac69f44978d4edfa62be3` with Skia
 `62efacd37737505732dbe3d8daa62abd679626a1` and depot_tools
 `612d70c7ccb01d4a405e822ad0505206de636d7e`.
@@ -10,13 +10,19 @@ DM-2575. They apply only to Chromium
 - `skia-hook.patch` adds four observation calls at raw-record construction,
   macOS record filtering, direct-mask phase packing, and the post-conversion
   macOS glyph buffer.
+- `blink-v2-hook.patch` records each selected HarfBuzz glyph's direct logical
+  advance and offset at both `ShapeResult::ForEachGlyphImpl` and the
+  paint-owned `ShapeResultView::ForEachGlyphImpl`, before bloberization; no
+  neighboring origin is used to reconstruct either value.
+- `skia-v2-hook.patch` records the complete filtered-record gamma LUT and all
+  three preblend buffers while Skia's gamma-cache mutex is held.
 - `SkDomotionSfnsValidation.h` implements the environment- and SHA-gated hook.
 - `node-isolation.sb` prevents Chromium's TypeScript tools from walking above
   the isolated checkout into this repository's unrelated `node_modules`. The
   build driver supplies its path parameter. This preserves Chromium's pinned,
   filtered GCS dependency bundle and does not affect the built runtime.
 
-The hook writes nothing unless its ABI, observation envelope, exact
+The v2 hook writes nothing unless its ABI, observation envelope, exact
 7,909,644-byte source-SFNS digest, and the deterministic pinned-OTS stream
 (`7,806,016` bytes, SHA-256 `48eedcec…acff4`) all match. Blink authenticates and
 routes the source bytes; its mandatory OTS pass constructs Skia's typeface from

@@ -142,13 +142,19 @@ Chromium OTS wrapper authenticates the proposal's decoded SFNT; and proposal v2
 uses Chromium's exact white-paint/surface/matrix envelope with arm-qualified
 IDs, separately retained shaped/strike placement, normalized CoreText metrics,
 full gamma/preblend buffers, records, phases, and masks. Validation v1 remains
-intentionally insufficient. The v2 re-adjudication authenticates and pairs all
-26 observations with zero input-integrity errors, then retains 784 exact
-mismatches rather than hiding them; 338 are the validation-v1 shaped
-advance/offset and full-gamma omissions. DM-2587 must recollect validation from
-the shared manifest before DM-2588 can ratify exact equality. The boundary
-remains partial; no screenshot tolerance or production route may stand in for
-exact cross-arm equality.
+the historical insufficient input. Validation v2 now recollects the same 26
+arm-qualified cases in fresh, explicitly headless Chromium processes. It adds
+direct Blink shaped advance/offset facts at the paint-owned `ShapeResultView`
+seam, normalized CoreText metrics, and the complete gamma table and three
+preblend buffers, while retaining the exact record/run/phase/mask evidence.
+The v3 re-adjudication authenticates and pairs every observation with zero
+input-integrity errors. Formerly absent shaped offsets agree everywhere and
+full gamma agrees in 25 of 26 pairs; `[13,13]` cancellation remains exact. The
+gate is still **NOT READY** with 498 literal mismatches in typeface, shaped
+advance, placement, phase, metrics, records, gamma, and mask bytes. The next
+ratification must reach zero exact mismatches rather than relabeling them. The
+boundary remains partial; no screenshot tolerance or production route may
+stand in for exact cross-arm equality.
 
 Animated viewBox culling uses the one-sided optimization form of this contract
 ([doc 166](166-animated-culling-geometry-oracle.md)): an unculled production SVG

@@ -7,9 +7,13 @@ import {
   sfnsValidationObservationDigest,
   validateSfnsPinnedChromiumValidation,
   type SfnsFilteredPayload,
+  type SfnsGammaPayload,
+  type SfnsHookEventName,
   type SfnsMaskPayload,
   type SfnsPinnedChromiumValidationArtifact,
   type SfnsRawPayload,
+  type SfnsRunPayload,
+  type SfnsShapePayload,
   type SfnsValidationObservation,
 } from "../tools/sfns-pinned-chromium-validation-schema.js";
 
@@ -47,12 +51,26 @@ function firstMask(observation: SfnsValidationObservation): SfnsMaskPayload {
   return observation.events.find((event) => event.sequence === sequence)!.payload as SfnsMaskPayload;
 }
 
+function selectedEvent<T>(
+  observation: SfnsValidationObservation,
+  event: SfnsHookEventName,
+): T {
+  const sequence = event === "shape" ? observation.selection.shapeSequence
+    : event === "raw" ? observation.selection.rawSequence
+      : event === "filtered" ? observation.selection.filteredSequence
+        : event === "gamma" ? observation.selection.gammaSequence
+          : event === "run" ? observation.selection.runSequence
+            : observation.selection.maskSequences[0];
+  return observation.events.find((candidate) => candidate.sequence === sequence)!.payload as T;
+}
+
 describe("pinned-Chromium SFNS validation evidence", () => {
   it("retains 26 isolated explicitly-headless observations and authenticates scale cancellation", () => {
     expect(validateSfnsPinnedChromiumValidation(retained)).toEqual([]);
     expect(retained.collectionContract).toEqual({
       browserLaunches: 26,
       processIsolation: "one-explicitly-headless-browser-per-observation",
+      inputDerivation: "source-owned-manifest-independent-arm-derivation",
       equality: "exact-bytes-no-tolerance",
       productionRenderingChanges: false,
     });
@@ -104,7 +122,7 @@ describe("pinned-Chromium SFNS validation evidence", () => {
     duplicateObservation.events[1].sequence = duplicateObservation.events[0].sequence;
     reseal(duplicate);
     expect(validateSfnsPinnedChromiumValidation(duplicate)).toContain(
-      "zoom-2-cold-1:duplicate-sequence",
+      "validation-zoom-2-cold-1:duplicate-sequence",
     );
 
     const reordered = evidence();
@@ -113,21 +131,21 @@ describe("pinned-Chromium SFNS validation evidence", () => {
       [reorderedObservation.events[1], reorderedObservation.events[0]];
     reseal(reordered);
     expect(validateSfnsPinnedChromiumValidation(reordered)).toContain(
-      "zoom-2-cold-1:event-reordered",
+      "validation-zoom-2-cold-1:event-reordered",
     );
 
     const dropped = evidence();
     dropped.scenarios[0].observations[0].events.shift();
     reseal(dropped);
     expect(validateSfnsPinnedChromiumValidation(dropped)).toContain(
-      "zoom-2-cold-1:event-dropped",
+      "validation-zoom-2-cold-1:event-dropped",
     );
 
     const stale = evidence();
     stale.scenarios[0].observations[0].events[0].observationId = "prior-process-evidence";
     reseal(stale);
     expect(validateSfnsPinnedChromiumValidation(stale)).toContain(
-      "zoom-2-cold-1:stale-envelope",
+      "validation-zoom-2-cold-1:stale-envelope",
     );
   });
 
@@ -141,7 +159,7 @@ describe("pinned-Chromium SFNS validation evidence", () => {
     source.scenarios[0].observations[0].events[0].source.skiaRevision = "0".repeat(40);
     reseal(source);
     expect(validateSfnsPinnedChromiumValidation(source)).toContain(
-      "zoom-2-cold-1:source-revision",
+      "validation-zoom-2-cold-1:source-revision",
     );
 
     const visible = evidence();
@@ -155,15 +173,15 @@ describe("pinned-Chromium SFNS validation evidence", () => {
     );
     reseal(visible);
     expect(validateSfnsPinnedChromiumValidation(visible)).toContain(
-      "zoom-2-cold-1:not-explicitly-headless",
+      "validation-zoom-2-cold-1:not-explicitly-headless",
     );
 
     const corrupt = evidence();
     firstMask(corrupt.scenarios[0].observations[0]).glyph.mask.bytes = "AAAA";
     reseal(corrupt);
     expect(validateSfnsPinnedChromiumValidation(corrupt)).toEqual(expect.arrayContaining([
-      "zoom-2-cold-1:mask:0:size",
-      "zoom-2-cold-1:mask:0:sha256",
+      "validation-zoom-2-cold-1:mask:0:byte-length",
+      "validation-zoom-2-cold-1:mask:0:sha256",
     ]));
   });
 
@@ -179,8 +197,173 @@ describe("pinned-Chromium SFNS validation evidence", () => {
     raw.rawRec.sha256 = createHash("sha256").update(bytes).digest("hex");
     reseal(artifact);
     expect(validateSfnsPinnedChromiumValidation(artifact)).toContain(
-      "zoom-2-cold-1:rec-typeface-identity",
+      "validation-zoom-2-cold-1:rec-typeface-identity",
     );
+  });
+
+  it.each([
+    {
+      name: "manifest identity",
+      expected: "manifest-identity",
+      mutate: (artifact: SfnsPinnedChromiumValidationArtifact) => {
+        artifact.manifest.digest = "0".repeat(64);
+      },
+    },
+    {
+      name: "arm-qualified observation id",
+      expected: "proposal-zoom-2-cold-1:arm-qualified-id",
+      mutate: (artifact: SfnsPinnedChromiumValidationArtifact) => {
+        artifact.scenarios[0].observations[0].observationId = "proposal-zoom-2-cold-1";
+      },
+    },
+    {
+      name: "decoded typeface bytes",
+      expected: "validation-zoom-2-cold-1:font-identity",
+      mutate: (artifact: SfnsPinnedChromiumValidationArtifact) => {
+        artifact.scenarios[0].observations[0].events[0]
+          .typeface.fontBytes.sha256 = "0".repeat(64);
+      },
+    },
+    {
+      name: "typeface family",
+      expected: "validation-zoom-2-cold-1:typeface-identity",
+      mutate: (artifact: SfnsPinnedChromiumValidationArtifact) => {
+        const observation = artifact.scenarios[0].observations[0];
+        const sequence = observation.selection.runSequence;
+        observation.events.find((event) => event.sequence === sequence)!.typeface.family = "SFNS";
+      },
+    },
+    {
+      name: "variation axis",
+      expected: "validation-zoom-2-cold-1:axis:wdth",
+      mutate: (artifact: SfnsPinnedChromiumValidationArtifact) => {
+        const observation = artifact.scenarios[0].observations[0];
+        const sequence = observation.selection.runSequence;
+        observation.events.find((event) => event.sequence === sequence)!
+          .typeface.axes.find((axis) => axis.tag === "wdth")!.actual = 99;
+      },
+    },
+    {
+      name: "glyph id",
+      expected: "validation-zoom-2-cold-1:glyph:0:shaping-run-seam",
+      mutate: (artifact: SfnsPinnedChromiumValidationArtifact) => {
+        const shape = selectedEvent<SfnsShapePayload>(
+          artifact.scenarios[0].observations[0], "shape",
+        );
+        shape.glyphs[0].gid += 1;
+      },
+    },
+    {
+      name: "direct shaped offset",
+      expected: "validation-zoom-2-cold-1:glyph:0:shaping-run-seam",
+      mutate: (artifact: SfnsPinnedChromiumValidationArtifact) => {
+        const shape = selectedEvent<SfnsShapePayload>(
+          artifact.scenarios[0].observations[0], "shape",
+        );
+        shape.glyphs[0].shapedOffset[0] += 0.25;
+      },
+    },
+    {
+      name: "packed subpixel phase",
+      expected: "validation-zoom-2-cold-1:glyph:0:packed-phase",
+      mutate: (artifact: SfnsPinnedChromiumValidationArtifact) => {
+        const run = selectedEvent<SfnsRunPayload>(
+          artifact.scenarios[0].observations[0], "run",
+        );
+        run.glyphs[0].phase.x ^= 1;
+      },
+    },
+    {
+      name: "anti-aliasing request result",
+      expected: "validation-control-anti-aliasing-1:font",
+      mutate: (artifact: SfnsPinnedChromiumValidationArtifact) => {
+        const observation = artifact.controls.find(
+          (control) => control.id === "anti-aliasing",
+        )!.observation;
+        selectedEvent<SfnsRawPayload>(observation, "raw").font.edging = "subpixel";
+      },
+    },
+    {
+      name: "hinting request result",
+      expected: "validation-control-hinting-1:font",
+      mutate: (artifact: SfnsPinnedChromiumValidationArtifact) => {
+        const observation = artifact.controls.find(
+          (control) => control.id === "hinting",
+        )!.observation;
+        selectedEvent<SfnsRawPayload>(observation, "raw").font.hinting = "normal";
+      },
+    },
+    {
+      name: "live device matrix",
+      expected: "validation-zoom-2-cold-1:matrix-factorization",
+      mutate: (artifact: SfnsPinnedChromiumValidationArtifact) => {
+        selectedEvent<SfnsRawPayload>(
+          artifact.scenarios[0].observations[0], "raw",
+        ).deviceMatrix[2] += 0.25;
+      },
+    },
+    {
+      name: "optical-size axis",
+      expected: "validation-control-optical-size-1:axis:opsz",
+      mutate: (artifact: SfnsPinnedChromiumValidationArtifact) => {
+        const observation = artifact.controls.find(
+          (control) => control.id === "optical-size",
+        )!.observation;
+        const sequence = observation.selection.runSequence;
+        observation.events.find((event) => event.sequence === sequence)!
+          .typeface.axes.find((axis) => axis.tag === "opsz")!.actual = 17;
+      },
+    },
+    {
+      name: "surface mask format",
+      expected: "validation-control-surface-mask-format-1:surface",
+      mutate: (artifact: SfnsPinnedChromiumValidationArtifact) => {
+        const observation = artifact.controls.find(
+          (control) => control.id === "surface-mask-format",
+        )!.observation;
+        selectedEvent<SfnsRawPayload>(observation, "raw")
+          .surfaceProps.pixelGeometry = "rgb-h";
+      },
+    },
+    {
+      name: "full gamma table bytes",
+      expected: "validation-zoom-2-cold-1:gamma-table:sha256",
+      mutate: (artifact: SfnsPinnedChromiumValidationArtifact) => {
+        const gamma = selectedEvent<SfnsGammaPayload>(
+          artifact.scenarios[0].observations[0], "gamma",
+        );
+        const bytes = Buffer.from(gamma.tableBytesBase64, "base64");
+        bytes[0] ^= 1;
+        gamma.tableBytesBase64 = bytes.toString("base64");
+      },
+    },
+    {
+      name: "full preblend bytes",
+      expected: "validation-zoom-2-cold-1:preblend-r:sha256",
+      mutate: (artifact: SfnsPinnedChromiumValidationArtifact) => {
+        const gamma = selectedEvent<SfnsGammaPayload>(
+          artifact.scenarios[0].observations[0], "gamma",
+        );
+        const bytes = Buffer.from(gamma.preblendR256Base64, "base64");
+        bytes[0] ^= 1;
+        gamma.preblendR256Base64 = bytes.toString("base64");
+      },
+    },
+    {
+      name: "post-conversion mask bytes",
+      expected: "validation-zoom-2-cold-1:mask:0:sha256",
+      mutate: (artifact: SfnsPinnedChromiumValidationArtifact) => {
+        const mask = firstMask(artifact.scenarios[0].observations[0]).glyph.mask;
+        const bytes = Buffer.from(mask.bytes, "base64");
+        bytes[0] ^= 1;
+        mask.bytes = bytes.toString("base64");
+      },
+    },
+  ])("rejects a resealed hostile $name mutation", ({ mutate, expected }) => {
+    const artifact = evidence();
+    mutate(artifact);
+    reseal(artifact);
+    expect(validateSfnsPinnedChromiumValidation(artifact)).toContain(expected);
   });
 
   it("requires every control to move its owned exact evidence groups", () => {
@@ -189,7 +372,9 @@ describe("pinned-Chromium SFNS validation evidence", () => {
       artifact.scenarios.find((scenario) => scenario.id === "zoom-2")!.observations[0],
     );
     const control = artifact.controls.find((candidate) => candidate.id === "subpixel-phase")!;
-    baseline.observationId = "control-subpixel-phase-1";
+    baseline.observationId = "validation-control-subpixel-phase-1";
+    baseline.caseId = "control-subpixel-phase";
+    baseline.kind = "control";
     baseline.lifecycle = "control";
     baseline.controlId = "subpixel-phase";
     baseline.ordinal = 1;
@@ -220,10 +405,10 @@ describe("pinned-Chromium SFNS validation evidence", () => {
     }
     reseal(artifact);
     expect(validateSfnsPinnedChromiumValidation(artifact)).toEqual(expect.arrayContaining([
-      "zoom-2-transform-half-cold-1:factored-scale",
-      "zoom-2-transform-half-cold-2:factored-scale",
-      "zoom-2-transform-half-warm-1:factored-scale",
-      "zoom-2-transform-half-warm-2:factored-scale",
+      "validation-zoom-2-transform-half-cold-1:matrix-factorization",
+      "validation-zoom-2-transform-half-cold-2:matrix-factorization",
+      "validation-zoom-2-transform-half-warm-1:matrix-factorization",
+      "validation-zoom-2-transform-half-warm-2:matrix-factorization",
     ]));
 
     const geometry = evidence();
@@ -237,7 +422,7 @@ describe("pinned-Chromium SFNS validation evidence", () => {
       .glyphs[1].deviceOrigin[0] += 0.000_000_000_001;
     reseal(geometry);
     expect(validateSfnsPinnedChromiumValidation(geometry)).toContain(
-      "zoom-2-cold-1:device-origins",
+      "validation-zoom-2-cold-1:glyph:1:shaping-run-seam",
     );
 
     const unsealed = evidence();

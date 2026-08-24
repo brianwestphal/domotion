@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** Collect DM-2575's exact test-only trace from a pinned, explicitly headless Chromium. */
+/** Collect the exact test-only trace from a pinned, explicitly headless Chromium. */
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import {
@@ -17,6 +17,8 @@ import {
   SFNS_TERMINAL_MASK_MANIFEST,
   SFNS_TERMINAL_MASK_SCENARIO_IDS,
   sfnsTerminalMaskCase,
+  sfnsTerminalMaskManifestDigest,
+  type SfnsTerminalMaskCaseId,
 } from "./sfns-terminal-mask-manifest.js";
 import {
   SFNS_VALIDATION_CHROMIUM_REVISION,
@@ -30,12 +32,15 @@ import {
   sfnsValidationObservationDigest,
   validateSfnsPinnedChromiumValidation,
   type SfnsFilteredPayload,
+  type SfnsGammaPayload,
   type SfnsHookEvent,
   type SfnsMaskPayload,
   type SfnsPinnedChromiumValidationArtifact,
   type SfnsRawPayload,
   type SfnsRunPayload,
+  type SfnsShapePayload,
   type SfnsValidationControlId,
+  type SfnsValidationCoreTextMetrics,
   type SfnsValidationObservation,
   type SfnsValidationScenarioId,
 } from "./sfns-pinned-chromium-validation-schema.js";
@@ -95,6 +100,7 @@ if (existsSync(eventRoot) && readdirSync(eventRoot).length > 0) {
 mkdirSync(eventRoot, { recursive: true });
 
 interface ObservationRequest {
+  caseId: SfnsTerminalMaskCaseId;
   scenarioId: SfnsValidationScenarioId;
   observationId: string;
   lifecycle: "cold" | "warm" | "control";
@@ -114,10 +120,7 @@ function chromiumLaunchArgs(request: ObservationRequest): string[] {
 function scenarioCss(request: ObservationRequest): {
   target: string; anchorLeft: number; anchorTop: number; fontSize: number; opsz: number;
 } {
-  const caseId = request.controlId === ""
-    ? request.scenarioId
-    : `control-${request.controlId}` as const;
-  const manifestRequest = sfnsTerminalMaskCase(caseId).request;
+  const manifestRequest = sfnsTerminalMaskCase(request.caseId).request;
   const css = manifestRequest.browserCss;
   const declarations = [] as string[];
   if (css.zoom !== 1) declarations.push(`zoom:${css.zoom}`);
@@ -254,6 +257,25 @@ async function waitForTraceQuiescence(directory: string): Promise<void> {
   throw new Error(`hook trace did not quiesce before renderer teardown: ${directory}`);
 }
 
+function exactNumberArray(left: readonly number[], right: readonly number[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function shapeMatchesRun(shape: SfnsShapePayload, run: SfnsRunPayload): boolean {
+  return shape.coordinateSystem === "skia-source-space-y-down"
+    && shape.glyphs.length === run.glyphs.length
+    && shape.glyphs.every((glyph, index) => {
+      const runGlyph = run.glyphs[index];
+      const directSourcePosition = [
+        Math.fround(glyph.accumulatedAdvance[0] + glyph.shapedOffset[0]),
+        Math.fround(glyph.accumulatedAdvance[1] + glyph.shapedOffset[1]),
+      ];
+      return runGlyph != null && glyph.index === index && runGlyph.index === index
+        && glyph.gid === runGlyph.gid
+        && exactNumberArray(runGlyph.sourcePosition, directSourcePosition);
+    });
+}
+
 function selectEvidence(events: SfnsHookEvent[]) {
   const runs = events.filter((event) => event.event === "run");
   const materializingRuns = runs.flatMap((candidate, index) => {
@@ -291,12 +313,82 @@ function selectEvidence(events: SfnsHookEvent[]) {
     && (event.payload as SfnsRawPayload).rawRec.sha256 === beforeRec);
   const raw = rawCandidates.at(-1);
   if (raw == null) throw new Error("expected a linked raw record");
+  const gammaCandidates = events.filter((event) => event.event === "gamma"
+    && event.typeface.uniqueId === uid
+    && event.sequence > filtered.sequence
+    && event.sequence < run.sequence
+    && (event.payload as SfnsGammaPayload).filteredRec.sha256
+      === (filtered.payload as SfnsFilteredPayload).after.sha256);
+  if (gammaCandidates.length !== 1) {
+    throw new Error(`expected one directly linked gamma event, got ${gammaCandidates.length}`);
+  }
+  const shapeCandidates = events.filter((event) => event.event === "shape"
+    && event.typeface.uniqueId === uid
+    && event.sequence < raw.sequence
+    && shapeMatchesRun(event.payload as SfnsShapePayload, run.payload as SfnsRunPayload));
+  const shape = shapeCandidates.at(-1);
+  if (shape == null) throw new Error("expected a direct Blink-shape/Skia-run seam");
   return {
     processId: run.processId,
+    shapeSequence: shape.sequence,
     rawSequence: raw.sequence,
     filteredSequence: filtered.sequence,
+    gammaSequence: gammaCandidates[0].sequence,
     runSequence: run.sequence,
     maskSequences: masks.map((mask) => mask.sequence),
+  };
+}
+
+function collectCoreTextMetrics(
+  masks: SfnsHookEvent[],
+  request: ObservationRequest,
+): SfnsValidationCoreTextMetrics {
+  const first = masks[0]?.payload as SfnsMaskPayload | undefined;
+  if (first == null) throw new Error("selected evidence has no CoreText-bearing mask");
+  const source = first.coreText;
+  const keys = [
+    "pointSize", "unitsPerEm", "ascent", "descent", "leading", "capHeight", "xHeight",
+  ] as const;
+  for (const key of keys) {
+    if (typeof source[key] !== "number" || !Number.isFinite(source[key])) {
+      throw new Error(`invalid CoreText metric ${key}`);
+    }
+  }
+  const boundingBox = source.boundingBox;
+  if (!Array.isArray(boundingBox) || boundingBox.length !== 4
+      || boundingBox.some((entry) => typeof entry !== "number" || !Number.isFinite(entry))) {
+    throw new Error("invalid CoreText bounding box");
+  }
+  const raw = {
+    pointSize: source.pointSize as number,
+    unitsPerEm: source.unitsPerEm as number,
+    ascent: source.ascent as number,
+    descent: source.descent as number,
+    leading: source.leading as number,
+    capHeight: source.capHeight as number,
+    xHeight: source.xHeight as number,
+    boundingBox: [...boundingBox] as number[],
+  };
+  const baseline = sfnsTerminalMaskCase(request.caseId).request.run.deviceBaseline;
+  return {
+    raw,
+    normalized: {
+      coordinateSystem: "device-y-down",
+      baseline,
+      ascent: -raw.ascent,
+      descent: raw.descent,
+      leading: raw.leading,
+      capHeight: -raw.capHeight,
+      xHeight: -raw.xHeight,
+      top: baseline - raw.ascent,
+      bottom: baseline + raw.descent,
+      boundingBox: [
+        raw.boundingBox[0],
+        -(raw.boundingBox[1] + raw.boundingBox[3]),
+        raw.boundingBox[2],
+        raw.boundingBox[3],
+      ],
+    },
   };
 }
 
@@ -365,15 +457,32 @@ async function collectObservation(request: ObservationRequest): Promise<SfnsVali
       }
       throw error;
     }
+    const selection = selectEvidence(events);
+    const selectedMasks = selection.maskSequences.map((sequence) => {
+      const event = events.find((candidate) => candidate.sequence === sequence);
+      if (event == null) throw new Error(`selected mask event ${sequence} is absent`);
+      return event;
+    });
+    const manifestCase = sfnsTerminalMaskCase(request.caseId);
     const observation: SfnsValidationObservation = {
       observationId: request.observationId,
+      caseId: request.caseId,
+      kind: manifestCase.kind,
       scenarioId: request.scenarioId,
       lifecycle: request.lifecycle,
       controlId: request.controlId,
       ordinal: request.ordinal,
       browser: browserFacts,
+      coordinateSpace: {
+        source: "skia-source-space-y-down",
+        device: "device-space-y-down",
+        coreTextRaw: "coretext-y-up",
+        normalized: "device-y-down",
+        mask: "glyph-device-space-y-down",
+      },
+      coreTextMetrics: collectCoreTextMetrics(selectedMasks, request),
       events,
-      selection: selectEvidence(events),
+      selection,
       logicalDigest: "",
     };
     observation.logicalDigest = sfnsValidationObservationDigest(observation);
@@ -389,6 +498,7 @@ function observationRequest(
   ordinal: number,
 ): ObservationRequest {
   return {
+    caseId: scenarioId,
     scenarioId,
     lifecycle,
     ordinal,
@@ -405,6 +515,8 @@ if (probe) {
   )!;
   const raw = selectedEvent(observation.selection.rawSequence);
   const filtered = selectedEvent(observation.selection.filteredSequence);
+  const shape = selectedEvent(observation.selection.shapeSequence);
+  const gamma = selectedEvent(observation.selection.gammaSequence);
   const run = selectedEvent(observation.selection.runSequence);
   const masks = observation.selection.maskSequences.map((sequence) => {
     const event = selectedEvent(sequence);
@@ -428,6 +540,8 @@ if (probe) {
     browser: observation.browser,
     raw,
     filtered,
+    shape,
+    gamma,
     run,
     masks,
     digest: observation.logicalDigest,
@@ -445,6 +559,7 @@ for (const id of SFNS_TERMINAL_MASK_SCENARIO_IDS) {
   ];
   scenarios.push({
     id,
+    request: sfnsTerminalMaskCase(id).request,
     observationLogicalDigest: sfnsValidationObservationDigest(observations[0]),
     observations,
   });
@@ -453,7 +568,9 @@ for (const id of SFNS_TERMINAL_MASK_SCENARIO_IDS) {
 const baseline = scenarios.find((scenario) => scenario.id === "zoom-2")!.observations[0];
 const controls: SfnsPinnedChromiumValidationArtifact["controls"] = [];
 for (const id of SFNS_TERMINAL_MASK_CONTROL_IDS) {
+  const caseId = `control-${id}` as const;
   const observation = await collectObservation({
+    caseId,
     scenarioId: "zoom-2",
     observationId: `validation-control-${id}-1`,
     lifecycle: "control",
@@ -462,7 +579,9 @@ for (const id of SFNS_TERMINAL_MASK_CONTROL_IDS) {
   });
   controls.push({
     id,
+    caseId,
     baselineScenarioId: "zoom-2",
+    request: sfnsTerminalMaskCase(caseId).request,
     observation,
     changedEvidenceGroups: sfnsValidationChangedEvidenceGroups(baseline, observation),
   });
@@ -470,12 +589,17 @@ for (const id of SFNS_TERMINAL_MASK_CONTROL_IDS) {
 
 const argsPath = `${sourceRoot}/out/DM2575/args.gn`;
 const withoutDigest: Omit<SfnsPinnedChromiumValidationArtifact, "artifactDigest"> = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   authority: "validation-test-only-pinned-chromium",
   arm: "validation",
+  manifest: {
+    abi: SFNS_TERMINAL_MASK_MANIFEST.abi,
+    digest: sfnsTerminalMaskManifestDigest(),
+  },
   collectionContract: {
     browserLaunches: 26,
     processIsolation: "one-explicitly-headless-browser-per-observation",
+    inputDerivation: "source-owned-manifest-independent-arm-derivation",
     equality: "exact-bytes-no-tolerance",
     productionRenderingChanges: false,
   },
@@ -489,6 +613,15 @@ const withoutDigest: Omit<SfnsPinnedChromiumValidationArtifact, "artifactDigest"
     binary: { path: relative(process.cwd(), binaryPath), sha256: fileSha(binaryPath) },
     sources: {
       hookHeaderSha256: fileSha(`${sourceRoot}/third_party/skia/src/core/SkDomotionSfnsValidation.h`),
+      blinkPlatformBuildGnSha256: fileSha(
+        `${sourceRoot}/third_party/blink/renderer/platform/BUILD.gn`,
+      ),
+      shapeResultSha256: fileSha(
+        `${sourceRoot}/third_party/blink/renderer/platform/fonts/shaping/shape_result.cc`,
+      ),
+      shapeResultViewSha256: fileSha(
+        `${sourceRoot}/third_party/blink/renderer/platform/fonts/shaping/shape_result_view.cc`,
+      ),
       chromiumSkiaBuildGnSha256: fileSha(`${sourceRoot}/skia/BUILD.gn`),
       scalerContextSha256: fileSha(`${sourceRoot}/third_party/skia/src/core/SkScalerContext.cpp`),
       glyphRunPainterSha256: fileSha(`${sourceRoot}/third_party/skia/src/core/SkGlyphRunPainter.cpp`),
@@ -497,14 +630,19 @@ const withoutDigest: Omit<SfnsPinnedChromiumValidationArtifact, "artifactDigest"
       retainedHookHeaderSha256: fileSha("tools/chromium-sfns-validation/SkDomotionSfnsValidation.h"),
       retainedChromiumPatchSha256: fileSha("tools/chromium-sfns-validation/chromium-build.patch"),
       retainedSkiaPatchSha256: fileSha("tools/chromium-sfns-validation/skia-hook.patch"),
+      retainedBlinkV2PatchSha256: fileSha("tools/chromium-sfns-validation/blink-v2-hook.patch"),
+      retainedSkiaV2PatchSha256: fileSha("tools/chromium-sfns-validation/skia-v2-hook.patch"),
       retainedOverlayReadmeSha256: fileSha("tools/chromium-sfns-validation/README.md"),
       retainedNodeIsolationProfileSha256: fileSha(
         "tools/chromium-sfns-validation/node-isolation.sb",
       ),
       buildDriverSha256: fileSha("tools/build-sfns-pinned-chromium-validator.mjs"),
+      manifestSha256: fileSha("tools/sfns-terminal-mask-manifest.ts"),
       collectorSha256: fileSha("tools/sfns-pinned-chromium-validation-collector.ts"),
       schemaSha256: fileSha("tools/sfns-pinned-chromium-validation-schema.ts"),
       schemaTestSha256: fileSha("tests/sfns-pinned-chromium-validation-schema.test.ts"),
+      adjudicatorSha256: fileSha("tools/sfns-terminal-mask-adjudicator.ts"),
+      adjudicatorTestSha256: fileSha("tests/sfns-terminal-mask-adjudicator.test.ts"),
     },
     toolchain: {
       gnSha256: fileSha(`${sourceRoot}/buildtools/mac/gn`),
@@ -525,9 +663,13 @@ const withoutDigest: Omit<SfnsPinnedChromiumValidationArtifact, "artifactDigest"
     },
   },
   corpus: {
-    fontPath,
-    fontByteLength: fontBytes.byteLength,
-    fontSha256: sha(fontBytes),
+    text: SFNS_TERMINAL_MASK_MANIFEST.corpus.text,
+    fontPath: SFNS_TERMINAL_MASK_MANIFEST.corpus.fontPath,
+    sourceFontByteLength: fontBytes.byteLength,
+    sourceFontSha256: sha(fontBytes),
+    decodedFontByteLength: SFNS_TERMINAL_MASK_MANIFEST.corpus.decodedFontByteLength,
+    decodedFontSha256: SFNS_TERMINAL_MASK_MANIFEST.corpus.decodedFontSha256,
+    collectionIndex: SFNS_TERMINAL_MASK_MANIFEST.corpus.collectionIndex,
     glyphIds: [...SFNS_TERMINAL_MASK_MANIFEST.corpus.glyphIds],
   },
   scenarios,

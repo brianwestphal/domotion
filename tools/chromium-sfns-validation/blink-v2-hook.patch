@@ -1,0 +1,262 @@
+diff --git a/third_party/blink/renderer/platform/BUILD.gn b/third_party/blink/renderer/platform/BUILD.gn
+index 0f8b2defe618d553ea3361c4f416b9b2e7f7e790..07b859f7789326f893f3ef096ff6afa778138fe1 100644
+--- a/third_party/blink/renderer/platform/BUILD.gn
++++ b/third_party/blink/renderer/platform/BUILD.gn
+@@ -264,6 +264,9 @@ declare_args() {
+   # Enable TRACE_EVENT instrumentation for Blink bindings.
+   # Disabled by default as it increases binary size.
+   enable_blink_bindings_tracing = extended_tracing_enabled
++
++  # Private, false-by-default SFNS shaping observation hook.
++  blink_domotion_sfns_validation_hook = false
+ }
+
+ # ZSTD compression support has a binary size cost, don't include it on
+@@ -291,6 +294,9 @@ config("blink_platform_implementation") {
+   visibility = [ "./*" ]
+
+   defines = [ "BLINK_PLATFORM_IMPLEMENTATION=1" ]
++  if (blink_domotion_sfns_validation_hook) {
++    defines += [ "BLINK_DOMOTION_SFNS_VALIDATION_HOOK=1" ]
++  }
+ }
+
+ config("blink_platform_pch") {
+diff --git a/third_party/blink/renderer/platform/fonts/shaping/shape_result.cc b/third_party/blink/renderer/platform/fonts/shaping/shape_result.cc
+index 65b053e7dd51c48ef83fb2674daba4f533bde66d..eb6635fa06dfdce1eaa92f1d9229957494ed2add 100644
+--- a/third_party/blink/renderer/platform/fonts/shaping/shape_result.cc
++++ b/third_party/blink/renderer/platform/fonts/shaping/shape_result.cc
+@@ -31,6 +31,10 @@
+
+ #include "third_party/blink/renderer/platform/fonts/shaping/shape_result.h"
+
++#if defined(BLINK_DOMOTION_SFNS_VALIDATION_HOOK)
++#include "third_party/skia/src/core/SkDomotionSfnsValidation.h"
++#endif
++
+ #include <hb.h>
+
+ #include <algorithm>
+@@ -780,13 +784,38 @@ float ShapeResult::ForEachGlyphImpl(float initial_advance,
+   auto glyph_offsets = run.glyph_data_.GetOffsets<has_non_zero_glyph_offsets>();
+   auto total_advance = InlineLayoutUnit::FromFloatRound(initial_advance);
+   bool is_horizontal = run.IsHorizontal();
++#if defined(BLINK_DOMOTION_SFNS_VALIDATION_HOOK)
++  std::vector<sk_domotion_sfns_validation::ShapeGlyphEvidence>
++      domotion_shape_glyphs;
++  domotion_shape_glyphs.reserve(run.glyph_data_.size());
++#endif
+   for (const auto& glyph_data : run.glyph_data_) {
++#if defined(BLINK_DOMOTION_SFNS_VALIDATION_HOOK)
++    const float glyph_advance = glyph_data.advance.ToFloat();
++    const float accumulated_advance = total_advance.ToFloat();
++    domotion_shape_glyphs.push_back({
++        static_cast<SkGlyphID>(glyph_data.glyph),
++        run.start_index_ + glyph_data.character_index,
++        is_horizontal ? SkPoint::Make(glyph_advance, 0)
++                      : SkPoint::Make(0, glyph_advance),
++        SkPoint::Make((*glyph_offsets).x(), (*glyph_offsets).y()),
++        is_horizontal ? SkPoint::Make(accumulated_advance, 0)
++                      : SkPoint::Make(0, accumulated_advance),
++        is_horizontal,
++    });
++#endif
+     glyph_callback(context, run.start_index_ + glyph_data.character_index,
+                    glyph_data.glyph, *glyph_offsets, total_advance,
+                    is_horizontal, run.canvas_rotation_, run.font_data_.Get());
+     total_advance += glyph_data.advance;
+     ++glyph_offsets;
+   }
++#if defined(BLINK_DOMOTION_SFNS_VALIDATION_HOOK)
++  if (SkTypeface* typeface = run.font_data_->PlatformData().Typeface()) {
++    sk_domotion_sfns_validation::WriteShape(*typeface,
++                                             domotion_shape_glyphs);
++  }
++#endif
+   return total_advance;
+ }
+
+@@ -819,6 +848,11 @@ float ShapeResult::ForEachGlyphImpl(float initial_advance,
+   unsigned run_start = run.start_index_ + index_offset;
+   bool is_horizontal = run.IsHorizontal();
+   const SimpleFontData* font_data = run.font_data_.Get();
++#if defined(BLINK_DOMOTION_SFNS_VALIDATION_HOOK)
++  std::vector<sk_domotion_sfns_validation::ShapeGlyphEvidence>
++      domotion_shape_glyphs;
++  domotion_shape_glyphs.reserve(run.glyph_data_.size());
++#endif
+
+   if (run.IsLtr()) {  // Left-to-right
+     for (const auto& glyph_data : run.glyph_data_) {
+@@ -826,6 +860,19 @@ float ShapeResult::ForEachGlyphImpl(float initial_advance,
+       if (character_index >= to)
+         break;
+       if (character_index >= from) {
++#if defined(BLINK_DOMOTION_SFNS_VALIDATION_HOOK)
++        const float glyph_advance = glyph_data.advance.ToFloat();
++        const float accumulated_advance = total_advance.ToFloat();
++        domotion_shape_glyphs.push_back({
++            static_cast<SkGlyphID>(glyph_data.glyph), character_index,
++            is_horizontal ? SkPoint::Make(glyph_advance, 0)
++                          : SkPoint::Make(0, glyph_advance),
++            SkPoint::Make((*glyph_offsets).x(), (*glyph_offsets).y()),
++            is_horizontal ? SkPoint::Make(accumulated_advance, 0)
++                          : SkPoint::Make(0, accumulated_advance),
++            is_horizontal,
++        });
++#endif
+         glyph_callback(context, character_index, glyph_data.glyph,
+                        *glyph_offsets, total_advance, is_horizontal,
+                        run.canvas_rotation_, font_data);
+@@ -839,6 +886,19 @@ float ShapeResult::ForEachGlyphImpl(float initial_advance,
+       if (character_index < from)
+         break;
+       if (character_index < to) {
++#if defined(BLINK_DOMOTION_SFNS_VALIDATION_HOOK)
++        const float glyph_advance = glyph_data.advance.ToFloat();
++        const float accumulated_advance = total_advance.ToFloat();
++        domotion_shape_glyphs.push_back({
++            static_cast<SkGlyphID>(glyph_data.glyph), character_index,
++            is_horizontal ? SkPoint::Make(glyph_advance, 0)
++                          : SkPoint::Make(0, glyph_advance),
++            SkPoint::Make((*glyph_offsets).x(), (*glyph_offsets).y()),
++            is_horizontal ? SkPoint::Make(accumulated_advance, 0)
++                          : SkPoint::Make(0, accumulated_advance),
++            is_horizontal,
++        });
++#endif
+         glyph_callback(context, character_index, glyph_data.glyph,
+                        *glyph_offsets, total_advance, is_horizontal,
+                        run.canvas_rotation_, font_data);
+@@ -847,6 +907,12 @@ float ShapeResult::ForEachGlyphImpl(float initial_advance,
+       ++glyph_offsets;
+     }
+   }
++#if defined(BLINK_DOMOTION_SFNS_VALIDATION_HOOK)
++  if (SkTypeface* typeface = run.font_data_->PlatformData().Typeface()) {
++    sk_domotion_sfns_validation::WriteShape(*typeface,
++                                             domotion_shape_glyphs);
++  }
++#endif
+   return total_advance;
+ }
+
+diff --git a/third_party/blink/renderer/platform/fonts/shaping/shape_result_view.cc b/third_party/blink/renderer/platform/fonts/shaping/shape_result_view.cc
+index 4f59d58bd7fc0b18e5c8e2e9ebda9519ef79cc31..e19c55eff1c2034649adb8d923188885e386b6ec 100644
+--- a/third_party/blink/renderer/platform/fonts/shaping/shape_result_view.cc
++++ b/third_party/blink/renderer/platform/fonts/shaping/shape_result_view.cc
+@@ -4,6 +4,10 @@
+
+ #include "third_party/blink/renderer/platform/fonts/shaping/shape_result_view.h"
+
++#if defined(BLINK_DOMOTION_SFNS_VALIDATION_HOOK)
++#include "third_party/skia/src/core/SkDomotionSfnsValidation.h"
++#endif
++
+ #include <algorithm>
+ #include <iterator>
+ #include <numeric>
+@@ -402,15 +406,39 @@ float ShapeResultView::ForEachGlyphImpl(float initial_advance,
+   const SimpleFontData* font_data = run->font_data_.Get();
+   const unsigned character_index_offset_for_glyph_data =
+       CharacterIndexOffsetForGlyphData(part);
++#if defined(BLINK_DOMOTION_SFNS_VALIDATION_HOOK)
++  std::vector<sk_domotion_sfns_validation::ShapeGlyphEvidence>
++      domotion_shape_glyphs;
++  domotion_shape_glyphs.reserve(part.NumGlyphs());
++#endif
+   for (const auto& glyph_data : part) {
+     unsigned character_index =
+         glyph_data.character_index + character_index_offset_for_glyph_data;
++#if defined(BLINK_DOMOTION_SFNS_VALIDATION_HOOK)
++    const float glyph_advance = glyph_data.advance.ToFloat();
++    const float accumulated_advance = total_advance.ToFloat();
++    domotion_shape_glyphs.push_back({
++        static_cast<SkGlyphID>(glyph_data.glyph), character_index,
++        is_horizontal ? SkPoint::Make(glyph_advance, 0)
++                      : SkPoint::Make(0, glyph_advance),
++        SkPoint::Make((*glyph_offsets).x(), (*glyph_offsets).y()),
++        is_horizontal ? SkPoint::Make(accumulated_advance, 0)
++                      : SkPoint::Make(0, accumulated_advance),
++        is_horizontal,
++    });
++#endif
+     glyph_callback(context, character_index, glyph_data.glyph, *glyph_offsets,
+                    total_advance, is_horizontal, run->canvas_rotation_,
+                    font_data);
+     total_advance += glyph_data.advance;
+     ++glyph_offsets;
+   }
++#if defined(BLINK_DOMOTION_SFNS_VALIDATION_HOOK)
++  if (SkTypeface* typeface = run->font_data_->PlatformData().Typeface()) {
++    sk_domotion_sfns_validation::WriteShape(*typeface,
++                                             domotion_shape_glyphs);
++  }
++#endif
+   return total_advance;
+ }
+
+@@ -445,6 +473,11 @@ float ShapeResultView::ForEachGlyphImpl(float initial_advance,
+   const SimpleFontData* font_data = run->font_data_.Get();
+   const unsigned character_index_offset_for_glyph_data =
+       CharacterIndexOffsetForGlyphData(part);
++#if defined(BLINK_DOMOTION_SFNS_VALIDATION_HOOK)
++  std::vector<sk_domotion_sfns_validation::ShapeGlyphEvidence>
++      domotion_shape_glyphs;
++  domotion_shape_glyphs.reserve(part.NumGlyphs());
++#endif
+   if (run->IsLtr()) {  // Left-to-right
+     for (const auto& glyph_data : part) {
+       unsigned character_index =
+@@ -452,6 +485,19 @@ float ShapeResultView::ForEachGlyphImpl(float initial_advance,
+       if (character_index >= to)
+         break;
+       if (character_index >= from) {
++#if defined(BLINK_DOMOTION_SFNS_VALIDATION_HOOK)
++        const float glyph_advance = glyph_data.advance.ToFloat();
++        const float accumulated_advance = total_advance.ToFloat();
++        domotion_shape_glyphs.push_back({
++            static_cast<SkGlyphID>(glyph_data.glyph), character_index,
++            is_horizontal ? SkPoint::Make(glyph_advance, 0)
++                          : SkPoint::Make(0, glyph_advance),
++            SkPoint::Make((*glyph_offsets).x(), (*glyph_offsets).y()),
++            is_horizontal ? SkPoint::Make(accumulated_advance, 0)
++                          : SkPoint::Make(0, accumulated_advance),
++            is_horizontal,
++        });
++#endif
+         glyph_callback(context, character_index, glyph_data.glyph,
+                        *glyph_offsets, total_advance, is_horizontal,
+                        run->canvas_rotation_, font_data);
+@@ -467,6 +513,19 @@ float ShapeResultView::ForEachGlyphImpl(float initial_advance,
+       if (character_index < from)
+         break;
+       if (character_index < to) {
++#if defined(BLINK_DOMOTION_SFNS_VALIDATION_HOOK)
++        const float glyph_advance = glyph_data.advance.ToFloat();
++        const float accumulated_advance = total_advance.ToFloat();
++        domotion_shape_glyphs.push_back({
++            static_cast<SkGlyphID>(glyph_data.glyph), character_index,
++            is_horizontal ? SkPoint::Make(glyph_advance, 0)
++                          : SkPoint::Make(0, glyph_advance),
++            SkPoint::Make((*glyph_offsets).x(), (*glyph_offsets).y()),
++            is_horizontal ? SkPoint::Make(accumulated_advance, 0)
++                          : SkPoint::Make(0, accumulated_advance),
++            is_horizontal,
++        });
++#endif
+         glyph_callback(context, character_index, glyph_data.glyph,
+                        *glyph_offsets, total_advance, is_horizontal,
+                        run->canvas_rotation_, font_data);
+@@ -475,5 +534,11 @@ float ShapeResultView::ForEachGlyphImpl(float initial_advance,
+       ++glyph_offsets;
+     }
+   }
++#if defined(BLINK_DOMOTION_SFNS_VALIDATION_HOOK)
++  if (SkTypeface* typeface = run->font_data_->PlatformData().Typeface()) {
++    sk_domotion_sfns_validation::WriteShape(*typeface,
++                                             domotion_shape_glyphs);
++  }
++#endif
+   return total_advance;
+ }

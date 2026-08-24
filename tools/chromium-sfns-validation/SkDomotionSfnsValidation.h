@@ -1,10 +1,11 @@
 // Test-only exact SFNS scaler/mask evidence hook for Chromium 7d859f271c /
-// Skia 62efacd377. This file is compiled only when the private
-// SK_DOMOTION_SFNS_VALIDATION_HOOK define is present.
+// Skia 62efacd377. This file is compiled only when a private validation hook
+// define is present in the owning Blink or Skia target.
 #ifndef SkDomotionSfnsValidation_DEFINED
 #define SkDomotionSfnsValidation_DEFINED
 
-#if defined(SK_DOMOTION_SFNS_VALIDATION_HOOK)
+#if defined(SK_DOMOTION_SFNS_VALIDATION_HOOK) || \
+    defined(BLINK_DOMOTION_SFNS_VALIDATION_HOOK)
 
 #include "include/core/SkFont.h"
 #include "include/core/SkFontArguments.h"
@@ -51,7 +52,7 @@
 
 namespace sk_domotion_sfns_validation {
 
-inline constexpr char kHookAbi[] = "domotion-sfns-pinned-chromium-hook-v1";
+inline constexpr char kHookAbi[] = "domotion-sfns-pinned-chromium-hook-v2";
 inline constexpr char kChromiumRevision[] = "7d859f271cbda744098ac69f44978d4edfa62be3";
 inline constexpr char kSkiaRevision[] = "62efacd37737505732dbe3d8daa62abd679626a1";
 inline constexpr char kSourceFontSha256[] =
@@ -75,6 +76,15 @@ struct FontIdentity {
     size_t byteLength;
     int collectionIndex;
     std::string sha256;
+};
+
+struct ShapeGlyphEvidence {
+    SkGlyphID glyphId;
+    uint32_t characterIndex;
+    SkPoint shapedAdvance;
+    SkPoint shapedOffset;
+    SkPoint accumulatedAdvance;
+    bool horizontal;
 };
 
 inline bool safeToken(std::string_view value) {
@@ -355,7 +365,7 @@ inline std::string envelope(const HookContext& hook, uint64_t sequence,
                             SkTypeface& typeface, const FontIdentity& identity,
                             std::string_view payload) {
     std::ostringstream out;
-    out << "{\"schemaVersion\":1,\"hookAbi\":" << quote(kHookAbi)
+    out << "{\"schemaVersion\":2,\"hookAbi\":" << quote(kHookAbi)
         << ",\"sequence\":" << sequence
         << ",\"event\":" << quote(event)
         << ",\"observationId\":" << quote(hook.observationId)
@@ -395,6 +405,34 @@ inline void writeEvent(const HookContext& hook, std::string_view event,
         return;
     }
     if (std::rename(temporary.c_str(), final.c_str()) != 0) std::remove(temporary.c_str());
+}
+
+inline void WriteShape(SkTypeface& typeface,
+                       const std::vector<ShapeGlyphEvidence>& glyphs) {
+    auto hook = context();
+    if (!hook || glyphs.size() != kGlyphIds.size()) return;
+    for (size_t i = 0; i < glyphs.size(); ++i) {
+        if (glyphs[i].glyphId != kGlyphIds[i]) return;
+    }
+    auto identity = authenticateTypeface(typeface);
+    if (!identity) return;
+    std::ostringstream payload;
+    payload << "{\"coordinateSystem\":\"skia-source-space-y-down\",\"glyphs\":[";
+    for (size_t i = 0; i < glyphs.size(); ++i) {
+        if (i) payload << ',';
+        const auto& glyph = glyphs[i];
+        payload << "{\"index\":" << i << ",\"gid\":" << glyph.glyphId
+            << ",\"characterIndex\":" << glyph.characterIndex
+            << ",\"shapedAdvance\":[" << number(glyph.shapedAdvance.x()) << ','
+            << number(glyph.shapedAdvance.y()) << "]"
+            << ",\"shapedOffset\":[" << number(glyph.shapedOffset.x()) << ','
+            << number(glyph.shapedOffset.y()) << "]"
+            << ",\"accumulatedAdvance\":[" << number(glyph.accumulatedAdvance.x())
+            << ',' << number(glyph.accumulatedAdvance.y()) << "]"
+            << ",\"horizontal\":" << (glyph.horizontal ? "true" : "false") << '}';
+    }
+    payload << "]}";
+    writeEvent(*hook, "shape", typeface, *identity, payload.str());
 }
 
 inline void WriteRaw(SkTypeface& typeface, const SkFont& font, const SkPaint& paint,
@@ -501,6 +539,51 @@ inline std::string digest256(const uint8_t* bytes) {
                   bytes ? 256 : 0);
 }
 
+inline void WriteGamma(SkTypeface& typeface, const SkScalerContextRec& rec,
+                       const SkMaskGamma& gamma,
+                       const SkMaskGamma::PreBlend& preblend,
+                       SkScalar inputContrast, SkScalar inputDeviceGamma) {
+    auto hook = context();
+    if (!hook) return;
+    auto identity = authenticateTypeface(typeface);
+    if (!identity) return;
+    int tableWidth = 0;
+    int tableHeight = 0;
+    gamma.getGammaTableDimensions(&tableWidth, &tableHeight);
+    const uint8_t* table = gamma.getGammaTables();
+    const size_t tableByteLength = gamma.getGammaTableSizeInBytes();
+    const size_t retainedTableLength = table ? tableByteLength : 0;
+    const size_t preblendByteLength = preblend.isApplicable() ? 256 : 0;
+    auto preblendBase64 = [&](const uint8_t* bytes) {
+        return base64(bytes ? static_cast<const void*>(bytes) : static_cast<const void*>(""),
+                      bytes ? preblendByteLength : 0);
+    };
+    std::ostringstream payload;
+    payload << "{\"filteredRec\":" << recJson(rec)
+        << ",\"inputContrast\":" << number(inputContrast)
+        << ",\"inputDeviceGamma\":" << number(inputDeviceGamma)
+        << ",\"tableApplicable\":" << (table ? "true" : "false")
+        << ",\"tableWidth\":" << tableWidth
+        << ",\"tableHeight\":" << tableHeight
+        << ",\"tableByteLength\":" << retainedTableLength
+        << ",\"tableSha256\":"
+        << quote(sha256(table ? static_cast<const void*>(table) : static_cast<const void*>(""),
+                        retainedTableLength))
+        << ",\"tableBytesBase64\":"
+        << quote(base64(table ? static_cast<const void*>(table) : static_cast<const void*>(""),
+                        retainedTableLength))
+        << ",\"preblendApplicable\":"
+        << (preblend.isApplicable() ? "true" : "false")
+        << ",\"preblendByteLength\":" << preblendByteLength
+        << ",\"preblendR256Sha256\":" << quote(digest256(preblend.fR))
+        << ",\"preblendG256Sha256\":" << quote(digest256(preblend.fG))
+        << ",\"preblendB256Sha256\":" << quote(digest256(preblend.fB))
+        << ",\"preblendR256Base64\":" << quote(preblendBase64(preblend.fR))
+        << ",\"preblendG256Base64\":" << quote(preblendBase64(preblend.fG))
+        << ",\"preblendB256Base64\":" << quote(preblendBase64(preblend.fB)) << '}';
+    writeEvent(*hook, "gamma", typeface, *identity, payload.str());
+}
+
 inline void WriteMask(SkTypeface& typeface, const SkScalerContextRec& rec,
                       const SkGlyph& glyph, const void* imageBuffer,
                       const CGAffineTransform& transform,
@@ -556,5 +639,5 @@ inline void WriteMask(SkTypeface& typeface, const SkScalerContextRec& rec,
 
 }  // namespace sk_domotion_sfns_validation
 
-#endif  // SK_DOMOTION_SFNS_VALIDATION_HOOK
+#endif  // private Blink/Skia SFNS validation hook
 #endif  // SkDomotionSfnsValidation_DEFINED

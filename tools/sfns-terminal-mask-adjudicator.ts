@@ -38,18 +38,21 @@ import {
   sfnsValidationArtifactDigest,
   validateSfnsPinnedChromiumValidation,
   type SfnsFilteredPayload,
+  type SfnsGammaPayload,
   type SfnsHookEvent,
   type SfnsMaskPayload,
   type SfnsPinnedChromiumValidationArtifact,
   type SfnsRawPayload,
   type SfnsRunGlyph,
   type SfnsRunPayload,
+  type SfnsShapeGlyph,
+  type SfnsShapePayload,
   type SfnsValidationObservation,
   type SfnsValidationRec,
 } from "./sfns-pinned-chromium-validation-schema.js";
 
 export const SFNS_TERMINAL_ADJUDICATOR_ABI =
-  "domotion-sfns-terminal-mask-adjudicator-v2";
+  "domotion-sfns-terminal-mask-adjudicator-v3";
 
 interface InputFileIdentity {
   path: string;
@@ -72,7 +75,7 @@ interface ObservationPairResult {
 }
 
 export interface SfnsTerminalMaskAdjudicationReport {
-  schemaVersion: 2;
+  schemaVersion: 3;
   authority: "exact-cross-arm-adjudication";
   adjudicatorAbi: string;
   contract: {
@@ -118,8 +121,10 @@ export interface SfnsTerminalMaskAdjudicationReport {
 }
 
 interface ValidationEvidence {
+  shape: SfnsHookEvent;
   raw: SfnsHookEvent;
   filtered: SfnsHookEvent;
+  gamma: SfnsHookEvent;
   run: SfnsHookEvent;
   masks: SfnsHookEvent[];
 }
@@ -262,8 +267,10 @@ function selectedValidationEvidence(observation: SfnsValidationObservation): Val
     return match;
   };
   return {
+    shape: event(observation.selection.shapeSequence),
     raw: event(observation.selection.rawSequence),
     filtered: event(observation.selection.filteredSequence),
+    gamma: event(observation.selection.gammaSequence),
     run: event(observation.selection.runSequence),
     masks: observation.selection.maskSequences.map(event),
   };
@@ -271,53 +278,6 @@ function selectedValidationEvidence(observation: SfnsValidationObservation): Val
 
 function normalizedProposalMetrics(observation: SfnsPinnedObservation): unknown {
   return observation.coreTextMetrics;
-}
-
-function normalizedValidationMetrics(
-  mask: SfnsMaskPayload | undefined,
-  run: SfnsRunPayload,
-): unknown {
-  if (mask == null || run.glyphs.length === 0) return null;
-  const metrics = mask.coreText;
-  const box = value(metrics, "boundingBox");
-  if (!Array.isArray(box) || box.length !== 4 || box.some((entry) => !Number.isFinite(entry))) {
-    return { invalidBoundingBox: box };
-  }
-  const [x, y, width, height] = box as number[];
-  const pointSize = value(metrics, "pointSize");
-  const unitsPerEm = value(metrics, "unitsPerEm");
-  const ascent = value(metrics, "ascent");
-  const descent = value(metrics, "descent");
-  const leading = value(metrics, "leading");
-  const capHeight = value(metrics, "capHeight");
-  const xHeight = value(metrics, "xHeight");
-  const baseline = run.glyphs[0].deviceOrigin[1];
-  if (![pointSize, unitsPerEm, ascent, descent, leading, capHeight, xHeight, baseline]
-    .every((entry) => typeof entry === "number" && Number.isFinite(entry))) return null;
-  return {
-    raw: {
-      pointSize,
-      unitsPerEm,
-      ascent,
-      descent,
-      leading,
-      capHeight,
-      xHeight,
-      boundingBox: [x, y, width, height],
-    },
-    normalized: {
-      coordinateSystem: "device-y-down",
-      baseline,
-      ascent: -(ascent as number),
-      descent,
-      leading,
-      capHeight: -(capHeight as number),
-      xHeight: -(xHeight as number),
-      top: (baseline as number) - (ascent as number),
-      bottom: (baseline as number) + (descent as number),
-      boundingBox: [x, -(y + height), width, height],
-    },
-  };
 }
 
 function proposalGlyph(glyph: SfnsMaskGlyph): ComparableObservation["glyphs"][number] {
@@ -346,26 +306,23 @@ function proposalGlyph(glyph: SfnsMaskGlyph): ComparableObservation["glyphs"][nu
 
 function validationGlyph(
   glyph: SfnsRunGlyph,
+  shape: SfnsShapeGlyph,
   rounding: SfnsRunPayload["rounding"],
   masks: Map<number, SfnsMaskPayload>,
+  baseline: number,
 ): ComparableObservation["glyphs"][number] {
   const mask = masks.get(glyph.packedId);
   return {
     identity: { index: glyph.index, gid: glyph.gid },
-    // Validation v1 did not retain HarfBuzz advance/offset output as a
-    // separate logical fact. Keep it absent until DM-2587 recollects it.
-    shapedAdvance: null,
-    shapedOffset: null,
+    shapedAdvance: shape.shapedAdvance,
+    shapedOffset: shape.shapedOffset,
     strikeAdvance: mask?.glyph.advance ?? null,
-    // The validation v1 artifact retains the strike subpixel fixed offset,
-    // not the shaped glyph offset required by the cross-arm contract. Do not
-    // infer the absent logical fact from neighboring positions.
     placement: {
       sourcePosition: glyph.sourcePosition,
       deviceOrigin: glyph.deviceOrigin,
       mappedWithRounding: glyph.mappedWithRounding,
       roundedDeviceOrigin: glyph.roundedDeviceOrigin,
-      baseline: glyph.deviceOrigin[1] ?? null,
+      baseline,
     },
     phase: {
       packedId: glyph.packedId,
@@ -425,17 +382,18 @@ function proposalComparable(
 }
 
 function validationComparable(
-  artifact: SfnsPinnedChromiumValidationArtifact,
   observation: SfnsValidationObservation,
 ): ComparableObservation {
   const evidence = selectedValidationEvidence(observation);
+  const shape = evidence.shape.payload as SfnsShapePayload;
   const raw = evidence.raw.payload as SfnsRawPayload;
   const filtered = evidence.filtered.payload as SfnsFilteredPayload;
+  const gammaPayload = evidence.gamma.payload as SfnsGammaPayload;
   const run = evidence.run.payload as SfnsRunPayload;
   const maskPayloads = evidence.masks.map((event) => event.payload as SfnsMaskPayload);
   const masks = new Map(maskPayloads.map((mask) => [mask.glyph.packedId, mask]));
-  const firstMask = maskPayloads[0];
-  const gamma = firstMask?.gamma;
+  const { filteredRec: ignoredGammaRec, ...gamma } = gammaPayload;
+  void ignoredGammaRec;
   return {
     source: {
       chromiumRevision: evidence.run.source.chromiumRevision,
@@ -469,29 +427,15 @@ function validationComparable(
       invertible: filtered.matrices.invertible,
     },
     smoothBehavior: filtered.smoothBehavior,
-    // Validation schema v1 did not retain the gamma table itself. Keep every
-    // available field exact and represent absent required facts as null, so an
-    // incomplete artifact cannot pass by omission.
-    gamma: {
-      inputContrast: value(raw.surfaceProps, "textContrast"),
-      inputDeviceGamma: value(raw.surfaceProps, "textGamma"),
-      tableApplicable: null,
-      tableWidth: null,
-      tableHeight: null,
-      tableByteLength: null,
-      tableSha256: null,
-      tableBytesBase64: null,
-      preblendApplicable: gamma == null ? null : value(gamma, "preblendApplicable"),
-      preblendByteLength: null,
-      preblendR256Sha256: gamma == null ? null : value(gamma, "preblendR256Sha256"),
-      preblendG256Sha256: gamma == null ? null : value(gamma, "preblendG256Sha256"),
-      preblendB256Sha256: gamma == null ? null : value(gamma, "preblendB256Sha256"),
-      preblendR256Base64: null,
-      preblendG256Base64: null,
-      preblendB256Base64: null,
-    },
-    fontMetrics: normalizedValidationMetrics(firstMask, run),
-    glyphs: run.glyphs.map((glyph) => validationGlyph(glyph, run.rounding, masks)),
+    gamma,
+    fontMetrics: observation.coreTextMetrics,
+    glyphs: run.glyphs.map((glyph, index) => validationGlyph(
+      glyph,
+      shape.glyphs[index]!,
+      run.rounding,
+      masks,
+      observation.coreTextMetrics.normalized.baseline,
+    )),
   };
 }
 
@@ -516,7 +460,6 @@ function addComparison(
 function compareObservation(
   caseId: string,
   proposalObservation: SfnsPinnedObservation,
-  validationArtifact: SfnsPinnedChromiumValidationArtifact,
   validationObservation: SfnsValidationObservation,
   mismatches: ExactMismatch[],
 ): ObservationPairResult {
@@ -531,7 +474,7 @@ function compareObservation(
     { distinct: true },
   );
   const proposal = proposalComparable(proposalObservation);
-  const validation = validationComparable(validationArtifact, validationObservation);
+  const validation = validationComparable(validationObservation);
   for (const group of [
     "source", "typeface", "font", "paint", "surfaceProps", "scalerContextFlags",
     "rawRec", "filteredRec", "matrices", "smoothBehavior", "gamma", "fontMetrics",
@@ -621,7 +564,6 @@ export function adjudicateSfnsTerminalMasks(
           observationPairs.push(compareObservation(
             id,
             proposalScenario.observations[index],
-            validation,
             validationScenario.observations[index],
             mismatches,
           ));
@@ -633,7 +575,6 @@ export function adjudicateSfnsTerminalMasks(
         observationPairs.push(compareObservation(
           `control-${id}`,
           proposalControl.observation,
-          validation,
           validationControl.observation,
           mismatches,
         ));
@@ -673,7 +614,7 @@ export function adjudicateSfnsTerminalMasks(
   if (!exactCancellation) inputIntegrityErrors.push("cancellation:not-exact-13px-scaler");
 
   const payload: Omit<SfnsTerminalMaskAdjudicationReport, "reportDigest"> = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     authority: "exact-cross-arm-adjudication",
     adjudicatorAbi: SFNS_TERMINAL_ADJUDICATOR_ABI,
     contract: {

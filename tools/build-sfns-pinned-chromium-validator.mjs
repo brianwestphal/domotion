@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** Apply and build DM-2575's false-by-default test-only hook in an isolated checkout. */
+/** Apply and build the false-by-default SFNS test hook in an isolated checkout. */
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -29,7 +29,7 @@ const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, ...args], { encodi
 if (git(root, "rev-parse", "HEAD") !== CHROMIUM_REVISION
     || git(`${root}/third_party/skia`, "rev-parse", "HEAD") !== SKIA_REVISION
     || git(depotTools, "rev-parse", "HEAD") !== DEPOT_TOOLS_REVISION) {
-  throw new Error("refusing to build outside the DM-2575 Chromium/Skia/depot_tools pins");
+  throw new Error("refusing to build outside the authenticated Chromium/Skia/depot_tools pins");
 }
 
 // The pinned Chromium GCS bundle deliberately filters @types/estree. If a
@@ -52,6 +52,11 @@ applyExactPatch(root, `${assets}/chromium-build.patch`, "skia/BUILD.gn",
   "sk_domotion_sfns_validation_hook");
 applyExactPatch(`${root}/third_party/skia`, `${assets}/skia-hook.patch`,
   "src/core/SkScalerContext.cpp", "SkDomotionSfnsValidation.h");
+applyExactPatch(root, `${assets}/blink-v2-hook.patch`,
+  "third_party/blink/renderer/platform/fonts/shaping/shape_result_view.cc",
+  "BLINK_DOMOTION_SFNS_VALIDATION_HOOK");
+applyExactPatch(`${root}/third_party/skia`, `${assets}/skia-v2-hook.patch`,
+  "src/core/SkScalerContext.cpp", "write_domotion_sfns_gamma");
 
 const headerSource = `${assets}/SkDomotionSfnsValidation.h`;
 const headerTarget = `${root}/third_party/skia/src/core/SkDomotionSfnsValidation.h`;
@@ -71,6 +76,7 @@ writeFileSync(argsPath, [
   "use_siso = false",
   "treat_warnings_as_errors = false",
   "sk_domotion_sfns_validation_hook = true",
+  "blink_domotion_sfns_validation_hook = true",
   "",
 ].join("\n"));
 

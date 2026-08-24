@@ -1,0 +1,54 @@
+diff --git a/src/core/SkScalerContext.cpp b/src/core/SkScalerContext.cpp
+index 15fb988..ee0d6ee 100644
+--- a/src/core/SkScalerContext.cpp
++++ b/src/core/SkScalerContext.cpp
+@@ -60,6 +60,14 @@ static inline const constexpr bool kSkScalerContextDumpRec = false;
+ static inline const constexpr bool kSkScalerContextDumpRec = false;
+ }
+
++#if defined(SK_DOMOTION_SFNS_VALIDATION_HOOK)
++static void write_domotion_sfns_gamma(SkTypeface&,
++                                      const SkScalerContextRec&,
++                                      const SkMaskGamma::PreBlend&,
++                                      SkScalar,
++                                      SkScalar);
++#endif
++
+ SkScalerContextRec SkScalerContext::PreprocessRec(const SkTypeface& typeface,
+                                                   const SkScalerContextEffects& effects,
+                                                   const SkDescriptor& desc) {
+@@ -109,6 +117,13 @@ SkScalerContext::SkScalerContext(SkTypeface& typeface, const SkScalerContextEffe
+         SkDebugf("%s", fRec.dump().c_str());
+         SkDebugf("  effects %p\n", desc->findEntry(kEffects_SkDescriptorTag, nullptr));
+     }
++
++#if defined(SK_DOMOTION_SFNS_VALIDATION_HOOK)
++    write_domotion_sfns_gamma(
++            typeface, fRec, fPreBlend,
++            SkScalerContextRec::ExternalContrastFromInternal(fRec.fContrast),
++            SkScalerContextRec::ExternalGammaFromInternal(fRec.fDeviceGamma));
++#endif
+ }
+
+ SkScalerContext::~SkScalerContext() {}
+@@ -176,6 +191,20 @@ SkMaskGamma::PreBlend SkScalerContext::GetMaskPreBlend(const SkScalerContextRec
+     return maskGamma.preBlend(rec.getLuminanceColor());
+ }
+
++#if defined(SK_DOMOTION_SFNS_VALIDATION_HOOK)
++static void write_domotion_sfns_gamma(
++        SkTypeface& typeface,
++        const SkScalerContextRec& rec,
++        const SkMaskGamma::PreBlend& preblend,
++        SkScalar inputContrast,
++        SkScalar inputDeviceGamma) {
++    SkAutoMutexExclusive ama(mask_gamma_cache_mutex());
++    const SkMaskGamma& gamma = rec.cachedMaskGamma();
++    sk_domotion_sfns_validation::WriteGamma(
++            typeface, rec, gamma, preblend, inputContrast, inputDeviceGamma);
++}
++#endif
++
+ size_t SkScalerContext::GetGammaLUTSize(SkScalar contrast, SkScalar deviceGamma,
+                                         int* width, int* height) {
+     SkAutoMutexExclusive ama(mask_gamma_cache_mutex());

@@ -13,8 +13,11 @@ post-conversion buffers from 26 separately launched, explicitly headless
 processes. DM-2576 adds the exact cross-arm adjudicator and an optional
 manual-only CI gate. The retained arms authenticate individually and agree on
 the decisive `[13,13]` cancellation scaler, but the adjudicator correctly
-withholds terminal-mask readiness because their rendering envelopes,
-coordinate facts, required gamma/offset coverage, and mask bytes are not equal.
+withholds terminal-mask readiness because their exact shaped advances,
+placement/phases, selected typeface identity, records, and mask bytes are not
+equal. Validation v2 now retains the formerly absent direct shaped offsets and
+full gamma/preblend buffers, so missing evidence no longer explains that
+verdict.
 No visual tolerance is accepted: the terminal mask comparison remains
 diagnostic, while the CoreText design-command seam is already an exact logical
 proposal/validation gate. The focused macOS runner is
@@ -71,6 +74,10 @@ The implementation follows these exact source seams:
 - Blink's custom-font path applies explicit variation settings, including an
   explicit `opsz`, before cloning the SkTypeface
   (`font_custom_platform_data.cc:102-239`).
+- Blink hands direct HarfBuzz advance, offset, and accumulated-advance facts to
+  paint through `ShapeResult::ForEachGlyphImpl` or the paint-owned
+  `ShapeResultView::ForEachGlyphImpl`; the validation hook records those values
+  before bloberization instead of reconstructing them from adjacent origins.
 - macOS Skia constructs data-backed typefaces through
   `SkTypeface_Mac::MakeFromStream`, keeping the CoreText backend
   (`SkFontMgr_mac_ct.cpp:485-507`).
@@ -291,8 +298,9 @@ production.
 `7d859f271cbda744098ac69f44978d4edfa62be3` and Skia
 `62efacd37737505732dbe3d8daa62abd679626a1`. Its private GN argument defaults
 to false. When explicitly enabled for the isolated validator build, the hook
-records four existing seams without changing their values: raw scaler-record
-construction, macOS record filtering, direct-mask run/phase packing, and the
+records six existing seams without changing their values: direct Blink shaping,
+raw scaler-record construction, macOS record filtering, full filtered-record
+gamma/preblend construction, direct-mask run/phase packing, and the
 post-conversion macOS mask buffer. The hook writes only when the ABI,
 observation envelope, exact 7,909,644-byte source-SFNS digest, deterministic
 pinned-OTS decoded-stream digest, and target gid stream all match. The two font
@@ -313,9 +321,11 @@ one phase, antialiasing, hinting, device-matrix, optical-size, and
 surface/mask-format control: 26 browser launches in total. Each event has a
 monotonic process-local sequence and exact observation identity. The schema
 rejects dropped, duplicate, reordered, stale, cross-process, or wrong-source
-events; reopens every base64 scaler record and mask; recomputes every digest;
-requires exact lifecycle equality; and proves every control moved its owned
-evidence groups. Comparisons are byte equality, never a fitted threshold.
+events; reopens every base64 scaler record, complete 2,048-byte gamma table,
+three 256-byte preblend buffers, and mask; recomputes every digest; authenticates
+the direct Blink shape-to-Skia-run coordinate seam and raw/normalized CoreText
+metrics; requires exact lifecycle equality; and proves every control moved its
+owned evidence groups. Comparisons are byte equality, never a fitted threshold.
 Each 56-byte record remains embedded and SHA-authenticated, and its leading
 `SkTypefaceID` must match the event's observed typeface. Only that four-byte
 process-local ID is zeroed when computing cross-process logical digests; it is
@@ -340,12 +350,12 @@ records used by every retained post-conversion mask. Runtime smoothing is
 logical digest after removing only the authenticated process-local typeface id.
 The six controls move every evidence group they own.
 
-The retained artifact has sealed digest
-`30f3772ec25f2c078c256ac1a015d9ca5d57d246d68a6512f8fd029095d05fd6`
+The retained validation-v2 artifact has sealed digest
+`55197a4575ea78723de7e173a60e8e7ab991f055a4e4da204ad976c37e04bd8b`
 and file SHA-256
-`a7df226ea4b5ec279e57d839b054515d7dcb5f13ec3ac37c0fbfe1841d2c102d`.
+`2403c4664983d8286aa7cde59ea5028bf32b0c1a69f819f5fc68d5e18473bf33`.
 Its authenticated `headless_shell` SHA-256 is
-`83976ae5819f7b2bfa60a10d72cd1c68324d9c78efbefbd43859600c70a41826`.
+`71f9ce3c463efc910151055e3f73f0416aa6a461552d103921e6a125f4cb2170`.
 
 Two earlier bounded host observations support that design without pretending
 to be the exact cross-arm gate. The new proposal artifact supersedes the first
@@ -387,10 +397,11 @@ pinned-headless Chromium validator are implemented. DM-2576's adjudicator is
 SHA-256 `ba14ff03e75e5ace2b609f14cbd7e0c18ff35ca99cd9a73571056028ca5caf3c`,
 sealed report digest
 `e730e1cf8216e9d15c62fd6ee06b3bcd2763c9ae735dfab8a7c24ba32613d72c`)
-is the historical result described immediately below. DM-2586 replaces the
-retained report at
-`.pr-notes/artifacts/dm2576-sfns-terminal-mask-adjudication.json` with the v2
-re-adjudication described in its own subsection.
+is the historical result described immediately below. The proposal recollection
+first replaced it with a v2 re-adjudication; the validation-v2 recollection now
+replaces the same retained path,
+`.pr-notes/artifacts/dm2576-sfns-terminal-mask-adjudication.json`, with the v3
+re-adjudication described after the proposal history.
 It re-runs both arm schemas, recomputes both artifact digests, requires distinct
 authority/build/binary identities, pairs all 26 observations, and compares
 every required field and embedded mask byte. Only the first four
@@ -484,6 +495,57 @@ The work is evidence-only: it changes no production rendering source, route,
 or tolerance. Proposal recollection launches no browser. The validation
 collector continues to request Playwright `headless: true` explicitly in
 addition to Chromium's `--headless=new` argument.
+
+### Validation v2 recollection
+
+The validation-v2 recollection consumes the same source-owned manifest in a
+separate authenticated Chromium execution. It retains arm-qualified IDs,
+direct HarfBuzz shaped advances and offsets from the paint-owned
+`ShapeResultView` seam, the linked Skia run positions and strike fixed offsets,
+raw and normalized CoreText metrics, exact raw/filtered records, and complete
+gamma-table, preblend, and post-conversion mask bytes. The shape hook
+authenticates the same 7,806,016-byte OTS-decoded typeface used by the Skia
+events. Selection requires one direct shape/run coordinate match and linked
+record digests; it never derives a missing shaped offset from neighboring
+origins.
+
+All 26 observations use fresh Chromium processes with Playwright
+`headless: true` and `--headless=new`. Two cold and two warm observations for
+each scenario have one exact logical digest after zeroing only the separately
+authenticated four-byte process-local `SkTypefaceID`. Six controls remain
+active. The anti-alias control records Chromium's exact coupled behavior:
+`-webkit-font-smoothing:antialiased` produces AA edging, no hinting, and Skia's
+linear-gamma branch, whose gamma/preblend buffers are exactly empty rather than
+silently filled from an ordinary row.
+
+The retained validation artifact has file SHA-256
+`2403c4664983d8286aa7cde59ea5028bf32b0c1a69f819f5fc68d5e18473bf33`
+and sealed artifact digest
+`55197a4575ea78723de7e173a60e8e7ab991f055a4e4da204ad976c37e04bd8b`.
+The fail-closed hostile suite covers missing, duplicated, reordered, stale,
+wrong-source, wrong-font/typeface/axis/gid, shaped-offset, phase,
+anti-aliasing/hinting, matrix, optical-size, surface, full gamma/preblend, and
+mask-byte mutations. Focused validation and adjudicator coverage contains 66
+passing tests.
+
+The v3 adjudicator reauthenticates both independent artifacts, pairs all 26
+observations, retains exact `[13,13]` cancellation in both arms, and reports
+zero input-integrity errors. Missing validation-v1 evidence is closed: shaped
+offsets now agree in every glyph, full gamma agrees in 25 of 26 pairs, and
+direct shaped advances are present rather than `null`. The gate remains
+**not ready** because exact execution exposes 498 real mismatches: 21 typeface,
+51 shaped-advance, 130 placement, 122 phase, 47 glyph-metric, 123 mask, and one
+each in font, raw record, filtered record, and gamma. The one font/record/gamma
+row is the anti-alias coupling above. No mismatch is normalized or fitted.
+
+The retained v3 report has file SHA-256
+`1d439f10fbd29b7acb8395f9c4ed59ac0583b17ee362c80bc9846575692748c8`
+and sealed report digest
+`ab9d17dc1570c8d87a11ca5be289dd373a2ef4ed2ef724518458a42d65a9d014`.
+The next ratification must resolve or source-adjudicate these literal
+cross-arm differences and reach zero exact mismatches before readiness can
+change. This recollection changes no production renderer source, route, or
+visual tolerance.
 
 ### Production outline route (closed by DM-2567)
 

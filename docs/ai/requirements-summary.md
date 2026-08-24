@@ -2070,13 +2070,19 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   native observations retain separate shaped and strike placement, raw and
   normalized CoreText metrics, exact records/matrices/phases, full gamma and
   three preblend buffers, and every mask byte. The v2 schema/adjudicator permits
-  only the four-byte process-local typeface-ID normalization. Validation v1
-  remains intentionally NOT READY: the retained v2 report pairs all 26 rows
-  with zero input-integrity errors and preserves 784 exact mismatches, including
-  338 shaped-advance/offset and full-gamma facts absent from v1. DM-2587
-  recollects validation from the shared manifest and DM-2588 ratifies exact
-  equality. Proposal collection launches no browser, validation remains
-  explicitly headless, and no production rendering or tolerance changes.
+  only the four-byte process-local typeface-ID normalization. Validation v2
+  independently recollects all 26 arm-qualified rows from the same manifest in
+  fresh, explicitly headless Chromium processes. It retains direct
+  `ShapeResultView` advances/offsets, normalized CoreText metrics, exact
+  records/matrices/phases, the complete gamma table and three preblend buffers,
+  and every mask byte. The retained v3 report pairs all rows with zero
+  input-integrity errors and exact `[13,13]` cancellation. Formerly missing
+  shaped offsets now agree everywhere and full gamma agrees in 25 of 26 rows;
+  the gate remains intentionally NOT READY on 498 literal typeface,
+  shaped-advance, placement, phase, metric, record/gamma, and mask mismatches.
+  Zero-mismatch ratification remains required. Proposal collection launches no
+  browser, validation remains explicitly headless, and no production rendering
+  or tolerance changes.
 
 <!-- Animated viewBox culling source audit, implementation, and oracle -->
 - Animated viewBox culling's composed-timeline path is implemented (doc 155):

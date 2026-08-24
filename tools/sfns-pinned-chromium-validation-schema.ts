@@ -1,10 +1,17 @@
-/**
- * Fail-closed schema for DM-2575's test-only pinned-Chromium SFNS trace.
- *
- * The artifact contains observed scaler records and post-conversion mask bytes.
- * It never changes production rendering and it never applies a tolerance.
- */
+/** Fail-closed schema for the test-only pinned-Chromium SFNS validation arm. */
 import { createHash } from "node:crypto";
+import {
+  SFNS_TERMINAL_MASK_CONTROL_IDS,
+  SFNS_TERMINAL_MASK_MANIFEST,
+  SFNS_TERMINAL_MASK_MANIFEST_ABI,
+  SFNS_TERMINAL_MASK_SCENARIO_IDS,
+  sfnsTerminalMaskCase,
+  sfnsTerminalMaskManifestDigest,
+  type SfnsTerminalMaskCaseId,
+  type SfnsTerminalMaskCaseRequest,
+  type SfnsTerminalMaskControlId,
+  type SfnsTerminalMaskScenarioId,
+} from "./sfns-terminal-mask-manifest.js";
 
 export const SFNS_VALIDATION_CHROMIUM_REVISION =
   "7d859f271cbda744098ac69f44978d4edfa62be3";
@@ -18,7 +25,7 @@ export const SFNS_VALIDATION_FONT_BYTE_LENGTH = 7_909_644;
 export const SFNS_VALIDATION_DECODED_FONT_SHA256 =
   "48eedcecfc1b0338a2b0deaac43b017df55b3023cff2c5e8ecc87570b4eacff4";
 export const SFNS_VALIDATION_DECODED_FONT_BYTE_LENGTH = 7_806_016;
-export const SFNS_VALIDATION_HOOK_ABI = "domotion-sfns-pinned-chromium-hook-v1";
+export const SFNS_VALIDATION_HOOK_ABI = "domotion-sfns-pinned-chromium-hook-v2";
 export const SFNS_VALIDATION_GN_ARGS = [
   "is_debug = false",
   "is_component_build = false",
@@ -29,87 +36,14 @@ export const SFNS_VALIDATION_GN_ARGS = [
   "use_siso = false",
   "treat_warnings_as_errors = false",
   "sk_domotion_sfns_validation_hook = true",
+  "blink_domotion_sfns_validation_hook = true",
   "",
 ].join("\n");
-export const SFNS_VALIDATION_GLYPH_IDS = [969, 815, 815, 795, 1310, 1377] as const;
-
-export const SFNS_VALIDATION_SCENARIOS = [
-  "zoom-2",
-  "transform-scale-2",
-  "zoom-2-transform-half",
-  "optical-sizing-none",
-  "opsz-26-mutation",
-] as const;
-export type SfnsValidationScenarioId = typeof SFNS_VALIDATION_SCENARIOS[number];
-
-export const SFNS_VALIDATION_CONTROLS = [
-  "subpixel-phase",
-  "anti-aliasing",
-  "hinting",
-  "device-matrix",
-  "optical-size",
-  "surface-mask-format",
-] as const;
-export type SfnsValidationControlId = typeof SFNS_VALIDATION_CONTROLS[number];
-
-export const SFNS_VALIDATION_SCENARIO_CONTRACT: Record<SfnsValidationScenarioId, {
-  opsz: number;
-  textSize: number;
-  scaler: number;
-  baseline: number;
-  origins: readonly number[];
-}> = {
-  "zoom-2": {
-    opsz: 17, textSize: 26, scaler: 26, baseline: 43,
-    origins: [37.25, 51.6591796875, 67.76953125, 83.8798828125, 108.115234375, 124.8349609375],
-  },
-  "transform-scale-2": {
-    opsz: 17, textSize: 13, scaler: 26, baseline: 26,
-    origins: [0, 14.4091796875, 30.51953125, 46.6298828125, 70.865234375, 87.5849609375],
-  },
-  "zoom-2-transform-half": {
-    opsz: 17, textSize: 26, scaler: 13, baseline: 12.5,
-    origins: [0, 7.20458984375, 15.259765625, 23.31494140625, 35.4326171875, 43.79248046875],
-  },
-  "optical-sizing-none": {
-    opsz: 17, textSize: 26, scaler: 26, baseline: 43,
-    origins: [37.25, 51.6591796875, 67.76953125, 83.8798828125, 108.115234375, 124.8349609375],
-  },
-  "opsz-26-mutation": {
-    opsz: 26, textSize: 26, scaler: 26, baseline: 43,
-    origins: [37.25, 50.268417358398438, 65.270767211914062, 80.273117065429688, 102.881103515625, 118.6544189453125],
-  },
-};
-
-export const SFNS_VALIDATION_CONTROL_GEOMETRY: Record<SfnsValidationControlId, {
-  baseline: number;
-  origins: readonly number[];
-}> = {
-  "subpixel-phase": {
-    baseline: 43,
-    origins: [37.5, 51.9091796875, 68.01953125, 84.1298828125, 108.365234375, 125.0849609375],
-  },
-  "anti-aliasing": {
-    baseline: 43,
-    origins: [37.25, 51.6591796875, 67.76953125, 83.8798828125, 108.115234375, 124.8349609375],
-  },
-  hinting: {
-    baseline: 43,
-    origins: [37.25, 51.6591796875, 67.76953125, 83.8798828125, 108.115234375, 124.8349609375],
-  },
-  "device-matrix": {
-    baseline: 31.25,
-    origins: [0, 18.011474609375, 38.1494140625, 58.287353515625, 88.58154296875, 109.481201171875],
-  },
-  "optical-size": {
-    baseline: 43,
-    origins: [37.25, 50.268417358398438, 65.270767211914062, 80.273117065429688, 102.881103515625, 118.6544189453125],
-  },
-  "surface-mask-format": {
-    baseline: 25,
-    origins: [0.25, 14.6591796875, 30.76953125, 46.8798828125, 71.115234375, 87.8349609375],
-  },
-};
+export const SFNS_VALIDATION_GLYPH_IDS = SFNS_TERMINAL_MASK_MANIFEST.corpus.glyphIds;
+export const SFNS_VALIDATION_SCENARIOS = SFNS_TERMINAL_MASK_SCENARIO_IDS;
+export type SfnsValidationScenarioId = SfnsTerminalMaskScenarioId;
+export const SFNS_VALIDATION_CONTROLS = SFNS_TERMINAL_MASK_CONTROL_IDS;
+export type SfnsValidationControlId = SfnsTerminalMaskControlId;
 
 export interface SfnsValidationRec {
   byteLength: number;
@@ -160,6 +94,41 @@ export interface SfnsFilteredPayload {
   after: SfnsValidationRec;
   matrices: SfnsValidationMatrices;
   smoothBehavior: string;
+}
+
+export interface SfnsShapeGlyph {
+  index: number;
+  gid: number;
+  characterIndex: number;
+  shapedAdvance: number[];
+  shapedOffset: number[];
+  accumulatedAdvance: number[];
+  horizontal: boolean;
+}
+
+export interface SfnsShapePayload {
+  coordinateSystem: "skia-source-space-y-down";
+  glyphs: SfnsShapeGlyph[];
+}
+
+export interface SfnsGammaPayload {
+  filteredRec: SfnsValidationRec;
+  inputContrast: number;
+  inputDeviceGamma: number;
+  tableApplicable: boolean;
+  tableWidth: number;
+  tableHeight: number;
+  tableByteLength: number;
+  tableSha256: string;
+  tableBytesBase64: string;
+  preblendApplicable: boolean;
+  preblendByteLength: number;
+  preblendR256Sha256: string;
+  preblendG256Sha256: string;
+  preblendB256Sha256: string;
+  preblendR256Base64: string;
+  preblendG256Base64: string;
+  preblendB256Base64: string;
 }
 
 export interface SfnsRunGlyph {
@@ -219,12 +188,13 @@ export interface SfnsValidationMatrices {
   invertible: boolean;
 }
 
-export type SfnsHookEventName = "raw" | "filtered" | "run" | "mask";
+export type SfnsHookEventName = "shape" | "raw" | "filtered" | "gamma" | "run" | "mask";
 export type SfnsHookPayload =
-  SfnsRawPayload | SfnsFilteredPayload | SfnsRunPayload | SfnsMaskPayload;
+  SfnsShapePayload | SfnsRawPayload | SfnsFilteredPayload | SfnsGammaPayload
+  | SfnsRunPayload | SfnsMaskPayload;
 
 export interface SfnsHookEvent {
-  schemaVersion: 1;
+  schemaVersion: 2;
   hookAbi: string;
   sequence: number;
   event: SfnsHookEventName;
@@ -271,18 +241,55 @@ export interface SfnsValidationBrowserFacts {
   range: { x: number; y: number; width: number; height: number };
 }
 
+export interface SfnsValidationCoreTextMetrics {
+  raw: {
+    pointSize: number;
+    unitsPerEm: number;
+    ascent: number;
+    descent: number;
+    leading: number;
+    capHeight: number;
+    xHeight: number;
+    boundingBox: number[];
+  };
+  normalized: {
+    coordinateSystem: "device-y-down";
+    baseline: number;
+    ascent: number;
+    descent: number;
+    leading: number;
+    capHeight: number;
+    xHeight: number;
+    top: number;
+    bottom: number;
+    boundingBox: number[];
+  };
+}
+
 export interface SfnsValidationObservation {
   observationId: string;
+  caseId: SfnsTerminalMaskCaseId;
+  kind: "scenario" | "control";
   scenarioId: SfnsValidationScenarioId;
   lifecycle: "cold" | "warm" | "control";
   controlId: string;
   ordinal: number;
   browser: SfnsValidationBrowserFacts;
+  coordinateSpace: {
+    source: "skia-source-space-y-down";
+    device: "device-space-y-down";
+    coreTextRaw: "coretext-y-up";
+    normalized: "device-y-down";
+    mask: "glyph-device-space-y-down";
+  };
+  coreTextMetrics: SfnsValidationCoreTextMetrics;
   events: SfnsHookEvent[];
   selection: {
     processId: number;
+    shapeSequence: number;
     rawSequence: number;
     filteredSequence: number;
+    gammaSequence: number;
     runSequence: number;
     maskSequences: number[];
   };
@@ -290,12 +297,14 @@ export interface SfnsValidationObservation {
 }
 
 export interface SfnsPinnedChromiumValidationArtifact {
-  schemaVersion: 1;
+  schemaVersion: 2;
   authority: "validation-test-only-pinned-chromium";
   arm: "validation";
+  manifest: { abi: string; digest: string };
   collectionContract: {
     browserLaunches: 26;
     processIsolation: "one-explicitly-headless-browser-per-observation";
+    inputDerivation: "source-owned-manifest-independent-arm-derivation";
     equality: "exact-bytes-no-tolerance";
     productionRenderingChanges: false;
   };
@@ -311,15 +320,27 @@ export interface SfnsPinnedChromiumValidationArtifact {
     toolchain: Record<string, string>;
     hostComponents: Record<string, string>;
   };
-  corpus: { fontPath: string; fontByteLength: number; fontSha256: string; glyphIds: number[] };
+  corpus: {
+    text: string;
+    fontPath: string;
+    sourceFontByteLength: number;
+    sourceFontSha256: string;
+    decodedFontByteLength: number;
+    decodedFontSha256: string;
+    collectionIndex: number;
+    glyphIds: number[];
+  };
   scenarios: Array<{
     id: SfnsValidationScenarioId;
+    request: SfnsTerminalMaskCaseRequest;
     observationLogicalDigest: string;
     observations: SfnsValidationObservation[];
   }>;
   controls: Array<{
     id: SfnsValidationControlId;
+    caseId: `control-${SfnsValidationControlId}`;
     baselineScenarioId: "zoom-2";
+    request: SfnsTerminalMaskCaseRequest;
     observation: SfnsValidationObservation;
     changedEvidenceGroups: string[];
   }>;
@@ -338,7 +359,12 @@ function canonicalize(value: unknown): unknown {
 }
 
 function hashJson(value: unknown): string {
-  return createHash("sha256").update(JSON.stringify(canonicalize(value))).digest("hex");
+  const serialized = JSON.stringify(canonicalize(value));
+  return createHash("sha256").update(serialized ?? "undefined").digest("hex");
+}
+
+function exact(left: unknown, right: unknown): boolean {
+  return JSON.stringify(canonicalize(left)) === JSON.stringify(canonicalize(right));
 }
 
 function shaBytes(value: Uint8Array): string {
@@ -354,6 +380,20 @@ function exactNumbers(actual: unknown, expected: readonly number[]): boolean {
     && actual.every((value, index) => Number.isFinite(value) && value === expected[index]);
 }
 
+function mapped(matrix: readonly number[], point: readonly number[]): [number, number] {
+  return [
+    Math.fround(Math.fround(matrix[0] * point[0])
+      + Math.fround(matrix[1] * point[1]) + matrix[2]),
+    Math.fround(Math.fround(matrix[3] * point[0])
+      + Math.fround(matrix[4] * point[1]) + matrix[5]),
+  ];
+}
+
+function packedPhase(value: number, fieldMask: number): number {
+  const fractional = Math.fround(Math.fround(value - Math.floor(value)) + 1);
+  return Math.trunc(Math.fround(fractional * 4)) & fieldMask;
+}
+
 function exactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {
   return hashJson(Object.keys(value).sort()) === hashJson([...expected].sort());
 }
@@ -365,6 +405,32 @@ function decodeExactBase64(value: string): Buffer | null {
   } catch {
     return null;
   }
+}
+
+function validateEncodedBytes(
+  base64: string,
+  byteLength: number,
+  digest: string,
+  label: string,
+  errors: string[],
+): void {
+  const bytes = decodeExactBase64(base64);
+  if (bytes == null) errors.push(`${label}:base64`);
+  else {
+    if (bytes.length !== byteLength) errors.push(`${label}:byte-length`);
+    if (shaBytes(bytes) !== digest) errors.push(`${label}:sha256`);
+  }
+  if (!validSha(digest)) errors.push(`${label}:sha256-shape`);
+}
+
+function expectedObservationId(
+  caseId: SfnsTerminalMaskCaseId,
+  lifecycle: "cold" | "warm" | "control",
+  ordinal: number,
+): string {
+  return caseId.startsWith("control-")
+    ? `validation-${caseId}-1`
+    : `validation-${caseId}-${lifecycle}-${ordinal}`;
 }
 
 // SkScalerContextRec starts with a process-local SkTypefaceID. Preserve and
@@ -401,10 +467,15 @@ function withoutRuntimePayload(event: SfnsHookEvent): SfnsHookPayload {
         after: withoutRuntimeRecIdentity(payload.after),
       };
     }
+    case "gamma": {
+      const payload = event.payload as SfnsGammaPayload;
+      return { ...payload, filteredRec: withoutRuntimeRecIdentity(payload.filteredRec) };
+    }
     case "mask": {
       const payload = event.payload as SfnsMaskPayload;
       return { ...payload, filteredRec: withoutRuntimeRecIdentity(payload.filteredRec) };
     }
+    case "shape":
     case "run":
       return event.payload;
   }
@@ -415,14 +486,18 @@ function eventAt(observation: SfnsValidationObservation, sequence: number): Sfns
 }
 
 function selected(observation: SfnsValidationObservation): {
+  shape?: SfnsHookEvent;
   raw?: SfnsHookEvent;
   filtered?: SfnsHookEvent;
+  gamma?: SfnsHookEvent;
   run?: SfnsHookEvent;
   masks: SfnsHookEvent[];
 } {
   return {
+    shape: eventAt(observation, observation.selection.shapeSequence),
     raw: eventAt(observation, observation.selection.rawSequence),
     filtered: eventAt(observation, observation.selection.filteredSequence),
+    gamma: eventAt(observation, observation.selection.gammaSequence),
     run: eventAt(observation, observation.selection.runSequence),
     masks: observation.selection.maskSequences
       .map((sequence) => eventAt(observation, sequence)).filter((event): event is SfnsHookEvent => event != null),
@@ -442,10 +517,15 @@ export function sfnsValidationObservationDigest(observation: SfnsValidationObser
     payload: withoutRuntimePayload(event),
   });
   return hashJson({
+    caseId: observation.caseId,
     scenarioId: observation.scenarioId,
     browser: observation.browser,
+    coordinateSpace: observation.coordinateSpace,
+    coreTextMetrics: observation.coreTextMetrics,
+    shape: strip(evidence.shape),
     raw: strip(evidence.raw),
     filtered: strip(evidence.filtered),
+    gamma: strip(evidence.gamma),
     run: strip(evidence.run),
     masks: evidence.masks.map(strip),
   });
@@ -455,11 +535,15 @@ export function sfnsValidationEvidenceGroups(
   observation: SfnsValidationObservation,
 ): Record<string, string> {
   const evidence = selected(observation);
+  const shape = evidence.shape?.payload as SfnsShapePayload | undefined;
   const raw = evidence.raw?.payload as SfnsRawPayload | undefined;
   const filtered = evidence.filtered?.payload as SfnsFilteredPayload | undefined;
+  const gamma = evidence.gamma?.payload as SfnsGammaPayload | undefined;
   const run = evidence.run?.payload as SfnsRunPayload | undefined;
   const masks = evidence.masks.map((event) => event.payload as SfnsMaskPayload);
   return {
+    request: hashJson(sfnsTerminalMaskCase(observation.caseId).request),
+    shape: hashJson(shape),
     phase: hashJson(run?.glyphs.map((glyph) => ({ packedId: glyph.packedId, phase: glyph.phase }))),
     mask: hashJson(masks.map((mask) => ({
       packedId: mask.glyph.packedId,
@@ -475,9 +559,14 @@ export function sfnsValidationEvidenceGroups(
       before: withoutRuntimeRecIdentity(filtered.before),
       after: withoutRuntimeRecIdentity(filtered.after),
     }),
+    gamma: hashJson(gamma == null ? null : {
+      ...gamma,
+      filteredRec: withoutRuntimeRecIdentity(gamma.filteredRec),
+    }),
     matrix: hashJson({ device: raw?.deviceMatrix, matrices: filtered?.matrices }),
     axis: hashJson(evidence.run?.typeface.axes),
     surface: hashJson({ raw: raw?.surfaceProps, run: run?.surfaceProps }),
+    metrics: hashJson(masks[0]?.coreText),
     browser: hashJson(observation.browser.css),
   };
 }
@@ -519,7 +608,7 @@ function validateEventEnvelope(
   errors: string[],
 ): void {
   const label = observation.observationId;
-  if (event.schemaVersion !== 1 || event.hookAbi !== SFNS_VALIDATION_HOOK_ABI) {
+  if (event.schemaVersion !== 2 || event.hookAbi !== SFNS_VALIDATION_HOOK_ABI) {
     errors.push(`${label}:hook-abi`);
   }
   if (event.observationId !== observation.observationId
@@ -537,7 +626,8 @@ function validateEventEnvelope(
   }
   if (event.typeface.fontBytes.authority !== "ots-sanitized-sfnt"
       || event.typeface.fontBytes.byteLength !== SFNS_VALIDATION_DECODED_FONT_BYTE_LENGTH
-      || event.typeface.fontBytes.sha256 !== SFNS_VALIDATION_DECODED_FONT_SHA256) {
+      || event.typeface.fontBytes.sha256 !== SFNS_VALIDATION_DECODED_FONT_SHA256
+      || event.typeface.fontBytes.collectionIndex !== 0) {
     errors.push(`${label}:font-identity`);
   }
   if (event.typeface.uniqueId <= 0 || event.processId <= 0) errors.push(`${label}:runtime-identity`);
@@ -545,22 +635,35 @@ function validateEventEnvelope(
 
 function validateObservation(
   observation: SfnsValidationObservation,
-  scenarioId: SfnsValidationScenarioId,
+  caseId: SfnsTerminalMaskCaseId,
+  request: SfnsTerminalMaskCaseRequest,
   errors: string[],
 ): void {
-  const label = observation.observationId || `${scenarioId}:unnamed`;
-  if (observation.scenarioId !== scenarioId) errors.push(`${label}:scenario-id`);
+  const label = observation.observationId || `${caseId}:unnamed`;
+  const manifestCase = sfnsTerminalMaskCase(caseId);
+  if (observation.observationId !== expectedObservationId(
+    caseId, observation.lifecycle, observation.ordinal,
+  )) errors.push(`${label}:arm-qualified-id`);
+  if (observation.caseId !== caseId
+      || observation.kind !== manifestCase.kind
+      || observation.scenarioId !== manifestCase.scenarioId
+      || observation.controlId !== manifestCase.controlId) errors.push(`${label}:case-identity`);
+  if (!exact(request.run.deviceStart, mapped(request.run.liveDeviceMatrix, request.run.sourceStart))
+      || request.run.deviceBaseline !== request.run.deviceStart[1]) {
+    errors.push(`${label}:manifest-coordinate-envelope`);
+  }
   if (!observation.browser.explicitlyHeadless
-      || !observation.browser.launchArgs.some((arg) => arg.startsWith("--headless"))) {
+      || !observation.browser.launchArgs.includes("--headless=new")) {
     errors.push(`${label}:not-explicitly-headless`);
   }
   if (!validSha(observation.browser.screenshotSha256)) errors.push(`${label}:screenshot-sha256`);
-  if (observation.browser.platformFonts.length !== 1
-      || !observation.browser.platformFonts[0].isCustomFont
-      || observation.browser.platformFonts[0].glyphCount !== SFNS_VALIDATION_GLYPH_IDS.length
-      || !observation.browser.platformFonts[0].postScriptName.startsWith(".SFNS-")) {
-    errors.push(`${label}:platform-font`);
-  }
+  if (!exact(observation.coordinateSpace, {
+    source: "skia-source-space-y-down",
+    device: "device-space-y-down",
+    coreTextRaw: "coretext-y-up",
+    normalized: "device-y-down",
+    mask: "glyph-device-space-y-down",
+  })) errors.push(`${label}:coordinate-space`);
   if (observation.events.length === 0) errors.push(`${label}:events-empty`);
   const sequences = observation.events.map((event) => event.sequence);
   if (new Set(sequences).size !== sequences.length) errors.push(`${label}:duplicate-sequence`);
@@ -571,68 +674,218 @@ function validateObservation(
   for (const event of observation.events) validateEventEnvelope(event, observation, errors);
 
   const evidence = selected(observation);
-  if (evidence.raw?.event !== "raw" || evidence.filtered?.event !== "filtered"
-      || evidence.run?.event !== "run" || evidence.masks.length !== observation.selection.maskSequences.length
+  if (evidence.shape?.event !== "shape" || evidence.raw?.event !== "raw"
+      || evidence.filtered?.event !== "filtered" || evidence.gamma?.event !== "gamma"
+      || evidence.run?.event !== "run"
+      || evidence.masks.length !== observation.selection.maskSequences.length
       || evidence.masks.some((event) => event.event !== "mask")) errors.push(`${label}:selection`);
-  if (evidence.raw == null || evidence.filtered == null || evidence.run == null) return;
+  if (evidence.shape == null || evidence.raw == null || evidence.filtered == null
+      || evidence.gamma == null || evidence.run == null) return;
   if (observation.events.some((event) => event.processId !== observation.selection.processId)) {
     errors.push(`${label}:cross-process-events`);
   }
-  const selectedEvents = [evidence.raw, evidence.filtered, evidence.run, ...evidence.masks];
+  const selectedEvents = [
+    evidence.shape, evidence.raw, evidence.filtered, evidence.gamma, evidence.run,
+    ...evidence.masks,
+  ];
   if (selectedEvents.some((event) => event.processId !== observation.selection.processId
-      || event.typeface.uniqueId !== evidence.run!.typeface.uniqueId)) {
+      || event.typeface.uniqueId !== evidence.run!.typeface.uniqueId
+      || !exact(event.typeface, evidence.run!.typeface))) {
     errors.push(`${label}:selection-identity`);
   }
-  if (!(evidence.raw.sequence < evidence.filtered.sequence
-      && evidence.filtered.sequence < evidence.run.sequence
+  if (!(evidence.shape.sequence < evidence.raw.sequence
+      && evidence.raw.sequence < evidence.filtered.sequence
+      && evidence.filtered.sequence < evidence.gamma.sequence
+      && evidence.gamma.sequence < evidence.run.sequence
       && evidence.masks.every((mask) => mask.sequence > evidence.run!.sequence))) {
     errors.push(`${label}:selection-order`);
   }
 
+  const shape = evidence.shape.payload as SfnsShapePayload;
   const raw = evidence.raw.payload as SfnsRawPayload;
   const filtered = evidence.filtered.payload as SfnsFilteredPayload;
+  const gamma = evidence.gamma.payload as SfnsGammaPayload;
   const run = evidence.run.payload as SfnsRunPayload;
   const masks = evidence.masks.map((event) => event.payload as SfnsMaskPayload);
   validateRec(raw.rawRec, `${label}:raw-rec`, errors);
   validateRec(filtered.before, `${label}:filter-before`, errors);
   validateRec(filtered.after, `${label}:filter-after`, errors);
+  validateRec(gamma.filteredRec, `${label}:gamma-rec`, errors);
   if (recTypefaceId(raw.rawRec) !== evidence.raw.typeface.uniqueId
       || recTypefaceId(filtered.before) !== evidence.filtered.typeface.uniqueId
-      || recTypefaceId(filtered.after) !== evidence.filtered.typeface.uniqueId) {
+      || recTypefaceId(filtered.after) !== evidence.filtered.typeface.uniqueId
+      || recTypefaceId(gamma.filteredRec) !== evidence.gamma.typeface.uniqueId) {
     errors.push(`${label}:rec-typeface-identity`);
   }
   if (raw.rawRec.sha256 !== filtered.before.sha256) errors.push(`${label}:raw-filter-link`);
-  const expectedRawMaskFormat = observation.controlId === "anti-aliasing"
-    || observation.controlId === "surface-mask-format" ? "A8" : "LCD16";
+  if (filtered.after.sha256 !== gamma.filteredRec.sha256) errors.push(`${label}:filter-gamma-link`);
+
+  const typeface = evidence.run.typeface;
+  const expectedPostscript = request.axes.opsz === 26
+    ? ".SFNS-Regular_wdth_opsz1A0000_GRAD_wght2BC0000"
+    : ".SFNS-Regular_wdth_opsz110000_GRAD_wght2BC0000";
+  if (typeface.family !== ".SF NS" || typeface.postscriptName !== expectedPostscript
+      || !exact(typeface.style, { weight: 700, width: 5, slant: 0 })) {
+    errors.push(`${label}:typeface-identity`);
+  }
+  const expectedAxes: Record<string, [number, number, number, boolean, number]> = {
+    wdth: [30, 100, 150, false, request.axes.wdth],
+    opsz: [17, 28, 96, false, request.axes.opsz],
+    GRAD: [400, 400, 1000, true, request.axes.GRAD],
+    wght: [1, 400, 1000, false, request.axes.wght],
+  };
+  const axes = new Map(typeface.axes.map((axis) => [axis.tag, axis]));
+  if (axes.size !== 4 || typeface.axes.length !== 4) errors.push(`${label}:axis-count`);
+  for (const [tag, expected] of Object.entries(expectedAxes)) {
+    const axis = axes.get(tag);
+    if (axis == null || !exact(
+      [axis.min, axis.default, axis.max, axis.hidden, axis.actual], expected,
+    )) errors.push(`${label}:axis:${tag}`);
+  }
+  if (observation.browser.platformFonts.length !== 1
+      || !observation.browser.platformFonts[0].isCustomFont
+      || observation.browser.platformFonts[0].glyphCount !== SFNS_VALIDATION_GLYPH_IDS.length
+      || observation.browser.platformFonts[0].familyName !== typeface.family
+      || observation.browser.platformFonts[0].postScriptName !== typeface.postscriptName) {
+    errors.push(`${label}:platform-font`);
+  }
+
+  const validationFont = {
+    ...request.font,
+    edging: request.browserCss.fontSmoothing === "antialiased" ? "aa" : request.font.edging,
+    hinting: request.browserCss.fontSmoothing === "antialiased" ? "none" : request.font.hinting,
+  };
+  if (!exact(raw.font, { size: request.fontSize, ...validationFont })) {
+    errors.push(`${label}:font`);
+  }
+  if (!exact(raw.paint, { color: request.paint.color, style: 0 })) {
+    errors.push(`${label}:paint-white`);
+  }
+  if (!exact(raw.surfaceProps, request.surface)
+      || !exact(run.surfaceProps, request.surface)) errors.push(`${label}:surface`);
+  if (raw.scalerContextFlags !== request.scalerContextFlags
+      || run.scalerContextFlags !== request.scalerContextFlags) {
+    errors.push(`${label}:scaler-context-flags`);
+  }
+  if (!exact(run.font, {
+    size: request.fontSize,
+    edging: validationFont.edging,
+    hinting: validationFont.hinting,
+  })) errors.push(`${label}:run-font`);
+
+  const expectedRawMaskFormat = validationFont.edging === "subpixel"
+    && request.surface.pixelGeometry !== "unknown" ? "LCD16" : "A8";
+  const expectedFilteredMaskFormat = expectedRawMaskFormat === "LCD16"
+    && filtered.smoothBehavior === "subpixel" ? "LCD16" : "A8";
   if (raw.rawRec.maskFormat !== expectedRawMaskFormat
       || filtered.before.maskFormat !== expectedRawMaskFormat
-      || filtered.after.maskFormat !== "A8") {
+      || filtered.after.maskFormat !== expectedFilteredMaskFormat) {
     errors.push(`${label}:lcd-to-a8-route`);
   }
-  const contract = SFNS_VALIDATION_SCENARIO_CONTRACT[scenarioId];
-  const expectedTextSize = observation.controlId === "device-matrix"
-    ? SFNS_VALIDATION_SCENARIO_CONTRACT["zoom-2"].textSize
-    : contract.textSize;
-  if (raw.rawRec.textSize !== expectedTextSize
-      || filtered.before.textSize !== expectedTextSize
-      || filtered.after.textSize !== expectedTextSize
-      || (raw.font.size as number) !== expectedTextSize
-      || (run.font.size as number) !== expectedTextSize) {
-    errors.push(`${label}:raw-text-size`);
+  if (raw.rawRec.textSize !== request.fontSize
+      || filtered.before.textSize !== request.fontSize
+      || filtered.after.textSize !== request.fontSize) errors.push(`${label}:raw-text-size`);
+
+  const effectiveScale = request.fontSize * request.run.liveDeviceMatrix[0];
+  const scaledIdentity = [effectiveScale, 0, 0, 0, effectiveScale, 0, 0, 0, 1];
+  const identity = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+  if (!filtered.matrices.invertible
+      || !exactNumbers(raw.deviceMatrix, request.run.liveDeviceMatrix)
+      || !exactNumbers(run.positionMatrix, request.run.liveDeviceMatrix)
+      || !exactNumbers(raw.matrices.total, scaledIdentity)
+      || !exactNumbers(filtered.matrices.total, scaledIdentity)
+      || !exactNumbers(filtered.matrices.scale, [effectiveScale, effectiveScale])
+      || !exactNumbers(filtered.matrices.remaining, identity)
+      || !exactNumbers(filtered.matrices.remainingWithoutRotation, identity)
+      || !exactNumbers(filtered.matrices.remainingRotation, identity)
+      || !exactNumbers(raw.rawRec.singleMatrix, scaledIdentity)
+      || !exactNumbers(filtered.after.singleMatrix, scaledIdentity)) {
+    errors.push(`${label}:matrix-factorization`);
   }
-  if (run.glyphs.length !== SFNS_VALIDATION_GLYPH_IDS.length
-      || run.glyphs.some((glyph, index) => glyph.index !== index
-        || glyph.gid !== SFNS_VALIDATION_GLYPH_IDS[index])) errors.push(`${label}:glyph-order`);
-  const expectedGeometry = observation.controlId === ""
-    ? SFNS_VALIDATION_SCENARIO_CONTRACT[scenarioId]
-    : SFNS_VALIDATION_CONTROL_GEOMETRY[observation.controlId as SfnsValidationControlId];
-  if (!exactNumbers(
-    run.glyphs.map((glyph) => glyph.deviceOrigin[0]), expectedGeometry.origins,
-  )) errors.push(`${label}:device-origins`);
-  if (!exactNumbers(
-    run.glyphs.map((glyph) => glyph.deviceOrigin[1]),
-    Array(run.glyphs.length).fill(expectedGeometry.baseline),
-  )) errors.push(`${label}:baseline`);
+
+  const tableLength = gamma.tableApplicable ? gamma.tableByteLength : 0;
+  validateEncodedBytes(
+    gamma.tableBytesBase64, tableLength, gamma.tableSha256, `${label}:gamma-table`, errors,
+  );
+  for (const channel of ["R", "G", "B"] as const) {
+    validateEncodedBytes(
+      gamma[`preblend${channel}256Base64`],
+      gamma.preblendApplicable ? gamma.preblendByteLength : 0,
+      gamma[`preblend${channel}256Sha256`],
+      `${label}:preblend-${channel.toLowerCase()}`,
+      errors,
+    );
+  }
+  const gammaDump = /device gamma (\d+), contrast (\d+)/.exec(gamma.filteredRec.dump);
+  const expectedInputGamma = gammaDump == null ? Number.NaN : Number(gammaDump[1]) / 64;
+  const expectedInputContrast = gammaDump == null ? Number.NaN : Number(gammaDump[2]) / 255;
+  const expectedGammaApplicable = !(expectedInputGamma === 1 && expectedInputContrast === 0);
+  if (gamma.inputContrast !== expectedInputContrast
+      || gamma.inputDeviceGamma !== expectedInputGamma
+      || gamma.tableApplicable !== expectedGammaApplicable
+      || gamma.tableWidth !== 256 || gamma.tableHeight !== 8
+      || gamma.tableByteLength !== (expectedGammaApplicable ? 2_048 : 0)
+      || gamma.preblendApplicable !== expectedGammaApplicable
+      || gamma.preblendByteLength !== (expectedGammaApplicable ? 256 : 0)) {
+    errors.push(`${label}:gamma-input-contract`);
+  }
+
+  if (shape.coordinateSystem !== "skia-source-space-y-down"
+      || shape.glyphs.length !== SFNS_VALIDATION_GLYPH_IDS.length
+      || run.glyphs.length !== SFNS_VALIDATION_GLYPH_IDS.length) {
+    errors.push(`${label}:glyph-count`);
+  }
+  let accumulated = [...request.run.sourceStart] as [number, number];
+  run.glyphs.forEach((glyph, index) => {
+    const shaped = shape.glyphs[index];
+    const glyphLabel = `${label}:glyph:${index}`;
+    if (shaped == null) return;
+    const expectedSource = [
+      Math.fround(shaped.accumulatedAdvance[0] + shaped.shapedOffset[0]),
+      Math.fround(shaped.accumulatedAdvance[1] + shaped.shapedOffset[1]),
+    ];
+    const expectedDevice = mapped(request.run.liveDeviceMatrix, expectedSource);
+    const expectedRoundedInput = [
+      Math.fround(expectedDevice[0] + run.rounding.halfAxisSampleFreq[0]),
+      Math.fround(expectedDevice[1] + run.rounding.halfAxisSampleFreq[1]),
+    ];
+    if (shaped.index !== index || shaped.gid !== SFNS_VALIDATION_GLYPH_IDS[index]
+        || shaped.characterIndex !== index || !shaped.horizontal
+        || shaped.shapedAdvance.length !== 2 || shaped.shapedAdvance[1] !== 0
+        || shaped.shapedOffset.length !== 2 || !shaped.shapedOffset.every(Number.isFinite)
+        || !exactNumbers(shaped.accumulatedAdvance, accumulated)
+        || glyph.index !== index || glyph.gid !== shaped.gid
+        || !exactNumbers(glyph.sourcePosition, expectedSource)
+        || !exactNumbers(glyph.deviceOrigin, expectedDevice)
+        || !exactNumbers(glyph.mappedWithRounding, expectedRoundedInput)
+        || !exactNumbers(glyph.roundedDeviceOrigin, [
+          Math.floor(expectedRoundedInput[0]), Math.floor(expectedRoundedInput[1]),
+        ])
+        || glyph.deviceOrigin[1] !== request.run.deviceBaseline
+        || !exactNumbers(run.rounding.halfAxisSampleFreq, [0.125, 0.5])
+        || !exactNumbers(run.rounding.ignorePositionFieldMask, [3, 0])) {
+      errors.push(`${glyphLabel}:shaping-run-seam`);
+    }
+    const expectedPhaseX = packedPhase(
+      expectedRoundedInput[0], run.rounding.ignorePositionFieldMask[0],
+    );
+    const expectedPhaseY = packedPhase(
+      expectedRoundedInput[1], run.rounding.ignorePositionFieldMask[1],
+    );
+    const expectedPackedId = ((glyph.gid << 2) | expectedPhaseX | (expectedPhaseY << 18)) >>> 0;
+    if (glyph.packedId !== expectedPackedId
+        || ((glyph.packedId >>> 2) & 0xffff) !== glyph.gid
+        || glyph.phase.x !== expectedPhaseX || glyph.phase.y !== expectedPhaseY
+        || glyph.phase.x !== (glyph.packedId & 3)
+        || glyph.phase.y !== ((glyph.packedId >>> 18) & 3)) {
+      errors.push(`${glyphLabel}:packed-phase`);
+    }
+    accumulated = [
+      Math.fround(accumulated[0] + shaped.shapedAdvance[0]),
+      Math.fround(accumulated[1] + shaped.shapedAdvance[1]),
+    ];
+  });
+
   const expectedPackedIds = [...new Set(run.glyphs.map((glyph) => glyph.packedId))];
   if (!exactNumbers(masks.map((mask) => mask.glyph.packedId), expectedPackedIds)) {
     errors.push(`${label}:mask-order-or-coverage`);
@@ -643,55 +896,65 @@ function validateObservation(
       errors.push(`${label}:mask:${index}:rec-typeface-identity`);
     }
     if (mask.filteredRec.sha256 !== filtered.after.sha256) errors.push(`${label}:mask:${index}:rec-link`);
-    const bytes = decodeExactBase64(mask.glyph.mask.bytes);
-    if (bytes == null) errors.push(`${label}:mask:${index}:base64`);
-    else {
-      if (bytes.length !== mask.glyph.metrics.imageSize) errors.push(`${label}:mask:${index}:size`);
-      if (shaBytes(bytes) !== mask.glyph.mask.sha256) errors.push(`${label}:mask:${index}:sha256`);
+    validateEncodedBytes(
+      mask.glyph.mask.bytes,
+      mask.glyph.metrics.imageSize,
+      mask.glyph.mask.sha256,
+      `${label}:mask:${index}`,
+      errors,
+    );
+    if (mask.glyph.metrics.maskFormat !== expectedFilteredMaskFormat
+        || mask.glyph.metrics.imageSize
+          !== mask.glyph.metrics.rowBytes * mask.glyph.metrics.height) {
+      errors.push(`${label}:mask:${index}:metrics`);
     }
-    if (mask.glyph.metrics.maskFormat !== "A8") errors.push(`${label}:mask:${index}:format`);
     const runGlyph = run.glyphs.find((glyph) => glyph.packedId === mask.glyph.packedId);
     if (runGlyph == null || runGlyph.gid !== mask.glyph.gid
         || runGlyph.phase.x !== mask.glyph.phase.x
-        || runGlyph.phase.y !== mask.glyph.phase.y) {
+        || runGlyph.phase.y !== mask.glyph.phase.y
+        || !exactNumbers(mask.glyph.subpixelOffsetFixed, [
+          mask.glyph.phase.x << 14, mask.glyph.phase.y << 14,
+        ])) {
       errors.push(`${label}:mask:${index}:run-phase-link`);
     }
-    const gamma = mask.gamma;
-    const gammaDigests = [
-      gamma.preblendR256Sha256,
-      gamma.preblendG256Sha256,
-      gamma.preblendB256Sha256,
-    ];
-    if (gamma.recordDump !== mask.filteredRec.dump
+    const maskGamma = mask.gamma;
+    if (maskGamma.recordDump !== mask.filteredRec.dump
         || !/lum bits [0-9a-f]+, device gamma \d+, contrast \d+/.test(mask.filteredRec.dump)
-        || typeof gamma.preblendApplicable !== "boolean"
-        || gammaDigests.some((digest) => !validSha(digest))) {
+        || maskGamma.preblendApplicable !== gamma.preblendApplicable
+        || maskGamma.preblendR256Sha256 !== gamma.preblendR256Sha256
+        || maskGamma.preblendG256Sha256 !== gamma.preblendG256Sha256
+        || maskGamma.preblendB256Sha256 !== gamma.preblendB256Sha256) {
       errors.push(`${label}:mask:${index}:gamma-preblend`);
     }
-    const coreText = mask.coreText;
-    if (coreText.pointSize !== (observation.controlId === "device-matrix" ? 32.5 : contract.scaler)
-        || typeof coreText.unitsPerEm !== "number"
-        || typeof coreText.ascent !== "number"
-        || typeof coreText.descent !== "number"
-        || !Array.isArray(coreText.boundingBox)) {
-      errors.push(`${label}:mask:${index}:coretext-metrics`);
+    if (!exact(mask.coreText, observation.coreTextMetrics.raw)) {
+      errors.push(`${label}:mask:${index}:coretext-link`);
     }
   }
-  const expectedScaler = observation.controlId === "device-matrix" ? 32.5 : contract.scaler;
-  if (!exactNumbers(filtered.matrices.scale, [expectedScaler, expectedScaler])) {
-    errors.push(`${label}:factored-scale`);
-  }
-  if (!filtered.matrices.invertible) errors.push(`${label}:matrix-invertible`);
-  const axes = new Map(evidence.run.typeface.axes.map((axis) => [axis.tag, axis.actual]));
-  const expectedAxes: Record<string, number> = {
-    wdth: 100,
-    opsz: observation.controlId === "optical-size" ? 26 : contract.opsz,
-    GRAD: 400,
-    wght: 700,
-  };
-  for (const [tag, expected] of Object.entries(expectedAxes)) {
-    if (axes.get(tag) !== expected) errors.push(`${label}:axis:${tag}`);
-  }
+
+  const rawMetrics = observation.coreTextMetrics.raw;
+  const normalized = observation.coreTextMetrics.normalized;
+  const rawMetricKeys = [
+    "pointSize", "unitsPerEm", "ascent", "descent", "leading", "capHeight", "xHeight",
+  ] as const;
+  if (rawMetricKeys.some((key) => !Number.isFinite(rawMetrics[key]))
+      || rawMetrics.pointSize !== effectiveScale
+      || !Array.isArray(rawMetrics.boundingBox) || rawMetrics.boundingBox.length !== 4
+      || rawMetrics.boundingBox.some((value) => !Number.isFinite(value))
+      || normalized.coordinateSystem !== "device-y-down"
+      || normalized.baseline !== request.run.deviceBaseline
+      || normalized.ascent !== -rawMetrics.ascent
+      || normalized.descent !== rawMetrics.descent
+      || normalized.leading !== rawMetrics.leading
+      || normalized.capHeight !== -rawMetrics.capHeight
+      || normalized.xHeight !== -rawMetrics.xHeight
+      || normalized.top !== request.run.deviceBaseline - rawMetrics.ascent
+      || normalized.bottom !== request.run.deviceBaseline + rawMetrics.descent
+      || !exactNumbers(normalized.boundingBox, [
+        rawMetrics.boundingBox[0],
+        -(rawMetrics.boundingBox[1] + rawMetrics.boundingBox[3]),
+        rawMetrics.boundingBox[2],
+        rawMetrics.boundingBox[3],
+      ])) errors.push(`${label}:coretext-normalization`);
   if (observation.logicalDigest !== sfnsValidationObservationDigest(observation)) {
     errors.push(`${label}:logical-digest`);
   }
@@ -701,13 +964,16 @@ const REQUIRED_CONTROL_GROUPS: Record<SfnsValidationControlId, readonly string[]
   "subpixel-phase": ["phase", "mask"],
   "anti-aliasing": ["raw", "filtered", "browser"],
   hinting: ["raw", "filtered", "browser"],
-  "device-matrix": ["matrix", "mask"],
-  "optical-size": ["axis", "mask"],
+  "device-matrix": ["matrix", "metrics", "mask"],
+  "optical-size": ["axis", "shape", "mask"],
   "surface-mask-format": ["surface", "raw", "filtered"],
 };
 
 const REQUIRED_BUILD_SOURCE_DIGESTS = [
   "hookHeaderSha256",
+  "blinkPlatformBuildGnSha256",
+  "shapeResultSha256",
+  "shapeResultViewSha256",
   "chromiumSkiaBuildGnSha256",
   "scalerContextSha256",
   "glyphRunPainterSha256",
@@ -716,12 +982,17 @@ const REQUIRED_BUILD_SOURCE_DIGESTS = [
   "retainedHookHeaderSha256",
   "retainedChromiumPatchSha256",
   "retainedSkiaPatchSha256",
+  "retainedBlinkV2PatchSha256",
+  "retainedSkiaV2PatchSha256",
   "retainedOverlayReadmeSha256",
   "retainedNodeIsolationProfileSha256",
   "buildDriverSha256",
+  "manifestSha256",
   "collectorSha256",
   "schemaSha256",
   "schemaTestSha256",
+  "adjudicatorSha256",
+  "adjudicatorTestSha256",
 ] as const;
 const REQUIRED_TOOLCHAIN_DIGESTS = ["gnSha256", "ninjaSha256", "clangSha256"] as const;
 const REQUIRED_HOST_COMPONENTS = [
@@ -732,19 +1003,23 @@ const REQUIRED_HOST_COMPONENTS = [
   "clang",
 ] as const;
 
-export function validateSfnsPinnedChromiumValidation(
+function validateSfnsPinnedChromiumValidationImpl(
   artifact: SfnsPinnedChromiumValidationArtifact,
 ): string[] {
   const errors: string[] = [];
-  if (artifact.schemaVersion !== 1 || artifact.authority !== "validation-test-only-pinned-chromium"
+  if (artifact.schemaVersion !== 2 || artifact.authority !== "validation-test-only-pinned-chromium"
       || artifact.arm !== "validation") errors.push("artifact-envelope");
-  if (artifact.collectionContract.browserLaunches !== 26
-      || artifact.collectionContract.processIsolation
-        !== "one-explicitly-headless-browser-per-observation"
-      || artifact.collectionContract.equality !== "exact-bytes-no-tolerance"
-      || artifact.collectionContract.productionRenderingChanges !== false) {
-    errors.push("collection-contract");
-  }
+  if (!exact(artifact.manifest, {
+    abi: SFNS_TERMINAL_MASK_MANIFEST_ABI,
+    digest: sfnsTerminalMaskManifestDigest(),
+  })) errors.push("manifest-identity");
+  if (!exact(artifact.collectionContract, {
+    browserLaunches: 26,
+    processIsolation: "one-explicitly-headless-browser-per-observation",
+    inputDerivation: "source-owned-manifest-independent-arm-derivation",
+    equality: "exact-bytes-no-tolerance",
+    productionRenderingChanges: false,
+  })) errors.push("collection-contract");
   if (artifact.build.chromiumRevision !== SFNS_VALIDATION_CHROMIUM_REVISION
       || artifact.build.skiaRevision !== SFNS_VALIDATION_SKIA_REVISION
       || artifact.build.depotToolsRevision !== SFNS_VALIDATION_DEPOT_TOOLS_REVISION) {
@@ -768,9 +1043,16 @@ export function validateSfnsPinnedChromiumValidation(
       || Object.values(artifact.build.hostComponents).some((value) => value.trim() === "")) {
     errors.push("host-components");
   }
-  if (artifact.corpus.fontByteLength !== SFNS_VALIDATION_FONT_BYTE_LENGTH
-      || artifact.corpus.fontSha256 !== SFNS_VALIDATION_FONT_SHA256
-      || !exactNumbers(artifact.corpus.glyphIds, SFNS_VALIDATION_GLYPH_IDS)) errors.push("corpus");
+  if (!exact(artifact.corpus, {
+    text: SFNS_TERMINAL_MASK_MANIFEST.corpus.text,
+    fontPath: SFNS_TERMINAL_MASK_MANIFEST.corpus.fontPath,
+    sourceFontByteLength: SFNS_VALIDATION_FONT_BYTE_LENGTH,
+    sourceFontSha256: SFNS_VALIDATION_FONT_SHA256,
+    decodedFontByteLength: SFNS_VALIDATION_DECODED_FONT_BYTE_LENGTH,
+    decodedFontSha256: SFNS_VALIDATION_DECODED_FONT_SHA256,
+    collectionIndex: SFNS_TERMINAL_MASK_MANIFEST.corpus.collectionIndex,
+    glyphIds: [...SFNS_VALIDATION_GLYPH_IDS],
+  })) errors.push("corpus");
   if (artifact.scenarios.length !== SFNS_VALIDATION_SCENARIOS.length
       || new Set(artifact.scenarios.map((scenario) => scenario.id)).size
         !== SFNS_VALIDATION_SCENARIOS.length) errors.push("scenario-set");
@@ -778,6 +1060,8 @@ export function validateSfnsPinnedChromiumValidation(
   for (const id of SFNS_VALIDATION_SCENARIOS) {
     const scenario = artifact.scenarios.find((candidate) => candidate.id === id);
     if (scenario == null) { errors.push(`${id}:missing`); continue; }
+    const request = sfnsTerminalMaskCase(id).request;
+    if (!exact(scenario.request, request)) errors.push(`${id}:manifest-request`);
     if (scenario.observations.length !== 4) { errors.push(`${id}:observation-count`); continue; }
     const expectedLifecycle = ["cold", "cold", "warm", "warm"];
     const expectedOrdinals = [1, 2, 1, 2];
@@ -788,7 +1072,7 @@ export function validateSfnsPinnedChromiumValidation(
       }
       if (allObservationIds.has(observation.observationId)) errors.push(`${id}:duplicate-observation-id`);
       allObservationIds.add(observation.observationId);
-      validateObservation(observation, id, errors);
+      validateObservation(observation, id, request, errors);
     });
     const digests = scenario.observations.map(sfnsValidationObservationDigest);
     if (new Set(digests).size !== 1 || scenario.observationLogicalDigest !== digests[0]) {
@@ -802,14 +1086,17 @@ export function validateSfnsPinnedChromiumValidation(
   for (const id of SFNS_VALIDATION_CONTROLS) {
     const control = artifact.controls.find((candidate) => candidate.id === id);
     if (control == null || baseline == null) { errors.push(`${id}:missing`); continue; }
+    const caseId = `control-${id}` as const;
+    const request = sfnsTerminalMaskCase(caseId).request;
     const observation = control.observation;
     if (observation.lifecycle !== "control" || observation.controlId !== id
-        || observation.ordinal !== 1 || control.baselineScenarioId !== "zoom-2") {
+        || observation.ordinal !== 1 || control.baselineScenarioId !== "zoom-2"
+        || control.caseId !== caseId || !exact(control.request, request)) {
       errors.push(`${id}:envelope`);
     }
     if (allObservationIds.has(observation.observationId)) errors.push(`${id}:duplicate-observation-id`);
     allObservationIds.add(observation.observationId);
-    validateObservation(observation, observation.scenarioId, errors);
+    validateObservation(observation, caseId, request, errors);
     const actualGroups = sfnsValidationChangedEvidenceGroups(baseline, observation);
     if (hashJson(actualGroups) !== hashJson(control.changedEvidenceGroups)) {
       errors.push(`${id}:changed-groups`);
@@ -822,5 +1109,15 @@ export function validateSfnsPinnedChromiumValidation(
   if (artifact.artifactDigest !== sfnsValidationArtifactDigest(artifact)) {
     errors.push("artifact-digest");
   }
-  return errors;
+  return [...new Set(errors)];
+}
+
+export function validateSfnsPinnedChromiumValidation(
+  artifact: SfnsPinnedChromiumValidationArtifact,
+): string[] {
+  try {
+    return validateSfnsPinnedChromiumValidationImpl(artifact);
+  } catch (error) {
+    return [`malformed-artifact:${error instanceof Error ? error.message : String(error)}`];
+  }
 }
