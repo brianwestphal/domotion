@@ -73,6 +73,13 @@ export const detectInlineFragments = (el, cs, vp, captured) => {
       var _bbw = parseFloat(captured.styles.borderBottomWidth || '0') || 0;
       var _blw = parseFloat(captured.styles.borderLeftWidth || '0') || 0;
       var _hasBorder = _btw > 0 || _brw > 0 || _bbw > 0 || _blw > 0;
+      // TextDecorationInfo owns a distinct DecoratingBox for every wrapped
+      // FragmentItem even when the inline has no background/border paint.
+      // Preserve those getClientRects() fragments for render-side decoration
+      // ownership instead of reducing them to a union or rounded baselines.
+      var _hasDecoration = captured.styles.textDecorationLine != null
+        && captured.styles.textDecorationLine !== ''
+        && captured.styles.textDecorationLine !== 'none';
       var _hasPaint = _hasBg || _hasBgImage || _hasBorder || _hasMaskImage;
       var _isInline = cs.display === 'inline';
       var _isBlockLevel = !_isInline && (
@@ -98,7 +105,7 @@ export const detectInlineFragments = (el, cs, vp, captured) => {
           _a = _a.parentElement;
         }
       }
-      if (_hasPaint && (_isInline || _inMultiColumn)) {
+      if ((_hasPaint || _hasDecoration) && (_isInline || _inMultiColumn)) {
         var _cr = el.getClientRects();
         if (_cr != null && _cr.length > 1) {
           var _frags = [];

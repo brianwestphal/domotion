@@ -42,6 +42,12 @@ import {
 } from "./projective-owner.js";
 import { reverifyAnimationsAtFrame, seekAnimationsToFrame, type StableAnimationFrameState } from "./animation-frame.js";
 import {
+  reverifyCaptureRafClock,
+  sampleCaptureRafClock,
+  type CaptureRafClockHandle,
+  type StableCaptureRafState,
+} from "./raf-clock.js";
+import {
   axisAlignedQuadBounds,
   mapCssRectToSourcePixels,
   mapTranslatedQuadToScreenshot,
@@ -58,6 +64,8 @@ import { createFontRendererSession, withFontRendererSession, type FontRendererSe
 import { brandCustomProperties, type Brand } from "../templates/brand.js";
 
 export { createCapturedTreeEnvelope, promoteCapturedSubtree };
+export { installCaptureRafClock } from "./raf-clock.js";
+export type { CaptureRafClockHandle, CaptureRafTargetState, StableCaptureRafState } from "./raf-clock.js";
 export type {
   CapturedFrameAccess,
   CapturedFrameScrollOwner,
@@ -1462,6 +1470,12 @@ export interface CaptureElementTreeOptions {
    * explicitly instead of mixing two animation frames.
    */
   animationTimeMs?: number;
+  /**
+   * Pre-navigation rAF owner installed with `installCaptureRafClock()`.
+   * Required to make script callback quiescence part of an animated capture;
+   * omitted legacy captures retain their existing document-timeline behavior.
+   */
+  rafClock?: CaptureRafClockHandle;
 }
 
 export async function captureElementTree(
@@ -1671,19 +1685,31 @@ export async function captureElementTreeWithWarnings(
   selector: string = "body",
   viewport: { x: number; y: number; width: number; height: number },
   opts?: CaptureElementTreeOptions,
-): Promise<{ tree: CapturedElement[]; warnings: CaptureWarning[]; frameScrollState: CapturedFrameScrollState; animationFrameState?: StableAnimationFrameState }> {
+): Promise<{ tree: CapturedElement[]; warnings: CaptureWarning[]; frameScrollState: CapturedFrameScrollState; animationFrameState?: StableAnimationFrameState; rafClockState?: StableCaptureRafState }> {
   let animationFrameState: StableAnimationFrameState | undefined;
+  let rafClockState: StableCaptureRafState | undefined;
   if (opts?.animationTimeMs != null) {
+    if (opts.rafClock != null) {
+      rafClockState = await sampleCaptureRafClock(page, opts.rafClock, opts.animationTimeMs);
+    }
     animationFrameState = await seekAnimationsToFrame(page, opts.animationTimeMs, {
       strict: true,
       includeChildFrames: true,
+      settleWithAnimationFrame: opts.rafClock == null,
     });
+    if (opts.rafClock != null && rafClockState != null) {
+      await reverifyCaptureRafClock(page, opts.rafClock, rafClockState);
+    }
   }
   const reverifyAnimationFrame = async (): Promise<void> => {
     if (animationFrameState == null) return;
     await reverifyAnimationsAtFrame(page, animationFrameState, {
       includeChildFrames: true,
+      settleWithAnimationFrame: opts?.rafClock == null,
     });
+    if (opts?.rafClock != null && rafClockState != null) {
+      await reverifyCaptureRafClock(page, opts.rafClock, rafClockState);
+    }
   };
   // DM-829 / DM-496: external-file `clip-path` / `mask-image` fragment refs
   // (`url("./shapes.svg#id")`) can't be resolved by the synchronous capture
@@ -1896,6 +1922,7 @@ export async function captureElementTreeWithWarnings(
     warnings,
     frameScrollState,
     ...(animationFrameState == null ? {} : { animationFrameState }),
+    ...(rafClockState == null ? {} : { rafClockState }),
   };
   } finally {
     await frameScrollCapture.dispose();

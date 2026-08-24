@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6pjmwgc1ruc4i3",
+          "message": {
+            "text": "All browser proof is explicitly headless and logical. The focused suite covers pre-navigation installation, one caller-owned timestamp, recurring-loop rejection, worker rejection, late-install rejection, callback-before-timeline-before-capture ordering, distinct site-isolated main/OOPIF target ids, and target-churn rejection; it never grades screenshots or changes a tolerance.",
+            "markdown": "All browser proof is explicitly headless and logical. The focused suite covers pre-navigation installation, one caller-owned timestamp, recurring-loop rejection, worker rejection, late-install rejection, callback-before-timeline-before-capture ordering, distinct site-isolated main/OOPIF target ids, and target-churn rejection; it never grades screenshots or changes a tolerance."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/raf-clock.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 9,
+                  "endLine": 122,
+                  "snippet": {
+                    "text": "\nconst browser = await launchChromium({ headless: true, args: [\"--site-per-process\"] }).catch(() => null);\n\ndescribe.skipIf(browser == null)(\"authenticated capture rAF clock\", () => {\n  afterAll(async () => { await browser?.close(); });\n\n  it(\"installs before navigation, drains once at one time, and remains stable\", async () => {\n    const context = await browser!.newContext();\n    const handle = await installCaptureRafClock(context);\n    const page = await context.newPage();\n    await page.setContent(`<script>\n      globalThis.samples = [];\n      requestAnimationFrame(time => samples.push(time));\n    </script>`);\n\n    const state = await sampleCaptureRafClock(page, handle, 125);\n    expect(state.targets).toHaveLength(1);\n    expect(state.targets[0]).toMatchObject({\n      requestedTimeMs: 125,\n      callbacksExecuted: 1,\n      callbacksPending: 0,\n      workerConstructionAttempts: 0,\n      offscreenTransferAttempts: 0,\n    });\n    expect(await page.evaluate(() => (globalThis as typeof globalThis & { samples: number[] }).samples)).toEqual([125]);\n    await reverifyCaptureRafClock(page, handle, state);\n    await context.close();\n  });\n\n  it(\"fails closed on recurring callbacks and worker escape attempts\", async () => {\n    const context = await browser!.newContext();\n    const handle = await installCaptureRafClock(context);\n    const page = await context.newPage();\n    await page.setContent(`<script>\n      const loop = () => requestAnimationFrame(loop);\n      requestAnimationFrame(loop);\n      try { new Worker(URL.createObjectURL(new Blob([''], {type:'text/javascript'}))); } catch {}\n    </script>`);\n    await expect(sampleCaptureRafClock(page, handle, 10)).rejects.toThrow(/callback bound exceeded/);\n    await context.close();\n  });\n\n  it(\"rejects clocks installed after navigation\", async () => {\n    const context = await browser!.newContext();\n    const page = await context.newPage();\n    await page.setContent(`<script>requestAnimationFrame(() => {});</script>`);\n    const handle = await installCaptureRafClock(context);\n    await expect(sampleCaptureRafClock(page, handle, 0)).rejects.toThrow(/not installed before navigation/);\n    await context.close();\n  });\n\n  it(\"orders the controlled callback before timeline seek and all capture prepasses\", async () => {\n    const context = await browser!.newContext();\n    const handle = await installCaptureRafClock(context);\n    const page = await context.newPage();\n    await page.setContent(`<style>\n      @keyframes move { from { left: 0px } to { left: 100px } }\n      #target { position:absolute; animation: move 1s linear both; }\n    </style><div id=\"target\">before</div><script>\n      requestAnimationFrame(time => { target.textContent = 'frame-' + time; });\n    </script>`);\n    const captured = await captureElementTreeWithWarnings(\n      page,\n      \"body\",\n      { x: 0, y: 0, width: 300, height: 100 },\n      { animationTimeMs: 250, rafClock: handle },\n    );\n    expect(captured.rafClockState?.targets[0]).toMatchObject({\n      requestedTimeMs: 250,\n      callbacksExecuted: 1,\n      callbacksPending: 0,\n    });\n    expect(captured.animationFrameState?.requestedTimeMs).toBe(250);\n    expect(await page.locator(\"#target\").textContent()).toBe(\"frame-250\");\n    await context.close();\n  });\n\n  it(\"authenticates distinct main/OOPIF targets and rejects target churn\", async () => {\n    const server = createServer((request, response) => {\n      response.setHeader(\"content-type\", \"text/html\");\n      if (request.url === \"/child\") {\n        response.end(`<script>globalThis.samples=[];requestAnimationFrame(t=>samples.push(t))</script>`);\n      } else {\n        const address = server.address();\n        const port = typeof address === \"object\" && address != null ? address.port : 0;\n        response.end(`<script>globalThis.samples=[];requestAnimationFrame(t=>samples.push(t))</script><iframe src=\"http://localhost:${port}/child\"></iframe>`);\n      }\n    });\n    await new Promise<void>((resolve) => server.listen(0, \"127.0.0.1\", resolve));\n    const address = server.address();\n    const port = typeof address === \"object\" && address != null ? address.port : 0;\n    const context = await browser!.newContext();\n    const handle = await installCaptureRafClock(context);\n    const page = await context.newPage();\n    await page.goto(`http://127.0.0.1:${port}/`);\n    await page.locator(\"iframe\").waitFor();\n    const state = await sampleCaptureRafClock(page, handle, 80);\n    expect(state.targets).toHaveLength(2);\n    expect(new Set(state.targets.map((target) => target.targetId)).size).toBe(2);\n    await page.evaluate((childUrl) => {\n      const iframe = document.createElement(\"iframe\");\n      iframe.src = childUrl;\n      document.body.append(iframe);\n    }, `http://localhost:${port}/child?second=1`);\n    await expect(reverifyCaptureRafClock(page, handle, state)).rejects.toThrow(/target state changed|target set changed/);\n    await context.close();\n    await new Promise<void>((resolve) => server.close(() => resolve()));\n  });\n});\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2554"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "65ac370b85c00b8b1a380e3fe5c2cdb6"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8b3a027ece4df88b3a9ee98522eb6c29c6933fe7",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

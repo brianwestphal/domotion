@@ -10,6 +10,7 @@ import {
   buildCapturedTextPaintGeometry,
   type ProtocolTextNodeGeometry,
 } from "./text-fragment-geometry.js";
+import type { BlinkRangeFragmentProbe } from "./text-fragment-spans.js";
 
 interface FrameRow {
   sourceKey: string;
@@ -31,6 +32,7 @@ interface PreparedFrame {
 interface MeasuredRow extends FrameRow {
   neutralQuads: CapturedTextPaintQuad[];
   paintQuads: CapturedTextPaintQuad[];
+  rangeFragments: BlinkRangeFragmentProbe[];
   failureReason?: string;
 }
 
@@ -122,6 +124,7 @@ async function setupFrameRegistry(
         effectiveZoom: number;
       }> = [];
       const textRows: Array<{ element: Element; textNode: Text }> = [];
+      const indexByTextNode = new WeakMap<Text, number>();
       for (let elementIndex = 0; elementIndex < elements.length; elementIndex++) {
         const element = elements[elementIndex];
         const style = getComputedStyle(element);
@@ -153,6 +156,7 @@ async function setupFrameRegistry(
           const sourceKey = `${token}:${elementIndex}`;
           const surfaceIndex = indexByElement.get(surfaceOwner) ?? elementIndex;
           textRows.push({ element, textNode: child as Text });
+          indexByTextNode.set(child as Text, sourceTextNodeIndex);
           result.push({
             sourceKey,
             sourceTextNodeIndex,
@@ -172,6 +176,7 @@ async function setupFrameRegistry(
         indexByElement,
         owners,
         textRows,
+        indexByTextNode,
         snapshots: null,
         factsByElement: Object.create(null),
       };
@@ -282,6 +287,117 @@ async function measureRows(
   return result;
 }
 
+interface RangeMeasurement {
+  fragments: BlinkRangeFragmentProbe[];
+  failureReason?: string;
+}
+
+/**
+ * Recover exact FragmentItem DOM intervals in the already-neutral frame.
+ *
+ * Pinned Blink returns a full `FragmentItem::LocalRect()` iff a queried Range
+ * covers that item's complete `TextOffsetRange`; partial coverage returns the
+ * shape-view sub-rect.  Prefixes therefore reveal the first full end and
+ * suffixes reveal the last full start.  Exact-rectangle occurrence ranks keep
+ * duplicate physical rectangles explicit instead of selecting by proximity.
+ */
+async function measureRangeFragments(
+  frames: readonly PreparedFrame[],
+  key: string,
+): Promise<Map<string, RangeMeasurement>> {
+  const output = new Map<string, RangeMeasurement>();
+  await Promise.all(frames.map(async ({ frame, token }) => {
+    // `node --import tsx` annotates nested functions in the serialized
+    // Playwright callback with `__name`. Install its no-op helper only for the
+    // duration of this probe; compiled library and Vitest paths never need it.
+    const installedTsxNameHelper = await frame.evaluate(
+      "!Object.prototype.hasOwnProperty.call(globalThis, '__name') && (globalThis.__name = (target) => target, true)",
+    ).catch(() => false) as boolean;
+    const rows = await frame.evaluate(({ key }) => {
+      const registry = (globalThis as typeof globalThis & Record<string, any>)[key];
+      if (registry == null) return [];
+      const rect = (value: DOMRect): { x: number; y: number; width: number; height: number } => ({
+        x: value.x,
+        y: value.y,
+        width: value.width,
+        height: value.height,
+      });
+      const tokenFor = (value: { x: number; y: number; width: number; height: number }): string =>
+        `${value.x}|${value.y}|${value.width}|${value.height}`;
+      const rectsFor = (node: Text, start: number, end: number): Array<{ x: number; y: number; width: number; height: number }> => {
+        const range = document.createRange();
+        range.setStart(node, start);
+        range.setEnd(node, end);
+        return Array.from(range.getClientRects(), rect);
+      };
+      return registry.textRows.map((row: { textNode: Text }) => {
+        try {
+          const node = row.textNode;
+          const textLength = node.data.length;
+          const full = rectsFor(node, 0, textLength);
+          if (full.length === 0) return { fragments: [], failureReason: "Range exposed no full text FragmentItems" };
+          const fullTokens = full.map(tokenFor);
+          const prefixCounts: Array<Map<string, number>> = [];
+          const suffixCounts: Array<Map<string, number>> = [];
+          const countsFor = (values: Array<{ x: number; y: number; width: number; height: number }>): Map<string, number> => {
+            const counts = new Map<string, number>();
+            for (const value of values) {
+              const token = tokenFor(value);
+              counts.set(token, (counts.get(token) ?? 0) + 1);
+            }
+            return counts;
+          };
+          for (let offset = 0; offset <= textLength; offset++) {
+            prefixCounts.push(countsFor(rectsFor(node, 0, offset)));
+            suffixCounts.push(countsFor(rectsFor(node, offset, textLength)));
+          }
+          const fragments: BlinkRangeFragmentProbe[] = [];
+          for (let physicalFragmentIndex = 0; physicalFragmentIndex < full.length; physicalFragmentIndex++) {
+            const token = fullTokens[physicalFragmentIndex];
+            const forwardRank = fullTokens.slice(0, physicalFragmentIndex + 1)
+              .filter((candidate) => candidate === token).length;
+            const reverseRank = fullTokens.slice(physicalFragmentIndex)
+              .filter((candidate) => candidate === token).length;
+            const end = prefixCounts.findIndex((counts) => (counts.get(token) ?? 0) >= forwardRank);
+            let start = -1;
+            for (let offset = textLength; offset >= 0; offset--) {
+              if ((suffixCounts[offset].get(token) ?? 0) >= reverseRank) {
+                start = offset;
+                break;
+              }
+            }
+            if (start < 0 || end <= start) {
+              return { fragments: [], failureReason: "Range could not isolate an exact FragmentItem UTF-16 interval" };
+            }
+            const isolated = rectsFor(node, start, end);
+            if (isolated.length !== 1 || tokenFor(isolated[0]) !== token) {
+              return { fragments: [], failureReason: "isolated DOM UTF-16 interval does not reproduce one full FragmentItem" };
+            }
+            fragments.push({
+              physicalFragmentIndex,
+              domUtf16Span: [start, end],
+              neutralRangeRect: full[physicalFragmentIndex],
+            });
+          }
+          return { fragments };
+        } catch (error) {
+          return {
+            fragments: [],
+            failureReason: `Range FragmentItem probe failed: ${error instanceof Error ? error.message : String(error)}`,
+          };
+        }
+      });
+    }, { key }).catch(() => [] as RangeMeasurement[]);
+    if (installedTsxNameHelper) {
+      await frame.evaluate("delete globalThis.__name").catch(() => undefined);
+    }
+    for (let index = 0; index < rows.length; index++) {
+      output.set(`${token}:${index}`, rows[index] as RangeMeasurement);
+    }
+  }));
+  return output;
+}
+
 function factsByFrame(
   frames: readonly PreparedFrame[],
   measured: readonly MeasuredRow[],
@@ -314,6 +430,7 @@ function factsByFrame(
           sourceTextNodeIndex: row.sourceTextNodeIndex,
           neutralQuads: row.neutralQuads,
           paintQuads: row.paintQuads,
+          rangeFragments: row.rangeFragments,
           writingMode: row.writingMode,
           direction: row.direction,
           transformBox: row.transformBox,
@@ -332,12 +449,23 @@ function factsByFrame(
         width: neutral!.width,
         height: neutral!.height,
         text: neutral!.text,
-        textSegments: neutral!.textSegments?.map((segment) => ({
+        textSegments: built.splitSegments?.map((segment) => ({
           ...segment,
           xOffsets: segment.xOffsets == null ? undefined : [...segment.xOffsets],
           yOffsets: segment.yOffsets == null ? undefined : [...segment.yOffsets],
           xAdvances: segment.xAdvances == null ? undefined : [...segment.xAdvances],
           verticalAdvances: segment.verticalAdvances == null ? undefined : [...segment.verticalAdvances],
+          verticalOrientations: segment.verticalOrientations == null ? undefined : [...segment.verticalOrientations],
+          verticalNaturalWidths: segment.verticalNaturalWidths == null ? undefined : [...segment.verticalNaturalWidths],
+          verticalCombineXOffsets: segment.verticalCombineXOffsets == null ? undefined : [...segment.verticalCombineXOffsets],
+          sourceMapping: segment.sourceMapping == null ? undefined : {
+            ...segment.sourceMapping,
+            domUtf16Span: [...segment.sourceMapping.domUtf16Span],
+            renderedChunks: segment.sourceMapping.renderedChunks.map((chunk) => ({
+              renderedUtf16Span: [...chunk.renderedUtf16Span],
+              domUtf16Span: [...chunk.domUtf16Span],
+            })),
+          },
           rasterRect: segment.rasterRect == null ? undefined : { ...segment.rasterRect },
           rasterGlyphs: segment.rasterGlyphs?.map((glyph) => ({ ...glyph, rect: { ...glyph.rect } })),
           pseudoBox: segment.pseudoBox == null ? undefined : { ...segment.pseudoBox },
@@ -395,7 +523,10 @@ export async function prepareTextPaintGeometry(
     await mutateFrames(prepared, key, true);
     neutral = true;
     await settleFrames(prepared);
-    const neutralQuads = await measureRows(session, key, prepared, contexts, viewport);
+    const [neutralQuads, neutralRangeFragments] = await Promise.all([
+      measureRows(session, key, prepared, contexts, viewport),
+      measureRangeFragments(prepared, key),
+    ]);
     const neutralResult = await captureNeutralTree(key);
     await mutateFrames(prepared, key, false);
     neutral = false;
@@ -408,14 +539,18 @@ export async function prepareTextPaintGeometry(
         const measurementKey = `${frame.token}:${row.sourceTextNodeIndex}`;
         const paintQuads = live.get(measurementKey) ?? [];
         const localQuads = neutralQuads.get(measurementKey) ?? [];
+        const rangeMeasurement = neutralRangeFragments.get(measurementKey);
+        const rangeFragments = rangeMeasurement?.fragments ?? [];
         const restoredQuads = restored.get(measurementKey) ?? [];
-        let failureReason: string | undefined;
+        let failureReason: string | undefined = rangeMeasurement?.failureReason;
         if (paintQuads.length === 0 || localQuads.length === 0) {
           failureReason = "DOM.getContentQuads unavailable for text node";
+        } else if (rangeFragments.length === 0) {
+          failureReason ??= "Range FragmentItem source spans unavailable for text node";
         } else if (quadSetDistance(paintQuads, restoredQuads) > RESTORE_EPSILON) {
           failureReason = "text transform probe did not restore the source frame exactly";
         }
-        measured.push({ ...row, neutralQuads: localQuads, paintQuads, failureReason });
+        measured.push({ ...row, neutralQuads: localQuads, paintQuads, rangeFragments, failureReason });
       }
     }
     const byFrame = factsByFrame(prepared, measured, neutralResult.tree as ProbeTreeElement[]);

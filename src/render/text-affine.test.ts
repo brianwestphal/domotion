@@ -27,6 +27,24 @@ const horizontalLineOrigin = (x: number, y: number, width: number, height: numbe
     effectiveZoom: 1,
   })!;
 
+const sourceFragment = (x: number, y: number, width: number, height: number, span: [number, number] = [0, 1]) => ({
+  source: "blink-range-fragment-utf16-v1" as const,
+  sourceTextNodeIndex: 0,
+  physicalFragmentIndex: 0,
+  domUtf16Span: span,
+  neutralRangeRect: { x, y, width, height },
+  cdpQuadIndex: 0,
+  role: "ordinary" as const,
+  provenance: {
+    chromiumRevision: "7d859f271cbda744098ac69f44978d4edfa62be3" as const,
+    rangeQuads: "core/layout/layout_text.cc:556-637" as const,
+    fragmentOffsets: "core/layout/inline/fragment_item.h:448-451" as const,
+    fragmentLocalRect: "core/layout/inline/fragment_item.cc:1217-1241" as const,
+    firstLetter: "core/dom/range.cc:1686-1742" as const,
+    protocolQuads: "core/inspector/inspector_highlight.cc:1941-1967" as const,
+  },
+});
+
 describe("source-owned affine text paint", () => {
   it("composes and inverts the complete signed affine matrix", () => {
     const parent: CapturedTextPaintAffine = [-1.2, 0.35, 0.4, 0.75, 17, -9];
@@ -52,9 +70,10 @@ describe("source-owned affine text paint", () => {
     child.textPaintGeometry = {
       source: "blink-text-fragment-affine-v2", space: "pre-css-transform-viewport",
       neutral: { x: 10, y: 20, width: 60, height: 18, text: "neutral" },
+      sourceFragments: [sourceFragment(10, 20, 60, 18)],
       fragments: [{
         source: "blink-text-fragment-affine-v2", space: "pre-css-transform-viewport",
-        textSegmentIndex: 0, sourceTextNodeIndex: 0, physicalFragmentIndex: 0,
+        textSegmentIndex: 0, sourceTextNodeIndex: 0, sourceFragmentIndex: 0, domUtf16Span: [0, 1], physicalFragmentIndex: 0,
         neutralQuad: [10, 20, 70, 20, 70, 38, 10, 38],
         paintQuad: [26, 39, -70, 45, -56.5, 66.6, 39.5, 60.6],
         paintMatrix: paint, affineResidual: 0,
@@ -81,9 +100,10 @@ describe("source-owned affine text paint", () => {
     el.textPaintGeometry = {
       source: "blink-text-fragment-affine-v2", space: "pre-css-transform-viewport",
       neutral: { x: 0, y: 0, width: 1, height: 1, text: "x" },
+      sourceFragments: [sourceFragment(0, 0, 1, 1)],
       fragments: [{
         source: "blink-text-fragment-affine-v2", space: "pre-css-transform-viewport",
-        textSegmentIndex: 0, sourceTextNodeIndex: 0, physicalFragmentIndex: 0,
+        textSegmentIndex: 0, sourceTextNodeIndex: 0, sourceFragmentIndex: 0, domUtf16Span: [0, 1], physicalFragmentIndex: 0,
         neutralQuad: [0, 0, 1, 0, 1, 1, 0, 1], paintQuad: [0, 0, 1, 0, 1, 1, 0, 1],
         paintMatrix: [1, 0, 0, 1, 0, 0], affineResidual: 0,
         lineOrigin: horizontalLineOrigin(0, 0, 1, 1, 1), inlineOffset: 0,
@@ -116,10 +136,11 @@ describe("source-owned affine text paint", () => {
           yOffsets: [14.375, 34.375], verticalAdvances: [20, 20],
         }],
       },
+      sourceFragments: [sourceFragment(70.25, 14.375, 22, 40, [0, 2])],
       fragments: [{
         source: "blink-text-fragment-affine-v2",
         space: "pre-css-transform-viewport",
-        textSegmentIndex: 0, sourceTextNodeIndex: 0, physicalFragmentIndex: 0,
+        textSegmentIndex: 0, sourceTextNodeIndex: 0, sourceFragmentIndex: 0, domUtf16Span: [0, 2], physicalFragmentIndex: 0,
         neutralQuad: [70.25, 14.375, 92.25, 14.375, 92.25, 54.375, 70.25, 54.375],
         paintQuad: [70.25, 14.375, 92.25, 14.375, 92.25, 54.375, 70.25, 54.375],
         paintMatrix: [1, 0, 0, 1, 0, 0], affineResidual: 0,
@@ -139,6 +160,10 @@ describe("source-owned affine text paint", () => {
     });
     expect(prepared.residualMatrix).toEqual([1, 0, 0, 1, 0, 0]);
 
+    el.textPaintGeometry.fragments[0].domUtf16Span = [1, 2];
+    expect(prepareAffineTextPaint(el, [1, 0, 0, 1, 0, 0]).failureReason)
+      .toContain("disagrees with its UTF-16 source owner");
+    el.textPaintGeometry.fragments[0].domUtf16Span = [0, 2];
     lineOrigin.writingModeRotation = [1, 0, 0, 1, 0, 0];
     expect(prepareAffineTextPaint(el, [1, 0, 0, 1, 0, 0]).failureReason)
       .toContain("writing-mode rotation changed");

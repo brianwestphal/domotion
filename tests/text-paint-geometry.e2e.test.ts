@@ -14,7 +14,7 @@ const VIEWPORT = { width: 1080, height: 900 };
 const COS_37 = Math.cos(37 * Math.PI / 180);
 
 const env = await (async () => {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try { return { browser: await launchChromium({ headless: true }) }; } catch { return null; }
 })();
 afterAll(async () => closeBrowserSafely(env?.browser), 15_000);
 const describeBrowser = env == null ? describe.skip : describe;
@@ -77,6 +77,67 @@ async function directTextQuads(page: Page, selector: string): Promise<CapturedTe
 }
 
 describeBrowser("DM-2469 authoritative affine text-fragment capture", () => {
+  it("splits mixed fallback, bidi, ligature, wrap, first-letter, vertical, zoom, and nested transforms by exact UTF-16 spans", async () => {
+    const context = await env!.browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 1 });
+    const page = await context.newPage();
+    try {
+      const mixedText = "“Latin العربية 漢字 office affine אבג wrapped tail";
+      const verticalText = "Latin العربية 漢字 office";
+      await page.setContent(`<!doctype html><style>
+        html,body{margin:0}#scene{padding:50px;font:24px/31px Arial,sans-serif}
+        #outer{display:inline-block;zoom:1.25;transform:rotate(13deg) scale(.91,1.08);transform-origin:71% 17%}
+        #mixed{display:block;width:245px;white-space:normal;unicode-bidi:plaintext;font-variant-ligatures:common-ligatures;
+          transform:skewX(7deg);transform-origin:19% 83%}
+        #mixed::first-letter{font:700 42px/31px Georgia,serif;color:#c21}
+        #vertical{position:absolute;left:690px;top:70px;height:250px;writing-mode:vertical-rl;
+          transform:rotate(-9deg) scaleX(-1);transform-origin:23% 76%}
+      </style><div id=scene><div id=outer><span id=mixed></span></div><span id=vertical></span></div>`);
+      await page.locator("#mixed").evaluate((element, text) => { element.textContent = text; }, mixedText);
+      await page.locator("#vertical").evaluate((element, text) => { element.textContent = text; }, verticalText);
+      await page.evaluate(() => document.fonts.ready);
+      const capture = await captureElementTreeWithWarnings(page, "#scene", { x: 0, y: 0, ...VIEWPORT });
+
+      for (const [label, expectedText, firstLetter] of [
+        ["mixed", mixedText, true],
+        ["vertical", verticalText, false],
+      ] as const) {
+        const owner = walk(capture.tree).find((element) => element.textPaintGeometry?.neutral?.textSegments
+          ?.some((segment) => segment.sourceMapping?.domText === expectedText));
+        const geometry = owner?.textPaintGeometry;
+        expect(geometry, `${label}: exact affine geometry`).toBeDefined();
+        expect(geometry!.sourceFragments.length, `${label}: physical FragmentItems`).toBeGreaterThan(2);
+        expect(geometry!.sourceFragments.map((fragment) => fragment.physicalFragmentIndex), `${label}: ordered FragmentItems`)
+          .toEqual(Array.from({ length: geometry!.sourceFragments.length }, (_, index) => index));
+        expect(geometry!.sourceFragments.filter((fragment) => fragment.role === "ordinary").length,
+          `${label}: one source span per CDP quad`).toBe(geometry!.fragments.length);
+        expect(geometry!.sourceFragments.filter((fragment) => fragment.role === "first-letter").length,
+          `${label}: first-letter source ownership`).toBe(firstLetter ? 1 : 0);
+        if (firstLetter) {
+          expect(geometry!.sourceFragments.find((fragment) => fragment.role === "first-letter")?.domUtf16Span)
+            .toEqual([0, 2]);
+        }
+        const neutralSegments = geometry!.neutral?.textSegments ?? [];
+        for (const [sourceFragmentIndex, source] of geometry!.sourceFragments.entries()) {
+          const matching = neutralSegments.filter((segment) => segment.sourceMapping?.sourceTextNodeIndex === source.sourceTextNodeIndex
+            && segment.sourceMapping.role === source.role
+            && segment.sourceMapping.domUtf16Span[0] === source.domUtf16Span[0]
+            && segment.sourceMapping.domUtf16Span[1] === source.domUtf16Span[1]);
+          expect(matching, `${label}: source fragment ${sourceFragmentIndex} has one split segment`).toHaveLength(1);
+          if (source.role === "ordinary") {
+            const paint = geometry!.fragments.find((fragment) => fragment.sourceFragmentIndex === sourceFragmentIndex);
+            expect(paint?.domUtf16Span, `${label}: paint/source span join`).toEqual(source.domUtf16Span);
+            expect(neutralSegments[paint!.textSegmentIndex], `${label}: shaped record split`).toBe(matching[0]);
+            expect(paint!.shapedOrigins).toHaveLength(matching[0].text.length);
+            expect(paint!.shapedAdvances).toHaveLength(matching[0].text.length);
+          }
+        }
+      }
+      expect(capture.warnings.filter((warning) => warning.detail.includes("text-fragment"))).toEqual([]);
+    } finally {
+      await context.close();
+    }
+  }, 90_000);
+
   for (const dpr of [1, 2]) {
     it(`preserves complete signed matrices and defeats the scalar collision at DPR ${dpr}`, async () => {
       const context = await env!.browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: dpr });

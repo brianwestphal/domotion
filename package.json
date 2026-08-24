@@ -117,6 +117,8 @@
     "transform:text-geometry-audit": "tsx tools/text-transform-geometry-audit.ts",
     "transform:text-parity-gate": "tsx tools/text-transform-geometry-audit.ts",
     "transform:text-baseline-protocol": "node --import tsx tools/text-affine-baseline-protocol-oracle.ts",
+    "animation:raf-clock-ownership": "vitest run --config vitest.e2e.config.ts tests/raf-clock.e2e.test.ts tests/raf-clock-workflow.test.ts",
+    "transform:text-fragment-spans": "npm run build:capture-script && node --import tsx tools/text-fragment-span-oracle.ts",
     "transform:text-fragment-protocol": "npm run build:capture-script && vitest run src/capture/text-fragment-geometry.test.ts && vitest run --config vitest.e2e.config.ts tests/text-paint-geometry.e2e.test.ts",
     "transform:inline-svg-3d-audit": "tsx tools/inline-svg-3d-audit.ts",
     "transform:animated-3d-frame-gate": "tsx tools/animated-projective-frame-oracle.ts",

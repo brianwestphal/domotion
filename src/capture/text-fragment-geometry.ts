@@ -17,14 +17,20 @@ import {
   asCapturedTextWritingMode,
   buildCapturedTextLineOrigin,
 } from "./text-line-origin.js";
+import {
+  joinBlinkRangeFragmentsToContentQuads,
+  splitTextSegmentsOnFragmentSpans,
+  type BlinkRangeFragmentProbe,
+  type JoinedTextSourceFragment,
+} from "./text-fragment-spans.js";
 
 export const TEXT_AFFINE_RESIDUAL_EPSILON = 0.05;
-export const TEXT_FRAGMENT_CORRELATION_EPSILON = 2;
 
 export interface ProtocolTextNodeGeometry {
   sourceTextNodeIndex: number;
   neutralQuads: CapturedTextPaintQuad[];
   paintQuads: CapturedTextPaintQuad[];
+  rangeFragments: BlinkRangeFragmentProbe[];
   writingMode: string;
   direction: string;
   transformBox: string;
@@ -34,47 +40,12 @@ export interface ProtocolTextNodeGeometry {
 
 export interface TextGeometryBuildResult {
   geometry: CapturedTextPaintGeometry | null;
+  splitSegments?: TextSegment[];
   failureReason?: string;
-}
-
-interface Rect {
-  left: number;
-  top: number;
-  right: number;
-  bottom: number;
 }
 
 function point(quad: CapturedTextPaintQuad, index: number): { x: number; y: number } {
   return { x: quad[index * 2], y: quad[index * 2 + 1] };
-}
-
-function quadRect(quad: CapturedTextPaintQuad): Rect {
-  const xs = [quad[0], quad[2], quad[4], quad[6]];
-  const ys = [quad[1], quad[3], quad[5], quad[7]];
-  return {
-    left: Math.min(...xs),
-    top: Math.min(...ys),
-    right: Math.max(...xs),
-    bottom: Math.max(...ys),
-  };
-}
-
-function segmentRect(segment: TextSegment): Rect {
-  return {
-    left: segment.x,
-    top: segment.y,
-    right: segment.x + segment.width,
-    bottom: segment.y + segment.height,
-  };
-}
-
-function rectEdgeDistance(left: Rect, right: Rect): number {
-  return Math.max(
-    Math.abs(left.left - right.left),
-    Math.abs(left.top - right.top),
-    Math.abs(left.right - right.right),
-    Math.abs(left.bottom - right.bottom),
-  );
 }
 
 export function mapTextPaintPoint(
@@ -167,8 +138,29 @@ export function buildCapturedTextPaintGeometry(
   elementAscent: number | undefined,
   nodes: readonly ProtocolTextNodeGeometry[],
 ): TextGeometryBuildResult {
+  const joinedByNode = new Map<ProtocolTextNodeGeometry, JoinedTextSourceFragment[]>();
+  const joinedFragments: JoinedTextSourceFragment[] = [];
+  for (const node of nodes) {
+    const joined = joinBlinkRangeFragmentsToContentQuads(
+      node.sourceTextNodeIndex,
+      node.rangeFragments,
+      node.neutralQuads,
+    );
+    if (joined.fragments == null) {
+      return { geometry: null, failureReason: joined.failureReason ?? "Range FragmentItem join failed" };
+    }
+    joinedByNode.set(node, joined.fragments);
+    joinedFragments.push(...joined.fragments);
+  }
+  const split = splitTextSegmentsOnFragmentSpans(segments, joinedFragments);
+  if (split.segments == null) {
+    return { geometry: null, failureReason: split.failureReason ?? "text FragmentItem span splitting failed" };
+  }
+  const splitSegments = split.segments;
   const measured: Array<{
     node: ProtocolTextNodeGeometry;
+    sourceFragmentIndex: number;
+    sourceFragment: JoinedTextSourceFragment;
     physicalFragmentIndex: number;
     neutralQuad: CapturedTextPaintQuad;
     paintQuad: CapturedTextPaintQuad;
@@ -187,9 +179,16 @@ export function buildCapturedTextPaintGeometry(
       return { geometry: null, failureReason: `text paint plane is non-affine (corner residual ${residual})` };
     }
     for (let index = 0; index < node.neutralQuads.length; index++) {
+      const nodeFragment = joinedByNode.get(node)?.find((fragment) => fragment.cdpQuadIndex === index);
+      if (nodeFragment == null) {
+        return { geometry: null, failureReason: "protocol quad has no exact Range FragmentItem source owner" };
+      }
+      const sourceFragmentIndex = joinedFragments.indexOf(nodeFragment);
       measured.push({
         node,
-        physicalFragmentIndex: index,
+        sourceFragmentIndex,
+        sourceFragment: nodeFragment,
+        physicalFragmentIndex: nodeFragment.physicalFragmentIndex,
         neutralQuad: node.neutralQuads[index],
         paintQuad: node.paintQuads[index],
         matrix,
@@ -199,23 +198,13 @@ export function buildCapturedTextPaintGeometry(
   }
 
   if (measured.length === 0) return { geometry: null, failureReason: "Chromium exposed no physical text fragment quads" };
-  const usedSegments = new Set<number>();
   const fragments: CapturedTextPaintGeometry["fragments"] = [];
   for (const item of measured) {
-    const target = quadRect(item.neutralQuad);
-    const candidates = segments
-      .map((segment, index) => ({ index, distance: rectEdgeDistance(segmentRect(segment), target) }))
-      .filter((candidate) => !usedSegments.has(candidate.index))
-      .sort((left, right) => left.distance - right.distance);
-    const best = candidates[0];
-    if (best == null || best.distance > TEXT_FRAGMENT_CORRELATION_EPSILON) {
-      return { geometry: null, failureReason: "neutral text segment could not be correlated with its protocol fragment" };
+    const textSegmentIndex = split.textSegmentIndexBySourceFragment[item.sourceFragmentIndex];
+    if (textSegmentIndex == null) {
+      return { geometry: null, failureReason: "Range FragmentItem has no split text segment" };
     }
-    if (candidates[1] != null && Math.abs(candidates[1].distance - best.distance) < 1e-4) {
-      return { geometry: null, failureReason: "neutral text fragment correlation is ambiguous" };
-    }
-    usedSegments.add(best.index);
-    const segment = segments[best.index];
+    const segment = splitSegments[textSegmentIndex];
     const vertical = segment.verticalWritingMode != null;
     const shaped = exactCodeUnitGeometry(segment);
     if (shaped == null) {
@@ -244,8 +233,10 @@ export function buildCapturedTextPaintGeometry(
     fragments.push({
       source: "blink-text-fragment-affine-v2",
       space: "pre-css-transform-viewport",
-      textSegmentIndex: best.index,
+      textSegmentIndex,
       sourceTextNodeIndex: item.node.sourceTextNodeIndex,
+      sourceFragmentIndex: item.sourceFragmentIndex,
+      domUtf16Span: [...item.sourceFragment.domUtf16Span],
       physicalFragmentIndex: item.physicalFragmentIndex,
       neutralQuad: item.neutralQuad,
       paintQuad: item.paintQuad,
@@ -267,7 +258,9 @@ export function buildCapturedTextPaintGeometry(
     geometry: {
       source: "blink-text-fragment-affine-v2",
       space: "pre-css-transform-viewport",
+      sourceFragments: split.sourceFragments,
       fragments,
     },
+    splitSegments,
   };
 }

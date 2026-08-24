@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6pdmmkf4u3gjnu",
+          "message": {
+            "text": "The strict headless logical oracle passed 2/2 comprehensive rows with exact-fragment-span-agreement: horizontal Range/CDP/source/paint cardinality 7/6/7/6 and vertical 4/4/4/4. It retained exact source spans plus clusters, gids, advances, offsets and fragment origins, and rejected collapse, reorder and wrong-span mutations; no screenshot or pixel threshold participates.",
+            "markdown": "The strict headless logical oracle passed 2/2 comprehensive rows with exact-fragment-span-agreement: horizontal Range/CDP/source/paint cardinality 7/6/7/6 and vertical 4/4/4/4. It retained exact source spans plus clusters, gids, advances, offsets and fragment origins, and rejected collapse, reorder and wrong-span mutations; no screenshot or pixel threshold participates."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/text-fragment-span-oracle.ts"
+                },
+                "region": {
+                  "startLine": 480,
+                  "endLine": 555,
+                  "snippet": {
+                    "text": "      exact(fragment.neutralQuad, independent.contentQuads[fragment.physicalFragmentIndex - firstLetter.length])),\n    expectedFirstLetterOwnership: firstLetter.length === (test.firstLetter ? 1 : 0)\n      && (!test.firstLetter || exact(firstLetter[0]?.domUtf16Span, [0, 2])),\n    everySourceHasOneSplitSegment: splitOwners.every((count) => count === 1),\n    shapedRecordsRemainUtf16Aligned: shapedRuns.every((run) =>\n      run.shapedOrigins.length === run.text.length && run.shapedAdvances.length === run.text.length\n        && run.shapedOrigins.every(Number.isFinite) && run.shapedAdvances.every(Number.isFinite)),\n    glyphRecordsRetainExactSourceOwnership: shapedRuns.every((run) => run.glyphs.length > 0\n      && run.glyphs.every((glyph) => Number.isInteger(glyph.gid) && Number.isInteger(glyph.cluster)\n        && glyph.domUtf16Span[0] >= run.domUtf16Span[0] && glyph.domUtf16Span[1] <= run.domUtf16Span[1]\n        && [glyph.xAdvance, glyph.yAdvance, glyph.xOffset, glyph.yOffset].every(Number.isFinite))),\n    fallbackFacesRemainDistinct: shapedRuns.flatMap((run) => run.selectedFontKeys).filter(Boolean).length > 1,\n    noTextFragmentFallbackWarning: captureResult.warnings.every((warning) => !/text-fragment|outer.*surface/i.test(warning.detail)),\n  };\n  const warnings = captureResult.warnings.map((warning) => warning.detail)\n    .filter((warning) => /text-fragment|outer.*surface/i.test(warning));\n  return {\n    row: {\n      id: test.id,\n      text: test.text,\n      writingMode: test.writingMode,\n      independent,\n      captured: {\n        sourceFragments: geometry.sourceFragments,\n        paintFragments: geometry.fragments,\n        neutralSegments,\n        shapedRuns,\n        warnings,\n      },\n      controls,\n      pass: Object.values(controls).every(Boolean),\n    },\n    mutations: mutationResults(geometry.sourceFragments[0].sourceTextNodeIndex, independent, neutralSegments),\n  };\n}\n\nexport async function runTextFragmentSpanOracle(): Promise<TextFragmentSpanReport> {\n  const corpusErrors = validateTextFragmentSpanCorpus();\n  if (corpusErrors.length > 0) throw new Error(`invalid text fragment span corpus: ${corpusErrors.join(\"; \")}`);\n  process.env.DOMOTION_HELPER_NO_SERVE = \"1\";\n  const [capture, render, textPath, provenanceApi] = await Promise.all([\n    import(\"../src/capture/index.js\"),\n    import(\"../src/render/element-tree-to-svg.js\"),\n    import(\"../src/render/text-to-path.js\"),\n    import(\"../src/render/text-run-provenance.js\"),\n  ]);\n  const require = createRequire(import.meta.url);\n  const playwrightVersion = (require(\"playwright/package.json\") as { version: string }).version;\n  const browser = await chromium.launch({ headless: true, args: [\"--font-render-hinting=none\"] });\n  try {\n    const context = await browser.newContext({ viewport: { width: 960, height: 640 }, deviceScaleFactor: 1 });\n    try {\n      const page = await context.newPage();\n      const userAgent = await page.evaluate(() => navigator.userAgent);\n      const fontBytes = embeddedVariableFontBytes();\n      const fontBase64 = fontBytes.toString(\"base64\");\n      const rows: TextFragmentSpanRow[] = [];\n      const mutationRows: TextFragmentSpanMutationResult[][] = [];\n      for (const test of TEXT_FRAGMENT_SPAN_CASES) {\n        const result = await runCase(page, test, fontBase64, fontBytes, capture, render, textPath, provenanceApi);\n        rows.push(result.row);\n        mutationRows.push(result.mutations);\n      }\n      const mutations = REQUIRED_TEXT_FRAGMENT_SPAN_MUTATIONS.map((kind) => {\n        const results = mutationRows.map((row) => row.find((result) => result.kind === kind));\n        return {\n          kind,\n          rejected: results.every((result) => result?.rejected === true),\n          failureReason: results.map((result) => result?.failureReason ?? \"missing mutation result\").join(\" | \"),\n        };\n      });\n      const controls = {\n        everyRequestedRowPresent: rows.length === TEXT_FRAGMENT_SPAN_CASES.length,\n        everyLogicalRowPasses: rows.every((row) => row.pass),\n        ligatureClusterPreserved: rows.some((row) => row.captured.shapedRuns.some((run) =>\n          run.glyphs.some((glyph) => glyph.renderedUtf16Span[1] - glyph.renderedUtf16Span[0] > 1))),"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/text-paint-geometry.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 80
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/text-transform-parity.yml"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 99,
+          "workItemUris": [
+            "DM-2546"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "43897d441cd2ae6469df6e4e0423b0a0"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "bae7c2afd03b6c233be912f146b1de6de12e6ec5",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

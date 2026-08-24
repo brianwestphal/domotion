@@ -45,6 +45,12 @@ export interface SeekAnimationsToFrameOptions {
   strict?: boolean;
   /** Seek same- and cross-origin child frames as well as the top document. */
   includeChildFrames?: boolean;
+  /**
+   * Use the page's requestAnimationFrame queue as a paint barrier. Set false
+   * when DM-2554's pre-navigation capture clock owns that queue; the caller
+   * then performs an authenticated CDP rendering commit instead.
+   */
+  settleWithAnimationFrame?: boolean;
 }
 
 const CURRENT_TIME_EPSILON_MS = 0.02;
@@ -79,12 +85,16 @@ async function closedShadowRootCount(page: Page, frame: Frame): Promise<number> 
   }
 }
 
-async function seekDocumentFrame(frame: Frame, timeMs: number): Promise<StableAnimationDocumentState> {
+async function seekDocumentFrame(
+  frame: Frame,
+  timeMs: number,
+  settleWithAnimationFrame: boolean,
+): Promise<StableAnimationDocumentState> {
   // `tsx` keeps nested browser-function names via an esbuild `__name` helper,
   // while Playwright serializes only this callback. Production bundles inline
   // the helper; source-run logical oracles need the equivalent target binding.
   await frame.evaluate("globalThis.__name ||= (target => target)");
-  return frame.evaluate(async ({ requestedTimeMs, epsilonMs }) => {
+  return frame.evaluate(async ({ requestedTimeMs, epsilonMs, settleWithAnimationFrame }) => {
     type ProgressTime = { value: number; unit: string; toString(): string };
     type AnimationScope = Document | (ShadowRoot & { getAnimations(): Animation[] });
     type ProgressSource = Element & {
@@ -194,7 +204,7 @@ async function seekDocumentFrame(frame: Frame, timeMs: number): Promise<StableAn
     // recalc. Settle once per Document before enumeration (DM-1781), then
     // settle again after the seek so every later CDP/layout read observes the
     // same committed compositor frame.
-    if (root != null && root.__domotionSeekSettled !== true) {
+    if (settleWithAnimationFrame && root != null && root.__domotionSeekSettled !== true) {
       root.__domotionSeekSettled = true;
       await new Promise<void>((resolve) => {
         requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
@@ -286,9 +296,11 @@ async function seekDocumentFrame(frame: Frame, timeMs: number): Promise<StableAn
       }
     }
 
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-    });
+    if (settleWithAnimationFrame) {
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      });
+    }
 
     const after = collectAnimations(scopes);
     if (after.length !== before.length) {
@@ -351,7 +363,7 @@ async function seekDocumentFrame(frame: Frame, timeMs: number): Promise<StableAn
       smilTimelineCount,
       failures,
     };
-  }, { requestedTimeMs: timeMs, epsilonMs: CURRENT_TIME_EPSILON_MS });
+  }, { requestedTimeMs: timeMs, epsilonMs: CURRENT_TIME_EPSILON_MS, settleWithAnimationFrame });
 }
 
 /**
@@ -385,7 +397,7 @@ export async function seekAnimationsToFrame(
           failures: [`${closedRoots} closed shadow TreeScope(s) are not reachable for animation enumeration`],
         };
       }
-      return await seekDocumentFrame(frame, timeMs);
+      return await seekDocumentFrame(frame, timeMs, options.settleWithAnimationFrame !== false);
     } catch (error) {
       return {
         url: frame.url(),

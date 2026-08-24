@@ -11,7 +11,7 @@ import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js"
 
 const WIDTH = 560;
 const HEIGHT = 280;
-const browser = await launchChromium().catch(() => null);
+const browser = await launchChromium({ headless: true }).catch(() => null);
 afterAll(async () => closeBrowserSafely(browser), 15_000);
 const describeBrowser = browser == null ? describe.skip : describe;
 

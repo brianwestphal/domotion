@@ -14,6 +14,7 @@ import type { CapturedElement, TextSegment } from "../capture/types.js";
 import { recordTextEmitterTransition } from "./text-run-provenance.js";
 import { capturedFontFamilyCss, parseCssFontFamilyEntries } from "../font-family-stack.js";
 import { bidiLevelsFor, type BidiParagraphContext } from "./script-segmentation.js";
+import { selectDecorationFragment, type DecorationFragmentCarrier } from "./decoration-fragment-ownership.js";
 
 // ── Rendering helpers ──
 
@@ -858,6 +859,7 @@ interface AppliedDecorationRunCtx {
    *  run/fragment (per-decoration and per-line-kind suffixes are appended
    *  downstream). */
   idBase?: string;
+  writingMode?: string;
 }
 
 /**
@@ -928,7 +930,22 @@ function renderAppliedTextDecorations(
     // this carries up to 0.5px of capture rounding for shifted sub/sup lines;
     // same-line children use the run's own unrounded baseline).
     const pdAscent = pd.fontAscent ?? pd.fontSize * 0.8;
-    const pdBaseline = pickPropagatedBaseline(pd.baselines, runBaselineY, pd.fontSize);
+    const ownedFragment = selectDecorationFragment(
+      (pd as typeof pd & DecorationFragmentCarrier).decorationFragments,
+      {
+        writingMode: run.writingMode ?? "horizontal-tb",
+        inlineStart: run.segX,
+        inlineEnd: run.segX + run.segWidth,
+        lineOver: run.fragTop,
+        baseline: runBaselineY,
+      },
+      pd.fontSize,
+    );
+    // Exact fragment ownership supersedes the legacy rounded-baseline list.
+    // Older captures (and decorating wrappers with no direct text fragment)
+    // retain the compatible fallback.
+    const pdBaseline = ownedFragment?.baseline
+      ?? pickPropagatedBaseline(pd.baselines, runBaselineY, pd.fontSize);
     parts.push(renderTextDecoration({
       textDecorationLine: pd.line, decorationColor: pd.color ?? fallbackColor, style: pd.style,
       segX: run.segX, fragTop: pdBaseline - pdAscent, runBaselineY, segWidth: run.segWidth,
@@ -1647,6 +1664,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
       fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight,
       runText: pathText, features, runXOffsets: xOffsetsRel ?? undefined,
       idBase: `${clipId}-dec`,
+      writingMode: el.styles.writingMode,
     });
     // Per-char raster overlays (SK-1090). Emoji / color-bitmap codepoints in
     // the middle of plain-text runs get stamped on top of the path output.
@@ -1850,6 +1868,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
       fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight,
       runText: reordered.text, features: segFeatures, runXOffsets: segXOffsets ?? undefined,
       idBase: `${clipId}-dec${_decoSegIdx++}`,
+      writingMode: el.styles.writingMode,
     });
     if (decoMarkup !== "") segParts.push(decoMarkup);
     // Per-char raster overlays (SK-1090). Emoji inline with path-rendered

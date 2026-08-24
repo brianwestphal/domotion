@@ -120,6 +120,14 @@ const captureDocumentTree =
     var index = _textPaintElementIndexFor(el);
     return registry != null && index != null ? registry.token + ':' + index : undefined;
   }
+  function _textPaintSourceTextNodeIndexFor(node) {
+    var registry = node != null && node.ownerDocument != null
+      ? node.ownerDocument.defaultView?.[args.tgk]
+      : undefined;
+    return registry != null && registry.indexByTextNode != null
+      ? registry.indexByTextNode.get(node)
+      : undefined;
+  }
   // DM-2467: exact generated-content fragment records are installed by one
   // frame-scoped CDP prepass. Presence (including a terminal-raster record)
   // disables the legacy clone/probe path for that live host.
@@ -243,6 +251,7 @@ const captureDocumentTree =
     markGetsDottedCircle,
     finalizeLineClampText,
     fontFamilyStackFor: _fontFamilyStackFor,
+    sourceTextNodeIndexFor: _textPaintSourceTextNodeIndexFor,
   });
   const { injectPseudoSegments } = createPseudoInjectHandler();
   const { captureResizeHandle } = createResizeHandleHandler({

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6pls0zeww75ssf",
+          "message": {
+            "text": "Wrapped decoration geometry is joined by authenticated line identity and overlap rather than DOM order. Blink paints decorating-box fragments in line-relative space; merging continuations or borrowing metrics across lines loses skip-ink/style phase, so ambiguous joins fail closed instead of being fitted from final pixels.",
+            "markdown": "Wrapped decoration geometry is joined by authenticated line identity and overlap rather than DOM order. Blink paints decorating-box fragments in line-relative space; merging continuations or borrowing metrics across lines loses skip-ink/style phase, so ambiguous joins fail closed instead of being fitted from final pixels."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/decoration-fragment-ownership.ts"
+                },
+                "region": {
+                  "startLine": 1,
+                  "endLine": 220,
+                  "snippet": {
+                    "text": "import type { TextSegment } from \"../capture/types.js\";\n\n/**\n * One line-local decorating-box witness. Blink rebuilds InlinePaintContext's\n * DecoratingBox list for every line and stores the FragmentItem content\n * offset; flattening that list to a union or a rounded baseline loses wrapped\n * continuation ownership (Chromium 7d859f271c, inline_paint_context.cc and\n * decorating_box.h).\n */\nexport interface DecorationFragmentRecord {\n  version: \"blink-decorating-box-fragment-v1\";\n  fragmentIndex: number;\n  writingMode: string;\n  direction: string;\n  inlineStart: number;\n  inlineEnd: number;\n  lineOver: number;\n  baseline: number;\n  usedFontAscent: number;\n  usedFontDescent?: number;\n  /** MakeWave starts at -wavelength, i.e. phase zero at each paint fragment. */\n  continuationPhase: 0;\n}\n\nexport interface DecorationFragmentCarrier {\n  decorationFragments?: DecorationFragmentRecord[];\n}\n\nexport function buildDecorationFragmentRecords(\n  segments: readonly TextSegment[] | undefined,\n  writingMode: string | undefined,\n  direction: string | undefined,\n  fallbackAscent: number,\n  fallbackDescent?: number,\n): DecorationFragmentRecord[] | undefined {\n  if (segments == null || segments.length === 0) return undefined;\n  const mode = writingMode ?? \"horizontal-tb\";\n  const vertical = mode.startsWith(\"vertical\") || mode.startsWith(\"sideways\");\n  const records = segments.map((segment, fragmentIndex) => ({\n    version: \"blink-decorating-box-fragment-v1\" as const,\n    fragmentIndex,\n    writingMode: mode,\n    direction: direction ?? \"ltr\",\n    inlineStart: vertical ? segment.y : segment.x,\n    inlineEnd: vertical ? segment.y + segment.height : segment.x + segment.width,\n    lineOver: vertical ? segment.x : segment.y,\n    baseline: segment.baseline ?? (vertical\n      ? segment.x + (segment.fontAscent ?? fallbackAscent)\n      : segment.y + (segment.fontAscent ?? fallbackAscent)),\n    // DecoratingBox stores its own UsedFont, not the target text run's.\n    usedFontAscent: fallbackAscent,\n    usedFontDescent: fallbackDescent,\n    continuationPhase: 0 as const,\n  }));\n  return records.every((record) => Object.values(record).every((value) =>\n    value == null || typeof value !== \"number\" || Number.isFinite(value))) ? records : undefined;\n}\n\nexport interface DecorationTargetFragment {\n  writingMode: string;\n  inlineStart: number;\n  inlineEnd: number;\n  lineOver: number;\n  baseline: number;\n}\n\n/**\n * Join a painted text fragment to the decorating box on the same line. Line\n * identity wins; inline overlap then distinguishes bidi fragments on a line.\n * Equal candidates are genuinely ambiguous and fail closed instead of using\n * DOM order or a merged-line approximation.\n */\nexport function selectDecorationFragment(\n  records: readonly DecorationFragmentRecord[] | undefined,\n  target: DecorationTargetFragment,\n  lineLimit: number,\n): DecorationFragmentRecord | undefined {\n  if (records == null || records.length === 0) return undefined;\n  const candidates = records.map((record) => {\n    if (record.writingMode !== target.writingMode) return undefined;\n    const lineDistance = Math.abs(record.lineOver - target.lineOver);\n    if (lineDistance > lineLimit) return undefined;\n    const overlap = Math.max(0,\n      Math.min(record.inlineEnd, target.inlineEnd) - Math.max(record.inlineStart, target.inlineStart));\n    const inlineDistance = overlap > 0 ? 0 : Math.min(\n      Math.abs(record.inlineEnd - target.inlineStart),\n      Math.abs(target.inlineEnd - record.inlineStart),\n    );\n    return { record, lineDistance, overlap, inlineDistance };\n  }).filter((value): value is NonNullable<typeof value> => value != null)\n    .sort((a, b) => a.lineDistance - b.lineDistance\n      || b.overlap - a.overlap || a.inlineDistance - b.inlineDistance);\n  const best = candidates[0];\n  if (best == null) return undefined;\n  const second = candidates[1];\n  if (second != null && second.lineDistance === best.lineDistance\n      && second.overlap === best.overlap && second.inlineDistance === best.inlineDistance) {\n    return undefined;\n  }\n  return best.record;\n}\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2527"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ab64dab45e8d5b4e7d90defe5c7f2dbf"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8b3a027ece4df88b3a9ee98522eb6c29c6933fe7",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

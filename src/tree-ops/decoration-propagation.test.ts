@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { CapturedElement } from "../capture/types.js";
 import { propagateTextDecorations } from "./decoration-propagation.js";
+import type { DecorationFragmentCarrier } from "../render/decoration-fragment-ownership.js";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -234,6 +235,25 @@ describe("propagateTextDecorations: idempotence + re-run transitions", () => {
 // ── DM-1732: decorating-box baselines for vertical-align-shifted children ───
 
 describe("propagateTextDecorations: decorating-box baselines (DM-1732)", () => {
+  it("prefers the decorating inline's physical wrapped boxes", () => {
+    const child = el({ text: "continuation", styles: { textDecorationLine: "none" } });
+    const u = el({ styles: decoStyles(), children: [child] });
+    u.fontAscent = 12.25;
+    u.inlineFragments = [
+      { x: 10, y: 20.125, width: 80, height: 18 },
+      { x: 10, y: 42.625, width: 55, height: 18 },
+    ];
+    propagateTextDecorations([u]);
+    const record = child.propagatedDecorations?.[0] as
+      | (NonNullable<typeof child.propagatedDecorations>[number] & DecorationFragmentCarrier)
+      | undefined;
+    expect(record?.decorationFragments?.map(({ lineOver, baseline, continuationPhase }) =>
+      ({ lineOver, baseline, continuationPhase }))).toEqual([
+      { lineOver: 20.125, baseline: 32.375, continuationPhase: 0 },
+      { lineOver: 42.625, baseline: 54.875, continuationPhase: 0 },
+    ]);
+  });
+
   it("records the decorating element's own segment baselines (deduped, rounded)", () => {
     const child = el({ tag: "sub", text: "2", styles: { textDecorationLine: "none" } });
     const u = el({ text: "H O", styles: decoStyles(), children: [child] });

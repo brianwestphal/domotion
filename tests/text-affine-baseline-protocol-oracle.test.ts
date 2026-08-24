@@ -26,7 +26,7 @@ describe("Blink affine text baseline protocol investigation", () => {
     expect(TEXT_BASELINE_PROTOCOL_CASES.map((row) => [row.id, row.expectedDisposition])).toEqual([
       ["fractional-horizontal", "decoded-vector"],
       ["nested-zoom-horizontal", "decoded-vector"],
-      ["mixed-script-fragments", "mixed-fragment-correlation-gap"],
+      ["mixed-script-fragments", "decoded-fragments"],
       ["vertical-rl-plane", "decoded-vector"],
       ["vertical-lr-plane", "decoded-vector"],
       ["sideways-rl-plane", "decoded-vector"],

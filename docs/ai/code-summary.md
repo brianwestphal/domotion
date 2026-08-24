@@ -160,8 +160,8 @@ shortest possible map:
   residual matrix across normal, wrapped, vertical, bitmap, decoration, shadow,
   stroke, background-clip and input branches. The legacy transform-derived font
   magnitude, unsigned cumulative axes and anisotropic correction are removed
-  (DM-2469/2470, docs 159/177). DM-2544's source investigation and DM-2547's
-  production closure use
+  (DM-2469/2470, docs 159/177). DM-2544's source investigation, DM-2547's
+  line-origin closure, and DM-2546's physical-fragment closure use
   `tools/text-affine-baseline-protocol-oracle.ts`, which independently joins whole-Range
   and per-UTF-16-unit rects, CDP text-node quads, a baseline witness, captured
   fragments, and emitted SVG CTMs without a screenshot (doc 215). It proves the
@@ -171,9 +171,17 @@ shortest possible map:
   all five writing-mode maps, decoded physical point, zoom and pinned
   provenance; render validates and consumes it once before its residual matrix.
   Seven rows and eight mutations run on all native platforms without pixels.
-  Mixed-script `FragmentItem`s still outnumber line-grouped `TextSegment`s
-  before correlation (DM-2546); do not fit that correction from pixels or widen
-  an existing visual tolerance.
+  `text-paint-geometry-cdp.ts` now also recovers every ordered FragmentItem's
+  exact half-open DOM UTF-16 span from full-rectangle Range prefix/suffix
+  transitions in the same neutral frame. `text-fragment-spans.ts` joins those
+  facts exactly to ordered CDP quads, preserves the separately styled
+  first-letter item, and splits source-mapped ordinary segments plus shaped
+  origins/advances before affine correlation. Renderer validation requires
+  consume-once source records. `tools/text-fragment-span-oracle.ts` retains
+  clusters, gids, advances, offsets, face keys, source spans and fragment
+  origins over comprehensive horizontal and vertical cases, rejects
+  collapse/reorder/wrong-span mutations, and runs headlessly on macOS, Linux,
+  and Windows. No nearest-rect fit or visual-tolerance change is permitted.
   DM-2468 now consumes DM-2467 pseudo records
   directly; an unavailable generated clamp marker retains the outer raster.
   `tools/text-transform-geometry-audit.ts` is the hard two-leg release gate:
@@ -1140,3 +1148,13 @@ eleven logical discriminators and nine mutations. It deliberately reports
 own screen provenance, repeat occurrences, and paged media respectively, and
 DM-2560 owns the later all-platform logical/final-ink gate. Do not infer these
 owners from pixels or widen border tolerances.
+
+### Pre-navigation rAF capture ownership (DM-2554)
+
+`src/capture/raf-clock.ts` installs a BrowserContext init script before
+navigation, owns a bounded Window rAF callback queue at one caller time, blocks
+worker/SharedWorker/OffscreenCanvas escape routes, and authenticates main/OOPIF
+CDP target identities plus a logical style/layout commit. `capture/index.ts`
+combines that handle with DM-2553's document/progress seek and reverifies it
+between prepasses. The legacy two-rAF barrier is disabled only under this
+owned protocol. See doc 228 and the headless three-platform workflow.

@@ -7,6 +7,7 @@ import {
   textPaintAffineResidual,
   type ProtocolTextNodeGeometry,
 } from "./text-fragment-geometry.js";
+import type { BlinkRangeFragmentProbe } from "./text-fragment-spans.js";
 
 const rectQuad = (x: number, y: number, width: number, height: number): CapturedTextPaintQuad =>
   [x, y, x + width, y, x + width, y + height, x, y + height];
@@ -34,10 +35,32 @@ const node = (
   transformOrigin: "17px 23px",
   effectiveZoom: 1,
   ...overrides,
+  rangeFragments: overrides.rangeFragments ?? neutralQuads.map((quad, physicalFragmentIndex): BlinkRangeFragmentProbe => ({
+    physicalFragmentIndex,
+    domUtf16Span: [physicalFragmentIndex * 6, (physicalFragmentIndex + 1) * 6],
+    neutralRangeRect: {
+      x: quad[0],
+      y: quad[1],
+      width: quad[2] - quad[0],
+      height: quad[7] - quad[1],
+    },
+  })),
 });
 
-const segment = (x: number, y: number, text = "Affine"): TextSegment => ({
+const segment = (x: number, y: number, text = "Affine", sourceStart = 0): TextSegment => ({
   text,
+  sourceText: text,
+  sourceMapping: {
+    source: "dom-text-utf16-v1",
+    sourceTextNodeIndex: 0,
+    domText: `${"_".repeat(sourceStart)}${text}`,
+    domUtf16Span: [sourceStart, sourceStart + text.length],
+    renderedChunks: Array.from({ length: text.length }, (_, index) => ({
+      renderedUtf16Span: [index, index + 1],
+      domUtf16Span: [sourceStart + index, sourceStart + index + 1],
+    })),
+    role: "ordinary",
+  },
   x,
   y,
   width: 60,
@@ -88,7 +111,9 @@ describe("affine text-fragment matrix recovery", () => {
 describe("captured text paint geometry", () => {
   it("correlates wrapped fragments and retains zoom, structured origin, and advances", () => {
     const first = segment(12, 18);
-    const second = segment(12, 48, "wrap");
+    const second = segment(12, 48, "wrap", 6);
+    second.sourceMapping!.domText = "Affinewrap";
+    first.sourceMapping!.domText = "Affinewrap";
     second.width = 40;
     second.xOffsets = [12, 22, 32, 42];
     second.xAdvances = [10, 10, 10, 10];
@@ -100,6 +125,10 @@ describe("captured text paint geometry", () => {
         effectiveZoom: 1.5,
         transformBox: "content-box",
         transformOrigin: "73% 18%",
+        rangeFragments: [
+          { physicalFragmentIndex: 0, domUtf16Span: [0, 6], neutralRangeRect: { x: 12, y: 18, width: 60, height: 20 } },
+          { physicalFragmentIndex: 1, domUtf16Span: [6, 10], neutralRangeRect: { x: 12, y: 48, width: 40, height: 20 } },
+        ],
       })],
     );
     expect(result.failureReason).toBeUndefined();
@@ -133,6 +162,18 @@ describe("captured text paint geometry", () => {
 
     const vertical: TextSegment = {
       text: "縦A",
+      sourceText: "縦A",
+      sourceMapping: {
+        source: "dom-text-utf16-v1",
+        sourceTextNodeIndex: 0,
+        domText: "縦A",
+        domUtf16Span: [0, 2],
+        renderedChunks: [
+          { renderedUtf16Span: [0, 1], domUtf16Span: [0, 1] },
+          { renderedUtf16Span: [1, 2], domUtf16Span: [1, 2] },
+        ],
+        role: "ordinary",
+      },
       x: 70,
       y: 14,
       width: 22,
@@ -145,6 +186,11 @@ describe("captured text paint geometry", () => {
     const verticalResult = buildCapturedTextPaintGeometry(
       [vertical], 15, [node([1, 0, 0, 1, 0, 0], [rectQuad(70, 14, 22, 40)], {
         writingMode: "vertical-rl",
+        rangeFragments: [{
+          physicalFragmentIndex: 0,
+          domUtf16Span: [0, 2],
+          neutralRangeRect: { x: 70, y: 14, width: 22, height: 40 },
+        }],
       })],
     );
     expect(verticalResult.geometry?.fragments[0]).toMatchObject({
@@ -160,7 +206,7 @@ describe("captured text paint geometry", () => {
     });
   });
 
-  it("fails closed on projective corners, count drift, and ambiguous correlation", () => {
+  it("fails closed on projective corners, count drift, and wrong source spans", () => {
     const local = rectQuad(10, 10, 60, 20);
     const projective = rectQuad(10, 10, 60, 20);
     projective[4] -= 9;
@@ -174,10 +220,9 @@ describe("captured text paint geometry", () => {
     expect(buildCapturedTextPaintGeometry([segment(10, 10)], 15, [drift]).failureReason)
       .toContain("count changed");
 
-    expect(buildCapturedTextPaintGeometry(
-      [segment(10, 10), segment(10, 10)],
-      15,
-      [node([1, 0, 0, 1, 0, 0], [local])],
-    ).failureReason).toContain("ambiguous");
+    const wrongSpan = node([1, 0, 0, 1, 0, 0], [local]);
+    wrongSpan.rangeFragments[0].domUtf16Span = [1, 6];
+    expect(buildCapturedTextPaintGeometry([segment(10, 10)], 15, [wrongSpan]).failureReason)
+      .toContain("crosses or ambiguously belongs");
   });
 });

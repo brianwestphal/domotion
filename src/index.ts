@@ -26,6 +26,7 @@ export {
   DemoRecorder,
   launchChromium,
   injectBrandVariables,
+  installCaptureRafClock,
 } from "./capture/index.js";
 export type { CaptureOptions, CaptureElementTreeOptions } from "./capture/index.js";
 export { reverifyAnimationsAtFrame, seekAnimationsToFrame } from "./capture/animation-frame.js";
@@ -35,6 +36,12 @@ export type {
   StableAnimationFrameState,
   StableProgressTimelineState,
 } from "./capture/animation-frame.js";
+export { reverifyCaptureRafClock, sampleCaptureRafClock } from "./capture/raf-clock.js";
+export type {
+  CaptureRafClockHandle,
+  CaptureRafTargetState,
+  StableCaptureRafState,
+} from "./capture/raf-clock.js";
 export {
   getLastCaptureWarnings,
   logCaptureWarnings,

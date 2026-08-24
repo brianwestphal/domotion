@@ -149,6 +149,7 @@ tree state.
   barrier; reject late/native escape and target churn; then run the combined
   progress/source/controlled-rendering/rAF ordering gate after DM-2553.
 
-Until DM-2554 lands, document and progress timelines are deterministic under
-their separate native units and source facts, but rAF remains unsupported,
-unreported, and able to mutate state during the current settle.
+DM-2554 now owns Window rAF through the pre-navigation, target-authenticated
+protocol in doc 228. Document and progress timelines retain their separate
+native units and source facts; workers and OffscreenCanvas fail closed,
+so they cannot mutate state during the controlled settle.

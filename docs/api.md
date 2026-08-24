@@ -27,6 +27,9 @@ live DOM and produces a serializable element tree the renderer can consume.
 | `captureElementTreeSelfContained` | function | `captureElementTree` + the remote-image embed pass. **Prefer this whenever the tree's render reaches output** — a tree that skips the embed serializes the literal origin URL, which renders blank wherever that origin is unreachable. |
 | `captureElementTreeWithWarnings` | function | Same as above but returns `{ tree, warnings }` instead of mutating a global buffer. |
 | `seekAnimationsToFrame` | function | Pause CSS/WAAPI and SMIL timelines at one exact, paint-committed document time before frame-scoped capture. |
+| `installCaptureRafClock` | function | Install the bounded capture rAF owner on a `BrowserContext` before navigation; it withholds page callbacks, blocks worker/OffscreenCanvas escape routes, and returns the opaque handle used during animated capture. |
+| `sampleCaptureRafClock` / `reverifyCaptureRafClock` | function | Drain one bounded callback batch at the caller-owned time, authenticate main/OOPIF target identities, force a logical rendering commit, and reject callback/target drift between prepasses. |
+| `CaptureRafClockHandle`, `CaptureRafTargetState`, `StableCaptureRafState` | type | Serializable authority and evidence records for the pre-navigation main/OOPIF rAF protocol. |
 | `getLastCaptureWarnings` | function | Read the warnings buffer populated by `captureElementTree`. Use when you can't switch to the `WithWarnings` form. |
 | `logCaptureWarnings` | function | Pretty-print the warnings to stderr. |
 | `embedRemoteImages` | function | Walk a captured tree and inline any `<img>` / `<image>` data into `data:` URIs so the SVG is self-contained. |

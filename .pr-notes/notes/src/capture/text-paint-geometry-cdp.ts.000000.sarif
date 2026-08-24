@@ -90,6 +90,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6pdd0tuewijrm9",
+          "message": {
+            "text": "The prefix/suffix discriminator is source-equivalent to Blink's range traversal: a full FragmentItem rectangle appears only after its complete TextOffsetRange is covered, so first-prefix and last-suffix transitions recover exact half-open UTF-16 bounds. Occurrence ranks preserve duplicate rectangles; isolated spans must reproduce one full rect, avoiding any nearest-geometry or visual-tolerance fit.",
+            "markdown": "The prefix/suffix discriminator is source-equivalent to Blink's range traversal: a full FragmentItem rectangle appears only after its complete TextOffsetRange is covered, so first-prefix and last-suffix transitions recover exact half-open UTF-16 bounds. Occurrence ranks preserve duplicate rectangles; isolated spans must reproduce one full rect, avoiding any nearest-geometry or visual-tolerance fit."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/text-paint-geometry-cdp.ts"
+                },
+                "region": {
+                  "startLine": 295,
+                  "endLine": 380,
+                  "snippet": {
+                    "text": "/**\n * Recover exact FragmentItem DOM intervals in the already-neutral frame.\n *\n * Pinned Blink returns a full `FragmentItem::LocalRect()` iff a queried Range\n * covers that item's complete `TextOffsetRange`; partial coverage returns the\n * shape-view sub-rect.  Prefixes therefore reveal the first full end and\n * suffixes reveal the last full start.  Exact-rectangle occurrence ranks keep\n * duplicate physical rectangles explicit instead of selecting by proximity.\n */\nasync function measureRangeFragments(\n  frames: readonly PreparedFrame[],\n  key: string,\n): Promise<Map<string, RangeMeasurement>> {\n  const output = new Map<string, RangeMeasurement>();\n  await Promise.all(frames.map(async ({ frame, token }) => {\n    // `node --import tsx` annotates nested functions in the serialized\n    // Playwright callback with `__name`. Install its no-op helper only for the\n    // duration of this probe; compiled library and Vitest paths never need it.\n    const installedTsxNameHelper = await frame.evaluate(\n      \"!Object.prototype.hasOwnProperty.call(globalThis, '__name') && (globalThis.__name = (target) => target, true)\",\n    ).catch(() => false) as boolean;\n    const rows = await frame.evaluate(({ key }) => {\n      const registry = (globalThis as typeof globalThis & Record<string, any>)[key];\n      if (registry == null) return [];\n      const rect = (value: DOMRect): { x: number; y: number; width: number; height: number } => ({\n        x: value.x,\n        y: value.y,\n        width: value.width,\n        height: value.height,\n      });\n      const tokenFor = (value: { x: number; y: number; width: number; height: number }): string =>\n        `${value.x}|${value.y}|${value.width}|${value.height}`;\n      const rectsFor = (node: Text, start: number, end: number): Array<{ x: number; y: number; width: number; height: number }> => {\n        const range = document.createRange();\n        range.setStart(node, start);\n        range.setEnd(node, end);\n        return Array.from(range.getClientRects(), rect);\n      };\n      return registry.textRows.map((row: { textNode: Text }) => {\n        try {\n          const node = row.textNode;\n          const textLength = node.data.length;\n          const full = rectsFor(node, 0, textLength);\n          if (full.length === 0) return { fragments: [], failureReason: \"Range exposed no full text FragmentItems\" };\n          const fullTokens = full.map(tokenFor);\n          const prefixCounts: Array<Map<string, number>> = [];\n          const suffixCounts: Array<Map<string, number>> = [];\n          const countsFor = (values: Array<{ x: number; y: number; width: number; height: number }>): Map<string, number> => {\n            const counts = new Map<string, number>();\n            for (const value of values) {\n              const token = tokenFor(value);\n              counts.set(token, (counts.get(token) ?? 0) + 1);\n            }\n            return counts;\n          };\n          for (let offset = 0; offset <= textLength; offset++) {\n            prefixCounts.push(countsFor(rectsFor(node, 0, offset)));\n            suffixCounts.push(countsFor(rectsFor(node, offset, textLength)));\n          }\n          const fragments: BlinkRangeFragmentProbe[] = [];\n          for (let physicalFragmentIndex = 0; physicalFragmentIndex < full.length; physicalFragmentIndex++) {\n            const token = fullTokens[physicalFragmentIndex];\n            const forwardRank = fullTokens.slice(0, physicalFragmentIndex + 1)\n              .filter((candidate) => candidate === token).length;\n            const reverseRank = fullTokens.slice(physicalFragmentIndex)\n              .filter((candidate) => candidate === token).length;\n            const end = prefixCounts.findIndex((counts) => (counts.get(token) ?? 0) >= forwardRank);\n            let start = -1;\n            for (let offset = textLength; offset >= 0; offset--) {\n              if ((suffixCounts[offset].get(token) ?? 0) >= reverseRank) {\n                start = offset;\n                break;\n              }\n            }\n            if (start < 0 || end <= start) {\n              return { fragments: [], failureReason: \"Range could not isolate an exact FragmentItem UTF-16 interval\" };\n            }\n            const isolated = rectsFor(node, start, end);\n            if (isolated.length !== 1 || tokenFor(isolated[0]) !== token) {\n              return { fragments: [], failureReason: \"isolated DOM UTF-16 interval does not reproduce one full FragmentItem\" };\n            }\n            fragments.push({\n              physicalFragmentIndex,\n              domUtf16Span: [start, end],\n              neutralRangeRect: full[physicalFragmentIndex],\n            });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/text-fragment-spans.ts"
+                },
+                "region": {
+                  "startLine": 133
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2546"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b22b7f8e3ac71ee8756d9c1dfbdcf198"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "bae7c2afd03b6c233be912f146b1de6de12e6ec5",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -2,6 +2,23 @@ import { describe, expect, it } from "vitest";
 import { detectInlineFragments } from "./fragmentation.js";
 
 describe("detectInlineFragments", () => {
+  it("captures decoration-only wrapped inline boxes", () => {
+    const el = { getClientRects: () => [
+      { left: 12.25, top: 20.5, width: 80, height: 18 },
+      { left: 12.25, top: 42.25, width: 54, height: 18 },
+    ] };
+    const captured: any = { styles: {
+      backgroundColor: "transparent", backgroundImage: "none", maskImage: "none",
+      borderTopWidth: "0", borderRightWidth: "0", borderBottomWidth: "0", borderLeftWidth: "0",
+      textDecorationLine: "underline", boxDecorationBreak: "slice",
+    } };
+    detectInlineFragments(el, { display: "inline" }, { x: 0, y: 0 }, captured);
+    expect(captured.inlineFragments).toEqual([
+      { x: 12.25, y: 20.5, width: 80, height: 18 },
+      { x: 12.25, y: 42.25, width: 54, height: 18 },
+    ]);
+  });
+
   it("keeps slice semantics for inline fragments split by block-in-inline layout (DM-2241)", () => {
     const rect = (left: number, top: number, width: number, height: number) => ({
       left, top, width, height,

@@ -1,0 +1,34 @@
+name: Wrapped decoration fragment ownership
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "src/render/decoration-fragment-ownership.ts"
+      - "src/tree-ops/decoration-propagation.ts"
+      - "src/render/text.ts"
+      - "tools/wrapped-decoration-fragment-oracle.ts"
+      - "tests/wrapped-decoration-fragment-oracle.test.ts"
+      - ".github/workflows/wrapped-decoration-fragments.yml"
+
+jobs:
+  logical-ownership:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Exact horizontal/vertical DPR 1/4 fragment ownership
+        run: npx tsx tools/wrapped-decoration-fragment-oracle.ts
+      - name: Logical and destructive controls
+        run: npx vitest run src/render/decoration-fragment-ownership.test.ts tests/wrapped-decoration-fragment-oracle.test.ts src/tree-ops/decoration-propagation.test.ts
+      - name: Headless native FragmentItem exposure
+        run: npx vitest run --config vitest.e2e.config.ts tests/wrapped-decoration-fragments.e2e.test.ts

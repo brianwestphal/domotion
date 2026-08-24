@@ -38,7 +38,7 @@ export const TEXT_BASELINE_EMITTED_SERIALIZATION_EPSILON_CSS_PX = 1 / 32;
 
 type ExpectedDisposition =
   | "decoded-vector"
-  | "mixed-fragment-correlation-gap";
+  | "decoded-fragments";
 
 export interface TextBaselineProtocolCase {
   id: string;
@@ -65,7 +65,7 @@ export const TEXT_BASELINE_PROTOCOL_CASES: readonly TextBaselineProtocolCase[] =
   {
     id: "mixed-script-fragments",
     text: "Latin العربية 漢字",
-    expectedDisposition: "mixed-fragment-correlation-gap",
+    expectedDisposition: "decoded-fragments",
     targetCss: "transform:matrix(.91,.27,-.19,1.07,11.25,-7.5);transform-origin:17.25px 23.75px",
   },
   {
@@ -212,7 +212,7 @@ export function validateTextBaselineProtocolCorpus(): string[] {
   if (new Set(ids).size !== ids.length) errors.push("case ids must be unique");
   if (!TEXT_BASELINE_PROTOCOL_CASES.some((row) => row.id === "fractional-horizontal")) errors.push("fractional horizontal row is required");
   if (!TEXT_BASELINE_PROTOCOL_CASES.some((row) => row.id === "nested-zoom-horizontal")) errors.push("nested zoom row is required");
-  if (!TEXT_BASELINE_PROTOCOL_CASES.some((row) => row.expectedDisposition === "mixed-fragment-correlation-gap")) errors.push("mixed fragment gap row is required");
+  if (!TEXT_BASELINE_PROTOCOL_CASES.some((row) => row.expectedDisposition === "decoded-fragments")) errors.push("decoded mixed-fragment row is required");
   for (const mode of ["vertical-rl", "vertical-lr", "sideways-rl", "sideways-lr"]) {
     if (!TEXT_BASELINE_PROTOCOL_CASES.some((row) => row.targetCss.includes(`writing-mode:${mode}`))) errors.push(`${mode} row is required`);
   }
@@ -545,13 +545,14 @@ async function runCase(
       everyRangeFragmentHasSourceOffsets: logical.rangeFragmentSourceSpans.every((fragment) => fragment.sourceOffsets.length > 0),
     };
     let dispositionControls: Record<string, boolean>;
-    if (test.expectedDisposition === "decoded-vector") {
+    if (test.expectedDisposition === "decoded-vector" || test.expectedDisposition === "decoded-fragments") {
       const record = firstFragment?.lineOrigin;
       const recordTop = record == null ? Infinity
         : record.roundedContainingPaintOffsetTop + record.fragmentRelativeTop;
       dispositionControls = {
-        oneSourceFragment: neutral.quads.length === 1,
-        capturedOneVectorFragment: captured.fragments.length === 1 && captured.rasterOwnerCount === 0,
+        expectedSourceFragmentCardinality: test.expectedDisposition === "decoded-vector"
+          ? neutral.quads.length === 1 : neutral.quads.length > 1,
+        capturedEveryVectorFragment: captured.fragments.length === neutral.quads.length && captured.rasterOwnerCount === 0,
         capturedMatrixMatchesIndependent: logical.maxCapturedMatrixDelta <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
         structuredRecordPresent: record?.source === "blink-text-fragment-line-origin-v1",
         structuredTopMatchesNeutralFragment: Math.abs(recordTop - neutral.quads[0][1]) <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
@@ -573,15 +574,6 @@ async function runCase(
         emittedBaselineMapsToLive: writingMode !== "horizontal-tb"
           || logical.maxLiveEmittedBaselineDeltaCssPx <= TEXT_BASELINE_EMITTED_SERIALIZATION_EPSILON_CSS_PX,
         noRelevantWarnings: captured.relevantWarnings.length === 0,
-      };
-    } else if (test.expectedDisposition === "mixed-fragment-correlation-gap") {
-      dispositionControls = {
-        blinkExposesMultipleFragments: neutral.quads.length > 1,
-        rangeExposesSameFragmentCount: neutral.rangeClientRects.length === neutral.quads.length,
-        captureCollapsedToFewerSegments: captured.segmentCount < neutral.quads.length,
-        captureFailedClosedBeforeEmit: captured.fragments.length === 0 && captured.rasterOwnerCount === 1,
-        emittedChromiumSurface: emitted.textCount === 0 && emitted.imageCount >= 1,
-        correlationWarningPresent: captured.relevantWarnings.some((warning) => /could not be correlated/i.test(warning)),
       };
     }
     const controls = { ...sharedControls, ...dispositionControls };
@@ -642,7 +634,7 @@ export function evaluateTextBaselineMutations(rows: readonly TextBaselineProtoco
     mutationResult("snap-after-affine", 0, pointDistance(correct, snapped), TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX),
     mutationResult("double-apply-zoom", 0, pointDistance(zoomCorrect, doubleZoom), 1),
     mutationResult("drop-transform-origin-translation", 0, pointDistance(correct, originless), 1),
-    mutationResult("collapse-mixed-fragments", mixed?.neutral.quads.length ?? Infinity, mixed?.captured.segmentCount ?? Infinity, 0),
+    mutationResult("collapse-mixed-fragments", mixed?.neutral.quads.length ?? Infinity, 1, 0),
     mutationResult("vertical-horizontal-plane", 0, wrongVerticalPlane, 1),
     mutationResult("drop-fragment-relative-top", 0, fragmentTopDelta, TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX),
   ].map((mutation) => mutation.kind === "collapse-mixed-fragments"

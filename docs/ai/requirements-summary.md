@@ -2283,7 +2283,7 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   fallback; selected face keys must not reconstruct the semantics. This
   contract adds no pixel tolerance or font-name snapshot.
 
-<!-- DM-2544, DM-2547 -->
+<!-- DM-2544, DM-2547, DM-2546 -->
 - Affine text baseline ownership is a **separately decoded logical protocol**
   ([doc 215](../215-affine-text-baseline-protocol.md)), not an inference from
   final glyph pixels. Range rectangles and CDP text-node quads must retain the
@@ -2297,10 +2297,19 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   rows plus all eight wrong-plane/snap/zoom/origin/cardinality mutations must
   remain active without screenshots. Each v2 affine fragment must carry the
   source-pinned structured neutral-plane record, and render must validate and
-  consume it exactly once before the affine map. DM-2546 alone owns
-  pre-correlation physical-fragment/source-span splitting. Native glyph
-  antialiasing and all existing visual tolerances remain outside this geometry
-  requirement.
+  consume it exactly once before the affine map. Before correlation, the same
+  neutral frame must recover every full Range FragmentItem rectangle and exact
+  half-open DOM UTF-16 span, join ordinary items one-to-one and in order with
+  `DOM.getContentQuads`, keep the separate first-letter item, and split both
+  authored/rendered source maps and shaped origins/advances on those spans.
+  Crossing or multiply owned spans fail closed; transform-induced length
+  changes stay explicitly mapped. The logical evidence must cover one
+  LayoutText containing Latin/Arabic/CJK fallback, bidi, ligatures, wrapping,
+  first-letter, vertical writing, nested zoom and nested transforms, retain
+  clusters/gids/advances/offsets/source spans/fragment origins, and reject
+  collapse, reorder and wrong-span mutations on macOS, Linux and Windows.
+  Native glyph antialiasing and all existing visual tolerances remain outside
+  this geometry requirement.
 
 <!-- DM-2539 -->
 - Isolated browser generic preferences are an **authenticated 21-field logical
@@ -2358,3 +2367,17 @@ pixel tolerance or fitted font-name table (DM-2550, doc 224).
   on macOS, Linux, and Windows. Pixels may validate the terminal only after the
   logical record passes; they may not fill missing provenance or justify a
   tolerance change (DM-2526, DM-2557–DM-2560, doc 225).
+
+### Pre-navigation rAF capture ownership
+
+- Install callback ownership before page/OOPIF author script and never expose a
+  saved native rAF function. Reject Playwright's page-visible builtin escape,
+  late installation, recurring/unbounded queues, target churn, or time/source
+  drift.
+- Fail closed on worker, SharedWorker, and OffscreenCanvas ownership because a
+  Window init script cannot authenticate worker-global rAF.
+- Drain one bounded callback batch at `animationTimeMs`, then seek document and
+  SMIL timelines while preserving progress percentages/source snapshots, and
+  reverify the exact target set between every capture prepass.
+- Use CDP style/layout metrics as the controlled rendering commit. Pixels and
+  visual tolerances are not evidence for callback quiescence (DM-2554, doc 228).

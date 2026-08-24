@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6pjmr73dstm91p",
+          "message": {
+            "text": "The capture clock never exposes Chromium's native rAF and deliberately fails worker/OffscreenCanvas creation closed. BrowserContext init scripts do not instrument worker globals, while Playwright's clock publishes __pwClock.builtins.requestAnimationFrame; either route would allow state mutation behind a nominally frozen Window clock. The bounded synchronous queue also lets Domotion's own finite paint barriers complete without admitting an unbounded author loop.",
+            "markdown": "The capture clock never exposes Chromium's native rAF and deliberately fails worker/OffscreenCanvas creation closed. BrowserContext init scripts do not instrument worker globals, while Playwright's clock publishes __pwClock.builtins.requestAnimationFrame; either route would allow state mutation behind a nominally frozen Window clock. The bounded synchronous queue also lets Domotion's own finite paint barriers complete without admitting an unbounded author loop."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/raf-clock.ts"
+                },
+                "region": {
+                  "startLine": 44,
+                  "endLine": 128,
+                  "snippet": {
+                    "text": " * function. Dedicated workers and OffscreenCanvas transfers fail closed\n * because BrowserContext init scripts cannot instrument worker globals.\n */\nexport async function installCaptureRafClock(context: BrowserContext): Promise<CaptureRafClockHandle> {\n  const controlKey = `__domotionRafClock_${randomUUID().replaceAll(\"-\", \"\")}`;\n  await context.addInitScript(({ key, protocol }) => {\n    const scope = globalThis as typeof globalThis & Record<string, unknown>;\n    const callbacks = new Map<number, FrameRequestCallback>();\n    const state: PageClockState = {\n      protocol,\n      callbacks,\n      nextId: 1,\n      callbacksExecuted: 0,\n      workerConstructionAttempts: 0,\n      offscreenTransferAttempts: 0,\n      sourceFingerprint: \"window-raf-queue+worker-offscreen-fail-closed-v1\",\n      currentTimeMs: null,\n      remainingCallbacks: 0,\n    };\n\n    const request = (callback: FrameRequestCallback): number => {\n      if (typeof callback !== \"function\") throw new TypeError(\"requestAnimationFrame callback must be a function\");\n      const id = state.nextId++;\n      if (state.currentTimeMs != null) {\n        if (state.remainingCallbacks-- <= 0) throw new Error(\"capture rAF callback bound exceeded\");\n        state.callbacksExecuted++;\n        callback(state.currentTimeMs);\n        return id;\n      }\n      callbacks.set(id, callback);\n      return id;\n    };\n    const cancel = (id: number): void => { callbacks.delete(Number(id)); };\n    Object.defineProperty(globalThis, \"requestAnimationFrame\", { configurable: false, writable: false, value: request });\n    Object.defineProperty(globalThis, \"cancelAnimationFrame\", { configurable: false, writable: false, value: cancel });\n\n    const blockWorker = (): never => {\n      state.workerConstructionAttempts++;\n      throw new DOMException(\"Worker rAF is unavailable during an authenticated capture frame\", \"NotSupportedError\");\n    };\n    if (\"Worker\" in globalThis) Object.defineProperty(globalThis, \"Worker\", { configurable: false, writable: false, value: blockWorker });\n    if (\"SharedWorker\" in globalThis) Object.defineProperty(globalThis, \"SharedWorker\", { configurable: false, writable: false, value: blockWorker });\n    const canvasPrototype = globalThis.HTMLCanvasElement?.prototype;\n    if (canvasPrototype != null && \"transferControlToOffscreen\" in canvasPrototype) {\n      Object.defineProperty(canvasPrototype, \"transferControlToOffscreen\", {\n        configurable: false,\n        writable: false,\n        value(): never {\n          state.offscreenTransferAttempts++;\n          throw new DOMException(\"OffscreenCanvas is unavailable during an authenticated capture frame\", \"NotSupportedError\");\n        },\n      });\n    }\n\n    Object.defineProperty(scope, key, {\n      configurable: false,\n      enumerable: false,\n      writable: false,\n      value: (timeMs: number, maxCallbacks: number) => {\n        if (!Number.isFinite(timeMs) || timeMs < 0) throw new TypeError(\"invalid capture rAF time\");\n        if ((scope as { __pwClock?: unknown }).__pwClock != null) {\n          throw new Error(\"page-visible Playwright native clock escape is present\");\n        }\n        const batch = [...callbacks.entries()];\n        callbacks.clear();\n        if (batch.length > maxCallbacks) throw new Error(`capture rAF callback bound exceeded: ${batch.length}`);\n        state.currentTimeMs = timeMs;\n        state.remainingCallbacks = maxCallbacks;\n        for (const [, callback] of batch) {\n          if (state.remainingCallbacks-- <= 0) throw new Error(\"capture rAF callback bound exceeded\");\n          state.callbacksExecuted++;\n          callback(timeMs);\n        }\n        return {\n          protocol: state.protocol,\n          requestedTimeMs: timeMs,\n          callbacksExecuted: state.callbacksExecuted,\n          callbacksPending: callbacks.size,\n          workerConstructionAttempts: state.workerConstructionAttempts,\n          offscreenTransferAttempts: state.offscreenTransferAttempts,\n          sourceFingerprint: state.sourceFingerprint,\n        };\n      },\n    });\n  }, { key: controlKey, protocol: CAPTURE_RAF_CLOCK_PROTOCOL });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2554"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "aca5bf0ca2a4a8a2c20ecf0a16def0ad"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8b3a027ece4df88b3a9ee98522eb6c29c6933fe7",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

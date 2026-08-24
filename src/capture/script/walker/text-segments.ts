@@ -207,10 +207,35 @@ export const transformTextWithSourceSpans = (source, transform, lang) => {
 // controls and other Cf scalars are removed/itemized by different stages.
 export const isShapingTransparentControl = (ch) => ch === "\u200C" || ch === "\u200D";
 
-const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, normColor, markGetsDottedCircle, finalizeLineClampText, fontFamilyStackFor }) => {
+const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, normColor, markGetsDottedCircle, finalizeLineClampText, fontFamilyStackFor, sourceTextNodeIndexFor }) => {
   const finishLineClamp = (el, cs, result) => finalizeLineClampText == null
     ? result
     : finalizeLineClampText(el, cs, result);
+  const sourceMappingForChars = (chars, role) => {
+    if (chars.length === 0) return undefined;
+    const sourceTextNodeIndex = chars[0].sourceTextNodeIndex;
+    const domText = chars[0].domText;
+    if (!Number.isInteger(sourceTextNodeIndex) || sourceTextNodeIndex < 0 || typeof domText !== 'string'
+      || chars.some((char) => char.sourceTextNodeIndex !== sourceTextNodeIndex || char.domText !== domText)) return undefined;
+    let renderedOffset = 0;
+    let sourceStart = Infinity;
+    let sourceEnd = -Infinity;
+    const renderedChunks = chars.map((char) => {
+      const renderedUtf16Span = [renderedOffset, renderedOffset + char.ch.length];
+      renderedOffset += char.ch.length;
+      sourceStart = Math.min(sourceStart, char.sourceStart);
+      sourceEnd = Math.max(sourceEnd, char.sourceEnd);
+      return { renderedUtf16Span, domUtf16Span: [char.sourceStart, char.sourceEnd] };
+    });
+    return {
+      source: 'dom-text-utf16-v1',
+      sourceTextNodeIndex,
+      domText,
+      domUtf16Span: [sourceStart, sourceEnd],
+      renderedChunks,
+      role,
+    };
+  };
   // DM-990: Unicode `Vertical_Orientation` property (UAX #50) for
   // `text-orientation: mixed`. Hardcoded table covering the codepoint
   // ranges that paint upright in vertical text: CJK ideographs, CJK
@@ -263,6 +288,7 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
     for (const node of el.childNodes) {
       if (node.nodeType !== Node.TEXT_NODE) continue;
       const sourceRaw = node.textContent || '';
+      const sourceTextNodeIndex = sourceTextNodeIndexFor == null ? undefined : sourceTextNodeIndexFor(node);
       const tt = cs.textTransform;
       const mapped = transformTextWithSourceSpans(sourceRaw, tt, cs.lang || el.lang || '');
       const raw = mapped.map((part) => part.rendered).join('');
@@ -277,7 +303,18 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
         const isWs = /^\s+$/.test(part.sourceText);
         // Skip whitespace with zero bbox (collapsed whitespace).
         if (cr.height === 0 && (cr.width === 0 || isWs)) continue;
-        allChars.push({ ch, x: cr.left, y: cr.top, w: cr.width, h: cr.height, naturalW: measureNaturalWidth(ch) });
+        allChars.push({
+          ch,
+          x: cr.left,
+          y: cr.top,
+          w: cr.width,
+          h: cr.height,
+          naturalW: measureNaturalWidth(ch),
+          sourceStart: part.sourceStart,
+          sourceEnd: part.sourceEnd,
+          sourceTextNodeIndex,
+          domText: sourceRaw,
+        });
       }
     }
     if (allChars.length === 0) {
@@ -317,6 +354,7 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
       const xOffsets = allChars.map((c) => c.x - minX);
       textSegments.push({
         text: combinedText,
+        sourceMapping: sourceMappingForChars(allChars, 'ordinary'),
         x: minX - vp.x,
         y: cellTop - vp.y,
         width: maxX - minX,
@@ -344,9 +382,10 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
     const columns = [];
     let curCol = null;
     for (const c of allChars) {
-      if (curCol == null || Math.abs(c.x - curCol.x) > 1) {
+      if (curCol == null || Math.abs(c.x - curCol.x) > 1
+        || c.sourceTextNodeIndex !== curCol.sourceTextNodeIndex) {
         if (curCol != null) columns.push(curCol);
-        curCol = { x: c.x, width: c.w, chars: [c] };
+        curCol = { x: c.x, width: c.w, sourceTextNodeIndex: c.sourceTextNodeIndex, chars: [c] };
       } else {
         curCol.chars.push(c);
       }
@@ -380,6 +419,7 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
       }
       textSegments.push({
         text: visualText,
+        sourceMapping: sourceMappingForChars(col.chars, 'ordinary'),
         x: colLeft - vp.x,
         y: colTop - vp.y,
         width: colRight - colLeft,
@@ -633,6 +673,7 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
         : undefined;
       const styledSeg = {
         text: styledText,
+        sourceMapping: sourceMappingForChars(firstLetterChars, 'first-letter'),
         x: flGlyphX,
         y: styledSegY,
         width: maxR - minL,
@@ -753,6 +794,7 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
       if (node.nodeType !== Node.TEXT_NODE) continue;
       // text-transform — see header comment.
       const sourceRaw = node.textContent || '';
+      const sourceTextNodeIndex = sourceTextNodeIndexFor == null ? undefined : sourceTextNodeIndexFor(node);
       const tt = cs.textTransform;
       const mapped = transformTextWithSourceSpans(sourceRaw, tt, cs.lang || el.lang || '');
       const raw = mapped.map((part) => part.rendered).join('');
@@ -829,7 +871,9 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
             }
           }
         }
-        const charRec = { ch, sourceText: part.sourceText, left: leftForGroup, top: topForGroup, right: rightForGroup, bottom: bottomForGroup,
+        const charRec = { ch, sourceText: part.sourceText, sourceStart: part.sourceStart, sourceEnd: part.sourceEnd,
+          sourceTextNodeIndex, domText: sourceRaw,
+          left: leftForGroup, top: topForGroup, right: rightForGroup, bottom: bottomForGroup,
           transformedLengthChanged: ch.length !== part.sourceText.length };
         if (cur == null || Math.abs(topForGroup - cur.top) > 1) {
           if (cur != null) lines.push(cur);
@@ -1016,6 +1060,7 @@ const buildTextSegmentsHandler = ({ vp, measureFontMetrics, rasterCandidates, no
         textSegments.push({
           text: visualText,
           sourceText: line.sourceText,
+          sourceMapping: sourceMappingForChars(line.chars, 'ordinary'),
           x: line.left - vp.x,
           y: line.top - vp.y,
           width: line.right - line.left,

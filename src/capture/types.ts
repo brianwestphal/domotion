@@ -10,6 +10,31 @@ import type {
 } from "./backdrop-effect-space.js";
 import type { CapturedFontFamilyStack } from "../font-family-stack.js";
 
+/** Half-open offsets into one authored DOM Text node, measured in UTF-16. */
+export type CapturedDomUtf16Span = [start: number, end: number];
+
+/**
+ * One rendered slice and the authored DOM span that produced it.  Blink's
+ * text-transform can change length (for example, `ß` -> `SS`), so rendered
+ * and authored offsets deliberately remain separate.
+ */
+export interface CapturedTextSourceMapChunk {
+  renderedUtf16Span: CapturedDomUtf16Span;
+  domUtf16Span: CapturedDomUtf16Span;
+}
+
+/** Source ownership retained on ordinary and styled-first-letter segments. */
+export interface CapturedTextSegmentSourceMapping {
+  source: "dom-text-utf16-v1";
+  sourceTextNodeIndex: number;
+  /** Complete authored node text; fragment slices use this, never glyph text. */
+  domText: string;
+  /** Envelope of the authored chunks represented by this segment. */
+  domUtf16Span: CapturedDomUtf16Span;
+  renderedChunks: CapturedTextSourceMapChunk[];
+  role: "ordinary" | "first-letter";
+}
+
 export type BackdropCompositeConsumedEffect = "filter" | "clip-path" | "mask" | "mix-blend-mode";
 
 /**
@@ -59,6 +84,8 @@ export interface TextSegment {
   text: string;
   /** Original DOM text covered by this segment before text-transform. */
   sourceText?: string;
+  /** Exact authored-node ownership used by FragmentItem span splitting. */
+  sourceMapping?: CapturedTextSegmentSourceMapping;
   x: number;
   y: number;
   width: number;
@@ -405,6 +432,10 @@ export interface CapturedTextPaintFragment {
   space: "pre-css-transform-viewport";
   textSegmentIndex: number;
   sourceTextNodeIndex: number;
+  /** Index into `CapturedTextPaintGeometry.sourceFragments`. */
+  sourceFragmentIndex: number;
+  /** Exact half-open authored DOM Text-node range for this FragmentItem. */
+  domUtf16Span: CapturedDomUtf16Span;
   physicalFragmentIndex: number;
   neutralQuad: CapturedTextPaintQuad;
   paintQuad: CapturedTextPaintQuad;
@@ -425,9 +456,31 @@ export interface CapturedTextPaintFragment {
   transformOrigin: string;
 }
 
+export interface CapturedTextFragmentSourceSpan {
+  source: "blink-range-fragment-utf16-v1";
+  sourceTextNodeIndex: number;
+  /** `InlineCursor::MoveToNextForSameLayoutObject()` / Range quad order. */
+  physicalFragmentIndex: number;
+  domUtf16Span: CapturedDomUtf16Span;
+  /** Full FragmentItem rectangle in the transform-neutral capture plane. */
+  neutralRangeRect: { x: number; y: number; width: number; height: number };
+  /** Ordered `DOM.getContentQuads` entry, absent only for `::first-letter`. */
+  cdpQuadIndex?: number;
+  role: "ordinary" | "first-letter";
+  provenance: {
+    chromiumRevision: "7d859f271cbda744098ac69f44978d4edfa62be3";
+    rangeQuads: "core/layout/layout_text.cc:556-637";
+    fragmentOffsets: "core/layout/inline/fragment_item.h:448-451";
+    fragmentLocalRect: "core/layout/inline/fragment_item.cc:1217-1241";
+    firstLetter: "core/dom/range.cc:1686-1742";
+    protocolQuads: "core/inspector/inspector_highlight.cc:1941-1967";
+  };
+}
+
 export interface CapturedTextPaintGeometry {
   source: "blink-text-fragment-affine-v2";
   space: "pre-css-transform-viewport";
+  sourceFragments: CapturedTextFragmentSourceSpan[];
   fragments: CapturedTextPaintFragment[];
   /**
    * Same paused-frame capture with every CSS transform neutralized. DM-2470
@@ -2038,7 +2091,8 @@ export interface CapturedElement {
    * Per-line-fragment rects (viewport-relative px) for inline elements that
    * wrap across multiple line boxes. Populated by capture when the element
    * is `display: inline` AND has a non-transparent background, non-zero
-   * border, or mask image AND `el.getClientRects().length > 1`. When present, the renderer
+   * border, mask image, or text decoration AND
+   * `el.getClientRects().length > 1`. When present, the renderer
    * paints the background + border per-fragment instead of once across the
    * element's bbox — without this, an inline span like `<span class="hl">…
    * wrapping text …</span>` paints a single rectangle covering the whole

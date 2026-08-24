@@ -99,12 +99,14 @@ export const FEATURES: FeatureEntry[] = [
   },
   {
     id: "capture.animated-projective-frame",
-    behavior: "Pause document timelines before all capture prepasses and retain the exact Chromium quad, composed 3D state, and raster owner for that frame.",
-    doc: "docs/186-animated-3d-frame-state-parity.md",
-    exports: ["seekAnimationsToFrame"],
+    behavior: "Pause document/progress timelines and own a bounded pre-navigation Window rAF queue across main/OOPIF targets before every capture prepass, while retaining the exact Chromium quad, composed 3D state, and raster owner.",
+    doc: "docs/228-pre-navigation-raf-capture-ownership.md",
+    exports: ["installCaptureRafClock", "reverifyAnimationsAtFrame", "reverifyCaptureRafClock", "sampleCaptureRafClock", "seekAnimationsToFrame"],
     tests: [
       "tests/animated-projective-frame-oracle.test.ts",
       "tests/animation-frame.e2e.test.ts",
+      "tests/raf-clock.e2e.test.ts",
+      "tests/raf-clock-workflow.test.ts",
       "tests/animated-projective-frame.e2e.test.ts",
     ],
     transition: "affine → projective and preserve-3d → flat/grouped ownership at exact paused timeline samples.",

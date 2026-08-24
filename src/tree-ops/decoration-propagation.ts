@@ -1,4 +1,5 @@
 import type { CapturedElement, PropagatedDecoration } from "../capture/types.js";
+import { buildDecorationFragmentRecords, type DecorationFragmentCarrier } from "../render/decoration-fragment-ownership.js";
 
 /**
  * DM-1723/DM-1725: propagate `text-decoration` from decorating boxes to their
@@ -107,11 +108,11 @@ function walk(el: CapturedElement, ctx: PropagatedDecoration[] | null): void {
       const ascent = el.fontAscent ?? (parseFloat(s.fontSize) || 14);
       let baselines: number[] | undefined;
       if (el.textSegments != null && el.textSegments.length > 0) {
-        baselines = [...new Set(el.textSegments.map((seg) => Math.round(seg.y + (seg.fontAscent ?? ascent))))];
+        baselines = [...new Set(el.textSegments.map((seg) => Math.round(seg.baseline ?? (seg.y + (seg.fontAscent ?? ascent)))))];
       } else if (el.textTop != null && el.text !== "") {
         baselines = [Math.round(el.textTop + ascent)];
       }
-      next = [...(next ?? []), {
+      const entry: PropagatedDecoration & DecorationFragmentCarrier = {
         baselines,
         // The decorating box's captured FloatAscent / FloatDescent — the
         // metrics-font ascent Blink's decoration offsets anchor on
@@ -135,7 +136,17 @@ function walk(el: CapturedElement, ctx: PropagatedDecoration[] | null): void {
         fontSize: parseFloat(s.fontSize) || 14,
         fontWeight: s.fontWeight,
         fontStyle: s.fontStyle,
-      }];
+      };
+      // A wrapped decorating inline owns its box FragmentItems, not merely
+      // the direct text nodes it happens to contain. Capture's getClientRects
+      // record is the CSSOM exposure of those ordered physical fragments.
+      const fragmentWitnesses = el.inlineFragments?.map((fragment) => ({
+        text: "", ...fragment,
+      })) ?? el.textSegments;
+      entry.decorationFragments = buildDecorationFragmentRecords(
+        fragmentWitnesses, s.writingMode, s.direction, ascent, el.fontDescent,
+      );
+      next = [...(next ?? []), entry];
     }
   }
   if (el.children != null) {

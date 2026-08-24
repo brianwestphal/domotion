@@ -114,6 +114,66 @@ function onePaintMatrix(geometry: CapturedTextPaintGeometry): CapturedTextPaintA
     : null;
 }
 
+function sameSpan(left: readonly number[] | undefined, right: readonly number[]): boolean {
+  return left?.length === 2 && left[0] === right[0] && left[1] === right[1];
+}
+
+function sourceFragmentErrors(geometry: CapturedTextPaintGeometry): string[] {
+  const errors: string[] = [];
+  const sources = geometry.sourceFragments;
+  if (!Array.isArray(sources) || sources.length === 0) return ["FragmentItem UTF-16 source records are unavailable"];
+  const ordinaryUse = new Map<number, number>();
+  for (const [index, source] of sources.entries()) {
+    if (source.source !== "blink-range-fragment-utf16-v1") errors.push(`source fragment ${index} schema changed`);
+    if (!Number.isInteger(source.domUtf16Span?.[0]) || !Number.isInteger(source.domUtf16Span?.[1])
+      || source.domUtf16Span[0] < 0 || source.domUtf16Span[1] <= source.domUtf16Span[0]) {
+      errors.push(`source fragment ${index} UTF-16 span is invalid`);
+    }
+    if (source.provenance?.chromiumRevision !== "7d859f271cbda744098ac69f44978d4edfa62be3"
+      || source.provenance?.rangeQuads !== "core/layout/layout_text.cc:556-637"
+      || source.provenance?.fragmentOffsets !== "core/layout/inline/fragment_item.h:448-451") {
+      errors.push(`source fragment ${index} provenance changed`);
+    }
+    if (source.role === "ordinary" && source.cdpQuadIndex == null) errors.push(`ordinary source fragment ${index} lost its protocol quad`);
+    if (source.role === "first-letter" && source.cdpQuadIndex != null) errors.push(`first-letter source fragment ${index} unexpectedly owns a text-node protocol quad`);
+  }
+  for (const [fragmentIndex, fragment] of geometry.fragments.entries()) {
+    const source = sources[fragment.sourceFragmentIndex];
+    if (source == null) {
+      errors.push(`paint fragment ${fragmentIndex} source index is unavailable`);
+      continue;
+    }
+    ordinaryUse.set(fragment.sourceFragmentIndex, (ordinaryUse.get(fragment.sourceFragmentIndex) ?? 0) + 1);
+    if (source.role !== "ordinary"
+      || source.sourceTextNodeIndex !== fragment.sourceTextNodeIndex
+      || source.physicalFragmentIndex !== fragment.physicalFragmentIndex
+      || !sameSpan(fragment.domUtf16Span, source.domUtf16Span)) {
+      errors.push(`paint fragment ${fragmentIndex} disagrees with its UTF-16 source owner`);
+    }
+    const xs = [fragment.neutralQuad[0], fragment.neutralQuad[2], fragment.neutralQuad[4], fragment.neutralQuad[6]];
+    const ys = [fragment.neutralQuad[1], fragment.neutralQuad[3], fragment.neutralQuad[5], fragment.neutralQuad[7]];
+    if (source.neutralRangeRect.x !== Math.min(...xs)
+      || source.neutralRangeRect.y !== Math.min(...ys)
+      || source.neutralRangeRect.width !== Math.max(...xs) - Math.min(...xs)
+      || source.neutralRangeRect.height !== Math.max(...ys) - Math.min(...ys)) {
+      errors.push(`paint fragment ${fragmentIndex} Range rectangle changed`);
+    }
+  }
+  for (const [sourceIndex, source] of sources.entries()) {
+    if (source.role === "ordinary" && ordinaryUse.get(sourceIndex) !== 1) {
+      errors.push(`ordinary source fragment ${sourceIndex} is not consumed exactly once`);
+    }
+  }
+  for (const [segmentIndex, segment] of (geometry.neutral?.textSegments ?? []).entries()) {
+    const mapping = segment.sourceMapping;
+    if (mapping == null) continue;
+    const matches = sources.filter((source) => source.sourceTextNodeIndex === mapping.sourceTextNodeIndex
+      && source.role === mapping.role && sameSpan(source.domUtf16Span, mapping.domUtf16Span));
+    if (matches.length !== 1) errors.push(`neutral text segment ${segmentIndex} has no unique FragmentItem UTF-16 owner`);
+  }
+  return errors;
+}
+
 export interface PreparedAffineTextPaint {
   element: CapturedElement;
   residualMatrix?: CapturedTextPaintAffine;
@@ -132,6 +192,10 @@ export function prepareAffineTextPaint(
   if (geometry == null) return { element: el };
   const neutral = geometry.neutral;
   if (neutral == null) return { element: el, failureReason: "neutral text paint bundle unavailable" };
+  const spanErrors = sourceFragmentErrors(geometry);
+  if (spanErrors.length > 0) {
+    return { element: el, failureReason: `invalid Blink FragmentItem source record: ${spanErrors.join("; ")}` };
+  }
   const paintMatrix = onePaintMatrix(geometry);
   if (paintMatrix == null) return { element: el, failureReason: "text fragments do not share one affine paint plane" };
   const inverse = emittedCtm == null ? null : invertTextAffine(emittedCtm);
