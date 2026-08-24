@@ -59,6 +59,7 @@ describe("DM-2353 Linux arm64 release parity workflow", () => {
     expect(workflow).toContain("linux-arm64-release-evidence.ts finalize");
     expect(workflow).toContain("if: always()");
     expect(workflow).toContain("actions/upload-artifact@v4");
+    expect(workflow).toContain("include-hidden-files: true");
     expect(workflow).toContain("exact-arm64-release-parity");
     expect(workflow.indexOf("actions/upload-artifact@v4")).toBeLessThan(workflow.lastIndexOf("exact-arm64-release-parity"));
   });

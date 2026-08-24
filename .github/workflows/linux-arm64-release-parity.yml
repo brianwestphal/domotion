@@ -161,6 +161,10 @@ jobs:
           name: linux-arm64-release-parity-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ steps.paths.outputs.evidence_dir }}/
           if-no-files-found: error
+          # final.json hashes the complete evidence tree, including the focused
+          # visual harness's .expected-cache provenance records. Retention must
+          # preserve every byte named by that manifest.
+          include-hidden-files: true
 
       - name: Enforce exact arm64 release parity after upload
         if: always()

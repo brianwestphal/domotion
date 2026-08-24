@@ -131,6 +131,11 @@ source partition and native route without a pixel threshold. See
 [doc 201](201-emoji-presentation-item-ownership.md); DM-2508 owns only aggregate
 activation of this resolved evidence.
 
+The uploaded artifact includes hidden visual-cache provenance files because
+`final.json` hashes the complete evidence directory. Omitting those files from
+retention would leave a green run whose downloaded artifact could not reproduce
+its own 71-file manifest; such a run is not accepted as retained evidence.
+
 ## Maintainer commands
 
 The pure ELF/fingerprint/finalizer and workflow-structure contracts run on any
