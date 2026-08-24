@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex-root",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6qchwy3kfvut9k",
+          "message": {
+            "text": "This headless discriminator proves the existing static snapshot boundary: an unchanged Chromium-presented canvas frame is byte-stable and a deliberate frame mutation changes the embedded snapshot. It intentionally does not claim decoder/playback synchronization; doc 229 and DM-2565 retain that boundary.",
+            "markdown": "This headless discriminator proves the existing static snapshot boundary: an unchanged Chromium-presented canvas frame is byte-stable and a deliberate frame mutation changes the embedded snapshot. It intentionally does not claim decoder/playback synchronization; doc 229 and DM-2565 retain that boundary."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/live-replaced-media-ownership-audit.ts"
+                },
+                "region": {
+                  "startLine": 8,
+                  "endLine": 54,
+                  "snippet": {
+                    "text": "const sha = (value: string) => createHash(\"sha256\").update(value).digest(\"hex\");\nconst findCanvas = (tree: CapturedElement[]): CapturedElement | undefined => tree.flatMap((node) => [node, ...(node.children ?? [])]).find((node) => node.tag === \"canvas\");\n\nexport async function runLiveReplacedMediaOwnershipAudit() {\n  const browser = await chromium.launch({ headless: true });\n  try {\n    const page = await browser.newPage({ viewport: { width: 180, height: 120 } });\n    await page.setContent(\"<canvas id=c width=120 height=80 style='width:120px;height:80px'></canvas>\");\n    const paint = (color: string) => page.locator(\"#c\").evaluate((node, value) => {\n      const canvas = node as HTMLCanvasElement;\n      const context = canvas.getContext(\"2d\")!;\n      context.fillStyle = value;\n      context.fillRect(0, 0, canvas.width, canvas.height);\n    }, color);\n    const capture = async () => {\n      const result = await captureElementTreeWithWarnings(page, \"body\", { x: 0, y: 0, width: 180, height: 120 });\n      const snapshot = findCanvas(result.tree)?.replacedSnapshot?.dataUri;\n      if (snapshot == null) throw new Error(\"canvas replaced snapshot missing\");\n      return { digest: sha(snapshot), warnings: result.warnings };\n    };\n    await paint(\"rgb(220,20,60)\");\n    const first = await capture();\n    const same = await capture();\n    await paint(\"rgb(20,90,220)\");\n    const changed = await capture();\n    const warnings = [...first.warnings, ...same.warnings, ...changed.warnings];\n    const controls = {\n      samePresentedFrameIsStable: first.digest === same.digest,\n      changedPresentedFrameMoves: first.digest !== changed.digest,\n      expectedWarningsOnly: warnings.every((warning) =>\n        (warning.feature === \"<canvas>\" && warning.detail.includes(\"not rendered\"))\n        || (warning.feature === \"scrollbar-capture\" && warning.detail.includes(\"__name is not defined\"))),\n    };\n    return {\n      schemaVersion: 1,\n      sourceRevision: \"chromium:7d859f271cbda744098ac69f44978d4edfa62be3\",\n      chromiumVersion: browser.version(),\n      contract: \"one frozen Chromium-presented frame embedded as a static image\",\n      unsupported: [\"post-capture playback\", \"decoder-owned animation continuation\", \"media-time effects after capture\"],\n      warnings,\n      controls,\n      verdict: Object.values(controls).every(Boolean) ? \"frozen-frame-exact\" : \"source-drift\",\n    } as const;\n  } finally {\n    await browser.close();\n  }\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 88,
+          "workItemUris": [
+            "DM-2542"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "36d9614c71acf5909aa3c3496c8d3347"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f166b9a3eda4b73f05935012b5044f918c5f0066",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

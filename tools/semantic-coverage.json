@@ -1679,6 +1679,8 @@
         "tools/replaced-ownership-transition-oracle.ts",
         "tools/replaced-ownership-transition-gate.ts",
         "tools/raster-boundary-oracle.ts",
+        "tools/live-replaced-media-ownership-audit.ts",
+        "tests/live-replaced-media-ownership-audit.e2e.test.ts",
         "tests/replaced-snapshot-transform.e2e.test.ts",
         ".github/workflows/replaced-ownership-transitions.yml"
       ],
@@ -1694,7 +1696,7 @@
         "tests/features.ts#replaced-canvas-transformed-clip"
       ],
       "coverage": "partial",
-      "boundary": "DM-2364 source-gates object/intrinsic/zoom geometry, decode fallback, and independently changing canvas/video capture frames at DPR 1/2 on three OSes. Transformed clipped snapshots remain source-owned through Blink content quads and one raster-to-output map (DM-2380); live playback after the frozen capture frame remains outside SVG.",
+      "boundary": "DM-2364 source-gates object/intrinsic/zoom geometry, decode fallback, and independently changing canvas/video capture frames at DPR 1/2 on three OSes. Transformed clipped snapshots remain source-owned through Blink content quads and one raster-to-output map (DM-2380). Doc 229 proves stable/changed presented canvas-frame ownership but records that an atomic multi-media epoch is not yet implemented; live playback remains outside SVG.",
       "featureIds": [
         "render.tree-to-svg"
       ],
