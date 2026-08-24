@@ -47,7 +47,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
     env:
-      DM2532_RUNNER_OS: ${{ runner.os }}
       DOMOTION_CHROMIUM_REVISION: 7d859f271cbda744098ac69f44978d4edfa62be3
       DOMOTION_HARFBUZZ_REVISION: 4de187dd0a915d13c976fa8bd474c084229f3aab
       DOMOTION_SKIA_REVISION: 62efacd37737505732dbe3d8daa62abd679626a1
@@ -68,6 +67,8 @@ jobs:
         run: npx vitest run tests/browser-harfbuzz-substitution-oracle.test.ts
       - name: Record browser face ownership and exact substitution streams
         shell: bash
+        env:
+          DM2532_RUNNER_OS: ${{ runner.os }}
         run: |
           mkdir -p "tests/output/browser-harfbuzz/${{ runner.os }}/${{ matrix.evidence }}"
           npm run fonts:browser-harfbuzz-substitutions -- \
