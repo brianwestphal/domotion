@@ -1118,3 +1118,25 @@ families. It preserves the captured Common generic primary so the existing
 file-backed `CTFontCreateForString` route reaches the protected face. Exact
 primary/fallback identity coverage lives in
 `src/render/generic-script-families.test.ts`; see doc 224.
+
+### Fragmented collapsed-table borders (DM-2526)
+
+`src/capture/script/walker/borders-backgrounds.ts` currently reconstructs
+fragmented collapsed-border paint inputs from `getClientRects()`: it assigns
+rows/cells/sections by overlap, infers continuation from rectangle order, and
+expands repeated headers/footers through a coordinate-alias heuristic. The
+final `collapsedBorderRects` record then discards physical table-fragment,
+section/global-row, break-token, row-offset, and repeat-occurrence identity.
+
+Pinned Blink source requires those facts before
+`TablePainter::PaintCollapsedBorders`; CSSOM rectangles do not expose them.
+The investigation-only headless oracle in
+`tools/collapsed-border-fragmentation-oracle.ts` covers whole and continued
+rows, adjacent sections, repeated and oversized sections, spans,
+horizontal/vertical fragmentation, and the independent print boundary with
+eleven logical discriminators and nine mutations. It deliberately reports
+`currentProtocolExact: false` even when sampled final rectangles agree. See
+[doc 225](../225-fragmented-collapsed-table-ownership.md); DM-2557/2558/2559
+own screen provenance, repeat occurrences, and paged media respectively, and
+DM-2560 owns the later all-platform logical/final-ink gate. Do not infer these
+owners from pixels or widen border tolerances.

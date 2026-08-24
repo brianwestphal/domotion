@@ -797,7 +797,8 @@
         "separate -> collapse",
         "whole-row break -> continued-row break",
         "single fragment -> repeated header/footer",
-        "horizontal -> vertical fragmentation"
+        "horizontal -> vertical fragmentation",
+        "screen fragmentation -> paged-media fragmentation"
       ],
       "exactStates": [
         "separate -> collapse"
@@ -805,11 +806,15 @@
       "uncoveredStates": [
         "whole-row break -> continued-row break",
         "single fragment -> repeated header/footer",
-        "horizontal -> vertical fragmentation"
+        "horizontal -> vertical fragmentation",
+        "screen fragmentation -> paged-media fragmentation"
       ],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/layout/table",
-        "external/chromium/third_party/blink/renderer/core/paint/table_painters.cc"
+        "external/chromium/third_party/blink/renderer/core/paint/table_painters.cc",
+        "external/chromium/third_party/blink/renderer/core/paint/pre_paint_tree_walk.cc",
+        "external/chromium/third_party/blink/renderer/core/dom/element.cc",
+        "external/chromium/third_party/blink/renderer/core/layout/layout_box.cc"
       ],
       "productionOwners": [
         "src/capture/script/walker/collapsed-border.ts",
@@ -817,16 +822,18 @@
         "src/render/element-tree-to-svg.ts"
       ],
       "oracles": [
-        "tools/paint-geometry-oracle.ts"
+        "tools/paint-geometry-oracle.ts",
+        "tools/collapsed-border-fragmentation-oracle.ts"
       ],
       "metamorphicTests": [
-        "src/capture/script/walker/collapsed-border.test.ts"
+        "src/capture/script/walker/collapsed-border.test.ts",
+        "tests/collapsed-border-fragmentation-oracle.test.ts"
       ],
       "visualFixtures": [
         "tests/border-collapse-conflict.e2e.test.ts"
       ],
       "coverage": "partial",
-      "boundary": "Paged media and the full fragmented repeated-section/joint matrix remain incomplete.",
+      "boundary": "DM-2526's pinned-source, headless, pixel-free corpus passes eleven logical observations and activates nine destructive controls, but it is investigation evidence, not production closure. The final CSSOM-derived border record lacks physical table-fragment, section/global-row, exact row-offset, break-token, and repeat-occurrence provenance; header/footer repetition still uses a coordinate-alias heuristic. Screen getClientRects cannot observe the distinct paged-media fragment tree. DM-2557, DM-2558, DM-2559, and then DM-2560 own those bounded transitions; no border tolerance changed.",
       "featureIds": [
         "render.tree-to-svg"
       ],

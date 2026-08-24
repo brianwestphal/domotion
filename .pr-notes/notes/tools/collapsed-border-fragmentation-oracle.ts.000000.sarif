@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6oxgjj6xbey5u6",
+          "message": {
+            "text": "Sampled rectangle agreement is intentionally not promoted to source-exact status. Pinned Blink paints from physical section fragments with row, break-token, and repeat-occurrence identity that the final CSSOM-derived border rectangles do not carry; keeping currentProtocolExact false prevents a visually plausible but unauthenticated route from satisfying the logical gate. See docs/225-fragmented-collapsed-table-ownership.md and the bounded DM-2557 through DM-2560 follow-ups.",
+            "markdown": "Sampled rectangle agreement is intentionally not promoted to source-exact status. Pinned Blink paints from physical section fragments with row, break-token, and repeat-occurrence identity that the final CSSOM-derived border rectangles do not carry; keeping currentProtocolExact false prevents a visually plausible but unauthenticated route from satisfying the logical gate. See docs/225-fragmented-collapsed-table-ownership.md and the bounded DM-2557 through DM-2560 follow-ups."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/collapsed-border-fragmentation-oracle.ts"
+                },
+                "region": {
+                  "startLine": 599,
+                  "endLine": 600,
+                  "snippet": {
+                    "text": "      currentProtocolExact: false,\n      verdict: pass ? \"source-ownership-seam-proven-cssom-provenance-gap\" : \"investigation-incomplete\","
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2526"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "1de2a48ec6508d40d80201c16a3dd308"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6oxlksc7d8r835",
+          "message": {
+            "text": "The final explicitly headless run passed all 11 source-logical discriminators and all nine destructive controls. Observed anchors include four table fragments and three continued-row pieces in each pinned WPT shape, zero painted edges at all four continuation seams, one adjacent-section edge, six repeated header/footer target fragments, zero span-interior edges, and seven print pages versus one screen CSSOM fragment; no pixels or visual tolerance were used.",
+            "markdown": "The final explicitly headless run passed all 11 source-logical discriminators and all nine destructive controls. Observed anchors include four table fragments and three continued-row pieces in each pinned WPT shape, zero painted edges at all four continuation seams, one adjacent-section edge, six repeated header/footer target fragments, zero span-interior edges, and seven print pages versus one screen CSSOM fragment; no pixels or visual tolerance were used."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/collapsed-border-fragmentation-oracle.ts"
+                },
+                "region": {
+                  "startLine": 483,
+                  "endLine": 548,
+                  "snippet": {
+                    "text": "  return {\n    \"whole-row-break-paints-half-edge\": whole != null && factNumber(whole, \"wholeRowHalfEdgeCount\") > 0,\n    \"continued-row-omits-inline-edge\": htb != null\n      && factNumber(htb, \"continuedRowFragmentCount\") > 1\n      && factNumber(htb, \"continuedSeamCount\") === 4\n      && factNumber(htb, \"continuedInlineEdgeAtSeamCount\") === 0,\n    \"adjacent-sections-share-one-edge\": htb != null\n      && htb.live.sections.length === 2\n      && htb.facts.adjacentSectionBoundaryFound === true\n      && factNumber(htb, \"adjacentSectionSharedEdgeCount\") === 1,\n    \"repeated-header-alias-and-paint\": repeat != null\n      && factNumber(repeat, \"headerRectCount\") === repeat.live.table.length\n      && factNumber(repeat, \"headerUniqueRectCount\") === 1\n      && factNumber(repeat, \"capturedHeaderEdgeCount\") >= repeat.live.table.length\n      && factNumber(repeat, \"capturedHeaderEdgeFragmentCount\") === repeat.live.table.length,\n    \"repeated-footer-alias-and-paint\": repeat != null\n      && factNumber(repeat, \"footerRectCount\") === repeat.live.table.length\n      && factNumber(repeat, \"footerUniqueRectCount\") === 1\n      && factNumber(repeat, \"capturedFooterEdgeCount\") >= repeat.live.table.length\n      && factNumber(repeat, \"capturedFooterEdgeFragmentCount\") === repeat.live.table.length,\n    \"oversize-header-does-not-repeat\": negative != null\n      && factNumber(negative, \"headerRectCount\") < negative.live.table.length,\n    \"span-interior-remains-unfilled\": span != null\n      && factNumber(span, \"spanFragmentCount\") > 1\n      && factNumber(span, \"capturedSpanInteriorEdgeCount\") === 0,\n    \"vertical-lr-rtl-uses-physical-x-block-axis\": vlr?.facts.blockAxis === \"physical-x\"\n      && factNumber(vlr, \"continuedRowFragmentCount\") > 1\n      && factNumber(vlr, \"rowAxisRectCount\") > 0\n      && factNumber(vlr, \"rowAxisPhysicalXCount\") === factNumber(vlr, \"rowAxisRectCount\")\n      && factNumber(vlr, \"continuedSeamCount\") === 4\n      && factNumber(vlr, \"continuedInlineEdgeAtSeamCount\") === 0,\n    \"vertical-rl-ltr-uses-physical-x-block-axis\": vrl?.facts.blockAxis === \"physical-x\"\n      && factNumber(vrl, \"continuedRowFragmentCount\") > 1\n      && factNumber(vrl, \"rowAxisRectCount\") > 0\n      && factNumber(vrl, \"rowAxisPhysicalXCount\") === factNumber(vrl, \"rowAxisRectCount\")\n      && factNumber(vrl, \"continuedSeamCount\") === 4\n      && factNumber(vrl, \"continuedInlineEdgeAtSeamCount\") === 0,\n    \"print-pagination-is-not-screen-cssom-fragmentation\": print.pdfPageCount > 1\n      && print.screenTableFragmentCount === 1 && print.screenHeaderFragmentCount === 1,\n    \"current-record-lacks-physical-fragment-provenance\": provenanceMissing,\n  };\n}\n\nexport function buildCollapsedBorderFragmentMutations(\n  cases: CollapsedBorderFragmentCaseReport[],\n  print: CollapsedBorderFragmentationReport[\"print\"],\n): CollapsedBorderFragmentMutation[] {\n  const whole = cases.find((row) => row.id === \"whole-row-breaks\")!;\n  const htb = cases.find((row) => row.id === \"blink-wpt-horizontal-tb-ltr\")!;\n  const repeat = cases.find((row) => row.id === \"repeated-header-footer\")!;\n  const span = cases.find((row) => row.id === \"continued-colspan-interior\")!;\n  const vertical = cases.filter((row) => row.live.writingMode !== \"horizontal-tb\").length;\n  const mutation = (id: string, baseline: number, mutated: number): CollapsedBorderFragmentMutation => ({\n    id, baseline, mutated, moved: Number.isFinite(baseline) && Number.isFinite(mutated) && baseline !== mutated,\n  });\n  return [\n    mutation(\"collapse-table-fragments\", factNumber(htb, \"tableFragmentCount\"), 1),\n    mutation(\"erase-continued-row-break-token\", factNumber(htb, \"continuedRowFragmentCount\"), 1),\n    mutation(\"promote-half-edge-to-full\", factNumber(whole, \"wholeRowHalfEdgeCount\"), 0),\n    mutation(\"double-paint-adjacent-section-edge\", htb.captured.duplicateRectCount, htb.captured.duplicateRectCount + 1),\n    mutation(\"drop-repeated-header\", factNumber(repeat, \"capturedHeaderEdgeCount\"), Math.max(0, factNumber(repeat, \"capturedHeaderEdgeCount\") - 1)),\n    mutation(\"drop-repeated-footer\", factNumber(repeat, \"capturedFooterEdgeCount\"), Math.max(0, factNumber(repeat, \"capturedFooterEdgeCount\") - 1)),\n    mutation(\"fill-span-interior\", factNumber(span, \"capturedSpanInteriorEdgeCount\"), factNumber(span, \"capturedSpanInteriorEdgeCount\") + 1),\n    mutation(\"horizontalize-vertical-fragmentation\", vertical, 0),\n    mutation(\"treat-screen-cssom-as-print-fragments\", print.pdfPageCount, print.screenTableFragmentCount),\n  ];"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2526"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "3b993e5d1e6c2c95601f20da0da88bcf"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d4507fd359b9131e562617fb4747fe0ef2fbecb3",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

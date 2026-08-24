@@ -2335,3 +2335,26 @@ generic primary and reach the protected face through CoreText per-codepoint
 fallback, matching Blink's `IsSystemFontName` rejection and
 `CTFontCreateForString` route. Require exact PostScript identity; do not add a
 pixel tolerance or fitted font-name table (DM-2550, doc 224).
+
+### Fragmented collapsed-table borders
+
+- Treat Blink's global collapsed-edge graph and each physical table-section
+  fragment as separate authenticated inputs. Preserve physical table-fragment
+  identity, section source/paint slot, global start row, exact row offsets,
+  content-before/after, start/end continued-row state, repeat role/occurrence,
+  writing direction, and source/version provenance before vector paint.
+- Whole-row fragmentainer breaks paint the source half edge; continued-row
+  seams omit the inline edge while continuing block edges without joint
+  adjustment. Adjacent section fragments paint their shared global row once,
+  and row/column spans must not acquire filled interior edges.
+- Repeated headers and footers require explicit source-owned occurrences and
+  Blink's eligibility/placement facts. Do not infer repetition from aliased
+  `getClientRects()` coordinates or synthesize an occurrence in every table
+  fragment without authentication.
+- Screen CSSOM fragmentation cannot stand in for paged media. Collect an exact
+  print fragment record or fail the print route closed when page/section/row,
+  continuation, repetition, and paint-order ownership is unavailable.
+- Keep logical fragment-record gates and native final-ink evidence independent
+  on macOS, Linux, and Windows. Pixels may validate the terminal only after the
+  logical record passes; they may not fill missing provenance or justify a
+  tolerance change (DM-2526, DM-2557–DM-2560, doc 225).

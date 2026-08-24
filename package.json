@@ -108,6 +108,7 @@
     "decorations:vertical-oracle": "vitest run tests/vertical-decoration-oracle.test.ts tests/vertical-decoration-browser-oracle.test.ts",
     "borders:phase-oracle": "tsx tools/border-phase-oracle.ts",
     "borders:phase-ratify": "tsx tools/border-phase-ratifier.ts",
+    "borders:collapsed-fragmentation-audit": "node --import tsx tools/collapsed-border-fragmentation-oracle.ts",
     "paint:geometry-oracle": "tsx tools/paint-geometry-oracle.ts",
     "paint:geometry-browser-oracle": "tsx tools/paint-geometry-browser-oracle.ts",
     "paint:svg-effect-combinations": "node --import tsx tools/svg-effect-combination-oracle.ts",
