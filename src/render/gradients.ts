@@ -45,7 +45,7 @@ export interface LinearGradient {
   stops: LinearStop[];
   /** True when the source was `repeating-linear-gradient(...)`. The stop list spans one tile period; the emitter clones it across the full gradient line (DM-275). */
   repeating?: boolean;
-  /** Explicit legacy -webkit-gradient endpoints, resolved against the paint box. */
+  /** Explicit legacy -webkit-gradient endpoints, resolved against the physical paint box. */
   legacyEndpoints?: { p1: { x: PosValue; y: PosValue }; p2: { x: PosValue; y: PosValue } };
 }
 
@@ -66,6 +66,17 @@ export interface RadialGradient {
   stops: LinearStop[];
   /** True when the source was `repeating-radial-gradient(...)` (DM-275). */
   repeating?: boolean;
+  /**
+   * Deprecated `-webkit-gradient(radial, ...)` owns two independent circles.
+   * Unitless point/radius values have already crossed Blink's EffectiveZoom
+   * boundary during capture and therefore use physical-pixel `px` values here.
+   */
+  legacyCircles?: {
+    p1: { x: PosValue; y: PosValue };
+    r1: number;
+    p2: { x: PosValue; y: PosValue };
+    r2: number;
+  };
 }
 
 export interface ConicStop {
@@ -97,70 +108,121 @@ export type AnyGradient = LinearGradient | RadialGradient | ConicGradient;
 
 /** Try every supported gradient type. Returns the first that parses or null. */
 export function parseGradient(text: string | undefined | null): AnyGradient | null {
-  const legacy = parseLegacyWebkitLinearGradient(text);
-  if (legacy != null) return legacy;
-  const normalized = convertLegacyWebkitGradient(text) ?? text;
-  return parseLinearGradient(normalized) ?? parseRadialGradient(normalized) ?? parseConicGradient(normalized);
+  if (text != null && /^-webkit-gradient\s*\(/i.test(text.trim())) {
+    return parseLegacyWebkitGradient(text);
+  }
+  return parseLinearGradient(text) ?? parseRadialGradient(text) ?? parseConicGradient(text);
 }
 
-/** Parse Blink's deprecated endpoint-anchored linear gradient without converting it to CSS magic-corner geometry. */
-export function parseLegacyWebkitLinearGradient(text: string | undefined | null): LinearGradient | null {
+/**
+ * Parse Blink's deprecated `-webkit-gradient()` grammar without converting it
+ * to modern center-line geometry. Blink accepts percentages or unitless
+ * numbers for each physical-axis point component (never lengths), and accepts
+ * non-negative unitless radii for the radial form.
+ */
+export function parseLegacyWebkitGradient(text: string | undefined | null): LinearGradient | RadialGradient | null {
   if (text == null) return null;
-  const m = /^-webkit-gradient\s*\(\s*linear\s*,\s*([\s\S]+)\)\s*$/i.exec(text.trim());
+  const m = /^-webkit-gradient\s*\(\s*(linear|radial)\s*,\s*([\s\S]+)\)\s*$/i.exec(text.trim());
   if (m == null) return null;
-  const parts = splitTopLevelCommas(m[1]).map((part) => part.trim()).filter(Boolean);
-  if (parts.length < 4) return null;
+  const radial = m[1].toLowerCase() === "radial";
+  const parts = splitTopLevelCommas(m[2]).map((part) => part.trim());
+  if (parts.some((part) => part === "")) return null;
+  if (parts.length < (radial ? 4 : 2)) return null;
   const p1 = parseLegacyPoint(parts[0]);
-  const p2 = parseLegacyPoint(parts[1]);
-  if (p1 == null || p2 == null || legacyPointsEqual(p1, p2)) return null;
+  let p2: { x: PosValue; y: PosValue } | null;
+  let firstStop: number;
+  let r1 = 0;
+  let r2 = 0;
+  if (radial) {
+    r1 = parseLegacyRadius(parts[1]) ?? NaN;
+    p2 = parseLegacyPoint(parts[2]);
+    r2 = parseLegacyRadius(parts[3]) ?? NaN;
+    firstStop = 4;
+  } else {
+    p2 = parseLegacyPoint(parts[1]);
+    firstStop = 2;
+  }
+  if (p1 == null || p2 == null || !Number.isFinite(r1) || !Number.isFinite(r2)) return null;
   const stops: LinearStop[] = [];
-  for (const part of parts.slice(2)) {
+  for (const part of parts.slice(firstStop)) {
     const from = /^from\s*\(\s*([\s\S]+?)\s*\)$/i.exec(part);
     const to = /^to\s*\(\s*([\s\S]+?)\s*\)$/i.exec(part);
     const middle = /^color-stop\s*\(\s*([^,]+)\s*,\s*([\s\S]+?)\s*\)$/i.exec(part);
-    if (from != null) stops.push({ color: from[1].trim(), offset: 0 });
-    else if (to != null) stops.push({ color: to[1].trim(), offset: 1 });
-    else if (middle != null) {
+    if (from != null) {
+      const color = from[1].trim();
+      if (/^currentcolor$/i.test(color)) return null;
+      stops.push({ color, offset: 0 });
+    } else if (to != null) {
+      const color = to[1].trim();
+      if (/^currentcolor$/i.test(color)) return null;
+      stops.push({ color, offset: 1 });
+    } else if (middle != null) {
       const raw = middle[1].trim();
-      const offset = raw.endsWith("%") ? parseFloat(raw) / 100 : Number(raw);
+      const offset = parseLegacyStopOffset(raw);
       if (!Number.isFinite(offset)) return null;
-      stops.push({ color: middle[2].trim(), offset, rawPos: raw });
+      const color = middle[2].trim();
+      if (/^currentcolor$/i.test(color)) return null;
+      stops.push({ color, offset, rawPos: raw });
     } else return null;
   }
-  if (stops.length < 2) return null;
   // Blink stable-sorts deprecated stops before handing them to Skia.
   stops.sort((a, b) => (a.offset ?? 0) - (b.offset ?? 0));
+  if (radial) {
+    return {
+      kind: "radial",
+      shape: "circle",
+      size: { kind: "px", r1: r2 },
+      position: p2,
+      stops,
+      legacyCircles: { p1, r1, p2, r2 },
+    };
+  }
   const dx = legacyPointScalar(p2.x) - legacyPointScalar(p1.x);
   const dy = legacyPointScalar(p2.y) - legacyPointScalar(p1.y);
   const angleDeg = ((Math.atan2(dx, -dy) * 180 / Math.PI) % 360 + 360) % 360;
   return { kind: "linear", angleDeg, stops, legacyEndpoints: { p1, p2 } };
 }
 
+/** Backward-compatible linear-only entry point used by background routing. */
+export function parseLegacyWebkitLinearGradient(text: string | undefined | null): LinearGradient | null {
+  const parsed = parseLegacyWebkitGradient(text);
+  return parsed?.kind === "linear" ? parsed : null;
+}
+
 function parseLegacyPoint(text: string): { x: PosValue; y: PosValue } | null {
   const words = text.toLowerCase().trim().split(/\s+/);
-  let x: PosValue = { kind: "frac", value: 0.5 };
-  let y: PosValue = { kind: "frac", value: 0.5 };
-  if (words.every((word) => /^(left|right|top|bottom|center)$/.test(word))) {
-    for (const word of words) {
-      if (word === "left" || word === "right") x = { kind: "frac", value: word === "left" ? 0 : 1 };
-      else if (word === "top" || word === "bottom") y = { kind: "frac", value: word === "top" ? 0 : 1 };
-    }
-    return { x, y };
-  }
   if (words.length !== 2) return null;
-  const parse = (word: string): PosValue | null => {
-    const match = /^(-?[\d.]+)(%|px)$/.exec(word);
+  const parse = (word: string, horizontal: boolean): PosValue | null => {
+    if (word === "center") return { kind: "frac", value: 0.5 };
+    if (horizontal && (word === "left" || word === "right")) return { kind: "frac", value: word === "left" ? 0 : 1 };
+    if (!horizontal && (word === "top" || word === "bottom")) return { kind: "frac", value: word === "top" ? 0 : 1 };
+    const match = new RegExp(`^(${CSS_NUMBER_SOURCE})(%)?$`, "i").exec(word);
     if (match == null) return null;
-    return match[2] === "%" ? { kind: "frac", value: Number(match[1]) / 100 } : { kind: "px", value: Number(match[1]) };
+    const value = Number(match[1]);
+    if (!Number.isFinite(value)) return null;
+    return match[2] === "%" ? { kind: "frac", value: value / 100 } : { kind: "px", value };
   };
-  const parsedX = parse(words[0]); const parsedY = parse(words[1]);
+  const parsedX = parse(words[0], true); const parsedY = parse(words[1], false);
   return parsedX != null && parsedY != null ? { x: parsedX, y: parsedY } : null;
 }
 
-function legacyPointScalar(value: PosValue): number { return value.value; }
-function legacyPointsEqual(a: { x: PosValue; y: PosValue }, b: { x: PosValue; y: PosValue }): boolean {
-  return a.x.kind === b.x.kind && a.y.kind === b.y.kind && a.x.value === b.x.value && a.y.value === b.y.value;
+const CSS_NUMBER_SOURCE = "[+-]?(?:(?:\\d+(?:\\.\\d*)?)|(?:\\.\\d+))(?:e[+-]?\\d+)?";
+
+function parseLegacyRadius(text: string): number | null {
+  const match = new RegExp(`^${CSS_NUMBER_SOURCE}$`, "i").exec(text.trim());
+  if (match == null) return null;
+  const value = Number(match[0]);
+  return Number.isFinite(value) && value >= 0 ? value : null;
 }
+
+function parseLegacyStopOffset(text: string): number {
+  const match = new RegExp(`^(${CSS_NUMBER_SOURCE})(%)?$`, "i").exec(text);
+  if (match == null) return NaN;
+  const value = Number(match[1]);
+  return match[2] === "%" ? value / 100 : value;
+}
+
+function legacyPointScalar(value: PosValue): number { return value.value; }
 
 /**
  * Normalize legacy `-webkit-gradient(linear, ...)` syntax (still emitted by
@@ -335,7 +397,7 @@ export function buildLinearGradientDef(
   return `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${num(x1)}" y1="${num(y1)}" x2="${num(x2)}" y2="${num(y2)}"${repeat ? ' spreadMethod="repeat"' : ""}>${stops}</linearGradient>`;
 }
 
-function computeLegacyUserSpaceLine(endpoints: NonNullable<LinearGradient["legacyEndpoints"]>, rect: { x: number; y: number; w: number; h: number }) {
+export function computeLegacyUserSpaceLine(endpoints: NonNullable<LinearGradient["legacyEndpoints"]>, rect: { x: number; y: number; w: number; h: number }) {
   const axis = (value: PosValue, origin: number, size: number) => origin + (value.kind === "frac" ? value.value * size : value.value);
   return { x1: axis(endpoints.p1.x, rect.x, rect.w), y1: axis(endpoints.p1.y, rect.y, rect.h), x2: axis(endpoints.p2.x, rect.x, rect.w), y2: axis(endpoints.p2.y, rect.y, rect.h) };
 }
@@ -387,7 +449,8 @@ export function gradientCacheKey(g: AnyGradient, rect: { x: number; y: number; w
   // Radial
   const sizeKey = g.size.kind === "extent" ? `e:${g.size.value}` : `p:${num(g.size.r1)}/${g.size.r2 != null ? num(g.size.r2) : ""}`;
   const posKey = `${posKey1(g.position.x)},${posKey1(g.position.y)}`;
-  return `R|${rep}|${g.shape}|${sizeKey}|${posKey}|${rectKey}|${stopsKey}`;
+  const legacy = g.legacyCircles == null ? "" : `|legacy:${JSON.stringify(g.legacyCircles)}`;
+  return `R|${rep}|${g.shape}|${sizeKey}|${posKey}${legacy}|${rectKey}|${stopsKey}`;
 }
 
 function posKey1(p: PosValue): string {
@@ -617,6 +680,23 @@ export function buildRadialGradientDef(
   id: string,
   rect: { x: number; y: number; w: number; h: number },
 ): string {
+  if (gradient.legacyCircles != null) {
+    const geometry = computeLegacyRadialGeometry(gradient.legacyCircles, rect);
+    // SVG requires `fr <= r`, whereas Blink/Skia's two-point conical shader
+    // accepts either radius ordering. Reversing both circles and the stop
+    // parameter preserves the exact shader while satisfying SVG's grammar.
+    const shrinking = geometry.r1 > geometry.r2;
+    const stops = (shrinking
+      ? [...gradient.stops].reverse().map((stop) => ({ ...stop, offset: 1 - (stop.offset ?? 0) }))
+      : gradient.stops).map((stop) => stopMarkup(stop)).join("");
+    const inner = shrinking
+      ? { x: geometry.x2, y: geometry.y2, r: geometry.r2 }
+      : { x: geometry.x1, y: geometry.y1, r: geometry.r1 };
+    const outer = shrinking
+      ? { x: geometry.x1, y: geometry.y1, r: geometry.r1 }
+      : { x: geometry.x2, y: geometry.y2, r: geometry.r2 };
+    return `<radialGradient id="${id}" gradientUnits="userSpaceOnUse" fx="${num(inner.x)}" fy="${num(inner.y)}" fr="${num(inner.r)}" cx="${num(outer.x)}" cy="${num(outer.y)}" r="${num(outer.r)}">${stops}</radialGradient>`;
+  }
   const cx = resolvePos(gradient.position.x, rect.x, rect.w);
   const cy = resolvePos(gradient.position.y, rect.y, rect.h);
   const { rx, ry } = resolveRadii(gradient, cx, cy, rect);
@@ -634,6 +714,23 @@ export function buildRadialGradientDef(
     ? ` gradientTransform="translate(${num(cx)} ${num(cy)}) scale(1 ${num(ry / rx)}) translate(${num(-cx)} ${num(-cy)})"`
     : "";
   return `<radialGradient id="${id}" gradientUnits="userSpaceOnUse" cx="${num(cx)}" cy="${num(cy)}" r="${num(r)}"${transform}>${stopMarkup_}</radialGradient>`;
+}
+
+/** Resolve Blink's two deprecated radial circles in physical box axes. */
+export function computeLegacyRadialGeometry(
+  circles: NonNullable<RadialGradient["legacyCircles"]>,
+  rect: { x: number; y: number; w: number; h: number },
+): { x1: number; y1: number; r1: number; x2: number; y2: number; r2: number } {
+  const axis = (value: PosValue, origin: number, size: number) =>
+    origin + (value.kind === "frac" ? value.value * size : value.value);
+  return {
+    x1: axis(circles.p1.x, rect.x, rect.w),
+    y1: axis(circles.p1.y, rect.y, rect.h),
+    r1: circles.r1,
+    x2: axis(circles.p2.x, rect.x, rect.w),
+    y2: axis(circles.p2.y, rect.y, rect.h),
+    r2: circles.r2,
+  };
 }
 
 // ── Internals ──────────────────────────────────────────────────────────────

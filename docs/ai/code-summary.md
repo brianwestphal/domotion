@@ -923,8 +923,15 @@ shortest possible map:
   the captured rectangles in Blink background/button/track/piece/thumb and
   horizontal/vertical/corner order, reusing the ordinary vector background,
   gradient, per-side border, radius, shadow, opacity, clip, and zoom machinery.
-  Computed gradient-only px terms cross effective zoom in the background walker;
-  ordinary repeating-linear vectors normalize to their complete first/last domain.
+  Computed modern-gradient px terms cross effective zoom in the background
+  walker. DM-2528/[doc 223](../223-legacy-webkit-gradient-geometry.md) separately
+  scales only deprecated `-webkit-gradient()` unitless point/radius slots,
+  preserving percentage axes and numeric stop offsets across ordinary,
+  mask/border-image, pseudo, and form-control consumers. The renderer retains
+  exact legacy linear endpoints and radial `fx/fy/fr` → `cx/cy/r` circles;
+  stable-sorted stops reach the pinned terminal clamp without modern stop
+  normalization. Ordinary repeating-linear vectors still normalize to their
+  complete first/last domain.
   A dynamic-only winner or unsupported author effect is a same-source-frame
   owner-part crop; all other parts remain vector. `native-scrollbar-raster.ts`
   captures one unmodified compositor frame, derives visible overlay ink with a
@@ -1098,3 +1105,6 @@ logical mutation gates.
 - Not a substitute for reading the relevant numbered doc — when a ticket
   touches a specific feature area (animation, scroll, gradients, fonts,
   ...), read its dedicated doc.
+### Transitive SVG fragment resources (DM-2529)
+
+`src/capture/script/walker/masks-clips.ts` closes each local mask/clip reference over live, TreeScope-owned SVG `href`/`url()` dependencies and serializes sibling resources plus computed paint. `src/render/mask.ts::rewriteFragmentResourceGraph` authenticates scope, reachability, token occurrences, containment, and cycle evidence before assigning one output namespace. Geometry and transform attributes remain native inputs so later consumer positioning does not double-apply them.

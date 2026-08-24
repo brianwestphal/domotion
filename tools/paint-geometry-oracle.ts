@@ -13,7 +13,14 @@ import { clipPathShapeForElement, clipReferenceBox, parseSameDocumentClipPathUrl
 import { buildMaskDef, positionFragmentClipPathDef, positionFragmentMaskDef, positionObjectBoundingBoxClipPathDef } from "../src/render/mask.js";
 import { needsChromiumGradientRaster } from "../src/render/advanced-gradient-raster.js";
 import { computeTileSize, resolveConicStops } from "../src/render/conic-raster.js";
-import { parseConicGradient } from "../src/render/gradients.js";
+import {
+  buildLinearGradientDef as buildExactLinearGradientDef,
+  buildRadialGradientDef as buildExactRadialGradientDef,
+  parseConicGradient,
+  parseGradient as parseExactGradient,
+  parseLinearGradient as parseExactLinearGradient,
+} from "../src/render/gradients.js";
+import { physicalComputedGradientImage } from "../src/capture/script/walker/borders-backgrounds.js";
 import {
   overflowClipMarginGeometry,
   parseOverflowClipMargin,
@@ -86,6 +93,82 @@ function gradientRows(): OracleRow[] {
     const delta = maxDelta(expected, actual);
     return { id: `linear.magic-corner.${boxIndex}.${direction}`, stage: "gradient" as const, source: "css_gradient_value.cc:1282-1337,1410-1430", expected, actual, maxAbsDelta: delta, pass: delta <= TOLERANCE };
   }));
+}
+
+/** Blink deprecated-gradient parser + CreateGradient paths, rev 7d859f27. */
+function legacyGradientRows(): OracleRow[] {
+  const source = "css_parsing_utils.cc:2767-2935; css_gradient_value.cc:839-919,1371-1456,1825-1840,1924-2016,411-442; SkGradientBaseShader.cpp@62efacd3:213-265";
+  const rect = { x: 13, y: 17, w: 300, h: 120 };
+  const rows: OracleRow[] = [];
+
+  const percent = parseExactGradient("-webkit-gradient(linear, 10% 25%, 80% 75%, from(red), to(blue))")!;
+  const percentMarkup = buildExactLinearGradientDef(percent as Extract<typeof percent, { kind: "linear" }>, "legacy-percent", rect);
+  const percentExpected = { p0: { x: 43, y: 47 }, p1: { x: 253, y: 107 } };
+  const percentActual = lineFromMarkup(percentMarkup);
+  const percentDelta = maxDelta(percentExpected, percentActual);
+  rows.push({ id: "legacy-gradient.linear.physical-percent-axes", stage: "gradient", source, expected: percentExpected, actual: percentActual, maxAbsDelta: percentDelta, pass: percentDelta <= TOLERANCE });
+
+  const zoomedCss = physicalComputedGradientImage("-webkit-gradient(linear, 12 8, 80% 75%, from(red), to(blue))", 2);
+  const zoomed = parseExactGradient(zoomedCss)!;
+  const zoomActual = lineFromMarkup(buildExactLinearGradientDef(zoomed as Extract<typeof zoomed, { kind: "linear" }>, "legacy-zoom", rect));
+  const zoomExpected = { p0: { x: 37, y: 33 }, p1: { x: 253, y: 107 } };
+  const zoomDelta = maxDelta(zoomExpected, zoomActual);
+  rows.push({ id: "legacy-gradient.linear.unitless-effective-zoom", stage: "gradient", source, expected: zoomExpected, actual: zoomActual, maxAbsDelta: zoomDelta, pass: zoomDelta <= TOLERANCE });
+
+  const radialCss = physicalComputedGradientImage("-webkit-gradient(radial, 10 5, 4, 75% 80%, 30, from(red), to(blue))", 2);
+  const radial = parseExactGradient(radialCss)!;
+  const radialMarkup = buildExactRadialGradientDef(radial as Extract<typeof radial, { kind: "radial" }>, "legacy-radial", rect);
+  const radialActual = {
+    x1: numberAttr(radialMarkup, "fx"), y1: numberAttr(radialMarkup, "fy"), r1: numberAttr(radialMarkup, "fr"),
+    x2: numberAttr(radialMarkup, "cx"), y2: numberAttr(radialMarkup, "cy"), r2: numberAttr(radialMarkup, "r"),
+  };
+  const radialExpected = { x1: 33, y1: 27, r1: 8, x2: 238, y2: 113, r2: 60 };
+  const radialDelta = maxDelta(radialExpected, radialActual);
+  rows.push({ id: "legacy-gradient.radial.two-circle-geometry", stage: "gradient", source, expected: radialExpected, actual: radialActual, maxAbsDelta: radialDelta, pass: radialDelta <= TOLERANCE && !radialMarkup.includes("spreadMethod") });
+
+  const shrinking = parseExactGradient("-webkit-gradient(radial, 75% 80%, 30, 10 5, 4, from(red), color-stop(.25, lime), to(blue))")!;
+  const shrinkingMarkup = buildExactRadialGradientDef(shrinking as Extract<typeof shrinking, { kind: "radial" }>, "legacy-radial-shrinking", rect);
+  const shrinkingActual = {
+    x1: numberAttr(shrinkingMarkup, "fx"), y1: numberAttr(shrinkingMarkup, "fy"), r1: numberAttr(shrinkingMarkup, "fr"),
+    x2: numberAttr(shrinkingMarkup, "cx"), y2: numberAttr(shrinkingMarkup, "cy"), r2: numberAttr(shrinkingMarkup, "r"),
+  };
+  const shrinkingExpected = { x1: 23, y1: 22, r1: 4, x2: 238, y2: 113, r2: 30 };
+  const shrinkingStops = [...shrinkingMarkup.matchAll(/<stop offset="([^"]+)" stop-color="([^"]+)"/g)].map((match) => [Number(match[1]), match[2]]);
+  const shrinkingDelta = maxDelta(shrinkingExpected, shrinkingActual);
+  rows.push({ id: "legacy-gradient.radial.shrinking-two-circle-reversal", stage: "gradient", source, expected: { geometry: shrinkingExpected, stops: [[0, "blue"], [0.75, "lime"], [1, "red"]] }, actual: { geometry: shrinkingActual, stops: shrinkingStops }, maxAbsDelta: shrinkingDelta, pass: shrinkingDelta <= TOLERANCE && JSON.stringify(shrinkingStops) === JSON.stringify([[0, "blue"], [0.75, "lime"], [1, "red"]]) });
+
+  const stopsGradient = parseExactGradient("-webkit-gradient(linear, left top, right bottom, color-stop(1.2, yellow), to(blue), color-stop(-.2, lime), from(red))")!;
+  const stopsMarkup = buildExactLinearGradientDef(stopsGradient as Extract<typeof stopsGradient, { kind: "linear" }>, "legacy-stops", rect);
+  const stopActual = [...stopsMarkup.matchAll(/<stop offset="([^"]+)" stop-color="([^"]+)"/g)].map((match) => [Number(match[1]), match[2]]);
+  const stopExpected = [[0, "lime"], [0, "red"], [1, "blue"], [1, "yellow"]];
+  const stopsPass = JSON.stringify(stopActual) === JSON.stringify(stopExpected);
+  rows.push({ id: "legacy-gradient.stops.stable-sort-before-terminal-clamp", stage: "gradient", source, expected: stopExpected, actual: stopActual, maxAbsDelta: stopsPass ? 0 : Infinity, pass: stopsPass });
+
+  // Destructive control 1: replacing explicit legacy endpoints with the
+  // modern center-line algorithm must move a non-square asymmetric case.
+  const modern = parseExactLinearGradient("linear-gradient(135deg, red, blue)")!;
+  const modernLine = lineFromMarkup(buildExactLinearGradientDef(modern, "modern-mutation", rect));
+  const modernMovement = maxDelta(percentActual, modernLine);
+  rows.push({ id: "legacy-gradient.mutation.modern-line-substitution", stage: "gradient", source, expected: { killed: true }, actual: { killed: modernMovement > 1, movement: modernMovement }, maxAbsDelta: 0, pass: modernMovement > 1 });
+
+  // Destructive control 2: resolving physical percentages with width/height
+  // swapped must likewise be observable (vertical writing cannot cause it).
+  const swappedLine = lineFromMarkup(buildExactLinearGradientDef(percent as Extract<typeof percent, { kind: "linear" }>, "swapped-mutation", { ...rect, w: rect.h, h: rect.w }));
+  const swappedMovement = maxDelta(percentActual, swappedLine);
+  rows.push({ id: "legacy-gradient.mutation.width-height-swap", stage: "gradient", source, expected: { killed: true }, actual: { killed: swappedMovement > 1, movement: swappedMovement }, maxAbsDelta: 0, pass: swappedMovement > 1 });
+
+  // Destructive control 3: omitting EffectiveZoom must move unitless geometry
+  // while leaving percentage-owned coordinates fixed.
+  const unzoomed = parseExactGradient("-webkit-gradient(linear, 12 8, 80% 75%, from(red), to(blue))")!;
+  const unzoomedLine = lineFromMarkup(buildExactLinearGradientDef(unzoomed as Extract<typeof unzoomed, { kind: "linear" }>, "zoom-mutation", rect));
+  const zoomMovement = maxDelta(zoomActual, unzoomedLine);
+  rows.push({ id: "legacy-gradient.mutation.omit-effective-zoom", stage: "gradient", source, expected: { killed: true }, actual: { killed: zoomMovement > 1, movement: zoomMovement }, maxAbsDelta: 0, pass: zoomMovement > 1 });
+
+  const modernRepeat = buildLinearGradientDef("repeat-control", "90deg, red 0 10px, blue 10px 20px", true, 300, 120, 13, 17);
+  const legacyNonRepeat = !percentMarkup.includes('spreadMethod="repeat"');
+  const repeatUnchanged = modernRepeat.includes('spreadMethod="repeat"');
+  rows.push({ id: "legacy-gradient.activation.nonrepeating-only", stage: "gradient", source, expected: { legacyNonRepeat: true, modernRepeat: true }, actual: { legacyNonRepeat, modernRepeat: repeatUnchanged }, maxAbsDelta: legacyNonRepeat && repeatUnchanged ? 0 : Infinity, pass: legacyNonRepeat && repeatUnchanged });
+  return rows;
 }
 
 function interpolationRows(): OracleRow[] {
@@ -590,7 +673,7 @@ function resizerRows(): OracleRow[] {
 }
 
 export function runPaintGeometryOracle(): { rows: OracleRow[]; movementProven: boolean; verdict: string } {
-  const rows = [...gradientRows(), ...interpolationRows(), ...radialAndStopRows(), ...conicRows(), ...clipRows(), ...overflowClipMarginRows(), ...maskRows(), ...resizerRows()];
+  const rows = [...gradientRows(), ...legacyGradientRows(), ...interpolationRows(), ...radialAndStopRows(), ...conicRows(), ...clipRows(), ...overflowClipMarginRows(), ...maskRows(), ...resizerRows()];
   // Corpus activation control: the retired direct-to-corner formula must be
   // distinguishable from Blink's magic-corner line on every non-square box.
   const correct = blinkCornerLine("top-right", 0, 0, 300, 100);

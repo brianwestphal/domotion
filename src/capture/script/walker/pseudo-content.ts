@@ -71,6 +71,7 @@ const buildPseudoContentHandler = ({
   composeEffectiveTransform,
   effectiveZoomFor = () => 1,
   physicalComputedCssPixelTerms = (value) => value,
+  physicalComputedGradientImage = (value) => value,
   fontFamilyStackFor,
 }) => {
   // CSSOM serializes filter lengths before effective zoom, while every box
@@ -579,7 +580,7 @@ const buildPseudoContentHandler = ({
               width: borderBoxW,
               height: borderBoxH,
               backgroundColor: hasBg ? normColor(bgRaw) : undefined,
-              backgroundImage: hasBgImg ? bgImgRaw : undefined,
+              backgroundImage: hasBgImg ? physicalComputedGradientImage(bgImgRaw, zoom) : undefined,
               // DM-1121: a gradient pseudo's background-position / -size and its
               // own opacity steer where the gradient core lands and how strong it
               // paints (Stripe's keynote glow is an off-center, 45%-opacity pink
@@ -904,7 +905,7 @@ const buildPseudoContentHandler = ({
           measuredWidth: pseudoLayout.borderRect.width,
           measuredHeight: pseudoLayout.borderRect.height,
           backgroundColor: pseudoBgColor !== '' ? pseudoBgColor : undefined,
-          backgroundImage: hasPseudoBgImg ? pseudoBgImgRaw : undefined,
+          backgroundImage: hasPseudoBgImg ? physicalComputedGradientImage(pseudoBgImgRaw, effectiveZoomFor(el)) : undefined,
           borderRadius: pseudoBR > 0 ? pseudoBR : undefined,
           borderWidth: bwUniform ? bwTop : undefined,
           borderColor: bwUniform && pseudoBC !== '' && pseudoBC !== 'rgba(0, 0, 0, 0)' ? pseudoBC : undefined,

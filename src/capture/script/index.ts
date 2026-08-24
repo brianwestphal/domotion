@@ -43,6 +43,7 @@ import {
 } from "./walker/transforms.js";
 import {
   createBordersBackgroundsHandler,
+  physicalComputedGradientImage,
   physicalComputedTileSize as physicalComputedCssPixelTerms,
 } from "./walker/borders-backgrounds.js";
 import { createBackgroundAttachmentHandler } from "./walker/background-attachment.js";
@@ -188,6 +189,8 @@ const captureDocumentTree =
     normColor,
     resolvePseudo: _resolvePseudo,
     fontFamilyStackFor: _fontFamilyStackFor,
+    effectiveZoomFor: (el) => _effectiveZoomFor(el),
+    physicalComputedGradientImage,
   });
   const { wrapWithFrozenTransform, threadFrozenTransform } = createTransformsHandler();
   const { captureBordersBackgrounds, isTableCellHiddenByEmptyCells } = createBordersBackgroundsHandler({
@@ -216,6 +219,7 @@ const captureDocumentTree =
     composeEffectiveTransform,
     effectiveZoomFor: (el) => _effectiveZoomFor(el),
     physicalComputedCssPixelTerms,
+    physicalComputedGradientImage,
     fontFamilyStackFor: _fontFamilyStackFor,
   });
   const { captureInputValue } = createInputValueHandler({
@@ -1097,7 +1101,7 @@ const captureDocumentTree =
         mixBlendMode: cs.mixBlendMode,
         clipPath: cs.clipPath,
         mask: cs.mask || cs.webkitMask || '',
-        maskImage: cs.maskImage || cs.webkitMaskImage || '',
+        maskImage: physicalComputedGradientImage(cs.maskImage || cs.webkitMaskImage || '', _effectiveZoomFor(el)),
         maskMode: cs.maskMode || 'match-source',
         // Computed mask lengths are exposed before effective zoom, while the
         // captured positioning rect is already in painted coordinates. Cross

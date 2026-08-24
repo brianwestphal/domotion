@@ -31,8 +31,9 @@
 //     UA-rendered native widgets driven by author CSS in the same way the
 //     input pseudos are, so they slot naturally next to them.
 
-export const createFormControlsHandler = ({ normColor, resolvePseudo, fontFamilyStackFor }) => {
+export const createFormControlsHandler = ({ normColor, resolvePseudo, fontFamilyStackFor, effectiveZoomFor = () => 1, physicalComputedGradientImage = (value) => value }) => {
   const captureFormControls = (el, cs, tag) => {
+    const gradientImage = (value) => physicalComputedGradientImage(value, effectiveZoomFor(el));
     // DM-1115 / DM-1123: resolve the <summary> disclosure-marker state once.
     // `suppressed` → author hid the UA triangle (`list-style: none` or a
     // transparent `::marker`), so the renderer paints nothing. Otherwise the
@@ -210,10 +211,10 @@ export const createFormControlsHandler = ({ normColor, resolvePseudo, fontFamily
       const bar = resolvePseudo(el, 'progress-bar');
       const val = resolvePseudo(el, 'progress-value');
       out.progressBarBg = bar.matched && bar.backgroundColor !== '' ? normColor(bar.backgroundColor) : undefined;
-      out.progressBarBgImage = bar.matched && bar.backgroundImage !== '' ? bar.backgroundImage : undefined;
+      out.progressBarBgImage = bar.matched && bar.backgroundImage !== '' ? gradientImage(bar.backgroundImage) : undefined;
       out.progressBarRadius = bar.matched && bar.borderRadius !== '' ? bar.borderRadius : undefined;
       out.progressValueBg = val.matched && val.backgroundColor !== '' ? normColor(val.backgroundColor) : undefined;
-      out.progressValueBgImage = val.matched && val.backgroundImage !== '' ? val.backgroundImage : undefined;
+      out.progressValueBgImage = val.matched && val.backgroundImage !== '' ? gradientImage(val.backgroundImage) : undefined;
       out.progressValueRadius = val.matched && val.borderRadius !== '' ? val.borderRadius : undefined;
     }
 
@@ -224,14 +225,14 @@ export const createFormControlsHandler = ({ normColor, resolvePseudo, fontFamily
       const sub = resolvePseudo(el, 'meter-suboptimum');
       const elg = resolvePseudo(el, 'meter-even-less-good');
       out.meterBarBg = bar.matched && bar.backgroundColor !== '' ? normColor(bar.backgroundColor) : undefined;
-      out.meterBarBgImage = bar.matched && bar.backgroundImage !== '' ? bar.backgroundImage : undefined;
+      out.meterBarBgImage = bar.matched && bar.backgroundImage !== '' ? gradientImage(bar.backgroundImage) : undefined;
       out.meterBarRadius = bar.matched && bar.borderRadius !== '' ? bar.borderRadius : undefined;
       out.meterOptimumBg = opt.matched && opt.backgroundColor !== '' ? normColor(opt.backgroundColor) : undefined;
-      out.meterOptimumBgImage = opt.matched && opt.backgroundImage !== '' ? opt.backgroundImage : undefined;
+      out.meterOptimumBgImage = opt.matched && opt.backgroundImage !== '' ? gradientImage(opt.backgroundImage) : undefined;
       out.meterSuboptimumBg = sub.matched && sub.backgroundColor !== '' ? normColor(sub.backgroundColor) : undefined;
-      out.meterSuboptimumBgImage = sub.matched && sub.backgroundImage !== '' ? sub.backgroundImage : undefined;
+      out.meterSuboptimumBgImage = sub.matched && sub.backgroundImage !== '' ? gradientImage(sub.backgroundImage) : undefined;
       out.meterEvenLessGoodBg = elg.matched && elg.backgroundColor !== '' ? normColor(elg.backgroundColor) : undefined;
-      out.meterEvenLessGoodBgImage = elg.matched && elg.backgroundImage !== '' ? elg.backgroundImage : undefined;
+      out.meterEvenLessGoodBgImage = elg.matched && elg.backgroundImage !== '' ? gradientImage(elg.backgroundImage) : undefined;
     }
 
     // ::-webkit-color-swatch / -wrapper / -inner-spin-button /
@@ -242,7 +243,7 @@ export const createFormControlsHandler = ({ normColor, resolvePseudo, fontFamily
       const swatch = resolvePseudo(el, 'color-swatch');
       const wrap = resolvePseudo(el, 'color-swatch-wrapper');
       out.colorSwatchBg = swatch.matched && swatch.backgroundColor !== '' ? normColor(swatch.backgroundColor) : undefined;
-      out.colorSwatchBgImage = swatch.matched && swatch.backgroundImage !== '' ? swatch.backgroundImage : undefined;
+      out.colorSwatchBgImage = swatch.matched && swatch.backgroundImage !== '' ? gradientImage(swatch.backgroundImage) : undefined;
       out.colorSwatchBorder = swatch.matched && swatch.border !== '' ? swatch.border : undefined;
       out.colorSwatchRadius = swatch.matched && swatch.borderRadius !== '' ? swatch.borderRadius : undefined;
       out.colorSwatchWrapperPadding = wrap.matched && wrap.padding !== '' ? wrap.padding : undefined;
@@ -280,12 +281,12 @@ export const createFormControlsHandler = ({ normColor, resolvePseudo, fontFamily
       out.rangeTrackBg = styledTrack && ts.backgroundColor !== '' ? normColor(ts.backgroundColor) : (styledTrack ? 'rgba(0, 0, 0, 0)' : undefined);
       out.rangeTrackHeight = styledTrack ? ts.height : undefined;
       out.rangeTrackRadius = styledTrack ? ts.borderRadius : undefined;
-      out.rangeTrackBgImage = styledTrack && ts.backgroundImage !== '' ? ts.backgroundImage : undefined;
+      out.rangeTrackBgImage = styledTrack && ts.backgroundImage !== '' ? gradientImage(ts.backgroundImage) : undefined;
       out.rangeThumbBg = styledThumb && ms.backgroundColor !== '' ? normColor(ms.backgroundColor) : (styledThumb ? 'rgba(0, 0, 0, 0)' : undefined);
       out.rangeThumbWidth = styledThumb ? ms.width : undefined;
       out.rangeThumbHeight = styledThumb ? ms.height : undefined;
       out.rangeThumbRadius = styledThumb ? ms.borderRadius : undefined;
-      out.rangeThumbBgImage = styledThumb && ms.backgroundImage !== '' ? ms.backgroundImage : undefined;
+      out.rangeThumbBgImage = styledThumb && ms.backgroundImage !== '' ? gradientImage(ms.backgroundImage) : undefined;
       out.rangeTrackBorder = styledTrack && ts.border !== '' ? ts.border : undefined;
       out.rangeThumbBorder = styledThumb && ms.border !== '' ? ms.border : undefined;
       out.rangeThumbBoxShadow = styledThumb && ms.boxShadow !== '' ? ms.boxShadow : undefined;

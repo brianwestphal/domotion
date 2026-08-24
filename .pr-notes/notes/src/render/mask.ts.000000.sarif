@@ -475,6 +475,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6mnc0iiftzhrvq",
+          "message": {
+            "text": "The renderer authenticates the entire captured SVG fragment graph before emitting any alias. Per-edge TreeScope, reachability, exact token occurrence, containment, and cycle equality prevent a stale or cross-document id from silently rebinding; valid cycles remain native SVG inputs because Blink's cycle behavior is resource-specific.",
+            "markdown": "The renderer authenticates the entire captured SVG fragment graph before emitting any alias. Per-edge TreeScope, reachability, exact token occurrence, containment, and cycle equality prevent a stale or cross-document id from silently rebinding; valid cycles remain native SVG inputs because Blink's cycle behavior is resource-specific."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/mask.ts"
+                },
+                "region": {
+                  "startLine": 194,
+                  "endLine": 310,
+                  "snippet": {
+                    "text": "export function rewriteFragmentResourceGraph(\n  outerHTML: string,\n  graph: SvgFragmentDependencyGraph,\n  outputId: string,\n  idPrefix: string,\n  expectedScope?: number,\n): { rootOuterHTML: string; dependencyOuterHTML: string[] } | null {\n  if (!Array.isArray(graph.nodes) || graph.nodes.length === 0\n    || !Array.isArray(graph.edges) || !Array.isArray(graph.cycles)\n    || !Number.isInteger(graph.root)) return null;\n  const root = graph.nodes[graph.root];\n  if (root == null || root.serialization !== \"root\") return null;\n  if (expectedScope != null && root.scope !== expectedScope) return null;\n\n  const keys = new Set<string>();\n  const markups: string[] = [outerHTML];\n  for (let index = 0; index < graph.nodes.length; index++) {\n    const node = graph.nodes[index];\n    if (node == null || node.id === \"\" || !Number.isInteger(node.scope)) return null;\n    const key = `${node.scope}\\u0000${node.id}`;\n    if (keys.has(key)) return null;\n    keys.add(key);\n    if (node.serialization === \"root\") {\n      if (index !== graph.root || node.outerHTML != null || node.containedIn != null) return null;\n    } else if (node.serialization === \"dependency\") {\n      if (typeof node.outerHTML !== \"string\" || node.outerHTML === \"\" || node.containedIn != null) return null;\n      markups.push(node.outerHTML);\n    } else if (node.serialization === \"embedded\") {\n      if (node.outerHTML != null || !Number.isInteger(node.containedIn)\n        || node.containedIn! < 0 || node.containedIn! >= graph.nodes.length) return null;\n    } else return null;\n  }\n  const markerCounts = graph.nodes.map(() => 0);\n  const markerRe = /\\sdata-domotion-fragment-node\\s*=\\s*(?:\"(\\d+)\"|'(\\d+)')/g;\n  for (const markup of markups) {\n    let marker: RegExpExecArray | null;\n    while ((marker = markerRe.exec(markup)) != null) {\n      const index = Number(marker[1] ?? marker[2]);\n      if (!Number.isInteger(index) || graph.nodes[index] == null) return null;\n      markerCounts[index]++;\n    }\n  }\n  if (markerCounts.some((count) => count !== 1)) return null;\n\n  const edgeTokens = new Set<string>();\n  for (const edge of graph.edges) {\n    const from = graph.nodes[edge.from];\n    if (from == null || !Number.isInteger(edge.scope) || edge.scope !== from.scope\n      || (edge.kind !== \"href\" && edge.kind !== \"url\")\n      || typeof edge.token !== \"string\" || edge.token === \"\" || edgeTokens.has(edge.token)\n      || typeof edge.target !== \"string\") return null;\n    edgeTokens.add(edge.token);\n    if (edge.status === \"resolved\") {\n      const to = graph.nodes[edge.to!];\n      if (to == null || edge.scope !== to.scope) return null;\n    } else if (edge.status === \"missing\" || edge.status === \"stale\" || edge.status === \"external\") {\n      if (edge.to != null) return null;\n    } else return null;\n  }\n\n  const reachable = new Set<number>([graph.root]);\n  let changed = true;\n  while (changed) {\n    changed = false;\n    for (const edge of graph.edges) {\n      if (edge.status === \"resolved\" && edge.to != null\n        && reachable.has(edge.from) && !reachable.has(edge.to)) {\n        reachable.add(edge.to);\n        changed = true;\n      }\n    }\n  }\n  if (reachable.size !== graph.nodes.length) return null;\n  const actualCycles = fragmentGraphCycles(graph);\n  if (actualCycles == null || JSON.stringify(actualCycles) !== JSON.stringify(graph.cycles)) return null;\n\n  const markupRefs = markups.flatMap(localFragmentRefs);\n  const refCounts = new Map<string, number>();\n  for (const ref of markupRefs) refCounts.set(ref, (refCounts.get(ref) ?? 0) + 1);\n  if (graph.edges.some((edge) => refCounts.get(edge.token) !== 1)\n    || markupRefs.some((ref) => !edgeTokens.has(ref))) return null;\n\n  const aliases: string[] = [];\n  const usedAliases = new Set<string>([outputId]);\n  for (let index = 0; index < graph.nodes.length; index++) {\n    if (index === graph.root) {\n      aliases[index] = outputId;\n      continue;\n    }\n    const hint = graph.nodes[index].id.replace(/[^A-Za-z0-9_.:-]/g, \"-\") || \"resource\";\n    let alias = `${idPrefix}fragid-${hint}`;\n    if (usedAliases.has(alias)) alias += `-${index}`;\n    usedAliases.add(alias);\n    aliases[index] = alias;\n  }\n  const edgeAliases = new Map<string, string>();\n  for (let index = 0; index < graph.edges.length; index++) {\n    const edge = graph.edges[index];\n    edgeAliases.set(edge.token, edge.status === \"resolved\"\n      ? aliases[edge.to!]\n      : `${idPrefix}unresolved-${index}`);\n  }\n  const orphanState = { index: 0, used: new Set(usedAliases) };\n  const dependencyOuterHTML: string[] = [];\n  for (const node of graph.nodes) {\n    if (node.serialization !== \"dependency\") continue;\n    const rewritten = rewriteStructuredFragmentMarkup(node.outerHTML!, graph, aliases, edgeAliases, idPrefix, orphanState);\n    if (rewritten == null) return null;\n    dependencyOuterHTML.push(rewritten);\n  }\n  const rootOuterHTML = rewriteStructuredFragmentMarkup(outerHTML, graph, aliases, edgeAliases, idPrefix, orphanState);\n  if (rootOuterHTML == null) return null;\n  return {\n    rootOuterHTML,\n    dependencyOuterHTML,\n  };\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2529"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b328a6b51cf62f321e90153df0e7251f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a6674e3ced808db9ea47619896f2eed772494920",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -13,7 +13,7 @@ describe("paint geometry oracle (DM-2297)", () => {
   it("gates production gradient, mask, clip, and resizer builders and proves the corpus moves", () => {
     const report = runPaintGeometryOracle();
     expect(report.movementProven).toBe(true);
-    expect(report.rows).toHaveLength(110);
+    expect(report.rows).toHaveLength(119);
     expect(report.rows.filter((row) => !row.pass)).toEqual([]);
     expect(report.verdict).toBe("exact-logical-agreement");
   });

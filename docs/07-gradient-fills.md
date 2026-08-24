@@ -112,13 +112,15 @@ layers take a separate branch — they rasterize to a PNG `<pattern>` via
 The same `gradientFillFor` helper handles the thumb fill (`renderRange` thumb
 path) and the progress-value / meter-value fills (SK-1222).
 
-**Legacy `-webkit-gradient()` syntax.** Chromium's computed-style serializer still
-emits the old `-webkit-gradient(linear, …, from(), color-stop(), to())` form for
-some pages (e.g. legacy mobile headers). The legacy form is kept distinct through
-emission: its two authored points resolve directly against the painted box and
-its stops are stable-sorted, matching Blink's deprecated-gradient branch. It is
-not converted to a modern angle, because modern diagonal gradients use
-magic-corner endpoints and are not equivalent on non-square boxes.
+**Legacy `-webkit-gradient()` syntax (DM-2528, [doc 223](223-legacy-webkit-gradient-geometry.md)).**
+Chromium's computed-style serializer retains both deprecated `linear` and
+`radial` forms. Domotion now transcribes Blink's grammar and geometry directly:
+percent points resolve on the physical width/height axes; unitless point and
+radius values cross effective zoom once during capture; linear endpoints stay
+explicit; and radial start/end circles emit as SVG `fx`/`fy`/`fr` and
+`cx`/`cy`/`r`. Deprecated stops stable-sort before the pinned Skia terminal
+clamp, and the form remains non-repeating. Modern magic-corner and repeating
+routes are unchanged.
 
 ## Edge cases
 

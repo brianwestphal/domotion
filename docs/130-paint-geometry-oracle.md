@@ -6,11 +6,19 @@ source-transcribed rule leg against the definitions emitted by Domotion's real
 gradient, mask, basic-clip, and platform-resizer builders. It does not rasterize
 either side.
 
-The 110-row corpus is again fully exact after DM-2494. Its URL-mask `round`
+The 118-row corpus is fully exact after DM-2528. Its URL-mask `round`
 and `space` rows now keep Blink's two rectangles distinct: tile size and phase
 come from `mask-origin`, while the SVG pattern cell and final destination come
 from `mask-clip`. Both rows include a destructive collapsed-area mutation and
 retain the existing `0.00011` logical tolerance unchanged.
+
+Eight DM-2528 rows transcribe deprecated `-webkit-gradient()` parsing and
+geometry from pinned Blink/Skia. They cover direct asymmetric linear endpoints,
+physical width/height axes, unitless effective zoom, independent radial start
+and end circles, stable-sort-before-terminal-clamp stop behavior, and the
+non-repeating boundary. Destructive substitutions of the modern center line,
+width/height exchange, and omitted zoom all move while the tolerance remains
+unchanged. See [doc 223](223-legacy-webkit-gradient-geometry.md).
 
 `npm run paint:geometry-browser-oracle` is the independent live-browser leg.
 At 4× device scale it paints deliberately binary discriminators for the
@@ -58,6 +66,14 @@ boundary; and a linear-gradient alpha mask. Gradient coordinates
 compare at the emitter's four-decimal serialization boundary. Basic clip
 coordinates compare after the renderer's documented one-decimal SVG
 serialization.
+
+Deprecated gradients are a separate rule arm. Blink accepts only percentages,
+axis keywords, or unitless point components (plus non-negative unitless radial
+radii), resolves percentages against physical image axes, and multiplies
+unitless geometry by effective zoom. Linear points are emitted directly rather
+than entering the magic-corner algorithm. Radial gradients retain both circles
+through SVG `fx`/`fy`/`fr` and `cx`/`cy`/`r`. Their stops stable-sort before
+Skia's terminal `[0,1]` clamp and never activate repeating spread.
 
 The resizer rows transcribe `LayoutBox::CanResize`,
 `PaintLayerScrollableArea::CornerRect`, and

@@ -82,7 +82,8 @@ const EXACT_INNER = `<!doctype html><style>
 </style><svg><defs>
   <clipPath id="sharedClip" clipPathUnits="objectBoundingBox"><rect width=".5" height="1"/></clipPath>
   <clipPath id="innerUserClip" clipPathUnits="userSpaceOnUse"><rect x="10" y="5" width="30" height="40"/></clipPath>
-  <mask id="sharedMask"><linearGradient id="tone"><stop offset="0" stop-color="white"/><stop offset="1" stop-color="black"/></linearGradient><rect width="40" height="60" fill="white"/><rect x="40" width="40" height="60" fill="black"/></mask>
+  <linearGradient id="tone"><stop offset="0" stop-color="white"/><stop offset=".5" stop-color="white"/><stop offset=".5" stop-color="black"/><stop offset="1" stop-color="black"/></linearGradient>
+  <mask id="sharedMask"><rect width="80" height="60" fill="url(#tone)"/></mask>
   <mask id="alphaMask"><rect width="40" height="60" fill="black"/><rect x="40" width="40" height="60" fill="transparent"/></mask>
   <mask id="objectContentMask" maskUnits="objectBoundingBox" maskContentUnits="objectBoundingBox"><rect width=".5" height="1" fill="white"/></mask>
   <mask id="userRegionMask" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse" x="0" y="0" width="32" height="60"><rect width="80" height="60" fill="white"/></mask>
@@ -166,6 +167,12 @@ describeBrowser("recursed iframe inner mask/clip/filter defs (DM-1446)", () => {
       expect((root.maskDefs ?? []).find((def) => def.id === "userRegionMask")?.userSpaceRegion)
         .toEqual({ x: 0, y: 0, width: 32, height: 60 });
       expect((root.maskDefs ?? []).find((def) => def.id === "zoomUserMask")?.maskType).toBe("luminance");
+      const innerSharedMask = sharedMasks.find((def) => def.dependencyGraph?.nodes.some((node) => node.id === "tone"));
+      expect(innerSharedMask?.dependencyGraph?.nodes.map((node) => node.id)).toEqual(["sharedMask", "tone"]);
+      expect(innerSharedMask?.dependencyGraph?.edges).toHaveLength(2);
+      expect(innerSharedMask?.dependencyGraph?.edges.every((edge) =>
+        edge.from === 0 && edge.to === 1 && edge.target === "tone" && edge.status === "resolved",
+      )).toBe(true);
 
       const scopedConsumers = flatten(tree).filter((node) => /^url\(/.test(node.styles.clipPath)
         || /^url\(/.test(node.styles.maskImage));
@@ -178,7 +185,7 @@ describeBrowser("recursed iframe inner mask/clip/filter defs (DM-1446)", () => {
       expect(nestedToneIds).toHaveLength(2);
       expect(new Set(nestedToneIds).size).toBe(2);
       expect(svg).toContain('transform="translate(58, 204) scale(80, 60)"');
-      expect(svg).toContain('style="mask-type:alpha"');
+      expect(svg).toMatch(/style="[^"]*mask-type:alpha"/);
 
       await rendered.setContent(`<body style="margin:0"><svg xmlns="http://www.w3.org/2000/svg" width="${EXACT_WIDTH}" height="${EXACT_HEIGHT}" viewBox="0 0 ${EXACT_WIDTH} ${EXACT_HEIGHT}"><rect width="100%" height="100%" fill="white"/>${svg}</svg></body>`, { waitUntil: "load" });
       const renderedPng = await rendered.screenshot();

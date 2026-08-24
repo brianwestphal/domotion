@@ -11,8 +11,13 @@ import { embedResizedDataUri } from "../capture/embed.js";
 import { parseCssUrl, splitTopLevelCommas } from "./css-tokens.js";
 import { buildImagePatternDef } from "./image-pattern.js";
 import { buildLinearGradientDef, buildRadialGradientDef } from "./gradient-defs.js";
+import {
+  buildLinearGradientDef as buildExactLinearGradientDef,
+  buildRadialGradientDef as buildExactRadialGradientDef,
+  parseLegacyWebkitGradient,
+} from "./gradients.js";
 import { advancedGradientTile, needsChromiumGradientRaster } from "./advanced-gradient-raster.js";
-import type { CapturedElement, MaskRasterRef } from "../capture/types.js";
+import type { CapturedElement, MaskRasterRef, SvgFragmentDependencyGraph } from "../capture/types.js";
 import {
   resolveMaskContainCoverRect,
   resolveMaskPosition,
@@ -83,6 +88,225 @@ export function rewriteFragmentMaskDef(
     return replaced == null ? full : prefix + `"#${replaced}"`;
   });
   return out;
+}
+
+function fragmentGraphCycles(
+  graph: Pick<SvgFragmentDependencyGraph, "root" | "nodes" | "edges">,
+): number[][] | null {
+  const outgoing = graph.nodes.map(() => [] as number[]);
+  for (const edge of graph.edges) {
+    if (!Number.isInteger(edge.from) || edge.from < 0 || edge.from >= graph.nodes.length) return null;
+    if (edge.status !== "resolved") continue;
+    if (!Number.isInteger(edge.to) || edge.to! < 0 || edge.to! >= graph.nodes.length) return null;
+    if (!outgoing[edge.from].includes(edge.to!)) outgoing[edge.from].push(edge.to!);
+  }
+  const state = graph.nodes.map(() => 0);
+  const stack: number[] = [];
+  const cycles: number[][] = [];
+  const visit = (index: number): void => {
+    state[index] = 1;
+    stack.push(index);
+    for (const next of outgoing[index]) {
+      if (state[next] === 0) visit(next);
+      else if (state[next] === 1) {
+        const start = stack.lastIndexOf(next);
+        cycles.push([...stack.slice(start), next]);
+      }
+    }
+    stack.pop();
+    state[index] = 2;
+  };
+  if (graph.root < 0 || graph.root >= graph.nodes.length) return null;
+  visit(graph.root);
+  return cycles;
+}
+
+function localFragmentRefs(markup: string): string[] {
+  const refs: string[] = [];
+  const urlRe = /url\(\s*(?:(?:"|')|&quot;|&#34;|&#39;)?#([^"')\s;&]+)(?:(?:"|')|&quot;|&#34;|&#39;)?\s*\)/gi;
+  const hrefRe = /\s(?:xlink:)?href\s*=\s*(?:"#([^"]+)"|'#([^']+)')/gi;
+  let match: RegExpExecArray | null;
+  while ((match = urlRe.exec(markup)) != null) refs.push(match[1]);
+  while ((match = hrefRe.exec(markup)) != null) refs.push(match[1] ?? match[2] ?? "");
+  return refs;
+}
+
+function rewriteStructuredFragmentMarkup(
+  markup: string,
+  graph: SvgFragmentDependencyGraph,
+  aliases: readonly string[],
+  edgeAliases: ReadonlyMap<string, string>,
+  idPrefix: string,
+  orphanState: { index: number; used: Set<string> },
+): string | null {
+  // First bind the exact source element represented by each graph node. The
+  // capture marker avoids conflating duplicate author id attributes: only the
+  // TreeScope target selected by Blink receives the node's alias.
+  const seenMarkers = new Set<number>();
+  let out = markup.replace(/<([A-Za-z][^\s/>]*)([^>]*\sdata-domotion-fragment-node\s*=\s*(?:"(\d+)"|'(\d+)')[^>]*)>/g,
+    (full, tag, attrs, dq, sq) => {
+      const index = Number(dq ?? sq);
+      if (!Number.isInteger(index) || graph.nodes[index] == null || seenMarkers.has(index)) return full;
+      seenMarkers.add(index);
+      let nextAttrs = String(attrs)
+        .replace(/\sdata-domotion-fragment-node\s*=\s*(?:"\d+"|'\d+')/i, "")
+        .replace(/(\sid\s*=\s*)(?:"[^"]*"|'[^']*')/i, `$1"__domotion_fragment_id_${index}__"`);
+      if (!/\sid\s*=/.test(nextAttrs)) nextAttrs += ` id="__domotion_fragment_id_${index}__"`;
+      return `<${tag}${nextAttrs}>`;
+    });
+
+  // Every other id occurrence is inert with respect to graph lookup. Give it
+  // a unique name rather than duplicating the selected target's alias.
+  out = out.replace(/(\sid\s*=\s*)("([^"]+)"|'([^']+)')/g, (_full, prefix, _quoted, dq, sq) => {
+    const original = dq ?? sq ?? "";
+    const marker = /^__domotion_fragment_id_(\d+)__$/.exec(original);
+    if (marker != null) {
+      const alias = aliases[Number(marker[1])];
+      return alias == null ? `${prefix}"${idPrefix}invalid-node"` : `${prefix}"${alias}"`;
+    }
+    const hint = original.replace(/[^A-Za-z0-9_.:-]/g, "-") || "id";
+    let alias = `${idPrefix}fragid-${hint}`;
+    if (orphanState.used.has(alias)) alias += `-${orphanState.index}`;
+    orphanState.index++;
+    orphanState.used.add(alias);
+    return `${prefix}"${alias}"`;
+  });
+  out = out.replace(/url\(\s*(?:(?:"|')|&quot;|&#34;|&#39;)?#([^"')\s;&]+)(?:(?:"|')|&quot;|&#34;|&#39;)?\s*\)/gi, (full, token) => {
+    const alias = edgeAliases.get(token);
+    return alias == null ? full : `url(#${alias})`;
+  });
+  out = out.replace(/(\s(?:xlink:)?href\s*=\s*)("#([^"]+)"|'#([^']+)')/gi, (full, prefix, _quoted, dq, sq) => {
+    const token = dq ?? sq ?? "";
+    const alias = edgeAliases.get(token);
+    return alias == null ? full : `${prefix}"#${alias}"`;
+  });
+  return out;
+}
+
+/**
+ * Validate and namespace a DM-2529 transitive fragment-resource graph as one
+ * unit. Invalid/stale/cross-scope graphs return null, so the caller cannot
+ * accidentally bind an unresolved author id to an unrelated output def.
+ * Cycles are preserved: Blink gives gradients, patterns, <use>, and resource
+ * containers distinct native cycle behavior, and the generated SVG should do
+ * the same after every node has received a capture-local name.
+ */
+export function rewriteFragmentResourceGraph(
+  outerHTML: string,
+  graph: SvgFragmentDependencyGraph,
+  outputId: string,
+  idPrefix: string,
+  expectedScope?: number,
+): { rootOuterHTML: string; dependencyOuterHTML: string[] } | null {
+  if (!Array.isArray(graph.nodes) || graph.nodes.length === 0
+    || !Array.isArray(graph.edges) || !Array.isArray(graph.cycles)
+    || !Number.isInteger(graph.root)) return null;
+  const root = graph.nodes[graph.root];
+  if (root == null || root.serialization !== "root") return null;
+  if (expectedScope != null && root.scope !== expectedScope) return null;
+
+  const keys = new Set<string>();
+  const markups: string[] = [outerHTML];
+  for (let index = 0; index < graph.nodes.length; index++) {
+    const node = graph.nodes[index];
+    if (node == null || node.id === "" || !Number.isInteger(node.scope)) return null;
+    const key = `${node.scope}\u0000${node.id}`;
+    if (keys.has(key)) return null;
+    keys.add(key);
+    if (node.serialization === "root") {
+      if (index !== graph.root || node.outerHTML != null || node.containedIn != null) return null;
+    } else if (node.serialization === "dependency") {
+      if (typeof node.outerHTML !== "string" || node.outerHTML === "" || node.containedIn != null) return null;
+      markups.push(node.outerHTML);
+    } else if (node.serialization === "embedded") {
+      if (node.outerHTML != null || !Number.isInteger(node.containedIn)
+        || node.containedIn! < 0 || node.containedIn! >= graph.nodes.length) return null;
+    } else return null;
+  }
+  const markerCounts = graph.nodes.map(() => 0);
+  const markerRe = /\sdata-domotion-fragment-node\s*=\s*(?:"(\d+)"|'(\d+)')/g;
+  for (const markup of markups) {
+    let marker: RegExpExecArray | null;
+    while ((marker = markerRe.exec(markup)) != null) {
+      const index = Number(marker[1] ?? marker[2]);
+      if (!Number.isInteger(index) || graph.nodes[index] == null) return null;
+      markerCounts[index]++;
+    }
+  }
+  if (markerCounts.some((count) => count !== 1)) return null;
+
+  const edgeTokens = new Set<string>();
+  for (const edge of graph.edges) {
+    const from = graph.nodes[edge.from];
+    if (from == null || !Number.isInteger(edge.scope) || edge.scope !== from.scope
+      || (edge.kind !== "href" && edge.kind !== "url")
+      || typeof edge.token !== "string" || edge.token === "" || edgeTokens.has(edge.token)
+      || typeof edge.target !== "string") return null;
+    edgeTokens.add(edge.token);
+    if (edge.status === "resolved") {
+      const to = graph.nodes[edge.to!];
+      if (to == null || edge.scope !== to.scope) return null;
+    } else if (edge.status === "missing" || edge.status === "stale" || edge.status === "external") {
+      if (edge.to != null) return null;
+    } else return null;
+  }
+
+  const reachable = new Set<number>([graph.root]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const edge of graph.edges) {
+      if (edge.status === "resolved" && edge.to != null
+        && reachable.has(edge.from) && !reachable.has(edge.to)) {
+        reachable.add(edge.to);
+        changed = true;
+      }
+    }
+  }
+  if (reachable.size !== graph.nodes.length) return null;
+  const actualCycles = fragmentGraphCycles(graph);
+  if (actualCycles == null || JSON.stringify(actualCycles) !== JSON.stringify(graph.cycles)) return null;
+
+  const markupRefs = markups.flatMap(localFragmentRefs);
+  const refCounts = new Map<string, number>();
+  for (const ref of markupRefs) refCounts.set(ref, (refCounts.get(ref) ?? 0) + 1);
+  if (graph.edges.some((edge) => refCounts.get(edge.token) !== 1)
+    || markupRefs.some((ref) => !edgeTokens.has(ref))) return null;
+
+  const aliases: string[] = [];
+  const usedAliases = new Set<string>([outputId]);
+  for (let index = 0; index < graph.nodes.length; index++) {
+    if (index === graph.root) {
+      aliases[index] = outputId;
+      continue;
+    }
+    const hint = graph.nodes[index].id.replace(/[^A-Za-z0-9_.:-]/g, "-") || "resource";
+    let alias = `${idPrefix}fragid-${hint}`;
+    if (usedAliases.has(alias)) alias += `-${index}`;
+    usedAliases.add(alias);
+    aliases[index] = alias;
+  }
+  const edgeAliases = new Map<string, string>();
+  for (let index = 0; index < graph.edges.length; index++) {
+    const edge = graph.edges[index];
+    edgeAliases.set(edge.token, edge.status === "resolved"
+      ? aliases[edge.to!]
+      : `${idPrefix}unresolved-${index}`);
+  }
+  const orphanState = { index: 0, used: new Set(usedAliases) };
+  const dependencyOuterHTML: string[] = [];
+  for (const node of graph.nodes) {
+    if (node.serialization !== "dependency") continue;
+    const rewritten = rewriteStructuredFragmentMarkup(node.outerHTML!, graph, aliases, edgeAliases, idPrefix, orphanState);
+    if (rewritten == null) return null;
+    dependencyOuterHTML.push(rewritten);
+  }
+  const rootOuterHTML = rewriteStructuredFragmentMarkup(outerHTML, graph, aliases, edgeAliases, idPrefix, orphanState);
+  if (rootOuterHTML == null) return null;
+  return {
+    rootOuterHTML,
+    dependencyOuterHTML,
+  };
 }
 
 export interface FragmentMaskPositionOptions {
@@ -750,7 +974,7 @@ function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide:
     layer, layerSize, layerPos, layerRepeat, elementRasters, intrinsic: capturedIntrinsic,
   } = input;
   const contents: string[] = [];
-  const gradient = /^(?:repeating-)?(linear|radial)-gradient\(/i.test(layer);
+  const gradient = /^(?:(?:repeating-)?(?:linear|radial)-gradient|-webkit-gradient)\(/i.test(layer);
   if (gradient) {
     // Resolve mask-size (defaults to 'auto' = full element box) and
     // mask-position (defaults to 0% 0%) so gradient masks honor the same
@@ -781,6 +1005,7 @@ function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide:
     const gradientOffset = resolveMaskPosition(layerPos, w - gradW, h - gradH);
     let gx = elX + gradientOffset.x;
     let gy = elY + gradientOffset.y;
+    const legacy = parseLegacyWebkitGradient(layer);
     const linear = /^(?:repeating-)?linear-gradient\((.+)\)$/i.exec(layer);
     const radial = /^(?:repeating-)?radial-gradient\((.+)\)$/i.exec(layer);
     if (needsChromiumGradientRaster(layer)) {
@@ -824,7 +1049,12 @@ function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide:
     let tileIndex = 0;
     for (const tileY of ys) for (const tileX of xs) {
       const gradId = `${id}g${li}${xs.length * ys.length > 1 ? `t${tileIndex++}` : ""}`;
-      const def = linear != null
+      const exactRect = { x: tileX, y: tileY, w: gradW, h: gradH };
+      const def = legacy?.kind === "linear"
+        ? buildExactLinearGradientDef(legacy, gradId, exactRect)
+        : legacy?.kind === "radial"
+          ? buildExactRadialGradientDef(legacy, gradId, exactRect)
+          : linear != null
         ? buildLinearGradientDef(gradId, linear[1], /^repeating-/i.test(layer), gradW, gradH, tileX, tileY)
         : radial != null ? buildRadialGradientDef(gradId, radial[1], /^repeating-/i.test(layer), tileX, tileY, gradW, gradH) : "";
       if (def === "") continue;

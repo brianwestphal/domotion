@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildMaskDef, maskPaintAreas, positionFragmentMaskDef, rewriteFragmentMaskDef } from "./render/element-tree-to-svg.js";
-import { positionFragmentClipPathDef, positionObjectBoundingBoxClipPathDef } from "./render/mask.js";
+import { positionFragmentClipPathDef, positionObjectBoundingBoxClipPathDef, rewriteFragmentResourceGraph } from "./render/mask.js";
 
 // Locks the SVG <mask> emission for the cases exercised by the html-test
 // suite's 23-mask.html fixture (DM-395).
@@ -233,6 +233,62 @@ describe("rewriteFragmentMaskDef — DM-493 same-document mask fragment refs", (
     const a = rewriteFragmentMaskDef(`<mask id="m1"><rect width="10" height="10" fill="white"/></mask>`, "f-mkfrag0", "f-");
     const b = rewriteFragmentMaskDef(`<mask id="m1"><rect width="10" height="10" fill="white"/></mask>`, "f-mkfrag0", "f-");
     expect(a).toBe(b);
+  });
+});
+
+describe("rewriteFragmentResourceGraph — transitive scoped SVG resources", () => {
+  const graph = {
+    root: 0,
+    nodes: [
+      { id: "m", scope: 7, tagName: "mask", serialization: "root" as const },
+      { id: "g", scope: 7, tagName: "lineargradient", serialization: "dependency" as const,
+        outerHTML: '<linearGradient id="g" data-domotion-fragment-node="1"><stop offset="0" stop-color="white"/></linearGradient>' },
+    ],
+    edges: [
+      { from: 0, to: 1, scope: 7, kind: "url" as const, token: "__domotion_fragment_ref_0__", target: "g", status: "resolved" as const },
+    ],
+    cycles: [],
+  };
+  const root = '<mask id="m" data-domotion-fragment-node="0"><rect fill="url(#__domotion_fragment_ref_0__)"/></mask>';
+
+  it("hoists and namespaces an authenticated sibling dependency", () => {
+    const out = rewriteFragmentResourceGraph(root, graph, "out-mask", "out-", 7);
+    expect(out).not.toBeNull();
+    expect(out!.rootOuterHTML).toContain('id="out-mask"');
+    expect(out!.rootOuterHTML).toContain('fill="url(#out-fragid-g)"');
+    expect(out!.dependencyOuterHTML).toEqual([
+      '<linearGradient id="out-fragid-g"><stop offset="0" stop-color="white"/></linearGradient>',
+    ]);
+  });
+
+  it("fails closed on wrong scope, stale edges, or forged cycle evidence", () => {
+    expect(rewriteFragmentResourceGraph(root, graph, "out-mask", "out-", 8)).toBeNull();
+    expect(rewriteFragmentResourceGraph(root, {
+      ...graph,
+      edges: [{ ...graph.edges[0], scope: 8 }],
+    }, "out-mask", "out-", 7)).toBeNull();
+    expect(rewriteFragmentResourceGraph(root, {
+      ...graph,
+      cycles: [[0, 1, 0]],
+    }, "out-mask", "out-", 7)).toBeNull();
+  });
+
+  it("retains authenticated cycles instead of blanket-rejecting them", () => {
+    const cyclic = {
+      ...graph,
+      edges: [
+        graph.edges[0],
+        { from: 1, to: 0, scope: 7, kind: "href" as const, token: "__domotion_fragment_ref_1__", target: "m", status: "resolved" as const },
+      ],
+      cycles: [[0, 1, 0]],
+      nodes: [
+        graph.nodes[0],
+        { ...graph.nodes[1], outerHTML: '<linearGradient id="g" data-domotion-fragment-node="1" href="#__domotion_fragment_ref_1__"/>' },
+      ],
+    };
+    const out = rewriteFragmentResourceGraph(root, cyclic, "out-mask", "out-", 7);
+    expect(out).not.toBeNull();
+    expect(out!.dependencyOuterHTML[0]).toContain('href="#out-mask"');
   });
 });
 

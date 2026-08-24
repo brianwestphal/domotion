@@ -72,19 +72,98 @@ export const physicalComputedTileSize = (value, effectiveZoom) => {
     `${Math.round(parseFloat(number) * effectiveZoom * 1e6) / 1e6}px`);
 };
 
+const scalePhysicalNumber = (value, effectiveZoom) =>
+  Math.round(value * effectiveZoom * 1e6) / 1e6;
+
+const splitGradientArguments = (value) => {
+  const parts = [];
+  let start = 0;
+  let depth = 0;
+  let quote = "";
+  let escaped = false;
+  for (let index = 0; index < value.length; index++) {
+    const ch = value[index];
+    if (escaped) { escaped = false; continue; }
+    if (ch === "\\") { escaped = true; continue; }
+    if (quote !== "") { if (ch === quote) quote = ""; continue; }
+    if (ch === '"' || ch === "'") { quote = ch; continue; }
+    if (ch === "(") depth++;
+    else if (ch === ")") depth--;
+    else if (ch === "," && depth === 0) {
+      parts.push(value.slice(start, index).trim());
+      start = index + 1;
+    }
+  }
+  parts.push(value.slice(start).trim());
+  return parts;
+};
+
+/**
+ * Blink's deprecated grammar uses unitless numbers—not CSS lengths—for its
+ * point components and radial radii. `PositionFromValue` / `ResolveRadius`
+ * multiply those numbers by EffectiveZoom at paint time. Scale only the
+ * grammar-owned geometry slots here; numeric color-stop offsets remain
+ * fractions and must never be zoomed.
+ */
+export const physicalComputedLegacyGradient = (call, effectiveZoom) => {
+  if (effectiveZoom === 1) return call;
+  const match = /^-webkit-gradient\s*\(\s*(linear|radial)\s*,([\s\S]*)\)$/i.exec(call.trim());
+  if (match == null) return call;
+  const radial = match[1].toLowerCase() === "radial";
+  const args = splitGradientArguments(match[2]);
+  if (args.length < (radial ? 4 : 2)) return call;
+  const number = /^([+-]?(?:(?:\d+(?:\.\d*)?)|(?:\.\d+))(?:e[+-]?\d+)?)$/i;
+  const point = (value) => value.trim().split(/\s+/).map((token) => {
+    const parsed = number.exec(token);
+    return parsed == null ? token : String(scalePhysicalNumber(Number(parsed[1]), effectiveZoom));
+  }).join(" ");
+  args[0] = point(args[0]);
+  if (radial) {
+    const firstRadius = number.exec(args[1]);
+    if (firstRadius != null) args[1] = String(scalePhysicalNumber(Number(firstRadius[1]), effectiveZoom));
+    args[2] = point(args[2]);
+    const secondRadius = number.exec(args[3]);
+    if (secondRadius != null) args[3] = String(scalePhysicalNumber(Number(secondRadius[1]), effectiveZoom));
+  } else {
+    args[1] = point(args[1]);
+  }
+  return `-webkit-gradient(${match[1].toLowerCase()}, ${args.join(", ")})`;
+};
+
 /** Computed gradient stop lengths are serialized before effective zoom, while
  * Blink resolves them against the zoomed concrete-image gradient line. Scale
- * only px tokens inside gradient functions; URL/data payloads and unrelated
- * background layers remain byte-identical. */
+ * only px tokens inside modern gradient functions and only geometry-owned
+ * unitless numbers inside deprecated gradients; URL/data payloads and
+ * unrelated background layers remain byte-identical. */
 export const physicalComputedGradientImage = (value, effectiveZoom) => {
   if (effectiveZoom === 1 || value == null || value === "" || value === "none") return value;
-  const start = /\b(?:repeating-)?(?:linear|radial|conic)-gradient\(/gi;
+  const start = /(?:-webkit-gradient|\b(?:repeating-)?(?:linear|radial|conic)-gradient)\(/gi;
+  const isTopLevel = (end) => {
+    let depth = 0;
+    let quote = "";
+    let escaped = false;
+    for (let index = 0; index < end; index++) {
+      const ch = value[index];
+      if (escaped) { escaped = false; continue; }
+      if (ch === "\\") { escaped = true; continue; }
+      if (quote !== "") { if (ch === quote) quote = ""; continue; }
+      if (ch === '"' || ch === "'") { quote = ch; continue; }
+      if (ch === "(") depth++;
+      else if (ch === ")") depth--;
+    }
+    return depth === 0 && quote === "";
+  };
   let out = "";
   let cursor = 0;
+  let searchCursor = 0;
   for (;;) {
-    start.lastIndex = cursor;
+    start.lastIndex = searchCursor;
     const match = start.exec(value);
     if (match == null) return out + value.slice(cursor);
+    if (!isTopLevel(match.index)) {
+      searchCursor = start.lastIndex;
+      continue;
+    }
     out += value.slice(cursor, match.index);
     let depth = 1;
     let quote = "";
@@ -99,10 +178,14 @@ export const physicalComputedGradientImage = (value, effectiveZoom) => {
       if (ch === "(") depth++;
       else if (ch === ")") depth--;
     }
-    const call = value.slice(match.index, end).replace(/(-?(?:\d+(?:\.\d+)?|\.\d+))px\b/g, (_token, number) =>
-      `${Math.round(parseFloat(number) * effectiveZoom * 1e6) / 1e6}px`);
+    const rawCall = value.slice(match.index, end);
+    const call = /^-webkit-gradient/i.test(rawCall)
+      ? physicalComputedLegacyGradient(rawCall, effectiveZoom)
+      : rawCall.replace(/(-?(?:\d+(?:\.\d+)?|\.\d+))px\b/g, (_token, number) =>
+          `${scalePhysicalNumber(parseFloat(number), effectiveZoom)}px`);
     out += call;
     cursor = end;
+    searchCursor = end;
   }
 };
 
@@ -717,7 +800,7 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
         ? { w: record.naturalWidth, h: record.naturalHeight }
         : null);
     })(),
-    borderImageSource: cs.borderImageSource,
+    borderImageSource: physicalComputedGradientImage(cs.borderImageSource, effectiveZoom),
     borderImageSlice: cs.borderImageSlice,
     borderImageWidth: cs.borderImageWidth,
     borderImageOutset: cs.borderImageOutset,

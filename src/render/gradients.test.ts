@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildLinearGradientDef, buildRadialGradientDef, parseConicGradient, parseGradient, parseLinearGradient, parseRadialGradient } from "./gradients.js";
+import { buildLinearGradientDef, buildRadialGradientDef, parseConicGradient, parseGradient, parseLegacyWebkitGradient, parseLinearGradient, parseRadialGradient } from "./gradients.js";
 import { buildLinearGradientDef as buildBackgroundLinearGradientDef, buildRadialGradientDef as buildBackgroundRadialGradientDef, normalizeRadialGradientDomain } from "./gradient-defs.js";
 
 describe("convertLegacyWebkitGradient: legacy -webkit-gradient(linear, ...)", () => {
@@ -49,13 +49,14 @@ describe("convertLegacyWebkitGradient: legacy -webkit-gradient(linear, ...)", ()
       .toContain('x1="10" y1="20" x2="210" y2="100"');
   });
 
-  it("preserves arbitrary percentage and pixel endpoints instead of applying magic-corner geometry", () => {
+  it("preserves arbitrary percentage and unitless endpoints instead of applying magic-corner geometry", () => {
     const percent = parseGradient("-webkit-gradient(linear, 10% 25%, 80% 75%, from(red), color-stop(75%, lime), to(blue))")!;
     expect(buildLinearGradientDef(percent as any, "p", { x: 5, y: 7, w: 300, h: 120 }))
       .toContain('x1="35" y1="37" x2="245" y2="97"');
-    const pixels = parseGradient("-webkit-gradient(linear, 12px 8px, 112px 48px, from(red), to(blue))")!;
-    expect(buildLinearGradientDef(pixels as any, "q", { x: 20, y: 30, w: 400, h: 200 }))
+    const numbers = parseGradient("-webkit-gradient(linear, 12 8, 112 48, from(red), to(blue))")!;
+    expect(buildLinearGradientDef(numbers as any, "q", { x: 20, y: 30, w: 400, h: 200 }))
       .toContain('x1="32" y1="38" x2="132" y2="78"');
+    expect(parseGradient("-webkit-gradient(linear, 12px 8px, 112px 48px, from(red), to(blue))")).toBeNull();
   });
 
   it("stable-sorts deprecated stops as Blink does", () => {
@@ -68,8 +69,51 @@ describe("convertLegacyWebkitGradient: legacy -webkit-gradient(linear, ...)", ()
     expect((g as { angleDeg: number }).angleDeg).toBe(45);
   });
 
-  it("a degenerate webkit-gradient (p1 == p2) returns null", () => {
-    expect(parseGradient("-webkit-gradient(linear, 50% 50%, 50% 50%, from(red), to(blue))")).toBeNull();
+  it("preserves Blink's degenerate endpoint record instead of substituting modern geometry", () => {
+    const g = parseGradient("-webkit-gradient(linear, 50% 50%, 50% 50%, from(red), to(blue))");
+    expect(g?.kind).toBe("linear");
+    expect(buildLinearGradientDef(g as any, "degenerate", { x: 10, y: 20, w: 200, h: 80 }))
+      .toContain('x1="110" y1="60" x2="110" y2="60"');
+  });
+
+  it("uses the axis-specific legacy keyword grammar", () => {
+    expect(parseGradient("-webkit-gradient(linear, top left, right bottom, from(red), to(blue))")).toBeNull();
+    expect(parseGradient("-webkit-gradient(linear, left top, right bottom, from(red), to(blue))")).not.toBeNull();
+    expect(parseGradient("-webkit-gradient(linear, left top, right bottom, from(currentColor), to(blue))")).toBeNull();
+    expect(parseGradient("-webkit-gradient(linear, left top,, right bottom, from(red), to(blue))")).toBeNull();
+  });
+
+  it("stable-sorts before Skia's terminal clamp for negative and out-of-range stops", () => {
+    const g = parseGradient("-webkit-gradient(linear, left top, right bottom, color-stop(1.2, yellow), to(blue), color-stop(-.2, green), from(red))")!;
+    expect(g.stops.map((stop) => [stop.color, stop.offset])).toEqual([
+      ["green", -0.2], ["red", 0], ["blue", 1], ["yellow", 1.2],
+    ]);
+    const svg = buildLinearGradientDef(g as any, "clamped", { x: 0, y: 0, w: 200, h: 80 });
+    expect([...svg.matchAll(/<stop offset="([^"]+)" stop-color="([^"]+)"/g)].map((match) => [Number(match[1]), match[2]]))
+      .toEqual([[0, "green"], [0, "red"], [1, "blue"], [1, "yellow"]]);
+  });
+
+  it("parses two-circle radial geometry without modern radial normalization", () => {
+    const g = parseLegacyWebkitGradient("-webkit-gradient(radial, 10% 25%, 5, 80% 75%, 40, from(red), color-stop(.5, lime), to(blue))")!;
+    expect(g.kind).toBe("radial");
+    const svg = buildRadialGradientDef(g as any, "legacy-r", { x: 5, y: 7, w: 300, h: 120 });
+    expect(svg).toContain('fx="35" fy="37" fr="5" cx="245" cy="97" r="40"');
+    expect(svg).not.toContain("spreadMethod");
+  });
+
+  it("reverses shrinking two-circle radial geometry into SVG's fr <= r domain", () => {
+    const g = parseLegacyWebkitGradient("-webkit-gradient(radial, 80% 75%, 40, 10% 25%, 5, from(red), color-stop(.25, lime), to(blue))")!;
+    const svg = buildRadialGradientDef(g as any, "legacy-shrink", { x: 5, y: 7, w: 300, h: 120 });
+    expect(svg).toContain('fx="35" fy="37" fr="5" cx="245" cy="97" r="40"');
+    expect([...svg.matchAll(/<stop offset="([^"]+)" stop-color="([^"]+)"/g)].map((match) => [Number(match[1]), match[2]]))
+      .toEqual([[0, "blue"], [0.75, "lime"], [1, "red"]]);
+  });
+
+  it("accepts Blink's zero- and one-stop deprecated forms", () => {
+    const empty = parseGradient("-webkit-gradient(linear, left top, right bottom)");
+    const one = parseGradient("-webkit-gradient(radial, left top, 0, right bottom, 40, from(red))");
+    expect(empty?.stops).toEqual([]);
+    expect(one?.stops).toEqual([{ color: "red", offset: 0 }]);
   });
 });
 

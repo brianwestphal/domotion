@@ -2533,6 +2533,53 @@ export interface PseudoBox {
   filter?: string;
 }
 
+/**
+ * One ID-bearing SVG resource in the transitive closure of a CSS mask/clip
+ * fragment. `serialization` says where the element's markup lives: the
+ * initially referenced resource uses `root`, an out-of-subtree target uses
+ * `dependency`, and an ID already contained by either serialized subtree uses
+ * `embedded`. Node indices are capture-order stable and are used by edges and
+ * cycle paths below, so duplicate author IDs in different TreeScopes never
+ * become ambiguous.
+ */
+export interface SvgFragmentDependencyNode {
+  id: string;
+  scope: number;
+  tagName: string;
+  serialization: "root" | "dependency" | "embedded";
+  /** Present only for separately hoisted (`dependency`) resource targets. */
+  outerHTML?: string;
+  /** Serialized ancestor node for an embedded target. */
+  containedIn?: number;
+}
+
+export interface SvgFragmentDependencyEdge {
+  from: number;
+  /** Resolved target node. Omitted for a fail-closed unresolved occurrence. */
+  to?: number;
+  /** Referencing element's OriginatingTreeScope, authenticated per hop. */
+  scope: number;
+  /** The source syntax that caused Blink to resolve the target. */
+  kind: "href" | "url";
+  /** Capture-private placeholder written at this exact markup occurrence. */
+  token: string;
+  /** Decoded local fragment id, or the rejected external URL for diagnostics. */
+  target: string;
+  status: "resolved" | "missing" | "stale" | "external";
+}
+
+/**
+ * Exact, TreeScope-authenticated dependency closure for one mask/clip root.
+ * Cycles are retained (Blink has resource-specific cycle semantics) and are
+ * recorded as canonical node-index rings instead of being flattened away.
+ */
+export interface SvgFragmentDependencyGraph {
+  root: number;
+  nodes: SvgFragmentDependencyNode[];
+  edges: SvgFragmentDependencyEdge[];
+  cycles: number[][];
+}
+
 export interface MaskFragmentDef {
   /** Original DOM id of the captured `<mask>` element. */
   id: string;
@@ -2540,6 +2587,8 @@ export interface MaskFragmentDef {
   scope?: number;
   /** Verbatim `outerHTML` of the captured `<mask>` element. */
   outerHTML: string;
+  /** Transitive same-OriginatingTreeScope resource closure (DM-2529). */
+  dependencyGraph?: SvgFragmentDependencyGraph;
   /** Resolved SVG coordinate systems (the SVG defaults are object/user). */
   maskUnits?: "userSpaceOnUse" | "objectBoundingBox";
   maskContentUnits?: "userSpaceOnUse" | "objectBoundingBox";
@@ -2574,6 +2623,8 @@ export interface ClipPathFragmentDef {
   scope?: number;
   /** Verbatim `outerHTML` of the captured `<clipPath>` element. */
   outerHTML: string;
+  /** Transitive same-OriginatingTreeScope resource closure (DM-2529). */
+  dependencyGraph?: SvgFragmentDependencyGraph;
   /** Resolved `clipPathUnits` — `"userSpaceOnUse"` (the SVG default) or
    *  `"objectBoundingBox"`. The renderer needs this to decide whether the def
    *  must be translated per-consumer (userSpaceOnUse coords are element-local;

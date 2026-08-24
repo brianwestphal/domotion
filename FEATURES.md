@@ -22,6 +22,7 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 - [x] **bg-transparent**: Semi-transparent backgrounds (rgba)
 - [x] **bg-nested**: Nested backgrounds (child on top of parent)
 - [x] **bg-conic-gradient** (DM-547, DM-2327, doc 28): `conic-gradient` / `repeating-conic-gradient` background layers via Chromium-painted pattern tiles — covers smooth, checkerboard, from/at, multilayer, and advanced-color effective-zoom fixtures; CPU rasterization is helper-absent best effort only
+- [x] **bg-legacy-webkit-gradient** (DM-2528, doc 223): exact deprecated linear endpoints and two-circle radial geometry, including unitless effective zoom, physical writing-mode axes, stable-sort-before-clamp stop domains, and unchanged modern/repeating routes
 - [ ] **bg-dark-mode** (DM-455, doc 29): Dark-mode capture support — caller-chosen `colorScheme`, dark form-control palette, scheme-aware transparent-root fallback
 
 ### Borders

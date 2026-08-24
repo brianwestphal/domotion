@@ -871,14 +871,15 @@
         "sRGB -> perceptual color space",
         "SVG gradient objectBoundingBox -> userSpaceOnUse",
         "SVG sRGB -> linearRGB interpolation",
-        "vector -> Chromium raster tile"
-      ],
-      "uncoveredStates": [
+        "vector -> Chromium raster tile",
         "legacy endpoint -> modern center line"
       ],
+      "uncoveredStates": [],
       "upstreamSources": [
-        "external/chromium/third_party/blink/renderer/core/paint",
-        "external/skia/src/core"
+        "external/chromium/third_party/blink/renderer/core/css/properties/css_parsing_utils.cc",
+        "external/chromium/third_party/blink/renderer/core/css/css_gradient_value.cc",
+        "external/chromium/third_party/blink/renderer/platform/graphics/gradient.cc",
+        "external/skia"
       ],
       "productionOwners": [
         "src/capture/script/walker/borders-backgrounds.ts",
@@ -897,18 +898,20 @@
       "metamorphicTests": [
         "src/render/color-hint-interpolation.test.ts",
         "src/render/color-table-lookup.test.ts",
-        "tests/svg-effect-combination-corpus.test.ts"
+        "tests/svg-effect-combination-corpus.test.ts",
+        "src/render/gradients.test.ts",
+        "src/capture/script/walker/borders-backgrounds.test.ts"
         ,"tests/repeating-linear-px-stop-workflow.test.ts"
       ],
       "visualFixtures": [
         "tests/features.ts#gradient-radial-negative-domain",
         "tests/features.ts#bg-conic-chromium-zoom-tile",
         "tests/svg-effect-combination-oracle.e2e.test.ts"
+        ,"tests/legacy-webkit-gradient.e2e.test.ts"
         ,"tests/repeating-linear-px-stops.e2e.test.ts"
         ,"tests/repeating-linear-legacy-consumers.e2e.test.ts"
       ],
-      "coverage": "partial",
-      "boundary": "Legacy -webkit-gradient endpoint geometry remains unresolved. Repeating-linear px stops now have source-owned zoom/domain logic and no fixture relaxation.",
+      "coverage": "exact",
       "featureIds": [
         "render.tree-to-svg"
       ],
@@ -1025,7 +1028,7 @@
         "tests/svg-effect-combination-oracle.e2e.test.ts"
       ],
       "coverage": "partial",
-      "boundary": "Arbitrary URL mask sizing/positioning is exact for Chromium-decoded intrinsic ratios and distinct per-layer HTML mask-origin/mask-clip border/padding/content/no-clip rectangles, including URL round/space tile size and phase from the origin with a clip-owned paint/no-repeat destination, zoomed computed px terms, physical writing modes, cyclic composition, and sliced/cloned fragments. The 110-row logical gate retains its fixed tolerance, while DPR-1/2 browser rows reject the collapsed painting-area mutation. Local mask/clip fragments preserve originating TreeScope identity, definition-local descendant ids, HTML border-box object/user-space region/content mapping, source-viewport resolution, EffectiveZoom, ignored SVG-mask image geometry, and effective alpha/luminance. DM-2520 extends this exactly to ordered two-/three-layer fragment lists, cyclic per-layer modes/operators, and Blink's resource-region-clipped bottom-up composition; the raw-RGBA DPR-1/2 gate rejects scope/operator/mode/zoom mutations with no relaxation. URL clip references additionally preserve Blink's exclusive grammar, SVG forced-fill ownership, nested-frame/external resolution, and stale-tree rejection. Transitive references outside a copied subtree and higher-order/future generated SVG effect combinations remain explicit partial boundaries.",
+      "boundary": "Arbitrary URL mask sizing/positioning is exact for Chromium-decoded intrinsic ratios and distinct per-layer HTML mask-origin/mask-clip border/padding/content/no-clip rectangles, including URL round/space tile size and phase from the origin with a clip-owned paint/no-repeat destination, zoomed computed px terms, physical writing modes, cyclic composition, and sliced/cloned fragments. The 119-row logical gate retains its fixed tolerance, while DPR-1/2 browser rows reject the collapsed painting-area mutation. Local mask/clip fragments preserve originating TreeScope identity, definition-local descendant ids, HTML border-box object/user-space region/content mapping, source-viewport resolution, EffectiveZoom, ignored SVG-mask image geometry, and effective alpha/luminance. DM-2520 extends this exactly to ordered two-/three-layer fragment lists, cyclic per-layer modes/operators, and Blink's resource-region-clipped bottom-up composition. DM-2529 closes local transitive href/url dependency graphs with per-edge TreeScope identity, computed paint, deterministic graph namespacing, cycle evidence, and stale/external fail-closed controls. Remote/blob lifetimes and higher-order/future generated SVG effect combinations remain explicit partial boundaries.",
       "featureIds": [
         "render.tree-to-svg"
       ],

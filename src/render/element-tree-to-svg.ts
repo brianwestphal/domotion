@@ -25,7 +25,7 @@ import { advancedGradientTile, needsChromiumGradientRaster } from "./advanced-gr
 import { computeTileSize } from "./conic-raster.js";
 import { isFlexOrGridContainerDisplay, establishesStackingContext, gatherStackingContextChildren, isOverflowOnlySC, isFixedContainingBlock, paintOrderBuckets, paintsAtomicallyAsInlineBox, type PaintOrderBuckets } from "./stacking.js";
 export { parseGradientStops, buildRadialGradientDef, parseBgPositionPx } from "./gradient-defs.js"; // re-export for existing test importers
-import { buildMaskDef, buildMaskBorder9Slice, positionFragmentMaskDef, positionFragmentClipPathDef, positionObjectBoundingBoxClipPathDef, resolveFragmentMaskRegion, rewriteFragmentMaskDef, type MaterializedFragmentMaskLayer } from "./mask.js";
+import { buildMaskDef, buildMaskBorder9Slice, positionFragmentMaskDef, positionFragmentClipPathDef, positionObjectBoundingBoxClipPathDef, resolveFragmentMaskRegion, rewriteFragmentMaskDef, rewriteFragmentResourceGraph, type MaterializedFragmentMaskLayer } from "./mask.js";
 // Re-export mask helpers used by focused geometry/emission tests.
 export { buildMaskDef, maskPaintAreas, positionFragmentMaskDef, rewriteFragmentMaskDef } from "./mask.js";
 export { resolveMaskContainCoverRect, resolveMaskPosition, resolveMaskPositionAxis } from "./mask-position.js";
@@ -64,7 +64,11 @@ import {
 } from "./overflow-clip.js";
 import { cssTransformToSvg } from "./transforms.js";
 import { parseCssUrl, splitTopLevelCommas } from "./css-tokens.js";
-import { buildLinearGradientDef as buildExactLinearGradientDef, parseLegacyWebkitLinearGradient } from "./gradients.js";
+import {
+  buildLinearGradientDef as buildExactLinearGradientDef,
+  buildRadialGradientDef as buildExactRadialGradientDef,
+  parseLegacyWebkitGradient,
+} from "./gradients.js";
 import { blinkPhysicalSymbolMarkerRect, blinkSymbolMarkerGeometry, disclosureTriangle, pixelSnapRect, type SymbolMarkerType } from "./list-marker-geometry.js";
 import type { CapturedBackgroundImage, CapturedElement, CapturedTreeInput, TextSegment, MaskFragmentDef, MaskFragmentReference, MaskRasterRef, ClipPathFragmentDef, CaptureWarning } from "../capture/types.js";
 import { capturedTreeRoots, capturedTreeSessionGenericFamilies } from "../capture/tree-envelope.js";
@@ -3633,8 +3637,20 @@ function resolveFragmentClipPathRef(
   const fragId = parseSameDocumentClipPathUrl(clipPathCss);
   if (fragId == null) return null;
   const scopedFragId = el.fragmentReferenceScope == null ? fragId : `${el.fragmentReferenceScope}\u0000${fragId}`;
-  const def = fragmentClipPathDefs.get(scopedFragId) ?? fragmentClipPathDefs.get(fragId);
+  // Scoped consumers must never fall through to a raw-id definition from a
+  // different iframe/shadow TreeScope. The raw lookup exists only for legacy
+  // serialized trees that carried no scope metadata at all.
+  const def = el.fragmentReferenceScope == null
+    ? fragmentClipPathDefs.get(fragId)
+    : fragmentClipPathDefs.get(scopedFragId);
   if (def == null) return null;
+
+  const rewrite = (outId: string): { rootOuterHTML: string; dependencyOuterHTML: string[] } | null => {
+    if (def.dependencyGraph == null) {
+      return { rootOuterHTML: rewriteFragmentMaskDef(def.outerHTML, outId, `${outId}-`), dependencyOuterHTML: [] };
+    }
+    return rewriteFragmentResourceGraph(def.outerHTML, def.dependencyGraph, outId, `${outId}-`, def.scope);
+  };
 
   // The mask rewriter is element-name-agnostic (discovers ids, mints prefixed
   // aliases, rewrites href / url() refs). The outer `<clipPath>` becomes
@@ -3648,9 +3664,11 @@ function resolveFragmentClipPathRef(
     const cached = fragmentClipPathOutputId.get(cacheKey);
     if (cached != null) return cached;
     const outId = `${idPrefix}cpfrag${state.fragmentClipPathCounter++}`;
+    const rewritten = rewrite(outId);
+    if (rewritten == null) return null;
     fragmentClipPathOutputId.set(cacheKey, outId);
-    const rewritten = rewriteFragmentMaskDef(def.outerHTML, outId, `${outId}-`);
-    defsParts.push(positionObjectBoundingBoxClipPathDef(rewritten, el.x, el.y, el.width, el.height));
+    defsParts.push(...rewritten.dependencyOuterHTML);
+    defsParts.push(positionObjectBoundingBoxClipPathDef(rewritten.rootOuterHTML, el.x, el.y, el.width, el.height));
     return outId;
   }
 
@@ -3661,9 +3679,11 @@ function resolveFragmentClipPathRef(
   const cached = fragmentClipPathOutputId.get(cacheKey);
   if (cached != null) return cached;
   const outId = `${idPrefix}cpfrag${state.fragmentClipPathCounter++}`;
+  const rewritten = rewrite(outId);
+  if (rewritten == null) return null;
   fragmentClipPathOutputId.set(cacheKey, outId);
-  const rewritten = rewriteFragmentMaskDef(def.outerHTML, outId, `${outId}-`);
-  defsParts.push(positionFragmentClipPathDef(rewritten, el.x, el.y, referenceZoom));
+  defsParts.push(...rewritten.dependencyOuterHTML);
+  defsParts.push(positionFragmentClipPathDef(rewritten.rootOuterHTML, el.x, el.y, referenceZoom));
   return outId;
 }
 function resolveFragmentMaskLayer(
@@ -3676,7 +3696,9 @@ function resolveFragmentMaskLayer(
   const fragId = reference.id;
   const referenceScope = reference.scope ?? el.fragmentReferenceScope;
   const scopedFragId = referenceScope == null ? fragId : `${referenceScope}\u0000${fragId}`;
-  const def = fragmentMaskDefs.get(scopedFragId) ?? fragmentMaskDefs.get(fragId);
+  const def = referenceScope == null
+    ? fragmentMaskDefs.get(fragId)
+    : fragmentMaskDefs.get(scopedFragId);
   if (def == null) return null;
   const maskMode = layerMode.trim().toLowerCase();
   const maskType = maskMode === "alpha" || maskMode === "luminance" ? maskMode : (def.maskType ?? "luminance");
@@ -3694,7 +3716,6 @@ function resolveFragmentMaskLayer(
   const cached = fragmentMaskOutputId.get(cacheKey);
   if (cached != null) return { id: cached, region };
   const outId = `${idPrefix}mkfrag${state.fragmentMaskCounter++}`;
-  fragmentMaskOutputId.set(cacheKey, outId);
   // Rewrite the captured <mask>'s outerHTML: mint our output id, prefix
   // descendant ids and url(#…) refs to the domotion namespace, then
   // Materialize the source mask into root user space. Region and content each
@@ -3702,8 +3723,13 @@ function resolveFragmentMaskLayer(
   // source viewport resolution and consumer zoom, while object-bbox values
   // map through the HTML border box. The CSS layer's explicit mode can
   // override the captured mask-type channel.
-  const rewritten = rewriteFragmentMaskDef(def.outerHTML, outId, `${outId}-`);
-  const positioned = positionFragmentMaskDef(rewritten, el.x, el.y, el.width, el.height, positionOptions);
+  const rewritten = def.dependencyGraph == null
+    ? { rootOuterHTML: rewriteFragmentMaskDef(def.outerHTML, outId, `${outId}-`), dependencyOuterHTML: [] }
+    : rewriteFragmentResourceGraph(def.outerHTML, def.dependencyGraph, outId, `${outId}-`, def.scope);
+  if (rewritten == null) return null;
+  fragmentMaskOutputId.set(cacheKey, outId);
+  defsParts.push(...rewritten.dependencyOuterHTML);
+  const positioned = positionFragmentMaskDef(rewritten.rootOuterHTML, el.x, el.y, el.width, el.height, positionOptions);
   defsParts.push(positioned);
   return { id: outId, region };
 }
@@ -6060,9 +6086,12 @@ function buildBackgroundLayerDef(
   const gradY = (attachment === "fixed" && fixedViewport != null) ? 0 : elY;
   const gradW = (attachment === "fixed" && fixedViewport != null) ? fixedViewport.w : w;
   const gradH = (attachment === "fixed" && fixedViewport != null) ? fixedViewport.h : h;
-  const legacyLinear = parseLegacyWebkitLinearGradient(layer);
-  if (legacyLinear != null) {
-    return { def: buildExactLinearGradientDef(legacyLinear, id, { x: gradX, y: gradY, w: gradW, h: gradH }) };
+  const legacyGradient = parseLegacyWebkitGradient(layer);
+  if (legacyGradient != null) {
+    const rect = { x: gradX, y: gradY, w: gradW, h: gradH };
+    return { def: legacyGradient.kind === "linear"
+      ? buildExactLinearGradientDef(legacyGradient, id, rect)
+      : buildExactRadialGradientDef(legacyGradient, id, rect) };
   }
   if (needsChromiumGradientRaster(layer)) {
     const tile = computeTileSize(sizeCss, gradW, gradH);

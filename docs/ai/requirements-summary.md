@@ -151,7 +151,13 @@ the border box (with objectBoundingBox normalized content explicitly mapped
 through it), while SVG-child references force fill-box. Strict capture→SVG DPR
 1/2 controls cover stale trees, transparent hosts, nested frames, and external
 references (DM-2362, doc 39).
-All 110 logical rows are exact at the unchanged `0.00011` tolerance. DM-2494
+All 118 logical rows are exact at the unchanged `0.00011` tolerance. DM-2528/
+[doc 223](../223-legacy-webkit-gradient-geometry.md) adds pinned Blink/Skia
+ownership for deprecated `-webkit-gradient()` linear endpoints, two-circle
+radial geometry, unitless effective zoom, physical writing axes, and
+stable-sort-before-terminal-clamp stops. Modern-line substitution,
+width/height exchange, and omitted-zoom mutations all fail while modern and
+repeating routes remain unchanged. DM-2494
 adds source-derived URL-mask `round`/`space` ownership: mask-origin supplies
 tile size/phase, mask-clip supplies the tiled paint destination, and a
 collapsed-area mutation is rejected structurally and by DPR-1/2 Chromium ink.
@@ -2311,3 +2317,9 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   after style neutralization. The gate is native macOS/Linux/Windows logical
   evidence only: screenshots, pixel tolerances, committed family answers, and
   unchecked “supported field” counts are forbidden.
+### Transitive SVG fragment resources (DM-2529)
+
+- Resolve every local mask/clip dependency edge in its referencing element's originating TreeScope.
+- Preserve computed SVG paint and separately hoist reachable out-of-subtree resources under a collision-free output namespace.
+- Fail closed on missing, stale, external, cross-scope, unreachable, or structurally forged evidence; retain authenticated cycles for native SVG resource-specific handling.
+- Do not replace source-owned logic with pixel thresholds or bake computed geometry/transform values that would override unit-sensitive SVG attributes.

@@ -89,6 +89,327 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
     return layers;
   };
 
+  // DM-2529: Blink does not serialize an SVG resource subtree. It resolves a
+  // live graph: every href/url hop starts in the referencing element's
+  // OriginatingTreeScope, stylesheet-owned paint can introduce more edges,
+  // and resource containers nested under <defs> remain dormant until an
+  // actual edge reaches them. Capture that graph before cloning any markup.
+  const svgResourceTags = new Set([
+    'clippath', 'filter', 'lineargradient', 'marker', 'mask', 'pattern',
+    'radialgradient', 'symbol',
+  ]);
+  const svgPaintProperties = [
+    'color', 'display', 'visibility', 'opacity',
+    'fill', 'fill-opacity', 'fill-rule',
+    'stroke', 'stroke-opacity', 'stroke-width', 'stroke-dasharray',
+    'stroke-dashoffset', 'stroke-linecap', 'stroke-linejoin', 'stroke-miterlimit',
+    'paint-order', 'marker-start', 'marker-mid', 'marker-end',
+    'clip-path', 'filter',
+    'mask-image', 'mask-origin', 'mask-clip', 'mask-position', 'mask-size',
+    'mask-repeat', 'mask-composite', 'mask-mode', 'mask-type',
+    'stop-color', 'stop-opacity', 'flood-color', 'flood-opacity',
+    'lighting-color', 'color-interpolation', 'color-interpolation-filters',
+    'vector-effect', 'shape-rendering', 'mix-blend-mode',
+  ];
+  const decodeFragmentId = (value) => {
+    try { return decodeURIComponent(value); } catch (e) { return value; }
+  };
+  const documentUrlWithoutFragment = (source) => {
+    const doc = source.ownerDocument || document;
+    const href = String(doc.URL || doc.baseURI || '');
+    const hash = href.indexOf('#');
+    return hash < 0 ? href : href.slice(0, hash);
+  };
+  const classifyFragmentReference = (source, rawValue) => {
+    const raw = String(rawValue || '').trim();
+    if (raw === '') return { status: 'external', target: raw };
+    if (raw.charAt(0) === '#') {
+      return { status: 'local', target: decodeFragmentId(raw.slice(1)) };
+    }
+    // Self-contained data paint remains self-contained and is not a graph
+    // edge. Blob/network references are deliberately not copied: their
+    // lifetime and response are outside the frozen capture.
+    if (/^data:/i.test(raw) && raw.indexOf('#') < 0) return { status: 'safe' };
+    try {
+      const parsed = new URL(raw, source.baseURI || (source.ownerDocument && source.ownerDocument.baseURI));
+      if (parsed.hash !== '') {
+        const withoutHash = parsed.href.slice(0, parsed.href.length - parsed.hash.length);
+        if (withoutHash === documentUrlWithoutFragment(source)) {
+          return { status: 'local', target: decodeFragmentId(parsed.hash.slice(1)) };
+        }
+      }
+    } catch (e) { /* rejected below as an external/stale occurrence */ }
+    return { status: 'external', target: raw };
+  };
+  const replaceCssUrls = (value, replace) => {
+    return String(value || '').replace(/url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*?))\s*\)/gi, (full, dq, sq, bare) => {
+      const raw = dq != null ? dq : (sq != null ? sq : String(bare || '').trim());
+      const replacement = replace(raw);
+      return replacement == null ? full : 'url(#' + replacement + ')';
+    });
+  };
+  const fragmentCycles = (root, nodeCount, edges) => {
+    const outgoing = Array.from({ length: nodeCount }, () => []);
+    for (const edge of edges) {
+      if (edge.status === 'resolved' && edge.to != null && !outgoing[edge.from].includes(edge.to)) {
+        outgoing[edge.from].push(edge.to);
+      }
+    }
+    const state = Array.from({ length: nodeCount }, () => 0);
+    const stack = [];
+    const cycles = [];
+    const visit = (index) => {
+      state[index] = 1;
+      stack.push(index);
+      for (const next of outgoing[index]) {
+        if (state[next] === 0) visit(next);
+        else if (state[next] === 1) {
+          const start = stack.lastIndexOf(next);
+          cycles.push(stack.slice(start).concat(next));
+        }
+      }
+      stack.pop();
+      state[index] = 2;
+    };
+    visit(root);
+    return cycles;
+  };
+  const buildFragmentDependencyGraph = (rootTarget, sel, property) => {
+    const svgNs = 'http://www.w3.org/2000/svg';
+    const xlinkNs = 'http://www.w3.org/1999/xlink';
+    const nodes = [];
+    const sourceByNode = [];
+    const nodeBySource = new Map();
+    const edges = [];
+    const plansBySource = new Map();
+    const queue = [];
+    let refSequence = 0;
+    let failure = '';
+
+    const ensureNode = (target) => {
+      const existing = nodeBySource.get(target);
+      if (existing != null) return existing;
+      const id = target.getAttribute && target.getAttribute('id');
+      if (target.namespaceURI !== svgNs || id == null || id === '') return null;
+      const index = nodes.length;
+      nodes.push({
+        id,
+        scope: referenceScopeFor(target),
+        tagName: (target.localName || '').toLowerCase(),
+        serialization: index === 0 ? 'root' : 'dependency',
+      });
+      sourceByNode.push(target);
+      nodeBySource.set(target, index);
+      queue.push(index);
+      return index;
+    };
+    const rootIndex = ensureNode(rootTarget);
+    if (rootIndex == null) return null;
+
+    const addPlan = (source, from, surface, kind, raw) => {
+      const classified = classifyFragmentReference(source, raw);
+      if (classified.status === 'safe') return null;
+      const token = '__domotion_fragment_ref_' + (refSequence++) + '__';
+      const scope = referenceScopeFor(source);
+      const edge = {
+        from,
+        scope,
+        kind,
+        token,
+        target: classified.target || raw,
+        status: 'external',
+      };
+      if (classified.status === 'local') {
+        const target = fragmentTarget(source, classified.target);
+        if (target == null || target.namespaceURI !== svgNs) {
+          edge.status = 'missing';
+        } else if (!target.isConnected || target.getRootNode() !== source.getRootNode()) {
+          edge.status = 'stale';
+        } else {
+          const targetIndex = ensureNode(target);
+          if (targetIndex == null || nodes[targetIndex].scope !== scope) {
+            edge.status = 'stale';
+          } else {
+            edge.status = 'resolved';
+            edge.to = targetIndex;
+          }
+        }
+      }
+      edges.push(edge);
+      const plans = plansBySource.get(source) || [];
+      plans.push({ surface, kind, raw, token });
+      plansBySource.set(source, plans);
+      return token;
+    };
+    const scanUrls = (source, from, surface, value) => {
+      replaceCssUrls(value, (raw) => addPlan(source, from, surface, 'url', raw));
+    };
+    const hasDefsAncestorBefore = (node, target) => {
+      let current = node.parentElement;
+      while (current != null && current !== target) {
+        if ((current.localName || '').toLowerCase() === 'defs') return true;
+        current = current.parentElement;
+      }
+      return false;
+    };
+    const scanTarget = (index) => {
+      const target = sourceByNode[index];
+      const walk = (source) => {
+        if (source !== target) {
+          const knownNode = nodeBySource.get(source);
+          if (knownNode != null && knownNode !== index) return;
+          const tag = (source.localName || '').toLowerCase();
+          if (tag === 'defs' || hasDefsAncestorBefore(source, target) || svgResourceTags.has(tag)) return;
+        }
+        if (source.namespaceURI !== svgNs) return;
+        const href = source.getAttribute('href') || source.getAttributeNS(xlinkNs, 'href') || '';
+        if (href !== '') addPlan(source, index, 'href', 'href', href);
+        for (const attr of Array.from(source.attributes || [])) {
+          const name = String(attr.name || '').toLowerCase();
+          if (name === 'style' || name === 'href' || name === 'xlink:href') continue;
+          if (/url\(/i.test(attr.value)) scanUrls(source, index, 'attr:' + attr.name, attr.value);
+        }
+        const view = source.ownerDocument && source.ownerDocument.defaultView;
+        const computed = view != null ? view.getComputedStyle(source) : null;
+        if (computed != null) {
+          for (const prop of svgPaintProperties) {
+            const value = computed.getPropertyValue(prop).trim();
+            if (value !== '' && /url\(/i.test(value)) scanUrls(source, index, 'computed:' + prop, value);
+          }
+        }
+        for (const child of Array.from(source.children || [])) walk(child);
+      };
+      walk(target);
+    };
+    for (let cursor = 0; cursor < queue.length; cursor++) scanTarget(queue[cursor]);
+
+    // A local resource is live-observed by Blink. Authenticate that every
+    // captured target still owns its id in its original TreeScope after the
+    // full synchronous closure walk; a retargeted entry becomes an inert edge
+    // rather than binding to stale markup.
+    for (let index = 0; index < nodes.length; index++) {
+      const target = sourceByNode[index];
+      if (!target.isConnected || fragmentTarget(target, nodes[index].id) !== target
+          || referenceScopeFor(target) !== nodes[index].scope) {
+        failure = 'resource #' + nodes[index].id + ' changed identity or TreeScope during capture';
+        break;
+      }
+    }
+    if (failure !== '') {
+      warn(sel, property, failure + '; omitted the stale fragment graph');
+      return null;
+    }
+
+    // Choose a minimal set of separately serialized roots after discovering
+    // the whole closure. A target nested inside another captured target rides
+    // in that ancestor's markup; a sibling/out-of-subtree target is hoisted.
+    for (let index = 1; index < nodes.length; index++) {
+      let container = null;
+      for (let candidate = 0; candidate < nodes.length; candidate++) {
+        if (candidate === index) continue;
+        const ancestor = sourceByNode[candidate];
+        if (!ancestor.contains(sourceByNode[index])) continue;
+        if (container == null || sourceByNode[container].contains(ancestor)) container = candidate;
+      }
+      if (container != null) {
+        nodes[index].serialization = 'embedded';
+        nodes[index].containedIn = container;
+      }
+    }
+    const graphTargets = new Set(sourceByNode);
+    const containsGraphTarget = (source) => {
+      for (const target of graphTargets) if (source === target || source.contains(target)) return true;
+      return false;
+    };
+    const hasPotentialFragmentReference = (source) => {
+      for (const node of [source].concat(Array.from(source.querySelectorAll ? source.querySelectorAll('*') : []))) {
+        const href = node.getAttribute && (node.getAttribute('href') || node.getAttributeNS(xlinkNs, 'href'));
+        if (href) return true;
+        for (const attr of Array.from(node.attributes || [])) if (/url\(/i.test(attr.value)) return true;
+        const view = node.ownerDocument && node.ownerDocument.defaultView;
+        const computed = view != null ? view.getComputedStyle(node) : null;
+        if (computed != null) {
+          for (const prop of svgPaintProperties) if (/url\(/i.test(computed.getPropertyValue(prop))) return true;
+        }
+      }
+      return false;
+    };
+    const planValue = (source, surface, value) => {
+      const plans = (plansBySource.get(source) || []).filter((plan) => plan.surface === surface);
+      let cursor = 0;
+      if (surface === 'href') {
+        const plan = plans[0];
+        return plan == null ? value : '#' + plan.token;
+      }
+      return replaceCssUrls(value, () => {
+        const plan = plans[cursor++];
+        return plan == null ? null : plan.token;
+      });
+    };
+    const serialize = (sourceRoot, serializationNode) => {
+      const cloneRoot = sourceRoot.cloneNode(true);
+      const bake = (source, clone) => {
+        if (source.namespaceURI !== svgNs) return;
+        const tag = (source.localName || '').toLowerCase();
+        if (tag === 'script' || tag === 'style') {
+          clone.remove();
+          return;
+        }
+        const dormantDefinition = source !== sourceRoot
+          && (svgResourceTags.has(tag) || hasDefsAncestorBefore(source, sourceRoot));
+        if (dormantDefinition && !containsGraphTarget(source)
+            && hasPotentialFragmentReference(source)) {
+          clone.remove();
+          return;
+        }
+        const nodeIndex = nodeBySource.get(source);
+        if (nodeIndex != null) clone.setAttribute('data-domotion-fragment-node', String(nodeIndex));
+        clone.removeAttribute('style');
+        const view = source.ownerDocument && source.ownerDocument.defaultView;
+        const computed = view != null ? view.getComputedStyle(source) : null;
+        if (computed != null) {
+          for (const prop of svgPaintProperties) {
+            let value = computed.getPropertyValue(prop).trim();
+            if (value === '') continue;
+            value = planValue(source, 'computed:' + prop, value);
+            clone.style.setProperty(prop, value);
+          }
+        }
+        for (const attr of Array.from(clone.attributes || [])) {
+          const name = String(attr.name || '').toLowerCase();
+          if (name === 'style' || name === 'data-domotion-fragment-node') continue;
+          if (name === 'href' || name === 'xlink:href') {
+            clone.setAttribute(attr.name, planValue(source, 'href', attr.value));
+          } else if (/url\(/i.test(attr.value)) {
+            clone.setAttribute(attr.name, planValue(source, 'attr:' + attr.name, attr.value));
+          }
+        }
+        const sourceChildren = Array.from(source.children || []);
+        const cloneChildren = Array.from(clone.children || []);
+        const count = Math.min(sourceChildren.length, cloneChildren.length);
+        // Iterate backwards because removing a clone child must not shift the
+        // remaining source↔clone correspondence.
+        for (let child = count - 1; child >= 0; child--) bake(sourceChildren[child], cloneChildren[child]);
+      };
+      bake(sourceRoot, cloneRoot);
+      return cloneRoot.outerHTML;
+    };
+
+    const rootOuterHTML = serialize(rootTarget, rootIndex);
+    for (let index = 1; index < nodes.length; index++) {
+      if (nodes[index].serialization === 'dependency') {
+        nodes[index].outerHTML = serialize(sourceByNode[index], index);
+      }
+    }
+    const graph = {
+      root: rootIndex,
+      nodes,
+      edges,
+      cycles: fragmentCycles(rootIndex, nodes.length, edges),
+    };
+    return { outerHTML: rootOuterHTML, dependencyGraph: graph };
+  };
+
   // DM-2379: Blink's contain/cover sizing consumes StyleImage natural sizing
   // before resolving mask-position against the remaining space. Capture the
   // same per-layer aspect facts while the page-owned resources are loaded.
@@ -146,6 +467,8 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
         continue;
       }
       if (!maskDefs.has(key)) {
+        const capturedGraph = buildFragmentDependencyGraph(target, sel, 'mask');
+        if (capturedGraph == null) continue;
         const maskUnits = svgUnit(target.maskUnits, target.getAttribute('maskUnits'));
         const maskContentUnits = svgUnit(target.maskContentUnits, target.getAttribute('maskContentUnits'));
         const targetView = target.ownerDocument && target.ownerDocument.defaultView;
@@ -153,7 +476,8 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
         maskDefs.set(key, {
           id: fragId,
           scope,
-          outerHTML: target.outerHTML,
+          outerHTML: capturedGraph.outerHTML,
+          dependencyGraph: capturedGraph.dependencyGraph,
           maskUnits,
           maskContentUnits,
           maskType: computedMaskType === 'alpha' ? 'alpha' : 'luminance',
@@ -287,6 +611,8 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
       if (!clipPathDefs.has(key)) {
         const target = fragmentTarget(el, fragId);
         if (target != null && target.tagName.toLowerCase() === 'clippath') {
+          const capturedGraph = buildFragmentDependencyGraph(target, sel, 'clip-path');
+          if (capturedGraph == null) return undefined;
           // SVG default for clipPathUnits is userSpaceOnUse (DM-828). The
           // renderer translates that per consumer and materializes an
           // objectBoundingBox def through each HTML border rect (DM-2362).
@@ -294,14 +620,15 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
           clipPathDefs.set(key, {
             id: fragId,
             scope,
-            outerHTML: target.outerHTML,
+            outerHTML: capturedGraph.outerHTML,
+            dependencyGraph: capturedGraph.dependencyGraph,
             clipPathUnits: units === 'objectboundingbox' ? 'objectBoundingBox' : 'userSpaceOnUse',
           });
         } else {
           warn(sel, 'clip-path', 'clip-path fragment "#' + fragId + '" did not resolve to an inline <clipPath> element');
         }
       }
-      return scope;
+      return clipPathDefs.has(key) ? scope : undefined;
     }
     const extFragMatch = /^url\(\s*(?:"|')?[^"')#]+#[^"')\s]+(?:"|')?\s*\)$/i.exec(cpShape);
     if (extFragMatch != null) {

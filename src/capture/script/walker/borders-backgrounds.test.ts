@@ -24,6 +24,24 @@ describe("zoomed border and outline paint lengths (DM-2323)", () => {
     )).toBe('url("data:image/svg+xml,<svg id=\\"8px\\"/>") , repeating-linear-gradient(37deg, red -10px 14px, blue calc(22px + 10%))');
   });
 
+  it("scales only deprecated point/radius numbers, never percentages or stop offsets", () => {
+    expect(physicalComputedGradientImage(
+      "-webkit-gradient(linear, 12 8, 80% 75%, color-stop(-0.2, red), color-stop(1.2, blue))",
+      2,
+    )).toBe("-webkit-gradient(linear, 24 16, 80% 75%, color-stop(-0.2, red), color-stop(1.2, blue))");
+    expect(physicalComputedGradientImage(
+      "-webkit-gradient(radial, 10 20, 5, 80% 70%, 40, from(red), color-stop(0.5, blue))",
+      1.25,
+    )).toBe("-webkit-gradient(radial, 12.5 25, 6.25, 80% 70%, 50, from(red), color-stop(0.5, blue))");
+  });
+
+  it("does not interpret gradient-looking bytes inside a URL payload", () => {
+    expect(physicalComputedGradientImage(
+      'url("data:image/svg+xml,<svg data-x=\'-webkit-gradient(linear, 10 20, 30 40)\'/>")',
+      2,
+    )).toBe('url("data:image/svg+xml,<svg data-x=\'-webkit-gradient(linear, 10 20, 30 40)\'/>")');
+  });
+
   it("preserves unzoomed bytes and signed offsets", () => {
     expect(physicalComputedPaintLength("5px", 1)).toBe("5px");
     expect(physicalComputedPaintLength("-2.5px", 0.8)).toBe("-2px");

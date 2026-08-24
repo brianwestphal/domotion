@@ -209,6 +209,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6mnbuvwfy7nkfj",
+          "message": {
+            "text": "Shrinking legacy radial gradients reverse both circles and the stop parameter. Blink and Skia accept either radius ordering, while SVG requires fr <= r; the paired reversal preserves the two-point conical function without fitting pixels or changing a tolerance. The 119-row source oracle and DPR browser suite cover this branch.",
+            "markdown": "Shrinking legacy radial gradients reverse both circles and the stop parameter. Blink and Skia accept either radius ordering, while SVG requires fr <= r; the paired reversal preserves the two-point conical function without fitting pixels or changing a tolerance. The 119-row source oracle and DPR browser suite cover this branch."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/gradients.ts"
+                },
+                "region": {
+                  "startLine": 683,
+                  "endLine": 701,
+                  "snippet": {
+                    "text": "  if (gradient.legacyCircles != null) {\n    const geometry = computeLegacyRadialGeometry(gradient.legacyCircles, rect);\n    // SVG requires `fr <= r`, whereas Blink/Skia's two-point conical shader\n    // accepts either radius ordering. Reversing both circles and the stop\n    // parameter preserves the exact shader while satisfying SVG's grammar.\n    const shrinking = geometry.r1 > geometry.r2;\n    const stops = (shrinking\n      ? [...gradient.stops].reverse().map((stop) => ({ ...stop, offset: 1 - (stop.offset ?? 0) }))\n      : gradient.stops).map((stop) => stopMarkup(stop)).join(\"\");\n    const inner = shrinking\n      ? { x: geometry.x2, y: geometry.y2, r: geometry.r2 }\n      : { x: geometry.x1, y: geometry.y1, r: geometry.r1 };\n    const outer = shrinking\n      ? { x: geometry.x1, y: geometry.y1, r: geometry.r1 }\n      : { x: geometry.x2, y: geometry.y2, r: geometry.r2 };\n    return `<radialGradient id=\"${id}\" gradientUnits=\"userSpaceOnUse\" fx=\"${num(inner.x)}\" fy=\"${num(inner.y)}\" fr=\"${num(inner.r)}\" cx=\"${num(outer.x)}\" cy=\"${num(outer.y)}\" r=\"${num(outer.r)}\">${stops}</radialGradient>`;\n  }\n  const cx = resolvePos(gradient.position.x, rect.x, rect.w);\n  const cy = resolvePos(gradient.position.y, rect.y, rect.h);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2528"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "fd960626d5e71e06c30b2ee96d3790ad"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a6674e3ced808db9ea47619896f2eed772494920",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
