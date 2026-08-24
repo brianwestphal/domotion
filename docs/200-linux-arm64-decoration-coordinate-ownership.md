@@ -69,10 +69,9 @@ proves that a one-pixel origin mutation still fails. The pinned Playwright
 | Focused coherent-DPR browser rows | DPR 1 + DPR 4 |
 
 The local arm64 container report records Chromium `147.0.7727.0`,
-`platform=linux`, `architecture=arm64`, and DPR `4/4`. A fresh retained
-`ubuntu-22.04-arm` workflow artifact is still required after integration; the
-local result proves the corrected source/geometry contract but does not stand
-in for that release-consumer run. Windows remains a separate platform row.
+`platform=linux`, `architecture=arm64`, and DPR `4/4`. Retained native
+`ubuntu-22.04-arm` run `32689447808` confirms the complete 109/30/109 matrix in
+the release-consumer aggregate. Windows remains a separate platform row.
 
 ```sh
 npx vitest run tests/decoration-oracle.test.ts \

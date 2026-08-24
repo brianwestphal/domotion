@@ -30,10 +30,8 @@ reason to update a visual envelope.
 
 The release audit preceding this workflow found zero downloads for all three
 arm64 assets. That is why producer success is not recorded as consumer proof.
-The first native workflow artifact with verdict
-`exact-arm64-release-parity` is the evidence that closes that final operational
-claim; until it is dispatched after integration, the gate exists but the live
-consumer result remains pending.
+Native run `32689447808` is the first accepted retained workflow artifact with
+verdict `exact-arm64-release-parity`; it closes the live release-consumer claim.
 
 ## Clean-cache acquisition leg
 
@@ -105,8 +103,7 @@ explicitly, requires their omission mutations to change only exact logical
 advances, and records inapplicable, non-moving, and unexpected mutations
 separately in schema 3. The workflow also supplies pinned source revisions to
 the fingerprint. These changes activate the logical inputs; they do not add
-fixture rows to the host comparison corpus or alter any raster threshold. A
-fresh retained native artifact is still required after integration.
+fixture rows to the host comparison corpus or alter any raster threshold.
 
 The same retained run also exposed a decoration-oracle ownership defect rather
 than a renderer defect. Its Chrome paint/rule legs used DPR 4, while its
@@ -128,13 +125,29 @@ and declared-family precedence, and routes bare U+2757 to Noto Color Emoji.
 The unchanged `02-text-emoji` fixture is clean with zero significant regions.
 `.github/workflows/emoji-presentation-ownership-audit.yml` gates the exact
 source partition and native route without a pixel threshold. See
-[doc 201](201-emoji-presentation-item-ownership.md); DM-2508 owns only aggregate
-activation of this resolved evidence.
+[doc 201](201-emoji-presentation-item-ownership.md). The accepted aggregate run
+retains the resolved result.
 
 The uploaded artifact includes hidden visual-cache provenance files because
 `final.json` hashes the complete evidence directory. Omitting those files from
 retention would leave a green run whose downloaded artifact could not reproduce
 its own 71-file manifest; such a run is not accepted as retained evidence.
+
+## Retained native result
+
+Run `32689447808`, checkout `f166b9a3eda4b73f05935012b5044f918c5f0066`,
+records environment fingerprint
+`cb72f8304ba04abb06b50885ea41469ec9fcee572c2af154b1fc093d39bade8a`
+and artifact-set digest
+`4fddd766e8c6f0c4acfb728ddf778f7b9b075d1536d365e5068a114571a75463`.
+Independent review of the downloaded artifact reproduced both digests and all
+71 per-file hashes. Both executable companions are little-endian ELF64
+AArch64; all pinned/sidecar/GitHub/download digests agree; the 29-family font
+inventory digest is stable; font selection is 15,106/15,106 exact; shaping is
+686 pairs with every required movement control active; decoration is
+109/109 plus 30/30 skip-ink rows at coherent DPR 4; paint is 119 exact source
+rows plus 10 native browser probes; all four HTML and all four Unicode fixtures
+pass. Renderer logic and every existing tolerance are unchanged.
 
 ## Maintainer commands
 

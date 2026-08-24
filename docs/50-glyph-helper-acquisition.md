@@ -143,8 +143,8 @@ The maintainer's calls on the open questions (all implemented):
   workflow uses the production async acquisition APIs in a never-used cache,
   requires the pinned digest, sidecar, GitHub digest, ELF architecture and live
   protocols to agree, proves cache reuse, then runs the exact logical and
-  selected visual parity matrix. Its first remote result remains pending until
-  the workflow is integrated and dispatched.
+  selected visual parity matrix. Native run `32689447808` retains the first
+  independently hash-verified exact release-consumer artifact (doc 196).
 
 ## Relationship to other work
 

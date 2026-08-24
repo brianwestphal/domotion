@@ -127,9 +127,8 @@ rows rule out a native raster floor.
   per resulting item, applies CSS afterward, and no longer derives iterator
   ownership from a queued hint. The order pair, opposite-CSS VS15/VS16 rows,
   CSS text, and declared-family rows above are strict controls.
-- **DM-2508** promotes the now-resolved report and focused HTML result into the
-  Linux arm64 release aggregate. That integration step is not a remaining
-  production ownership gap.
+- The retained Linux arm64 release aggregate (`32689447808`) includes the
+  resolved report and a clean focused `02-text-emoji` result.
 
 Neither this closure nor the aggregate follow-up may widen a logical or raster
 threshold.
