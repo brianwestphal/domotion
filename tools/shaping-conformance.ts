@@ -81,6 +81,11 @@ import {
   type ExactFeatureValueRecord,
   type FontFeatureValueTables,
 } from "./shaping-font-feature-values.js";
+import {
+  authenticateFontFeatureEnvironment,
+  fontFeatureEnvironmentKey,
+  type AuthenticatedFontFeatureEnvironment,
+} from "./font-feature-value-environment.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -184,6 +189,13 @@ export interface RunSpec {
     styleDescriptor: string;
     stretchDescriptor: string;
   };
+  /**
+   * Browser-selected multi-face/source environment. Unlike the legacy single
+   * data face, this carries the selected declaration, source slot, exact bytes,
+   * descriptors, unicode-range, collection index, alias table and document
+   * identity. Authentication is mandatory before either probe or shaping.
+   */
+  fontFeatureEnvironment?: AuthenticatedFontFeatureEnvironment;
   /**
    * The run's computed `letter-spacing` and `text-rendering` (DM-1983).
    *
@@ -790,14 +802,20 @@ const esc = (s: string): string =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 function probeEnvironmentKey(spec: RunSpec): string {
-  return JSON.stringify([spec.webfont ?? null, spec.fontFeatureValues ?? null]);
+  return JSON.stringify([
+    spec.fontFeatureEnvironment == null
+      ? null : fontFeatureEnvironmentKey(spec.fontFeatureEnvironment),
+    spec.webfont ?? null,
+    spec.fontFeatureValues ?? null,
+  ]);
 }
 
 export function resolvedFeaturesForRun(spec: RunSpec): string[] {
+  const tables = spec.fontFeatureEnvironment?.effectiveAliasTable ?? spec.fontFeatureValues;
   const resolved = resolvedFeatureValueList(
     spec.fontVariantAlternates,
     spec.fontFamily,
-    spec.fontFeatureValues,
+    tables,
   );
   if (spec.resolvedFontFeatures != null
       && JSON.stringify(spec.resolvedFontFeatures) !== JSON.stringify(resolved)) {
@@ -808,6 +826,15 @@ export function resolvedFeaturesForRun(spec: RunSpec): string[] {
 }
 
 function webfontFaceCss(spec: RunSpec): string {
+  if (spec.fontFeatureEnvironment != null) {
+    const selected = authenticateFontFeatureEnvironment(spec.fontFeatureEnvironment);
+    const face = selected.face;
+    const source = selected.source;
+    return `@font-face{font-family:${JSON.stringify(face.family)};`
+      + `src:url(data:font/otf;base64,${source.bytesBase64});`
+      + `font-weight:${face.weightDescriptor};font-style:${face.styleDescriptor};`
+      + `font-stretch:${face.stretchDescriptor};unicode-range:${face.unicodeRange};}`;
+  }
   const face = spec.webfont;
   if (face == null) return "";
   if (!/^[a-z0-9.+-]+\/[a-z0-9.+-]+$/i.test(face.mime)
@@ -826,8 +853,9 @@ export function shapingProbePageHtml(specs: RunSpec[]): string {
     throw new Error("shaping probe batch mixes distinct font-feature-values environments");
   }
   for (const spec of specs) resolvedFeaturesForRun(spec);
+  const environmentTables = specs[0]?.fontFeatureEnvironment?.effectiveAliasTable;
   const prelude = specs.length === 0 ? "" : webfontFaceCss(specs[0])
-    + serializeFontFeatureValues(specs[0].fontFeatureValues);
+    + serializeFontFeatureValues(environmentTables ?? specs[0].fontFeatureValues);
   return `<html lang="en"><head><meta charset="utf-8"><style>${prelude}</style></head><body style="margin:0">${
     specs.map((s, i) =>
       `<div id="r${i}" style="font-family:${esc(s.fontFamily)};font-size:${s.fontSize}px;`
@@ -945,6 +973,18 @@ const installedRunWebfonts = new Set<string>();
  * The split is intentional: HarfBuzz retains hidden default-ignorables as
  * zero-advance space glyphs, while SVG correctly emits no ink for them. */
 export function ourShaping(spec: RunSpec): OurShaping {
+  const authenticated = spec.fontFeatureEnvironment == null
+    ? undefined : authenticateFontFeatureEnvironment(spec.fontFeatureEnvironment);
+  if (authenticated != null) {
+    const face = authenticated.face;
+    const key = fontFeatureEnvironmentKey(authenticated.environment);
+    if (!installedRunWebfonts.has(key)) {
+      registerWebfont(face.family, parseInt(face.weightDescriptor, 10) || 400,
+        face.styleDescriptor, authenticated.bytes, undefined, face.stretchDescriptor,
+        face.weightDescriptor, face.styleDescriptor);
+      installedRunWebfonts.add(key);
+    }
+  }
   if (spec.webfont != null) {
     const face = spec.webfont;
     const key = JSON.stringify(face);
@@ -975,12 +1015,12 @@ export function ourShaping(spec: RunSpec): OurShaping {
     ),
   );
   const featureList = features ?? [];
-  const logicalRecord = spec.webfont == null ? undefined : exactWebfontFeatureRecord(
-    Buffer.from(spec.webfont.dataBase64, "base64"),
-    spec.text,
-    featureList,
-    spec.fontSize,
-  );
+  const logicalRecord = authenticated != null
+    ? exactWebfontFeatureRecord(authenticated.bytes, spec.text, featureList, spec.fontSize,
+      authenticated.source.faceIndex)
+    : spec.webfont == null ? undefined : exactWebfontFeatureRecord(
+      Buffer.from(spec.webfont.dataBase64, "base64"), spec.text, featureList, spec.fontSize,
+    );
   const provenanceWasEnabled = textRunProvenanceEnabled();
   resetTextRunProvenance();
   setTextRunProvenanceEnabled(true);

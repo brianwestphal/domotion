@@ -138,10 +138,11 @@ export function exactWebfontFeatureRecord(
   text: string,
   features: string[],
   fontSizePx = 32,
+  faceIndex = 0,
 ): ExactFeatureValueRecord {
   const result = harfbuzzShapeRun(
     registerHbBufferSource(bytes),
-    0,
+    faceIndex,
     text,
     "ltr",
     fontSizePx,
