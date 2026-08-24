@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6wd7jkbawa8fm3",
+          "message": {
+            "text": "DM-2571 source decision: Page.printToPDF cannot transport logical paged-table ownership because browser CDP receives only PDF data after renderer PrintEnd destroys the transient PhysicalBoxFragment tree. A pinned renderer-side sidecar sampled between PrintBegin and PrintEnd is the earliest trustworthy seam; tracing and PDF/Skia parsing remain downstream or lossy.",
+            "markdown": "DM-2571 source decision: Page.printToPDF cannot transport logical paged-table ownership because browser CDP receives only PDF data after renderer PrintEnd destroys the transient PhysicalBoxFragment tree. A pinned renderer-side sidecar sampled between PrintBegin and PrintEnd is the earliest trustworthy seam; tracing and PDF/Skia parsing remain downstream or lossy."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/230-paged-table-private-fragment-transport.md"
+                },
+                "region": {
+                  "startLine": 7,
+                  "endLine": 46,
+                  "snippet": {
+                    "text": "\n## Source boundary\n\nHeadless `Page.printToPDF` validates print parameters in\n`headless/lib/browser/protocol/page_handler.cc`, calls\n`HeadlessPrintManager::PrintToPdf`, and returns only PDF bytes or an IO stream.\nThe browser-side callback has no renderer fragment-tree payload.\n\nIn the renderer, `PrepareFrameAndViewForPrint::EnterPrintModeInternal` calls\n`WebLocalFrame::PrintBegin`; only then does Blink build the paginated layout and\nits private `PhysicalBoxFragment` tree. `PrintPagesNative` consumes that tree\nwhile painting pages. `LeavePrintModeInternal` calls `PrintEnd`, destroying the\ntransient print layout before the public CDP command completes. Screen CSSOM,\n`DOM.getContentQuads`, PDF objects, vector commands, and raster pixels therefore\ncannot authenticate row break tokens, repeated section occurrences, or\ncollapsed-edge decisions.\n\n## Candidate transports\n\n1. A pinned renderer-side evidence helper is the trustworthy candidate. It\n   serializes the source-owned record synchronously after `PrintBegin` and\n   before `PrintEnd`, then returns a bounded sidecar through a dedicated Mojo or\n   DevTools response field. This has direct access to the exact fragment tree\n   and a clear lifetime/teardown invariant.\n2. A tracing event is technically cheaper but unsuitable as the primary\n   contract: trace category enablement, payload truncation, event loss, and\n   cross-renderer correlation add independent ambiguity.\n3. Parsing PDF or instrumenting Skia is downstream and cannot recover the\n   logical ownership record. It remains final-ink evidence only.\n\nThe helper must authenticate browser and renderer binaries, pinned source,\nprint parameters, frame/document/loader epoch, page order, and exact restoration\nafter `PrintEnd`. The record must carry physical table and section occurrence\nidentity, global row intervals and exact offsets, break tokens, repeat\neligibility/roles, captions, spans/interior suppression, collapsed-edge\ndecisions and paint slots, writing mode and direction. Proposal and validation\nbuilds/runs must be independent.\n\n## Cost and next steps\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 1,
+          "workItemUris": [
+            "DM-2571"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "64bdf36c6910892e376b0c4227f0e95b"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "e3ce5c7b04c2c4df0ee5bc95c63248ec76c47b8e",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

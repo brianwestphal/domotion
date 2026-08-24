@@ -1183,6 +1183,12 @@ only when the local sparse Chromium checkout matches the source pin, all
 fourteen logical facts stay withheld, source state restores, and pixels remain
 unread. No tolerance changes. See
 [doc 225](../225-fragmented-collapsed-table-ownership.md).
+DM-2571 traced the missing transport through headless `PageHandler`,
+`HeadlessPrintManager`, and renderer `PrepareFrameAndViewForPrint`: the private
+fragment tree is valid only after `PrintBegin` and is destroyed by `PrintEnd`
+before CDP returns. [Doc 230](../230-paged-table-private-fragment-transport.md)
+selects an evidence-only pinned renderer Mojo/DevTools sidecar; PDF parsing,
+Skia instrumentation, and tracing are not accepted as logical substitutes.
 
 ### Pre-navigation rAF capture ownership (DM-2554)
 

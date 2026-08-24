@@ -2430,6 +2430,12 @@ pixel tolerance or fitted font-name table (DM-2550, doc 224).
   on macOS, Linux, and Windows. Pixels may validate the terminal only after the
   logical record passes; they may not fill missing provenance or justify a
   tolerance change (DM-2526, DM-2557–DM-2560, doc 225).
+- Do not infer paged-table row breaks, repeated-section occurrences, or
+  collapsed-edge decisions from `Page.printToPDF`, PDF objects, vector output,
+  or pixels. Public CDP returns only PDF bytes after `PrintEnd` destroys the
+  private print fragment tree. Until a pinned renderer helper serializes the
+  record between `PrintBegin` and `PrintEnd`, keep paged logical ownership
+  unavailable and fail closed (DM-2571/DM-2573/DM-2574, doc 230).
 
 ### Pre-navigation rAF capture ownership
 
