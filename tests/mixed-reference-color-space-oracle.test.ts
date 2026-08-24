@@ -26,6 +26,21 @@ describe("DM-2535 pinned mixed reference color-space stages", () => {
     expect(MUTATION_MIN_CHANNEL_DISTANCE).toBe(8);
   });
 
+  it("fails closed across a Chromium roll until the missing-transition model is reviewed", async () => {
+    const previous = process.env.DOMOTION_CHROMIUM_REVISION;
+    process.env.DOMOTION_CHROMIUM_REVISION = "future-unreviewed-revision";
+    try {
+      const { runMixedReferenceColorSpaceOracle } = await import("../tools/mixed-reference-color-space-oracle.js");
+      const report = await runMixedReferenceColorSpaceOracle([]);
+      expect(report.chromiumRollDiscriminator.pass).toBe(false);
+      expect(report.structuralErrors).toContain("chromium-roll:future-unreviewed-revision");
+      expect(report.verdict).toBe("unexpected-drift");
+    } finally {
+      if (previous == null) delete process.env.DOMOTION_CHROMIUM_REVISION;
+      else process.env.DOMOTION_CHROMIUM_REVISION = previous;
+    }
+  });
+
   it("transcribes the pinned sRGB channel transfer at both breakpoints", () => {
     expect(MIXED_CHANNEL_TRANSFER_FACTS.srgbHalfToLinear).toBeCloseTo(.21404114048223255, 14);
     expect(MIXED_CHANNEL_TRANSFER_FACTS.linearHalfToSrgb).toBeCloseTo(.7353569830524495, 14);

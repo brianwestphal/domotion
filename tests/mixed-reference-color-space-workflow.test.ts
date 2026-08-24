@@ -20,5 +20,6 @@ describe("DM-2535 native mixed color-space evidence workflow", () => {
     expect(workflow).not.toContain("--accept-known-findings");
     expect(workflow).not.toContain("continue-on-error");
     expect(workflow).toContain("if-no-files-found: error");
+    expect(workflow).toContain("DOMOTION_CHROMIUM_REVISION: 7d859f271cbda744098ac69f44978d4edfa62be3");
   });
 });

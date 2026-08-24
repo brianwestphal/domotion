@@ -357,15 +357,6 @@ const MUTATIONS: readonly MutationSpec[] = [
 // gaps and the three mutations they make inert. Any different row/mutation is
 // unexpected drift; landing the follow-up may remove entries without making a
 // newly exact build fail.
-const KNOWN_PRODUCTION_GAP_PROBES = new Set([
-  "blend.nonisolated",
-  "blend.local-isolated",
-]);
-const KNOWN_PRODUCTION_GAP_MUTATIONS = new Set([
-  "nonisolated-drop-blend",
-  "isolated-drop-isolation",
-  "local-isolated-drop-blend",
-]);
 
 function applyTreeMutation(tree: CapturedElement[], operation: MutationOperation): string | null {
   if (operation.type === "filter-space") {
@@ -470,7 +461,7 @@ export interface MixedReferenceColorSpaceReport {
   structuralErrors: string[];
   productionGaps: string[];
   unexpectedFailures: string[];
-  verdict: "source-exact" | "production-gap" | "unexpected-drift";
+  verdict: "source-exact" | "unexpected-drift";
 }
 
 function nativeOwnership(element: CapturedElement | undefined): MixedColorSpaceBoundaryRow["actual"] {
@@ -693,34 +684,36 @@ export async function runMixedReferenceColorSpaceOracle(
       ) >= MUTATION_MIN_CHANNEL_DISTANCE,
     },
   ];
-  const productionGaps = rows
-    .filter((row) => row.sourceModelMaxChannelError <= STAGE_CHANNEL_TOLERANCE
-      && row.renderedMaxChannelError > STAGE_CHANNEL_TOLERANCE)
-    .map((row) => `row:DPR${row.dpr}:${row.id}`);
-  productionGaps.push(...mutationRows
-    .filter((row) => !row.pass && KNOWN_PRODUCTION_GAP_MUTATIONS.has(row.id))
-    .map((row) => `mutation:DPR${row.dpr}:${row.id}`));
+  const configuredChromiumRevision = process.env.DOMOTION_CHROMIUM_REVISION;
+  if (configuredChromiumRevision != null
+    && configuredChromiumRevision !== MIXED_COLOR_SPACE_SOURCE_PINS.chromium) {
+    structuralErrors.push(`chromium-roll:${configuredChromiumRevision}`);
+  }
   const unexpectedFailures = [
     ...rows.filter((row) => row.sourceModelMaxChannelError > STAGE_CHANNEL_TOLERANCE)
       .map((row) => `source-model:DPR${row.dpr}:${row.id}`),
     ...rows.filter((row) => row.sourceModelMaxChannelError <= STAGE_CHANNEL_TOLERANCE
       && row.renderedMaxChannelError > STAGE_CHANNEL_TOLERANCE
-      && !KNOWN_PRODUCTION_GAP_PROBES.has(row.id))
+      )
       .map((row) => `unexpected-production-gap:DPR${row.dpr}:${row.id}`),
-    ...mutationRows.filter((row) => !row.pass && !KNOWN_PRODUCTION_GAP_MUTATIONS.has(row.id))
+    ...mutationRows.filter((row) => !row.pass)
       .map((row) => `mutation:DPR${row.dpr}:${row.id}`),
     ...boundaries.filter((row) => !row.pass).map((row) => `boundary:${row.id}`),
     ...hostileLogicalControls.filter((row) => !row.pass).map((row) => `hostile:${row.id}`),
     ...structuralErrors,
   ];
-  const verdict = unexpectedFailures.length > 0
-    ? "unexpected-drift"
-    : productionGaps.length > 0
-      ? "production-gap"
-      : "source-exact";
+  const verdict = unexpectedFailures.length > 0 ? "unexpected-drift" : "source-exact";
   return {
     schemaVersion: 1,
     sourcePins: MIXED_COLOR_SPACE_SOURCE_PINS,
+    chromiumRollDiscriminator: {
+      configuredRevision: configuredChromiumRevision ?? MIXED_COLOR_SPACE_SOURCE_PINS.chromium,
+      expectedRevision: MIXED_COLOR_SPACE_SOURCE_PINS.chromium,
+      pinnedBehavior: "missing-linearRGB-to-sRGB-before-shorthand",
+      earlyConversionMutationDistance: hostileLogicalControls.find((row) => row.id === "insert-early-linear-to-srgb-transition")!.maxChannelCodeDistance,
+      pass: (configuredChromiumRevision == null || configuredChromiumRevision === MIXED_COLOR_SPACE_SOURCE_PINS.chromium)
+        && hostileLogicalControls.find((row) => row.id === "insert-early-linear-to-srgb-transition")!.pass,
+    },
     producer: { chromiumVersion, platform: process.platform, architecture: process.arch },
     fixedBounds: {
       maxChannelCode: STAGE_CHANNEL_TOLERANCE,
@@ -746,7 +739,7 @@ export async function runMixedReferenceColorSpaceOracle(
     boundaries,
     warnings,
     structuralErrors,
-    productionGaps,
+    productionGaps: [],
     unexpectedFailures,
     verdict,
   };
