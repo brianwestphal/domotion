@@ -30,8 +30,12 @@ async function verifyArtifacts(reportPath: string, input: unknown): Promise<stri
   const reportRoot = dirname(reportPath);
   for (const row of parsed.data.rows) {
     for (const artifact of row.artifacts) {
-      const path = resolve(reportRoot, artifact.path);
-      const display = `${parsed.data.host.platform}/${row.id}@${row.deviceScaleFactor}x/z${row.cssZoom}/${artifact.role}-${artifact.part}`;
+      // Reports are produced on all three hosts, then reopened on an arbitrary
+      // aggregate host. Treat the serialized path as a portable relative path;
+      // node:path on POSIX otherwise interprets Windows separators literally.
+      const portableArtifactPath = artifact.path.replaceAll("\\", "/");
+      const path = resolve(reportRoot, portableArtifactPath);
+      const display = `${parsed.data.host.platform}/${row.id}@${row.deviceScaleFactor}x/z${row.cssZoom}/${artifact.role}`;
       if (relative(reportRoot, path).startsWith("..")) {
         blockers.push(`${display}: artifact path escapes its report directory`);
         continue;

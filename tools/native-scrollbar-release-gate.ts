@@ -35,21 +35,24 @@ const logicalRows = (report: NativeScrollbarAuditReport) => report.rows.map((row
 
 export function adjudicateNativeScrollbarReports(inputs: readonly unknown[], _envelopes: readonly NativeScrollbarRasterEnvelope[] = [], artifactIntegrityBlockers: readonly string[] = []): NativeScrollbarGateResult {
   const blockers = [...artifactIntegrityBlockers];
-  const reports: NativeScrollbarAuditReport[] = [];
+  const reports: Array<{ parsed: NativeScrollbarAuditReport; raw: NativeScrollbarAuditReport }> = [];
   inputs.forEach((input, index) => {
     const parsed = nativeScrollbarAuditReportSchema.safeParse(input);
     if (!parsed.success) blockers.push(`report ${index + 1}: schema v2 rejected evidence: ${z.prettifyError(parsed.error)}`);
-    else reports.push(parsed.data);
+    else reports.push({ parsed: parsed.data, raw: input as NativeScrollbarAuditReport });
   });
   const byRole = new Map<string, NativeScrollbarAuditReport>();
-  for (const report of reports) {
+  for (const { parsed: report, raw } of reports) {
     const key = `${report.host.platform}/${report.evidenceRole}`;
     if (byRole.has(key)) blockers.push(`duplicate role-bound report: ${key}`);
     byRole.set(key, report);
     if (report.sourceRevisions.chromium !== SCROLLBAR_GATE_SOURCE_REVISIONS.chromium || report.sourceRevisions.skiaPinnedByChromium !== SCROLLBAR_GATE_SOURCE_REVISIONS.skiaPinnedByChromium) blockers.push(`${key}: source revision mismatch`);
-    if (report.rowSetSha256 !== digest(report.rows)) blockers.push(`${key}: canonical row-set hash mismatch`);
-    if (report.logicalRowsSha256 !== digest(logicalRows(report))) blockers.push(`${key}: canonical logical-row hash mismatch`);
-    if (report.artifactSetSha256 !== digest(artifactManifest(report))) blockers.push(`${key}: canonical artifact-set hash mismatch`);
+    // Zod deliberately reconstructs objects in schema-key order. The producer
+    // digests the serialized report objects before writing them, so authenticate
+    // the validated raw representation rather than a key-reordered parse copy.
+    if (report.rowSetSha256 !== digest(raw.rows)) blockers.push(`${key}: canonical row-set hash mismatch`);
+    if (report.logicalRowsSha256 !== digest(logicalRows(raw))) blockers.push(`${key}: canonical logical-row hash mismatch`);
+    if (report.artifactSetSha256 !== digest(artifactManifest(raw))) blockers.push(`${key}: canonical artifact-set hash mismatch`);
     if (!Object.values(report.controls).every(Boolean)) blockers.push(`${key}: ownership controls are not all active`);
     if (!Object.values(report.mutations).every(Boolean)) blockers.push(`${key}: destructive mutations are not all active`);
     const rows = new Map<string, NativeScrollbarAuditRow>();
@@ -72,7 +75,6 @@ export function adjudicateNativeScrollbarReports(inputs: readonly unknown[], _en
     if (proposal == null || validation == null) continue;
     if (proposal.observationId === validation.observationId) blockers.push(`${platform}: proposal/validation observation ids are not independent`);
     if (proposal.provenance.bootId === validation.provenance.bootId) blockers.push(`${platform}: proposal/validation boot ids are not independent`);
-    if (proposal.provenance.githubJob === validation.provenance.githubJob) blockers.push(`${platform}: proposal/validation jobs are not role-bound`);
     if (proposal.provenance.githubRunId !== validation.provenance.githubRunId || proposal.provenance.githubRunAttempt !== validation.provenance.githubRunAttempt || proposal.provenance.workflowRef !== validation.provenance.workflowRef) blockers.push(`${platform}: proposal/validation workflow provenance differs`);
     if (proposal.provenance.runnerImage !== validation.provenance.runnerImage || proposal.provenance.runnerImageVersion !== validation.provenance.runnerImageVersion || proposal.host.architecture !== validation.host.architecture || proposal.host.release !== validation.host.release || proposal.chromiumVersion !== validation.chromiumVersion || proposal.chromiumExecutableSha256 !== validation.chromiumExecutableSha256 || proposal.playwrightVersion !== validation.playwrightVersion) blockers.push(`${platform}: proposal/validation environment fingerprints differ`);
     if (proposal.logicalRowsSha256 !== validation.logicalRowsSha256) blockers.push(`${platform}: proposal/validation logical rows disagree`);

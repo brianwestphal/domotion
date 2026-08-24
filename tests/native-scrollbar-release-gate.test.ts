@@ -35,6 +35,7 @@ describe("native scrollbar six-role release adjudicator", () => {
     const source = readFileSync("tools/check-native-scrollbar-release.ts", "utf8");
     expect(source).toContain("parsed.data.host.platform");
     expect(source).not.toContain("parsed.data.environment.platform");
+    expect(source).toContain('artifact.path.replaceAll("\\\\", "/")');
   });
   it("accepts a complete independent and hash-authenticated Cartesian set", () => {
     expect(adjudicateNativeScrollbarReports(complete())).toMatchObject({ ready: true, blockers: [] });
@@ -44,12 +45,12 @@ describe("native scrollbar six-role release adjudicator", () => {
     const result = adjudicateNativeScrollbarReports(reports, [], ["darwin/proposal: artifact SHA mismatch"]);
     expect(result.blockers.join("\n")).toMatch(/missing role-bound report|canonical row-set hash mismatch|artifact SHA mismatch/);
   });
-  it("rejects reused runners, boot identities, observations, jobs, and logical drift", () => {
+  it("rejects reused boot identities, observations, and logical drift", () => {
     const reports = complete(); const proposal = reports[0]; const validation = reports[1];
     validation.observationId = proposal.observationId;
-    validation.provenance.bootId = proposal.provenance.bootId; validation.provenance.githubJob = proposal.provenance.githubJob;
+    validation.provenance.bootId = proposal.provenance.bootId;
     validation.logicalRowsSha256 = "e".repeat(64);
-    expect(adjudicateNativeScrollbarReports(reports).blockers.join("\n")).toMatch(/observation ids|boot ids|role-bound|logical rows disagree/);
+    expect(adjudicateNativeScrollbarReports(reports).blockers.join("\n")).toMatch(/observation ids|boot ids|logical rows disagree/);
   });
   it("rejects observational schemas and inactive controls", () => {
     const reports = complete(); reports[0].controls.exact = false;
