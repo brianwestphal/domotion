@@ -2975,6 +2975,8 @@ function paintResizeHandle(
       const dashAttr = dash !== "" ? ` stroke-dasharray="${dash}"` : "";
       if (radius > 0) {
         out.push(`${indent}<rect x="${r(handle.x + half)}" y="${r(handle.y + half)}" width="${r(Math.max(0, handle.width - border.width))}" height="${r(Math.max(0, handle.height - border.width))}" rx="${r(Math.max(0, radius - half))}" ry="${r(Math.max(0, radius - half))}" fill="none" stroke="${esc(border.color)}" stroke-width="${r(border.width)}"${dashAttr} />`);
+      } else if (Math.abs(zoom - Math.round(zoom)) < 1e-7) {
+        out.push(`${indent}<rect x="${r(handle.x + half)}" y="${r(handle.y + half)}" width="${r(Math.max(0, handle.width - border.width))}" height="${r(Math.max(0, handle.height - border.width))}" fill="none" stroke="${esc(border.color)}" stroke-width="${r(border.width)}"${dashAttr} />`);
       } else {
         // CustomScrollbarTheme paints the fragmentless resizer through a
         // pixel-snapped foreground cull rect. At fractional zoom its leading
