@@ -1,8 +1,8 @@
 # Native scrollbar release gate
 
-**Status:** strict adjudicator and native-platform workflow implemented; the
-gate is intentionally **not ready** until DM-2482 and DM-2483 replace the two
-remaining paint gaps
+**Status:** strict adjudicator, source-owned custom/native paint, and the
+six-role native evidence workflow are implemented; fresh native evidence must
+still adjudicate `READY` before release
 
 **Ticket:** DM-2484
 
@@ -36,75 +36,84 @@ that checkout, `62efacd37737505732dbe3d8daa62abd679626a1`:
 
 ## Evidence schema
 
-`tools/native-scrollbar-release-gate.ts` defines schema version 2. One report
-is required from each of native macOS, Linux, and Windows. Every report must
+`tools/native-scrollbar-release-gate.ts` defines schema version 2. Independent
+proposal and validation reports are required from each of native macOS, Linux,
+and Windows. Every report must
 retain:
 
-- architecture, OS release, runner image and image version;
-- Chromium version and Playwright browser revision, Playwright version, launch
+- its role, independent observation UUID, architecture, OS release, runner
+  image/version, runner name, native boot identity, workflow/job/run/attempt;
+- Chromium version and executable SHA-256, Playwright version, launch
   arguments, the ignored default argument list, and the affirmative fact that
   `--hide-scrollbars` was removed;
 - observed overlay/classic preference;
 - every fixture at DPR 1 and 2 crossed with CSS zoom 1, 1.25, and 2; and
 - row-level scheme, forced-colors state, capture route/status, source state,
-  isolated lossless PNG strip metadata, SHA-256, source frame, source clip,
-  output-transform application count, and vector-sibling discriminator.
+  and lossless source/generated PNG metadata and SHA-256; and
+- canonical hashes over logical rows, complete rows, and the artifact manifest,
+  plus an explicit declaration that dynamic overlay fade is a separate
+  platform-terminal leg rather than an observational success route.
 
 An unsupported platform state remains a row. It may prove no ink, but it may
 not disappear from the Cartesian product.
 
 ## Strict adjudication
 
-`tools/check-native-scrollbar-release.ts` recursively loads the three reports,
+`tools/check-native-scrollbar-release.ts` recursively loads the six reports,
 re-hashes and decodes every PNG, and rejects a path escaping its report
 directory, a non-PNG crop, a digest mismatch, or a dimension mismatch. The
 pure adjudicator then requires:
 
-- exactly one report per platform and the pinned source revisions;
+- exactly one proposal and one validation report per platform and the pinned
+  source revisions;
+- matching workflow/run provenance but different role-bound jobs, native boot
+  identities, and observation UUIDs (the hosted runner name is retained but is
+  not treated as a unique physical-machine identifier);
+- recomputed canonical row, logical-row, and artifact-manifest hashes, with
+  proposal/validation logical-row agreement;
 - the complete scenario/DPR/zoom product with no duplicate rows;
-- no warnings, missing facts, partial/unavailable paint, expected-gap route,
-  failed producer classification, or legacy 7 px synthetic pill;
-- author-custom marker-class equality and at most one device pixel of x/y/
-  width/height bound delta per part;
-- native source/generated strip SHA equality from the same run, or an explicit
-  reviewed envelope keyed to platform, architecture, runner image/version,
-  Chromium revision, row, DPR, zoom, part, and the exact allowed SHA pair;
-- each crop wholly inside both the source-owned frame and
-  `OverflowControlsClip`, with source/generated crops addressing the same
-  device-pixel rectangle;
-- one output transform application, preserved vector-sibling bounds/pixels,
-  live top/mid/max thumb movement, RTL negative offset plus logical-left, and
-  corner-before-resizer order.
+- no warnings, missing facts, observational route, or failed producer row;
+- exactly one lossless source/generated artifact pair per row; and
+- every ownership and destructive-mutation control remains active, including
+  custom marker identity and one-device-pixel geometry, native same-frame
+  raster authentication, one output transform, top/mid/max movement, axis and
+  RTL ownership, corner/resizer order, and rejection of a missing native hash.
 
 There is no common macOS/Linux/Windows color envelope. A reviewed exception
 cannot match after any platform or environment fingerprint changes.
 
 ## Workflow and mutation controls
 
-`.github/workflows/native-scrollbar-parity.yml` collects native artifacts on
-`macos-latest`, `ubuntu-latest`, and `windows-latest`, always uploads each
-producer directory, then downloads all three into a separate aggregate job and
-runs `npm run scrollbars:parity-gate`. It is dispatch-only while the known
-paint dependencies are red; automatic pull-request/push triggers must be added
-only when the same strict aggregate reaches `READY`.
+`.github/workflows/native-scrollbar-parity.yml` crosses `macos-latest`,
+`ubuntu-latest`, and `windows-latest` with proposal/validation, records runner
+image and native boot identity, and always uploads each role-owned producer
+directory. A separate aggregate downloads and losslessly reauthenticates all
+six inputs before `npm run scrollbars:parity-gate`. It remains dispatch-only
+until a fresh strict aggregate reaches `READY`.
 
-The focused unit suite constructs a complete green three-platform report and
-then independently mutates the facts which commonly make a visual oracle lie:
-old schema/current-gap routing, missing part or strip, crop one pixel outside
-the owner, double transform, corner after resizer, frozen thumb, custom marker
-class/bounds drift, fingerprint substitution, missing platform, corrupt
-artifact, and reintroduced legacy pill. Each mutation is required to fail.
+The focused unit suite constructs a complete green six-role report set, then
+mutates schema, role completeness, canonical hashes, artifact integrity,
+boot/observation/job independence, logical agreement, and control
+activation. Each mutation is required to fail; the producer's focused suite
+separately owns the geometry and state mutations listed above.
 
 ## Current result and follow-up
 
 The adjudicator implementation is green against its complete synthetic
-contract. Production evidence is deliberately red: the existing ownership
-producer still writes the observational DM-2481 shape, custom records retain
-`dynamic-scrollbar-pseudo-cascade`, native records retain animator/frame/phase
-unknowns, and no final custom/native strip artifacts exist. DM-2482 must land
-custom vector paint; DM-2483 must land native same-frame rasters and schema-v2
-producer fields. DM-2484 can be called release-ready only after a fresh native
-three-platform workflow is `READY` without weakening these checks.
+contract. The source-run ownership producer is also exact again: its serialized
+discovery callback carries a lexical esbuild name helper instead of depending
+on a page global, its 24-row explicit-headless macOS run authenticates every
+custom vector/native raster/absence owner, and six destructive controls reject
+frozen position, swapped axis, wrong RTL side, missing corner/resizer order and
+missing native raster digest. Dynamic fade/platform fingerprints remain a
+separate terminal evidence leg.
+
+Release evidence is still deliberately withheld pending a fresh native run.
+The workflow now emits six independent role-bound schema-v2 artifacts and the
+aggregate reauthenticates the complete Cartesian artifact set. Only a retained
+macOS/Linux/Windows run whose proposal and validation arms agree may move the
+gate to `READY`; the workflow does not authorize an observational route,
+scalar screenshot cap, or tolerance change.
 
 Focused checks:
 

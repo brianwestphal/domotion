@@ -48,6 +48,7 @@ import {
   createCollapsedBorderGrid,
   mergeCollapsedBorderBox,
 } from "./collapsed-border.js";
+import { validateCollapsedBorderFragmentRecord } from "../../collapsed-border-fragment-record.js";
 
 /** Computed border/outline lengths are serialized in pre-effective-zoom CSS
  * pixels, while captured DOMRects are already in painted coordinates. Blink's
@@ -238,7 +239,7 @@ export const tableGridRectFromCaptions = (tableRect, writingMode, captions) => {
   };
 };
 
-export const createBordersBackgroundsHandler = ({ normColor, normGradientColors, resolvePlaceholderShownBg, resolveCornerRadius, effectiveZoomFor = () => 1, warn = () => {}, shortSelector = () => "", vp = { x: 0, y: 0 } }) => {
+export const createBordersBackgroundsHandler = ({ normColor, normGradientColors, resolvePlaceholderShownBg, resolveCornerRadius, effectiveZoomFor = () => 1, warn = () => {}, shortSelector = () => "", vp = { x: 0, y: 0 }, collapsedBorderFragmentRecordFor = () => undefined }) => {
   const isUaColorBorder = (tag, el, cs, side) =>
     tag === 'input' && el.type === 'color'
     && normColor(cs[side], cs.color).replace(/\s+/g, '') === 'rgb(0,0,0)';
@@ -479,114 +480,54 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
     };
     const tableFragments = Array.from(table.getClientRects()).filter((rect) => rect.width > 0 && rect.height > 0);
     if (tableFragments.length > 1) {
-      // DM-2322: TablePainter owns one global edge graph but paints it once per
-      // physical table fragment. CSSOM exposes the corresponding table/row/
-      // cell fragment boxes through getClientRects(), which lets us reproduce
-      // Blink's section-local row offsets without guessing fragmentainer cuts.
-      const overlapArea = (a, b) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left))
-        * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
-      const fragmentIndexFor = (rect) => {
-        let best = -1, area = 0;
-        for (let i = 0; i < tableFragments.length; i++) {
-          const candidate = overlapArea(rect, tableFragments[i]);
-          if (candidate > area) { best = i; area = candidate; }
-        }
-        return best;
-      };
+      // Blink stores global start-row + exact row offsets on every physical
+      // section fragment (`table_section_layout_algorithm.cc:47-164`) and
+      // TablePainter consumes those fields directly (`table_painters.cc:
+      // 490-727`). Never reconstruct that private state from CSSOM alone. The
+      // prepass correlated ordered getClientRects with DOM.getContentQuads in
+      // an all-transform-neutral epoch; any missing/ambiguous record withholds
+      // collapsed-border vector paint instead of reviving the old heuristic.
+      const record = collapsedBorderFragmentRecordFor(table);
+      const recordErrors = record?.status === 'authenticated'
+        ? validateCollapsedBorderFragmentRecord(record)
+        : [record?.reason || 'authenticated physical section-fragment record missing'];
+      if (record?.status !== 'authenticated'
+          || recordErrors.length > 0
+          || record.writingMode !== writingMode
+          || record.direction !== direction
+          || record.totalRows !== grid.rows
+          || record.totalColumns !== grid.columns
+          || record.tableFragments.length !== tableFragments.length) {
+        warn(shortSelector(table), 'fragmented collapsed-table ownership',
+          `collapsed-border vector paint withheld: ${recordErrors.join('; ') || 'record/table structure mismatch'}`);
+        table.__dmCollapsedCells = new Set(cells.map((meta) => meta.cell));
+        table.__dmCollapsedBorderRects = [];
+        table.__dmCollapsedBorderFragmentRecord = record;
+        return table.__dmCollapsedBorderRects;
+      }
       const horizontal = writingMode === 'horizontal-tb';
       const blockReverse = writingMode === 'vertical-rl' || writingMode === 'sideways-rl';
-      const repeatedSections = new Map();
-      for (const section of sectionEls) {
-        if (section.tagName !== 'THEAD' && section.tagName !== 'TFOOT') continue;
-        const rects = Array.from(section.getClientRects());
-        const mapped = new Set(rects.map(fragmentIndexFor).filter((index) => index >= 0));
-        if (rects.length === tableFragments.length && tableFragments.length > 1 && mapped.size === 1) {
-          repeatedSections.set(section, { kind: section.tagName === 'THEAD' ? 'header' : 'footer', sourceFragment: [...mapped][0] });
-        }
-      }
-      const translatedRect = (rect, dx, dy) => ({
-        x: rect.x + dx, y: rect.y + dy,
-        left: rect.left + dx, right: rect.right + dx,
-        top: rect.top + dy, bottom: rect.bottom + dy,
-        width: rect.width, height: rect.height,
-      });
-      const fragmentRectsFor = (node, section) => {
-        const rects = Array.from(node.getClientRects());
-        const repeated = repeatedSections.get(section);
-        if (repeated == null || !rects.length) return rects.map((rect) => ({ rect, fragment: fragmentIndexFor(rect), repeated: false }));
-        const sourceRect = rects[0];
-        const sourceFragment = tableFragments[repeated.sourceFragment];
-        return tableFragments.map((target, fragment) => {
-          let dx, dy;
-          if (horizontal) {
-            dx = target.left - sourceFragment.left;
-            dy = repeated.kind === 'header' ? target.top - sourceFragment.top : target.bottom - sourceFragment.bottom;
-          } else {
-            dy = target.top - sourceFragment.top;
-            if (repeated.kind === 'header') dx = blockReverse ? target.right - sourceFragment.right : target.left - sourceFragment.left;
-            else dx = blockReverse ? target.left - sourceFragment.left : target.right - sourceFragment.right;
-          }
-          return { rect: translatedRect(sourceRect, dx, dy), fragment, repeated: true };
-        });
-      };
-      const rowPieces = rowEntries.map((entry, row) => fragmentRectsFor(entry.row, entry.section)
-        .map((piece) => ({ rect: piece.rect, fragment: piece.fragment, repeated: piece.repeated, row, section: entry.section }))
-        .filter((piece) => piece.fragment >= 0));
-      const cellPieces = cells.map((meta) => fragmentRectsFor(meta.cell, rowEntries[meta.row].section)
-        .map((piece) => ({ rect: piece.rect, fragment: piece.fragment, meta }))
-        .filter((piece) => piece.fragment >= 0));
-      const sectionPieces = new Map(sectionEls.map((section) => [section, fragmentRectsFor(section, section)]));
       const physicalRects = [];
-      for (let fragmentIndex = 0; fragmentIndex < tableFragments.length; fragmentIndex++) {
-        const fragmentRect = tableFragments[fragmentIndex];
+      for (const fragment of record.tableFragments) {
+        const fragmentIndex = fragment.fragmentIndex;
+        const fragmentRect = {
+          left: fragment.physicalRect.x,
+          top: fragment.physicalRect.y,
+          right: fragment.physicalRect.x + fragment.physicalRect.width,
+          bottom: fragment.physicalRect.y + fragment.physicalRect.height,
+          width: fragment.physicalRect.width,
+          height: fragment.physicalRect.height,
+        };
         const inlineReverse = direction === 'rtl';
-        const logical = (rect) => ({
-          inlineStart: horizontal
-            ? (inlineReverse ? fragmentRect.right - rect.right : rect.left - fragmentRect.left)
-            : (inlineReverse ? fragmentRect.bottom - rect.bottom : rect.top - fragmentRect.top),
-          inlineEnd: horizontal
-            ? (inlineReverse ? fragmentRect.right - rect.left : rect.right - fragmentRect.left)
-            : (inlineReverse ? fragmentRect.bottom - rect.top : rect.bottom - fragmentRect.top),
-          blockStart: horizontal ? rect.top - fragmentRect.top : (blockReverse ? fragmentRect.right - rect.right : rect.left - fragmentRect.left),
-          blockEnd: horizontal ? rect.bottom - fragmentRect.top : (blockReverse ? fragmentRect.right - rect.left : rect.right - fragmentRect.left),
-        });
-        const inlineSamples = Array.from({ length: columns + 1 }, () => []);
-        for (const pieces of cellPieces) for (const piece of pieces) if (piece.fragment === fragmentIndex) {
-          const coords = logical(piece.rect), meta = piece.meta;
-          inlineSamples[meta.column].push(coords.inlineStart);
-          inlineSamples[meta.column + meta.colspan].push(coords.inlineEnd);
-        }
-        const inlineExtent = horizontal ? fragmentRect.width : fragmentRect.height;
-        const inlineLines = trackLines(inlineSamples, inlineExtent);
-        const piecesHere = rowPieces.flat().filter((piece) => piece.fragment === fragmentIndex);
-        const sectionGroups = new Map();
-        for (const piece of piecesHere) {
-          const key = piece.section ?? table;
-          let group = sectionGroups.get(key);
-          if (group == null) { group = []; sectionGroups.set(key, group); }
-          group.push(piece);
-        }
-        const groups = Array.from(sectionGroups.values()).map((pieces) => {
-          pieces.sort((a, b) => logical(a.rect).blockStart - logical(b.rect).blockStart || a.row - b.row);
-          const first = pieces[0], last = pieces[pieces.length - 1];
-          const blockLines = pieces.map((piece) => logical(piece.rect).blockStart);
-          const sectionRect = first.section == null ? null : sectionPieces.get(first.section)?.find((piece) => piece.fragment === fragmentIndex)?.rect;
-          blockLines.push(sectionRect == null ? logical(last.rect).blockEnd : logical(sectionRect).blockEnd);
-          const firstPieceIndex = rowPieces[first.row].findIndex((piece) => piece === first);
-          const lastPieceIndex = rowPieces[last.row].findIndex((piece) => piece === last);
-          return {
-            rowStart: first.row,
-            blockLines,
-            startRowFragmented: !first.repeated && firstPieceIndex > 0,
-            endRowFragmented: !last.repeated && lastPieceIndex >= 0 && lastPieceIndex < rowPieces[last.row].length - 1,
-          };
-        }).sort((a, b) => a.blockLines[0] - b.blockLines[0]);
-        for (let i = 0; i < groups.length; i++) {
-          groups[i].hasContentBefore = i === 0 && groups[i].rowStart > 0;
-          groups[i].hasContentAfter = i === groups.length - 1
-            && groups[i].rowStart + groups[i].blockLines.length < grid.rows + 1;
-        }
-        const logicalRects = collapsedBorderFragmentLogicalRects(grid, inlineLines, groups);
+        const groups = fragment.sectionFragments.map((section) => ({
+          rowStart: section.globalStartRowIndex,
+          blockLines: section.logicalRowOffsets,
+          hasContentBefore: section.hasContentBefore,
+          hasContentAfter: section.hasContentAfter,
+          startRowFragmented: section.startContinuedRow,
+          endRowFragmented: section.endContinuedRow,
+        }));
+        const logicalRects = collapsedBorderFragmentLogicalRects(grid, record.globalColumnOffsets, groups);
         for (const rect of logicalRects) {
           let x, y, width, height;
           if (horizontal) {
@@ -599,11 +540,15 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
           }
           const snap = (start, size) => { const rounded = Math.round(start); return { start: rounded, size: Math.max(0, Math.round(start + size) - rounded) }; };
           const sx = snap(x, width), sy = snap(y, height);
-          if (sx.size > 0 && sy.size > 0) physicalRects.push({ x: sx.start, y: sy.start, width: sx.size, height: sy.size, axis: rect.axis, style: rect.winner.style, color: rect.winner.color });
+          if (sx.size > 0 && sy.size > 0) physicalRects.push({ x: sx.start, y: sy.start, width: sx.size, height: sy.size, axis: rect.axis, style: rect.winner.style, color: rect.winner.color, fragmentIndex });
         }
       }
       table.__dmCollapsedCells = new Set(cells.map((meta) => meta.cell));
       table.__dmCollapsedBorderRects = physicalRects;
+      table.__dmCollapsedBorderFragmentRecord = {
+        ...record,
+        consumedBy: 'collapsed-border-fragment-logical-rects-v1',
+      };
       return physicalRects;
     }
     const inlineSamples = Array.from({ length: columns + 1 }, () => []);
@@ -701,6 +646,7 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
       if (tableRects != null && tag === 'table') {
         return {
           collapsedBorderRects: tableRects,
+          collapsedBorderFragmentRecord: collapsedTable.__dmCollapsedBorderFragmentRecord,
           borderTopStyle: 'none', borderRightStyle: 'none', borderBottomStyle: 'none', borderLeftStyle: 'none',
           borderTopWidth: '0px', borderRightWidth: '0px', borderBottomWidth: '0px', borderLeftWidth: '0px',
           borderWidth: '0px', borderColor: 'rgba(0, 0, 0, 0)',

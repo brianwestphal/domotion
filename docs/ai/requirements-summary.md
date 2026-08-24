@@ -2279,7 +2279,12 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   zoom/DPR evidence and exact contract are in
   [doc 165](../165-native-scrollbar-layout-paint-ownership-audit.md); its oracle
   must run without Playwright's default `--hide-scrollbars` and later be
-  promoted on native macOS/Linux/Windows images. DM-2481's implementation and
+  promoted on native macOS/Linux/Windows images. The source-run discovery
+  expression owns a lexical esbuild name helper rather than installing a page
+  global. Its local explicit-headless gate now requires exact custom/vector,
+  native-raster digest/fingerprint, absence and corner-before-resizer facts,
+  with active position/axis/RTL/corner/resizer/digest mutations. Dynamic fade
+  remains a separate platform-terminal leg. DM-2481's implementation and
   stable-CDP limits, DM-2482 custom-vector paint, and DM-2483 native strip
   rasters are in [doc 169](../169-authoritative-scrollbar-capture.md). DM-2484
   owns the dependent three-platform release gate.
@@ -2386,6 +2391,10 @@ pixel tolerance or fitted font-name table (DM-2550, doc 224).
   identity, section source/paint slot, global start row, exact row offsets,
   content-before/after, start/end continued-row state, repeat role/occurrence,
   writing direction, and source/version provenance before vector paint.
+- Authenticate screen records only when ordered CSSOM rectangles and CDP
+  content quads agree exactly in one all-transform-neutral LayoutUnit epoch and
+  the source DOM/protocol geometry restores exactly. Reject ambiguity rather
+  than falling back to overlap, median, or pixel-derived reconstruction.
 - Whole-row fragmentainer breaks paint the source half edge; continued-row
   seams omit the inline edge while continuing block edges without joint
   adjustment. Adjacent section fragments paint their shared global row once,

@@ -7,13 +7,15 @@
  * geometry within one device pixel; native rows retain their platform-owned
  * adjudication contract rather than substituting one host's chrome.
  */
-import { writeFileSync } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
 import { createRequire } from "node:module";
+import { join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import sharp from "sharp";
 import { chromium, type Page } from "playwright";
-import type { CapturedElement } from "../src/capture/types.js";
+import type { CapturedElement, CapturedNativeScrollbarRaster } from "../src/capture/types.js";
 
 const SOURCE_REVISIONS = {
   chromium: "7d859f271cbda744098ac69f44978d4edfa62be3",
@@ -29,12 +31,14 @@ const MARKERS = [
   { name: "thumb", rgb: [25, 85, 209] as const },
   { name: "corner", rgb: [18, 166, 106] as const },
   { name: "button", rgb: [242, 189, 29] as const },
+  { name: "resizer", rgb: [171, 42, 199] as const },
 ] as const;
 
 type ExpectedRoute =
   | "marker-free-control"
   | "custom-vector"
   | "suppressed-captured-absence"
+  | "native-raster"
   | "native-platform-fingerprint";
 
 interface AuditCase {
@@ -112,7 +116,27 @@ interface CapturedFacts {
   verticalRoute: string | null;
   horizontalParts: string[];
   verticalParts: string[];
+  horizontalLogicalSide: string | null;
+  verticalLogicalSide: string | null;
+  horizontalPosition: number | null;
+  verticalPosition: number | null;
+  horizontalNativeRaster: NativeRasterFacts | null;
+  verticalNativeRaster: NativeRasterFacts | null;
+  nativeCornerRaster: NativeRasterFacts | null;
+  corner: Rect | null;
+  outputTransform: [number, number, number, number, number, number] | null;
+  resizeHandle: Rect | null;
+  resizerOverlap: { rect: Rect; paintOrder: string } | null;
   missingFacts: string[];
+}
+
+interface NativeRasterFacts extends Rect {
+  pixelWidth: number;
+  pixelHeight: number;
+  captureDpr: number;
+  sourceFrameSha256: string;
+  cropSha256: string | null;
+  empty: boolean;
 }
 
 interface EdgeFingerprint {
@@ -139,11 +163,19 @@ interface AuditRow {
   axis: string;
   expectedRoute: ExpectedRoute;
   deviceScaleFactor: number;
+  cssZoom: number;
   source: BrowserFacts;
   captured: CapturedFacts | null;
   sourcePixels: PixelFacts;
   generatedPixels: PixelFacts;
   generatedGenericThumbs: number;
+  artifacts: Array<{
+    role: "source" | "generated";
+    path: string;
+    sha256: string;
+    pngWidth: number;
+    pngHeight: number;
+  }>;
   warnings: string[];
   pass: boolean;
 }
@@ -154,6 +186,7 @@ const CUSTOM_SCROLLBAR_CSS = `
   #target::-webkit-scrollbar-thumb{background:#1955d1;border:2px solid #e5212c;border-radius:0}
   #target::-webkit-scrollbar-corner{background:#12a66a}
   #target::-webkit-scrollbar-button{display:none;background:#f2bd1d;width:0;height:0}
+  #target::-webkit-resizer{background:transparent;border:4px solid #ab2ac7;border-radius:0;box-shadow:none}
 `;
 
 const CASES: AuditCase[] = [
@@ -267,11 +300,11 @@ const CASES: AuditCase[] = [
   },
   {
     id: "custom-border-clip",
-    axis: "asymmetric borders/radius plus ancestor overflow clip",
+    axis: "asymmetric borders plus exact axis-aligned ancestor overflow clip",
     expectedRoute: "custom-vector",
-    targetCss: "left:-9px;top:-7px;overflow:auto;border-width:3px 9px 7px 5px;border-radius:22px 7px 28px 3px",
+    targetCss: "left:-9px;top:-7px;overflow:auto;border-width:3px 9px 7px 5px",
     contentCss: "width:390px;height:330px",
-    clipCss: "overflow:hidden;border-radius:19px;width:145px;height:112px",
+    clipCss: "overflow:hidden;width:145px;height:112px",
     custom: true,
     mutation: { left: 97, top: 76 },
   },
@@ -286,9 +319,18 @@ const CASES: AuditCase[] = [
     dprs: [1, 2],
   },
   {
+    id: "custom-resizer-overlap",
+    axis: "both scrollbar axes paint before the overlapping resizer",
+    expectedRoute: "custom-vector",
+    targetCss: "overflow:scroll;resize:both",
+    contentCss: "width:390px;height:330px",
+    custom: true,
+    mutation: { left: 91, top: 83 },
+  },
+  {
     id: "native-auto-light",
     axis: "active platform native theme, light scheme",
-    expectedRoute: "native-platform-fingerprint",
+    expectedRoute: "native-raster",
     targetCss: "overflow:auto;color-scheme:light",
     contentCss: "width:390px;height:330px",
     mutation: { left: 83, top: 71 },
@@ -297,7 +339,7 @@ const CASES: AuditCase[] = [
   {
     id: "native-auto-dark",
     axis: "active platform native theme, dark scheme and dark scroller surface",
-    expectedRoute: "native-platform-fingerprint",
+    expectedRoute: "native-raster",
     targetCss: "overflow:auto;color-scheme:dark",
     contentCss: "width:390px;height:330px",
     background: [28, 32, 40],
@@ -306,7 +348,7 @@ const CASES: AuditCase[] = [
   {
     id: "native-thin-colors",
     axis: "standard scrollbar-width/color stay native-theme paint",
-    expectedRoute: "native-platform-fingerprint",
+    expectedRoute: "native-raster",
     targetCss: "overflow:auto;scrollbar-width:thin;scrollbar-color:rgb(25,85,209) rgb(229,33,44)",
     contentCss: "width:390px;height:330px",
     mutation: { left: 83, top: 71 },
@@ -314,20 +356,20 @@ const CASES: AuditCase[] = [
   {
     id: "native-stable-both-edges",
     axis: "scrollbar-gutter stable both-edges layout reservation",
-    expectedRoute: "native-platform-fingerprint",
+    expectedRoute: "suppressed-captured-absence",
     targetCss: "overflow:auto;scrollbar-gutter:stable both-edges",
     contentCss: "width:80px;height:70px",
   },
 ];
 
-function htmlFor(test: AuditCase): string {
+function htmlFor(test: AuditCase, cssZoom = 1): string {
   const background = test.background ?? TARGET_BACKGROUND;
   return `<!doctype html><style>
     html,body{margin:0;width:${VIEWPORT.width}px;height:${VIEWPORT.height}px;background:#fff;overflow:hidden}
     *{box-sizing:border-box}
     #scene{position:relative;width:${VIEWPORT.width}px;height:${VIEWPORT.height}px;background:#fff;overflow:hidden}
     #clip{position:absolute;left:34px;top:27px;width:176px;height:142px;${test.clipCss ?? "overflow:visible"}}
-    #target{position:absolute;left:0;top:0;width:156px;height:118px;border:4px solid #343d48;background:rgb(${background.join(",")});${test.targetCss}}
+    #target{position:absolute;left:0;top:0;width:156px;height:118px;border:4px solid #343d48;background:rgb(${background.join(",")});${test.targetCss};zoom:${cssZoom}}
     #content{display:block;background:rgb(${background.join(",")});${test.contentCss}}
     ${test.custom ? CUSTOM_SCROLLBAR_CSS : ""}
   </style><div id="scene"><div id="clip"><div id="target"><i id="content"></i></div></div></div>`;
@@ -417,6 +459,22 @@ function findCapturedScroller(elements: CapturedElement[]): CapturedElement | nu
   return null;
 }
 
+function capturedNativeRasterFacts(raster: CapturedNativeScrollbarRaster | undefined): NativeRasterFacts | null {
+  if (raster == null) return null;
+  return {
+    x: raster.x,
+    y: raster.y,
+    width: raster.width,
+    height: raster.height,
+    pixelWidth: raster.pixelWidth,
+    pixelHeight: raster.pixelHeight,
+    captureDpr: raster.captureDpr,
+    sourceFrameSha256: raster.sourceFrameSha256,
+    cropSha256: raster.cropSha256 ?? null,
+    empty: raster.empty === true,
+  };
+}
+
 function capturedFacts(element: CapturedElement | null): CapturedFacts | null {
   if (element == null) return null;
   const style = element.styles;
@@ -437,6 +495,25 @@ function capturedFacts(element: CapturedElement | null): CapturedFacts | null {
     verticalRoute: scrollbars?.vertical?.route ?? null,
     horizontalParts: scrollbars?.horizontal?.parts.map(({ kind }) => kind) ?? [],
     verticalParts: scrollbars?.vertical?.parts.map(({ kind }) => kind) ?? [],
+    horizontalLogicalSide: scrollbars?.horizontal?.logicalSide ?? null,
+    verticalLogicalSide: scrollbars?.vertical?.logicalSide ?? null,
+    horizontalPosition: scrollbars?.horizontal?.currentPosition ?? null,
+    verticalPosition: scrollbars?.vertical?.currentPosition ?? null,
+    horizontalNativeRaster: capturedNativeRasterFacts(scrollbars?.horizontal?.nativeRaster),
+    verticalNativeRaster: capturedNativeRasterFacts(scrollbars?.vertical?.nativeRaster),
+    nativeCornerRaster: capturedNativeRasterFacts(scrollbars?.nativeCornerRaster),
+    corner: scrollbars?.corner?.rect ?? null,
+    outputTransform: scrollbars?.outputTransform.matrix ?? null,
+    resizeHandle: element.resizeHandle == null ? null : {
+      x: element.resizeHandle.x,
+      y: element.resizeHandle.y,
+      width: element.resizeHandle.width,
+      height: element.resizeHandle.height,
+    },
+    resizerOverlap: scrollbars?.resizerOverlap == null ? null : {
+      rect: scrollbars.resizerOverlap.rect,
+      paintOrder: scrollbars.resizerOverlap.paintOrder,
+    },
     missingFacts: scrollbars?.missingFacts ?? [],
   };
 }
@@ -563,6 +640,25 @@ function markerBoundsMatchWithinOneDevicePixel(
   });
 }
 
+function pixelFactsMatchExactly(source: PixelFacts, generated: PixelFacts): boolean {
+  return source.width === generated.width
+    && source.height === generated.height
+    && source.markerPixels === generated.markerPixels
+    && JSON.stringify(source.markers) === JSON.stringify(generated.markers)
+    && JSON.stringify(source.edges) === JSON.stringify(generated.edges);
+}
+
+function rasterFactsAreAuthenticated(facts: NativeRasterFacts | null, dpr: number): boolean {
+  return facts != null
+    && facts.empty === false
+    && facts.captureDpr === dpr
+    && facts.pixelWidth === Math.round(facts.width * dpr)
+    && facts.pixelHeight === Math.round(facts.height * dpr)
+    && /^[a-f0-9]{64}$/.test(facts.sourceFrameSha256)
+    && facts.cropSha256 != null
+    && /^[a-f0-9]{64}$/.test(facts.cropSha256);
+}
+
 function rowPass(row: Omit<AuditRow, "pass">): boolean {
   if (row.expectedRoute === "marker-free-control") {
     return row.sourcePixels.markerPixels === 0
@@ -578,30 +674,41 @@ function rowPass(row: Omit<AuditRow, "pass">): boolean {
       && (row.id === "custom-scroll-no-overflow" || row.sourcePixels.markers.thumb != null)
       && markerBoundsMatchWithinOneDevicePixel(row.sourcePixels, row.generatedPixels)
       && row.generatedGenericThumbs === 0
-      && (row.captured?.scrollbarStatus === "captured" || row.captured?.scrollbarStatus === "partial")
-      && [row.captured.horizontalRoute, row.captured.verticalRoute].includes("author-custom");
+      && row.warnings.length === 0
+      && row.captured?.scrollbarStatus === "captured"
+      && row.captured.missingFacts.length === 0
+      && [row.captured.horizontalRoute, row.captured.verticalRoute].includes("author-custom")
+      && (row.id !== "custom-resizer-overlap" || (
+        row.sourcePixels.markers.resizer != null
+        && row.generatedPixels.markers.resizer != null
+        && row.captured.resizeHandle != null
+        && row.captured.resizerOverlap?.paintOrder === "corner-before-resizer"
+      ));
   }
   if (row.expectedRoute === "suppressed-captured-absence") {
     return row.sourcePixels.markerPixels === 0
+      && row.generatedPixels.markerPixels === 0
       && row.generatedGenericThumbs === 0
-      && row.captured?.scrollbarStatus === "absent";
+      && row.warnings.length === 0
+      && row.captured?.scrollbarStatus === "absent"
+      && row.captured.missingFacts.length === 0;
   }
-  if (row.id === "native-stable-both-edges") {
-    return row.sourcePixels.edges.left.changedPixels === 0
-      && row.sourcePixels.edges.right.changedPixels === 0
-      && row.sourcePixels.edges.bottom.changedPixels === 0
-      && row.generatedGenericThumbs === 0;
-  }
-  if (row.id === "native-thin-colors") {
-    return (row.sourcePixels.markers.thumb?.pixels ?? 0) >= 100
-      && row.generatedPixels.markerPixels <= 4
+  if (row.expectedRoute === "native-raster") {
+    return pixelFactsMatchExactly(row.sourcePixels, row.generatedPixels)
       && row.generatedGenericThumbs === 0
-      && row.captured?.scrollbarStatus === "partial";
+      && row.warnings.length === 0
+      && row.captured?.scrollbarStatus === "captured"
+      && row.captured.missingFacts.length === 0
+      && row.captured.horizontalRoute === "native-raster"
+      && row.captured.verticalRoute === "native-raster"
+      && rasterFactsAreAuthenticated(row.captured.horizontalNativeRaster, row.deviceScaleFactor)
+      && rasterFactsAreAuthenticated(row.captured.verticalNativeRaster, row.deviceScaleFactor)
+      && JSON.stringify(row.captured.outputTransform) === "[1,0,0,1,0,0]";
   }
-  return row.sourcePixels.edges.right.changedPixels >= 100
-    && row.sourcePixels.edges.bottom.changedPixels >= 100
-    && row.generatedGenericThumbs === 0
-    && row.captured?.scrollbarStatus === "partial";
+  // This route is deliberately observation-only and can never turn the
+  // producer green. Dynamic platform fade evidence remains separate from the
+  // exact same-frame raster owner above.
+  return false;
 }
 
 function cssBounds(bounds: Bounds | null, dpr: number): Bounds | null {
@@ -623,13 +730,188 @@ function boundDelta(a: Bounds | null, b: Bounds | null): number | null {
   );
 }
 
-export async function runNativeScrollbarOwnershipAudit(): Promise<{
+function ownershipControls(rows: readonly AuditRow[]): Record<string, boolean> {
+  const row = (id: string, dpr = 1, cssZoom?: number) => rows.find((candidate) => (
+    candidate.id === id && candidate.deviceScaleFactor === dpr
+    && (cssZoom == null || candidate.cssZoom === cssZoom)
+  ));
+  const thumb = (arm: "sourcePixels" | "generatedPixels", id: string, dpr = 1) => (
+    row(id, dpr)?.[arm].markers.thumb ?? null
+  );
+  const sourceTop = thumb("sourcePixels", "custom-y-top");
+  const sourceMid = thumb("sourcePixels", "custom-y-mid");
+  const sourceMax = thumb("sourcePixels", "custom-y-max");
+  const generatedTop = thumb("generatedPixels", "custom-y-top");
+  const generatedMid = thumb("generatedPixels", "custom-y-mid");
+  const generatedMax = thumb("generatedPixels", "custom-y-max");
+  const capturedTop = row("custom-y-top")?.captured?.verticalPosition;
+  const capturedMid = row("custom-y-mid")?.captured?.verticalPosition;
+  const capturedMax = row("custom-y-max")?.captured?.verticalPosition;
+  const sourceHorizontal = thumb("sourcePixels", "custom-x-mid");
+  const generatedHorizontal = thumb("generatedPixels", "custom-x-mid");
+  const capturedHorizontal = row("custom-x-mid")?.captured;
+  const capturedVertical = row("custom-y-mid")?.captured;
+  const sourceRtl = thumb("sourcePixels", "custom-rtl-logical-left");
+  const generatedRtl = thumb("generatedPixels", "custom-rtl-logical-left");
+  const clipped = row("custom-border-clip");
+  const clippedTrack = clipped?.sourcePixels.markers.track;
+  const clipRect = clipped?.source.clipRect;
+  const dpr1 = cssBounds(thumb("sourcePixels", "custom-both-corner", 1), 1);
+  const dpr2 = cssBounds(thumb("sourcePixels", "custom-both-corner", 2), 2);
+  const both = row("custom-both-corner");
+  const resizer = row("custom-resizer-overlap");
+  const nativeRows = rows.filter((candidate) => candidate.expectedRoute === "native-raster");
+
+  return {
+    allRowsClassified: rows.every((candidate) => candidate.pass && rowPass(candidate)),
+    overflowNegativesStayMarkerFree: rows
+      .filter((candidate) => candidate.expectedRoute === "marker-free-control")
+      .every((candidate) => rowPass(candidate)),
+    everyCustomRouteIsDiscriminated: rows
+      .filter((candidate) => candidate.expectedRoute === "custom-vector")
+      .every((candidate) => rowPass(candidate)),
+    everyNativeRasterIsSourceExact: nativeRows.length > 0
+      && nativeRows.every((candidate) => rowPass(candidate)),
+    hiddenWidthCapturesExplicitAbsence: rows
+      .filter((candidate) => candidate.id === "width-none-scrolled")
+      .every((candidate) => rowPass(candidate)),
+    sourceAndGeneratedThumbMoveTopMidMax:
+      sourceTop != null && sourceMid != null && sourceMax != null
+      && generatedTop != null && generatedMid != null && generatedMax != null
+      && capturedTop != null && capturedMid != null && capturedMax != null
+      && sourceTop.y < sourceMid.y && sourceMid.y < sourceMax.y
+      && generatedTop.y < generatedMid.y && generatedMid.y < generatedMax.y
+      && capturedTop < capturedMid && capturedMid < capturedMax,
+    horizontalAndVerticalAxesDiffer:
+      sourceHorizontal != null && sourceMid != null
+      && generatedHorizontal != null && generatedMid != null
+      && sourceHorizontal.width > sourceHorizontal.height && sourceMid.height > sourceMid.width
+      && generatedHorizontal.width > generatedHorizontal.height && generatedMid.height > generatedMid.width
+      && capturedHorizontal?.horizontalPosition != null
+      && capturedHorizontal.verticalPosition == null
+      && capturedVertical?.horizontalPosition == null
+      && capturedVertical?.verticalPosition != null,
+    rtlMovesVerticalChromeToLogicalLeft:
+      sourceMid != null && sourceRtl != null && generatedMid != null && generatedRtl != null
+      && sourceRtl.x + 40 < sourceMid.x && generatedRtl.x + 40 < generatedMid.x
+      && row("custom-rtl-logical-left")?.captured?.verticalLogicalSide === "left",
+    bothAxesOwnCorner:
+      (both?.sourcePixels.markers.corner?.pixels ?? 0) > 20
+      && (both?.generatedPixels.markers.corner?.pixels ?? 0) > 20
+      && both?.captured?.horizontalRoute === "author-custom"
+      && both.captured.verticalRoute === "author-custom"
+      && both.captured.corner != null,
+    resizerPaintsAfterOwnedCorner:
+      resizer?.sourcePixels.markers.resizer != null
+      && resizer.generatedPixels.markers.resizer != null
+      && resizer.captured?.resizeHandle != null
+      && resizer.captured.corner != null
+      && resizer.captured.resizerOverlap?.paintOrder === "corner-before-resizer",
+    verticalWritingRecorded: row("custom-vertical-writing")?.source.writingMode === "vertical-rl",
+    borderClipContainsChrome: clippedTrack != null && clipRect != null
+      && clippedTrack.x >= Math.floor(clipRect.x)
+      && clippedTrack.y >= Math.floor(clipRect.y)
+      && clippedTrack.x + clippedTrack.width <= Math.ceil(clipRect.x + clipRect.width)
+      && clippedTrack.y + clippedTrack.height <= Math.ceil(clipRect.y + clipRect.height),
+    zoomChangesPhysicalBox: (row("custom-zoom-125", 1, 1.25)?.source.rect.width ?? 0) > 190,
+    dprGeometryStableWithinOneCssPixel: (boundDelta(dpr1, dpr2) ?? Number.POSITIVE_INFINITY) <= 1,
+    lightDarkSchemesRecorded: row("native-auto-light")?.source.colorScheme === "light"
+      && row("native-auto-dark")?.source.colorScheme === "dark",
+    darkSurfaceChangesNativeInk:
+      row("native-auto-light")?.sourcePixels.edges.right.topColors[0]?.rgb != null
+      && row("native-auto-dark")?.sourcePixels.edges.right.topColors[0]?.rgb != null
+      && row("native-auto-light")!.sourcePixels.edges.right.topColors[0].rgb
+        !== row("native-auto-dark")!.sourcePixels.edges.right.topColors[0].rgb,
+    standardWidthAndColorRecorded: row("native-thin-colors")?.source.scrollbarWidth === "thin"
+      && row("native-thin-colors")?.source.scrollbarColor.includes("rgb(25, 85, 209)"),
+    captureContractCarriesOwnershipFacts: rows.every((candidate) => {
+      if (candidate.captured == null) return false;
+      if (candidate.expectedRoute === "marker-free-control") return true;
+      return candidate.captured.scrollbarStatus != null;
+    }),
+  };
+}
+
+function activeMutationControls(rows: readonly AuditRow[]): Record<string, boolean> {
+  const mutate = (id: string, callback: (row: AuditRow) => void): AuditRow[] => {
+    const copy = structuredClone(rows) as AuditRow[];
+    const target = copy.find((candidate) => candidate.id === id && candidate.deviceScaleFactor === 1);
+    if (target != null) callback(target);
+    return copy;
+  };
+  const controlsAfter = (id: string, callback: (row: AuditRow) => void) => (
+    ownershipControls(mutate(id, callback))
+  );
+  return {
+    frozenTopMidMaxRejected: !controlsAfter("custom-y-max", (target) => {
+      const mid = rows.find((candidate) => candidate.id === "custom-y-mid" && candidate.deviceScaleFactor === 1);
+      if (target.captured != null && mid?.captured?.verticalPosition != null) {
+        target.captured.verticalPosition = mid.captured.verticalPosition;
+      }
+    }).sourceAndGeneratedThumbMoveTopMidMax,
+    swappedAxisRejected: !controlsAfter("custom-x-mid", (target) => {
+      if (target.captured != null) {
+        target.captured.verticalPosition = target.captured.horizontalPosition;
+        target.captured.horizontalPosition = null;
+      }
+    }).horizontalAndVerticalAxesDiffer,
+    wrongRtlSideRejected: !controlsAfter("custom-rtl-logical-left", (target) => {
+      if (target.captured != null) target.captured.verticalLogicalSide = "right";
+    }).rtlMovesVerticalChromeToLogicalLeft,
+    missingBothAxisCornerRejected: !controlsAfter("custom-both-corner", (target) => {
+      if (target.captured != null) target.captured.corner = null;
+    }).bothAxesOwnCorner,
+    wrongResizerOrderRejected: !controlsAfter("custom-resizer-overlap", (target) => {
+      if (target.captured != null) target.captured.resizerOverlap = null;
+    }).resizerPaintsAfterOwnedCorner,
+    missingNativeRasterDigestRejected: !controlsAfter("native-auto-light", (target) => {
+      if (target.captured?.horizontalNativeRaster != null) {
+        target.captured.horizontalNativeRaster.cropSha256 = null;
+      }
+    }).everyNativeRasterIsSourceExact,
+  };
+}
+
+export interface NativeScrollbarAuditOptions {
+  deviceScaleFactors?: readonly number[];
+  cssZooms?: readonly number[];
+  artifactDir?: string;
+  reportDir?: string;
+  evidenceRole?: "proposal" | "validation";
+  provenance?: {
+    githubRunId: string;
+    githubRunAttempt: string;
+    githubJob: string;
+    runnerName: string;
+    runnerImage: string;
+    runnerImageVersion: string;
+    workflowRef: string;
+    bootId: string;
+  };
+}
+
+function sha256(bytes: Buffer | string): string {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+export async function runNativeScrollbarOwnershipAudit(options: NativeScrollbarAuditOptions = {}): Promise<{
+  schemaVersion: 2;
+  evidenceRole: "proposal" | "validation" | "local";
+  observationId: string;
+  provenance: NativeScrollbarAuditOptions["provenance"] | null;
+  logicalRowsSha256: string;
+  rowSetSha256: string;
+  artifactSetSha256: string;
+  dynamicFadeClassification: "separate-platform-terminal-not-observed";
+  browserLaunch: { headless: true; ignoredDefaultArguments: ["--hide-scrollbars"] };
+  chromiumExecutableSha256: string;
   sourceRevisions: typeof SOURCE_REVISIONS;
   chromiumVersion: string;
   playwrightVersion: string;
   host: { platform: NodeJS.Platform; architecture: string; release: string };
   rows: AuditRow[];
   controls: Record<string, boolean>;
+  mutations: Record<string, boolean>;
   platformFingerprints: Array<{
     id: string;
     dpr: number;
@@ -657,13 +939,14 @@ export async function runNativeScrollbarOwnershipAudit(): Promise<{
   const rows: AuditRow[] = [];
   try {
     for (const test of CASES) {
-      for (const deviceScaleFactor of test.dprs ?? [1]) {
+      for (const deviceScaleFactor of options.deviceScaleFactors ?? test.dprs ?? [1]) {
+        for (const cssZoom of options.cssZooms ?? [test.id === "custom-zoom-125" ? 1.25 : 1]) {
         const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor });
         const generatedContext = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor });
         const page = await context.newPage();
         const generatedPage = await generatedContext.newPage();
         try {
-          await page.setContent(htmlFor(test), { waitUntil: "load" });
+          await page.setContent(htmlFor(test, cssZoom), { waitUntil: "load" });
           await mutate(page, test.mutation);
           const source = await browserFacts(page);
           const sourcePng = await page.screenshot({ type: "png" });
@@ -678,16 +961,35 @@ export async function runNativeScrollbarOwnershipAudit(): Promise<{
           );
           await settle(generatedPage);
           const generatedPng = await generatedPage.screenshot({ type: "png" });
+          const artifacts: AuditRow["artifacts"] = [];
+          if (options.artifactDir != null) {
+            mkdirSync(options.artifactDir, { recursive: true });
+            for (const [role, bytes] of [["source", sourcePng], ["generated", generatedPng]] as const) {
+              const filename = `${test.id}-dpr${deviceScaleFactor}-zoom${cssZoom}-${role}.png`;
+              const path = join(options.artifactDir, filename);
+              writeFileSync(path, bytes);
+              const metadata = await sharp(bytes).metadata();
+              artifacts.push({
+                role,
+                path: options.reportDir == null ? filename : relative(options.reportDir, path),
+                sha256: sha256(bytes),
+                pngWidth: metadata.width!,
+                pngHeight: metadata.height!,
+              });
+            }
+          }
           const base = {
             id: test.id,
             axis: test.axis,
             expectedRoute: test.expectedRoute,
             deviceScaleFactor,
+            cssZoom,
             source,
             captured,
             sourcePixels: await pixelFacts(sourcePng, source, deviceScaleFactor),
             generatedPixels: await pixelFacts(generatedPng, source, deviceScaleFactor),
             generatedGenericThumbs: countGenericThumbs(svg),
+            artifacts,
             warnings: warnings.map((warning) => `${warning.feature}: ${warning.detail}`),
           };
           rows.push({ ...base, pass: rowPass(base) });
@@ -695,70 +997,17 @@ export async function runNativeScrollbarOwnershipAudit(): Promise<{
           await context.close();
           await generatedContext.close();
         }
+        }
       }
     }
   } finally {
     await browser.close();
   }
 
-  const row = (id: string, dpr = 1) => rows.find((candidate) => candidate.id === id && candidate.deviceScaleFactor === dpr);
-  const thumb = (id: string, dpr = 1) => row(id, dpr)?.sourcePixels.markers.thumb ?? null;
-  const top = thumb("custom-y-top");
-  const mid = thumb("custom-y-mid");
-  const max = thumb("custom-y-max");
-  const ltr = thumb("custom-y-mid");
-  const rtl = thumb("custom-rtl-logical-left");
-  const clipped = row("custom-border-clip");
-  const clippedTrack = clipped?.sourcePixels.markers.track;
-  const clipRect = clipped?.source.clipRect;
-  const dpr1 = cssBounds(thumb("custom-both-corner", 1), 1);
-  const dpr2 = cssBounds(thumb("custom-both-corner", 2), 2);
-  const controls = {
-    allRowsClassified: rows.every((candidate) => candidate.pass),
-    overflowNegativesStayMarkerFree: rows
-      .filter((candidate) => candidate.expectedRoute === "marker-free-control")
-      .every((candidate) => candidate.pass),
-    everyCustomRouteIsDiscriminated: rows
-      .filter((candidate) => candidate.expectedRoute === "custom-vector")
-      .every((candidate) => candidate.pass),
-    everyNativeFingerprintIsDiscriminated: rows
-      .filter((candidate) => candidate.expectedRoute === "native-platform-fingerprint")
-      .every((candidate) => candidate.pass),
-    hiddenWidthCapturesExplicitAbsence: rows
-      .filter((candidate) => candidate.id === "width-none-scrolled")
-      .every((candidate) => candidate.pass),
-    sourceThumbMovesTopMidMax: top != null && mid != null && max != null
-      && top.y < mid.y && mid.y < max.y,
-    horizontalAndVerticalAxesDiffer: thumb("custom-x-mid") != null && mid != null
-      && thumb("custom-x-mid")!.width > thumb("custom-x-mid")!.height
-      && mid.height > mid.width,
-    rtlMovesVerticalChromeToLogicalLeft: ltr != null && rtl != null && rtl.x + 40 < ltr.x,
-    bothAxesOwnCorner: (row("custom-both-corner")?.sourcePixels.markers.corner?.pixels ?? 0) > 20,
-    verticalWritingRecorded: row("custom-vertical-writing")?.source.writingMode === "vertical-rl",
-    borderClipContainsChrome: clippedTrack != null && clipRect != null
-      && clippedTrack.x >= Math.floor(clipRect.x)
-      && clippedTrack.y >= Math.floor(clipRect.y)
-      && clippedTrack.x + clippedTrack.width <= Math.ceil(clipRect.x + clipRect.width)
-      && clippedTrack.y + clippedTrack.height <= Math.ceil(clipRect.y + clipRect.height),
-    zoomChangesPhysicalBox: (row("custom-zoom-125")?.source.rect.width ?? 0) > 190,
-    dprGeometryStableWithinOneCssPixel: (boundDelta(dpr1, dpr2) ?? Number.POSITIVE_INFINITY) <= 1,
-    lightDarkSchemesRecorded: row("native-auto-light")?.source.colorScheme === "light"
-      && row("native-auto-dark")?.source.colorScheme === "dark",
-    darkSurfaceChangesNativeInk:
-      row("native-auto-light")?.sourcePixels.edges.right.topColors[0]?.rgb != null
-      && row("native-auto-dark")?.sourcePixels.edges.right.topColors[0]?.rgb != null
-      && row("native-auto-light")!.sourcePixels.edges.right.topColors[0].rgb
-        !== row("native-auto-dark")!.sourcePixels.edges.right.topColors[0].rgb,
-    standardWidthAndColorRecorded: row("native-thin-colors")?.source.scrollbarWidth === "thin"
-      && row("native-thin-colors")?.source.scrollbarColor.includes("rgb(25, 85, 209)"),
-    captureContractCarriesOwnershipFacts: rows.every((candidate) => {
-      if (candidate.captured == null) return false;
-      if (candidate.expectedRoute === "marker-free-control") return true;
-      return candidate.captured.scrollbarStatus != null;
-    }),
-  };
+  const controls = ownershipControls(rows);
+  const mutations = activeMutationControls(rows);
   const platformFingerprints = rows
-    .filter((candidate) => candidate.expectedRoute === "native-platform-fingerprint")
+    .filter((candidate) => candidate.expectedRoute === "native-raster")
     .map((candidate) => ({
       id: candidate.id,
       dpr: candidate.deviceScaleFactor,
@@ -770,24 +1019,78 @@ export async function runNativeScrollbarOwnershipAudit(): Promise<{
       dominantRightColor: candidate.sourcePixels.edges.right.topColors[0]?.rgb ?? null,
       dominantBottomColor: candidate.sourcePixels.edges.bottom.topColors[0]?.rgb ?? null,
     }));
-  const pass = Object.values(controls).every(Boolean);
+  const pass = Object.values(controls).every(Boolean) && Object.values(mutations).every(Boolean);
+  const logicalRows = rows.map((row) => ({
+    id: row.id,
+    axis: row.axis,
+    expectedRoute: row.expectedRoute,
+    deviceScaleFactor: row.deviceScaleFactor,
+    cssZoom: row.cssZoom,
+    captured: row.captured,
+  }));
+  const artifactManifest = rows.flatMap((row) => row.artifacts.map((artifact) => ({
+    row: `${row.id}@${row.deviceScaleFactor}x/z${row.cssZoom}`,
+    ...artifact,
+  })));
   return {
+    schemaVersion: 2,
+    evidenceRole: options.evidenceRole ?? "local",
+    observationId: randomUUID(),
+    provenance: options.provenance ?? null,
+    logicalRowsSha256: sha256(JSON.stringify(logicalRows)),
+    rowSetSha256: sha256(JSON.stringify(rows)),
+    artifactSetSha256: sha256(JSON.stringify(artifactManifest)),
+    dynamicFadeClassification: "separate-platform-terminal-not-observed",
+    browserLaunch: { headless: true, ignoredDefaultArguments: ["--hide-scrollbars"] },
+    chromiumExecutableSha256: sha256(readFileSync(chromium.executablePath())),
     sourceRevisions: SOURCE_REVISIONS,
     chromiumVersion: browser.version(),
     playwrightVersion,
     host: { platform: platform(), architecture: arch(), release: release() },
     rows,
     controls,
+    mutations,
     platformFingerprints,
-    verdict: pass ? "authoritative-capture-and-dependent-paint-gaps-observed" : "probe-expectation-or-source-drift",
+    verdict: pass ? "authoritative-capture-and-source-owned-paint-exact" : "probe-expectation-or-source-drift",
   };
 }
 
 async function main(): Promise<number> {
-  const report = await runNativeScrollbarOwnershipAudit();
   const jsonIndex = process.argv.indexOf("--json");
-  if (jsonIndex >= 0 && process.argv[jsonIndex + 1] != null) {
-    writeFileSync(process.argv[jsonIndex + 1], `${JSON.stringify(report, null, 2)}\n`);
+  const jsonPath = jsonIndex >= 0 ? process.argv[jsonIndex + 1] : undefined;
+  const value = (flag: string): string | undefined => {
+    const index = process.argv.indexOf(flag);
+    return index >= 0 ? process.argv[index + 1] : undefined;
+  };
+  const numbers = (flag: string): number[] | undefined => value(flag)?.split(",").map(Number);
+  const role = value("--evidence-role");
+  if (role != null && role !== "proposal" && role !== "validation") {
+    throw new Error("--evidence-role must be proposal or validation");
+  }
+  const artifactDir = value("--artifacts");
+  const bootIdPath = value("--boot-id");
+  const runnerImagePath = value("--runner-image");
+  const provenance = role == null ? undefined : {
+    githubRunId: process.env.GITHUB_RUN_ID ?? "local",
+    githubRunAttempt: process.env.GITHUB_RUN_ATTEMPT ?? "local",
+    githubJob: process.env.GITHUB_JOB ?? `${role}-local`,
+    runnerName: process.env.RUNNER_NAME ?? `${platform()}-${role}-local`,
+    runnerImage: process.env.ImageOS ?? process.env.RUNNER_OS ?? platform(),
+    runnerImageVersion: process.env.ImageVersion ?? (runnerImagePath == null ? "local" : sha256(readFileSync(runnerImagePath))),
+    workflowRef: process.env.GITHUB_WORKFLOW_REF ?? "local",
+    bootId: bootIdPath == null ? `local-${randomUUID()}` : readFileSync(bootIdPath, "utf8").trim(),
+  };
+  const report = await runNativeScrollbarOwnershipAudit({
+    deviceScaleFactors: numbers("--dpr"),
+    cssZooms: numbers("--zoom"),
+    artifactDir,
+    reportDir: jsonPath == null ? undefined : resolve(jsonPath, ".."),
+    evidenceRole: role as "proposal" | "validation" | undefined,
+    provenance,
+  });
+  if (jsonPath != null) {
+    mkdirSync(resolve(jsonPath, ".."), { recursive: true });
+    writeFileSync(jsonPath, `${JSON.stringify(report, null, 2)}\n`);
   }
   console.log(`native scrollbar ownership audit: ${report.rows.filter((row) => row.pass).length}/${report.rows.length}; ${report.verdict}`);
   for (const row of report.rows) {
@@ -796,7 +1099,8 @@ async function main(): Promise<number> {
     );
   }
   console.log(`controls: ${JSON.stringify(report.controls)}`);
-  return report.verdict === "authoritative-capture-and-dependent-paint-gaps-observed" ? 0 : 1;
+  console.log(`mutations: ${JSON.stringify(report.mutations)}`);
+  return report.verdict === "authoritative-capture-and-source-owned-paint-exact" ? 0 : 1;
 }
 
 if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) {

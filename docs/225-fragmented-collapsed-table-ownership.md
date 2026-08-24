@@ -1,25 +1,34 @@
-# Fragmented collapsed-table border ownership investigation
+# Fragmented collapsed-table physical ownership
 
-**Ticket:** DM-2526
-**Status:** Investigation complete; production ownership remains intentionally open
+**Tickets:** DM-2526, DM-2557
+**Status:** Screen physical section-fragment record authenticated for non-repeated sections; repeated occurrences and paged media remain bounded follow-ups
 **Source pin:** Chromium `7d859f271cbda744098ac69f44978d4edfa62be3`
 
 ## Verdict
 
-The sampled screen-multicol cases currently produce the source-expected border
-shapes, but the capture protocol cannot authenticate how those shapes were
-owned by Blink. The earliest gap is before vector paint: Blink paints from
-physical table-section fragments carrying global row indices, exact
-fragment-local row offsets, break-token continuation state, and explicit
-repeated-section occurrences. Domotion reconstructs those facts from CSSOM
-rectangles and serializes only final border rectangles.
+DM-2557 closes the earliest screen gap before vector paint. Capture now builds
+a versioned private record from the same physical table, section, row, cell,
+and caption nodes observed independently through ordered
+`Element.getClientRects()` and CDP `DOM.getContentQuads`. Every CSS transform on
+the candidate subtree and ancestor chain is neutralized for one settled layout
+epoch; both channels must agree exactly after Blink LayoutUnit 1/64 CSS-pixel
+canonicalization. The original style attributes and live protocol quads must
+then restore exactly before the record is promoted.
 
-That distinction is material. A final rectangle record can look correct while
-being correlated to the wrong physical table fragment, the wrong global row,
-or a synthetic header/footer occurrence. It cannot expose a stale break-token
-decision or prove Blink's adjacent-section paint deduplication. Therefore this
-investigation records `currentProtocolExact: false`; it does not promote the
-existing fragmented route on the strength of sampled visual agreement.
+The authenticated record retains physical table-fragment identity, section
+source/table-child/paint slots, consecutive global row identity, exact logical
+row and column offsets, content-before/after and continued-row state, caption
+paint slots, writing direction, source revision, and collection provenance.
+`borders-backgrounds.ts` validates and consumes that record once before
+collapsed-border vector paint. Wrong-row, wrong-fragment, wrong-axis,
+CSSOM/CDP-drift, incomplete-column, and restore mutations fail closed; the old
+overlap/median/coordinate-translation reconstruction is not a fallback.
+
+Chromium's repeated header/footer CSSOM rectangles alias each occurrence to the
+prototype, so they cannot authenticate occurrence ownership. Those tables now
+withhold collapsed-border vectors and emit a structured warning until DM-2558
+adds explicit occurrences. This is an intentional fidelity improvement over
+synthetic placement, not a visual regression accepted by tolerance.
 
 Paged media is a separate proven gap. In the headless logical print control,
 `Page.printToPDF` produced seven page objects while ordinary screen CSSOM
@@ -27,7 +36,8 @@ exposed one table rectangle and one header rectangle. A screen
 `getClientRects()` capture cannot infer the print fragment tree.
 
 No production renderer, pixel threshold, phase envelope, or tolerance changed.
-The investigation read no screenshot or PDF pixels.
+The logical oracle reads no screenshot pixels; its print leg reads only PDF
+page structure.
 
 ## Pinned Blink decision trace
 
@@ -50,35 +60,33 @@ row.
 
 ## Current Domotion boundary
 
-`src/capture/script/walker/borders-backgrounds.ts` reconstructs the fragmented
-paint input from public rectangles:
+- `src/capture/collapsed-border-fragment-cdp.ts` owns the private live-node
+  registry, animation freeze, transform-neutral same-epoch CSSOM/CDP
+  collection, exact restoration check, and fail-closed warning.
+- `src/capture/collapsed-border-fragment-record.ts` owns LayoutUnit
+  canonicalization, ordered channel authentication, record construction, and
+  hostile-record validation. It contains no pixel comparison or fitted
+  tolerance.
+- `src/capture/script/walker/borders-backgrounds.ts` accepts only an
+  authenticated record matching the live table's rows, columns, fragments,
+  writing mode, and direction. It passes exact section slices to the existing
+  logical edge/joint algorithm, emits physical rects tagged by fragment index,
+  and serializes the consumed provenance on the table.
+- Missing, ambiguous, stale, or aliased records serialize an unavailable
+  reason, suppress cell/structural collapsed borders, and return an empty table
+  vector list. There is no CSSOM heuristic fallback.
 
-1. Table, row, cell, and section rectangles are assigned to the table fragment
-   with the greatest overlap.
-2. Row rectangle order is treated as continued-row state.
-3. A header/footer is considered repeated when its rectangle count equals the
-   table fragment count while all rectangles map back to one physical table
-   fragment.
-4. That source rectangle is synthetically translated to every table fragment.
-5. The resulting logical borders are immediately flattened to
-   `collapsedBorderRects` containing only `x`, `y`, `width`, `height`, `axis`,
-   `style`, and `color`.
-
-The flattened record has no versioned provenance, table-fragment identity,
-section identity or paint slot, global row, exact section row offsets,
-start/end break-token state, or repeated-section role/occurrence. The source
-code proves those fields are upstream paint inputs, not optional diagnostics.
-The rectangle-alias rule also cannot authenticate Blink's repetition
-eligibility or distinguish an omitted, duplicated, stale, or reordered
-occurrence.
+The remaining screen boundary is repeated section occurrence ownership
+(DM-2558). The independent print fragment transport remains DM-2559, followed
+by DM-2560's all-platform logical and final-ink release legs.
 
 ## Headless logical corpus
 
 `tools/collapsed-border-fragmentation-oracle.ts` launches Chromium with
-`headless: true`, captures no pixels, and emits a fingerprinted JSON report.
-The final macOS investigation run used Chrome `147.0.7727.15`, Playwright
-`1.59.1`, Node `v22.23.2`, and passed all eleven source-logical
-discriminators:
+`headless: true`, captures no pixels, and emits schema-2 fingerprinted JSON.
+The DM-2557 run passed all fifteen source-logical discriminators and all eleven
+destructive controls with verdict
+`screen-section-fragment-record-authenticated`:
 
 | Family | Observed logical facts |
 | --- | --- |
@@ -86,18 +94,17 @@ discriminators:
 | Pinned horizontal WPT shape | Four table fragments, two caption fragments, four section fragments, and three continued-row pieces. All four continuation seams omit a black row-axis edge; the adjacent-section boundary has exactly one shared edge. |
 | Pinned vertical-lr/RTL shape | Four table fragments and three continued-row pieces. Every row-axis border is physically x-thin, and all four physical-x continuation seams omit the edge. |
 | Pinned vertical-rl/LTR shape | The same physical-x ownership holds with the reversed block direction; all four continuation seams omit the edge. |
-| Repeated header and footer | Six table fragments. CSSOM reports six coordinate-alias rectangles but one unique rectangle for each section; capture currently synthesizes one red header and one green footer edge into each of the six physical table fragments. |
-| Oversized repeat negative | Four table fragments but only one header rectangle and one captured header edge, matching Blink's one-quarter fragmentainer limit. |
-| Continued `colspan` | Three table fragments and three span pieces, with zero captured edges through the two-column span interior. |
+| Repeated header and footer | CSSOM aliases each occurrence to one prototype coordinate; the record is unavailable and vector paint is withheld rather than synthesized. |
+| Oversized repeat negative | The non-repeated header remains independently authenticated, matching Blink's one-quarter fragmentainer limit. |
+| Continued spans and fractional tracks | `colspan` interiors stay empty; fractional column offsets, `rowspan`, multiple `tbody` sources, and consecutive global row identity remain exact. |
+| Captions and provenance | Caption/table-child paint slots, physical fragment ids, section ids, rows, continuations, writing state, neutral CSSOM/CDP binding, source revision, and exact restoration are present. |
 | Screen versus print | Screen CSSOM reports one table and one header rectangle; the print PDF contains seven page objects. `pixelsRead` is permanently `false`. |
-| Protocol provenance | Every sampled final border rectangle lacks physical fragment, section, global row, break-token, and repeat-occurrence identity. |
 
-The corpus activates nine destructive controls: collapsing four table fragments
-to one, erasing the three-piece continuation, removing four half-edge
-witnesses, duplicating the shared-section edge, dropping one repeated header,
-dropping one repeated footer, filling the span interior, horizontalizing both
-vertical cases, and replacing seven print pages with the one screen rectangle.
-Every mutation moves its asserted logical result.
+The controls collapse fragments, erase continuation, promote half edges,
+double-paint a section edge, accept an aliased repeat, fill a span interior,
+horizontalize vertical writing, substitute the wrong global row/physical
+fragment/writing axis, and treat screen CSSOM as print fragments. Every
+mutation moves its asserted logical result.
 
 Run it with:
 
@@ -106,15 +113,17 @@ npm run borders:collapsed-fragmentation-audit -- --json /tmp/collapsed-border-fr
 npx vitest run tests/collapsed-border-fragmentation-oracle.test.ts
 ```
 
-The existing non-investigation browser baseline remains independently green:
-`tests/border-collapse-conflict.e2e.test.ts` passes all ten cases headlessly.
-That protects current behavior but does not add missing source provenance.
+Focused production coverage is explicit-headless:
+`src/capture/collapsed-border-fragment-cdp.e2e.test.ts` proves authenticated
+consumption and exact source restoration through a transformed ancestor, then
+proves aliased repeats fail closed. `tests/border-collapse-conflict.e2e.test.ts`
+keeps horizontal/vertical, whole/continued-row, span/joint, empty-fragment, and
+repeat-withholding behavior live.
 
 ## Bounded follow-up sequence
 
-1. **DM-2557 — Authenticate collapsed-border physical section fragments before
-   vector paint.** Introduce the versioned, source-pinned screen record and
-   fail closed when the private-equivalent Blink inputs cannot be correlated.
+1. **DM-2557 — completed.** The versioned source-pinned screen record is
+   authenticated and consumed before vector paint; ambiguity fails closed.
 2. **DM-2558 — Replace repeated table header/footer alias heuristic with
    explicit occurrence ownership.** This is blocked by DM-2557 and must consume
    its physical section-fragment record rather than add a second model.

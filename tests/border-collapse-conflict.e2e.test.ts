@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, it } from "vitest";
-import { launchChromium, captureElementTree, elementTreeToSvgInner, type CapturedElement } from "../src/index.js";
+import { launchChromium, captureElementTree, captureElementTreeWithWarnings, elementTreeToSvgInner, type CapturedElement } from "../src/index.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 // DM-1260: CSS 2.1 §17.6.2.1 collapsed-border conflict resolution. Each grid edge
@@ -31,7 +31,7 @@ function find(tree: CapturedElement[], pred: (n: Node) => boolean): Node | null 
 }
 
 async function setup() {
-  try { return { browser: await launchChromium() }; } catch { return null; }
+  try { return { browser: await launchChromium({ headless: true }) }; } catch { return null; }
 }
 const env = await setup();
 afterAll(async () => { await closeBrowserSafely(env?.browser); }, 15_000);
@@ -194,7 +194,7 @@ describeBrowser("DM-1260: border-collapse conflict resolution", () => {
     } finally { await page.close(); }
   }, 60_000);
 
-  it("places repeated headers and footers at each fragment edge (DM-2322)", async () => {
+  it("fails closed when repeated header/footer occurrences alias their prototype (DM-2557)", async () => {
     const page = await env!.browser.newPage({ viewport: { width: 1100, height: 260 }, deviceScaleFactor: 1 });
     try {
       await page.setContent(`<style>body{margin:0}.cols{columns:5;column-fill:auto;width:1000px;height:140px}.t{border-collapse:collapse;width:100%}th,td{height:30px;padding:0;border:2px solid #2563eb}thead,tfoot{break-inside:avoid}thead th{border-top:6px solid rgb(220,0,0)}tfoot td{border-bottom:8px solid rgb(0,140,0)}</style><div class="cols"><table class="t"><thead><tr><th></th></tr></thead><tbody>${Array.from({ length: 12 }, () => `<tr><td></td></tr>`).join("")}</tbody><tfoot><tr><td></td></tr></tfoot></table></div>`, { waitUntil: "load" });
@@ -211,14 +211,13 @@ describeBrowser("DM-1260: border-collapse conflict resolution", () => {
       expect(cssom.foot).toHaveLength(cssom.table.length);
       expect(new Set(cssom.foot.map((rect) => rect.join(","))).size).toBe(1);
 
-      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 1100, height: 260 });
-      const table = find(tree, (n) => n.tag === "table")!;
+      const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 1100, height: 260 });
+      const table = find(capture.tree, (n) => n.tag === "table")!;
       const rects = (table.styles as any).collapsedBorderRects as Array<any>;
-      for (const fragment of cssom.table) {
-        const [left, top, right, bottom] = fragment;
-        expect(rects.some((rect) => rect.axis === "row" && rect.color === "rgb(220, 0, 0)" && rect.x < right && rect.x + rect.width > left && rect.y <= Math.round(top + 4))).toBe(true);
-        expect(rects.some((rect) => rect.axis === "row" && rect.color === "rgb(0, 140, 0)" && rect.x < right && rect.x + rect.width > left && rect.y + rect.height >= Math.round(bottom - 5))).toBe(true);
-      }
+      expect(rects).toEqual([]);
+      expect((table.styles as any).collapsedBorderFragmentRecord).toMatchObject({ status: "unavailable" });
+      expect(capture.warnings.some((warning) => warning.feature === "fragmented collapsed-table ownership"
+        && warning.detail.includes("withheld"))).toBe(true);
     } finally { await page.close(); }
   }, 60_000);
 

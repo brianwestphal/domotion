@@ -79,6 +79,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6tpyoj5j9augt1",
+          "message": {
+            "text": "The source-run audit now requires authoritative output, not observational native ink. The final explicit-headless macOS run passed 24/24 rows with no warnings: custom vectors preserve the existing one-device-pixel geometry contract, while native rows require exact source/generated pixel facts plus authenticated frame/crop SHA, dimensions, DPR, captured status, and identity output transform. The related controls actively reject corrupted structured position, axis, RTL side, corner, resizer order, and native digest facts.",
+            "markdown": "The source-run audit now requires authoritative output, not observational native ink. The final explicit-headless macOS run passed 24/24 rows with no warnings: custom vectors preserve the existing one-device-pixel geometry contract, while native rows require exact source/generated pixel facts plus authenticated frame/crop SHA, dimensions, DPR, captured status, and identity output transform. The related controls actively reject corrupted structured position, axis, RTL side, corner, resizer order, and native digest facts."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/native-scrollbar-ownership-audit.ts"
+                },
+                "region": {
+                  "startLine": 633,
+                  "endLine": 700,
+                  "snippet": {
+                    "text": "function pixelFactsMatchExactly(source: PixelFacts, generated: PixelFacts): boolean {\n  return source.width === generated.width\n    && source.height === generated.height\n    && source.markerPixels === generated.markerPixels\n    && JSON.stringify(source.markers) === JSON.stringify(generated.markers)\n    && JSON.stringify(source.edges) === JSON.stringify(generated.edges);\n}\n\nfunction rasterFactsAreAuthenticated(facts: NativeRasterFacts | null, dpr: number): boolean {\n  return facts != null\n    && facts.empty === false\n    && facts.captureDpr === dpr\n    && facts.pixelWidth === Math.round(facts.width * dpr)\n    && facts.pixelHeight === Math.round(facts.height * dpr)\n    && /^[a-f0-9]{64}$/.test(facts.sourceFrameSha256)\n    && facts.cropSha256 != null\n    && /^[a-f0-9]{64}$/.test(facts.cropSha256);\n}\n\nfunction rowPass(row: Omit<AuditRow, \"pass\">): boolean {\n  if (row.expectedRoute === \"marker-free-control\") {\n    return row.sourcePixels.markerPixels === 0\n      && row.generatedPixels.markerPixels === 0\n      && row.generatedGenericThumbs === 0;\n  }\n  if (row.expectedRoute === \"custom-vector\") {\n    return row.sourcePixels.markerPixels >= 120\n      && row.generatedPixels.markerPixels >= 120\n      && row.sourcePixels.markers.track != null\n      // overflow:scroll creates disabled track chrome even when there is no\n      // scroll range; Blink correctly has no thumb in that activation row.\n      && (row.id === \"custom-scroll-no-overflow\" || row.sourcePixels.markers.thumb != null)\n      && markerBoundsMatchWithinOneDevicePixel(row.sourcePixels, row.generatedPixels)\n      && row.generatedGenericThumbs === 0\n      && row.warnings.length === 0\n      && row.captured?.scrollbarStatus === \"captured\"\n      && row.captured.missingFacts.length === 0\n      && [row.captured.horizontalRoute, row.captured.verticalRoute].includes(\"author-custom\")\n      && (row.id !== \"custom-resizer-overlap\" || (\n        row.sourcePixels.markers.resizer != null\n        && row.generatedPixels.markers.resizer != null\n        && row.captured.resizeHandle != null\n        && row.captured.resizerOverlap?.paintOrder === \"corner-before-resizer\"\n      ));\n  }\n  if (row.expectedRoute === \"suppressed-captured-absence\") {\n    return row.sourcePixels.markerPixels === 0\n      && row.generatedPixels.markerPixels === 0\n      && row.generatedGenericThumbs === 0\n      && row.warnings.length === 0\n      && row.captured?.scrollbarStatus === \"absent\"\n      && row.captured.missingFacts.length === 0;\n  }\n  if (row.expectedRoute === \"native-raster\") {\n    return pixelFactsMatchExactly(row.sourcePixels, row.generatedPixels)\n      && row.generatedGenericThumbs === 0\n      && row.warnings.length === 0\n      && row.captured?.scrollbarStatus === \"captured\"\n      && row.captured.missingFacts.length === 0\n      && row.captured.horizontalRoute === \"native-raster\"\n      && row.captured.verticalRoute === \"native-raster\"\n      && rasterFactsAreAuthenticated(row.captured.horizontalNativeRaster, row.deviceScaleFactor)\n      && rasterFactsAreAuthenticated(row.captured.verticalNativeRaster, row.deviceScaleFactor)\n      && JSON.stringify(row.captured.outputTransform) === \"[1,0,0,1,0,0]\";\n  }\n  // This route is deliberately observation-only and can never turn the\n  // producer green. Dynamic platform fade evidence remains separate from the\n  // exact same-frame raster owner above."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/native-scrollbar-ownership-audit.ts"
+                },
+                "region": {
+                  "startLine": 723
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/native-scrollbar-ownership-audit.ts"
+                },
+                "region": {
+                  "startLine": 824
+                }
+              }
+            }
+          ],
+          "rank": 97,
+          "workItemUris": [
+            "DM-2563"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "807c36094aa56252c2b4699c91dfef67"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "eb9dd9b1f43c66350b092192a79ccc78b62c3662",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

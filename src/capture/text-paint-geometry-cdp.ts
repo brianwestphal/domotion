@@ -193,15 +193,10 @@ async function mutateFrames(frames: readonly PreparedFrame[], key: string, neutr
     await frame.evaluate(({ key, neutral }) => {
       const registry = (globalThis as typeof globalThis & Record<string, any>)[key];
       if (registry == null) return;
-      const properties = ["transform", "translate", "rotate", "scale", "perspective", "transform-style"];
       if (neutral) {
         registry.snapshots = [];
         for (const owner of registry.owners as HTMLElement[]) {
-          const values: Array<[string, string, string]> = [];
-          for (const property of properties) {
-            values.push([property, owner.style.getPropertyValue(property), owner.style.getPropertyPriority(property)]);
-          }
-          registry.snapshots.push({ owner, values });
+          registry.snapshots.push({ owner, styleAttribute: owner.getAttribute("style") });
           owner.style.setProperty("transform", "matrix(1, 0, 0, 1, 0, 0)", "important");
           owner.style.setProperty("translate", "none", "important");
           owner.style.setProperty("rotate", "none", "important");
@@ -211,9 +206,12 @@ async function mutateFrames(frames: readonly PreparedFrame[], key: string, neutr
         }
       } else {
         for (const snapshot of registry.snapshots ?? []) {
-          for (const [property, value, priority] of snapshot.values) {
-            if (value === "") snapshot.owner.style.removeProperty(property);
-            else snapshot.owner.style.setProperty(property, value, priority);
+          if (snapshot.styleAttribute == null) {
+            snapshot.owner.style.cssText = "";
+            const styleAttribute = snapshot.owner.getAttributeNode("style");
+            if (styleAttribute != null) snapshot.owner.removeAttributeNode(styleAttribute);
+          } else {
+            snapshot.owner.setAttribute("style", snapshot.styleAttribute);
           }
         }
         registry.snapshots = null;

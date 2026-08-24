@@ -168,6 +168,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6tszgi4wgco3wh",
+          "message": {
+            "text": "Bind the transpiler name helper lexically inside each frame evaluation. The source-run callback retains a free __name call after tsx serialization, while the inspected frame has no module helper; an expression-local identity function closes that transport seam without installing, overwriting, or deleting an authored global in any readable frame. The explicit-headless regression at the related location proves distinct non-function sentinels survive preparation and disposal in both the top document and a same-origin child frame.",
+            "markdown": "Bind the transpiler name helper lexically inside each frame evaluation. The source-run callback retains a free __name call after tsx serialization, while the inspected frame has no module helper; an expression-local identity function closes that transport seam without installing, overwriting, or deleting an authored global in any readable frame. The explicit-headless regression at the related location proves distinct non-function sentinels survive preparation and disposal in both the top document and a same-origin child frame."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/scrollbar-capture.ts"
+                },
+                "region": {
+                  "startLine": 143,
+                  "endLine": 160,
+                  "snippet": {
+                    "text": "/**\n * Evaluate the discovery callback with esbuild's keep-names helper scoped to\n * this one expression. Source-run `tsx` producers retain free `__name(...)`\n * calls inside the serialized callback, but that module helper does not exist\n * in the inspected frame. A lexical binding avoids installing or deleting a\n * page global, so every readable frame keeps its own authored global state.\n */\nfunction evaluateScrollbarDiscovery<Argument, Result>(\n  frame: Frame,\n  callback: (argument: Argument) => Result | Promise<Result>,\n  argument: Argument,\n): Promise<Result> {\n  const serializedArgument = JSON.stringify(argument);\n  if (serializedArgument == null) {\n    return Promise.reject(new Error(\"scrollbar discovery argument is not JSON-serializable\"));\n  }\n  const expression = `((__name, argument) => (${callback.toString()})(argument))(function(target, value) { try { Object.defineProperty(target, \"name\", { value: value, configurable: true }); } catch {} return target; }, ${serializedArgument})`;\n  return frame.evaluate(expression) as Promise<Result>;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/scrollbar-capture.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 43
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2563"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "9d49b5d7cd97f3cd483ad678d503172c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "eb9dd9b1f43c66350b092192a79ccc78b62c3662",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

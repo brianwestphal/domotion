@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6u9z2zw59x1ek3",
+          "message": {
+            "text": "The CSSOM/CDP comparison is an authentication boundary, not a visual tolerance. Both ordered channels are reduced only to Blink's native 1/64 CSS-pixel LayoutUnit representation; any count, order, or coordinate disagreement leaves the record unavailable before vector paint.",
+            "markdown": "The CSSOM/CDP comparison is an authentication boundary, not a visual tolerance. Both ordered channels are reduced only to Blink's native 1/64 CSS-pixel LayoutUnit representation; any count, order, or coordinate disagreement leaves the record unavailable before vector paint."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/collapsed-border-fragment-record.ts"
+                },
+                "region": {
+                  "startLine": 179,
+                  "endLine": 196,
+                  "snippet": {
+                    "text": "/** Require ordered CSSOM and protocol fragment sets to agree exactly. */\nexport function authenticateCollapsedBorderGeometry(\n  evidence: CollapsedBorderFragmentGeometryEvidence,\n): CollapsedBorderPhysicalRect[] {\n  const cssom = evidence.cssomRects.map(canonicalRect);\n  const protocol = evidence.cdpQuads.map(quadRect);\n  if (cssom.length !== protocol.length) {\n    throw new Error(`CSSOM/CDP fragment count mismatch (${cssom.length} != ${protocol.length})`);\n  }\n  for (let index = 0; index < cssom.length; index++) {\n    if (rectToken(cssom[index]) !== rectToken(protocol[index])) {\n      throw new Error(`CSSOM/CDP fragment ${index} differs after LayoutUnit canonicalization`);\n    }\n  }\n  return cssom;\n}\n\nfunction overlapArea(left: CollapsedBorderPhysicalRect, right: CollapsedBorderPhysicalRect): number {"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 94,
+          "workItemUris": [
+            "DM-2557"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "563326c4a14a1a8648a5b1dec647ce6f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "eb9dd9b1f43c66350b092192a79ccc78b62c3662",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

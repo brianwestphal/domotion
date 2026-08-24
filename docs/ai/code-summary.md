@@ -943,7 +943,10 @@ shortest possible map:
   capture-to-SVG route at DPR 1/2. Negative rows cover visible/hidden/clip,
   auto without overflow, and `scrollbar-width:none`; positive rows cover
   always-on/custom axes, top/mid/max, RTL logical-left, vertical writing,
-  borders/ancestor clipping, zoom, standard colors, schemes, and gutters.
+  borders/ancestor clipping, corner-before-resizer overlap, zoom, standard
+  colors, schemes, and gutters. Source-run discovery binds esbuild's retained
+  `__name` helper lexically inside the exact frame expression, so it neither
+  depends on nor mutates an inspected page global.
   `src/capture/scrollbar-capture.ts` now asks the same live Chromium frame to
   repaint existing parts with reserved colors, stores marker-owned axes,
   frames/parts/corner, ranges, RTL/logical side, used width/colors/scheme,
@@ -968,7 +971,11 @@ shortest possible map:
   captures one unmodified compositor frame, derives visible overlay ink with a
   reversible width:none discriminator, records lossless strip/corner crops and
   platform/SHA provenance, and renders horizontal/vertical/corner before the
-  resizer. Fully faded overlays are explicit absence. The renderer has no offset-triggered
+  resizer. The explicit-headless ownership producer requires captured status,
+  exact source/crop digests and source/generated native fingerprints; six
+  hostile mutations cover position, axis, RTL, corner, resizer order and native
+  digest. Fully faded overlays are explicit absence and remain separate terminal
+  evidence. The renderer has no offset-triggered
   7 px fallback. Pinned Blink proves geometry/phase are structured capture facts, custom
   WebKit parts are anonymous CSS/ObjectPainter boxes and vector-eligible, and
   stock native paint is platform-owned. Windows UXTheme/GDI already crosses an
@@ -1147,27 +1154,19 @@ file-backed `CTFontCreateForString` route reaches the protected face. Exact
 primary/fallback identity coverage lives in
 `src/render/generic-script-families.test.ts`; see doc 224.
 
-### Fragmented collapsed-table borders (DM-2526)
+### Fragmented collapsed-table borders (DM-2526, DM-2557)
 
-`src/capture/script/walker/borders-backgrounds.ts` currently reconstructs
-fragmented collapsed-border paint inputs from `getClientRects()`: it assigns
-rows/cells/sections by overlap, infers continuation from rectangle order, and
-expands repeated headers/footers through a coordinate-alias heuristic. The
-final `collapsedBorderRects` record then discards physical table-fragment,
-section/global-row, break-token, row-offset, and repeat-occurrence identity.
-
-Pinned Blink source requires those facts before
-`TablePainter::PaintCollapsedBorders`; CSSOM rectangles do not expose them.
-The investigation-only headless oracle in
-`tools/collapsed-border-fragmentation-oracle.ts` covers whole and continued
-rows, adjacent sections, repeated and oversized sections, spans,
-horizontal/vertical fragmentation, and the independent print boundary with
-eleven logical discriminators and nine mutations. It deliberately reports
-`currentProtocolExact: false` even when sampled final rectangles agree. See
-[doc 225](../225-fragmented-collapsed-table-ownership.md); DM-2557/2558/2559
-own screen provenance, repeat occurrences, and paged media respectively, and
-DM-2560 owns the later all-platform logical/final-ink gate. Do not infer these
-owners from pixels or widen border tolerances.
+`collapsed-border-fragment-cdp.ts` correlates ordered CSSOM rectangles with CDP
+content quads in one all-transform-neutral epoch; the pure
+`collapsed-border-fragment-record.ts` requires exact Blink LayoutUnit
+canonical geometry and exact source restoration before promoting physical
+fragment ids, section slots, global rows, row/column offsets, continuation,
+caption, writing, and provenance facts. `borders-backgrounds.ts` validates and
+consumes that record once before vector paint and fails closed on ambiguity.
+Repeated header/footer aliases deliberately withhold vectors pending DM-2558;
+paged media remains DM-2559. The explicit-headless schema-2 oracle passes 15
+logical discriminators and 11 hostile mutations without pixels or tolerance
+changes. See [doc 225](../225-fragmented-collapsed-table-ownership.md).
 
 ### Pre-navigation rAF capture ownership (DM-2554)
 

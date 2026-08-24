@@ -204,6 +204,25 @@ const captureDocumentTree =
     physicalComputedGradientImage,
   });
   const { wrapWithFrozenTransform, threadFrozenTransform } = createTransformsHandler();
+  // Fragmented collapsed-table paint is allowed only when the Node/CDP
+  // prepass authenticated one transform-neutral physical section record from
+  // independent CSSOM and protocol geometry. Keep the live DOM correlation in
+  // a private WeakMap; no author-visible id participates in ownership.
+  const _collapsedBorderFragmentRegistry = typeof args.cbfk === 'string'
+    ? globalThis[args.cbfk]
+    : null;
+  const _collapsedBorderFragmentByTable = new WeakMap();
+  if (_collapsedBorderFragmentRegistry != null
+      && Array.isArray(_collapsedBorderFragmentRegistry.tables)
+      && Array.isArray(_collapsedBorderFragmentRegistry.records)) {
+    for (let _cbfi = 0; _cbfi < _collapsedBorderFragmentRegistry.tables.length; _cbfi++) {
+      const _cbfTable = _collapsedBorderFragmentRegistry.tables[_cbfi];
+      const _cbfRecord = _collapsedBorderFragmentRegistry.records[_cbfi];
+      if (_cbfTable != null && _cbfRecord != null) {
+        _collapsedBorderFragmentByTable.set(_cbfTable, _cbfRecord);
+      }
+    }
+  }
   const { captureBordersBackgrounds, isTableCellHiddenByEmptyCells } = createBordersBackgroundsHandler({
     normColor,
     normGradientColors,
@@ -213,6 +232,7 @@ const captureDocumentTree =
     warn,
     shortSelector,
     vp,
+    collapsedBorderFragmentRecordFor: (table) => _collapsedBorderFragmentByTable.get(table),
   });
   const { captureBackgroundAttachment } = createBackgroundAttachmentHandler({
     vp,

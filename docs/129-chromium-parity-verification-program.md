@@ -164,26 +164,23 @@ pixel-snaps one reference rect before deriving both stripe boxes, so all 128
 rows per scenario are now source-exact. All 144 local double rows across the
 DSF/zoom matrix are zero-error, and the existing ceilings did not widen.
 
-Fragmented collapsed tables keep that same global winner graph. Matching
-`TablePainter::PaintCollapsedBorders`, Domotion obtains physical table, section,
-row, and cell fragments from `getClientRects()`, derives section-local row
-offsets, and paints the relevant graph slice per table fragment. Whole-row
-breaks paint half of the winning inline edge on each side of the break;
-continued rows omit that inline edge and suppress the missing joint adjustment
-on their block-axis edges. Adjacent sections share one final-row ownership
-cursor so their common edge is not double-painted. Pure tests cover each
-decision and multicol fixtures exercise both whole-row and inside-row breaks.
-For multicolumn repeatable headers and footers, CSSOM exposes the repeat count
-but aliases every clone to the prototype section coordinates. Domotion uses
-that structural signal to place each header at its physical table fragment's
-block start and each footer at its block end, preserving the global row index
-and Chromium's full outer-edge ownership. Actual paged-media capture remains an
-explicit unsupported boundary: Domotion captures one screen-media viewport and
-the DOM/CSSOM APIs used here expose multicol fragment boxes, not the page-
-fragment tree that Blink's print pipeline hands to `TablePainter`. A caller
-switching the page to print media does not make those page fragments observable,
-so capture must not claim paged-table parity until it owns a page-fragment
-transport; `@page` output remains outside the screen-capture contract in doc 01.
+Fragmented collapsed tables keep that same global winner graph. DM-2557 now
+authenticates a versioned physical table/section fragment record before vector
+paint by requiring ordered `getClientRects()` and CDP `DOM.getContentQuads` to
+agree exactly in one transform-neutral epoch at Blink LayoutUnit granularity,
+then proving exact source restoration. The record carries physical fragment
+ids, section source/paint slots, global rows, exact row/column offsets,
+continuation state, caption slots, writing direction, and pinned provenance.
+The table walker validates and consumes it once for half edges, continued-row
+omissions, adjacent-section deduplication, spans, joints, and physical writing
+conversion; ambiguity withholds vectors instead of reviving CSSOM inference.
+
+Repeatable header/footer rectangles still alias every occurrence to the source
+prototype. Those cases now fail closed pending DM-2558's explicit occurrence
+ownership rather than synthetically placing edges. Paged-media capture remains
+the independent DM-2559 boundary because screen CSSOM cannot expose Blink's
+print fragment tree; `@page` output stays outside the screen-capture contract
+until an authenticated page-fragment transport exists.
 
 Captioned tables preserve a second, independent box boundary. At the pinned
 revision, `TableLayoutAlgorithm` records `TableGridRect` after top captions and

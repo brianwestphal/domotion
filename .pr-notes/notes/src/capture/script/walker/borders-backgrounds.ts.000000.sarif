@@ -349,6 +349,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6ua5iggo3a76zg",
+          "message": {
+            "text": "Fragmented vector paint has exactly one promoted input path: a source-pinned record matching the live row/column/fragment/writing structure. Unavailable or hostile records suppress all contributing cell/structural borders and return no table vectors, so a stale CSSOM heuristic cannot silently double-paint or fabricate ownership.",
+            "markdown": "Fragmented vector paint has exactly one promoted input path: a source-pinned record matching the live row/column/fragment/writing structure. Unavailable or hostile records suppress all contributing cell/structural borders and return no table vectors, so a stale CSSOM heuristic cannot silently double-paint or fabricate ownership."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/borders-backgrounds.ts"
+                },
+                "region": {
+                  "startLine": 477,
+                  "endLine": 514,
+                  "snippet": {
+                    "text": "        lines[i] = lines[i - 1] + (lines[hi] - lines[i - 1]) / (hi - i + 1);\n      }\n      return lines;\n    };\n    const tableFragments = Array.from(table.getClientRects()).filter((rect) => rect.width > 0 && rect.height > 0);\n    if (tableFragments.length > 1) {\n      // Blink stores global start-row + exact row offsets on every physical\n      // section fragment (`table_section_layout_algorithm.cc:47-164`) and\n      // TablePainter consumes those fields directly (`table_painters.cc:\n      // 490-727`). Never reconstruct that private state from CSSOM alone. The\n      // prepass correlated ordered getClientRects with DOM.getContentQuads in\n      // an all-transform-neutral epoch; any missing/ambiguous record withholds\n      // collapsed-border vector paint instead of reviving the old heuristic.\n      const record = collapsedBorderFragmentRecordFor(table);\n      const recordErrors = record?.status === 'authenticated'\n        ? validateCollapsedBorderFragmentRecord(record)\n        : [record?.reason || 'authenticated physical section-fragment record missing'];\n      if (record?.status !== 'authenticated'\n          || recordErrors.length > 0\n          || record.writingMode !== writingMode\n          || record.direction !== direction\n          || record.totalRows !== grid.rows\n          || record.totalColumns !== grid.columns\n          || record.tableFragments.length !== tableFragments.length) {\n        warn(shortSelector(table), 'fragmented collapsed-table ownership',\n          `collapsed-border vector paint withheld: ${recordErrors.join('; ') || 'record/table structure mismatch'}`);\n        table.__dmCollapsedCells = new Set(cells.map((meta) => meta.cell));\n        table.__dmCollapsedBorderRects = [];\n        table.__dmCollapsedBorderFragmentRecord = record;\n        return table.__dmCollapsedBorderRects;\n      }\n      const horizontal = writingMode === 'horizontal-tb';\n      const blockReverse = writingMode === 'vertical-rl' || writingMode === 'sideways-rl';\n      const physicalRects = [];\n      for (const fragment of record.tableFragments) {\n        const fragmentIndex = fragment.fragmentIndex;\n        const fragmentRect = {\n          left: fragment.physicalRect.x,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/collapsed-border-fragment-record.ts"
+                },
+                "region": {
+                  "startLine": 179
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/collapsed-border-fragment-cdp.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 21
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2557"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "af617168a7813964cc32e0f17076ef0a"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "eb9dd9b1f43c66350b092192a79ccc78b62c3662",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

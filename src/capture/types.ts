@@ -9,6 +9,7 @@ import type {
   BackdropRootReason,
 } from "./backdrop-effect-space.js";
 import type { CapturedFontFamilyStack } from "../font-family-stack.js";
+import type { CollapsedBorderFragmentRecord } from "./collapsed-border-fragment-record.js";
 
 /** Half-open offsets into one authored DOM Text node, measured in UTF-16. */
 export type CapturedDomUtf16Span = [start: number, end: number];
@@ -802,7 +803,11 @@ export interface CapturedStyles {
     axis: "row" | "column";
     style: string;
     color: string;
+    /** Present for authenticated fragmented records; absent for one fragment. */
+    fragmentIndex?: number;
   }>;
+  /** Source-pinned physical section input consumed before fragmented vector paint. */
+  collapsedBorderFragmentRecord?: CollapsedBorderFragmentRecord;
   /** Caption-excluding physical table box used by Blink's TablePainter for
    * the table's own background, border, border-image, and shadows. The
    * element's x/y/width/height remain the caption-inclusive wrapper box. */

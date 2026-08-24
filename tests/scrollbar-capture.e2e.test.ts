@@ -5,6 +5,8 @@ import { join } from "node:path";
 import sharp from "sharp";
 
 import { captureElementTreeWithWarnings, launchChromium } from "../src/capture/index.js";
+import { prepareFrameScrollCapture } from "../src/capture/frame-scroll-state.js";
+import { prepareCapturedScrollbarSets } from "../src/capture/scrollbar-capture.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
@@ -38,6 +40,53 @@ const CUSTOM_CSS = `
 `;
 
 describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
+  it("keeps source-run discovery independent of authored __name frame globals", async () => {
+    const page = await env!.browser.newPage({ viewport: { width: 240, height: 180 } });
+    try {
+      await page.setContent(`<!doctype html><style>
+        html,body{margin:0}
+        #target{width:120px;height:80px;overflow:auto;scrollbar-width:none}
+        #target>i{display:block;width:280px;height:220px}
+        iframe{width:120px;height:80px;border:0}
+      </style><div id="target"><i></i></div><iframe></iframe>`);
+      const child = page.frames().find((frame) => frame !== page.mainFrame())!;
+      await child.setContent(`<!doctype html><style>
+        html,body{margin:0}
+        #target{width:100px;height:70px;overflow:auto;scrollbar-width:none}
+        #target>i{display:block;width:240px;height:190px}
+      </style><div id="target"><i></i></div>`);
+      await page.evaluate("Object.defineProperty(globalThis, '__name', { value: 'authored-sentinel', configurable: true })");
+      await child.evaluate("Object.defineProperty(globalThis, '__name', { value: 'child-sentinel', configurable: true })");
+      const frameScrollCapture = await prepareFrameScrollCapture(page, undefined);
+      const prepared = await prepareCapturedScrollbarSets(
+        page,
+        "body",
+        { x: 0, y: 0, width: 240, height: 180 },
+        { propertyKey: "", stylesByHost: {}, dynamicScrollbarKinds: new Set() },
+        { frameScrollCapture },
+      );
+      try {
+        const topFacts = await page.locator("#target").evaluate((element, propertyKey) => ({
+          authoredName: (globalThis as typeof globalThis & { __name?: unknown }).__name,
+          status: (element as Element & Record<string, { status?: string }>)[propertyKey]?.status,
+        }), prepared.propertyKey);
+        const childFacts = await child.locator("#target").evaluate((element, propertyKey) => ({
+          authoredName: (globalThis as typeof globalThis & { __name?: unknown }).__name,
+          status: (element as Element & Record<string, { status?: string }>)[propertyKey]?.status,
+        }), prepared.propertyKey);
+        expect(topFacts).toEqual({ authoredName: "authored-sentinel", status: "absent" });
+        expect(childFacts).toEqual({ authoredName: "child-sentinel", status: "absent" });
+      } finally {
+        await prepared.dispose();
+        await frameScrollCapture.dispose();
+      }
+      expect(await page.evaluate("globalThis.__name")).toBe("authored-sentinel");
+      expect(await child.evaluate("globalThis.__name")).toBe("child-sentinel");
+    } finally {
+      await page.close();
+    }
+  });
+
   it("embeds exact same-frame platform-native strip pixels without resampling", async () => {
     const context = await env!.browser.newContext({ viewport: { width: 400, height: 260 }, deviceScaleFactor: 2 });
     const page = await context.newPage();

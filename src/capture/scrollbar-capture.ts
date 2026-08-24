@@ -140,6 +140,26 @@ interface NativeOverlayFrames {
   restored: NativeScrollbarFrame | null;
 }
 
+/**
+ * Evaluate the discovery callback with esbuild's keep-names helper scoped to
+ * this one expression. Source-run `tsx` producers retain free `__name(...)`
+ * calls inside the serialized callback, but that module helper does not exist
+ * in the inspected frame. A lexical binding avoids installing or deleting a
+ * page global, so every readable frame keeps its own authored global state.
+ */
+function evaluateScrollbarDiscovery<Argument, Result>(
+  frame: Frame,
+  callback: (argument: Argument) => Result | Promise<Result>,
+  argument: Argument,
+): Promise<Result> {
+  const serializedArgument = JSON.stringify(argument);
+  if (serializedArgument == null) {
+    return Promise.reject(new Error("scrollbar discovery argument is not JSON-serializable"));
+  }
+  const expression = `((__name, argument) => (${callback.toString()})(argument))(function(target, value) { try { Object.defineProperty(target, "name", { value: value, configurable: true }); } catch {} return target; }, ${serializedArgument})`;
+  return frame.evaluate(expression) as Promise<Result>;
+}
+
 function squaredDistance(a: readonly number[], b: readonly number[]): number {
   return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
 }
@@ -874,7 +894,7 @@ export async function prepareCapturedScrollbarSets(
     }];
   try {
     const discovered = await Promise.all(frameTargets.map(async (target) => {
-      const local = await target.frame.evaluate(({ selector, viewport, nodesKey, pseudoKey, frameMeta, top }) => {
+      const local = await evaluateScrollbarDiscovery(target.frame, ({ selector, viewport, nodesKey, pseudoKey, frameMeta, top }) => {
         const root = top ? document.querySelector(selector) : document.documentElement;
         if (root == null) return [];
         const allElements: Element[] = [];

@@ -29,6 +29,13 @@ The source authority is pinned Chromium
 the same live page. It never installs width, height, display, margin, overflow,
 direction, writing-mode, zoom, transform, or clipping declarations.
 
+The discovery callback is also source-run safe. `tsx`/esbuild may retain free
+`__name(...)` calls when it serializes nested helpers, but the inspected frame
+does not own that module helper. Capture evaluates discovery with a lexical
+identity/name binding scoped to that one expression. It never installs,
+overwrites, or deletes `globalThis.__name` in the top document or any readable
+child frame; an authored global with that name is an active regression case.
+
 Blink maps `visible` root overflow to used `auto` on the viewport, but does not
 repaint an already-built viewport scrollbar when only a root pseudo rule is
 inserted. For that root-only case, capture synchronously flips each visible
@@ -142,15 +149,20 @@ the three-platform logical workflow documented in
 [doc 217](217-cross-origin-frame-scroll-ownership.md); no marker geometry or
 pixel threshold changed.
 
-The upgraded ownership audit completed on macOS arm64 with Headless Chromium
-147. Every author-custom route passes the strict generated marker gate:
+The upgraded ownership audit completed on macOS arm64 with explicit-headless
+Chromium. All 24 rows pass the strict generated marker/native-raster gate:
 
 ```text
 custom-vector rows: PASS
 source/generated marker bounds: <= 1 device px on every part
 custom coverage: top/mid/max, x/y, both axes/corner, RTL, vertical writing,
-                 clipping, zoom 1.25, DPR 1/2, and no-paint negatives
+                 exact clipping, resizer overlap, zoom 1.25, DPR 1/2,
+                 and no-paint negatives
+native-raster rows: captured status, source/crop SHA, DPR and identity output
+                    transform authenticated; source/generated facts exact
 generated legacy thumbs: 0 in every custom row
+active mutations: frozen position, swapped axis, wrong RTL side, missing
+                  corner, missing resizer order, and missing native digest reject
 ```
 
 Commands:

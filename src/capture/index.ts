@@ -31,6 +31,7 @@ import { captureBrokenImageFallbackFacts } from "./broken-image-fallback.js";
 import { captureSummaryMarkerGeometry } from "./summary-marker-cdp.js";
 import { prepareTextPaintGeometry } from "./text-paint-geometry-cdp.js";
 import { preparePseudoFragmentGeometry } from "./pseudo-fragment-cdp.js";
+import { prepareCollapsedBorderFragmentRecords } from "./collapsed-border-fragment-cdp.js";
 import { clipRectForScreenshot } from "./clip-rect.js";
 import {
   isNonAffineProjectiveQuad,
@@ -1780,6 +1781,7 @@ export async function captureElementTreeWithWarnings(
   let effectiveAppearance: Awaited<ReturnType<typeof captureEffectiveAppearanceFacts>> | undefined;
   let scrollbarCapture: Awaited<ReturnType<typeof prepareCapturedScrollbarSets>> | undefined;
   let projectiveProbe: ProjectivePaintProbe | undefined;
+  let collapsedBorderFragmentProbe: Awaited<ReturnType<typeof prepareCollapsedBorderFragmentRecords>> | undefined;
   let pseudoFragmentProbe: Awaited<ReturnType<typeof preparePseudoFragmentGeometry>> | undefined;
   let textPaintProbe: Awaited<ReturnType<typeof prepareTextPaintGeometry>> | undefined;
   let result: unknown;
@@ -1802,6 +1804,8 @@ export async function captureElementTreeWithWarnings(
       animationFrameState != null,
     );
     await reverifyAnimationFrame();
+    collapsedBorderFragmentProbe = await prepareCollapsedBorderFragmentRecords(page, selector);
+    await reverifyAnimationFrame();
     pseudoFragmentProbe = await preparePseudoFragmentGeometry(page, selector, viewport);
     await reverifyAnimationFrame();
     const captureArgs = {
@@ -1821,6 +1825,7 @@ export async function captureElementTreeWithWarnings(
       pqk: projectiveProbe.key,
       pqt: animationFrameState?.requestedTimeMs,
       pqa: animationFrameState?.animationCount,
+      cbfk: collapsedBorderFragmentProbe.key,
       pgk: pseudoFragmentProbe.key,
     };
     textPaintProbe = await prepareTextPaintGeometry(
@@ -1841,6 +1846,7 @@ export async function captureElementTreeWithWarnings(
     })})`);
   } finally {
     if (result == null) await frameScrollCapture.dispose();
+    await collapsedBorderFragmentProbe?.dispose();
     await pseudoFragmentProbe?.dispose();
     await scrollbarCapture?.dispose();
     await effectiveAppearance?.dispose();
@@ -1866,6 +1872,7 @@ export async function captureElementTreeWithWarnings(
     });
   }
   warnings.push(...(scrollbarCapture?.warnings ?? []));
+  warnings.push(...(collapsedBorderFragmentProbe?.warnings ?? []));
   warnings.push(...(pseudoFragmentProbe?.warnings ?? []));
   warnings.push(...(textPaintProbe?.warnings ?? []));
   const frameScrollState = await frameScrollCapture.snapshot();
