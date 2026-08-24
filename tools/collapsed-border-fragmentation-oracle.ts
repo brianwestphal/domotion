@@ -29,7 +29,9 @@ export const COLLAPSED_BORDER_FRAGMENT_SOURCE_PINS = {
   chromium: "7d859f271cbda744098ac69f44978d4edfa62be3",
   tableBorders: "third_party/blink/renderer/core/layout/table/table_borders.cc:23-260",
   sectionRows: "third_party/blink/renderer/core/layout/table/table_section_layout_algorithm.cc:47-164",
+  groupedSections: "third_party/blink/renderer/core/layout/table/table_layout_algorithm_types.cc:297-326",
   repeatedSections: "third_party/blink/renderer/core/layout/table/table_layout_algorithm.cc:1002-1151,1271-1339,1452-1528,1701-1719",
+  repeatClone: "third_party/blink/renderer/core/layout/block_node.cc:722-796; third_party/blink/renderer/core/layout/fragment_repeater.cc:117-205",
   collapsedPaint: "third_party/blink/renderer/core/paint/table_painters.cc:35-328,490-727",
   clientRects: "third_party/blink/renderer/core/dom/element.cc:3419-3485",
   layoutBoxQuads: "third_party/blink/renderer/core/layout/layout_box.cc:1199-1216",
@@ -43,9 +45,15 @@ export const REQUIRED_COLLAPSED_BORDER_FRAGMENT_DISCRIMINATORS = [
   "whole-row-break-paints-half-edge",
   "continued-row-omits-inline-edge",
   "adjacent-sections-share-one-edge",
-  "repeated-header-alias-fails-closed",
-  "repeated-footer-alias-fails-closed",
+  "repeated-header-explicit-occurrences-authenticate",
+  "repeated-footer-explicit-occurrences-authenticate",
+  "repeat-eligibility-source-path-authenticates",
   "oversize-header-authenticates-nonrepeat",
+  "nonavoid-header-authenticates-nonrepeat",
+  "header-only-and-footer-only-remain-distinct",
+  "multiple-header-footer-select-first-layout-child",
+  "monolithic-overflow-keeps-repeat-occurrence-ownership",
+  "vertical-repeat-uses-logical-block-edges",
   "span-interior-remains-unfilled",
   "vertical-lr-rtl-uses-physical-x-block-axis",
   "vertical-rl-ltr-uses-physical-x-block-axis",
@@ -124,9 +132,9 @@ export interface CollapsedBorderFragmentMutation {
 }
 
 export interface CollapsedBorderFragmentationReport {
-  schemaVersion: 2;
-  ticket: "DM-2557";
-  contract: "authenticated-screen-section-fragments-source-logical-no-pixels";
+  schemaVersion: 3;
+  ticket: "DM-2558";
+  contract: "explicit-repeat-occurrences-source-logical-no-pixels";
   generatedAt: string;
   sourcePins: typeof COLLAPSED_BORDER_FRAGMENT_SOURCE_PINS;
   environment: {
@@ -189,10 +197,46 @@ const fixtures: Fixture[] = [
     html: `<!doctype html><style>${baseStyle}.cols{columns:5;column-fill:auto;width:1000px;height:140px}.t{border-collapse:collapse;width:100%}th,td{height:30px;padding:0;border:2px solid rgb(37,99,235)}thead,tfoot{break-inside:avoid}thead th{border-top:6px solid rgb(220,0,0)}tfoot td{border-bottom:8px solid rgb(0,140,0)}</style><div class="cols"><table id="table" class="t"><thead id="repeat-head"><tr id="head-row"><th id="head-cell"></th></tr></thead><tbody id="repeat-body">${Array.from({ length: 12 }, (_, index) => `<tr id="body-row-${index}"><td></td></tr>`).join("")}</tbody><tfoot id="repeat-foot"><tr id="foot-row"><td id="foot-cell"></td></tr></tfoot></table></div>`,
   },
   {
+    id: "repeated-header-only",
+    family: "repeat",
+    viewport: { width: 900, height: 300 },
+    html: `<!doctype html><style>${baseStyle}.cols{columns:4;column-fill:auto;width:800px;height:140px}.t{border-collapse:collapse;width:100%}th,td{height:30px;padding:0;border:2px solid #2563eb}thead{break-inside:avoid}thead th{border-top:6px solid rgb(220,0,0)}</style><div class="cols"><table id="table" class="t"><thead id="only-head"><tr><th></th></tr></thead><tbody>${Array.from({ length: 12 }, () => "<tr><td></td></tr>").join("")}</tbody></table></div>`,
+  },
+  {
+    id: "repeated-footer-only",
+    family: "repeat",
+    viewport: { width: 900, height: 300 },
+    html: `<!doctype html><style>${baseStyle}.cols{columns:4;column-fill:auto;width:800px;height:140px}.t{border-collapse:collapse;width:100%}th,td{height:30px;padding:0;border:2px solid #2563eb}tfoot{break-inside:avoid}tfoot td{border-bottom:8px solid rgb(0,140,0)}</style><div class="cols"><table id="table" class="t"><tbody>${Array.from({ length: 12 }, () => "<tr><td></td></tr>").join("")}</tbody><tfoot id="only-foot"><tr><td></td></tr></tfoot></table></div>`,
+  },
+  {
     id: "oversize-header-negative",
     family: "repeat-negative",
     viewport: { width: 900, height: 300 },
     html: `<!doctype html><style>${baseStyle}.cols{columns:4;column-fill:auto;width:800px;height:140px}.t{border-collapse:collapse;width:100%}th,td{padding:0;border:4px solid rgb(37,99,235);height:34px}thead{break-inside:avoid}thead th{height:58px;border-top:8px solid rgb(220,0,0)}</style><div class="cols"><table id="table" class="t"><thead id="oversize-head"><tr id="oversize-head-row"><th></th></tr></thead><tbody>${Array.from({ length: 12 }, (_, index) => `<tr id="negative-row-${index}"><td></td></tr>`).join("")}</tbody></table></div>`,
+  },
+  {
+    id: "nonavoid-header-negative",
+    family: "repeat-negative",
+    viewport: { width: 900, height: 300 },
+    html: `<!doctype html><style>${baseStyle}.cols{columns:4;column-fill:auto;width:800px;height:140px}.t{border-collapse:collapse;width:100%}th,td{padding:0;border:2px solid #2563eb;height:30px}thead{break-inside:auto}thead th{border-top:6px solid rgb(220,0,0)}</style><div class="cols"><table id="table" class="t"><thead id="nonavoid-head"><tr><th></th></tr></thead><tbody>${Array.from({ length: 12 }, () => "<tr><td></td></tr>").join("")}</tbody></table></div>`,
+  },
+  {
+    id: "multiple-header-footer-selection",
+    family: "repeat",
+    viewport: { width: 1100, height: 320 },
+    html: `<!doctype html><style>${baseStyle}.cols{columns:5;column-fill:auto;width:1000px;height:150px}.t{border-collapse:collapse;width:100%}th,td{padding:0;border:2px solid #2563eb;height:24px}thead,tfoot{break-inside:avoid}#first-head th{border-top:6px solid rgb(220,0,0)}#first-foot td{border-bottom:8px solid rgb(0,140,0)}</style><div class="cols"><table id="table" class="t"><thead id="first-head"><tr><th></th></tr></thead><thead id="second-head"><tr><th></th></tr></thead><tbody id="selection-body">${Array.from({ length: 14 }, () => "<tr><td></td></tr>").join("")}</tbody><tfoot id="first-foot"><tr><td></td></tr></tfoot><tfoot id="second-foot"><tr><td></td></tr></tfoot></table></div>`,
+  },
+  {
+    id: "monolithic-overflow-repeat",
+    family: "repeat",
+    viewport: { width: 1100, height: 340 },
+    html: `<!doctype html><style>${baseStyle}.cols{columns:5;column-fill:auto;width:1000px;height:140px}.t{border-collapse:collapse;width:100%}th,td{padding:0;border:2px solid #2563eb;height:28px}thead,tfoot{break-inside:avoid}thead th{border-top:6px solid rgb(220,0,0)}tfoot td{border-bottom:8px solid rgb(0,140,0)}tr.monolithic{break-inside:avoid}tr.monolithic td{height:190px}</style><div class="cols"><table id="table" class="t"><thead id="overflow-head"><tr><th></th></tr></thead><tbody><tr class="monolithic"><td></td></tr>${Array.from({ length: 5 }, () => "<tr><td></td></tr>").join("")}</tbody><tfoot id="overflow-foot"><tr><td></td></tr></tfoot></table></div>`,
+  },
+  {
+    id: "vertical-rl-repeat",
+    family: "repeat",
+    viewport: { width: 360, height: 1000 },
+    html: `<!doctype html><style>${baseStyle}body{writing-mode:vertical-rl}.cols{writing-mode:vertical-rl;columns:4;column-fill:auto;inline-size:900px;block-size:140px}.t{writing-mode:vertical-rl;border-collapse:collapse;inline-size:100%}th,td{block-size:30px;padding:0;border:2px solid #2563eb}thead,tfoot{break-inside:avoid}thead th{border-right:6px solid rgb(220,0,0)}tfoot td{border-left:8px solid rgb(0,140,0)}</style><div class="cols"><table id="table" class="t"><thead id="vertical-head"><tr><th></th></tr></thead><tbody>${Array.from({ length: 12 }, () => "<tr><td></td></tr>").join("")}</tbody><tfoot id="vertical-foot"><tr><td></td></tr></tfoot></table></div>`,
   },
   {
     id: "continued-colspan-interior",
@@ -416,6 +460,10 @@ async function runFixture(page: Page, fixture: Fixture): Promise<CollapsedBorder
   } | undefined;
   const borderRects = (capturedStyles?.collapsedBorderRects ?? []).map((rect) => ({ ...rect }));
   const fragmentRecord = capturedStyles?.collapsedBorderFragmentRecord ?? null;
+  const repeatedSectionFragments = fragmentRecord?.status === "authenticated"
+    ? fragmentRecord.tableFragments.flatMap((fragment) => fragment.sectionFragments)
+      .filter((section) => section.repeatRole !== "non-repeated")
+    : [];
   const provenance = {
     hasFragmentIdentity: fragmentRecord?.status === "authenticated"
       && fragmentRecord.tableFragments.every((fragment) => fragment.physicalTableFragmentId !== ""),
@@ -427,7 +475,11 @@ async function runFixture(page: Page, fixture: Fixture): Promise<CollapsedBorder
     hasBreakTokenState: fragmentRecord?.status === "authenticated"
       && fragmentRecord.tableFragments.every((fragment) => fragment.sectionFragments.every((section) =>
         typeof section.startContinuedRow === "boolean" && typeof section.endContinuedRow === "boolean")),
-    hasRepeatState: false,
+    hasRepeatState: repeatedSectionFragments.length > 0 && repeatedSectionFragments.every((section) =>
+      section.repeatOccurrenceIndex != null
+      && section.repeatEligibility != null
+      && section.reservedCollapsedEdgeSpace != null
+      && section.occurrenceOwnership === "source-clone-plus-per-fragment-hit-test"),
     fragmentRecord,
   };
   let facts: Record<string, boolean | number | string> = {};
@@ -438,6 +490,9 @@ async function runFixture(page: Page, fixture: Fixture): Promise<CollapsedBorder
         && blockAxisSize(rect, live.writingMode) === 2).length;
     }
   } else if (fixture.family === "repeat" || fixture.family === "repeat-negative") {
+    const sectionSourceIds = await page.evaluate<string[]>(`Array.from(
+      document.querySelector("#table").children
+    ).filter((element) => /^(THEAD|TBODY|TFOOT)$/.test(element.tagName)).map((element) => element.id)`);
     const head = live.sections.length > 0
       ? (await page.evaluate<{ count: number; unique: number } | null>(`(() => {
           const element = document.querySelector("thead");
@@ -454,6 +509,12 @@ async function runFixture(page: Page, fixture: Fixture): Promise<CollapsedBorder
     })()`);
     const headerRects = borderRects.filter((rect) => rect.color === "rgb(220, 0, 0)");
     const footerRects = borderRects.filter((rect) => rect.color === "rgb(0, 140, 0)");
+    const headerOccurrences = repeatedSectionFragments.filter((section) => section.repeatRole.endsWith("header"));
+    const footerOccurrences = repeatedSectionFragments.filter((section) => section.repeatRole.endsWith("footer"));
+    const selectedHeaderSourceId = headerOccurrences.length === 0 ? ""
+      : sectionSourceIds[headerOccurrences[0].sectionSourceIndex] ?? "";
+    const selectedFooterSourceId = footerOccurrences.length === 0 ? ""
+      : sectionSourceIds[footerOccurrences[0].sectionSourceIndex] ?? "";
     facts = {
       tableFragmentCount: live.table.length,
       headerRectCount: head?.count ?? 0,
@@ -466,8 +527,37 @@ async function runFixture(page: Page, fixture: Fixture): Promise<CollapsedBorder
       capturedFooterEdgeFragmentCount: new Set(footerRects.map((rect) => capturedRectFragmentIndex(rect, live.table))).size,
       sourceRepeatThresholdSatisfied: fixture.family === "repeat",
       fragmentRecordAuthenticated: fragmentRecord?.status === "authenticated",
-      fragmentRecordUnavailableForAliasedOccurrences: fragmentRecord?.status === "unavailable"
-        && fragmentRecord.reason.includes("occurrence ownership"),
+      headerOccurrenceCount: headerOccurrences.length,
+      footerOccurrenceCount: footerOccurrences.length,
+      headerOccurrenceFragmentCount: new Set(headerOccurrences.map((section) => section.fragmentIndex)).size,
+      footerOccurrenceFragmentCount: new Set(footerOccurrences.map((section) => section.fragmentIndex)).size,
+      headerOccurrenceOwnershipExact: headerOccurrences.every((section) =>
+        section.occurrenceOwnership === "source-clone-plus-per-fragment-hit-test"
+        && section.reservedCollapsedEdgeSpace?.side === "block-start"
+        && section.globalStartRowIndex === 0),
+      footerOccurrenceOwnershipExact: footerOccurrences.every((section) =>
+        section.occurrenceOwnership === "source-clone-plus-per-fragment-hit-test"
+        && section.reservedCollapsedEdgeSpace?.side === "block-end"
+        && section.lastGlobalRowIndex === (fragmentRecord?.status === "authenticated" ? fragmentRecord.totalRows - 1 : -1)),
+      repeatEligibilityExact: repeatedSectionFragments.every((section) => {
+        const eligibility = section.repeatEligibility;
+        return eligibility != null
+          && eligibility.knownFragmentainerBlockSize
+          && eligibility.atMostQuarterFragmentainer
+          && eligibility.applicableBreakInsideAvoid
+          && eligibility.noBreakInside
+          && eligibility.noLateStart
+          && eligibility.outsideNestedRepeatableContent
+          && eligibility.layoutSideEffectsEnabled;
+      }),
+      selectedHeaderSourceId,
+      selectedFooterSourceId,
+      repeatedSectionSourceCount: new Set(repeatedSectionFragments.map((section) => section.sectionSourceIndex)).size,
+      nonrepeatSectionSourceCount: fragmentRecord?.status === "authenticated"
+        ? new Set(fragmentRecord.tableFragments.flatMap((fragment) => fragment.sectionFragments)
+          .filter((section) => section.repeatRole === "non-repeated")
+          .map((section) => section.sectionSourceIndex)).size
+        : 0,
       vectorPaintWithheld: borderRects.length === 0,
     };
   } else {
@@ -533,9 +623,15 @@ export function buildCollapsedBorderFragmentDiscriminators(
   const vrl = cases.find((row) => row.id === "blink-wpt-vertical-rl-ltr");
   const repeat = cases.find((row) => row.id === "repeated-header-footer");
   const negative = cases.find((row) => row.id === "oversize-header-negative");
+  const nonavoid = cases.find((row) => row.id === "nonavoid-header-negative");
+  const headerOnly = cases.find((row) => row.id === "repeated-header-only");
+  const footerOnly = cases.find((row) => row.id === "repeated-footer-only");
+  const multiple = cases.find((row) => row.id === "multiple-header-footer-selection");
+  const monolithic = cases.find((row) => row.id === "monolithic-overflow-repeat");
+  const verticalRepeat = cases.find((row) => row.id === "vertical-rl-repeat");
   const span = cases.find((row) => row.id === "continued-colspan-interior");
   const fractional = cases.find((row) => row.id === "fractional-rowspan-multiple-tbody");
-  const eligible = cases.filter((row) => row.family !== "repeat");
+  const eligible = cases;
   return {
     "whole-row-break-paints-half-edge": whole != null && factNumber(whole, "wholeRowHalfEdgeCount") > 0,
     "continued-row-omits-inline-edge": htb != null
@@ -546,19 +642,43 @@ export function buildCollapsedBorderFragmentDiscriminators(
       && htb.live.sections.length === 2
       && htb.facts.adjacentSectionBoundaryFound === true
       && factNumber(htb, "adjacentSectionSharedEdgeCount") === 1,
-    "repeated-header-alias-fails-closed": repeat != null
+    "repeated-header-explicit-occurrences-authenticate": repeat != null
       && factNumber(repeat, "headerRectCount") === repeat.live.table.length
       && factNumber(repeat, "headerUniqueRectCount") === 1
-      && repeat.facts.fragmentRecordUnavailableForAliasedOccurrences === true
-      && repeat.facts.vectorPaintWithheld === true,
-    "repeated-footer-alias-fails-closed": repeat != null
+      && repeat.facts.fragmentRecordAuthenticated === true
+      && factNumber(repeat, "headerOccurrenceCount") === repeat.live.table.length
+      && repeat.facts.headerOccurrenceOwnershipExact === true,
+    "repeated-footer-explicit-occurrences-authenticate": repeat != null
       && factNumber(repeat, "footerRectCount") === repeat.live.table.length
       && factNumber(repeat, "footerUniqueRectCount") === 1
-      && repeat.facts.fragmentRecordUnavailableForAliasedOccurrences === true
-      && repeat.facts.vectorPaintWithheld === true,
+      && repeat.facts.fragmentRecordAuthenticated === true
+      && factNumber(repeat, "footerOccurrenceCount") === repeat.live.table.length
+      && repeat.facts.footerOccurrenceOwnershipExact === true,
+    "repeat-eligibility-source-path-authenticates": repeat?.facts.repeatEligibilityExact === true,
     "oversize-header-authenticates-nonrepeat": negative != null
       && factNumber(negative, "headerRectCount") < negative.live.table.length
+      && factNumber(negative, "headerOccurrenceCount") === 0
       && negative.facts.fragmentRecordAuthenticated === true,
+    "nonavoid-header-authenticates-nonrepeat": nonavoid != null
+      && factNumber(nonavoid, "headerRectCount") < nonavoid.live.table.length
+      && factNumber(nonavoid, "headerOccurrenceCount") === 0
+      && nonavoid.facts.fragmentRecordAuthenticated === true,
+    "header-only-and-footer-only-remain-distinct": headerOnly != null && footerOnly != null
+      && factNumber(headerOnly, "headerOccurrenceCount") === headerOnly.live.table.length
+      && factNumber(headerOnly, "footerOccurrenceCount") === 0
+      && factNumber(footerOnly, "headerOccurrenceCount") === 0
+      && factNumber(footerOnly, "footerOccurrenceCount") === footerOnly.live.table.length,
+    "multiple-header-footer-select-first-layout-child": multiple?.facts.selectedHeaderSourceId === "first-head"
+      && multiple.facts.selectedFooterSourceId === "first-foot"
+      && factNumber(multiple, "repeatedSectionSourceCount") === 2
+      && factNumber(multiple, "nonrepeatSectionSourceCount") >= 3,
+    "monolithic-overflow-keeps-repeat-occurrence-ownership": monolithic?.facts.fragmentRecordAuthenticated === true
+      && factNumber(monolithic, "headerOccurrenceCount") === monolithic.live.table.length
+      && factNumber(monolithic, "footerOccurrenceCount") === monolithic.live.table.length,
+    "vertical-repeat-uses-logical-block-edges": verticalRepeat?.facts.fragmentRecordAuthenticated === true
+      && verticalRepeat.live.writingMode === "vertical-rl"
+      && verticalRepeat.facts.headerOccurrenceOwnershipExact === true
+      && verticalRepeat.facts.footerOccurrenceOwnershipExact === true,
     "span-interior-remains-unfilled": span != null
       && factNumber(span, "spanFragmentCount") > 1
       && factNumber(span, "capturedSpanInteriorEdgeCount") === 0,
@@ -623,6 +743,7 @@ export function buildCollapsedBorderFragmentMutations(
     id, baseline, mutated, moved: Number.isFinite(baseline) && Number.isFinite(mutated) && baseline !== mutated,
   });
   const record = authenticatedRecord(htb);
+  const repeatRecord = authenticatedRecord(repeat);
   const wrongRow = structuredClone(record);
   wrongRow.tableFragments.flatMap((fragment) => fragment.sectionFragments)[0].globalStartRowIndex++;
   const wrongFragment = structuredClone(record);
@@ -630,12 +751,35 @@ export function buildCollapsedBorderFragmentMutations(
   wrongFragmentSection.fragmentIndex = (wrongFragmentSection.fragmentIndex + 1) % wrongFragment.tableFragments.length;
   const wrongAxis = structuredClone(record);
   wrongAxis.writingMode = "vertical-lr";
+  const droppedRepeat = structuredClone(repeatRecord);
+  const droppedFragment = droppedRepeat.tableFragments.find((fragment) => fragment.fragmentIndex === 1)!;
+  droppedFragment.sectionFragments.splice(droppedFragment.sectionFragments.findIndex((section) =>
+    section.repeatRole.endsWith("header")), 1);
+  const duplicatedRepeat = structuredClone(repeatRecord);
+  const duplicateSection = structuredClone(duplicatedRepeat.tableFragments[1].sectionFragments[0]);
+  duplicateSection.physicalSectionFragmentId += ":duplicate";
+  duplicatedRepeat.tableFragments[1].sectionFragments.splice(1, 0, duplicateSection);
+  const reorderedRepeat = structuredClone(repeatRecord);
+  const reorderedSections = reorderedRepeat.tableFragments.flatMap((fragment) => fragment.sectionFragments)
+    .filter((section) => section.repeatRole.endsWith("header"));
+  [reorderedSections[1].repeatOccurrenceIndex, reorderedSections[2].repeatOccurrenceIndex] =
+    [reorderedSections[2].repeatOccurrenceIndex, reorderedSections[1].repeatOccurrenceIndex];
+  const wrongRepeatEdge = structuredClone(repeatRecord);
+  wrongRepeatEdge.tableFragments[1].sectionFragments.find((section) =>
+    section.repeatRole.endsWith("header"))!.reservedCollapsedEdgeSpace!.side = "block-end";
+  const wrongRepeatSource = structuredClone(repeatRecord);
+  wrongRepeatSource.tableFragments[1].sectionFragments.find((section) =>
+    section.repeatRole.endsWith("header"))!.sectionSourceIndex = 999;
   return [
     mutation("collapse-table-fragments", factNumber(htb, "tableFragmentCount"), 1),
     mutation("erase-continued-row-break-token", factNumber(htb, "continuedRowFragmentCount"), 1),
     mutation("promote-half-edge-to-full", factNumber(whole, "wholeRowHalfEdgeCount"), 0),
     mutation("double-paint-adjacent-section-edge", htb.captured.duplicateRectCount, htb.captured.duplicateRectCount + 1),
-    mutation("accept-aliased-repeat-without-occurrence-owner", repeat.captured.fragmentRecord?.status === "unavailable" ? 0 : 1, 1),
+    mutation("drop-repeat-occurrence", validateCollapsedBorderFragmentRecord(repeatRecord).length, validateCollapsedBorderFragmentRecord(droppedRepeat).length),
+    mutation("duplicate-repeat-occurrence", validateCollapsedBorderFragmentRecord(repeatRecord).length, validateCollapsedBorderFragmentRecord(duplicatedRepeat).length),
+    mutation("reorder-repeat-occurrences", validateCollapsedBorderFragmentRecord(repeatRecord).length, validateCollapsedBorderFragmentRecord(reorderedRepeat).length),
+    mutation("move-repeat-to-wrong-edge", validateCollapsedBorderFragmentRecord(repeatRecord).length, validateCollapsedBorderFragmentRecord(wrongRepeatEdge).length),
+    mutation("bind-repeat-to-wrong-source", validateCollapsedBorderFragmentRecord(repeatRecord).length, validateCollapsedBorderFragmentRecord(wrongRepeatSource).length),
     mutation("fill-span-interior", factNumber(span, "capturedSpanInteriorEdgeCount"), factNumber(span, "capturedSpanInteriorEdgeCount") + 1),
     mutation("horizontalize-vertical-fragmentation", vertical, 0),
     mutation("wrong-global-start-row", applicabilityErrors(htb, record).length, applicabilityErrors(htb, wrongRow).length),
@@ -648,14 +792,20 @@ export function buildCollapsedBorderFragmentMutations(
 export function validateCollapsedBorderFragmentationCorpus(): string[] {
   const errors: string[] = [];
   if (COLLAPSED_BORDER_FRAGMENT_SOURCE_PINS.chromium !== "7d859f271cbda744098ac69f44978d4edfa62be3") errors.push("Chromium pin changed");
-  if (REQUIRED_COLLAPSED_BORDER_FRAGMENT_DISCRIMINATORS.length !== 15) errors.push("logical discriminator corpus changed");
+  if (REQUIRED_COLLAPSED_BORDER_FRAGMENT_DISCRIMINATORS.length !== 21) errors.push("logical discriminator corpus changed");
   if (fixtures.map((fixture) => fixture.id).join("|") !== [
     "whole-row-breaks",
     "blink-wpt-horizontal-tb-ltr",
     "blink-wpt-vertical-lr-rtl",
     "blink-wpt-vertical-rl-ltr",
     "repeated-header-footer",
+    "repeated-header-only",
+    "repeated-footer-only",
     "oversize-header-negative",
+    "nonavoid-header-negative",
+    "multiple-header-footer-selection",
+    "monolithic-overflow-repeat",
+    "vertical-rl-repeat",
     "continued-colspan-interior",
     "fractional-rowspan-multiple-tbody",
   ].join("|")) errors.push("fixture corpus changed");
@@ -677,9 +827,9 @@ export async function runCollapsedBorderFragmentationOracle(): Promise<Collapsed
     const pass = Object.values(discriminators).every(Boolean) && mutations.every((mutation) => mutation.moved);
     const packageJson = JSON.parse(readFileSync(resolve(ROOT, "node_modules/@playwright/test/package.json"), "utf8")) as { version: string };
     return {
-      schemaVersion: 2,
-      ticket: "DM-2557",
-      contract: "authenticated-screen-section-fragments-source-logical-no-pixels",
+      schemaVersion: 3,
+      ticket: "DM-2558",
+      contract: "explicit-repeat-occurrences-source-logical-no-pixels",
       generatedAt: new Date().toISOString(),
       sourcePins: COLLAPSED_BORDER_FRAGMENT_SOURCE_PINS,
       environment: {

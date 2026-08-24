@@ -821,16 +821,18 @@
         "whole-row break -> continued-row break",
         "single fragment -> repeated header/footer",
         "horizontal -> vertical fragmentation",
-        "screen fragmentation -> paged-media fragmentation"
+        "screen fragmentation -> paged-media fragmentation",
+        "screen logical ownership -> all-platform final ink"
       ],
       "exactStates": [
         "separate -> collapse",
         "whole-row break -> continued-row break",
+        "single fragment -> repeated header/footer",
         "horizontal -> vertical fragmentation",
         "screen fragmentation -> paged-media fragmentation"
       ],
       "uncoveredStates": [
-        "single fragment -> repeated header/footer"
+        "screen logical ownership -> all-platform final ink"
       ],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/layout/table",
@@ -870,7 +872,7 @@
         "tests/border-collapse-conflict.e2e.test.ts"
       ],
       "coverage": "partial",
-      "boundary": "DM-2557 authenticates non-repeated screen physical fragments before vector paint: ordered transform-neutral CSSOM/CDP geometry must agree exactly at Blink LayoutUnit granularity and restore exactly, then a versioned record retains fragment, section/paint-slot, global-row, exact row/column-offset, continuation, caption, writing, and source provenance. The explicit-headless pixel-free screen corpus passes 15 logical discriminators and 11 hostile mutations. Repeated header/footer aliases fail closed pending explicit occurrence ownership. DM-2559 pins Chromium's transient PrintBegin/page-fragment/PrintEnd lifetime and Page.printToPDF's PDF-only result; a complete private paged schema names page/table/section/global-row/break/repeat/caption/span/edge/joint/writing ownership, while public CDP stays unavailable across seven live cases, eight matrix cells, fourteen named missing facts, and fifteen active mutations. Screen CSSOM and PDF/vector/raster output cannot substitute, all source observations restore exactly, pixelsRead is false, and no border tolerance changed. The later all-platform logical/final-ink gate must preserve that state unless a complete private transport is present.",
+      "boundary": "DM-2557 authenticates ordinary screen physical fragments before vector paint from exactly agreeing transform-neutral CSSOM/CDP LayoutUnit geometry and exact restoration. DM-2558 extends that record to repeated headers/footers without promoting coordinate aliases: the first computed group and complete Blink eligibility path authenticate, alias geometry supplies only the FragmentRepeater prototype, and intrinsic source-cell membership witnesses every physical occurrence. The schema-3 explicit-headless pixel-free screen corpus passes 21 logical discriminators and 15 hostile mutations across header-only/footer-only/both, oversized/non-avoid negatives, first-of-multiple selection, monolithic overflow, caption-only/empty table-box states, and horizontal/vertical writing; rows, roles, occurrence indexes, paint slots, first/last table-box state, and reserved collapsed/table-edge space are exact. DM-2559 pins Chromium's transient PrintBegin/page-fragment/PrintEnd lifetime and Page.printToPDF's PDF-only result; a complete private paged schema names page/table/section/global-row/break/repeat/caption/span/edge/joint/writing ownership, while public CDP stays unavailable across seven live cases, eight matrix cells, fourteen named missing facts, and fifteen active mutations. Screen aliases and PDF/vector/raster output cannot substitute, all source observations restore exactly, pixelsRead is false, and no border tolerance changed. The later all-platform logical/final-ink gate must preserve that state unless a complete private print transport is present.",
       "featureIds": [
         "render.tree-to-svg"
       ],

@@ -20,7 +20,7 @@ function capturedTable(tree: readonly CapturedElement[]): CapturedElement {
   return table;
 }
 
-describeBrowser("DM-2557 source-authenticated collapsed-table fragment records", () => {
+describeBrowser("DM-2558 source-authenticated collapsed-table fragment records", () => {
   it("consumes one exact transform-neutral physical record and restores the source", async () => {
     const page = await env!.browser.newPage({ viewport: { width: 920, height: 360 }, deviceScaleFactor: 1 });
     try {
@@ -47,7 +47,7 @@ describeBrowser("DM-2557 source-authenticated collapsed-table fragment records",
       const record = table.styles.collapsedBorderFragmentRecord;
       if (record?.status === "unavailable") throw new Error(record.reason);
       expect(record).toMatchObject({
-        schemaVersion: 1,
+        schemaVersion: 2,
         status: "authenticated",
         sourceRevision: "7d859f271cbda744098ac69f44978d4edfa62be3",
         consumedBy: "collapsed-border-fragment-logical-rects-v1",
@@ -79,7 +79,7 @@ describeBrowser("DM-2557 source-authenticated collapsed-table fragment records",
     }
   });
 
-  it("withholds vector paint when repeated section occurrences alias the prototype", async () => {
+  it("authenticates explicit repeated header/footer occurrences without alias inference", async () => {
     const page = await env!.browser.newPage({ viewport: { width: 1100, height: 280 }, deviceScaleFactor: 1 });
     try {
       await page.setContent(`<!doctype html><style>
@@ -95,15 +95,36 @@ describeBrowser("DM-2557 source-authenticated collapsed-table fragment records",
         { x: 0, y: 0, width: 1100, height: 280 },
       );
       const table = capturedTable(capture.tree);
-      expect(table.styles.collapsedBorderFragmentRecord).toMatchObject({
-        schemaVersion: 1,
-        status: "unavailable",
+      const record = table.styles.collapsedBorderFragmentRecord;
+      if (record?.status === "unavailable") throw new Error(record.reason);
+      expect(record).toMatchObject({
+        schemaVersion: 2,
+        status: "authenticated",
+        provenance: {
+          repeatOccurrence: "prototype-deep-clone-plus-intrinsic-source-cell-hit-test",
+        },
       });
-      expect(table.styles.collapsedBorderRects).toEqual([]);
+      if (record?.status !== "authenticated") throw new Error("repeat record was not authenticated");
+      const headerOccurrences = record.tableFragments.flatMap((fragment) => fragment.sectionFragments)
+        .filter((section) => section.repeatRole.endsWith("header"));
+      const footerOccurrences = record.tableFragments.flatMap((fragment) => fragment.sectionFragments)
+        .filter((section) => section.repeatRole.endsWith("footer"));
+      expect(headerOccurrences).toHaveLength(record.tableFragments.length);
+      expect(footerOccurrences).toHaveLength(record.tableFragments.length);
+      expect(headerOccurrences.map((section) => section.repeatOccurrenceIndex)).toEqual(
+        record.tableFragments.map((_, index) => index),
+      );
+      expect(footerOccurrences.map((section) => section.repeatOccurrenceIndex)).toEqual(
+        record.tableFragments.map((_, index) => index),
+      );
+      expect(headerOccurrences.every((section) => section.globalStartRowIndex === 0
+        && section.reservedCollapsedEdgeSpace?.side === "block-start")).toBe(true);
+      expect(footerOccurrences.every((section) => section.lastGlobalRowIndex === record.totalRows - 1
+        && section.reservedCollapsedEdgeSpace?.side === "block-end")).toBe(true);
+      expect(table.styles.collapsedBorderRects?.length).toBeGreaterThan(0);
       expect(capture.warnings.some((warning) =>
-        warning.feature === "fragmented collapsed-table ownership"
-        && warning.detail.includes("withheld"),
-      )).toBe(true);
+        warning.feature === "fragmented collapsed-table ownership",
+      )).toBe(false);
     } finally {
       await page.close();
     }

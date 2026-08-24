@@ -194,7 +194,7 @@ describeBrowser("DM-1260: border-collapse conflict resolution", () => {
     } finally { await page.close(); }
   }, 60_000);
 
-  it("fails closed when repeated header/footer occurrences alias their prototype (DM-2557)", async () => {
+  it("owns repeated header/footer occurrences independently from their CSSOM prototype aliases (DM-2558)", async () => {
     const page = await env!.browser.newPage({ viewport: { width: 1100, height: 260 }, deviceScaleFactor: 1 });
     try {
       await page.setContent(`<style>body{margin:0}.cols{columns:5;column-fill:auto;width:1000px;height:140px}.t{border-collapse:collapse;width:100%}th,td{height:30px;padding:0;border:2px solid #2563eb}thead,tfoot{break-inside:avoid}thead th{border-top:6px solid rgb(220,0,0)}tfoot td{border-bottom:8px solid rgb(0,140,0)}</style><div class="cols"><table class="t"><thead><tr><th></th></tr></thead><tbody>${Array.from({ length: 12 }, () => `<tr><td></td></tr>`).join("")}</tbody><tfoot><tr><td></td></tr></tfoot></table></div>`, { waitUntil: "load" });
@@ -205,7 +205,7 @@ describeBrowser("DM-1260: border-collapse conflict resolution", () => {
       });
       expect(cssom.table.length).toBeGreaterThan(2);
       // Chromium exposes one rect per repeat but aliases their coordinates to
-      // the prototype; this is the structural signal capture transcribes.
+      // the prototype. Alias count is not occurrence ownership.
       expect(cssom.head).toHaveLength(cssom.table.length);
       expect(new Set(cssom.head.map((rect) => rect.join(","))).size).toBe(1);
       expect(cssom.foot).toHaveLength(cssom.table.length);
@@ -214,10 +214,17 @@ describeBrowser("DM-1260: border-collapse conflict resolution", () => {
       const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 1100, height: 260 });
       const table = find(capture.tree, (n) => n.tag === "table")!;
       const rects = (table.styles as any).collapsedBorderRects as Array<any>;
-      expect(rects).toEqual([]);
-      expect((table.styles as any).collapsedBorderFragmentRecord).toMatchObject({ status: "unavailable" });
-      expect(capture.warnings.some((warning) => warning.feature === "fragmented collapsed-table ownership"
-        && warning.detail.includes("withheld"))).toBe(true);
+      const record = (table.styles as any).collapsedBorderFragmentRecord;
+      expect(rects.length).toBeGreaterThan(0);
+      expect(record).toMatchObject({ schemaVersion: 2, status: "authenticated" });
+      const sections = record.tableFragments.flatMap((fragment: any) => fragment.sectionFragments);
+      expect(sections.filter((section: any) => section.repeatRole.endsWith("header"))).toHaveLength(cssom.table.length);
+      expect(sections.filter((section: any) => section.repeatRole.endsWith("footer"))).toHaveLength(cssom.table.length);
+      expect(sections.filter((section: any) => section.repeatRole !== "non-repeated").every((section: any) =>
+        section.occurrenceOwnership === "source-clone-plus-per-fragment-hit-test"
+        && section.repeatEligibility != null
+        && section.reservedCollapsedEdgeSpace != null)).toBe(true);
+      expect(capture.warnings.some((warning) => warning.feature === "fragmented collapsed-table ownership")).toBe(false);
     } finally { await page.close(); }
   }, 60_000);
 

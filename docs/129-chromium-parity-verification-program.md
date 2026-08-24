@@ -176,8 +176,19 @@ omissions, adjacent-section deduplication, spans, joints, and physical writing
 conversion; ambiguity withholds vectors instead of reviving CSSOM inference.
 
 Repeatable header/footer rectangles still alias every occurrence to the source
-prototype. Those cases now fail closed pending DM-2558's explicit occurrence
-ownership rather than synthetically placing edges. The independent paged-media
+prototype, but DM-2558 no longer treats the aliases as occurrence evidence.
+It authenticates Blink's first header/footer group selection, known
+fragmentainer/one-quarter/applicable-avoid/no-break/no-late-start/non-nested
+eligibility path, derives exact clone slots from the prototype, and requires
+intrinsic source-cell hit-test membership in every physical table fragment.
+The schema-3 explicit-headless, pixel-free corpus passes 21 logical
+discriminators and 15 mutations across header-only/footer-only/both,
+oversize/non-avoid negatives, multiple groups, monolithic overflow,
+caption-only/empty table-box states, and horizontal/vertical writing. Each
+record carries global rows, original/repeated role, occurrence index,
+first/last table-box state, paint slot, and reserved collapsed/table edge;
+drop/duplicate/reorder/wrong-source/wrong-edge evidence fails closed. The
+independent paged-media
 audit now pins Chromium's transient `PrintBegin`/anonymous-page-fragment/
 `PrintEnd` lifetime and the `Page.printToPDF` protocol result. Public CDP returns
 only PDF bytes or a stream, so the paged collapsed-table record explicitly

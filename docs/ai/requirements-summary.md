@@ -2403,6 +2403,15 @@ pixel tolerance or fitted font-name table (DM-2550, doc 224).
   Blink's eligibility/placement facts. Do not infer repetition from aliased
   `getClientRects()` coordinates or synthesize an occurrence in every table
   fragment without authentication.
+- Select only the first computed header/footer group, treat its aliased CSSOM/
+  CDP rectangle as the FragmentRepeater prototype, and authenticate every
+  predicted physical clone through intrinsic source-cell membership. Require
+  the known fragmentainer size, one-quarter limit, applicable avoid, no
+  internal break, no late start, no nested repeatable owner, enabled layout
+  effects, exact source/global rows, original/repeated occurrence role,
+  first/last table-box state, paint slot, and reserved collapsed/table-edge
+  space. Drop, duplicate, reorder, wrong-source, wrong-row, or wrong-edge
+  evidence must fail closed; reversible scrolling must restore exactly.
 - Screen CSSOM fragmentation cannot stand in for paged media. Collect an exact
   print fragment record or fail the print route closed when page/section/row,
   continuation, repetition, and paint-order ownership is unavailable.

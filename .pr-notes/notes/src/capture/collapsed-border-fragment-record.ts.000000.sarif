@@ -66,6 +66,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6w1hucib5cykv7",
+          "message": {
+            "text": "A repeat alias set is promotable only when its explicit occurrence list has the same cardinality, consecutive physical fragment ownership, exact expected/witnessed source-cell order, intrinsic hit-test provenance, and an exact source-derived logical clone rectangle. Eligibility is authenticated before any section, row, or cell clone is constructed. This intentionally rejects drop, duplication, reorder, wrong fragment/slot, incomplete witness, and prototype drift rather than reviving the former one-repeat-per-table-fragment heuristic.",
+            "markdown": "A repeat alias set is promotable only when its explicit occurrence list has the same cardinality, consecutive physical fragment ownership, exact expected/witnessed source-cell order, intrinsic hit-test provenance, and an exact source-derived logical clone rectangle. Eligibility is authenticated before any section, row, or cell clone is constructed. This intentionally rejects drop, duplication, reorder, wrong fragment/slot, incomplete witness, and prototype drift rather than reviving the former one-repeat-per-table-fragment heuristic."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/collapsed-border-fragment-record.ts"
+                },
+                "region": {
+                  "startLine": 450,
+                  "endLine": 535,
+                  "snippet": {
+                    "text": " * Build the exact record consumed by the fragmented collapsed-border painter.\n * Any ambiguity is an explicit unavailable result; callers must not fall back\n * to CSSOM-only inference.\n */\nexport function buildCollapsedBorderFragmentRecord(\n  input: CollapsedBorderFragmentRecordInput,\n): CollapsedBorderFragmentRecord {\n  try {\n    if (!input.sourceRestoredExactly) throw new Error(\"neutral probe did not restore the source frame exactly\");\n    if (!Number.isInteger(input.totalRows) || input.totalRows <= 0) throw new Error(\"invalid global row count\");\n    if (!Number.isInteger(input.totalColumns) || input.totalColumns <= 0) throw new Error(\"invalid global column count\");\n    const tableFragments = authenticateCollapsedBorderGeometry(input.table);\n    if (tableFragments.length <= 1) throw new Error(\"table is not physically fragmented\");\n    if (new Set(tableFragments.map(rectToken)).size !== tableFragments.length) {\n      throw new Error(\"physical table fragment identities are not unique\");\n    }\n\n    const sectionBySource = new Map(input.sections.map((section) => [section.sourceIndex, section]));\n    if (sectionBySource.size !== input.sections.length) throw new Error(\"duplicate section source identity\");\n    const repeatBySection = new Map<number, CollapsedBorderRepeatSectionEvidence>();\n    const repeatPrototype = new Map<number, CollapsedBorderPhysicalRect>();\n    for (const repeat of input.repeatSections ?? []) {\n      const section = sectionBySource.get(repeat.sectionSourceIndex);\n      if (section == null) throw new Error(`repeat section ${repeat.sectionSourceIndex} has no source section`);\n      if (repeatBySection.has(repeat.sectionSourceIndex)) throw new Error(\"duplicate repeat source ownership\");\n      if ([...repeatBySection.values()].some((candidate) => candidate.repeatKind === repeat.repeatKind)) {\n        throw new Error(`more than one selected repeat ${repeat.repeatKind}`);\n      }\n      requireRepeatEligibility(repeat.eligibility);\n      const aliases = authenticateCollapsedBorderGeometry(section.geometry);\n      if (aliases.length <= 1 || aliases.some((rect) => rectToken(rect) !== rectToken(aliases[0]))) {\n        throw new Error(`repeat section ${section.sourceIndex} is not one exact CSSOM/CDP prototype alias set`);\n      }\n      if (repeat.occurrences.length !== aliases.length) {\n        throw new Error(`repeat section ${section.sourceIndex} alias/occurrence count differs (${aliases.length} != ${repeat.occurrences.length}; fragments ${repeat.occurrences.map((occurrence) => occurrence.fragmentIndex).join(\",\")})`);\n      }\n      const prototype = aliases[0];\n      const prototypeFragmentIndex = fragmentIndexFor(prototype, tableFragments);\n      if (canonicalCollapsedBorderLayoutUnit(blockSize(prototype, input.writingMode))\n          !== canonicalCollapsedBorderLayoutUnit(repeat.eligibility.sectionBlockSize)) {\n        throw new Error(`repeat section ${section.sourceIndex} block size disagrees with its prototype`);\n      }\n      const expectedCellSources = input.cells\n        .filter((cell) => cell.globalRowIndex >= section.globalStartRowIndex\n          && cell.globalRowIndex < section.globalStartRowIndex + section.globalRowCount)\n        .map((cell) => cell.sourceIndex);\n      if (expectedCellSources.length === 0) throw new Error(`repeat section ${section.sourceIndex} has no source cells`);\n      const seenFragments = new Set<number>();\n      for (let occurrenceIndex = 0; occurrenceIndex < repeat.occurrences.length; occurrenceIndex++) {\n        const occurrence = repeat.occurrences[occurrenceIndex];\n        if (occurrence.occurrenceIndex !== occurrenceIndex) throw new Error(\"repeat occurrence order changed\");\n        if (!Number.isInteger(occurrence.fragmentIndex)\n            || occurrence.fragmentIndex < 0\n            || occurrence.fragmentIndex >= tableFragments.length) {\n          throw new Error(\"repeat occurrence points at an invalid physical fragment\");\n        }\n        if (seenFragments.has(occurrence.fragmentIndex)) throw new Error(\"duplicate repeat occurrence fragment\");\n        seenFragments.add(occurrence.fragmentIndex);\n        if (occurrenceIndex > 0\n            && occurrence.fragmentIndex !== repeat.occurrences[occurrenceIndex - 1].fragmentIndex + 1) {\n          throw new Error(\"repeat occurrences do not cover consecutive table-box fragments\");\n        }\n        if (!sameNumbers(occurrence.expectedCellSourceIndices, expectedCellSources)\n            || !sameNumbers(occurrence.witnessedCellSourceIndices, expectedCellSources)) {\n          throw new Error(\"repeat occurrence source-cell witness set is incomplete or reordered\");\n        }\n        if (occurrence.hitTest !== \"Document.elementsFromPoint-intrinsic-source-cell-membership\") {\n          throw new Error(\"repeat occurrence does not use the intrinsic source-cell hit-test contract\");\n        }\n        const expectedRect = expectedRepeatOccurrenceRect(\n          prototype,\n          tableFragments[prototypeFragmentIndex],\n          tableFragments[occurrence.fragmentIndex],\n          repeat.repeatKind,\n          input.writingMode,\n          input.direction,\n        );\n        if (rectToken(canonicalRect(occurrence.physicalRect)) !== rectToken(expectedRect)) {\n          throw new Error(\"repeat occurrence does not occupy its exact source-derived fragment slot\");\n        }\n      }\n      if (repeat.occurrences[0]?.fragmentIndex !== prototypeFragmentIndex) {\n        throw new Error(\"repeat prototype is not the first authenticated occurrence\");\n      }\n      repeatBySection.set(repeat.sectionSourceIndex, repeat);\n      repeatPrototype.set(repeat.sectionSourceIndex, prototype);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "rank": 1,
+          "workItemUris": [
+            "DM-2558"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "0561aac09ad3f0fd147a0d6ccbca762d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "99d42abe48d039e531e3a5270612c6d7124f7e09",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

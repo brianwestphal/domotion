@@ -1,7 +1,7 @@
 # Fragmented collapsed-table physical ownership
 
-**Tickets:** DM-2526, DM-2557, DM-2559, DM-2571
-**Status:** Screen physical section-fragment record authenticated for non-repeated sections; public paged-media ownership explicitly fails closed; repeated occurrences remain a bounded follow-up
+**Tickets:** DM-2526, DM-2557, DM-2558, DM-2559, DM-2571
+**Status:** Screen physical section-fragment and repeated-section occurrences authenticated; public paged-media ownership explicitly fails closed
 **Source pin:** Chromium `7d859f271cbda744098ac69f44978d4edfa62be3`
 
 ## Verdict
@@ -24,11 +24,21 @@ collapsed-border vector paint. Wrong-row, wrong-fragment, wrong-axis,
 CSSOM/CDP-drift, incomplete-column, and restore mutations fail closed; the old
 overlap/median/coordinate-translation reconstruction is not a fallback.
 
-Chromium's repeated header/footer CSSOM rectangles alias each occurrence to the
-prototype, so they cannot authenticate occurrence ownership. Those tables now
-withhold collapsed-border vectors and emit a structured warning until DM-2558
-adds explicit occurrences. This is an intentional fidelity improvement over
-synthetic placement, not a visual regression accepted by tolerance.
+DM-2558 closes the repeated-section screen gap without treating coordinate
+aliases as occurrences. The first computed `table-header-group` and
+`table-footer-group` are selected in Blink grouped-child order; later groups
+remain bodies. A repeated section is promoted only when the known column
+fragmentainer size, one-quarter limit, applicable `break-inside: avoid`, no
+internal break, no late start, non-nested repeatable ownership, and enabled
+layout-side-effects route all authenticate. Blink's first physical result is
+the clone prototype, but every predicted header/footer slot must also be
+independently witnessed by intrinsic `Document.elementsFromPoint` membership
+of every source cell. The collector restores scroll and transforms exactly.
+The record then owns the source section, physical fragment, global rows,
+original/repeated role, occurrence index, first/last table-box state, paint
+slot, and exact reserved collapsed-edge/table-edge space. Missing, duplicated,
+reordered, wrong-source, wrong-row, or wrong-edge evidence fails closed. No
+pixel comparison or tolerance participates.
 
 Paged media is a separate proven gap. In the headless logical print control,
 `Page.printToPDF` produced seven page objects while ordinary screen CSSOM
@@ -62,7 +72,9 @@ page structure.
 | --- | --- | --- |
 | Collapsed conflict graph | `core/layout/table/table_borders.cc:23-260` | Blink builds one global edge graph. Cells merge first, followed by row, section, column, column-group, and table contributions. Row/column spans leave their interior edges unfilled. |
 | Section fragment rows | `core/layout/table/table_section_layout_algorithm.cc:47-164` | Each physical section fragment stores `actual_start_row_index` and exact fragment-local `row_offsets`, beginning from the incoming row break token. |
+| Grouped section selection | `core/layout/table/table_layout_algorithm_types.cc:297-326` | The first layout child with computed header/footer-group display is selected; later header/footer groups join the body list, and paint/layout order is selected header, bodies, selected footer. |
 | Repetition eligibility and placement | `core/layout/table/table_layout_algorithm.cc:1002-1151,1271-1339,1452-1528,1701-1719` | Header/footer repetition requires a known fragmentainer block size, a section no larger than one quarter of it, applicable `break-inside: avoid`, no break inside the candidate, no late-start or nested-repeat ownership, and enabled layout side effects. Repeated headers reserve the block-start collapsed border; footers reserve end space and participate in last-table-box relayout. |
+| Repeat cloning | `core/layout/block_node.cc:722-796`; `core/layout/fragment_repeater.cc:117-205` | The first repeatable-root result is the prototype and later occurrences are deep physical-fragment clones with their own repeat break tokens. Source-relative row/cell geometry may be cloned exactly, but occurrence presence still requires independent ownership evidence. |
 | Collapsed-border paint | `core/paint/table_painters.cc:35-328,490-727` | Paint iterates physical table fragments and child section fragments, consumes the section's global start row and row offsets, distinguishes whole-row from continued-row breaks, paints half an inline edge at whole-row fragmentainer boundaries, omits that edge at continued-row seams, carries block edges through continuation without joint adjustment, and suppresses the shared row of adjacent sections with `previous_painted_row_index`. Physical writing conversion precedes pixel snapping. |
 | Repeated-section traversal | `core/paint/pre_paint_tree_walk.cc:1290-1312` | Repeated headers and footers receive physical fragment traversal; they are occurrences in the paint tree, not coordinate aliases to be expanded blindly. |
 | CSSOM rectangles | `core/dom/element.cc:3419-3485`; `core/layout/layout_box.cc:1199-1216` | `getClientRects()` returns bounding boxes derived from `AbsoluteQuads()` over physical fragments. It does not serialize global table row identity, section paint slots, row break tokens, or repeat ownership. |
@@ -82,7 +94,8 @@ row.
 
 - `src/capture/collapsed-border-fragment-cdp.ts` owns the private live-node
   registry, animation freeze, transform-neutral same-epoch CSSOM/CDP
-  collection, exact restoration check, and fail-closed warning.
+  collection, intrinsic source-cell occurrence witnesses, reversible scrolling,
+  exact restoration check, and fail-closed warning.
 - `src/capture/collapsed-border-fragment-record.ts` owns LayoutUnit
   canonicalization, ordered channel authentication, record construction, and
   hostile-record validation. It contains no pixel comparison or fitted
@@ -92,7 +105,7 @@ row.
   writing mode, and direction. It passes exact section slices to the existing
   logical edge/joint algorithm, emits physical rects tagged by fragment index,
   and serializes the consumed provenance on the table.
-- Missing, ambiguous, stale, or aliased records serialize an unavailable
+- Missing, ambiguous, stale, or unauthenticated alias records serialize an unavailable
   reason, suppress cell/structural collapsed borders, and return an empty table
   vector list. There is no CSSOM heuristic fallback.
 - `src/capture/paged-collapsed-table-record.ts` defines the only promotable
@@ -104,17 +117,16 @@ row.
   the screen source restores exactly and permanently records that neither the
   PDF nor screen rectangles supplied logical ownership.
 
-The remaining screen boundary is repeated section occurrence ownership
-(DM-2558). Paged media now has an exact fail-closed contract rather than an
-unbounded inference. The later all-platform logical and final-ink release leg
-(DM-2560) must preserve that unavailable state unless a complete private
-transport is present.
+The screen repeat boundary is now explicit and authenticated. Paged media keeps
+an exact fail-closed contract rather than an unbounded inference. The later
+all-platform logical and final-ink release leg (DM-2560) must preserve both
+states unless a complete private print transport is present.
 
 ## Headless logical corpus
 
 `tools/collapsed-border-fragmentation-oracle.ts` launches Chromium with
-`headless: true`, captures no pixels, and emits schema-2 fingerprinted JSON.
-The DM-2557 run passed all fifteen source-logical discriminators and all eleven
+`headless: true`, captures no pixels, and emits schema-3 fingerprinted JSON.
+The DM-2558 run passed all twenty-one source-logical discriminators and all fifteen
 destructive controls with verdict
 `screen-section-fragment-record-authenticated`:
 
@@ -124,16 +136,17 @@ destructive controls with verdict
 | Pinned horizontal WPT shape | Four table fragments, two caption fragments, four section fragments, and three continued-row pieces. All four continuation seams omit a black row-axis edge; the adjacent-section boundary has exactly one shared edge. |
 | Pinned vertical-lr/RTL shape | Four table fragments and three continued-row pieces. Every row-axis border is physically x-thin, and all four physical-x continuation seams omit the edge. |
 | Pinned vertical-rl/LTR shape | The same physical-x ownership holds with the reversed block direction; all four continuation seams omit the edge. |
-| Repeated header and footer | CSSOM aliases each occurrence to one prototype coordinate; the record is unavailable and vector paint is withheld rather than synthesized. |
-| Oversized repeat negative | The non-repeated header remains independently authenticated, matching Blink's one-quarter fragmentainer limit. |
+| Repeated sections | Header-only, footer-only, both, first-of-multiple group selection, monolithic overflow, and horizontal/vertical writing all carry explicit source-cell-witnessed occurrences, cloned rows, roles, table-box state, paint slots, and block-edge reservations despite CSSOM prototype aliases. |
+| Repeat negatives | Oversized and non-avoid headers remain independently authenticated as non-repeating, matching Blink's one-quarter and applicable-break rules. Caption-only before-table-box and empty trailing states have exact pure-record controls. |
 | Continued spans and fractional tracks | `colspan` interiors stay empty; fractional column offsets, `rowspan`, multiple `tbody` sources, and consecutive global row identity remain exact. |
 | Captions and provenance | Caption/table-child paint slots, physical fragment ids, section ids, rows, continuations, writing state, neutral CSSOM/CDP binding, source revision, and exact restoration are present. |
 | Screen versus print | Screen CSSOM reports one table and one header rectangle; the print PDF contains seven page objects. `pixelsRead` is permanently `false`. |
 
 The controls collapse fragments, erase continuation, promote half edges,
-double-paint a section edge, accept an aliased repeat, fill a span interior,
-horizontalize vertical writing, substitute the wrong global row/physical
-fragment/writing axis, and treat screen CSSOM as print fragments. Every
+double-paint a section edge, drop/duplicate/reorder a repeat occurrence, move it
+to the wrong edge or source, fill a span interior, horizontalize vertical
+writing, substitute the wrong global row/physical fragment/writing axis, and
+treat screen CSSOM as print fragments. Every
 mutation moves its asserted logical result.
 
 Run it with:
@@ -146,9 +159,10 @@ npx vitest run tests/collapsed-border-fragmentation-oracle.test.ts
 Focused production coverage is explicit-headless:
 `src/capture/collapsed-border-fragment-cdp.e2e.test.ts` proves authenticated
 consumption and exact source restoration through a transformed ancestor, then
-proves aliased repeats fail closed. `tests/border-collapse-conflict.e2e.test.ts`
+proves aliased prototypes become explicit independently witnessed occurrences.
+`tests/border-collapse-conflict.e2e.test.ts`
 keeps horizontal/vertical, whole/continued-row, span/joint, empty-fragment, and
-repeat-withholding behavior live.
+repeated-section behavior live.
 
 ## Headless paged-media capability audit
 
@@ -183,9 +197,10 @@ npx vitest run --config vitest.e2e.config.ts src/capture/paged-collapsed-table-c
 
 1. **DM-2557 — completed.** The versioned source-pinned screen record is
    authenticated and consumed before vector paint; ambiguity fails closed.
-2. **DM-2558 — Replace repeated table header/footer alias heuristic with
-   explicit occurrence ownership.** This is blocked by DM-2557 and must consume
-   its physical section-fragment record rather than add a second model.
+2. **DM-2558 — completed.** Repeated header/footer aliases are retained only as
+   clone prototypes; explicit per-fragment source-cell witnesses, Blink
+   eligibility, rows, roles, table-box state, paint slots, and reserved edge
+   ownership extend the DM-2557 record without a second model.
 3. **DM-2559 — completed by explicit rejection.** Public CDP has no logical
    print-fragment result, so the source-pinned record refuses promotion and
    names all missing ownership facts. PDF/vector/raster evidence remains
