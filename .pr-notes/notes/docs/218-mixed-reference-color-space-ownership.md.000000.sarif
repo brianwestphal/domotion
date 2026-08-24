@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6nfwf9y4b5rtj3",
+          "message": {
+            "text": "DM-2549 retained strict native evidence on all three platforms. GitHub Actions run 32684579069 reported source-exact at DPR1/2 with empty unexpectedFailures on macOS, Linux, and Windows; the four-code channel and eight-code mutation bounds remained unchanged.",
+            "markdown": "DM-2549 retained strict native evidence on all three platforms. GitHub Actions run 32684579069 reported source-exact at DPR1/2 with empty unexpectedFailures on macOS, Linux, and Windows; the four-code channel and eight-code mutation bounds remained unchanged."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/218-mixed-reference-color-space-ownership.md"
+                },
+                "region": {
+                  "startLine": 3,
+                  "endLine": 7,
+                  "snippet": {
+                    "text": "**Status:** Source-exact and promoted. DM-2548 landed the source-proven\nlocalized filter-inside-blend wrapper order without changing a tolerance.\nDM-2549 then promoted the matrix to an entirely strict native release gate;\nretained run 32684579069 passed on macOS, Linux, and Windows.\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ]
+          },
+          "workItemUris": [
+            "DM-2549"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f86074d9dfbe940f556a6aa4ec009626"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "e2b48988c3665075a89d7be324bb1851fd998366",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

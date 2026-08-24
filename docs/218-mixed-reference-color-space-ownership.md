@@ -1,9 +1,9 @@
 # 218 — Mixed reference-filter color-space ownership
 
-**Status:** Investigation complete. The pinned native filter terminal is modeled
-and ratcheted; DM-2548 has now landed the source-proven localized
-filter-inside-blend wrapper order without changing a tolerance. DM-2549
-promotes the matrix to an entirely strict native release gate.
+**Status:** Source-exact and promoted. DM-2548 landed the source-proven
+localized filter-inside-blend wrapper order without changing a tolerance.
+DM-2549 then promoted the matrix to an entirely strict native release gate;
+retained run 32684579069 passed on macOS, Linux, and Windows.
 
 **Source pins:** Chromium
 `7d859f271cbda744098ac69f44978d4edfa62be3` and the Skia revision recorded by
@@ -170,12 +170,12 @@ The four-channel-code named-pixel bound and eight-code positive-mutation floor
 are imported unchanged from doc 185's stage oracle. There is no whole-image
 metric or tolerance escape.
 
-The existing three-platform blend/filter workflow now runs this command on
-macOS, Linux, and Windows. During the investigation it is a bounded ratchet:
-only the two observed blend rows and three associated inert mutations may be
-reported as `production-gap`; a different source-model, ownership, structural,
-pixel, or mutation failure is `unexpected-drift` and fails. DM-2549 removes the
-bounded classification after DM-2548 lands.
+The existing three-platform blend/filter workflow runs this command on macOS,
+Linux, and Windows. The bounded investigation classification has been removed:
+every row must report `source-exact`; any source-model, ownership, structural,
+pixel, or mutation failure is `unexpected-drift` and fails. Retained workflow
+run 32684579069 passed all three platforms at DPR 1/2 with empty
+`unexpectedFailures` arrays.
 
 ## Local DPR 1/2 result
 
@@ -198,7 +198,7 @@ stable, which rules out a bad blend formula. The source's no-blend/no-isolation
 mutations remain strongly active while the candidate's are inert, which pins
 the defect to wrapper ownership rather than pixel fitting.
 
-## Follow-ups
+## Completed follow-ups
 
 - **DM-2548 — Preserve Blink filter-before-blend order for localized CSS URL
   filters.** Reorder only the source-owned wrappers while retaining reference
@@ -206,10 +206,10 @@ the defect to wrapper ownership rather than pixel fitting.
   two residual rows and all three inert mutations must become exact/active at
   DPR 1/2 without regressing the nine filter-only rows.
 - **DM-2549 — Promote the mixed reference color-space matrix to a strict native
-  release gate.** After DM-2548, remove the bounded production-gap set, require
-  `source-exact` on macOS/Linux/Windows, retain artifacts and unchanged bounds,
-  and add a Chromium-roll discriminator for a future upstream resolution of
-  the pinned TODO.
+  release gate.** The bounded production-gap set is gone, the gate requires
+  `source-exact` on macOS/Linux/Windows, run 32684579069 retains all three
+  platform artifacts under unchanged bounds, and the Chromium-roll
+  discriminator detects a future upstream resolution of the pinned TODO.
 
 No production renderer, raster ownership, alpha serialization, pixel bound, or
 mutation threshold changed in DM-2535.
