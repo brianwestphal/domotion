@@ -143,10 +143,15 @@ Any production continuation should remain strict, explicit, and fail closed:
    mutation. Never silently fall back to the compositor's current/default
    frame, another library's page-zero choice, or an animation runtime.
 
-Exact encoded-byte acquisition for cross-origin and CSS-owned images still
-needs a separate source/security design. Until that and the strict capture
-transaction are implemented and gated, animated-image arbitrary-frame capture
-remains unsupported production behavior.
+[Doc 231](231-authenticated-animated-image-byte-ownership.md) now defines that
+source/security boundary. It proves that `Network.getResponseBody` can join the
+exact Blink `ResourceBuffer` without refetching once the owner-to-resource
+request relation is authenticated, but public CDP does not itself expose that
+relation or authorize cross-origin bytes for every element/CSS owner. A pinned
+private truth oracle, a source-gated public join, and the strict capture
+transaction still have to be implemented and gated. Until then,
+animated-image arbitrary-frame capture remains unsupported production
+behavior.
 
 ## Explicitly unsupported
 

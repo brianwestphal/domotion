@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "version": "DM-2578",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6yf3ae1k1kc2up",
+          "message": {
+            "text": "Pinned Blink source proves that Network.getResponseBody can transport the exact binary ResourceBuffer after its inspector request is authenticated, but debugger body access is neither the owner-to-resource relation nor CORS authorization. The implementation sequence therefore starts with a private source-truth oracle, gates any stock-CDP join against it, and rejects URL-only or no-CORS body disclosure instead of refetching or weakening browser security.",
+            "markdown": "Pinned Blink source proves that Network.getResponseBody can transport the exact binary ResourceBuffer after its inspector request is authenticated, but debugger body access is neither the owner-to-resource relation nor CORS authorization. The implementation sequence therefore starts with a private source-truth oracle, gates any stock-CDP join against it, and rejects URL-only or no-CORS body disclosure instead of refetching or weakening browser security."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/231-authenticated-animated-image-byte-ownership.md"
+                },
+                "region": {
+                  "startLine": 9,
+                  "endLine": 34,
+                  "snippet": {
+                    "text": "Blink retains the exact encoded entity bytes selected for an image in the\nowner's `ImageResourceContent`. Chromium DevTools can return those same bytes\nthrough `Network.getResponseBody(requestId)` because the inspector keeps a weak\nreference to the exact `Resource` and, for binary resources, base64-encodes its\n`ResourceBuffer`. That is the preferred body transport for HTTP(S): it joins\nthe browser's completed response and does not issue a second request.\n\nThe transport is not, by itself, an ownership or security proof. Public CDP\ndoes not expose a general relation from an element, pseudo, or CSS layer to the\n`ImageResourceContent*` it selected, and debugger privilege can read a\ncross-origin no-CORS body that page script could not read. URL equality is\ninsufficient when a URL is redirected, revalidated, intercepted by a service\nworker, reused from memory cache, requested more than once, or retained by a\nstale owner.\n\nThe strict design therefore has two independent requirements:\n\n1. authenticate the exact owner/slot -> `ImageResourceContent` -> `Resource`\n   -> inspector request relation before and after body collection; and\n2. authorize byte release from Blink's actual origin-clean/CORS result, never\n   from CDP body availability, response headers alone, or an independent\n   refetch.\n\nA pinned renderer-side truth helper is required as the investigation oracle\nfor that relation. A stock-CDP implementation may ship only the subset whose\npublic join is proven equivalent by the oracle. Every ambiguous route remains"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/229-live-replaced-media-frame-ownership.md"
+                },
+                "region": {
+                  "startLine": 151
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2578"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "5616dd7dc9120189377d2574b58e7688"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "e0eac5773a18b77b875009d3e8507b7dcf18e8d5",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

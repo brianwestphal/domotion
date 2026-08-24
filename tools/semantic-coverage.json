@@ -1728,7 +1728,23 @@
         "external/chromium/third_party/blink/renderer/platform/image-decoders/skia/skia_image_decoder_base.cc",
         "external/chromium/third_party/blink/renderer/platform/image-decoders/webp/webp_image_decoder.cc",
         "external/chromium/third_party/blink/renderer/modules/webcodecs/image_decoder_core.cc",
-        "external/chromium/third_party/blink/renderer/modules/webcodecs/image_decoder_external.cc"
+        "external/chromium/third_party/blink/renderer/modules/webcodecs/image_decoder_external.cc",
+        "external/chromium/third_party/blink/renderer/core/loader/image_loader.cc",
+        "external/chromium/third_party/blink/renderer/core/loader/resource/image_resource.cc",
+        "external/chromium/third_party/blink/renderer/core/loader/resource/image_resource_content.cc",
+        "external/chromium/third_party/blink/renderer/platform/loader/fetch/resource.cc",
+        "external/chromium/third_party/blink/renderer/platform/loader/fetch/resource_fetcher.cc",
+        "external/chromium/third_party/blink/renderer/platform/loader/fetch/resource_response.cc",
+        "external/chromium/third_party/blink/renderer/core/inspector/inspector_network_agent.cc",
+        "external/chromium/third_party/blink/renderer/core/inspector/network_resources_data.cc",
+        "external/chromium/third_party/blink/renderer/core/inspector/inspector_page_agent.cc",
+        "external/chromium/third_party/blink/public/devtools_protocol/domains/Network.pdl",
+        "external/chromium/third_party/blink/renderer/core/css/css_image_value.cc",
+        "external/chromium/third_party/blink/renderer/core/css/css_image_set_value.cc",
+        "external/chromium/third_party/blink/renderer/core/css/resolver/element_style_resources.cc",
+        "external/chromium/third_party/blink/renderer/core/style/content_data.cc",
+        "external/chromium/third_party/blink/renderer/core/svg/svg_image_element.cc",
+        "external/chromium/third_party/blink/renderer/core/html/forms/image_input_type.cc"
       ],
       "productionOwners": [
         "src/capture/types.ts",
@@ -1766,7 +1782,7 @@
         "tests/features.ts#replaced-canvas-transformed-clip"
       ],
       "coverage": "partial",
-      "boundary": "DM-2364 source-gates object/intrinsic/zoom geometry, decode fallback, and independently changing canvas/video capture frames at DPR 1/2 on three OSes. Transformed clipped snapshots remain source-owned through Blink content quads and one raster-to-output map (DM-2380). Doc 229 ships an atomic finite-video/origin-clean-canvas epoch whenever exact animation time is paired with the pre-navigation rAF owner: decode/seek/presented-frame readiness, every owner screenshot digest, and post-capture navigation/decoder/seek/surface/compositor facts are exact. DM-2566 separately proves that authenticated exact GIF/APNG/WebP bytes can select any bounded complete static frame through WebCodecs with fresh forward/reverse exact controls. That is an investigation oracle, not a production owner: exact byte acquisition for element/CSS consumers, source binding, frozen-PNG replacement, native gates, animated-image continuation, and live playback remain unsupported.",
+      "boundary": "DM-2364 source-gates object/intrinsic/zoom geometry, decode fallback, and independently changing canvas/video capture frames at DPR 1/2 on three OSes. Transformed clipped snapshots remain source-owned through Blink content quads and one raster-to-output map (DM-2380). Doc 229 ships an atomic finite-video/origin-clean-canvas epoch whenever exact animation time is paired with the pre-navigation rAF owner: decode/seek/presented-frame readiness, every owner screenshot digest, and post-capture navigation/decoder/seek/surface/compositor facts are exact. DM-2566 separately proves that authenticated exact GIF/APNG/WebP bytes can select any bounded complete static frame through WebCodecs with fresh forward/reverse exact controls. DM-2578/doc 231 now defines the exact owner/slot, content/resource, request/loader, redirect/response, CORS/credentials, cache/service-worker, byte and document/revalidation record for element, SVG, input, CSS, pseudo and shadow consumers. `Network.getResponseBody` can transport the selected `ResourceBuffer` without refetch after an authenticated request join, but public CDP alone neither proves that owner relation nor authorizes cross-origin bytes. Pinned truth/public-equivalence oracles, production byte collection, frozen-PNG replacement, native gates, animated-image continuation, and live playback remain unsupported.",
       "featureIds": [
         "capture.atomic-replaced-media-frame",
         "render.tree-to-svg"
