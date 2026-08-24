@@ -1,0 +1,33 @@
+name: SFNS exact terminal-mask adjudication
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  adjudicate:
+    name: Exact retained proposal/validation gate
+    runs-on: macos-14
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Adjudicate exact logical records and terminal bytes
+        run: >-
+          npm run fonts:sfns-terminal-mask:adjudicate --
+          --proposal .pr-notes/artifacts/dm2577-sfns-pinned-skia-proposal.json
+          --validation .pr-notes/artifacts/dm2575-sfns-pinned-chromium-validation.json
+          --report sfns-terminal-mask-adjudication.json
+      - name: Retain adjudication report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sfns-terminal-mask-adjudication
+          path: sfns-terminal-mask-adjudication.json
+          if-no-files-found: error

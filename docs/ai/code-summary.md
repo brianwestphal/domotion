@@ -105,9 +105,15 @@ fail-closed validate 26 one-process-per-observation explicitly headless traces,
 including six active controls and exact embedded mask bytes. Normal rows
 explicitly enable the macOS headless LCD route; the surface control disables
 it. The pinned result selects `[13,13]` cancellation, not a 26px raster followed
-by resampling. The cross-arm adjudicator remains required. Terminal mask
-coverage therefore remains partial, and no production route or renderer pixel
-tolerance changes.
+by resampling. `tools/sfns-terminal-mask-adjudicator.ts` now revalidates both
+retained artifacts, permits only the four-byte process-local typeface-ID
+normalization, compares all 26 observation pairs and every mask byte, and emits
+the sealed DM-2576 report. The manual-only
+`.github/workflows/sfns-terminal-mask-adjudication.yml` is fail-closed. The
+retained inputs return NOT READY because their IDs, OTS/typeface,
+paint/surface, placement/phase, metric/offset/gamma coverage, records, and mask
+bytes are not one exact envelope. Terminal mask coverage therefore remains
+partial, and no production route or renderer pixel tolerance changes.
 `tools/paths-native-raster-collector.ts` and
 `tools/paths-native-raster-corpus.ts` own doc 197's terminal raster evidence:
 six SHA-pinned outline technologies, a declared 348-cell source-table-owned

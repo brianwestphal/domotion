@@ -1997,7 +1997,7 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   identities and validation residuals no greater than proposal; the 348-cell
   core and every scalar visual threshold are unchanged.
 
-<!-- DM-2452 / DM-2567 / DM-2568 / DM-2575 -->
+<!-- DM-2452 / DM-2567 / DM-2568 / DM-2575 / DM-2576 -->
 - The macOS SFNS mask/baseline oracle (doc 168) is diagnostic-only. It routes
   the exact `SFNS.ttf` bytes through Chromium, fixes
   `wdth=100, opsz=17, GRAD=400, wght=700`, and requires Chromium CSS,
@@ -2049,9 +2049,16 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   Normal rows explicitly enable Chromium's macOS headless LCD route; the
   surface control disables it and proves unknown pixel geometry plus A8. The
   cancellation row factors exactly to `[13,13]`, not 26px raster-plus-resample.
-  The exact cross-arm adjudicator remains required before terminal masks become
-  a complete gate. That follow-up cannot change production rendering or widen
-  a visual tolerance.
+  DM-2576 adds the exact cross-arm adjudicator, sealed retained report, hostile
+  mutation suite, and manual-only optional workflow. Both inputs validate and
+  all eight cancellation observations agree exactly on `[13,13]`, but the gate
+  returns NOT READY across 26 pairs: the arms reuse scenario observation IDs
+  and do not share one OTS/typeface, paint/surface, run-coordinate phase,
+  logical-offset/full-gamma-table, metric, raw/filtered-record, or terminal-mask
+  envelope. Every paired glyph mask differs byte-for-byte. Aligned independent
+  recollection remains required before terminal masks become a complete gate;
+  that follow-up cannot change production rendering or widen a visual
+  tolerance.
 
 <!-- Animated viewBox culling source audit, implementation, and oracle -->
 - Animated viewBox culling's composed-timeline path is implemented (doc 155):

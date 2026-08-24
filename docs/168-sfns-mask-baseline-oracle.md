@@ -10,7 +10,11 @@ proposal collector now retains actual scaler records, matrix factorization,
 gamma/preblend state, and mask bytes. DM-2575 adds the independent test-only
 pinned-Chromium validation arm, with exact browser-constructed records and
 post-conversion buffers from 26 separately launched, explicitly headless
-processes. Exact proposal/validation cross-arm adjudication is still required.
+processes. DM-2576 adds the exact cross-arm adjudicator and an optional
+manual-only CI gate. The retained arms authenticate individually and agree on
+the decisive `[13,13]` cancellation scaler, but the adjudicator correctly
+withholds terminal-mask readiness because their rendering envelopes,
+coordinate facts, required gamma/offset coverage, and mask bytes are not equal.
 No visual tolerance is accepted: the terminal mask comparison remains
 diagnostic, while the CoreText design-command seam is already an exact logical
 proposal/validation gate. The focused macOS runner is
@@ -334,7 +338,7 @@ one only on the private-Skia side:
   records the predicted 13px result, and DM-2575's pinned validation hook now
   independently authenticates the browser-constructed `[13,13]` record.
 
-The exact adjudicator must require distinct proposal/validation builds and
+The exact adjudicator requires distinct proposal/validation builds and
 observation ids, two cold and two warm samples, and equality of source/font,
 typeface/axes, gid/advance/offset, metrics/baseline, raw/filtered records,
 matrices, two-bit phases, hinting/edging/mask format, surface properties,
@@ -345,11 +349,57 @@ dropped, duplicated, reordered, stale, or wrong-identity observations fail
 closed. There is no pixel tolerance.
 
 The proposal-side pinned-Skia collector and independent test-only
-pinned-headless Chromium validator are implemented. The byte-exact cross-arm
-adjudicator remains the next isolated step, followed by an optional CI
-terminal-pixel gate only if exact adjudication succeeds. None of this evidence
-infrastructure changes production rendering or the existing source-backed
-outline gate.
+pinned-headless Chromium validator are implemented. DM-2576's adjudicator is
+`tools/sfns-terminal-mask-adjudicator.ts`; its retained report is
+`.pr-notes/artifacts/dm2576-sfns-terminal-mask-adjudication.json` (file SHA-256
+`ba14ff03e75e5ace2b609f14cbd7e0c18ff35ca99cd9a73571056028ca5caf3c`, sealed
+report digest `e730e1cf8216e9d15c62fd6ee06b3bcd2763c9ae735dfab8a7c24ba32613d72c`).
+It re-runs both arm schemas, recomputes both artifact digests, requires distinct
+authority/build/binary identities, pairs all 26 observations, and compares
+every required field and embedded mask byte. Only the first four
+`SkScalerContextRec` bytes—the separately authenticated, process-local
+`SkTypefaceID`—are zeroed. The optional workflow is manual-only and stays red
+until exact adjudication succeeds. None of this evidence infrastructure changes
+production rendering or the existing source-backed outline gate.
+
+### Exact cross-arm result
+
+Both retained inputs pass their independent fail-closed schemas. Their build
+identities and binary digests are distinct, and all eight cancellation
+observations—two cold and two warm in each arm—factor exactly to `[13,13]`.
+This closes the 13px-versus-26px decision: Chromium does not rasterize a 26px
+mask and resample it later. Cross-arm authentication separately records one
+integrity failure because the ordinary scenario observation IDs overlap.
+
+The terminal-mask gate is nevertheless **not ready**. Exact adjudication finds
+721 field/byte mismatches across the 26 paired observations. The repeated
+count is intentional: cold and warm equality inside an arm cannot excuse a
+cross-arm disagreement. The governing incompatibilities are:
+
+- the 20 ordinary scenario observations reuse the same IDs in both arms,
+  violating independent observation identity;
+- the proposal uses the original data-backed typeface (`.SFNS-Bold`), black
+  paint, surface contrast `0.5`, and diagnostic absolute origins/baselines,
+  while Chromium uses the OTS-sanitized stream, its rewritten PostScript name,
+  white paint, surface contrast `0`, and live run-coordinate origins/baselines;
+- those paint/surface facts change the raw and filtered record bytes beyond the
+  permitted four-byte runtime ID. Pinned Skia source makes the dependency
+  direct: `MakeRecAndEffects` stores luminance/gamma/contrast, `onFilterRec`
+  halves the smoothing luminance and derives preblend, and `generateImage`
+  applies the resulting tables to the final buffer;
+- the validation v1 artifact retains strike subpixel offsets but not the
+  required shaped glyph offsets, and retains preblend digests but not the full
+  2,048-byte gamma-table digest/shape required for cross-arm equality;
+- CoreText metric projections disagree on `xHeight`, transform/cancellation
+  placement and two-bit phases do not share one coordinate envelope, and every
+  paired post-conversion glyph mask differs byte-for-byte. Raster dimensions
+  mostly agree, which cannot substitute for unequal bytes.
+
+The report retains SHA-256 group identities rather than eliding these facts or
+inventing a normalization. The next evidence collection must independently
+produce the same OTS-decoded font stream, paint/surface inputs, run-coordinate
+placement and phase, complete metrics/offset/gamma fields, and arm-qualified
+observation IDs before the manual workflow can become an optional passing gate.
 
 ### Production outline route (closed by DM-2567)
 
@@ -478,21 +528,21 @@ therefore finds no remaining one-device-pixel baseline component.
 
 ## Adjudicated boundary and follow-up
 
-The dominant residual is owned by CoreText/Skia's terminal raster pipeline, not
+The original diagnostic's dominant residual is owned by CoreText/Skia's terminal raster pipeline, not
 by face selection, shaping, axes, metrics, baseline placement, quarter-origin
 phase, or cache lifecycle. The proposal artifact byte-authenticates the private
 pinned-Skia post-conversion mask and actual 13px cancellation record. The
 independent validation artifact authenticates the record and mask emitted by
 pinned Chromium. The area remains a partial platform boundary rather than an
-exact cross-arm pixel gate until the proposal/validation adjudicator requires
-one exact shared logical digest.
+exact cross-arm pixel gate: the adjudicator now exists and fails closed on the
+retained non-equivalent inputs rather than producing a false shared digest.
 
 The former fontkit-first variable-outline gap is closed by DM-2567's bounded
 CoreText route and exact proposal/validation gate. DM-2568's terminal-mask
 investigation, private-Skia proposal collector, and independent pinned-browser
-validation artifact are complete; only the exact cross-arm adjudicator remains
-isolated follow-up work. It cannot justify changing this logical route or
-widening a visual tolerance.
+validation artifact, and exact adjudicator are complete. Recollection on one
+shared rendering envelope remains follow-up work. It cannot justify changing
+this logical route or widening a visual tolerance.
 
 Run the diagnostic on macOS with:
 
@@ -542,3 +592,16 @@ The normal rows pass `--enable-lcd-text`; the surface control alone passes
 `--disable-lcd-text` to activate the source-owned pixel-geometry conversion.
 The build hook defaults off and neither collection nor validation changes
 production rendering or a visual tolerance.
+
+Run the exact cross-arm adjudicator without launching a browser:
+
+```bash
+npm run fonts:sfns-terminal-mask:adjudicate -- \
+  --proposal .pr-notes/artifacts/dm2577-sfns-pinned-skia-proposal.json \
+  --validation .pr-notes/artifacts/dm2575-sfns-pinned-chromium-validation.json \
+  --report sfns-terminal-mask-adjudication.json
+```
+
+The command exits nonzero while any logical field or byte differs. Pass
+`--allow-not-ready` only when deliberately retaining the diagnostic report; the
+manual CI gate never passes that flag.

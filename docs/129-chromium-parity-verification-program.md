@@ -129,10 +129,15 @@ explicitly headless; normal rows explicitly enable Chromium's macOS headless
 LCD route while the surface control disables it and reaches unknown pixel
 geometry/A8. The pinned browser result confirms `[13,13]` cancellation rather
 than a 26px mask followed by resampling. Its false-default hook changes no
-production build.
-Only byte-exact proposal/validation adjudication remains, so the boundary is
-still partial; no screenshot tolerance or production route may stand in for
-that exact cross-arm gate.
+production build. The exact cross-arm adjudicator now reauthenticates both
+artifacts and pairs all 26 observations without launching a browser. It
+confirms the `[13,13]` cancellation decision but returns **NOT READY**:
+proposal and validation reuse scenario observation IDs, do not share one
+OTS/typeface, paint/surface, placement/phase, offset/gamma-table evidence
+envelope, and disagree on every post-conversion mask byte. A manual-only CI
+workflow therefore stays fail-closed until aligned independent artifacts are
+recollected. The boundary remains partial; no screenshot tolerance or
+production route may stand in for exact cross-arm equality.
 
 Animated viewBox culling uses the one-sided optimization form of this contract
 ([doc 166](166-animated-culling-geometry-oracle.md)): an unculled production SVG

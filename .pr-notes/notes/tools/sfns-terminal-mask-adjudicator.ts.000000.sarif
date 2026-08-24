@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt7dsx1qrqxjesdb",
+          "message": {
+            "text": "Only the first four serialized record bytes are normalized because they are the process-local SkTypefaceID; every source-owned record field and all remaining bytes stay exact. This is the narrowest normalization that permits independent processes without weakening the byte-for-byte contract.",
+            "markdown": "Only the first four serialized record bytes are normalized because they are the process-local SkTypefaceID; every source-owned record field and all remaining bytes stay exact. This is the narrowest normalization that permits independent processes without weakening the byte-for-byte contract."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/sfns-terminal-mask-adjudicator.ts"
+                },
+                "region": {
+                  "startLine": 213,
+                  "endLine": 232,
+                  "snippet": {
+                    "text": "function recordWithoutRuntimeTypeface(\n  rec: SfnsRecEvidence | SfnsValidationRec,\n): unknown {\n  const bytes = decodeBase64(rec.bytesBase64);\n  if (bytes == null || bytes.length < 4) {\n    return { invalidBase64: true, byteLength: rec.byteLength };\n  }\n  bytes.fill(0, 0, 4);\n  return {\n    byteLength: rec.byteLength,\n    bytesBase64: bytes.toString(\"base64\"),\n    sha256: shaBytes(bytes),\n    dump: rec.dump,\n    textSize: rec.textSize,\n    maskFormat: rec.maskFormat,\n    flags: rec.flags,\n    hinting: rec.hinting,\n    luminanceColor: rec.luminanceColor,\n    singleMatrix: rec.singleMatrix,\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2576"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "9580f3b857bb60b31465c604a23d1567"
+          },
+          "attachments": [
+            {
+              "artifactLocation": {
+                "uri": ".pr-notes/artifacts/dm2576-sfns-terminal-mask-adjudication.json",
+                "properties": {
+                  "ext-sha256": "ba14ff03e75e5ace2b609f14cbd7e0c18ff35ca99cd9a73571056028ca5caf3c"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "warning",
+          "guid": "mt7dsxjhiwgsrz0x",
+          "message": {
+            "text": "Missing evidence is represented as null and therefore fails exact comparison instead of being reconstructed from adjacent facts. Validation v1 retained strike subpixel offsets but not shaped offsets, and preblend hashes but not the full 2048-byte gamma table; inferring either would let an incomplete arm pass.",
+            "markdown": "Missing evidence is represented as null and therefore fails exact comparison instead of being reconstructed from adjacent facts. Validation v1 retained strike subpixel offsets but not shaped offsets, and preblend hashes but not the full 2048-byte gamma table; inferring either would let an incomplete arm pass."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/sfns-terminal-mask-adjudicator.ts"
+                },
+                "region": {
+                  "startLine": 316,
+                  "endLine": 435,
+                  "snippet": {
+                    "text": "function validationGlyph(\n  glyph: SfnsRunGlyph,\n  rounding: SfnsRunPayload[\"rounding\"],\n  masks: Map<number, SfnsMaskPayload>,\n): ComparableObservation[\"glyphs\"][number] {\n  const mask = masks.get(glyph.packedId);\n  return {\n    identity: { index: glyph.index, gid: glyph.gid },\n    advance: mask?.glyph.advance ?? null,\n    // The validation v1 artifact retains the strike subpixel fixed offset,\n    // not the shaped glyph offset required by the cross-arm contract. Do not\n    // infer the absent logical fact from neighboring positions.\n    offset: null,\n    placement: { baseline: glyph.deviceOrigin[1] ?? null, deviceOrigin: glyph.deviceOrigin[0] ?? null },\n    phase: {\n      packedId: glyph.packedId,\n      phase: glyph.phase,\n      rounding,\n      subpixelOffsetFixed: mask?.glyph.subpixelOffsetFixed ?? null,\n    },\n    metrics: mask?.glyph.metrics ?? null,\n    mask: mask == null ? null : {\n      encoding: mask.glyph.mask.encoding,\n      bytes: mask.glyph.mask.bytes,\n      sha256: mask.glyph.mask.sha256,\n    },\n  };\n}\n\nfunction proposalComparable(\n  observation: SfnsPinnedObservation,\n): ComparableObservation {\n  return {\n    source: observation.source,\n    typeface: {\n      family: observation.typeface.family,\n      postscriptName: observation.typeface.postscriptName,\n      style: observation.typeface.style,\n      axes: normalizeProposalAxes(observation),\n    },\n    font: observation.font,\n    paint: observation.paint,\n    surfaceProps: observation.surfaceProps,\n    scalerContextFlags: 3,\n    rawRec: recordWithoutRuntimeTypeface(observation.rawRec),\n    filteredRec: recordWithoutRuntimeTypeface(observation.filteredRec),\n    matrices: {\n      total: observation.matrices.total,\n      scale: observation.matrices.scale,\n      remaining: observation.matrices.remaining,\n      remainingWithoutRotation: observation.matrices.remainingWithoutRotation,\n      remainingRotation: observation.matrices.remainingRotation,\n      invertible: observation.matrices.invertible,\n    },\n    smoothBehavior: observation.smoothBehavior,\n    gamma: observation.gamma,\n    fontMetrics: normalizedProposalMetrics(observation),\n    glyphs: observation.glyphs.map(proposalGlyph),\n  };\n}\n\nfunction validationComparable(\n  artifact: SfnsPinnedChromiumValidationArtifact,\n  observation: SfnsValidationObservation,\n): ComparableObservation {\n  const evidence = selectedValidationEvidence(observation);\n  const raw = evidence.raw.payload as SfnsRawPayload;\n  const filtered = evidence.filtered.payload as SfnsFilteredPayload;\n  const run = evidence.run.payload as SfnsRunPayload;\n  const maskPayloads = evidence.masks.map((event) => event.payload as SfnsMaskPayload);\n  const masks = new Map(maskPayloads.map((mask) => [mask.glyph.packedId, mask]));\n  const firstMask = maskPayloads[0];\n  const gamma = firstMask?.gamma;\n  return {\n    source: {\n      chromiumRevision: evidence.run.source.chromiumRevision,\n      skiaRevision: evidence.run.source.skiaRevision,\n      fontPath: artifact.corpus.fontPath,\n      fontByteLength: evidence.run.source.sourceFontByteLength,\n      fontSha256: evidence.run.source.sourceFontSha256,\n    },\n    typeface: {\n      family: evidence.run.typeface.family,\n      postscriptName: evidence.run.typeface.postscriptName,\n      style: evidence.run.typeface.style,\n      axes: normalizeValidationAxes(evidence.run),\n    },\n    font: normalizeFont(raw.font),\n    paint: normalizePaint(raw.paint),\n    surfaceProps: normalizeSurface(raw.surfaceProps),\n    scalerContextFlags: raw.scalerContextFlags,\n    rawRec: recordWithoutRuntimeTypeface(raw.rawRec),\n    filteredRec: recordWithoutRuntimeTypeface(filtered.after),\n    matrices: {\n      total: filtered.matrices.total,\n      scale: filtered.matrices.scale,\n      remaining: filtered.matrices.remaining,\n      remainingWithoutRotation: filtered.matrices.remainingWithoutRotation,\n      remainingRotation: filtered.matrices.remainingRotation,\n      invertible: filtered.matrices.invertible,\n    },\n    smoothBehavior: filtered.smoothBehavior,\n    // Validation schema v1 did not retain the gamma table itself. Keep every\n    // available field exact and represent absent required facts as null, so an\n    // incomplete artifact cannot pass by omission.\n    gamma: {\n      inputContrast: value(raw.surfaceProps, \"textContrast\"),\n      inputDeviceGamma: value(raw.surfaceProps, \"textGamma\"),\n      tableApplicable: null,\n      tableWidth: null,\n      tableHeight: null,\n      tableByteLength: null,\n      tableSha256: null,\n      preblendApplicable: gamma == null ? null : value(gamma, \"preblendApplicable\"),\n      preblendR256Sha256: gamma == null ? null : value(gamma, \"preblendR256Sha256\"),\n      preblendG256Sha256: gamma == null ? null : value(gamma, \"preblendG256Sha256\"),\n      preblendB256Sha256: gamma == null ? null : value(gamma, \"preblendB256Sha256\"),\n    },\n    fontMetrics: normalizedValidationMetrics(firstMask),\n    glyphs: run.glyphs.map((glyph) => validationGlyph(glyph, run.rounding, masks)),"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "risk"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 97,
+          "workItemUris": [
+            "DM-2576"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4a36e320b0448b42faf258d3b9f3d2c5"
+          },
+          "attachments": [
+            {
+              "artifactLocation": {
+                "uri": ".pr-notes/artifacts/dm2576-sfns-terminal-mask-adjudication.json",
+                "properties": {
+                  "ext-sha256": "ba14ff03e75e5ace2b609f14cbd7e0c18ff35ca99cd9a73571056028ca5caf3c"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt7dsy1zktbkkdyh",
+          "message": {
+            "text": "The adjudicator authenticates both schemas and independent authorities, pairs all 20 lifecycle observations plus six controls, rejects any cross-arm observation-ID overlap, verifies every cancellation sample is exactly a 13px scaler, and returns ready only with zero integrity errors and zero exact mismatches. The retained report exercises this fail-closed path with 26 pairs, one named ID-independence error, and 721 mismatches.",
+            "markdown": "The adjudicator authenticates both schemas and independent authorities, pairs all 20 lifecycle observations plus six controls, rejects any cross-arm observation-ID overlap, verifies every cancellation sample is exactly a 13px scaler, and returns ready only with zero integrity errors and zero exact mismatches. The retained report exercises this fail-closed path with 26 pairs, one named ID-independence error, and 721 mismatches."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/sfns-terminal-mask-adjudicator.ts"
+                },
+                "region": {
+                  "startLine": 520,
+                  "endLine": 659,
+                  "snippet": {
+                    "text": "export function adjudicateSfnsTerminalMasks(\n  proposal: SfnsPinnedSkiaProposalArtifact,\n  validation: SfnsPinnedChromiumValidationArtifact,\n  proposalFile = defaultIdentity(\"proposal\", proposal),\n  validationFile = defaultIdentity(\"validation\", validation),\n): SfnsTerminalMaskAdjudicationReport {\n  const inputIntegrityErrors = [\n    ...validateSfnsPinnedSkiaProposal(proposal).map((error) => `proposal:${error}`),\n    ...validateSfnsPinnedChromiumValidation(validation).map((error) => `validation:${error}`),\n  ];\n  const proposalBuildIdentity = hashJson(proposal.build);\n  const validationBuildIdentity = hashJson(validation.build);\n  const distinctAuthorities = proposal.authority !== validation.authority;\n  const distinctBuildIdentities = proposalBuildIdentity !== validationBuildIdentity;\n  const distinctBinaryDigests = proposal.build.binary.sha256 !== validation.build.binary.sha256;\n  if (!distinctAuthorities) inputIntegrityErrors.push(\"independence:same-authority\");\n  if (!distinctBuildIdentities) inputIntegrityErrors.push(\"independence:same-build-identity\");\n  if (!distinctBinaryDigests) inputIntegrityErrors.push(\"independence:same-binary-digest\");\n  if (!exact(proposal.scenarios.map((scenario) => scenario.id), SFNS_PINNED_SCENARIOS)) {\n    inputIntegrityErrors.push(\"proposal:scenario-order\");\n  }\n  if (!exact(validation.scenarios.map((scenario) => scenario.id), SFNS_VALIDATION_SCENARIOS)) {\n    inputIntegrityErrors.push(\"validation:scenario-order\");\n  }\n  if (!exact(proposal.controls.map((control) => control.id), SFNS_CONTROL_IDS)) {\n    inputIntegrityErrors.push(\"proposal:control-order\");\n  }\n  if (!exact(validation.controls.map((control) => control.id), SFNS_VALIDATION_CONTROLS)) {\n    inputIntegrityErrors.push(\"validation:control-order\");\n  }\n\n  const mismatches: ExactMismatch[] = [];\n  const observationPairs: ObservationPairResult[] = [];\n  if (inputIntegrityErrors.length === 0) {\n    try {\n      for (const id of SFNS_PINNED_SCENARIOS) {\n        const proposalScenario = proposal.scenarios.find((scenario) => scenario.id === id)!;\n        const validationScenario = validation.scenarios.find((scenario) => scenario.id === id)!;\n        for (let index = 0; index < 4; index += 1) {\n          observationPairs.push(compareObservation(\n            id,\n            proposalScenario.observations[index],\n            validation,\n            validationScenario.observations[index],\n            mismatches,\n          ));\n        }\n      }\n      for (const id of SFNS_CONTROL_IDS) {\n        const proposalControl = proposal.controls.find((control) => control.id === id)!;\n        const validationControl = validation.controls.find((control) => control.id === id)!;\n        observationPairs.push(compareObservation(\n          `control-${id}`,\n          proposalControl.observation,\n          validation,\n          validationControl.observation,\n          mismatches,\n        ));\n      }\n    } catch (error) {\n      inputIntegrityErrors.push(\n        `cross-arm-extraction:${error instanceof Error ? error.message : String(error)}`,\n      );\n    }\n  }\n\n  const proposalIds = new Set(\n    proposal.scenarios.flatMap((scenario) => scenario.observations.map((observation) => observation.observationId))\n      .concat(proposal.controls.map((control) => control.observation.observationId)),\n  );\n  const validationIds = validation.scenarios\n    .flatMap((scenario) => scenario.observations.map((observation) => observation.observationId))\n    .concat(validation.controls.map((control) => control.observation.observationId));\n  const distinctObservationIds = validationIds.every((id) => !proposalIds.has(id));\n  if (!distinctObservationIds) {\n    inputIntegrityErrors.push(\"independence:observation-id-overlap\");\n  }\n\n  const proposalCancellation = proposal.scenarios\n    .find((scenario) => scenario.id === \"zoom-2-transform-half\")?.observations\n    .map((observation) => observation.matrices.scale) ?? [];\n  const validationCancellation = validation.scenarios\n    .find((scenario) => scenario.id === \"zoom-2-transform-half\")?.observations\n    .map((observation) => {\n      const filtered = selectedValidationEvidence(observation).filtered.payload as SfnsFilteredPayload;\n      return filtered.matrices.scale;\n    }) ?? [];\n  const exactCancellation = proposalCancellation.length === 4\n    && validationCancellation.length === 4\n    && [...proposalCancellation, ...validationCancellation]\n      .every((scale) => exact(scale, [13, 13]));\n  if (!exactCancellation) inputIntegrityErrors.push(\"cancellation:not-exact-13px-scaler\");\n\n  const payload: Omit<SfnsTerminalMaskAdjudicationReport, \"reportDigest\"> = {\n    schemaVersion: 1,\n    authority: \"exact-cross-arm-adjudication\",\n    adjudicatorAbi: SFNS_TERMINAL_ADJUDICATOR_ABI,\n    contract: {\n      equality: \"exact-logical-fields-and-bytes-no-tolerance\",\n      recNormalization: \"zero-only-process-local-four-byte-typeface-id\",\n      productionRenderingChanges: false,\n      browserLaunches: 0,\n    },\n    inputs: {\n      proposal: {\n        ...proposalFile,\n        authority: proposal.authority,\n        artifactDigest: proposal.artifactDigest,\n        recomputedArtifactDigest: sfnsPinnedArtifactDigest(proposal),\n        buildIdentity: proposalBuildIdentity,\n        binarySha256: proposal.build.binary.sha256,\n      },\n      validation: {\n        ...validationFile,\n        authority: validation.authority,\n        artifactDigest: validation.artifactDigest,\n        recomputedArtifactDigest: sfnsValidationArtifactDigest(validation),\n        buildIdentity: validationBuildIdentity,\n        binarySha256: validation.build.binary.sha256,\n      },\n    },\n    independence: {\n      distinctAuthorities,\n      distinctBuildIdentities,\n      distinctBinaryDigests,\n      distinctObservationIds,\n    },\n    cancellationDecision: {\n      required: \"13px-scaler-not-26px-later-resample\",\n      requiredScale: [13, 13],\n      proposalScales: proposalCancellation,\n      validationScales: validationCancellation,\n      exact: exactCancellation,\n    },\n    observationPairs,\n    inputIntegrityErrors: [...new Set(inputIntegrityErrors)],\n    mismatches,\n    ready: inputIntegrityErrors.length === 0 && mismatches.length === 0,\n  };\n  return { ...payload, reportDigest: reportDigest(payload) };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/sfns-terminal-mask-adjudicator.test.ts"
+                },
+                "region": {
+                  "startLine": 65
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2576"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "a534090a6349a65a9c99746bd5bab250"
+          },
+          "attachments": [
+            {
+              "artifactLocation": {
+                "uri": ".pr-notes/artifacts/dm2576-sfns-terminal-mask-adjudication.json",
+                "properties": {
+                  "ext-sha256": "ba14ff03e75e5ace2b609f14cbd7e0c18ff35ca99cd9a73571056028ca5caf3c"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "eeca4380c2745b5c6442afab37210e001b687ca0",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
