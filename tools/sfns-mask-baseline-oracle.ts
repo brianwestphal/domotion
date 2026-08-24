@@ -169,9 +169,26 @@ function routeDomotionSystemFace(target: CapturedElement): void {
   // is provable. Domotion's production system-ui route opens the same bytes at
   // /System/Library/Fonts/SFNS.ttf; retain every captured geometry/metric fact
   // while changing only the family lookup back to that production route.
+  // The structured Blink family record is authoritative over the legacy
+  // string, so update both carriers or a current capture keeps the isolated
+  // custom family and falls through to the standard font.
+  const fontFamilyStack = {
+    source: "blink-font-family-stack-v1" as const,
+    entries: [
+      { name: "system-ui", type: "generic-family" as const },
+      { name: "sans-serif", type: "generic-family" as const },
+    ],
+    genericFamily: "sans-serif" as const,
+  };
   target.fontFamily = "system-ui, sans-serif";
+  target.fontFamilyStack = structuredClone(fontFamilyStack);
+  target.styles.fontFamily = "system-ui, sans-serif";
+  target.styles.fontFamilyStack = structuredClone(fontFamilyStack);
   const segment = target.textSegments?.find((candidate) => candidate.text === TEXT);
-  if (segment != null) segment.fontFamily = "system-ui, sans-serif";
+  if (segment != null) {
+    segment.fontFamily = "system-ui, sans-serif";
+    segment.fontFamilyStack = structuredClone(fontFamilyStack);
+  }
 }
 
 function svgPlacement(svg: string): { origins: number[]; baseline: number; scale: number } {
@@ -401,7 +418,9 @@ const buildDirectory = mkdtempSync(join(tmpdir(), "domotion-sfns-mask-"));
 const nativeBinary = join(buildDirectory, "sfns-mask-baseline");
 execFileSync("swiftc", ["-O", swiftSource, "-o", nativeBinary], { stdio: "inherit" });
 
-const browser = await launchChromium();
+// This diagnostic never needs a visible browser window. Keep it explicit so
+// local parity work cannot interrupt an operator's live browser session.
+const browser = await launchChromium({ headless: true });
 const context = await browser.newContext({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: 1 });
 await context.route(`${BROWSER_FONT_ORIGIN}/**`, (route) => route.fulfill({
   status: 200, contentType: "font/ttf", body: fontBytes,

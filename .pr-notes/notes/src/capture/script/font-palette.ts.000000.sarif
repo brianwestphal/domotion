@@ -66,6 +66,137 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6r6uppbvjv5f3s",
+          "message": {
+            "text": "Recursive mix identity mirrors pinned Blink equality inputs: raw calc-produced endpoint percentages, separately normalized progress/alpha, endpoint trees, color space, and authored hue method versus animation's implicit method. Missing custom endpoints canonicalize to normal and equal resolved trees collapse before the raster key, matching CSSFontSelector rather than inferring values from screenshot similarity.",
+            "markdown": "Recursive mix identity mirrors pinned Blink equality inputs: raw calc-produced endpoint percentages, separately normalized progress/alpha, endpoint trees, color space, and authored hue method versus animation's implicit method. Missing custom endpoints canonicalize to normal and equal resolved trees collapse before the raster key, matching CSSFontSelector rather than inferring values from screenshot similarity."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/font-palette.ts"
+                },
+                "region": {
+                  "startLine": 104,
+                  "endLine": 145,
+                  "snippet": {
+                    "text": "  const resolveToken = (doc, requestedFamilies, token) => {\n    const text = (token || \"normal\").trim();\n    if (!text.startsWith(\"palette-mix(\") || !text.endsWith(\")\")) {\n      return resolveLeaf(doc, requestedFamilies, text);\n    }\n    const parts = splitTopLevel(text.slice(\"palette-mix(\".length, -1));\n    if (parts.length !== 3 || !parts[0].startsWith(\"in \")) {\n      return resolveLeaf(doc, requestedFamilies, text);\n    }\n    const interpolation = parts[0].slice(3).trim().split(/\\s+/);\n    const colorSpace = interpolation[0] || \"oklab\";\n    const hueInterpolationMethod = interpolation.length >= 3 && interpolation.at(-1) === \"hue\"\n      ? interpolation.at(-2)\n      : \"shorter\";\n    const start = endpoint(parts[1]);\n    const end = endpoint(parts[2]);\n    let startPercentage = start.percentage == null ? 50 : Math.min(100, Math.max(0, start.percentage));\n    let endPercentage = end.percentage == null ? 50 : Math.min(100, Math.max(0, end.percentage));\n    if (start.percentage != null && end.percentage == null) endPercentage = 100 - startPercentage;\n    else if (end.percentage != null && start.percentage == null) startPercentage = 100 - endPercentage;\n    const scale = startPercentage + endPercentage;\n    const normalizedPercentage = startPercentage === 0 ? 1 : scale === 0 ? 0 : endPercentage / scale;\n    const alphaMultiplier = scale <= 100 ? scale / 100 : 1;\n    return {\n      token: text,\n      kind: \"mix\",\n      ruleScope: null,\n      ruleFamily: null,\n      basePalette: \"normal\",\n      overrides: [],\n      mix: {\n        colorSpace,\n        hueInterpolationMethod,\n        startPercentage,\n        endPercentage,\n        normalizedPercentage,\n        alphaMultiplier,\n        start: resolveToken(doc, requestedFamilies, start.token),\n        end: resolveToken(doc, requestedFamilies, end.token),\n      },\n    };\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/emoji.ts"
+                },
+                "region": {
+                  "startLine": 200
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2534"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "fe5a05ffefa57880e5e19a4833ce00e7"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6r6yethvt7206v",
+          "message": {
+            "text": "The shadow behavior is intentionally asymmetric because pinned Blink registers document palette rules globally but skips rules declared inside shadow trees. Reading document adopted sheets while excluding shadow sheets preserves that upstream limitation exactly.",
+            "markdown": "The shadow behavior is intentionally asymmetric because pinned Blink registers document palette rules globally but skips rules declared inside shadow trees. Reading document adopted sheets while excluding shadow sheets preserves that upstream limitation exactly."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/font-palette.ts"
+                },
+                "region": {
+                  "startLine": 14,
+                  "endLine": 18,
+                  "snippet": {
+                    "text": " * Blink deliberately does not register @font-palette-values from shadow\n * trees yet (style_engine.cc:3159-3167). Accordingly this resolver reads the\n * document sheets (including document.adoptedStyleSheets), never a shadow\n * root's sheets. The selected document rule is the last matching rule, exactly\n * like StyleEngine's map Set() in style_engine.cc:3577-3586."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/font-palette-dynamic-gate.ts"
+                },
+                "region": {
+                  "startLine": 190
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2534"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c29fb85f3aa38138cc68c0d888b439a0"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "76276340d1d5f1ecd33f09a6e98da1caf0ee7e03",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

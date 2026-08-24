@@ -3,8 +3,10 @@
 DM-2350 traces the complete
 `font-palette` ownership chain, replaces a platform-font visual with a pinned
 COLR/CPAL webfont discriminator, and records a reproducible Domotion cache
-identity defect; DM-2509 closes that defect. No pixel tolerance is introduced
-or changed.
+identity defect; DM-2509 closes that defect. DM-2534 extends the same exact
+ownership record through `palette-mix()`, animation time, adopted document
+sheets, and Blink's current shadow-tree rule scope. No pixel tolerance is
+introduced or changed.
 
 ## Verdict
 
@@ -19,7 +21,9 @@ distinct Chromium-owned rasters.
 
 The production verdict is `source-exact` for both DOM orders. DM-2510 promotes
 that selection proof to a strict COLRv0/COLRv1 native paint gate on macOS,
-Linux, and Windows.
+Linux, and Windows. DM-2534 keeps the verdict `source-exact` for recursive
+mixes, two frozen animation times, document/shadow scope, and forward/reverse
+cache order at DPR 1 and 2.
 
 ## Pinned fixture and anti-vacuity
 
@@ -42,7 +46,7 @@ palette-support ambiguity.
 Source is pinned to Chromium
 `7d859f271cbda744098ac69f44978d4edfa62be3`.
 
-- `style_builder_converter.cc:829-852` converts `normal`, `light`, `dark`, a
+- `style_builder_converter.cc:777-852` recursively converts `normal`, `light`, `dark`, a
   custom identifier, or `palette-mix()` to `FontPalette`. `font_palette.h` and
   `font_palette.cc` define its equality and hash, and `font_cache_key.h` keeps
   palette identity in the face cache key.
@@ -58,7 +62,7 @@ Source is pinned to Chromium
   palette, falls an invalid base index back to palette 0, and ignores invalid
   override indices. `open_type_cpal_lookup.cc:26-77` reads the CPAL flags and
   colors. `palette_interpolation.cc:101-123` owns recursive `palette-mix()`;
-  that animated/mixed state is deliberately outside this first audit.
+  DM-2534 audits that state separately below.
 - Palette application occurs when an `@font-face` or `local()` source creates
   `FontCustomPlatformData`; `font_custom_platform_data.cc:246-288` clones the
   typeface with `SkFontArguments::Palette`. Direct platform-font creation does
@@ -144,9 +148,63 @@ is therefore explicit: static COLRv1 exercises Fontations on all three
 platforms, while COLRv0 retains the Windows DirectWrite branch and Fontations
 elsewhere.
 
-## Required follow-ups
+## Recursive mix, animation, and shadow scope (DM-2534)
 
-1. Keep `palette-mix()`, palette animation, and Blink's documented shadow-tree
-   palette-rule scoping limitation as later, separately adjudicated work.
+The dynamic extension is source-first rather than screenshot-fitted:
 
-The follow-up must not vectorize COLR paint or widen a raster threshold.
+- `css_color_mix_value.cc:14-53` clamps each supplied percentage, fills a
+  missing complement, normalizes the two weights, and retains a sub-100% sum
+  as an alpha multiplier. `style_builder_converter.cc:777-852` recursively
+  preserves both endpoint palettes, interpolation color space, and hue method.
+- `font_palette.cc:14-43,90-107` includes the recursive endpoint trees,
+  non-normalized percentages, normalized progress, alpha multiplier, color
+  space, and hue method in equality and hashing.
+- `interpolable_font_palette.cc:51-82` clamps animation progress to `[0,1]`,
+  keeps exact endpoints at 0 and 1, and represents interior animation states
+  as Oklab palette mixes with an implicit (null) hue method, distinct in
+  `FontPalette` identity from an authored default-shorter method. Capture reads
+  that computed state at the frozen frame; it does not estimate time from
+  pixels.
+- `css_font_selector.cc:50-108,166-190` resolves custom endpoints against the
+  selected family. `palette_interpolation.cc:12-123` recursively mixes the
+  resulting CPAL records, and `font_custom_platform_data.cc:246-288` supplies
+  the fully interpolated colors to Skia as palette-zero overrides.
+- `style_engine.cc:3159-3167` deliberately ignores
+  `@font-palette-values` declared inside a shadow tree today. Document rules
+  still apply to shadow descendants; the last matching document rule wins,
+  and document `adoptedStyleSheets` participate. Capture mirrors that precise
+  limitation and records the descendant identities on an open custom-element
+  raster host. It does not invent support for a shadow-local rule.
+
+`src/capture/script/font-palette.ts` now emits a recursive paint identity with
+the requested token, rule/family/base/ordered overrides, both mix endpoints,
+weights, normalized progress, alpha multiplier, interpolation space, and hue
+method. Raw calc-produced endpoint weights remain distinct from their separately
+clamped paint progress. `src/capture/emoji.ts` canonicalizes missing custom
+endpoints to normal, collapses recursively equal endpoint trees, and resolves
+base indices and invalid overrides at every leaf before serializing the
+complete selected face/gid/representation cache key. Open custom-element hosts
+retain the document-owned or ignored shadow-descendant state that can change
+their Chromium-owned raster.
+
+`tools/font-palette-dynamic-gate.ts` adds six COLRv0 cases at each DPR:
+sRGB 30% mix, Oklab animation at 30% and 50%, a document rule used inside a
+shadow tree, an ignored shadow-local rule, and a last-wins adopted document
+rule. The COLRv0 rows require exact source-derived opaque colors. Three COLRv1
+rows per DPR require active normal/base/mixed gradients whose fully opaque
+channels stay within their exact source endpoints. Four production controls
+(forward and reverse order at DPR 1 and 2) require six native/captured PNG
+hashes to match one-for-one, all recursive identities to be present, the
+selected representation to remain `colr`, and capture to remain warning-free.
+
+The local combined report is `source-exact`: 12/12 dynamic COLRv0 rows, 6/6
+dynamic COLRv1 rows, and 4/4 production order controls pass. The same dynamic
+gate is part of `.github/workflows/font-palette-ownership-audit.yml` on macOS,
+Linux, and Windows. Browser launches are explicit headless launches. There is
+no image-score target, adjustable threshold, or cross-run pixel fitting.
+
+## Maintenance rule
+
+Future changes must retain the static and dynamic source records, both DOM
+orders, both DPRs, and the three native runner operating systems. Do not
+vectorize COLR paint or widen a raster threshold.

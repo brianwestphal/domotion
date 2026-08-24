@@ -154,6 +154,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "codex-root",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6rp1nsaf14wx8h",
+          "message": {
+            "text": "DM-2533 does not authorize a renderer or tolerance change. Retained authenticated evidence excludes face/axes/gid/metrics/baseline/quarter-phase/cache order; pinned Skia owns the remaining CoreText smoothing, gamma, LCD/A8 conversion and preblend. The fresh collection is explicitly withheld because its old origin mutation no longer controls current placement.",
+            "markdown": "DM-2533 does not authorize a renderer or tolerance change. Retained authenticated evidence excludes face/axes/gid/metrics/baseline/quarter-phase/cache order; pinned Skia owns the remaining CoreText smoothing, gamma, LCD/A8 conversion and preblend. The fresh collection is explicitly withheld because its old origin mutation no longer controls current placement."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/sfns-mask-baseline-oracle.ts"
+                },
+                "region": {
+                  "startLine": 1,
+                  "endLine": 40,
+                  "snippet": {
+                    "text": "/**\n * macOS SFNS native-mask/baseline discriminator.\n *\n * The collector holds physical font bytes, axes, gids, and Skia's two-bit\n * subpixel position keys fixed while crossing three paint representations:\n * CoreText's native mask, CoreText's glyph path rasterized as SVG, and the\n * production Domotion path. See docs/168-sfns-mask-baseline-oracle.md.\n */\nimport { execFileSync } from \"node:child_process\";\nimport { createHash } from \"node:crypto\";\nimport {\n  mkdirSync, mkdtempSync, readFileSync, writeFileSync,\n} from \"node:fs\";\nimport { arch, tmpdir, version as osVersion } from \"node:os\";\nimport { join, resolve } from \"node:path\";\nimport type { Page } from \"@playwright/test\";\nimport { captureElementTree, launchChromium } from \"../src/capture/index.js\";\nimport type { CapturedElement } from \"../src/capture/types.js\";\nimport { elementTreeToSvg } from \"../src/render/element-tree-to-svg.js\";\nimport {\n  clearFontResolutionCaches, clearGlyphDefs, setRenderTextMode,\n} from \"../src/render/font-resolution.js\";\nimport {\n  getTextRunProvenance, resetTextRunProvenance, setTextRunProvenanceEnabled,\n  type TextRunProvenanceDiagnostic,\n} from \"../src/render/text-run-provenance.js\";\nimport {\n  SFNS_BASE_AXES, SFNS_MUTATION_AXES, classifySfnsOracleRow,\n  quantizeQuarter, validateSfnsOracleArtifact,\n  type CoverageDiff, type SfnsAxes, type SfnsOracleArtifact,\n  type SfnsOracleRow, type SfnsScenarioId,\n} from \"./sfns-mask-baseline-schema.js\";\n\nconst FONT_PATH = \"/System/Library/Fonts/SFNS.ttf\" as const;\nconst CHROMIUM_REVISION = \"7d859f271cbda744098ac69f44978d4edfa62be3\" as const;\nconst SKIA_REVISION = \"62efacd37737505732dbe3d8daa62abd679626a1\" as const;\nconst TEXT = \"zoom2!\";\nconst WIDTH = 240;\nconst HEIGHT = 100;\nconst BROWSER_FONT_FAMILY = \"DM2452 Exact SFNS\";"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.94
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2533"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c43f8146bd2e6205eb8e92f481f49be2"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "76276340d1d5f1ecd33f09a6e98da1caf0ee7e03",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

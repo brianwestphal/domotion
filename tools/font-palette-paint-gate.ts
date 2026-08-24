@@ -12,6 +12,7 @@ import * as fontkit from "fontkit";
 import sharp from "sharp";
 
 import { runFontPaletteOwnershipAudit } from "./font-palette-ownership-audit.js";
+import { runFontPaletteDynamicGate, type FontPaletteDynamicGateReport } from "./font-palette-dynamic-gate.js";
 
 export const COLRV1_FIXTURE = "tests/fixtures/font-palette/COLRv1-static-test-glyphs.ttf";
 export const COLRV1_SHA256 = "5cc3f86c7db4c4a1a00866cd0690c810acd9e9552c79d5395a53d592722d6d94";
@@ -190,6 +191,7 @@ export interface FontPalettePaintGateReport {
   colrv0: Awaited<ReturnType<typeof runFontPaletteOwnershipAudit>>;
   colrv1Source: Colrv1SourceFacts;
   colrv1Rows: Colrv1PaintRow[];
+  dynamic: FontPaletteDynamicGateReport;
 }
 
 export async function runFontPalettePaintGate(options: { artifactDir?: string } = {}): Promise<FontPalettePaintGateReport> {
@@ -198,11 +200,13 @@ export async function runFontPalettePaintGate(options: { artifactDir?: string } 
   const colrv0 = await runFontPaletteOwnershipAudit({ dprs: [1, 2], artifactDir });
   const source = readColrv1SourceFacts();
   const rows = [...await paintRows(1, source, artifactDir), ...await paintRows(2, source, artifactDir)];
+  const dynamic = await runFontPaletteDynamicGate({ colrv1Source: source, colrv1Fixture: COLRV1_FIXTURE, ...(artifactDir == null ? {} : { artifactDir }) });
   const complete = rows.length === 10 && new Set(rows.map((row) => `${row.dpr}:${row.id}`)).size === 10;
-  const verdict = colrv0.verdict === "source-exact" && complete && rows.every((row) => row.pass) ? "source-exact" : "source-drift";
+  const verdict = colrv0.verdict === "source-exact" && complete && rows.every((row) => row.pass)
+    && dynamic.verdict === "source-exact" ? "source-exact" : "source-drift";
   return { schemaVersion: 1, ticket: "DM-2510", verdict,
     fingerprint: { platform: platform(), architecture: arch(), osRelease: release(), chromium: chromium.executablePath(), node: process.version },
-    colrv0, colrv1Source: source, colrv1Rows: rows };
+    colrv0, colrv1Source: source, colrv1Rows: rows, dynamic };
 }
 
 if (process.argv[1] != null && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
@@ -210,6 +214,6 @@ if (process.argv[1] != null && import.meta.url === pathToFileURL(resolve(process
   const json = value("--json"); const artifactDir = value("--artifact-dir");
   const report = await runFontPalettePaintGate({ ...(artifactDir == null ? {} : { artifactDir }) });
   if (json != null) { mkdirSync(dirname(resolve(json)), { recursive: true }); writeFileSync(resolve(json), JSON.stringify(report, null, 2)); }
-  console.log(JSON.stringify({ verdict: report.verdict, colrv0: report.colrv0.verdict, colrv1: `${report.colrv1Rows.filter((row) => row.pass).length}/${report.colrv1Rows.length}` }, null, 2));
+  console.log(JSON.stringify({ verdict: report.verdict, colrv0: report.colrv0.verdict, colrv1: `${report.colrv1Rows.filter((row) => row.pass).length}/${report.colrv1Rows.length}`, dynamic: report.dynamic.verdict }, null, 2));
   if (report.verdict !== "source-exact") process.exitCode = 1;
 }

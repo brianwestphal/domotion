@@ -47,6 +47,11 @@ Chromium revision `7d859f271cbda744098ac69f44978d4edfa62be3` pins Skia revision
 `62efacd37737505732dbe3d8daa62abd679626a1` in `external/chromium/DEPS`.
 The implementation follows these exact source seams:
 
+- Blink's ordinary macOS `SkFont` starts with antialiasing, subpixel
+  positioning, and `kSubpixelAntiAlias` edging enabled. It disables smoothing
+  for `-webkit-font-smoothing:antialiased`, and uses no hinting for that mode or
+  `text-rendering:geometricPrecision`
+  (`font_platform_data_mac.mm:211-271`).
 - Blink's custom-font path applies explicit variation settings, including an
   explicit `opsz`, before cloning the SkTypeface
   (`font_custom_platform_data.cc:102-239`).
@@ -68,6 +73,105 @@ The implementation follows these exact source seams:
 - The two-bit subpixel key and axis-aligned rounding rules come from
   `SkGlyph.cpp:696-734`; scaler matrix factorization is in
   `SkScalerContext.cpp:874-984`.
+
+Apple's public `CTFont.h` contract independently fixes what can be observed at
+the proprietary boundary: `CTFontCreateCopyWithAttributes` creates the varied
+copy; the metrics and advance APIs expose the selected font's numeric facts;
+`CTFontCreatePathForGlyph` applies point size, font matrix, and caller
+transform in order; and `CTFontDrawGlyphs` draws caller-supplied shaped gids at
+caller-supplied positions. The API does not specify glyph-mask bytes, smoothing
+gamma, or cache behavior. Those pixels cannot be reconstructed from the public
+path contract alone.
+
+## Source adjudication
+
+### Identity, origins, and lifecycle
+
+The artifact authenticates one physical source by path and SHA-256, not by a
+possibly size-dependent CoreText display name. Chromium and Domotion report
+the same digest and the native arm opens that exact path. All arms agree on the
+complete axis dictionary, cmap mapping, and supplied gid stream; browser and
+native metrics remain separate facts:
+
+| Row family | Native CT size / ascent / descent / leading | Browser ascent / descent | Captured / emitted baseline |
+| --- | --- | --- | --- |
+| zoom, optical-none, opsz mutation | 26 / 25.13671875 / 5.484375 / 0 | 25 / 5 | 43.25 / 43 |
+| transform scale 2 | 26 / 25.13671875 / 5.484375 / 0 | 26 / 6 | 45.25 / 45.25 |
+| zoom/transform cancellation | 13 / 12.568359375 / 2.7421875 / 0 | 12.5 / 2.5 | 30.75 / 30.75 |
+
+The six-glyph corpus exercises x phases `0`, `.25`, `.5`, and `.75`; emitted y
+phases are `0`, `.25`, and `.75`. Every phase is supplied identically to the
+native and Domotion arms. Two independent cold observations and two warm
+observations are byte-stable at every stage. Every best integer y correction
+is zero. Thus neither a different face, gid, axis instance, metric/baseline
+handoff, quarter-origin phase, nor warm-cache transition explains the
+dominant residual.
+
+### Uniform matrix factorization
+
+The requested rows contain only uniform matrices. Pinned Skia factors the total
+scaler matrix `A` into a uniform vertical scale `s` used for the `CTFont` point
+size and a residual `sA`. For uniform positive `A`, `sA` is exactly identity
+(`SkScalerContext.cpp:941-966`):
+
+| Row | CSS-computed size | Uniform paint transform | Candidate total `A` | If carried by the scaler: CT size / residual |
+| --- | ---: | ---: | ---: | --- |
+| `zoom-2` | 26 | 1 | 26 | 26 / identity |
+| `transform-scale-2` | 13 | 2 | 26 | 26 / identity |
+| `zoom-2-transform-half` | 26 | .5 | 13 | 13 / identity |
+| `optical-sizing-none` | 26 | 1 | 26 | 26 / identity |
+| `opsz-26-mutation` | 26 | 1 | 26 | 26 / identity |
+
+This rules out an omitted residual skew or anisotropic matrix in the current
+oracle arms. It does not claim that Blink/cc necessarily sends the author CSS
+transform into the glyph scaler: whether the cancellation row rasterizes at
+26px and is then resampled to 13px remains a separate pre-compositor fact that
+the retained report does not capture.
+
+### Hinting, antialiasing, and mask conversion
+
+Pinned Skia's macOS route is more than a direct CoreText RGBA draw:
+
+1. `SkTypeface_Mac::onFilterRec` maps every non-none hinting request to normal
+   hinting and classifies the runtime CoreGraphics smoothing behavior as none,
+   grayscale, or subpixel. A requested LCD mask may become A8 while preserving
+   CoreGraphics hinting (`SkTypeface_mac_ct.cpp:887-986`).
+2. Skia's runtime discriminator paints smooth and unsmoothed glyphs, compares
+   their bitmaps, and caches the classification because CoreText exposes no API
+   for this fact (`SkCTFont.cpp:213-275` at the pinned Skia revision).
+3. The scaler draws black-on-white into an alpha-less DeviceRGB bitmap with
+   font quantization disabled, subpixel positioning enabled, explicit
+   antialias/smoothing flags, and the residual text matrix
+   (`SkScalerContext_mac_ct.cpp:177-294`).
+4. Skia then linearizes CoreGraphics' smooth output, converts RGB to A8 or
+   LCD16, and may apply luminance preblend
+   (`SkScalerContext_mac_ct.cpp:366-519`). Scaler-record construction also
+   carries device pixel geometry, gamma, contrast, subpixel, baseline, and
+   mask-format decisions (`SkScalerContext.cpp:1053-1219`). Chromium seeds the
+   global pixel geometry, text contrast, and gamma in
+   `content/browser/browser_main_loop.cc:985-994`.
+
+The Swift arm deliberately draws white-on-black into premultiplied RGBA. It is
+a useful native-raster discriminator, but it is not byte-equivalent to Skia's
+post-conversion A8/LCD mask. Its proximity to Chromium therefore cannot define
+a tolerance or prove a Domotion route change.
+
+### Separate production outline route
+
+There is one smaller logical gap above that terminal mask boundary. For any
+non-empty glyph, production `resolveGlyphCommands` returns fontkit's
+`glyph.path.commands` immediately; the CoreText glyph helper is consulted only
+for an empty outline (`src/render/font-resolution.ts:7960-7982`). The exact
+SFNS variable instance therefore reaches production SVG through fontkit while
+Chromium's macOS typeface/path route reaches CoreText. The retained artifact
+finds identical topology and command counts but up to 1.266 design units of
+coordinate difference. For example, gid 969 starts at x `120` in the
+production definition and x `120.5` in the exact CoreText design outline.
+
+That discrepancy is real, stable, and source-routed even though it is too small
+to explain the dominant pixels. It must be resolved by routing the exact macOS
+variable outline through CoreText or by proving fontkit/CoreText geometry
+equivalence over a bounded corpus—not by widening a visual threshold.
 
 ## Integrity gates
 
@@ -138,15 +242,22 @@ not folded into the mask classification. Transform and cancellation rows keep
 their fractional 45.25px and 30.75px emitted baselines. The focused evidence
 therefore finds no remaining one-device-pixel baseline component.
 
-## Boundary and follow-up
+## Adjudicated boundary and follow-up
 
-The result authorizes no renderer or tolerance change. Direct
-`CTFontDrawGlyphs` composition intentionally isolates the native API but does
-not reproduce every later Skia A8/LCD gamma, preblend, and compositor decision.
-If a production change is still desired, the remaining focused follow-up is a
-source-owned capture of Skia's post-conversion glyph mask plus the
-pre-compositor raster scale/phase in the cancellation row. That evidence must
-move independently before changing production.
+The dominant residual is owned by CoreText/Skia's terminal raster pipeline, not
+by face selection, shaping, axes, metrics, baseline placement, quarter-origin
+phase, or cache lifecycle. The current evidence does not byte-authenticate the
+post-conversion Skia mask, so it remains a source-adjudicated platform boundary
+rather than an exact pixel gate. A bounded Skia harness or trace may capture
+the scaler record, smoothing classification, post-conversion mask, and
+pre-compositor scale/phase if exact terminal pixels become a requirement.
+
+Separately, production's fontkit-first outline route owns the measured
+sub-1.266-design-unit geometry discrepancy and needs its own logical fix and
+exact design-unit gate (the bounded DM-2567 follow-up). Exact terminal-mask and
+pre-compositor evidence, if required, is isolated in DM-2568. This
+investigation authorizes neither production change nor any visual-tolerance
+change.
 
 Run the diagnostic on macOS with:
 

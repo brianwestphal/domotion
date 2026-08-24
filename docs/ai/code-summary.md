@@ -288,7 +288,14 @@ shortest possible map:
   parses the exact COLRv1 PaintLinearGradient/CPAL entries, and the DPR-1/2
   three-OS workflow requires source-bounded native channel paint alongside the
   existing exact COLRv0 colors and capture/native PNG identity. No global
-  percentage or adjustable anti-aliasing envelope is used.
+  percentage or adjustable anti-aliasing envelope is used. DM-2534 extends the
+  capture resolver and that gate through recursive `palette-mix()` records,
+  Oklab animation progress at the frozen capture frame, document
+  `adoptedStyleSheets`, and Blink's current shadow rule limitation (document
+  rules apply to descendants; shadow-local palette rules are ignored).
+  `tools/font-palette-dynamic-gate.ts` runs exact COLRv0 colors, source-bounded
+  COLRv1 channels, and forward/reverse native-to-captured PNG hashes at DPR 1/2
+  with explicit headless Chromium; no fitted visual constant participates.
   `script-iso15924.generated.ts` maps UCD script names to the ISO 15924 tags
   passed to `hb_buffer_set_script` (derived from HarfBuzz's
   `hb-script-list.h`);

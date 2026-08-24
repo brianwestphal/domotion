@@ -169,7 +169,10 @@ const captureDocumentTree =
       && _familyIsUADefault(el, hostFamily);
     return captureFontFamilyStack(computedFontFamily, inheritedHostStandard);
   };
-  const { resolveFontPalette: _resolveFontPalette } = createFontPaletteResolver();
+  const {
+    resolveFontPalette: _resolveFontPalette,
+    resolveShadowFontPalettes: _resolveShadowFontPalettes,
+  } = createFontPaletteResolver();
   const _fontFeatureValuesByDocument = new WeakMap();
   const _fontFeatureValuesFor = (doc) => {
     let tables = _fontFeatureValuesByDocument.get(doc);
@@ -1323,6 +1326,12 @@ const captureDocumentTree =
         fontVariantEmoji: cs.fontVariantEmoji,
         fontPalette: cs.fontPalette,
         fontPaletteIdentity: _resolveFontPalette(el, cs),
+        // Author shadow trees are captured through the custom-element raster
+        // boundary. Their own @font-palette-values rules are ignored by Blink,
+        // but document rules and animated palette-mix states still change the
+        // pixels inside that host. Carry those descendant paint identities on
+        // the raster owner so the captured record explains the selected PNG.
+        shadowFontPaletteIdentities: _resolveShadowFontPalettes(el),
         direction: cs.direction,
         // `unicode-bidi` decides whether the characters' OWN bidi types are
         // honored or overridden. `bidi-override` / `isolate-override` tell the

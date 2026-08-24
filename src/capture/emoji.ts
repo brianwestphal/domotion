@@ -20,7 +20,7 @@ import { existsSync } from "node:fs";
 import type { CDPSession, Page } from "@playwright/test";
 import * as fontkit from "fontkit";
 import sharp from "sharp";
-import type { CapturedElement, CaptureWarning, TextSegment } from "./types.js";
+import type { CapturedElement, CapturedFontPaletteIdentity, CaptureWarning, TextSegment } from "./types.js";
 import { clipRectForScreenshot } from "./clip-rect.js";
 import { backdropLayerMapping, type BackdropQuad } from "./backdrop-layer-space.js";
 import { forEachElement } from "../tree-ops/for-each-element.js";
@@ -197,8 +197,75 @@ interface RasterCandidate {
 }
 
 type ColorSpanIdentity = { fontKey: string; faceId: string; glyphIds: number[]; representation: string; paletteEntryCount?: number; paletteCount?: number; paletteTypes?: number[] };
-export function resolvedPaletteIdentity(styles: Pick<CapturedElement["styles"], "fontPalette" | "fontPaletteIdentity">, span: ColorSpanIdentity) {
-  const source = styles.fontPaletteIdentity ?? { token: styles.fontPalette ?? "normal", ruleFamily: null, basePalette: styles.fontPalette ?? "normal", overrides: [] };
+function paletteTreeEqualityKey(value: CapturedFontPaletteIdentity): string {
+  if (value.mix != null) {
+    return JSON.stringify([
+      "mix",
+      value.mix.startPercentage,
+      value.mix.endPercentage,
+      value.mix.normalizedPercentage,
+      value.mix.alphaMultiplier,
+      value.mix.colorSpace,
+      value.mix.hueInterpolationMethod,
+      paletteTreeEqualityKey(value.mix.start),
+      paletteTreeEqualityKey(value.mix.end),
+    ]);
+  }
+  if (value.kind !== "custom") return JSON.stringify([value.kind]);
+  return JSON.stringify([
+    value.kind,
+    value.token,
+    value.ruleFamily,
+    value.basePalette,
+    value.overrides.map((item) => [item.index, item.color]),
+  ]);
+}
+export function resolvedPaletteIdentity(
+  styles: Pick<CapturedElement["styles"], "fontPalette" | "fontPaletteIdentity">,
+  span: ColorSpanIdentity,
+): CapturedFontPaletteIdentity {
+  const fallbackToken = styles.fontPalette ?? "normal";
+  const fallbackKind = fallbackToken === "normal" || fallbackToken === "light" || fallbackToken === "dark"
+    ? fallbackToken
+    : fallbackToken.startsWith("--") ? "custom" : "unresolved";
+  const source = styles.fontPaletteIdentity ?? {
+    token: fallbackToken,
+    kind: fallbackKind,
+    ruleScope: null,
+    ruleFamily: null,
+    basePalette: fallbackKind === "custom" || fallbackKind === "unresolved" ? "normal" : fallbackToken,
+    overrides: [],
+  };
+  // CSSFontSelector::ResolveInterpolableFontPalette resolves a missing custom
+  // endpoint to normal before it compares/mixes endpoint trees. Keep the
+  // author-facing token in CapturedStyles, but canonicalize the selected paint
+  // identity used by the raster cache exactly where Blink does.
+  if (source.kind === "custom" && source.ruleScope == null) {
+    return {
+      token: "normal",
+      kind: "normal",
+      ruleScope: null,
+      ruleFamily: null,
+      basePalette: "normal",
+      overrides: [],
+      resolvedBasePalette: 0,
+    };
+  }
+  if (source.mix != null) {
+    const start = resolvedPaletteIdentity({ fontPaletteIdentity: source.mix.start }, span);
+    const end = resolvedPaletteIdentity({ fontPaletteIdentity: source.mix.end }, span);
+    // Blink returns the endpoint itself when both recursively resolved trees
+    // compare equal instead of retaining a semantically inert Mix node.
+    if (paletteTreeEqualityKey(start) === paletteTreeEqualityKey(end)) return start;
+    return {
+      ...source,
+      mix: {
+        ...source.mix,
+        start,
+        end,
+      },
+    };
+  }
   const requested = source.basePalette;
   const themed = requested === "light" ? span.paletteTypes?.findIndex((type) => type === 1) : requested === "dark" ? span.paletteTypes?.findIndex((type) => type === 2) : -1;
   const numeric = /^\d+$/.test(requested) ? Number(requested) : 0;

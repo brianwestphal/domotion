@@ -5,12 +5,16 @@ on:
     paths:
       - "src/capture/emoji.ts"
       - "src/capture/types.ts"
+      - "src/capture/script/font-palette.ts"
       - "src/capture/script/index.ts"
       - "src/render/text-to-path.ts"
       - "tools/font-palette-ownership-audit.ts"
       - "tools/font-palette-paint-gate.ts"
+      - "tools/font-palette-dynamic-gate.ts"
       - "tests/font-palette-ownership-audit.test.ts"
       - "tests/font-palette-paint-gate.test.ts"
+      - "tests/font-palette-dynamic-gate.test.ts"
+      - "tests/font-palette-dynamic-gate.e2e.test.ts"
       - "tests/font-palette-ownership-audit.e2e.test.ts"
       - "tests/font-palette-ownership-workflow.test.ts"
       - "tests/fixtures/font-palette/**"
@@ -23,12 +27,16 @@ on:
     paths:
       - "src/capture/emoji.ts"
       - "src/capture/types.ts"
+      - "src/capture/script/font-palette.ts"
       - "src/capture/script/index.ts"
       - "src/render/text-to-path.ts"
       - "tools/font-palette-ownership-audit.ts"
       - "tools/font-palette-paint-gate.ts"
+      - "tools/font-palette-dynamic-gate.ts"
       - "tests/font-palette-ownership-audit.test.ts"
       - "tests/font-palette-paint-gate.test.ts"
+      - "tests/font-palette-dynamic-gate.test.ts"
+      - "tests/font-palette-dynamic-gate.e2e.test.ts"
       - "tests/font-palette-ownership-audit.e2e.test.ts"
       - "tests/font-palette-ownership-workflow.test.ts"
       - "tests/fixtures/font-palette/**"
@@ -73,8 +81,8 @@ jobs:
         if: runner.os != 'Linux'
         run: npx playwright install chromium
       - name: Validate source parsers and hostile mutations
-        run: npx vitest run tests/font-palette-ownership-audit.test.ts tests/font-palette-paint-gate.test.ts tests/font-palette-ownership-workflow.test.ts
-      - name: Run strict source-owned DPR1/2 COLRv0/COLRv1 paint gate
+        run: npx vitest run tests/font-palette-ownership-audit.test.ts tests/font-palette-paint-gate.test.ts tests/font-palette-dynamic-gate.test.ts tests/font-palette-ownership-workflow.test.ts
+      - name: Run strict source-owned DPR1/2 static and dynamic COLRv0/COLRv1 paint gate
         run: >-
           npm run fonts:palette-paint-gate --
           --json tests/output/font-palette/${{ runner.os }}/report.json

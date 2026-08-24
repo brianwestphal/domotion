@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6r72xi9y3g01pc",
+          "message": {
+            "text": "The final explicit-headless DPR 1 and 2 gate returned source-exact: 12 dynamic COLRv0 rows, 6 dynamic COLRv1 rows, and 4 forward/reverse production orders all passed with one-for-one native/captured PNG hashes and complete recursive identities.",
+            "markdown": "The final explicit-headless DPR 1 and 2 gate returned source-exact: 12 dynamic COLRv0 rows, 6 dynamic COLRv1 rows, and 4 forward/reverse production orders all passed with one-for-one native/captured PNG hashes and complete recursive identities."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/font-palette-dynamic-gate.ts"
+                },
+                "region": {
+                  "startLine": 422,
+                  "endLine": 488,
+                  "snippet": {
+                    "text": "async function productionOrder(\n  browser: Browser,\n  fontUrl: string,\n  order: DynamicV0CaseId[],\n  dpr: Dpr,\n  artifactDir?: string,\n): Promise<DynamicProductionOrderEvidence> {\n  const context = await browser.newContext({ viewport: { width: 620, height: 120 }, deviceScaleFactor: dpr });\n  const page = await context.newPage();\n  const tracker = attachWebfontTracker(page);\n  try {\n    const locators = await setDynamicV0Content(page, fontUrl, order);\n    const sourcePngs = await Promise.all(order.map((id) => {\n      const locator = id.startsWith(\"shadow-\") ? page.locator(`#host-${id}`) : locators.get(id)!;\n      return locator.screenshot({ omitBackground: true, type: \"png\" });\n    }));\n    clearWebfonts();\n    clearGlyphDefs();\n    const registration = await discoverAndRegisterWebfonts(page, tracker.urls);\n    if (!registration.some((row) => row.ok && row.family === V0_FAMILY)) {\n      throw new Error(`dynamic palette webfont registration failed: ${JSON.stringify(registration)}`);\n    }\n    const selected = selectedGlyphRasterSpans(V0_GLYPH, [{ start: 0, end: 1 }], {\n      fontSize: 100,\n      fontFamily: V0_FAMILY,\n      fontWeight: 400,\n      fontStyle: \"normal\",\n      fontStretch: \"100%\",\n      lang: \"en\",\n    })[0];\n    const capture = await captureElementTreeWithWarnings(page, \"#stage\", { x: 0, y: 0, width: 620, height: 120 });\n    const dataUris = collectDataUris(capture.tree);\n    const capturedPngs = dataUris.map((uri) => Buffer.from(uri.slice(uri.indexOf(\",\") + 1), \"base64\"));\n    const glyphRecords = valuesForKey(capture.tree, \"colorGlyphIdentity\");\n    const palettes = [\n      ...glyphRecords.map(paletteRecord).filter((record): record is PaletteRecord => record != null),\n      ...valuesForKey(capture.tree, \"shadowFontPaletteIdentities\").flatMap(shadowPaletteRecords),\n    ];\n    const paletteFor = (token: string): PaletteRecord | null => palettes.find((record) => record.token === token) ?? null;\n    const byId = new Map<DynamicV0CaseId, PaletteRecord | null>([\n      [\"mix-srgb-30\", paletteFor(\"palette-mix(in srgb, --base3 70%, --base7)\")],\n      [\"animation-oklab-30\", paletteFor(\"palette-mix(in oklab, --base3 70%, --base7)\")],\n      [\"animation-oklab-50\", paletteFor(\"palette-mix(in oklab, --base3 50%, --base7)\") ?? paletteFor(\"palette-mix(in oklab, --base3, --base7)\")],\n      [\"shadow-document-rule\", paletteFor(\"--scope\")],\n      [\"shadow-local-rule-ignored\", paletteFor(\"--shadow-only\")],\n      [\"document-adopted-rule\", paletteFor(\"--adopted\")],\n    ]);\n    const identityChecks = {\n      mixSpace: byId.get(\"mix-srgb-30\")?.mix?.colorSpace === \"srgb\",\n      mixDefaultHue: byId.get(\"mix-srgb-30\")?.mix?.hueInterpolationMethod === \"shorter\",\n      mixWeights: byId.get(\"mix-srgb-30\")?.mix?.startPercentage === 70\n        && byId.get(\"mix-srgb-30\")?.mix?.endPercentage === 30\n        && byId.get(\"mix-srgb-30\")?.mix?.normalizedPercentage === 0.3\n        && byId.get(\"mix-srgb-30\")?.mix?.alphaMultiplier === 1,\n      mixEndpoints: byId.get(\"mix-srgb-30\")?.mix?.start?.basePalette === \"3\"\n        && byId.get(\"mix-srgb-30\")?.mix?.start?.ruleScope === \"document\"\n        && byId.get(\"mix-srgb-30\")?.mix?.end?.basePalette === \"7\"\n        && byId.get(\"mix-srgb-30\")?.mix?.end?.ruleScope === \"document\",\n      animationTime30: byId.get(\"animation-oklab-30\")?.mix?.normalizedPercentage === 0.3,\n      animationTime50: byId.get(\"animation-oklab-50\")?.mix?.normalizedPercentage === 0.5,\n      animationDefaultSpace: byId.get(\"animation-oklab-30\")?.mix?.colorSpace === \"oklab\",\n      animationEndpoints: byId.get(\"animation-oklab-30\")?.mix?.start?.basePalette === \"3\"\n        && byId.get(\"animation-oklab-30\")?.mix?.end?.basePalette === \"7\",\n      shadowDocumentRule: byId.get(\"shadow-document-rule\")?.ruleScope === \"document\" && byId.get(\"shadow-document-rule\")?.basePalette === \"3\",\n      shadowLocalIgnored: byId.get(\"shadow-local-rule-ignored\")?.ruleScope == null && byId.get(\"shadow-local-rule-ignored\")?.basePalette === \"normal\",\n      adoptedDocumentRule: byId.get(\"document-adopted-rule\")?.ruleScope === \"document\" && byId.get(\"document-adopted-rule\")?.basePalette === \"3\",\n    };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/font-palette.ts"
+                },
+                "region": {
+                  "startLine": 104
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/emoji.ts"
+                },
+                "region": {
+                  "startLine": 200
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2534"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "7414364fa163c275dfd1084630077cba"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "76276340d1d5f1ecd33f09a6e98da1caf0ee7e03",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

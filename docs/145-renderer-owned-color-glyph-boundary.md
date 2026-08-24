@@ -137,10 +137,13 @@ that palette in `FontDescription`/typeface cache identity and hands the
 resolved base plus overrides to Skia. It does not change the decision above:
 both uses still belong to one Chromium raster surface each.
 
-Domotion currently omits the computed/resolved palette from capture and from
-the screenshot cache key. The pinned webfont A/B discriminator therefore
-duplicates the first palette PNG, and reversing DOM order reverses the wrong
-result. [Doc 202](202-font-palette-selection-raster-boundary.md) records the
-source chain, exact CPAL colors, and follow-up boundary. Do not repair that gap
-by vectorizing COLR paint, reclassifying the glyph, or adding a pixel envelope.
-DM-2509 owns the cache-identity correction; DM-2510 owns strict gate promotion.
+Domotion now records the computed value, family-matched document rule,
+base/ordered overrides, recursive mix endpoints/weights/color space, and
+frozen animation progress, then resolves every leaf against the selected
+face's CPAL limits. That complete palette record joins face, gid, and
+representation in the screenshot cache key. DM-2509's static A/B and
+reverse-order controls are byte-exact; DM-2510 promotes COLRv0/COLRv1 native
+paint; DM-2534 adds mixed, animated, adopted-sheet, and document/shadow scope
+controls at DPR 1/2. [Doc 202](202-font-palette-selection-raster-boundary.md)
+records the source chain and strict gate. None of these changes vectorize COLR
+paint, reclassify the glyph, or add a pixel envelope.

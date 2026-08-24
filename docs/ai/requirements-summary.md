@@ -469,7 +469,14 @@ they describe (see `CLAUDE.md` "Documentation"):
   COLRv1 arm requires source-bounded channels, active palette mutations, and
   exact missing/mismatched-rule collapse; it covers Fontations on all three
   platforms while COLRv0 retains the Windows DirectWrite split. No percentage
-  or adjustable anti-aliasing envelope is introduced.
+  or adjustable anti-aliasing envelope is introduced. DM-2534 closes the
+  dynamic states: the captured identity recursively preserves mix endpoints,
+  weights, normalized animation progress, alpha multiplier, interpolation
+  space, hue method, resolved document rule/base/overrides, and selected
+  face/gid/representation. Exact DPR-1/2 controls cover sRGB mix, Oklab frozen
+  animation, document adopted-sheet last-wins behavior, document palette rules
+  inside open shadow trees, ignored shadow-local rules, and forward/reverse
+  native-to-captured raster order under explicit headless Chromium.
 - **Doc 112 (`docs/112-decoration-geometry-oracle.md`, DM-2009)** —
   **Shipped.** `tools/decoration-oracle.ts` (`npm run decorations:oracle`)
   grades text-decoration GEOMETRY against Chrome's paint and Blink's
@@ -2000,7 +2007,16 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   finds a sub-0.017px CoreText-path/Domotion coordinate delta, native-mask-like
   dominance in four rows, a distinct zoom/transform-cancellation boundary,
   and no one-pixel y correction. None of those observations defines a visual
-  tolerance or authorizes a renderer change.
+  tolerance or authorizes a renderer change. The follow-on pinned-source audit
+  excludes different source bytes, gids, axes, metrics, baselines, quarter
+  phases, uniform residual matrices, and cold/warm behavior. It adjudicates the
+  dominant residual as CoreText/Skia terminal smoothing, hinting, gamma, mask
+  conversion, preblend, and possible compositor resampling; the direct RGBA
+  CoreText arm is not a byte-exact Skia A8/LCD mask. Separately,
+  `resolveGlyphCommands` returns fontkit's non-empty SFNS variable outline
+  before its CoreText helper, which owns the stable <=1.266-design-unit outline
+  discrepancy. That logical route gap requires a bounded follow-up; it must not
+  be hidden by a pixel tolerance.
 
 <!-- Animated viewBox culling source audit, implementation, and oracle -->
 - Animated viewBox culling's composed-timeline path is implemented (doc 155):

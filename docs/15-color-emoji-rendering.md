@@ -149,19 +149,22 @@ No raster tolerance is involved.
 `font-palette` does not change the selected face, gid, advance, or COLR
 representation. Blink includes it in font/typeface cache identity and applies
 the resolved CPAL base plus overrides when it creates an author webfont
-typeface. Domotion's selected-glyph raster boundary is still correct, but the
-captured styles and `src/capture/emoji.ts` screenshot cache key currently omit
-palette identity.
+typeface. Domotion's selected-glyph raster boundary remains correct. Capture
+now joins the computed value to its family-matched document rule, recursively
+retains mixed/animated endpoint state, and includes the complete resolved
+palette plus face/gid/representation in `src/capture/emoji.ts`'s screenshot
+cache key.
 
 The pinned WPT COLR/CPAL fixture and
 `tools/font-palette-ownership-audit.ts` make the distinction observable:
-Chromium paints all 22 source-derived DPR-1/2 palette rows exactly, while two
-copies of the same gid with base palettes 2 and 3 reuse the first captured PNG.
-Reversing DOM order reverses the duplicated palette. This is a confirmed
-cache-identity gap, not an activation or vector-ownership failure. See
-[doc 202](202-font-palette-selection-raster-boundary.md); its production fix
-and strict three-platform promotion remain follow-up work in DM-2509 and
-DM-2510 respectively.
+Chromium paints all 22 source-derived DPR-1/2 static palette rows exactly.
+DM-2509's A/B and reverse-order captures now retain the correct two PNGs.
+DM-2510 adds strict COLRv0/COLRv1 native paint, and DM-2534 adds recursive
+`palette-mix()`, frozen animation time, adopted document rules, and Blink's
+current document-versus-shadow rule scope at DPR 1/2. See
+[doc 202](202-font-palette-selection-raster-boundary.md). These are cache and
+paint identities inside the existing raster owner, never a reason to
+vectorize COLR paint.
 
 ## Known gaps
 
@@ -172,10 +175,11 @@ DM-2510 respectively.
 - **Helper-absent mode is approximate.** The app remains non-fatal, but pinned
   ICU properties and native face-table evidence are official-helper features;
   host Unicode/fontkit provide best effort without them.
-- **Selected COLR palette identity is not yet captured.** Two uses of the same
-  face/gid/representation with different `font-palette` values can reuse the
-  first browser screenshot. The exact A/B and reverse-order discriminator is
-  documented in [doc 202](202-font-palette-selection-raster-boundary.md).
+- **Palette support follows Blink's current scope.** Shadow-local
+  `@font-palette-values` rules are ignored because pinned Blink ignores them;
+  document rules still apply inside open shadow trees. The exact positive and
+  negative scope controls are documented in
+  [doc 202](202-font-palette-selection-raster-boundary.md).
 
 ## Test coverage
 

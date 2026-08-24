@@ -698,18 +698,47 @@ export interface CapturedMaskBoxInsets {
   padding: { top: number; right: number; bottom: number; left: number };
 }
 
+export interface CapturedFontPaletteIdentity {
+  /** Computed token or serialized palette-mix() at the owned capture instant. */
+  token: string;
+  kind: "normal" | "light" | "dark" | "custom" | "mix" | "unresolved";
+  /** Blink currently registers these rules at document scope only. */
+  ruleScope: "document" | null;
+  ruleFamily: string | null;
+  basePalette: string;
+  resolvedBasePalette?: number;
+  overrides: Array<{ index: number; color: string }>;
+  /** Recursive Blink FontPalette::Mix identity. Animation produces the same
+   * shape with Oklab and its clamped timeline progress. */
+  mix?: {
+    colorSpace: string;
+    /** Null is Blink's implicit animation interpolation; authored mixes carry
+     * their parsed hue method (shorter by default). */
+    hueInterpolationMethod: string | null;
+    startPercentage: number;
+    endPercentage: number;
+    normalizedPercentage: number;
+    alphaMultiplier: number;
+    start: CapturedFontPaletteIdentity;
+    end: CapturedFontPaletteIdentity;
+  };
+}
+
 export interface CapturedStyles {
   /** Computed CSS font-palette token; part of color-glyph raster identity. */
   fontPalette?: string;
   /** Named-palette rule joined to the requested family; computed style alone
    * serializes only the token and cannot distinguish rule ownership. */
-  fontPaletteIdentity?: {
-    token: string;
-    ruleFamily: string | null;
-    basePalette: string;
-    resolvedBasePalette?: number;
-    overrides: Array<{ index: number; color: string }>;
-  };
+  fontPaletteIdentity?: CapturedFontPaletteIdentity;
+  /** Palette paint states inside an open author shadow root. Custom elements
+   * are screenshot-owned as one host raster, so these descendant identities
+   * travel on the record that owns that PNG. */
+  shadowFontPaletteIdentities?: Array<{
+    path: string;
+    text: string;
+    fontFamily: string;
+    palette: CapturedFontPaletteIdentity;
+  }>;
   backgroundColor: string;
   borderColor: string;
   borderWidth: string;
