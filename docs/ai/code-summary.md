@@ -31,7 +31,7 @@ producer is `tools/collect-stage-evidence.ts` plus
 
 DM-2530 extends `tools/background-clip-text-oracle.ts` with authenticated Chromium/font/DPR evidence and logical mutation controls; `tools/background-clip-text-native-gate.ts` and the native Linux/Windows workflow aggregate those reports before the unchanged terminal edge classifier.
 
-DM-2542/doc 229 records the frozen replaced-media boundary. `tools/live-replaced-media-ownership-audit.ts` is an explicitly headless same-frame/change-frame discriminator; production still embeds the exact Chromium screenshot as a static SVG image.
+Doc 229 defines the frozen replaced-media boundary. `src/capture/replaced-media-frame.ts` now owns the strict clock-paired transaction: finite video decode/seek/presented-frame readiness, origin-clean canvas surface proof, page/rAF/media freeze, exact owner/PNG digests, and post-screenshot navigation/decoder/seek/surface/compositor revalidation. `tests/replaced-media-frame.e2e.test.ts` is explicitly headless and rejects hostile canvas, video, detachment, and navigation transitions. Captures without both exact time and the pre-navigation rAF handle remain observational; playback and animated-image continuation remain unsupported.
 Dependency-roll evidence is adjudicated by `src/review/roll-differential.ts`;
 `src/review/source-drift-gate.ts` adds the fail-closed ICU/HarfBuzz boundary and
 `tools/source-drift-evidence.ts` fingerprints the source pins, ICU data, native

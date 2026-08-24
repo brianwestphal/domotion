@@ -111,6 +111,16 @@ export const FEATURES: FeatureEntry[] = [
     ],
     transition: "affine → projective and preserve-3d → flat/grouped ownership at exact paused timeline samples.",
   },
+  {
+    id: "capture.atomic-replaced-media-frame",
+    behavior: "Preflight, freeze, screenshot, digest, and reverify every finite-video/origin-clean-canvas replaced owner under one caller-owned document/rAF frame, failing closed on navigation, decoder, seek, surface, or compositor drift.",
+    doc: "docs/229-live-replaced-media-frame-ownership.md",
+    tests: [
+      "src/capture/replaced-media-frame.test.ts",
+      "tests/replaced-media-frame.e2e.test.ts",
+    ],
+    transition: "decoded/seeked/presented and origin-clean surface → bound owner PNG → exact post-capture owner/frame epoch, with every hostile movement rejected.",
+  },
 
   // ── Render (DOM tree → SVG) ────────────────────────────────────────────
   {

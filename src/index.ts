@@ -42,6 +42,12 @@ export type {
   CaptureRafTargetState,
   StableCaptureRafState,
 } from "./capture/raf-clock.js";
+export type {
+  ReplacedMediaDimensions,
+  ReplacedMediaFrameOwner,
+  ReplacedMediaKind,
+  StableReplacedMediaFrameState,
+} from "./capture/replaced-media-frame.js";
 export {
   getLastCaptureWarnings,
   logCaptureWarnings,

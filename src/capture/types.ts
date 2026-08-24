@@ -2456,6 +2456,12 @@ export interface CapturedElement {
     rid: string;
     dataUri?: string;
     /**
+     * Exact frozen-frame authority when capture ran with both the caller-owned
+     * document time and the pre-navigation rAF clock. The PNG digest and live
+     * owner facts are reverified before this record is attached.
+     */
+    frameTransaction?: import("./replaced-media-frame.js").ReplacedMediaFrameOwner;
+    /**
      * DM-2380: authoritative Blink content quad plus the one bitmap-to-output
      * mapping used by the renderer. `contentQuad` is capture-local CSS space;
      * `pixelWidth`/`pixelHeight` are the PNG's device pixels; cssPerPixel keeps

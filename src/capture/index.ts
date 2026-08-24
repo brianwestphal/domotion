@@ -48,6 +48,11 @@ import {
   type StableCaptureRafState,
 } from "./raf-clock.js";
 import {
+  prepareReplacedMediaFrameTransaction,
+  type ReplacedMediaFrameTransaction,
+  type StableReplacedMediaFrameState,
+} from "./replaced-media-frame.js";
+import {
   axisAlignedQuadBounds,
   mapCssRectToSourcePixels,
   mapTranslatedQuadToScreenshot,
@@ -66,6 +71,12 @@ import { brandCustomProperties, type Brand } from "../templates/brand.js";
 export { createCapturedTreeEnvelope, promoteCapturedSubtree };
 export { installCaptureRafClock } from "./raf-clock.js";
 export type { CaptureRafClockHandle, CaptureRafTargetState, StableCaptureRafState } from "./raf-clock.js";
+export type {
+  ReplacedMediaDimensions,
+  ReplacedMediaFrameOwner,
+  ReplacedMediaKind,
+  StableReplacedMediaFrameState,
+} from "./replaced-media-frame.js";
 export type {
   CapturedFrameAccess,
   CapturedFrameScrollOwner,
@@ -1473,7 +1484,10 @@ export interface CaptureElementTreeOptions {
   /**
    * Pre-navigation rAF owner installed with `installCaptureRafClock()`.
    * Required to make script callback quiescence part of an animated capture;
-   * omitted legacy captures retain their existing document-timeline behavior.
+   * when paired with `animationTimeMs`, it also activates the atomic
+   * preflight/freeze/capture/reverify transaction for finite seekable video and
+   * origin-clean canvas owners. Omitted legacy captures retain their existing
+   * observational document-timeline/replaced-snapshot behavior.
    */
   rafClock?: CaptureRafClockHandle;
 }
@@ -1685,7 +1699,7 @@ export async function captureElementTreeWithWarnings(
   selector: string = "body",
   viewport: { x: number; y: number; width: number; height: number },
   opts?: CaptureElementTreeOptions,
-): Promise<{ tree: CapturedElement[]; warnings: CaptureWarning[]; frameScrollState: CapturedFrameScrollState; animationFrameState?: StableAnimationFrameState; rafClockState?: StableCaptureRafState }> {
+): Promise<{ tree: CapturedElement[]; warnings: CaptureWarning[]; frameScrollState: CapturedFrameScrollState; animationFrameState?: StableAnimationFrameState; rafClockState?: StableCaptureRafState; replacedMediaFrameState?: StableReplacedMediaFrameState }> {
   let animationFrameState: StableAnimationFrameState | undefined;
   let rafClockState: StableCaptureRafState | undefined;
   if (opts?.animationTimeMs != null) {
@@ -1711,6 +1725,20 @@ export async function captureElementTreeWithWarnings(
       await reverifyCaptureRafClock(page, opts.rafClock, rafClockState);
     }
   };
+  let replacedMediaTransaction: ReplacedMediaFrameTransaction | undefined;
+  try {
+    if (animationFrameState != null && rafClockState != null) {
+      if (opts?.rasterizeFromImagePath != null) {
+        throw new Error("atomic replaced-media capture cannot authenticate an external source image");
+      }
+      replacedMediaTransaction = await prepareReplacedMediaFrameTransaction(
+        page,
+        selector,
+        viewport,
+        animationFrameState,
+        rafClockState,
+      );
+    }
   // DM-829 / DM-496: external-file `clip-path` / `mask-image` fragment refs
   // (`url("./shapes.svg#id")`) can't be resolved by the synchronous capture
   // walk (it can't fetch). Run an async pre-pass that fetches the external
@@ -1825,6 +1853,7 @@ export async function captureElementTreeWithWarnings(
   }
   try {
   const typed = result as { tree: CapturedElement[]; warnings: CaptureWarning[] };
+  await replacedMediaTransaction?.bindCapturedOwners(typed.tree);
   const warnings = typed.warnings ?? [];
   for (let index = 0; index < (projectiveProbe?.facts.length ?? 0); index++) {
     const fact = projectiveProbe!.facts[index];
@@ -1910,7 +1939,10 @@ export async function captureElementTreeWithWarnings(
     includeElement: (element) => element.textPaintGeometry?.neutral == null,
     warnings,
   });
+  await reverifyAnimationFrame();
   await rasterizeReplacedElements(page, typed.tree, viewport, { sourceImagePath: opts?.rasterizeFromImagePath });
+  await reverifyAnimationFrame();
+  const replacedMediaFrameState = await replacedMediaTransaction?.finalize(typed.tree);
   await rasterizeMaskSources(page, typed.tree, viewport);
   await rasterizeAdvancedGradients(typed.tree, page);
   if (sessionGenericFamilies != null) {
@@ -1923,12 +1955,16 @@ export async function captureElementTreeWithWarnings(
     frameScrollState,
     ...(animationFrameState == null ? {} : { animationFrameState }),
     ...(rafClockState == null ? {} : { rafClockState }),
+    ...(replacedMediaFrameState == null ? {} : { replacedMediaFrameState }),
   };
   } finally {
     await frameScrollCapture.dispose();
     await pseudoStyles?.dispose();
     await projectiveProbe?.dispose();
     await textPaintProbe?.dispose();
+  }
+  } finally {
+    await replacedMediaTransaction?.dispose();
   }
 }
 

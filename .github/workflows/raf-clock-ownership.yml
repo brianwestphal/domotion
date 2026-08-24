@@ -6,7 +6,9 @@ on:
     paths:
       - "src/capture/animation-frame.ts"
       - "src/capture/raf-clock.ts"
+      - "src/capture/replaced-media-frame.ts"
       - "tests/raf-clock.e2e.test.ts"
+      - "tests/replaced-media-frame.e2e.test.ts"
       - ".github/workflows/raf-clock-ownership.yml"
 
 jobs:
@@ -26,5 +28,9 @@ jobs:
       - run: npx playwright install chromium --with-deps
       - name: Exact headless main/OOPIF rAF ownership
         run: npx vitest run --config vitest.e2e.config.ts tests/raf-clock.e2e.test.ts
+        env:
+          CI: "true"
+      - name: Exact headless replaced-media frame transaction
+        run: npx vitest run --config vitest.e2e.config.ts tests/replaced-media-frame.e2e.test.ts
         env:
           CI: "true"

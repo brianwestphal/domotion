@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6sks6024zddazb",
+          "message": {
+            "text": "The strict transaction activates only after both caller-owned clocks agree, because Chromium presents video on compositor begin-frames and an after-navigation rAF shim cannot prove page callback ownership. Ordinary capture therefore remains observational, while this path can fail closed without overstating authority. Chromium 7d859f27 videoframesubmitter.cc:531-572 owns Update/Get/Submit/Put for one frame and lines 782-785 reject duplicate frame submission.",
+            "markdown": "The strict transaction activates only after both caller-owned clocks agree, because Chromium presents video on compositor begin-frames and an after-navigation rAF shim cannot prove page callback ownership. Ordinary capture therefore remains observational, while this path can fail closed without overstating authority. Chromium 7d859f27 video_frame_submitter.cc:531-572 owns Update/Get/Submit/Put for one frame and lines 782-785 reject duplicate frame submission."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/replaced-media-frame.ts"
+                },
+                "region": {
+                  "startLine": 165,
+                  "endLine": 216,
+                  "snippet": {
+                    "text": "/**\n * Begin the strict replaced-media transaction after the caller-owned page/rAF\n * clocks have committed, but before any capture prepass. Chromium owns the\n * decoded/presented frame; this code records and freezes that ownership rather\n * than attempting to reproduce playback in SVG.\n */\nexport async function prepareReplacedMediaFrameTransaction(\n  page: Page,\n  selector: string,\n  viewport: { x: number; y: number; width: number; height: number },\n  animationState: StableAnimationFrameState,\n  rafState: StableCaptureRafState,\n): Promise<ReplacedMediaFrameTransaction> {\n  if (animationState.requestedTimeMs !== rafState.requestedTimeMs) {\n    throw new Error(\"replaced-media transaction requires one page/rAF requested time\");\n  }\n  const requestedTimeMs = animationState.requestedTimeMs;\n  if (!Number.isFinite(requestedTimeMs) || requestedTimeMs < 0) {\n    throw new Error(\"replaced-media transaction requires a finite non-negative time\");\n  }\n\n  const stateKey = `__domotionReplacedMedia_${randomUUID().replaceAll(\"-\", \"\")}`;\n  const releasePageState = async (): Promise<void> => {\n    await page.evaluate(async (key) => {\n      type Entry = {\n        element: Element;\n        originalCurrentTime: number | null;\n        originalPaused: boolean | null;\n        callbackId: number | null;\n      };\n      type State = { active: boolean; entries: Entry[] };\n      const scope = globalThis as typeof globalThis & Record<string, unknown>;\n      const state = scope[key] as State | undefined;\n      if (state == null) return;\n      state.active = false;\n      for (const entry of state.entries) {\n        if (!(entry.element instanceof HTMLVideoElement)) continue;\n        if (entry.callbackId != null && typeof entry.element.cancelVideoFrameCallback === \"function\") {\n          entry.element.cancelVideoFrameCallback(entry.callbackId);\n        }\n        try {\n          if (entry.originalCurrentTime != null) entry.element.currentTime = entry.originalCurrentTime;\n          if (entry.originalPaused === false) await entry.element.play();\n        } catch {}\n      }\n      delete scope[key];\n    }, stateKey).catch(() => undefined);\n  };\n  await page.evaluate(\"globalThis.__name ||= (target => target)\");\n  let documentIdentity: string;\n  try {\n  documentIdentity = await page.evaluate(async ({ key, rootSelector, rect, requestedSeconds, protocol }) => {"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/platform/graphics/video_frame_submitter.cc"
+                },
+                "region": {
+                  "startLine": 531
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2565"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c9a8e6fe007d779bec5c72661e986f19"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6sks66dx9vxqf5",
+          "message": {
+            "text": "Every live non-projective raster owner is bound by element identity before screenshots, compared to its preflight surface/presentation signature, and re-read after all PNGs. Exact canvas SHA-256, video ready/seek/presented-frame facts, dimensions, source identity, node connectivity, and the complete Page frame set make hostile movement a structural failure; no pixel threshold or playback model participates.",
+            "markdown": "Every live non-projective raster owner is bound by element identity before screenshots, compared to its preflight surface/presentation signature, and re-read after all PNGs. Exact canvas SHA-256, video ready/seek/presented-frame facts, dimensions, source identity, node connectivity, and the complete Page frame set make hostile movement a structural failure; no pixel threshold or playback model participates."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/replaced-media-frame.ts"
+                },
+                "region": {
+                  "startLine": 453,
+                  "endLine": 552,
+                  "snippet": {
+                    "text": "    async bindCapturedOwners(tree: CapturedElement[]): Promise<void> {\n      if (disposed || finalized) throw new Error(\"replaced-media transaction is no longer active\");\n      boundTargets = collectBoundTargets(tree);\n      const owners = boundTargets.map(({ snapshot, kind }) => ({ rid: snapshot.rid, kind }));\n      if (new Set(owners.map((owner) => owner.rid)).size !== owners.length) {\n        throw new Error(\"replaced-media transaction received duplicate owner ids\");\n      }\n      await page.evaluate(({ key, owners }) => {\n        type Entry = {\n          element: Element;\n          kind: ReplacedMediaKind;\n          rid: string;\n          requestedTimeSeconds: number | null;\n          originalCurrentTime: number | null;\n          originalPaused: boolean | null;\n          callbackId: number | null;\n          videoEpoch: unknown;\n          preflightSignature: string;\n        };\n        type State = { active: boolean; entries: Entry[]; bound: Entry[] };\n        const state = (globalThis as typeof globalThis & Record<string, unknown>)[key] as State | undefined;\n        if (state == null || !state.active) throw new Error(\"replaced-media transaction state is unavailable\");\n        state.bound = owners.map(({ rid, kind }) => {\n          const element = document.querySelector(`[data-domotion-rid=\"${rid}\"]`);\n          if (element == null) throw new Error(`replaced-media owner ${rid} detached before binding`);\n          const prepared = state.entries.find((entry) => entry.element === element);\n          if (kind === \"canvas\" || kind === \"video\") {\n            if (prepared == null || prepared.kind !== kind) {\n              throw new Error(`replaced-media owner ${rid} missed preflight`);\n            }\n            const box = element.getBoundingClientRect();\n            const signature = element instanceof HTMLCanvasElement\n              ? JSON.stringify({\n                  surface: element.toDataURL(\"image/png\"),\n                  css: [box.width, box.height],\n                  intrinsic: [element.width, element.height],\n                })\n              : element instanceof HTMLVideoElement\n                ? JSON.stringify({\n                    readyState: element.readyState,\n                    currentTime: element.currentTime,\n                    css: [box.width, box.height],\n                    intrinsic: [element.videoWidth, element.videoHeight],\n                    source: element.currentSrc || element.src,\n                    epoch: prepared.videoEpoch,\n                  })\n                : \"\";\n            if (signature !== prepared.preflightSignature) {\n              throw new Error(`replaced-media owner ${rid} drifted between preflight and binding`);\n            }\n            prepared.rid = rid;\n            return prepared;\n          }\n          return {\n            element,\n            kind,\n            rid,\n            requestedTimeSeconds: null,\n            originalCurrentTime: null,\n            originalPaused: null,\n            callbackId: null,\n            videoEpoch: null,\n            preflightSignature: \"\",\n          };\n        });\n      }, { key: stateKey, owners });\n      const facts = await readBoundFacts();\n      for (const fact of facts) baselines.set(fact.rid, comparableFact(fact));\n      if (baselines.size !== boundTargets.length) {\n        throw new Error(\"replaced-media transaction did not bind every raster owner\");\n      }\n    },\n\n    async finalize(tree: CapturedElement[]): Promise<StableReplacedMediaFrameState> {\n      if (disposed || finalized) throw new Error(\"replaced-media transaction is no longer active\");\n      const currentTargets = collectBoundTargets(tree);\n      if (currentTargets.length !== boundTargets.length\n          || currentTargets.some((target, index) => target.snapshot.rid !== boundTargets[index]?.snapshot.rid)) {\n        throw new Error(\"replaced-media owner set changed during capture\");\n      }\n      if (!exactFrameSet(expectedFrames, page.frames())) {\n        throw new Error(\"frame navigation changed during replaced-media capture\");\n      }\n      const actualFacts = await readBoundFacts();\n      const actualByRid = new Map(actualFacts.map((fact) => [fact.rid, comparableFact(fact)]));\n      const owners: ReplacedMediaFrameOwner[] = [];\n      for (const target of currentTargets) {\n        const expected = baselines.get(target.snapshot.rid);\n        const actual = actualByRid.get(target.snapshot.rid);\n        if (expected == null || actual == null) {\n          throw new Error(`replaced-media owner ${target.snapshot.rid} lost its transaction fact`);\n        }\n        const differences = replacedMediaOwnerFactDifferences(expected, actual);\n        if (differences.length > 0) {\n          throw new Error(`replaced-media owner ${target.snapshot.rid} drifted: ${differences.join(\", \")}`);\n        }\n        if (target.snapshot.dataUri == null) {\n          throw new Error(`replaced-media owner ${target.snapshot.rid} was not screenshotted`);\n        }\n        const capturedByteDigest = digestDataUri(target.snapshot.dataUri, \"image/png\");"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/replaced-media-frame.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 55
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2565"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "7076a4dcdf225f3c20229a6e27f11057"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "92ba34f73bcf74981b5b1f7252e71168f3bfbe88",
+          "branch": "main"
+        }
+      ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "codex-dm2565-media-transaction",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6sudokef2t0pyk",
+          "message": {
+            "text": "The exact transaction and its hostile controls pass without a visual envelope. Focused Vitest reports 8/8 field-level controls; the explicitly headless Chromium suite reports 10/10 across rAF ownership plus mixed canvas/video repeatability, post-bind surface mutation, hostile seek, owner detachment, main-document replacement, and child-frame URL navigation. Typecheck, ESLint, feature inventory, parity-program, and semantic-coverage structural gates also pass.",
+            "markdown": "The exact transaction and its hostile controls pass without a visual envelope. Focused Vitest reports 8/8 field-level controls; the explicitly headless Chromium suite reports 10/10 across rAF ownership plus mixed canvas/video repeatability, post-bind surface mutation, hostile seek, owner detachment, main-document replacement, and child-frame URL navigation. Typecheck, ESLint, feature inventory, parity-program, and semantic-coverage structural gates also pass."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/replaced-media-frame.ts"
+                },
+                "region": {
+                  "startLine": 527,
+                  "endLine": 573,
+                  "snippet": {
+                    "text": "    async finalize(tree: CapturedElement[]): Promise<StableReplacedMediaFrameState> {\n      if (disposed || finalized) throw new Error(\"replaced-media transaction is no longer active\");\n      const currentTargets = collectBoundTargets(tree);\n      if (currentTargets.length !== boundTargets.length\n          || currentTargets.some((target, index) => target.snapshot.rid !== boundTargets[index]?.snapshot.rid)) {\n        throw new Error(\"replaced-media owner set changed during capture\");\n      }\n      if (!exactFrameSet(expectedFrames, expectedFrameUrls, page.frames())) {\n        throw new Error(\"frame navigation changed during replaced-media capture\");\n      }\n      const actualFacts = await readBoundFacts();\n      const actualByRid = new Map(actualFacts.map((fact) => [fact.rid, comparableFact(fact)]));\n      const owners: ReplacedMediaFrameOwner[] = [];\n      for (const target of currentTargets) {\n        const expected = baselines.get(target.snapshot.rid);\n        const actual = actualByRid.get(target.snapshot.rid);\n        if (expected == null || actual == null) {\n          throw new Error(`replaced-media owner ${target.snapshot.rid} lost its transaction fact`);\n        }\n        const differences = replacedMediaOwnerFactDifferences(expected, actual);\n        if (differences.length > 0) {\n          throw new Error(`replaced-media owner ${target.snapshot.rid} drifted: ${differences.join(\", \")}`);\n        }\n        if (target.snapshot.dataUri == null) {\n          throw new Error(`replaced-media owner ${target.snapshot.rid} was not screenshotted`);\n        }\n        const capturedByteDigest = digestDataUri(target.snapshot.dataUri, \"image/png\");\n        const owner: ReplacedMediaFrameOwner = {\n          rid: actual.rid,\n          kind: actual.kind,\n          readyState: actual.readyState,\n          requestedTimeSeconds: actual.requestedTimeSeconds,\n          currentTimeSeconds: actual.currentTimeSeconds,\n          dimensions: actual.dimensions,\n          frameEpoch: `${actual.frameEpoch}:${actual.surfaceDigest ?? \"presented\"}`,\n          capturedByteDigest,\n          sourceIdentity: actual.sourceIdentity,\n        };\n        target.snapshot.frameTransaction = owner;\n        owners.push(owner);\n      }\n      const frameEpoch = sha256(JSON.stringify({\n        documentIdentity,\n        requestedTimeMs,\n        frames: expectedFrameUrls,\n        owners: owners.map(({ rid, frameEpoch, capturedByteDigest }) => ({ rid, frameEpoch, capturedByteDigest })),\n      }));"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/replaced-media-frame.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 48
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/replaced-media-frame.test.ts"
+                },
+                "region": {
+                  "startLine": 24
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2565"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "6b9eee83f9a09c1c1a08d818a1ded32f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "92ba34f73bcf74981b5b1f7252e71168f3bfbe88",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

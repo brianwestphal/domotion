@@ -12,31 +12,60 @@ state in `BitmapImage`, with page policy able to disable or limit animation.
 These are three different clocks and there is no DOM scalar whose value proves
 that all three surfaces belong to one compositor presentation.
 
-Domotion's current `rasterizeReplacedElements()` correctly asks Chromium to
-screenshot the isolated `<canvas>`, `<video>`, inaccessible `<iframe>`,
-`<object>`, or `<embed>` surface and embeds those bytes as a static SVG
-`<image>`. The DM-2542 headless discriminator captures an unchanged canvas
-twice byte-identically and requires a deliberate frame mutation to change the
+Domotion's `rasterizeReplacedElements()` asks Chromium to screenshot the
+isolated `<canvas>`, `<video>`, inaccessible `<iframe>`, `<object>`, or
+`<embed>` surface and embeds those bytes as a static SVG `<image>`. The
+headless frozen-frame discriminator captures an unchanged canvas twice
+byte-identically and requires a deliberate frame mutation to change the
 snapshot. That proves snapshot ownership, not playback synchronization.
+
+Chromium's source makes the ownership boundary explicit. At revision
+`7d859f271c`, `video_frame_submitter.cc:531-572` updates and obtains exactly one
+provider frame on a compositor begin-frame, submits it, and calls
+`PutCurrentFrame()` immediately so a later begin-frame cannot be mistaken for
+the submitted one. `video_frame_submitter.cc:782-785` refuses to submit the
+same unique frame twice. Canvas snapshot materialization retains exact
+size/alpha/color/HDR/format facts in `canvas_snapshot_info.h:19-37`; it is not a
+DOM clock. Domotion therefore authenticates the presented/snapshotted surface
+instead of deriving either one from playback time.
 
 ## Deterministic contract
 
-Before a future multi-media transaction may be called deterministic it must:
+An atomic transaction is active when `captureElementTree*()` receives both an
+exact `animationTimeMs` and the opaque rAF handle installed by
+`installCaptureRafClock()` **before navigation**. It performs the following
+source-owned sequence:
 
-1. wait for image decode and video seek completion (`loadeddata`/`seeked` plus a
-   presented-video-frame callback where available);
-2. freeze page animation/rAF and media time before the capture prepasses;
-3. record media kind, ready state, requested/current media time, dimensions and
-   a digest of the exact captured bytes;
-4. capture every replaced surface inside one validated frame epoch and reject
-   navigation, decode, seek, canvas mutation, or compositor-frame drift;
-5. reverify the same facts after screenshots before restoring the page.
+1. require one exact page/rAF requested time, pause every visible video, wait
+   for metadata, seek completion, `loadeddata`, and a concrete
+   `requestVideoFrameCallback()` presentation;
+2. require finite seekable video and origin-clean canvas readback, then record
+   ready state, requested/current media time, CSS/intrinsic dimensions, current
+   source, canvas surface bytes, and presented-frame metadata before any other
+   capture prepass;
+3. bind every live non-projective `replacedSnapshot` owner by element identity
+   after the synchronous walk; any surface/fact movement since preflight fails
+   rather than silently rebasing the epoch;
+4. screenshot every bound owner through the existing isolated Chromium path,
+   record a SHA-256 digest of each exact PNG, and reject missing owners or
+   screenshots;
+5. reverify the same element, decoder/seek state, current time, dimensions,
+   canvas digest, video presented-frame epoch, document identity, and complete
+   Playwright frame/URL set before attaching `replacedSnapshot.frameTransaction`;
+6. restore the videos' prior time and paused/playing state in `finally`.
 
-Animated image decoder time is not controllable through the existing page
-clock, and a playing video may submit a new compositor frame between DOM facts
-and screenshot. Current production therefore remains an observational frozen
-snapshot for those inputs; callers needing determinism must pause/seek or supply
-a static poster/frame themselves.
+The capture result also returns `replacedMediaFrameState`, containing the
+clock protocols, Chromium revision, document/frame identities, per-owner facts
+and PNG digests, plus one digest over the validated global frame epoch. The
+transaction rejects a caller-supplied `rasterizeFromImagePath`: bytes captured
+outside this lifetime cannot authenticate the live owner state.
+
+Captures without both clock authorities remain the backward-compatible
+observational frozen snapshot and carry no deterministic frame record. Tainted
+canvas readback, non-finite/non-seekable video, unavailable presented-frame
+callbacks, and any hostile mutation fail closed only on the strict path; they
+do not turn legacy capture into a hard failure. Animated-image decoder time is
+not controllable through these clocks and remains outside the atomic path.
 
 ## Explicitly unsupported
 

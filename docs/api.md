@@ -25,11 +25,12 @@ live DOM and produces a serializable element tree the renderer can consume.
 | `captureElementTree` | function | Run the capture script in a Playwright `Page` and return the element tree for the given selector + viewport. |
 | `captureElementTreeEnvelope` | function | Capture into a JSON-stable `{ schema, tree, sessionGenericFamilies? }` Page-ownership envelope. Use this when a consumer may later promote a descendant to an independent render root. |
 | `captureElementTreeSelfContained` | function | `captureElementTree` + the remote-image embed pass. **Prefer this whenever the tree's render reaches output** — a tree that skips the embed serializes the literal origin URL, which renders blank wherever that origin is unreachable. |
-| `captureElementTreeWithWarnings` | function | Same as above but returns `{ tree, warnings }` instead of mutating a global buffer. |
+| `captureElementTreeWithWarnings` | function | Same as above but returns `{ tree, warnings, frameScrollState, animationFrameState?, rafClockState?, replacedMediaFrameState? }` instead of relying on the global warning buffer. Pairing exact animation time with the pre-navigation rAF handle activates the strict replaced-media frame transaction. |
 | `seekAnimationsToFrame` | function | Pause CSS/WAAPI and SMIL timelines at one exact, paint-committed document time before frame-scoped capture. |
 | `installCaptureRafClock` | function | Install the bounded capture rAF owner on a `BrowserContext` before navigation; it withholds page callbacks, blocks worker/OffscreenCanvas escape routes, and returns the opaque handle used during animated capture. |
 | `sampleCaptureRafClock` / `reverifyCaptureRafClock` | function | Drain one bounded callback batch at the caller-owned time, authenticate main/OOPIF target identities, force a logical rendering commit, and reject callback/target drift between prepasses. |
 | `CaptureRafClockHandle`, `CaptureRafTargetState`, `StableCaptureRafState` | type | Serializable authority and evidence records for the pre-navigation main/OOPIF rAF protocol. |
+| `ReplacedMediaKind`, `ReplacedMediaDimensions`, `ReplacedMediaFrameOwner`, `StableReplacedMediaFrameState` | type | Exact per-owner and global evidence for the clock-paired finite-video/origin-clean-canvas preflight/freeze/capture/reverify transaction, including presented/surface epochs and captured PNG SHA-256 digests. |
 | `getLastCaptureWarnings` | function | Read the warnings buffer populated by `captureElementTree`. Use when you can't switch to the `WithWarnings` form. |
 | `logCaptureWarnings` | function | Pretty-print the warnings to stderr. |
 | `embedRemoteImages` | function | Walk a captured tree and inline any `<img>` / `<image>` data into `data:` URIs so the SVG is self-contained. |
@@ -43,7 +44,7 @@ live DOM and produces a serializable element tree the renderer can consume.
 | `ContentBox`, `ContentBoxOptions`, `BorderBox`, `BorderBoxOptions`, `BoxAnchor` | type | The `contentBox` / `borderBox` results, their options (`at`/`dx`/`dy`), and the named-anchor union. |
 | `launchChromium` | function | Convenience wrapper around `playwright.chromium.launch` with the headless / font / color-scheme defaults Domotion expects. |
 | `CaptureOptions` | type | Options accepted by `DemoRecorder` (viewport, color-scheme, raster pre-pass toggles, etc.). |
-| `CaptureElementTreeOptions` | type | Direct tree-capture options, including strict `animationTimeMs` frame seeking. |
+| `CaptureElementTreeOptions` | type | Direct tree-capture options, including strict `animationTimeMs` frame seeking and the pre-navigation `rafClock` authority. Supplying both activates atomic replaced-media capture; legacy omission remains observational. |
 | `SeekAnimationsToFrameOptions`, `StableAnimationDocumentState`, `StableAnimationFrameState` | type | Strict/include-frame controls and auditable per-document/result records for an exact animation-frame seek. |
 | `CapturedElement` | type | The serializable element-tree node — the contract between capture and render. |
 | `CapturedSessionGenericFamilies`, `CapturedTreeEnvelope`, `CapturedTreeInput` | type | The exact serialized Page preference record, versioned Page-authority envelope, and renderer input union (`CapturedElement[] | CapturedTreeEnvelope`). |

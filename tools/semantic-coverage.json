@@ -1661,6 +1661,9 @@
         "local surface -> clipped affine or projective output",
         "decoded -> loading or broken fallback",
         "capture frame A -> capture frame B",
+        "finite video decoded/seeked/presented/paused owner screenshot -> exact reverify",
+        "origin-clean canvas preflight/bound owner screenshot -> exact surface reverify",
+        "stable owner frame -> canvas mutation or video seek or owner detachment or document navigation rejection",
         "captured frame -> live playback"
       ],
       "exactStates": [
@@ -1671,21 +1674,28 @@
         "horizontal LTR -> vertical RTL or fractional calc position",
         "local surface -> clipped affine or projective output",
         "decoded -> loading or broken fallback",
-        "capture frame A -> capture frame B"
+        "capture frame A -> capture frame B",
+        "finite video decoded/seeked/presented/paused owner screenshot -> exact reverify",
+        "origin-clean canvas preflight/bound owner screenshot -> exact surface reverify",
+        "stable owner frame -> canvas mutation or video seek or owner detachment or document navigation rejection"
       ],
       "uncoveredStates": [
         "captured frame -> live playback"
       ],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/layout",
-        "external/chromium/third_party/blink/renderer/core/paint"
+        "external/chromium/third_party/blink/renderer/core/paint",
+        "external/chromium/third_party/blink/renderer/platform/graphics/video_frame_submitter.cc",
+        "external/chromium/third_party/blink/renderer/platform/graphics/canvas_snapshot_info.h",
+        "external/chromium/third_party/blink/renderer/platform/graphics/bitmap_image.cc"
       ],
       "productionOwners": [
         "src/capture/types.ts",
         "src/capture/script/index.ts",
         "src/capture/script/walker/replaced-elements.ts",
         "src/render/element-tree-to-svg.ts",
-        "src/capture/index.ts"
+        "src/capture/index.ts",
+        "src/capture/replaced-media-frame.ts"
       ],
       "oracles": [
         "tools/replaced-geometry-oracle.ts",
@@ -1694,6 +1704,9 @@
         "tools/raster-boundary-oracle.ts",
         "tools/live-replaced-media-ownership-audit.ts",
         "tests/live-replaced-media-ownership-audit.e2e.test.ts",
+        "src/capture/replaced-media-frame.test.ts",
+        "tests/replaced-media-frame.e2e.test.ts",
+        ".github/workflows/raf-clock-ownership.yml",
         "tests/replaced-snapshot-transform.e2e.test.ts",
         ".github/workflows/replaced-ownership-transitions.yml"
       ],
@@ -1709,8 +1722,9 @@
         "tests/features.ts#replaced-canvas-transformed-clip"
       ],
       "coverage": "partial",
-      "boundary": "DM-2364 source-gates object/intrinsic/zoom geometry, decode fallback, and independently changing canvas/video capture frames at DPR 1/2 on three OSes. Transformed clipped snapshots remain source-owned through Blink content quads and one raster-to-output map (DM-2380). Doc 229 proves stable/changed presented canvas-frame ownership but records that an atomic multi-media epoch is not yet implemented; live playback remains outside SVG.",
+      "boundary": "DM-2364 source-gates object/intrinsic/zoom geometry, decode fallback, and independently changing canvas/video capture frames at DPR 1/2 on three OSes. Transformed clipped snapshots remain source-owned through Blink content quads and one raster-to-output map (DM-2380). Doc 229 now ships an atomic finite-video/origin-clean-canvas epoch whenever exact animation time is paired with the pre-navigation rAF owner: decode/seek/presented-frame readiness, every owner screenshot digest, and post-capture navigation/decoder/seek/surface/compositor facts are exact. Legacy captures remain observational; animated-image continuation and live playback remain outside SVG.",
       "featureIds": [
+        "capture.atomic-replaced-media-frame",
         "render.tree-to-svg"
       ],
       "verifiedPlatforms": [

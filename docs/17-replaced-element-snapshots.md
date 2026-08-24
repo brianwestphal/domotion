@@ -119,6 +119,18 @@ outside that ownership boundary.
 
 4. **Re-rasterization across animation frames**: each frame composites independently — there is no shared-element merge pass (the old `mergeFrames` fast path was removed; see `docs/08`). Every frame's tree carries its own snapshot, so where Chrome painted different pixels in different frames (animated canvas, autoplaying video) each frame shows its own content, and a canvas/video identical between frames simply re-embeds the same data URI per frame.
 
+5. **Authenticated frame transaction**: pairing `animationTimeMs` with the
+   pre-navigation `installCaptureRafClock()` handle activates the strict path in
+   `src/capture/replaced-media-frame.ts`. Before any prepass it pauses and seeks
+   finite video, waits for decoded and presented-frame readiness, and records
+   origin-clean canvas bytes. After the DOM walk it binds every live raster
+   owner, requires all isolated screenshots, hashes the exact PNGs, and
+   reverifies owner identity, page/frame navigation, decoder/seek/time state,
+   dimensions, canvas bytes, and video presentation epoch before restoring
+   media. The per-owner proof is serialized on
+   `replacedSnapshot.frameTransaction`; the capture result carries the complete
+   `replacedMediaFrameState`. Any drift fails closed with no pixel tolerance.
+
 Ordinary `<img>` elements do not use this snapshot path. When intrinsic
 dimensions are available, their paint rectangle follows Blink's concrete
 object-fit/object-position calculation exactly; see
@@ -126,7 +138,9 @@ object-fit/object-position calculation exactly; see
 
 ## What still doesn't work
 
-- **Live playback** — autoplaying videos, animating canvases, and iframe interactions are frozen at the t=0 frame.
+- **Live playback** — autoplaying videos, animating canvases, and iframe interactions are frozen at the captured frame. The strict clock-paired path can select and prove a finite video's requested frame, but the SVG never continues playback.
+- **Animated bitmap decoder continuation** — the page/rAF/media transaction does not own the image decoder's independent animation clock. Those images remain observational static snapshots.
+- **Strict tainted-canvas capture** — Chromium may screenshot a cross-origin-tainted canvas, but script cannot re-read its source surface to prove it did not mutate. It remains available on the observational path and fails closed on the authenticated path.
 - **Cross-origin iframes** that paint differently between capture and re-render — we capture whatever Chromium painted at the moment of `page.screenshot`. Network races can cause late-arriving content to not appear in the snapshot.
 - **`<canvas>` with `image-rendering: pixelated`** — the snapshot is rasterized at the page's `deviceScaleFactor`; if the consumer scales the SVG further, the embedded PNG will resample. Set `image-rendering: pixelated` on the element to keep crisp pixels — domotion preserves the captured `image-rendering` style.
 
@@ -141,6 +155,7 @@ Added under `tests/features.ts`:
 - `replaced-canvas-pseudo-overlay` — `<canvas>` covered by a non-ancestor's absolutely-positioned `::after` pseudo. Verifies non-ancestor pseudos are hidden during snapshot.
 - `replaced-iframe-same-origin` — same-origin `<iframe>` with simple HTML content. Verifies the iframe's painted pixels appear in the snapshot.
 - `tests/replaced-snapshot-transform.e2e.test.ts` — independent Chromium-vs-SVG ink bounds for a partially off-page canvas under nested rotate + scale/skew, CSS zoom, scroll, and DPR 2; a dedicated transform-then-scrolled-overflow-clip discriminator with scroll restoration; DPR-scaled source-crop mapping (including affine `matrix3d`); clipped transformed video and inaccessible iframe pixels; vector-sibling isolation; and the projective single-owner negative. The affine oracle is bounded to three device pixels and would fail on a doubled transform, stretched bitmap mapping, or a clip sampled in pre-transform space.
+- `tests/replaced-media-frame.e2e.test.ts` — explicitly headless mixed canvas/video production capture, repeated same-frame byte control, finite seek/presented-frame readiness, and hostile canvas mutation, video seek, owner detachment, and document-navigation rejection. `src/capture/replaced-media-frame.test.ts` independently mutates every logical fact and dimension with exact comparison.
 
 ## Cross-platform notes
 
