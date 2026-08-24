@@ -1694,6 +1694,8 @@
         "finite video decoded/seeked/presented/paused owner screenshot -> exact reverify",
         "origin-clean canvas preflight/bound owner screenshot -> exact surface reverify",
         "stable owner frame -> canvas mutation or video seek or owner detachment or document navigation rejection",
+        "authenticated GIF/APNG/WebP bytes frame 0 -> arbitrary complete static frame index",
+        "animated element/CSS owner -> authenticated exact bytes and frozen selected-frame PNG",
         "captured frame -> live playback"
       ],
       "exactStates": [
@@ -1707,9 +1709,11 @@
         "capture frame A -> capture frame B",
         "finite video decoded/seeked/presented/paused owner screenshot -> exact reverify",
         "origin-clean canvas preflight/bound owner screenshot -> exact surface reverify",
-        "stable owner frame -> canvas mutation or video seek or owner detachment or document navigation rejection"
+        "stable owner frame -> canvas mutation or video seek or owner detachment or document navigation rejection",
+        "authenticated GIF/APNG/WebP bytes frame 0 -> arbitrary complete static frame index"
       ],
       "uncoveredStates": [
+        "animated element/CSS owner -> authenticated exact bytes and frozen selected-frame PNG",
         "captured frame -> live playback"
       ],
       "upstreamSources": [
@@ -1717,7 +1721,14 @@
         "external/chromium/third_party/blink/renderer/core/paint",
         "external/chromium/third_party/blink/renderer/platform/graphics/video_frame_submitter.cc",
         "external/chromium/third_party/blink/renderer/platform/graphics/canvas_snapshot_info.h",
-        "external/chromium/third_party/blink/renderer/platform/graphics/bitmap_image.cc"
+        "external/chromium/third_party/blink/renderer/platform/graphics/bitmap_image.cc",
+        "external/chromium/cc/paint/paint_image.cc",
+        "external/chromium/cc/trees/image_animation_controller.cc",
+        "external/chromium/third_party/blink/renderer/platform/image-decoders/image_decoder.cc",
+        "external/chromium/third_party/blink/renderer/platform/image-decoders/skia/skia_image_decoder_base.cc",
+        "external/chromium/third_party/blink/renderer/platform/image-decoders/webp/webp_image_decoder.cc",
+        "external/chromium/third_party/blink/renderer/modules/webcodecs/image_decoder_core.cc",
+        "external/chromium/third_party/blink/renderer/modules/webcodecs/image_decoder_external.cc"
       ],
       "productionOwners": [
         "src/capture/types.ts",
@@ -1736,6 +1747,9 @@
         "tests/live-replaced-media-ownership-audit.e2e.test.ts",
         "src/capture/replaced-media-frame.test.ts",
         "tests/replaced-media-frame.e2e.test.ts",
+        "tools/animated-image-frame-selection-audit.ts",
+        "tests/animated-image-frame-selection-audit.test.ts",
+        "tests/animated-image-frame-selection-audit.e2e.test.ts",
         ".github/workflows/raf-clock-ownership.yml",
         "tests/replaced-snapshot-transform.e2e.test.ts",
         ".github/workflows/replaced-ownership-transitions.yml"
@@ -1752,7 +1766,7 @@
         "tests/features.ts#replaced-canvas-transformed-clip"
       ],
       "coverage": "partial",
-      "boundary": "DM-2364 source-gates object/intrinsic/zoom geometry, decode fallback, and independently changing canvas/video capture frames at DPR 1/2 on three OSes. Transformed clipped snapshots remain source-owned through Blink content quads and one raster-to-output map (DM-2380). Doc 229 now ships an atomic finite-video/origin-clean-canvas epoch whenever exact animation time is paired with the pre-navigation rAF owner: decode/seek/presented-frame readiness, every owner screenshot digest, and post-capture navigation/decoder/seek/surface/compositor facts are exact. Legacy captures remain observational; animated-image continuation and live playback remain outside SVG.",
+      "boundary": "DM-2364 source-gates object/intrinsic/zoom geometry, decode fallback, and independently changing canvas/video capture frames at DPR 1/2 on three OSes. Transformed clipped snapshots remain source-owned through Blink content quads and one raster-to-output map (DM-2380). Doc 229 ships an atomic finite-video/origin-clean-canvas epoch whenever exact animation time is paired with the pre-navigation rAF owner: decode/seek/presented-frame readiness, every owner screenshot digest, and post-capture navigation/decoder/seek/surface/compositor facts are exact. DM-2566 separately proves that authenticated exact GIF/APNG/WebP bytes can select any bounded complete static frame through WebCodecs with fresh forward/reverse exact controls. That is an investigation oracle, not a production owner: exact byte acquisition for element/CSS consumers, source binding, frozen-PNG replacement, native gates, animated-image continuation, and live playback remain unsupported.",
       "featureIds": [
         "capture.atomic-replaced-media-frame",
         "render.tree-to-svg"

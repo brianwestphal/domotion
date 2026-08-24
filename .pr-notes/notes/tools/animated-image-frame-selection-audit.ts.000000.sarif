@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex DM-2566 worker",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6xeeca7feluvpk",
+          "message": {
+            "text": "The exact-frame verdict requires more than a successful decode: every bounded GIF/APNG/WebP index is decoded twice in a fresh forward arm and twice in a fresh reverse arm, with complete-frame RGBA, PNG, geometry, timing, format, and color facts identical per index plus distinct-index and RangeError controls. Explicitly headless Chromium 147.0.7727.15 returned decoder-frame-exact with zero errors for the pinned 2/2/3-frame corpus.",
+            "markdown": "The exact-frame verdict requires more than a successful decode: every bounded GIF/APNG/WebP index is decoded twice in a fresh forward arm and twice in a fresh reverse arm, with complete-frame RGBA, PNG, geometry, timing, format, and color facts identical per index plus distinct-index and RangeError controls. Explicitly headless Chromium 147.0.7727.15 returned decoder-frame-exact with zero errors for the pinned 2/2/3-frame corpus."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/animated-image-frame-selection-audit.ts"
+                },
+                "region": {
+                  "startLine": 352,
+                  "endLine": 426,
+                  "snippet": {
+                    "text": "      const formats = [];\n      for (const fixture of fixtureInputs) {\n        const bytes = toBytes(fixture.base64);\n        const typeSupported = await Decoder.isTypeSupported(fixture.mimeType);\n        const inspectDecoder = new Decoder({\n          data: bytes,\n          type: fixture.mimeType,\n          colorSpaceConversion: \"default\",\n          preferAnimation: true,\n        });\n        await inspectDecoder.tracks.ready;\n        const inspectTrack = inspectDecoder.tracks.selectedTrack;\n        if (inspectTrack == null) throw new Error(`${fixture.format}: no selected animation track`);\n        const track = {\n          frameCount: inspectTrack.frameCount,\n          animated: inspectTrack.animated,\n          repetitionCount: Number.isFinite(inspectTrack.repetitionCount)\n            ? String(inspectTrack.repetitionCount)\n            : \"Infinity\",\n          selectedIndex: inspectDecoder.tracks.selectedIndex,\n        };\n        inspectDecoder.close();\n        const frameCount = track.frameCount;\n        if (frameCount < 2 || frameCount > 8) {\n          throw new Error(`${fixture.format}: frameCount ${frameCount} outside bounded 2..8 corpus`);\n        }\n\n        const runArm = async (role: \"proposal\" | \"validation\", order: number[]) => {\n          const decoder = new Decoder({\n            data: bytes,\n            type: fixture.mimeType,\n            colorSpaceConversion: \"default\",\n            preferAnimation: true,\n          });\n          try {\n            await decoder.tracks.ready;\n            const observations = [];\n            for (const frameIndex of order) observations.push(await decodeObservation(decoder, frameIndex));\n            return { role, order, observations };\n          } finally {\n            decoder.close();\n          }\n        };\n        const proposalOrder = Array.from({ length: frameCount }, (_, index) => index)\n          .flatMap((index) => [index, index]);\n        const validationOrder = [...proposalOrder].reverse();\n        const proposal = await runArm(\"proposal\", proposalOrder);\n        const validation = await runArm(\"validation\", validationOrder);\n\n        const rangeDecoder = new Decoder({\n          data: bytes,\n          type: fixture.mimeType,\n          colorSpaceConversion: \"default\",\n          preferAnimation: true,\n        });\n        let outOfRange = { name: \"none\", message: \"no error\" };\n        try {\n          await rangeDecoder.tracks.ready;\n          await rangeDecoder.decode({ frameIndex: frameCount, completeFramesOnly: true });\n        } catch (error) {\n          outOfRange = error instanceof Error\n            ? { name: error.name, message: error.message }\n            : { name: typeof error, message: String(error) };\n        } finally {\n          rangeDecoder.close();\n        }\n\n        formats.push({\n          format: fixture.format,\n          mimeType: fixture.mimeType,\n          typeSupported,\n          track,\n          arms: [proposal, validation],\n          outOfRange,\n        });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/229-live-replaced-media-frame-ownership.md"
+                },
+                "region": {
+                  "startLine": 90
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2566"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4fe969e20fc68766ffdd4a3ad023b319"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "80b52e8e109302d1f048e8180715cd3375867937",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

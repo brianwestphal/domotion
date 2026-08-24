@@ -67,6 +67,87 @@ callbacks, and any hostile mutation fail closed only on the strict path; they
 do not turn legacy capture into a hard failure. Animated-image decoder time is
 not controllable through these clocks and remains outside the atomic path.
 
+## Animated-image frame-selection investigation
+
+Revision `7d859f271cbda744098ac69f44978d4edfa62be3` proves two distinct
+ownership routes. The ordinary `<img>`/CSS image route does **not** expose an
+arbitrary frame selector. `bitmap_image.cc:62-83` maps animation policy and the
+CSS `image-animation` state to a repetition state; `bitmap_image.cc:146-180`
+serializes a generator, repetition count, and timeline/reset identifiers into a
+`PaintImage`, but no selected frame index. The shared/own timeline state machine
+in `bitmap_image.cc:414-590` likewise manages running, paused, stopped, and
+reset ownership rather than a caller-selected index. The compositor's
+`ImageAnimationController` explicitly tracks the active/pending frame index and
+advances it only when a sync tree is created
+(`cc/trees/image_animation_controller.h:34-48` and
+`cc/trees/image_animation_controller.cc:177-199,299-430`). Consequently,
+pausing an `<img>` can retain a compositor-selected frame and stopping/default
+policy can suppress continuation, but neither authenticates arbitrary frame
+*N*. `BitmapImage::ImageForDefaultFrame()` merely disables repetition
+(`bitmap_image.cc:597-614`); the normal generator backing uses default frame
+index zero (`cc/paint/paint_image.cc:233-252`).
+
+Blink nevertheless has a bounded, wall-clock-independent selector when the
+caller owns the exact encoded bytes. The secure-context WebCodecs
+`ImageDecoder` is exposed to Window and DedicatedWorker and accepts
+`decode({ frameIndex, completeFramesOnly })`
+(`modules/webcodecs/image_decoder.idl:7-24` and
+`image_decode_options.idl:7-14`). The requested index is retained through the
+external request queue (`image_decoder_external.cc:287-317,486-527`), checked
+against `frameCount`, and passed unchanged to
+`ImageDecoder::DecodeFrameBufferAtIndex()`
+(`image_decoder_core.cc:295-375` and
+`platform/image-decoders/image_decoder.cc:590-622`). A successful complete
+decode is materialized as an immutable `SkImage`-backed `VideoFrame` with its
+timestamp, duration, color space, and orientation
+(`image_decoder_core.cc:398-440`); out-of-range requests become `RangeError`
+(`image_decoder_external.cc:559-615`). The platform decoder keeps required
+previous-frame/disposal dependencies while decoding the requested index
+(`image_decoder.cc:672-713,770-901`). GIF and APNG use the shared Skia decoder,
+which passes the exact frame index and prior-frame dependency to `SkCodec`
+(`skia_image_decoder_base.cc:244-271,273-330,407-455`); animated WebP records
+the frame rect, duration, disposal, blend, and required predecessor before its
+indexed decode (`webp_image_decoder.cc:618-705`).
+
+`tools/animated-image-frame-selection-audit.ts` is an investigation oracle for
+that second route, not a production capture path. It embeds the exact pinned WPT
+bytes for `red-green-animated.gif`, `apng.png`, and `webp-animated.webp` (235,
+259, and 340 bytes; two, two, and three frames). An explicitly headless
+Chromium run decodes each index twice in forward order on a fresh proposal
+decoder and twice in reverse order on a fresh validation decoder. It requires
+complete frames, exact raw-RGBA and PNG SHA-256 identity for every repeated
+index, at least two distinct frame pixels per format, stable frame metadata,
+and a `RangeError` activation control. All three formats passed with no raster
+tolerance. This proves arbitrary **static** frame selection for exact bytes; it
+does not prove live playback or ownership of bytes merely referenced by an
+element.
+
+### Recommended production boundary (not implemented)
+
+Any production continuation should remain strict, explicit, and fail closed:
+
+1. accept an opt-in nonnegative frame index for a bounded set of animated-image
+   owners; legacy capture remains unchanged when the option is absent;
+2. bind each request to Blink's selected `currentSrc` and authenticated encoded
+   bytes, recording URL, MIME type, length, and SHA-256 before decoding;
+3. create `ImageDecoder` with `preferAnimation: true`, await track readiness,
+   and require a selected animated track, a stable bounded `frameCount`, and an
+   in-range requested index;
+4. decode exactly that index with `completeFramesOnly: true`, record track and
+   `VideoFrame` metadata plus exact raw-RGBA/PNG digests, and repeat on a fresh
+   decoder/control order before accepting the result;
+5. replace the animated source in the captured tree with the authenticated
+   static PNG and reverify element/source/byte identity before completion; and
+6. reject unavailable or changed bytes, unsupported formats, CORS/security
+   barriers, partial frames, index drift, decode mismatch, and post-bind source
+   mutation. Never silently fall back to the compositor's current/default
+   frame, another library's page-zero choice, or an animation runtime.
+
+Exact encoded-byte acquisition for cross-origin and CSS-owned images still
+needs a separate source/security design. Until that and the strict capture
+transaction are implemented and gated, animated-image arbitrary-frame capture
+remains unsupported production behavior.
+
 ## Explicitly unsupported
 
 Post-capture video playback, animated-image continuation, live canvas mutation,

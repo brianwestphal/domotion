@@ -136,6 +136,7 @@
     "background:url-geometry-audit": "tsx tools/url-background-geometry-audit.ts",
     "background:clip-text-oracle": "node --import tsx tools/background-clip-text-oracle.ts",
     "media:frame-ownership-audit": "node --import tsx tools/live-replaced-media-ownership-audit.ts",
+    "media:animated-image-frame-audit": "node --import tsx tools/animated-image-frame-selection-audit.ts",
     "mask:origin-clip-oracle": "npm run build:capture-script && vitest run --config vitest.e2e.config.ts tests/mask-origin-clip.e2e.test.ts tests/mask-url-repeat-geometry.e2e.test.ts",
     "scrollbars:ownership-audit": "tsx tools/native-scrollbar-ownership-audit.ts",
     "scrollbars:parity-gate": "tsx tools/check-native-scrollbar-release.ts",

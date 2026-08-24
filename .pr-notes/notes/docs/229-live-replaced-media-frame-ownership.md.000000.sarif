@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex DM-2566 worker",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6xee6g84onmaub",
+          "message": {
+            "text": "The ordinary image-animation policy cannot authenticate arbitrary frame N: pinned BitmapImage source only serializes repetition and timeline/reset ownership, while ImageAnimationController owns the active index on compositor sync trees. The separate WebCodecs route passes a caller-supplied index unchanged into DecodeFrameBufferAtIndex, so the safe continuation is an opt-in exact-byte decode frozen to authenticated PNG, not timing or pausing the live image.",
+            "markdown": "The ordinary image-animation policy cannot authenticate arbitrary frame N: pinned BitmapImage source only serializes repetition and timeline/reset ownership, while ImageAnimationController owns the active index on compositor sync trees. The separate WebCodecs route passes a caller-supplied index unchanged into DecodeFrameBufferAtIndex, so the safe continuation is an opt-in exact-byte decode frozen to authenticated PNG, not timing or pausing the live image."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/229-live-replaced-media-frame-ownership.md"
+                },
+                "region": {
+                  "startLine": 72,
+                  "endLine": 110,
+                  "snippet": {
+                    "text": "Revision `7d859f271cbda744098ac69f44978d4edfa62be3` proves two distinct\nownership routes. The ordinary `<img>`/CSS image route does **not** expose an\narbitrary frame selector. `bitmap_image.cc:62-83` maps animation policy and the\nCSS `image-animation` state to a repetition state; `bitmap_image.cc:146-180`\nserializes a generator, repetition count, and timeline/reset identifiers into a\n`PaintImage`, but no selected frame index. The shared/own timeline state machine\nin `bitmap_image.cc:414-590` likewise manages running, paused, stopped, and\nreset ownership rather than a caller-selected index. The compositor's\n`ImageAnimationController` explicitly tracks the active/pending frame index and\nadvances it only when a sync tree is created\n(`cc/trees/image_animation_controller.h:34-48` and\n`cc/trees/image_animation_controller.cc:177-199,299-430`). Consequently,\npausing an `<img>` can retain a compositor-selected frame and stopping/default\npolicy can suppress continuation, but neither authenticates arbitrary frame\n*N*. `BitmapImage::ImageForDefaultFrame()` merely disables repetition\n(`bitmap_image.cc:597-614`); the normal generator backing uses default frame\nindex zero (`cc/paint/paint_image.cc:233-252`).\n\nBlink nevertheless has a bounded, wall-clock-independent selector when the\ncaller owns the exact encoded bytes. The secure-context WebCodecs\n`ImageDecoder` is exposed to Window and DedicatedWorker and accepts\n`decode({ frameIndex, completeFramesOnly })`\n(`modules/webcodecs/image_decoder.idl:7-24` and\n`image_decode_options.idl:7-14`). The requested index is retained through the\nexternal request queue (`image_decoder_external.cc:287-317,486-527`), checked\nagainst `frameCount`, and passed unchanged to\n`ImageDecoder::DecodeFrameBufferAtIndex()`\n(`image_decoder_core.cc:295-375` and\n`platform/image-decoders/image_decoder.cc:590-622`). A successful complete\ndecode is materialized as an immutable `SkImage`-backed `VideoFrame` with its\ntimestamp, duration, color space, and orientation\n(`image_decoder_core.cc:398-440`); out-of-range requests become `RangeError`\n(`image_decoder_external.cc:559-615`). The platform decoder keeps required\nprevious-frame/disposal dependencies while decoding the requested index\n(`image_decoder.cc:672-713,770-901`). GIF and APNG use the shared Skia decoder,\nwhich passes the exact frame index and prior-frame dependency to `SkCodec`\n(`skia_image_decoder_base.cc:244-271,273-330,407-455`); animated WebP records\nthe frame rect, duration, disposal, blend, and required predecessor before its\nindexed decode (`webp_image_decoder.cc:618-705`)."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/animated-image-frame-selection-audit.ts"
+                },
+                "region": {
+                  "startLine": 352
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2566"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "713761a6f91d6bfc7f025da3375d2a90"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "80b52e8e109302d1f048e8180715cd3375867937",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
