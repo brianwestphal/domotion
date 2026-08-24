@@ -2027,16 +2027,22 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   zoom/transform/cancellation rows, and a moving `opsz=26` control. All 30 gid
   observations per arm are `helper-outline` and equal the independent
   pinned-Skia/CoreText stream exactly on the declared 0.001-design-unit protocol
-  lattice (`maxDesignUnitDelta = 0`); no pixel tolerance changed. Terminal mask
-  bytes remain the only gap in this area. DM-2568 pins the exact scaler-record,
-  live draw-matrix/phase, macOS rec-filter, runtime smoothing, RGB-to-A8/LCD,
-  gamma, and preblend source path. It selects a 13px scaler for the
-  zoom-2/transform-.5 cancellation row. The supporting Chrome 147 command log
-  ran explicitly headless and is drifted corroboration, not pinned Chromium
-  proof; the actual record and post-conversion bytes must come from the separate
-  DM-2577 private-Skia proposal collector and DM-2575 test-only pinned-headless
-  validator, followed by DM-2576's exact adjudicator. Those optional follow-ups
-  cannot change production rendering or widen a visual tolerance.
+  lattice (`maxDesignUnitDelta = 0`); no pixel tolerance changed. DM-2568 pins
+  the exact scaler-record, live draw-matrix/phase, macOS rec-filter, runtime
+  smoothing, RGB-to-A8/LCD, gamma, and preblend source path. It selects a 13px
+  scaler for the zoom-2/transform-.5 cancellation row. The supporting Chrome
+  147 command log ran explicitly headless and is drifted corroboration, not
+  pinned Chromium proof. The private pinned-Skia proposal collector now retains
+  the actual raw LCD16 and filtered A8 records, `[26,26]` and cancellation
+  `[13,13]` matrices,
+  runtime `some` smoothing, gamma/preblend state, and exact embedded A8 bytes.
+  It requires two cold/two warm processes for every scenario and six active
+  phase/AA/hinting/matrix/opsz/surface controls; collection launches no browser.
+  A schema reopens every rec and mask buffer and enforces exact lifecycle and
+  envelope digests. The separate test-only pinned-headless Chromium validator
+  and exact cross-arm adjudicator remain required before terminal masks become
+  a complete gate. Those follow-ups cannot change production rendering or
+  widen a visual tolerance.
 
 <!-- Animated viewBox culling source audit, implementation, and oracle -->
 - Animated viewBox culling's composed-timeline path is implemented (doc 155):

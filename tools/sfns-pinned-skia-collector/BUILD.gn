@@ -1,0 +1,17 @@
+import("//gn/skia.gni")
+
+# Deliberately lives inside a pinned Skia checkout: this executable consumes
+# private scaler APIs which must never become a Domotion production dependency.
+executable("sfns_post_conversion_collector") {
+  sources = [ "sfns_post_conversion_collector.cpp" ]
+  deps = [ "//:skia" ]
+  include_dirs = [ "../.." ]
+  defines = [ "SK_GAMMA_APPLY_TO_A8" ]
+  frameworks = [
+    "AppKit.framework",
+    "ApplicationServices.framework",
+    "CoreFoundation.framework",
+    "CoreGraphics.framework",
+    "CoreText.framework",
+  ]
+}

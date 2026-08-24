@@ -5,9 +5,12 @@ closes the bounded variable-outline ownership gap that diagnostic exposed.
 DM-2568 pins the remaining terminal-mask source path, resolves the
 zoom/transform cancellation row to a 13px scaler as an implementation
 prediction, and defines the private-Skia plus instrumented-Chromium evidence
-needed to turn that prediction into an exact gate. It does not accept a visual
-tolerance: the terminal mask comparison remains diagnostic, while the CoreText
-design-command seam is now an exact logical proposal/validation gate. The
+needed to turn that prediction into an exact gate. The private pinned-Skia
+proposal collector now retains actual scaler records, matrix factorization,
+gamma/preblend state, and mask bytes. Independent pinned-browser validation
+and exact cross-arm adjudication are still required. No visual tolerance is
+accepted: the terminal mask comparison remains diagnostic, while the CoreText
+design-command seam is already an exact logical proposal/validation gate. The
 focused macOS runner is
 `tools/sfns-mask-baseline-oracle.ts`; its native companion is
 `tools/sfns-mask-baseline.swift`.
@@ -148,9 +151,9 @@ size and a residual `sA`. For uniform positive `A`, `sA` is exactly identity
 This rules out an omitted residual skew or anisotropic matrix in the current
 oracle arms. DM-2568's pinned source trace further establishes that the live
 draw matrix participates in strike construction, selecting a 13px scaler for
-the cancellation row. The retained diagnostic report does not capture that
-record, so the result remains an implementation prediction pending the pinned
-validation artifact described below.
+the cancellation row. The retained pinned-Skia proposal now captures that
+actual record and reports scale `[13,13]`; independent pinned-browser evidence
+must still prove that Chromium constructs the identical record.
 
 ### Hinting, antialiasing, and mask conversion
 
@@ -193,6 +196,44 @@ in-tree harness. This is the proposal-side API boundary: it exercises Skia's
 actual private implementation rather than attempting to reconstruct the bytes
 from `CTFontDrawGlyphs`.
 
+### Pinned-Skia proposal collector
+
+`tools/sfns-pinned-skia-collector/sfns_post_conversion_collector.cpp` is copied
+into an isolated checkout of Skia revision
+`62efacd37737505732dbe3d8daa62abd679626a1` and built by
+`tools/build-sfns-pinned-skia-collector.mjs`. It is a private-API evidence
+binary, not a production dependency. The build manifest pins its source, GN,
+Ninja, compiler, and output-binary digests. The native process opens the exact
+SFNS bytes as data, constructs a CoreText-backed varied typeface with the
+complete four-axis tuple, builds the raw rec with
+`SkScalerContext::MakeRecAndEffects`, obtains the scaler's actual filtered rec,
+calls `computeMatrices(kVertical)`, and materializes each retained glyph through
+`makeGlyph` plus `setImage`. It embeds every final mask byte in the JSON beside
+its exact dimensions, row bytes, format, and SHA-256.
+
+The retained proposal artifact is
+`.pr-notes/artifacts/dm2577-sfns-pinned-skia-proposal.json` (artifact digest
+`d34a7cf15edeec865759375981eeca9dcfb202a2ff020375e19c50d1447b5a8d`).
+It contains 26 separately launched native observations: two cold and two warm
+processes for each of the five fixed scenarios, plus active phase,
+anti-aliasing, hinting, device-matrix, optical-size, and
+surface-geometry/mask-format controls. Warm observations prime and then reuse
+the same scaler context; every retained observation still has its own process.
+All four lifecycle observations in each scenario have one exact logical digest.
+The collection launches no browser.
+
+On the retained host, `SkCTFontGetSmoothBehavior()` returned `some`. The normal
+rows record raw LCD16 recs and actual filtered A8 recs; all retained glyph
+images are exact A8 buffers. Gamma contributes a 2,048-byte table and the
+artifact retains all three 256-entry preblend digests. The base, transform,
+optical-none, and optical-size rows factor to `[26,26]`; cancellation factors
+to `[13,13]`. Every positive control moved its required exact evidence group,
+with no threshold or fitted comparison. The fail-closed schema in
+`tools/sfns-pinned-skia-mask-schema.ts` reopens all embedded base64 rec and mask
+bytes, recomputes their digests, validates identities/axes/phases/matrices and
+lifecycle equality, and seals the whole artifact. These are proposal facts
+only; they do not establish Chromium agreement by themselves.
+
 The independent validation boundary must be the browser that constructs the
 record. A test-only build at Chromium
 `7d859f271cbda744098ac69f44978d4edfa62be3` can narrowly trace
@@ -203,8 +244,9 @@ records, total/factored matrices, packed phase, surface properties, runtime
 smoothing result, gamma/preblend inputs, and the post-conversion buffer. The
 hook is test-only and must not ship in production.
 
-Two bounded host observations support that design without pretending to be the
-exact gate:
+Two earlier bounded host observations support that design without pretending
+to be the exact cross-arm gate. The new proposal artifact supersedes the first
+one only on the private-Skia side:
 
 - An independent reproduction of pinned Skia's embedded SpiderSymbol smooth
   discriminator (`SkCTFont.cpp:213-275`) classified this host's CoreGraphics as
@@ -222,8 +264,9 @@ exact gate:
   path above folds that last canvas matrix into the strike, so it selects a
   13px total scaler matrix rather than a 26px mask resampled afterward. Because
   the observed binary is Chrome 147 while the source pin is Chromium 151, the
-  command log is drifted corroboration only. The 13px result is a source-decided
-  implementation prediction until the pinned validation hook authenticates it.
+  command log is drifted corroboration only. The private-Skia proposal now
+  records the predicted 13px result, but it remains a browser-side prediction
+  until the pinned validation hook authenticates Chromium's record.
 
 The exact adjudicator must require distinct proposal/validation builds and
 observation ids, two cold and two warm samples, and equality of source/font,
@@ -235,11 +278,11 @@ matrix, opsz, and surface-geometry/mask-format mutations must all be active;
 dropped, duplicated, reordered, stale, or wrong-identity observations fail
 closed. There is no pixel tolerance.
 
-Implementation is split into DM-2577 (proposal-side pinned-Skia collector) and
-DM-2575 (test-only pinned-headless Chromium validator). DM-2576, blocked by
-both, owns the exact adjudicator and optional CI terminal-pixel gate. None of
-these follow-ups changes production rendering or the existing source-backed
-outline gate.
+The proposal-side pinned-Skia collector is implemented. The test-only
+pinned-headless Chromium validator remains independent work; the byte-exact
+adjudicator and optional CI terminal-pixel gate remain blocked on that second
+arm. None of this evidence infrastructure changes production rendering or the
+existing source-backed outline gate.
 
 ### Production outline route (closed by DM-2567)
 
@@ -370,19 +413,18 @@ therefore finds no remaining one-device-pixel baseline component.
 
 The dominant residual is owned by CoreText/Skia's terminal raster pipeline, not
 by face selection, shaping, axes, metrics, baseline placement, quarter-origin
-phase, or cache lifecycle. DM-2568 closes the source/API investigation and
-selects the cancellation row's 13px scaler path, but current evidence still
-does not byte-authenticate the post-conversion Skia mask or the actual pinned
-browser record. It therefore remains a source-adjudicated platform boundary
-rather than an exact pixel gate. DM-2577, DM-2575, and their blocked DM-2576
-adjudicator are the bounded implementation path if exact terminal pixels become
-a requirement.
+phase, or cache lifecycle. The proposal artifact now byte-authenticates the
+private pinned-Skia post-conversion mask and actual 13px cancellation record.
+It does not authenticate the record emitted by pinned Chromium. The area
+therefore remains a partial platform boundary rather than an exact cross-arm
+pixel gate until the independent browser arm and adjudicator agree.
 
 The former fontkit-first variable-outline gap is closed by DM-2567's bounded
 CoreText route and exact proposal/validation gate. DM-2568's terminal-mask
-investigation is complete; the optional exact artifacts remain isolated in
-DM-2577, DM-2575, and DM-2576. They cannot justify changing this logical route
-or widening a visual tolerance.
+investigation and the private-Skia proposal collector are complete; the
+independent pinned-browser artifact and adjudicator remain isolated follow-up
+work. They cannot justify changing this logical route or widening a visual
+tolerance.
 
 Run the diagnostic on macOS with:
 
@@ -402,3 +444,17 @@ npm run fonts:sfns-outline:adjudicate -- --proposal tests/output/sfns-outline-pr
 ```
 
 The collector always launches Chromium with `headless: true`.
+
+Build, collect, and validate the private-Skia proposal on macOS with Xcode
+command-line tools and the pinned `external/skia` checkout available:
+
+```bash
+npm run fonts:sfns-pinned-skia:build
+npm run fonts:sfns-pinned-skia:collect
+npm run fonts:sfns-pinned-skia:validate
+```
+
+The build fetches pin-defined GN/Ninja only when they are absent, uses an
+isolated temporary worktree, and removes that worktree afterward. Collection
+launches native evidence processes only; it does not launch Chromium or any
+other browser.

@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6yxl0ztiubzoeg",
+          "message": {
+            "text": "The proposal collector exercises the exact pinned private-Skia seam and retains post-conversion bytes, not a reconstructed CoreText approximation. The attached artifact came from an exact-revision macOS build: all five scenarios were byte-stable across two cold and two same-context-warm observations; the normal route changed raw LCD16 to actual A8, cancellation factored to 13x13, and all six phase/AA/hinting/matrix/opsz/surface controls moved their required exact evidence groups. Collection launched no browser and changed no production or tolerance path.",
+            "markdown": "The proposal collector exercises the exact pinned private-Skia seam and retains post-conversion bytes, not a reconstructed CoreText approximation. The attached artifact came from an exact-revision macOS build: all five scenarios were byte-stable across two cold and two same-context-warm observations; the normal route changed raw LCD16 to actual A8, cancellation factored to 13x13, and all six phase/AA/hinting/matrix/opsz/surface controls moved their required exact evidence groups. Collection launched no browser and changed no production or tolerance path."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/sfns-pinned-skia-collector/sfns_post_conversion_collector.cpp"
+                },
+                "region": {
+                  "startLine": 248,
+                  "endLine": 477,
+                  "snippet": {
+                    "text": "TypefaceBundle makeTypeface(float opsz) {\n    TypefaceBundle b;\n    b.data = SkData::MakeFromFileName(kFontPath);\n    if (!b.data) fail(\"could not read SFNS bytes\");\n    const std::string digest = sha(b.data->data(), b.data->size());\n    if (digest != kFontSha256) fail(\"SFNS digest mismatch: \" + digest);\n    sk_sp<SkFontMgr> manager = SkFontMgr_New_CoreText(nullptr);\n    if (!manager) fail(\"CoreText font manager unavailable\");\n    sk_sp<SkTypeface> base = manager->makeFromData(b.data, 0);\n    if (!base) fail(\"data-backed base typeface unavailable\");\n    int count = base->getVariationDesignParameters({});\n    if (count <= 0) fail(\"variation parameters unavailable\");\n    b.parameters.resize(count);\n    if (base->getVariationDesignParameters(\n            SkSpan<SkFontParameters::Variation::Axis>(b.parameters.data(), b.parameters.size()))\n        != count) fail(\"variation parameter count changed\");\n    const std::map<SkFourByteTag, float> overrides = {\n        {tag(\"wdth\"), 100}, {tag(\"opsz\"), opsz}, {tag(\"GRAD\"), 400}, {tag(\"wght\"), 700},\n    };\n    for (const auto& axis : b.parameters) {\n        auto it = overrides.find(axis.tag);\n        b.requested.push_back({axis.tag, it == overrides.end() ? axis.def : it->second});\n    }\n    for (const auto& [required, unused] : overrides) {\n        if (std::none_of(b.parameters.begin(), b.parameters.end(),\n                         [&](const auto& axis) { return axis.tag == required; }))\n            fail(\"required SFNS axis missing: \" + tagName(required));\n    }\n    SkFontArguments args;\n    args.setCollectionIndex(0).setVariationDesignPosition(\n        {b.requested.data(), static_cast<int>(b.requested.size())});\n    b.typeface = manager->makeFromStream(std::make_unique<SkMemoryStream>(b.data), args);\n    if (!b.typeface) fail(\"varied data-backed typeface unavailable\");\n    count = b.typeface->getVariationDesignPosition({});\n    if (count != static_cast<int>(b.parameters.size())) fail(\"incomplete actual axis tuple\");\n    b.actual.resize(count);\n    if (b.typeface->getVariationDesignPosition(\n            SkSpan<SkFontArguments::VariationPosition::Coordinate>(b.actual.data(), b.actual.size()))\n        != count) fail(\"actual axis tuple unavailable\");\n    return b;\n}\n\nstd::string axesJson(const TypefaceBundle& b) {\n    std::ostringstream out; out << '[';\n    for (size_t i = 0; i < b.parameters.size(); ++i) {\n        if (i) out << ',';\n        const auto& axis = b.parameters[i];\n        auto actual = std::find_if(b.actual.begin(), b.actual.end(),\n            [&](const auto& coordinate) { return coordinate.axis == axis.tag; });\n        if (actual == b.actual.end()) fail(\"actual axis missing\");\n        out << \"{\\\"tag\\\":\" << q(tagName(axis.tag)) << \",\\\"min\\\":\" << num(axis.min)\n            << \",\\\"default\\\":\" << num(axis.def) << \",\\\"max\\\":\" << num(axis.max)\n            << \",\\\"hidden\\\":\" << (axis.isHidden() ? \"true\" : \"false\")\n            << \",\\\"requested\\\":\" << num(b.requested[i].value)\n            << \",\\\"actual\\\":\" << num(actual->value) << '}';\n    }\n    return out.str() + \"]\";\n}\n\nstruct ContextBundle {\n    SkFont font;\n    SkPaint paint;\n    SkSurfaceProps props;\n    SkMatrix deviceMatrix;\n    SkScalerContextRec rawRec;\n    SkScalerContextEffects effects;\n    std::unique_ptr<SkScalerContext> context;\n\n    ContextBundle(const Options& o, sk_sp<SkTypeface> face)\n        : font(std::move(face), o.fontSize)\n        , props(SkSurfaceProps::kDefault_Flag, o.pixelGeometry, 0.5f, 0.0f) {\n        font.setEdging(o.edging); font.setHinting(o.hinting);\n        font.setSubpixel(true); font.setLinearMetrics(true); font.setEmbeddedBitmaps(false);\n        paint.setColor(SK_ColorBLACK); paint.setStyle(SkPaint::kFill_Style);\n        deviceMatrix.setScale(o.deviceScale, o.deviceScale);\n        SkScalerContext::MakeRecAndEffects(\n            font, paint, props, SkScalerContextFlags::kFakeGammaAndBoostContrast,\n            deviceMatrix, &rawRec, &effects);\n        SkAutoDescriptor descriptor;\n        SkScalerContext::AutoDescriptorGivenRecAndEffects(rawRec, effects, &descriptor);\n        context = font.getTypeface()->createScalerContext(effects, descriptor.getDesc());\n        if (!context) fail(\"private scaler context unavailable\");\n    }\n};\n\nstd::string glyphsJson(const Options& o, ContextBundle& c, bool persist) {\n    const SkGlyphPositionRoundingSpec rounding(\n        c.context->isSubpixel(), c.context->computeAxisAlignmentForHText());\n    std::ostringstream out; out << '[';\n    for (size_t i = 0; i < o.glyphIds.size(); ++i) {\n        if (i) out << ',';\n        SkPoint point{o.origins[i] + o.phaseShiftX * 0.25f, o.baseline};\n        point += rounding.halfAxisSampleFreq;\n        SkPackedGlyphID packed(o.glyphIds[i], point, rounding.ignorePositionFieldMask);\n        SkSTArenaAlloc<4096> arena;\n        SkGlyph glyph = c.context->makeGlyph(packed, &arena);\n        if (!glyph.setImage(&arena, c.context.get())) fail(\"glyph image unavailable\");\n        size_t size = glyph.imageSize();\n        if (size && glyph.image() == nullptr) fail(\"nonempty glyph image missing\");\n        const void* bytes = size ? glyph.image() : \"\";\n        const std::string fileName = o.observationId + \"-gid-\" +\n            std::to_string(o.glyphIds[i]) + \"-\" + std::to_string(i) + \".mask\";\n        if (persist) {\n            std::ofstream file(o.outputDirectory + \"/\" + fileName, std::ios::binary);\n            if (!file) fail(\"cannot open mask output\");\n            if (size) file.write(static_cast<const char*>(bytes), size);\n            if (!file) fail(\"cannot write mask output\");\n        }\n        uint32_t id = packed.value();\n        out << \"{\\\"index\\\":\" << i << \",\\\"gid\\\":\" << o.glyphIds[i]\n            << \",\\\"advance\\\":[\" << num(glyph.advanceX()) << ',' << num(glyph.advanceY()) << ']'\n            << \",\\\"offset\\\":[0,0],\\\"baseline\\\":\" << num(o.baseline)\n            << \",\\\"deviceOrigin\\\":\" << num(o.origins[i]) << \",\\\"phaseShiftX\\\":\" << o.phaseShiftX\n            << \",\\\"packedId\\\":\" << id << \",\\\"phase\\\":{\\\"x\\\":\" << (id & 3)\n            << \",\\\"y\\\":\" << ((id >> 18) & 3) << \"},\\\"rounding\\\":{\\\"halfAxisSampleFreq\\\":[\"\n            << num(rounding.halfAxisSampleFreq.x()) << ','\n            << num(rounding.halfAxisSampleFreq.y()) << \"],\\\"ignorePositionFieldMask\\\":[\"\n            << rounding.ignorePositionFieldMask.x() << ','\n            << rounding.ignorePositionFieldMask.y() << \"]},\\\"metrics\\\":{\\\"left\\\":\" << glyph.left()\n            << \",\\\"top\\\":\" << glyph.top() << \",\\\"width\\\":\" << glyph.width()\n            << \",\\\"height\\\":\" << glyph.height() << \",\\\"maskFormat\\\":\"\n            << q(formatName(glyph.maskFormat())) << \",\\\"rowBytes\\\":\" << glyph.rowBytes()\n            << \",\\\"imageSize\\\":\" << size << \"},\\\"mask\\\":{\\\"encoding\\\":\\\"base64\\\",\\\"bytes\\\":\"\n            << q(b64(bytes, size)) << \",\\\"sha256\\\":\" << q(sha(bytes, size))\n            << \",\\\"file\\\":\" << q(fileName) << \"}}\";\n    }\n    return out.str() + \"]\";\n}\n\nstd::string collect(const Options& o) {\n    TypefaceBundle face = makeTypeface(o.opsz);\n    std::optional<ContextBundle> context;\n    context.emplace(o, face.typeface);\n    for (int i = 0; i < o.warmups; ++i) (void)glyphsJson(o, *context, false);\n    if (!context) fail(\"scaler context unavailable\");\n    const SkScalerContextRec& filtered = context->context->getRec();\n    SkVector scale;\n    SkMatrix remaining, remainingWithoutRotation, remainingRotation, total;\n    bool invertible = filtered.computeMatrices(\n        SkScalerContextRec::PreMatrixScale::kVertical, &scale, &remaining,\n        &remainingWithoutRotation, &remainingRotation, &total);\n\n    const SkMaskGamma& gamma = filtered.cachedMaskGamma();\n    int gammaWidth = 0, gammaHeight = 0;\n    gamma.getGammaTableDimensions(&gammaWidth, &gammaHeight);\n    const uint8_t* gammaBytes = gamma.getGammaTables();\n    size_t gammaSize = gamma.getGammaTableSizeInBytes();\n    auto preblend = SkScalerContext::GetMaskPreBlend(filtered);\n    auto digest256 = [](const uint8_t* value) {\n        return sha(value ? static_cast<const void*>(value) : static_cast<const void*>(\"\"),\n                   value ? 256 : 0);\n    };\n\n    SkString family, postscript;\n    face.typeface->getFamilyName(&family);\n    bool hasPostscript = face.typeface->getPostScriptName(&postscript);\n    SkFontMetrics metrics;\n    context->context->getFontMetrics(&metrics);\n    SkFontStyle style = face.typeface->fontStyle();\n\n    std::ostringstream out;\n    out << \"{\\\"schemaVersion\\\":1,\\\"collectorAbi\\\":\" << q(kCollectorAbi)\n        << \",\\\"observationId\\\":\" << q(o.observationId) << \",\\\"scenarioId\\\":\" << q(o.scenario)\n        << \",\\\"lifecycle\\\":\" << q(o.lifecycle) << \",\\\"ordinal\\\":\" << o.ordinal\n        << \",\\\"warmupCount\\\":\" << o.warmups << \",\\\"source\\\":{\\\"chromiumRevision\\\":\"\n        << q(kChromiumRevision) << \",\\\"skiaRevision\\\":\" << q(kSkiaRevision)\n        << \",\\\"fontPath\\\":\" << q(kFontPath) << \",\\\"fontByteLength\\\":\" << face.data->size()\n        << \",\\\"fontSha256\\\":\" << q(kFontSha256) << \"},\\\"buildRuntime\\\":{\\\"clangVersion\\\":\"\n        << q(__clang_version__)\n#if defined(__aarch64__) || defined(__arm64__)\n        << \",\\\"architecture\\\":\\\"arm64\\\"}\"\n#elif defined(__x86_64__)\n        << \",\\\"architecture\\\":\\\"x64\\\"}\"\n#else\n        << \",\\\"architecture\\\":\\\"unknown\\\"}\"\n#endif\n        << \",\\\"request\\\":{\\\"fontSize\\\":\" << num(o.fontSize)\n        << \",\\\"deviceScale\\\":\" << num(o.deviceScale) << \",\\\"opsz\\\":\" << num(o.opsz)\n        << \",\\\"baseline\\\":\" << num(o.baseline) << \",\\\"phaseShiftX\\\":\" << o.phaseShiftX\n        << \",\\\"edging\\\":\" << q(edgeName(o.edging)) << \",\\\"hinting\\\":\" << q(hintName(o.hinting))\n        << \",\\\"pixelGeometry\\\":\" << q(geometryName(o.pixelGeometry)) << \"},\\\"typeface\\\":{\\\"uniqueId\\\":\"\n        << face.typeface->uniqueID() << \",\\\"family\\\":\" << q(family.c_str()) << \",\\\"postscriptName\\\":\"\n        << q(hasPostscript ? postscript.c_str() : \"\") << \",\\\"style\\\":{\\\"weight\\\":\" << style.weight()\n        << \",\\\"width\\\":\" << style.width() << \",\\\"slant\\\":\" << static_cast<int>(style.slant())\n        << \"},\\\"axes\\\":\" << axesJson(face) << \"},\\\"font\\\":{\\\"size\\\":\" << num(context->font.getSize())\n        << \",\\\"scaleX\\\":\" << num(context->font.getScaleX()) << \",\\\"skewX\\\":\"\n        << num(context->font.getSkewX()) << \",\\\"subpixel\\\":\"\n        << (context->font.isSubpixel() ? \"true\" : \"false\") << \",\\\"linearMetrics\\\":\"\n        << (context->font.isLinearMetrics() ? \"true\" : \"false\") << \",\\\"embeddedBitmaps\\\":\"\n        << (context->font.isEmbeddedBitmaps() ? \"true\" : \"false\") << \",\\\"edging\\\":\"\n        << q(edgeName(context->font.getEdging())) << \",\\\"hinting\\\":\"\n        << q(hintName(context->font.getHinting())) << \"},\\\"paint\\\":{\\\"color\\\":\"\n        << context->paint.getColor() << \",\\\"style\\\":\" << static_cast<int>(context->paint.getStyle())\n        << \"},\\\"surfaceProps\\\":{\\\"flags\\\":\" << context->props.flags() << \",\\\"pixelGeometry\\\":\"\n        << q(geometryName(context->props.pixelGeometry())) << \",\\\"textContrast\\\":\"\n        << num(context->props.textContrast()) << \",\\\"textGamma\\\":\"\n        << num(context->props.textGamma()) << \"},\\\"scalerContextFlags\\\":\"\n        << q(\"fake-gamma-and-boost-contrast\") << \",\\\"rawRec\\\":\" << recJson(context->rawRec)\n        << \",\\\"filteredRec\\\":\" << recJson(filtered) << \",\\\"matrices\\\":{\\\"device\\\":\"\n        << matrixJson(context->deviceMatrix) << \",\\\"total\\\":\" << matrixJson(total)\n        << \",\\\"scale\\\":[\" << num(scale.x()) << ',' << num(scale.y()) << \"],\\\"remaining\\\":\"\n        << matrixJson(remaining) << \",\\\"remainingWithoutRotation\\\":\"\n        << matrixJson(remainingWithoutRotation) << \",\\\"remainingRotation\\\":\"\n        << matrixJson(remainingRotation) << \",\\\"invertible\\\":\"\n        << (invertible ? \"true\" : \"false\") << \"},\\\"smoothBehavior\\\":\"\n        << q(smoothName(SkCTFontGetSmoothBehavior()))\n        << \",\\\"gamma\\\":{\\\"inputContrast\\\":0.5,\\\"inputDeviceGamma\\\":0,\\\"tableApplicable\\\":\"\n        << (gammaBytes ? \"true\" : \"false\") << \",\\\"tableWidth\\\":\" << gammaWidth\n        << \",\\\"tableHeight\\\":\" << gammaHeight << \",\\\"tableByteLength\\\":\"\n        << (gammaBytes ? gammaSize : 0) << \",\\\"tableSha256\\\":\"\n        << q(sha(gammaBytes ? static_cast<const void*>(gammaBytes) : static_cast<const void*>(\"\"),\n                 gammaBytes ? gammaSize : 0))\n        << \",\\\"preblendApplicable\\\":\" << (preblend.isApplicable() ? \"true\" : \"false\")\n        << \",\\\"preblendR256Sha256\\\":\" << q(digest256(preblend.fR))\n        << \",\\\"preblendG256Sha256\\\":\" << q(digest256(preblend.fG))\n        << \",\\\"preblendB256Sha256\\\":\" << q(digest256(preblend.fB))\n        << \"},\\\"fontMetrics\\\":{\\\"top\\\":\" << num(metrics.fTop)\n        << \",\\\"ascent\\\":\" << num(metrics.fAscent) << \",\\\"descent\\\":\" << num(metrics.fDescent)\n        << \",\\\"bottom\\\":\" << num(metrics.fBottom) << \",\\\"leading\\\":\" << num(metrics.fLeading)\n        << \",\\\"avgCharWidth\\\":\" << num(metrics.fAvgCharWidth) << \",\\\"maxCharWidth\\\":\"\n        << num(metrics.fMaxCharWidth) << \",\\\"xMin\\\":\" << num(metrics.fXMin)\n        << \",\\\"xMax\\\":\" << num(metrics.fXMax) << \",\\\"xHeight\\\":\" << num(metrics.fXHeight)\n        << \",\\\"capHeight\\\":\" << num(metrics.fCapHeight) << \"},\\\"glyphs\\\":\"\n        << glyphsJson(o, *context, true) << '}';\n    return out.str();\n}\n}  // namespace\n\nint main(int argc, char** argv) {\n    std::cout << collect(parseOptions(argc, argv)) << '\\n';"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/sfns-pinned-skia-mask-schema.ts"
+                },
+                "region": {
+                  "startLine": 330
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2577"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e9c7e9cf20bc6470ca77f777bace867a"
+          },
+          "attachments": [
+            {
+              "artifactLocation": {
+                "uri": ".pr-notes/artifacts/dm2577-sfns-pinned-skia-proposal.json",
+                "properties": {
+                  "ext-sha256": "f2191a17c4dc4a2bbdc210392e6b40c21a264d4d1400340940e96f012de0b3ac"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a5ae7fa8255551802a63f31628d516f3ca304314",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

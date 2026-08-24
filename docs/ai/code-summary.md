@@ -88,11 +88,17 @@ explicitly headless. DM-2568 source-audits the remaining Skia scaler-record,
 draw-matrix/phase, runtime smoothing, mask-conversion, gamma, and preblend path.
 The governing pinned path selects a 13px scaler for the zoom-2/transform-.5
 cancellation row; an explicitly headless Chrome 147 command log corroborates
-that prediction but is not the pinned-Chromium validator. Exact post-conversion
-bytes are intentionally deferred to DM-2577's private pinned-Skia collector,
-DM-2575's test-only pinned-headless Chromium hook, and their blocked DM-2576
-adjudicator. Terminal mask coverage remains diagnostic and no production route
-or renderer pixel tolerance changes.
+that prediction but is not the pinned-Chromium validator.
+`tools/build-sfns-pinned-skia-collector.mjs` now overlays and builds
+`tools/sfns-pinned-skia-collector/` inside an isolated exact-revision Skia
+worktree. `tools/sfns-pinned-skia-mask-collector.ts` launches one native process
+per observation and retains raw/filtered rec bytes, matrix factorization,
+runtime smoothing, gamma/preblend, and embedded post-conversion masks for five
+two-cold/two-warm scenarios plus six active controls; it launches no browser.
+`tools/sfns-pinned-skia-mask-schema.ts` validates every embedded byte and exact
+lifecycle digest. The independent pinned-headless Chromium arm and cross-arm
+adjudicator remain required. Terminal mask coverage therefore remains partial,
+and no production route or renderer pixel tolerance changes.
 `tools/paths-native-raster-collector.ts` and
 `tools/paths-native-raster-corpus.ts` own doc 197's terminal raster evidence:
 six SHA-pinned outline technologies, a declared 348-cell source-table-owned
