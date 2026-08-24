@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6wjb4mj9foy12p",
+          "message": {
+            "text": "Pinned Chromium/Skia source makes the 13px cancellation scaler the governing implementation prediction, while the current host classifier and explicitly headless Chrome 147 trace remain bounded corroboration. The attached artifact records immutable revisions, exact source seams, classifier counts, and paint-command facts. Exact terminal-mask confidence still requires two independent mechanisms: the private pinned-Skia proposal collector in DM-2577 and the test-only pinned-headless Chromium validator in DM-2575, followed by DM-2576's byte-exact adjudicator. This investigation deliberately changes neither production rendering nor visual tolerances.",
+            "markdown": "Pinned Chromium/Skia source makes the 13px cancellation scaler the governing implementation prediction, while the current host classifier and explicitly headless Chrome 147 trace remain bounded corroboration. The attached artifact records immutable revisions, exact source seams, classifier counts, and paint-command facts. Exact terminal-mask confidence still requires two independent mechanisms: the private pinned-Skia proposal collector in DM-2577 and the test-only pinned-headless Chromium validator in DM-2575, followed by DM-2576's byte-exact adjudicator. This investigation deliberately changes neither production rendering nor visual tolerances."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/168-sfns-mask-baseline-oracle.md"
+                },
+                "region": {
+                  "startLine": 183,
+                  "endLine": 242,
+                  "snippet": {
+                    "text": "### DM-2568 terminal-mask investigation\n\nThe remaining bytes are observable without an Apple-private API, but not by\nthe existing public-CoreText draw. A hermetic executable built inside pinned\nSkia can use `SkScalerContext::MakeRecAndEffects`, descriptor construction, and\nthe selected typeface's scaler creation (`SkScalerContext.h:291-382`,\n`SkTypeface.h:323-348`). It can then pack the exact gid/phase, materialize the\nglyph, and read the final image and mask metadata (`SkGlyph.h:44-120,422-477`).\n`SkMaskGamma.h:191-227` also exposes the computed preblend tables to that\nin-tree harness. This is the proposal-side API boundary: it exercises Skia's\nactual private implementation rather than attempting to reconstruct the bytes\nfrom `CTFontDrawGlyphs`.\n\nThe independent validation boundary must be the browser that constructs the\nrecord. A test-only build at Chromium\n`7d859f271cbda744098ac69f44978d4edfa62be3` can narrowly trace\n`SkScalerContext::MakeRecAndEffects`, `SkTypeface_Mac::onFilterRec`, and\n`SkScalerContext_Mac::generateImage` for only the authenticated SFNS digest and\nan explicit scenario observation id. The trace must retain raw and filtered\nrecords, total/factored matrices, packed phase, surface properties, runtime\nsmoothing result, gamma/preblend inputs, and the post-conversion buffer. The\nhook is test-only and must not ship in production.\n\nTwo bounded host observations support that design without pretending to be the\nexact gate:\n\n- An independent reproduction of pinned Skia's embedded SpiderSymbol smooth\n  discriminator (`SkCTFont.cpp:213-275`) classified this host's CoreGraphics as\n  `some`: the smooth and unsmoothed images changed 126 pixels out of 136\n  nonzero pixels, while zero pixels had unequal RGB channels. The exact\n  embedded 1,984-byte font had SHA-256\n  `e5f0e22cc84fb26b8ca9107bdd394f9fd511e592fa3ccb65ada870345becc324`.\n  This proves a grayscale smoothing environment for that run, not the return\n  value of an instrumented Skia call, and the runtime classification remains an\n  authenticated artifact field.\n- An explicitly headless Chrome `147.0.7727.15` command log at DPR 1, using the\n  exact SFNS bytes and a CDP-confirmed six-glyph custom face, recorded 26px text\n  with no concat for `zoom:2`, 13px text under `scale(2)` for the transform row,\n  and 26px text under `scale(.5)` for the cancellation row. The pinned source\n  path above folds that last canvas matrix into the strike, so it selects a\n  13px total scaler matrix rather than a 26px mask resampled afterward. Because\n  the observed binary is Chrome 147 while the source pin is Chromium 151, the\n  command log is drifted corroboration only. The 13px result is a source-decided\n  implementation prediction until the pinned validation hook authenticates it.\n\nThe exact adjudicator must require distinct proposal/validation builds and\nobservation ids, two cold and two warm samples, and equality of source/font,\ntypeface/axes, gid/advance/offset, metrics/baseline, raw/filtered records,\nmatrices, two-bit phases, hinting/edging/mask format, surface properties,\nsmoothing, gamma/contrast/preblend digests, raster dimensions/row bytes,\npre-compositor scale, and every post-conversion byte. Phase, AA/hinting,\nmatrix, opsz, and surface-geometry/mask-format mutations must all be active;\ndropped, duplicated, reordered, stale, or wrong-identity observations fail\nclosed. There is no pixel tolerance.\n\nImplementation is split into DM-2577 (proposal-side pinned-Skia collector) and\nDM-2575 (test-only pinned-headless Chromium validator). DM-2576, blocked by\nboth, owns the exact adjudicator and optional CI terminal-pixel gate. None of\nthese follow-ups changes production rendering or the existing source-backed\noutline gate."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.93
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/platform/fonts/mac/font_platform_data_mac.mm"
+                },
+                "region": {
+                  "startLine": 211
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/skia/src/core/SkGlyphRunPainter.cpp"
+                },
+                "region": {
+                  "startLine": 242
+                }
+              }
+            },
+            {
+              "id": 2,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/skia/src/ports/SkScalerContext_mac_ct.cpp"
+                },
+                "region": {
+                  "startLine": 366
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2568"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "bcc355539821b06047b5c43ce17a030b"
+          },
+          "attachments": [
+            {
+              "artifactLocation": {
+                "uri": ".pr-notes/artifacts/dm2568-sfns-terminal-mask-investigation.txt",
+                "properties": {
+                  "ext-sha256": "7c534a983bbf1d4b78e3c06ae229c9e3049229a6c3b48f456865a276ae27e7df"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "472a54a78e39eccd62aa570b6b09160e1a879dfd",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

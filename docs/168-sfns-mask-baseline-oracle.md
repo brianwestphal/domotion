@@ -1,10 +1,14 @@
 # SFNS CoreText mask and baseline oracle
 
 DM-2452 is the diagnostic follow-up to the three font-size-space work. DM-2567
-closes the bounded variable-outline ownership gap that diagnostic exposed. It
-does not accept a visual tolerance: the terminal mask comparison remains
-diagnostic, while the CoreText design-command seam is now an exact logical
-proposal/validation gate. The focused macOS runner is
+closes the bounded variable-outline ownership gap that diagnostic exposed.
+DM-2568 pins the remaining terminal-mask source path, resolves the
+zoom/transform cancellation row to a 13px scaler as an implementation
+prediction, and defines the private-Skia plus instrumented-Chromium evidence
+needed to turn that prediction into an exact gate. It does not accept a visual
+tolerance: the terminal mask comparison remains diagnostic, while the CoreText
+design-command seam is now an exact logical proposal/validation gate. The
+focused macOS runner is
 `tools/sfns-mask-baseline-oracle.ts`; its native companion is
 `tools/sfns-mask-baseline.swift`.
 
@@ -76,6 +80,22 @@ The implementation follows these exact source seams:
 - The two-bit subpixel key and axis-aligned rounding rules come from
   `SkGlyph.cpp:696-734`; scaler matrix factorization is in
   `SkScalerContext.cpp:874-984`.
+- Chromium initializes the process-wide LCD order, contrast, and gamma from
+  `gfx::GetFontRenderParams` (`content/browser/browser_main_loop.cc:985-994`).
+  macOS defaults to antialiasing, RGB subpixel rendering, subpixel positioning,
+  and medium hinting (`ui/gfx/font_render_params_mac.cc:15-36`); the pinned Skia
+  defaults are sRGB transfer and contrast `0.5` (`include/core/SkTypes.h:84-93`).
+- Skia's mask strike is built from the font size and the live device matrix,
+  surface pixel geometry, subpixel/hinting/edging flags, luminance, gamma, and
+  contrast (`SkScalerContext.cpp:1053-1219`). Unknown pixel geometry or an LCD
+  mask that is too large converts the request to A8 and marks it as generated
+  from LCD.
+- `SkGlyphRunPainter` adds the draw origin to the current draw matrix, gives
+  that same matrix to `SkStrikeSpec::MakeMask`, and packs the mapped position's
+  two-bit x/y phases (`SkGlyphRunPainter.cpp:120-163,242-335` and
+  `SkStrikeSpec.cpp:133-146`). Thus the transform participating in the SkCanvas
+  draw also participates in the scaler record; it is not an unrecorded
+  post-strike author transform on this route.
 
 Apple's public `CTFont.h` contract independently fixes what can be observed at
 the proprietary boundary: `CTFontCreateCopyWithAttributes` creates the varied
@@ -126,10 +146,11 @@ size and a residual `sA`. For uniform positive `A`, `sA` is exactly identity
 | `opsz-26-mutation` | 26 | 1 | 26 | 26 / identity |
 
 This rules out an omitted residual skew or anisotropic matrix in the current
-oracle arms. It does not claim that Blink/cc necessarily sends the author CSS
-transform into the glyph scaler: whether the cancellation row rasterizes at
-26px and is then resampled to 13px remains a separate pre-compositor fact that
-the retained report does not capture.
+oracle arms. DM-2568's pinned source trace further establishes that the live
+draw matrix participates in strike construction, selecting a 13px scaler for
+the cancellation row. The retained diagnostic report does not capture that
+record, so the result remains an implementation prediction pending the pinned
+validation artifact described below.
 
 ### Hinting, antialiasing, and mask conversion
 
@@ -158,6 +179,67 @@ The Swift arm deliberately draws white-on-black into premultiplied RGBA. It is
 a useful native-raster discriminator, but it is not byte-equivalent to Skia's
 post-conversion A8/LCD mask. Its proximity to Chromium therefore cannot define
 a tolerance or prove a Domotion route change.
+
+### DM-2568 terminal-mask investigation
+
+The remaining bytes are observable without an Apple-private API, but not by
+the existing public-CoreText draw. A hermetic executable built inside pinned
+Skia can use `SkScalerContext::MakeRecAndEffects`, descriptor construction, and
+the selected typeface's scaler creation (`SkScalerContext.h:291-382`,
+`SkTypeface.h:323-348`). It can then pack the exact gid/phase, materialize the
+glyph, and read the final image and mask metadata (`SkGlyph.h:44-120,422-477`).
+`SkMaskGamma.h:191-227` also exposes the computed preblend tables to that
+in-tree harness. This is the proposal-side API boundary: it exercises Skia's
+actual private implementation rather than attempting to reconstruct the bytes
+from `CTFontDrawGlyphs`.
+
+The independent validation boundary must be the browser that constructs the
+record. A test-only build at Chromium
+`7d859f271cbda744098ac69f44978d4edfa62be3` can narrowly trace
+`SkScalerContext::MakeRecAndEffects`, `SkTypeface_Mac::onFilterRec`, and
+`SkScalerContext_Mac::generateImage` for only the authenticated SFNS digest and
+an explicit scenario observation id. The trace must retain raw and filtered
+records, total/factored matrices, packed phase, surface properties, runtime
+smoothing result, gamma/preblend inputs, and the post-conversion buffer. The
+hook is test-only and must not ship in production.
+
+Two bounded host observations support that design without pretending to be the
+exact gate:
+
+- An independent reproduction of pinned Skia's embedded SpiderSymbol smooth
+  discriminator (`SkCTFont.cpp:213-275`) classified this host's CoreGraphics as
+  `some`: the smooth and unsmoothed images changed 126 pixels out of 136
+  nonzero pixels, while zero pixels had unequal RGB channels. The exact
+  embedded 1,984-byte font had SHA-256
+  `e5f0e22cc84fb26b8ca9107bdd394f9fd511e592fa3ccb65ada870345becc324`.
+  This proves a grayscale smoothing environment for that run, not the return
+  value of an instrumented Skia call, and the runtime classification remains an
+  authenticated artifact field.
+- An explicitly headless Chrome `147.0.7727.15` command log at DPR 1, using the
+  exact SFNS bytes and a CDP-confirmed six-glyph custom face, recorded 26px text
+  with no concat for `zoom:2`, 13px text under `scale(2)` for the transform row,
+  and 26px text under `scale(.5)` for the cancellation row. The pinned source
+  path above folds that last canvas matrix into the strike, so it selects a
+  13px total scaler matrix rather than a 26px mask resampled afterward. Because
+  the observed binary is Chrome 147 while the source pin is Chromium 151, the
+  command log is drifted corroboration only. The 13px result is a source-decided
+  implementation prediction until the pinned validation hook authenticates it.
+
+The exact adjudicator must require distinct proposal/validation builds and
+observation ids, two cold and two warm samples, and equality of source/font,
+typeface/axes, gid/advance/offset, metrics/baseline, raw/filtered records,
+matrices, two-bit phases, hinting/edging/mask format, surface properties,
+smoothing, gamma/contrast/preblend digests, raster dimensions/row bytes,
+pre-compositor scale, and every post-conversion byte. Phase, AA/hinting,
+matrix, opsz, and surface-geometry/mask-format mutations must all be active;
+dropped, duplicated, reordered, stale, or wrong-identity observations fail
+closed. There is no pixel tolerance.
+
+Implementation is split into DM-2577 (proposal-side pinned-Skia collector) and
+DM-2575 (test-only pinned-headless Chromium validator). DM-2576, blocked by
+both, owns the exact adjudicator and optional CI terminal-pixel gate. None of
+these follow-ups changes production rendering or the existing source-backed
+outline gate.
 
 ### Production outline route (closed by DM-2567)
 
@@ -270,9 +352,9 @@ universal rule. With `zoom:2; transform:scale(.5)`, the CoreText path raster is
 closest to Chromium, while direct final-size CoreText mask paint is worse. The
 CoreText-path↔Domotion delta is only about 2.7% of the remaining
 Chromium↔CoreText-path delta, so the row does not support blaming Domotion's
-small coordinate delta. It leaves the local-raster/compositor scale and phase
-boundary explicit; this oracle does not guess whether Chromium rasterized at
-the zoomed size before resampling.
+small coordinate delta. DM-2568's governing source path selects a 13px scaler;
+the exact pinned-browser record and post-conversion bytes remain the explicit
+validation gap.
 
 ## Baseline conclusion
 
@@ -288,16 +370,19 @@ therefore finds no remaining one-device-pixel baseline component.
 
 The dominant residual is owned by CoreText/Skia's terminal raster pipeline, not
 by face selection, shaping, axes, metrics, baseline placement, quarter-origin
-phase, or cache lifecycle. The current evidence does not byte-authenticate the
-post-conversion Skia mask, so it remains a source-adjudicated platform boundary
-rather than an exact pixel gate. A bounded Skia harness or trace may capture
-the scaler record, smoothing classification, post-conversion mask, and
-pre-compositor scale/phase if exact terminal pixels become a requirement.
+phase, or cache lifecycle. DM-2568 closes the source/API investigation and
+selects the cancellation row's 13px scaler path, but current evidence still
+does not byte-authenticate the post-conversion Skia mask or the actual pinned
+browser record. It therefore remains a source-adjudicated platform boundary
+rather than an exact pixel gate. DM-2577, DM-2575, and their blocked DM-2576
+adjudicator are the bounded implementation path if exact terminal pixels become
+a requirement.
 
 The former fontkit-first variable-outline gap is closed by DM-2567's bounded
-CoreText route and exact proposal/validation gate. Exact terminal-mask and
-pre-compositor evidence, if required, remains isolated in DM-2568; it cannot
-justify changing this logical route or widening a visual tolerance.
+CoreText route and exact proposal/validation gate. DM-2568's terminal-mask
+investigation is complete; the optional exact artifacts remain isolated in
+DM-2577, DM-2575, and DM-2576. They cannot justify changing this logical route
+or widening a visual tolerance.
 
 Run the diagnostic on macOS with:
 

@@ -1,0 +1,47 @@
+DM-2568 — pinned SFNS terminal-mask investigation
+Date: 2026-08-24
+
+Immutable source identity
+- Chromium: 7d859f271cbda744098ac69f44978d4edfa62be3
+- Chromium version at pin: 151.0.7918.0
+- Skia from Chromium DEPS: 62efacd37737505732dbe3d8daa62abd679626a1
+- SFNS.ttf: 2bfd40dc72e6759e248f82a52a40d551338979fffc9b5c070e685b4b7ad19e66
+
+Governing pinned source
+- Blink SkFont defaults/control: third_party/blink/renderer/platform/fonts/mac/font_platform_data_mac.mm:211-271
+- Browser font globals: content/browser/browser_main_loop.cc:985-994
+- macOS font defaults: ui/gfx/font_render_params_mac.cc:15-36
+- Skia defaults: include/core/SkTypes.h:84-93
+- Scaler record/matrix: src/core/SkScalerContext.cpp:874-984,1053-1219
+- Strike device matrix and phase: src/core/SkGlyphRunPainter.cpp:120-163,242-335; src/core/SkStrikeSpec.cpp:133-146; src/core/SkGlyph.cpp:696-734
+- macOS rec filtering: src/ports/SkTypeface_mac_ct.cpp:887-986
+- runtime smooth classifier: src/utils/mac/SkCTFont.cpp:213-275
+- CoreGraphics draw and mask conversion: src/ports/SkScalerContext_mac_ct.cpp:119-150,177-294,366-519
+- private harness surfaces: src/core/SkScalerContext.h:291-382; include/core/SkTypeface.h:323-348; src/core/SkGlyph.h:44-120,422-477; src/core/SkMaskGamma.h:191-227
+
+Host smooth-classifier reproduction
+- Exact pinned SpiderSymbol payload: 1,984 bytes
+- Payload SHA-256: e5f0e22cc84fb26b8ca9107bdd394f9fd511e592fa3ccb65ada870345becc324
+- classification=some
+- unequalChannels=0
+- changedPixels=126
+- nonzeroPixels=136
+- Scope: independent reproduction of the pinned algorithm on this host, not an instrumented Skia return value.
+
+Explicit-headless browser corroboration
+- Chrome binary: 147.0.7727.15 (drifted from the Chromium 151 source pin)
+- DPR: 1
+- Exact SFNS bytes routed through isolated @font-face; CDP reported a custom face and six glyphs.
+- zoom-2: logical 13 / computed 26 / drawTextBlob size 26; no concat
+- transform-scale-2: logical 13 / computed 13 / drawTextBlob size 13 under scale(2)
+- zoom-2-transform-half: logical 13 / computed 26 / drawTextBlob size 26 under scale(.5)
+- optical-sizing-none: same paint operations as zoom-2
+- opsz-26 mutation: same paint operations, distinct PostScript variation identity
+- Governing pinned source folds the current draw matrix into MakeMask and phase packing. Prediction: cancellation reaches a 13px scaler, rather than a 26px mask resampled later.
+- Scope: command-log corroboration only. The pinned Chromium validation hook must authenticate the actual scaler record and post-conversion bytes.
+
+Implementation disposition
+- DM-2577: proposal-side private pinned-Skia post-conversion mask collector.
+- DM-2575: independent test-only pinned-headless Chromium scaler/mask validation hook.
+- DM-2576: exact adjudicator and optional CI gate, blocked by DM-2577 and DM-2575.
+- No production rendering change. No visual-tolerance change. Every browser run must be explicitly headless.

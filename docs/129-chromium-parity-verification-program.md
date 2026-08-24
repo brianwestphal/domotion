@@ -108,6 +108,21 @@ initial geometry/order/replaced and raster-activation audits have exact stage
 gates; the remaining partial text/paint domains are the next gaps.
 Oracles emit structured records that can be attached to demo-review results.
 
+The macOS SFNS split in [doc 168](168-sfns-mask-baseline-oracle.md) illustrates
+the terminal-raster boundary. Exact source bytes, axes, gids, phases, baselines,
+and variable-outline commands already have an independent logical gate.
+DM-2568 pins the next Skia stages: Chromium's live draw matrix enters mask
+strike construction and phase packing, CoreGraphics smoothing is classified at
+runtime, and Skia performs its own RGB-to-A8/LCD conversion and preblend. That
+source path selects a 13px scaler for the zoom-2/transform-.5 cancellation row,
+but a drifted explicitly headless Chrome command log is corroboration rather
+than pinned proof. Exact terminal evidence is therefore split between a
+private pinned-Skia proposal collector (DM-2577), a test-only pinned-headless
+Chromium validator (DM-2575), and their blocked byte-exact adjudicator
+(DM-2576). Until those optional artifacts exist, the boundary remains partial;
+no screenshot tolerance or production route may stand in for the missing
+post-conversion bytes.
+
 Animated viewBox culling uses the one-sided optimization form of this contract
 ([doc 166](166-animated-culling-geometry-oracle.md)): an unculled production SVG
 is the Chromium paint reference, and the compared SVG carries the production
