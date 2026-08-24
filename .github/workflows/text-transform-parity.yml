@@ -2,13 +2,16 @@ name: Transformed text parity
 
 # Each native runner independently compares source Chromium with the capture
 # protocol and complete generated SVG. Reports contain browser/OS/font/source
-# fingerprints; no cross-platform screenshot baseline or tolerance envelope is
-# downloaded.
+# fingerprints. The line-origin leg is a structured logical comparison against
+# pinned Blink source semantics: it has no screenshot baseline or tolerance
+# envelope.
 on:
   pull_request:
     paths:
       - "src/capture/text-paint-geometry-cdp.ts"
       - "src/capture/text-fragment-geometry.ts"
+      - "src/capture/text-line-origin.ts"
+      - "src/capture/text-line-origin.test.ts"
       - "src/capture/types.ts"
       - "src/capture/index.ts"
       - "src/capture/script/index.ts"
@@ -16,9 +19,13 @@ on:
       - "src/render/text.ts"
       - "src/render/element-tree-to-svg.ts"
       - "tools/text-transform-geometry-audit.ts"
+      - "tools/text-affine-baseline-protocol-oracle.ts"
+      - "tests/text-affine-baseline-protocol-oracle.test.ts"
+      - "tests/text-affine-line-origin-workflow.test.ts"
       - "tests/text-transform-parity-gate.test.ts"
       - "tests/text-paint-geometry.e2e.test.ts"
       - "tests/text-affine-render.e2e.test.ts"
+      - "docs/215-affine-text-baseline-protocol.md"
       - "tools/parity-program.json"
       - "tools/semantic-coverage.json"
       - "package.json"
@@ -28,6 +35,8 @@ on:
     paths:
       - "src/capture/text-paint-geometry-cdp.ts"
       - "src/capture/text-fragment-geometry.ts"
+      - "src/capture/text-line-origin.ts"
+      - "src/capture/text-line-origin.test.ts"
       - "src/capture/types.ts"
       - "src/capture/index.ts"
       - "src/capture/script/index.ts"
@@ -35,9 +44,13 @@ on:
       - "src/render/text.ts"
       - "src/render/element-tree-to-svg.ts"
       - "tools/text-transform-geometry-audit.ts"
+      - "tools/text-affine-baseline-protocol-oracle.ts"
+      - "tests/text-affine-baseline-protocol-oracle.test.ts"
+      - "tests/text-affine-line-origin-workflow.test.ts"
       - "tests/text-transform-parity-gate.test.ts"
       - "tests/text-paint-geometry.e2e.test.ts"
       - "tests/text-affine-render.e2e.test.ts"
+      - "docs/215-affine-text-baseline-protocol.md"
       - "tools/parity-program.json"
       - "tools/semantic-coverage.json"
       - "package.json"
@@ -72,6 +85,8 @@ jobs:
       - run: npx playwright install chromium
       - name: Validate hard-gate corpus and tolerances
         run: npx vitest run tests/text-transform-parity-gate.test.ts
+      - name: Prove pinned-source line-origin semantics
+        run: npm run transform:text-baseline-protocol -- --json tests/output/text-affine-line-origin-${{ runner.os }}.json
       - name: Run exact fragment and final-ink legs
         run: npm run transform:text-parity-gate -- --dpr 1,2 --json tests/output/text-transform-parity-${{ runner.os }}.json
       - name: Upload fingerprinted report
@@ -79,6 +94,15 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: transformed-text-${{ runner.os }}
-          path: tests/output/text-transform-parity-${{ runner.os }}.json
+          path: |
+            tests/output/text-transform-parity-${{ runner.os }}.json
+            tests/output/text-affine-line-origin-${{ runner.os }}.json
           if-no-files-found: error
           retention-days: 30
+
+  line-origin-release-gate:
+    name: Structured line-origin release gate
+    needs: parity
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Pinned-source line-origin semantics passed on macOS, Linux, and Windows."

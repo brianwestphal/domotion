@@ -160,16 +160,20 @@ shortest possible map:
   residual matrix across normal, wrapped, vertical, bitmap, decoration, shadow,
   stroke, background-clip and input branches. The legacy transform-derived font
   magnitude, unsigned cumulative axes and anisotropic correction are removed
-  (DM-2469/2470, docs 159/177). DM-2544's investigation-only
-  `tools/text-affine-baseline-protocol-oracle.ts` independently joins whole-Range
+  (DM-2469/2470, docs 159/177). DM-2544's source investigation and DM-2547's
+  production closure use
+  `tools/text-affine-baseline-protocol-oracle.ts`, which independently joins whole-Range
   and per-UTF-16-unit rects, CDP text-node quads, a baseline witness, captured
   fragments, and emitted SVG CTMs without a screenshot (doc 215). It proves the
   one-fragment horizontal route keeps ascent in the neutral plane before one
-  complete affine map. It also records two follow-up seams: mixed-script
-  `FragmentItem`s outnumber line-grouped `TextSegment`s before correlation
-  (DM-2546), and the vertical scalar documented as physical x actually carries
-  `segment.x + ascent` until render subtracts x (DM-2547). Do not fit either
-  correction from pixels or widen an existing visual tolerance.
+  complete affine map. `capture/text-line-origin.ts` now carries the rounded
+  paint offset, fractional fragment top, integer ascent, line-relative origin,
+  all five writing-mode maps, decoded physical point, zoom and pinned
+  provenance; render validates and consumes it once before its residual matrix.
+  Seven rows and eight mutations run on all native platforms without pixels.
+  Mixed-script `FragmentItem`s still outnumber line-grouped `TextSegment`s
+  before correlation (DM-2546); do not fit that correction from pixels or widen
+  an existing visual tolerance.
   DM-2468 now consumes DM-2467 pseudo records
   directly; an unavailable generated clamp marker retains the outer raster.
   `tools/text-transform-geometry-audit.ts` is the hard two-leg release gate:

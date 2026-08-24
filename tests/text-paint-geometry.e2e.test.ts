@@ -174,7 +174,7 @@ describeBrowser("DM-2469 authoritative affine text-fragment capture", () => {
           Array.from({ length: wrapped.length }, (_, index) => index),
         );
         for (const fragment of wrapped) {
-          expect(fragment.effectiveZoom).toBeCloseTo(1.5, 6);
+          expect(fragment.lineOrigin.effectiveZoom).toBeCloseTo(1.5, 6);
           // CSS zoom changed local layout/shaping. The later rotation remains
           // unit determinant and therefore cannot contain the zoom again.
           expect(determinant(fragment.paintMatrix)).toBeCloseTo(1, 4);

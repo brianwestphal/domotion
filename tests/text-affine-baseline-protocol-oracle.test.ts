@@ -5,6 +5,7 @@ import {
   REQUIRED_TEXT_BASELINE_MUTATIONS,
   TEXT_BASELINE_PROTOCOL_CASES,
   TEXT_BASELINE_PROTOCOL_SOURCE_PINS,
+  decodeBlinkTextLineOrigin,
   decodeVerticalRlBaseline,
   mapTextBaselinePoint,
   solveTextBaselineAffine,
@@ -26,7 +27,10 @@ describe("Blink affine text baseline protocol investigation", () => {
       ["fractional-horizontal", "decoded-vector"],
       ["nested-zoom-horizontal", "decoded-vector"],
       ["mixed-script-fragments", "mixed-fragment-correlation-gap"],
-      ["vertical-rl-plane", "vertical-plane-encoding-gap"],
+      ["vertical-rl-plane", "decoded-vector"],
+      ["vertical-lr-plane", "decoded-vector"],
+      ["sideways-rl-plane", "decoded-vector"],
+      ["sideways-lr-plane", "decoded-vector"],
     ]);
   });
 
@@ -53,6 +57,14 @@ describe("Blink affine text baseline protocol investigation", () => {
     });
   });
 
+  it("keeps the opposite sideways-lr rotation source-distinct", () => {
+    expect(decodeBlinkTextLineOrigin([10, 20, 40, 20, 40, 100, 10, 100], 12, "sideways-lr")).toEqual({
+      lineRelative: { x: 10, y: 32 },
+      rotation: [0, -1, 1, 0, -10, 110],
+      physical: { x: 22, y: 100 },
+    });
+  });
+
   it("requires every wrong-plane mutation", () => {
     expect(REQUIRED_TEXT_BASELINE_MUTATIONS).toEqual([
       "post-transform-aabb-plus-ascent",
@@ -62,6 +74,7 @@ describe("Blink affine text baseline protocol investigation", () => {
       "drop-transform-origin-translation",
       "collapse-mixed-fragments",
       "vertical-horizontal-plane",
+      "drop-fragment-relative-top",
     ]);
   });
 });

@@ -233,10 +233,10 @@ The required record is a local fragment plus a matrix, never a scaled font:
 
 ```ts
 interface CapturedTextPaintGeometry {
-  source: "blink-text-fragment-affine-v1";
+  source: "blink-text-fragment-affine-v2";
   space: "pre-css-transform-viewport";
   fragments: Array<{
-    source: "blink-text-fragment-affine-v1";
+    source: "blink-text-fragment-affine-v2";
     textSegmentIndex: number;
     sourceTextNodeIndex: number;
     physicalFragmentIndex: number;
@@ -244,7 +244,7 @@ interface CapturedTextPaintGeometry {
     paintQuad: [number, number, number, number, number, number, number, number];
     paintMatrix: [number, number, number, number, number, number];
     affineResidual: number;
-    baseline: number;
+    lineOrigin: CapturedTextPaintLineOrigin;
     inlineOffset: number;
     shapedOrigins: number[];
     shapedAdvances: number[];
@@ -252,10 +252,16 @@ interface CapturedTextPaintGeometry {
     direction: string;
     transformBox: string;
     transformOrigin: string;
-    effectiveZoom: number;
   }>;
 }
 ```
+
+DM-2547 replaces the ambiguous baseline scalar with the pinned-source record
+defined in `src/capture/text-line-origin.ts`: rounded containing paint offset,
+fragment-relative top, integer primary ascent, line-relative origin,
+writing-mode rotation, decoded physical point, effective zoom, and source
+provenance. The renderer validates and consumes it before the affine matrix.
+See [doc 215](215-affine-text-baseline-protocol.md).
 
 Capture must establish one consistent neutral space for a subtree. Mixing live
 rectangles for scale with neutral rectangles for rotation recreates the current

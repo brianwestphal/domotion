@@ -86,7 +86,7 @@ describe("affine text-fragment matrix recovery", () => {
 });
 
 describe("captured text paint geometry", () => {
-  it("correlates wrapped fragments and retains zoom, baseline, origin, and advances", () => {
+  it("correlates wrapped fragments and retains zoom, structured origin, and advances", () => {
     const first = segment(12, 18);
     const second = segment(12, 48, "wrap");
     second.width = 40;
@@ -106,11 +106,18 @@ describe("captured text paint geometry", () => {
     expect(result.geometry?.fragments).toHaveLength(2);
     expect(result.geometry?.fragments[0]).toMatchObject({
       textSegmentIndex: 0,
-      baseline: 33,
       inlineOffset: 12,
       shapedOrigins: [12, 22, 32, 42, 52, 62],
       shapedAdvances: [10, 10, 10, 10, 10, 10],
-      effectiveZoom: 1.5,
+      lineOrigin: {
+        roundedContainingPaintOffsetTop: 18,
+        fragmentRelativeTop: 0,
+        primaryFontIntegerAscent: 15,
+        lineRelativeTextOrigin: { lineLeft: 12, lineOver: 33 },
+        writingModeRotation: [1, 0, 0, 1, 0, 0],
+        physicalBaselinePoint: { x: 12, y: 33 },
+        effectiveZoom: 1.5,
+      },
       transformBox: "content-box",
       transformOrigin: "73% 18%",
     });
@@ -141,10 +148,15 @@ describe("captured text paint geometry", () => {
       })],
     );
     expect(verticalResult.geometry?.fragments[0]).toMatchObject({
-      baseline: 86,
       inlineOffset: 14,
       shapedOrigins: [14, 34],
       shapedAdvances: [20, 20],
+      lineOrigin: {
+        primaryFontIntegerAscent: 16,
+        lineRelativeTextOrigin: { lineLeft: 70, lineOver: 30 },
+        writingModeRotation: [0, 1, -1, 0, 106, -56],
+        physicalBaselinePoint: { x: 76, y: 14 },
+      },
     });
   });
 

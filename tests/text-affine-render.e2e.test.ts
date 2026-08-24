@@ -42,6 +42,9 @@ const CASES = [
   { id: "skew-reflect", css: "transform:matrix(-1.05,.27,.43,.82,13,-7);transform-origin:73% 18%", text: "Skew reflection" },
   { id: "rtl", css: "direction:rtl;transform:skewY(13deg) scale(.83,1.2)", text: "RTL matrix العربية" },
   { id: "vertical", css: "writing-mode:vertical-rl;height:175px;transform:rotate(11deg) scaleX(-1)", text: "縦書Affine" },
+  { id: "vertical-lr", css: "writing-mode:vertical-lr;height:175px;transform:rotate(11deg) scaleX(-1)", text: "縦書左組" },
+  { id: "sideways-rl", css: "writing-mode:sideways-rl;height:175px;transform:rotate(11deg) scaleX(-1)", text: "Sideways RL" },
+  { id: "sideways-lr", css: "writing-mode:sideways-lr;height:175px;transform:rotate(11deg) scaleX(-1)", text: "Sideways LR" },
   { id: "decorated", css: "transform:rotate(-17deg) scale(1.15,.76);text-decoration:underline wavy;text-shadow:4px 3px 2px #3973db;-webkit-text-stroke:1px #c026d3", text: "Shadow stroke" },
   { id: "wrapped", css: "width:185px;white-space:normal;transform:skewX(16deg) scale(.9,1.12)", text: "Wrapped affine fragments across several physical lines" },
   { id: "zoom-local", outerCss: "zoom:1.35", css: "transform:rotate(23deg) scale(.8,1.1)", text: "Zoom remains local" },
@@ -75,6 +78,14 @@ describeBrowser("DM-2470 complete affine text paint consumption", () => {
           } else {
             expect(owner?.textPaintGeometry?.neutral, `${row.id}: neutral bundle`).toBeDefined();
             expect(owner?.textPaintGeometry?.fragments.length, `${row.id}: fragment matrix`).toBeGreaterThan(0);
+            for (const fragment of owner?.textPaintGeometry?.fragments ?? []) {
+              expect(fragment.source, `${row.id}: affine schema`).toBe("blink-text-fragment-affine-v2");
+              expect(fragment.lineOrigin.source, `${row.id}: structured line origin`).toBe("blink-text-fragment-line-origin-v1");
+              expect(fragment.lineOrigin.primaryFontIntegerAscent, `${row.id}: integer primary ascent`)
+                .toBe(Math.round(fragment.lineOrigin.primaryFontIntegerAscent));
+              expect(fragment.lineOrigin.effectiveZoom, `${row.id}: neutral zoom`).toBeGreaterThan(0);
+              expect(fragment).not.toHaveProperty("baseline");
+            }
           }
           const body = elementTreeToSvgInner(tree, WIDTH, HEIGHT);
           expect(body, `${row.id}: scalar wrapper mutation`).not.toMatch(/anisotropicCorrection|cumScale|scale\([^)]*\/[^)]*\)/);

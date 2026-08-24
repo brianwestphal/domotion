@@ -13,6 +13,10 @@ import type {
   CapturedTextPaintQuad,
   TextSegment,
 } from "./types.js";
+import {
+  asCapturedTextWritingMode,
+  buildCapturedTextLineOrigin,
+} from "./text-line-origin.js";
 
 export const TEXT_AFFINE_RESIDUAL_EPSILON = 0.05;
 export const TEXT_FRAGMENT_CORRELATION_EPSILON = 2;
@@ -218,12 +222,27 @@ export function buildCapturedTextPaintGeometry(
       return { geometry: null, failureReason: "exact shaped text origins or advances are unavailable" };
     }
     const ascent = segment.fontAscent ?? elementAscent ?? 0;
-    const baseline = segment.baseline ?? (vertical ? segment.x + ascent : segment.y + ascent);
+    const writingMode = asCapturedTextWritingMode(item.node.writingMode);
+    if (writingMode == null) {
+      return { geometry: null, failureReason: `unsupported text writing mode ${item.node.writingMode}` };
+    }
+    const lineOrigin = buildCapturedTextLineOrigin({
+      fragmentLeft: segment.x,
+      fragmentTop: segment.y,
+      fragmentWidth: segment.width,
+      fragmentHeight: segment.height,
+      primaryFontAscent: ascent,
+      writingMode,
+      effectiveZoom: item.node.effectiveZoom,
+    });
+    if (lineOrigin == null) {
+      return { geometry: null, failureReason: "Blink line-relative text origin is unavailable" };
+    }
     const inlineOffset = segment.inlineOffset ?? (vertical
       ? segment.y
       : item.node.direction === "rtl" ? segment.x + segment.width : segment.x);
     fragments.push({
-      source: "blink-text-fragment-affine-v1",
+      source: "blink-text-fragment-affine-v2",
       space: "pre-css-transform-viewport",
       textSegmentIndex: best.index,
       sourceTextNodeIndex: item.node.sourceTextNodeIndex,
@@ -232,7 +251,7 @@ export function buildCapturedTextPaintGeometry(
       paintQuad: item.paintQuad,
       paintMatrix: item.matrix,
       affineResidual: item.residual,
-      baseline,
+      lineOrigin,
       inlineOffset,
       shapedOrigins: shaped.origins,
       shapedAdvances: shaped.advances,
@@ -240,14 +259,13 @@ export function buildCapturedTextPaintGeometry(
       direction: item.node.direction,
       transformBox: item.node.transformBox,
       transformOrigin: item.node.transformOrigin,
-      effectiveZoom: item.node.effectiveZoom,
     });
   }
 
   fragments.sort((left, right) => left.textSegmentIndex - right.textSegmentIndex);
   return {
     geometry: {
-      source: "blink-text-fragment-affine-v1",
+      source: "blink-text-fragment-affine-v2",
       space: "pre-css-transform-viewport",
       fragments,
     },

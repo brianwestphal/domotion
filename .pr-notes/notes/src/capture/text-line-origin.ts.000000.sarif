@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6nrzgjqnktut4w",
+          "message": {
+            "text": "The private Blink paintoffset and parentoffset operands are not exposed through CDP, so this records their algebraically exact observable result as a rounded neutral top plus its untouched fractional remainder. The explicit normalized-neutral-fragment-top provenance prevents downstream code from mistaking this canonical decomposition for a private-field observation while preserving the painter order exactly.",
+            "markdown": "The private Blink paint_offset and parent_offset operands are not exposed through CDP, so this records their algebraically exact observable result as a rounded neutral top plus its untouched fractional remainder. The explicit normalized-neutral-fragment-top provenance prevents downstream code from mistaking this canonical decomposition for a private-field observation while preserving the painter order exactly."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/text-line-origin.ts"
+                },
+                "region": {
+                  "startLine": 87,
+                  "endLine": 140,
+                  "snippet": {
+                    "text": "/**\n * Build the neutral-plane record once, before the later CSS affine mapping.\n *\n * CDP exposes the finished neutral fragment top, not Blink's private\n * `paint_offset` and `parent_offset` operands. We therefore retain the exact\n * painter result as an equivalent normalized pair: LayoutUnit-compatible\n * rounded integer top plus its untouched fractional fragment delta. This\n * preserves the source operation without pretending the private operands were\n * observable.\n */\nexport function buildCapturedTextLineOrigin(\n  input: TextLineOriginInput,\n): CapturedTextPaintLineOrigin | null {\n  const values = [\n    input.fragmentLeft,\n    input.fragmentTop,\n    input.fragmentWidth,\n    input.fragmentHeight,\n    input.primaryFontAscent,\n    input.effectiveZoom,\n  ];\n  if (!values.every(Number.isFinite) || input.fragmentWidth < 0 || input.fragmentHeight < 0\n      || input.effectiveZoom <= 0) return null;\n  const primaryFontIntegerAscent = Math.round(input.primaryFontAscent);\n  const roundedContainingPaintOffsetTop = Math.round(input.fragmentTop);\n  const fragmentRelativeTop = input.fragmentTop - roundedContainingPaintOffsetTop;\n  const physicalTop = roundedContainingPaintOffsetTop + fragmentRelativeTop;\n  const lineRelativeTextOrigin = {\n    lineLeft: input.fragmentLeft,\n    lineOver: physicalTop + primaryFontIntegerAscent,\n  };\n  const writingModeRotation = textLineOriginWritingModeRotation(\n    input.fragmentLeft,\n    physicalTop,\n    input.fragmentWidth,\n    input.fragmentHeight,\n    input.writingMode,\n  );\n  const physicalBaselinePoint = mapTextLineOriginPoint(writingModeRotation, {\n    x: lineRelativeTextOrigin.lineLeft,\n    y: lineRelativeTextOrigin.lineOver,\n  });\n  return {\n    source: \"blink-text-fragment-line-origin-v1\",\n    space: \"pre-css-transform-viewport\",\n    roundedContainingPaintOffsetTop,\n    fragmentRelativeTop,\n    primaryFontIntegerAscent,\n    lineRelativeTextOrigin,\n    writingModeRotation,\n    physicalBaselinePoint,\n    effectiveZoom: input.effectiveZoom,\n    provenance: { ...TEXT_LINE_ORIGIN_PROVENANCE },\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/215-affine-text-baseline-protocol.md"
+                },
+                "region": {
+                  "startLine": 67
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2547"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4132110d6bb77c8d43601298d8ebdf87"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "7ed519819c5ff7633489c67b063e59594ea4c2e0",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

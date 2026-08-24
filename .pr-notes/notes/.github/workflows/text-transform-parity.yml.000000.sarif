@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6nrzsztaenzsp5",
+          "message": {
+            "text": "The line-origin oracle passed 7 of 7 source-logical cases with all eight destructive mutations active, and the focused headless E2E suites passed 7 of 7. This matrix runs the same logical report on macOS, Linux, and Windows and requires all three before the named release gate; it adds neither headed execution nor a line-origin visual tolerance.",
+            "markdown": "The line-origin oracle passed 7 of 7 source-logical cases with all eight destructive mutations active, and the focused headless E2E suites passed 7 of 7. This matrix runs the same logical report on macOS, Linux, and Windows and requires all three before the named release gate; it adds neither headed execution nor a line-origin visual tolerance."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/text-transform-parity.yml"
+                },
+                "region": {
+                  "startLine": 88,
+                  "endLine": 108,
+                  "snippet": {
+                    "text": "      - name: Prove pinned-source line-origin semantics\n        run: npm run transform:text-baseline-protocol -- --json tests/output/text-affine-line-origin-${{ runner.os }}.json\n      - name: Run exact fragment and final-ink legs\n        run: npm run transform:text-parity-gate -- --dpr 1,2 --json tests/output/text-transform-parity-${{ runner.os }}.json\n      - name: Upload fingerprinted report\n        if: always()\n        uses: actions/upload-artifact@v4\n        with:\n          name: transformed-text-${{ runner.os }}\n          path: |\n            tests/output/text-transform-parity-${{ runner.os }}.json\n            tests/output/text-affine-line-origin-${{ runner.os }}.json\n          if-no-files-found: error\n          retention-days: 30\n\n  line-origin-release-gate:\n    name: Structured line-origin release gate\n    needs: parity\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo \"Pinned-source line-origin semantics passed on macOS, Linux, and Windows.\""
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/text-affine-baseline-protocol-oracle.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/text-affine-line-origin-workflow.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2547"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4925c53f1ec63e498805f3fc9b711aa9"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "7ed519819c5ff7633489c67b063e59594ea4c2e0",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

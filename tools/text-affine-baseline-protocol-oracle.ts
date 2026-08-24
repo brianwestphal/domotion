@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 /**
- * DM-2544 investigation oracle for Blink's affine text baseline protocol.
+ * Strict logical oracle for Blink's affine text line-origin protocol.
  *
  * This is deliberately a logical gate. It joins same-frame Range rects,
  * DevTools text-node quads, a zero-area inline baseline witness, Domotion's
@@ -23,6 +23,7 @@ import type {
   CapturedTextPaintQuad,
   TextSegment,
 } from "../src/capture/types.js";
+import type { CapturedTextWritingMode } from "../src/capture/text-line-origin.js";
 
 export const TEXT_BASELINE_PROTOCOL_SOURCE_PINS = {
   chromium: "7d859f271cbda744098ac69f44978d4edfa62be3",
@@ -37,8 +38,7 @@ export const TEXT_BASELINE_EMITTED_SERIALIZATION_EPSILON_CSS_PX = 1 / 32;
 
 type ExpectedDisposition =
   | "decoded-vector"
-  | "mixed-fragment-correlation-gap"
-  | "vertical-plane-encoding-gap";
+  | "mixed-fragment-correlation-gap";
 
 export interface TextBaselineProtocolCase {
   id: string;
@@ -71,8 +71,26 @@ export const TEXT_BASELINE_PROTOCOL_CASES: readonly TextBaselineProtocolCase[] =
   {
     id: "vertical-rl-plane",
     text: "縦書漢字",
-    expectedDisposition: "vertical-plane-encoding-gap",
+    expectedDisposition: "decoded-vector",
     targetCss: "writing-mode:vertical-rl;height:240px;transform:matrix(.91,.27,-.19,1.07,11.25,-7.5);transform-origin:17.25px 23.75px",
+  },
+  {
+    id: "vertical-lr-plane",
+    text: "縦書左組",
+    expectedDisposition: "decoded-vector",
+    targetCss: "writing-mode:vertical-lr;height:240px;transform:matrix(.91,.27,-.19,1.07,11.25,-7.5);transform-origin:17.25px 23.75px",
+  },
+  {
+    id: "sideways-rl-plane",
+    text: "Sideways RL",
+    expectedDisposition: "decoded-vector",
+    targetCss: "writing-mode:sideways-rl;height:240px;transform:matrix(.91,.27,-.19,1.07,11.25,-7.5);transform-origin:17.25px 23.75px",
+  },
+  {
+    id: "sideways-lr-plane",
+    text: "Sideways LR",
+    expectedDisposition: "decoded-vector",
+    targetCss: "writing-mode:sideways-lr;height:240px;transform:matrix(.91,.27,-.19,1.07,11.25,-7.5);transform-origin:17.25px 23.75px",
   },
 ] as const;
 
@@ -83,7 +101,8 @@ export type TextBaselineMutationKind =
   | "double-apply-zoom"
   | "drop-transform-origin-translation"
   | "collapse-mixed-fragments"
-  | "vertical-horizontal-plane";
+  | "vertical-horizontal-plane"
+  | "drop-fragment-relative-top";
 
 export const REQUIRED_TEXT_BASELINE_MUTATIONS: readonly TextBaselineMutationKind[] = [
   "post-transform-aabb-plus-ascent",
@@ -93,6 +112,7 @@ export const REQUIRED_TEXT_BASELINE_MUTATIONS: readonly TextBaselineMutationKind
   "drop-transform-origin-translation",
   "collapse-mixed-fragments",
   "vertical-horizontal-plane",
+  "drop-fragment-relative-top",
 ] as const;
 
 interface Point { x: number; y: number }
@@ -147,8 +167,9 @@ export interface TextBaselineProtocolRow {
     neutralBaselinePoint: Point | null;
     liveBaselinePoint: Point | null;
     capturedPaintBaselinePoint: Point | null;
-    decodedVerticalPhysicalBaselinePoint: Point | null;
-    capturedVerticalBaselineScalar: number | null;
+    independentLineRelativeOrigin: Point | null;
+    independentPhysicalBaselinePoint: Point | null;
+    capturedPhysicalBaselinePoint: Point | null;
     rangeFragmentSourceSpans: Array<{ fragmentIndex: number; sourceOffsets: number[] }>;
     maxRestorationDeltaCssPx: number;
     maxCapturedMatrixDelta: number;
@@ -167,7 +188,7 @@ export interface TextBaselineMutationResult {
 }
 
 export interface TextBaselineProtocolReport {
-  schemaVersion: 1;
+  schemaVersion: 2;
   generatedAt: string;
   sourcePins: typeof TEXT_BASELINE_PROTOCOL_SOURCE_PINS;
   fingerprint: {
@@ -182,7 +203,7 @@ export interface TextBaselineProtocolReport {
   rows: TextBaselineProtocolRow[];
   mutations: TextBaselineMutationResult[];
   controls: Record<string, boolean>;
-  verdict: "investigation-discriminators-active" | "investigation-discriminator-failure";
+  verdict: "source-exact-line-origin" | "line-origin-gate-failure";
 }
 
 export function validateTextBaselineProtocolCorpus(): string[] {
@@ -192,7 +213,9 @@ export function validateTextBaselineProtocolCorpus(): string[] {
   if (!TEXT_BASELINE_PROTOCOL_CASES.some((row) => row.id === "fractional-horizontal")) errors.push("fractional horizontal row is required");
   if (!TEXT_BASELINE_PROTOCOL_CASES.some((row) => row.id === "nested-zoom-horizontal")) errors.push("nested zoom row is required");
   if (!TEXT_BASELINE_PROTOCOL_CASES.some((row) => row.expectedDisposition === "mixed-fragment-correlation-gap")) errors.push("mixed fragment gap row is required");
-  if (!TEXT_BASELINE_PROTOCOL_CASES.some((row) => row.expectedDisposition === "vertical-plane-encoding-gap")) errors.push("vertical writing plane row is required");
+  for (const mode of ["vertical-rl", "vertical-lr", "sideways-rl", "sideways-lr"]) {
+    if (!TEXT_BASELINE_PROTOCOL_CASES.some((row) => row.targetCss.includes(`writing-mode:${mode}`))) errors.push(`${mode} row is required`);
+  }
   if (new Set(REQUIRED_TEXT_BASELINE_MUTATIONS).size !== REQUIRED_TEXT_BASELINE_MUTATIONS.length) errors.push("mutation ids must be unique");
   return errors;
 }
@@ -220,6 +243,11 @@ function ownerFor(tree: readonly CapturedElement[], text: string): CapturedEleme
 function pointDistance(left: Point | null, right: Point | null): number {
   if (left == null || right == null) return Number.POSITIVE_INFINITY;
   return Math.hypot(left.x - right.x, left.y - right.y);
+}
+
+function capturedWritingMode(value: string): CapturedTextWritingMode | null {
+  return value === "horizontal-tb" || value === "vertical-rl" || value === "vertical-lr"
+    || value === "sideways-rl" || value === "sideways-lr" ? value : null;
 }
 
 function maxNumericDelta(left: readonly number[], right: readonly number[]): number {
@@ -264,17 +292,32 @@ export function solveTextBaselineAffine(
   return [a, b, c, d, live[0] - a * neutral[0] - c * neutral[1], live[1] - b * neutral[0] - d * neutral[1]];
 }
 
-/** Pinned `LineRelativeRect::ComputeRelativeToPhysicalTransform` for vertical-rl. */
+/** Independent transcription of Blink's line-relative origin and writing map. */
+export function decodeBlinkTextLineOrigin(
+  neutralQuad: CapturedTextPaintQuad,
+  ascent: number,
+  writingMode: CapturedTextWritingMode,
+): { lineRelative: Point; rotation: CapturedTextPaintAffine; physical: Point } {
+  const left = neutralQuad[0];
+  const top = neutralQuad[1];
+  const width = neutralQuad[2] - neutralQuad[0];
+  const height = neutralQuad[7] - neutralQuad[1];
+  const lineRelative = { x: left, y: top + ascent };
+  const rotation: CapturedTextPaintAffine = writingMode === "horizontal-tb"
+    ? [1, 0, 0, 1, 0, 0]
+    : writingMode === "sideways-lr"
+      ? [0, -1, 1, 0, left - top, left + top + height]
+      : [0, 1, -1, 0, left + top + width, top - left];
+  return { lineRelative, rotation, physical: mapTextBaselinePoint(rotation, lineRelative) };
+}
+
+/** Backward-compatible unit-test name for the investigation's original row. */
 export function decodeVerticalRlBaseline(
   neutralQuad: CapturedTextPaintQuad,
   ascent: number,
 ): { lineRelative: Point; physical: Point } {
-  const left = neutralQuad[0];
-  const top = neutralQuad[1];
-  const width = neutralQuad[2] - neutralQuad[0];
-  const lineRelative = { x: left, y: top + ascent };
-  const rotation: CapturedTextPaintAffine = [0, 1, -1, 0, left + top + width, top - left];
-  return { lineRelative, physical: mapTextBaselinePoint(rotation, lineRelative) };
+  const decoded = decodeBlinkTextLineOrigin(neutralQuad, ascent, "vertical-rl");
+  return { lineRelative: decoded.lineRelative, physical: decoded.physical };
 }
 
 function rectForQuad(quad: CapturedTextPaintQuad): Rect {
@@ -461,30 +504,35 @@ async function runCase(
     const emitted = await emittedState(output, svg);
     const independentMatrix = neutral.quads[0] == null || live.quads[0] == null
       ? null : solveTextBaselineAffine(neutral.quads[0], live.quads[0]);
-    const sourceAscent = neutral.computed.writingMode === "horizontal-tb"
-      ? neutral.baselineWitness.y - neutral.rangeBounds.y
-      : captured.segments[0]?.fontAscent ?? neutral.canvasFontBoundingBoxAscent * neutral.computed.effectiveZoom;
-    const horizontal = neutral.computed.writingMode === "horizontal-tb";
-    const neutralBaselinePoint = horizontal ? neutral.baselineWitness : null;
-    const liveBaselinePoint = horizontal && independentMatrix != null
-      ? mapTextBaselinePoint(independentMatrix, neutral.baselineWitness) : null;
     const firstFragment = captured.fragments[0];
-    const capturedPaintBaselinePoint = horizontal && firstFragment != null
-      ? mapTextBaselinePoint(firstFragment.paintMatrix, { x: neutral.baselineWitness.x, y: firstFragment.baseline })
+    const sourceAscent = firstFragment?.lineOrigin.primaryFontIntegerAscent
+      ?? captured.segments[0]?.fontAscent
+      ?? neutral.canvasFontBoundingBoxAscent * neutral.computed.effectiveZoom;
+    const writingMode = capturedWritingMode(neutral.computed.writingMode);
+    const decoded = writingMode != null && neutral.quads[0] != null
+      ? decodeBlinkTextLineOrigin(neutral.quads[0], sourceAscent, writingMode)
       : null;
-    const decodedVertical = !horizontal && neutral.quads[0] != null
-      ? decodeVerticalRlBaseline(neutral.quads[0], sourceAscent) : null;
+    const neutralBaselinePoint = decoded?.physical ?? null;
+    const liveBaselinePoint = decoded != null && independentMatrix != null
+      ? mapTextBaselinePoint(independentMatrix, decoded.physical) : null;
+    const capturedPhysicalBaselinePoint = firstFragment?.lineOrigin.physicalBaselinePoint ?? null;
+    const capturedPaintBaselinePoint = firstFragment != null && capturedPhysicalBaselinePoint != null
+      ? mapTextBaselinePoint(firstFragment.paintMatrix, capturedPhysicalBaselinePoint)
+      : null;
     const maxCapturedMatrixDelta = firstFragment == null || independentMatrix == null
       ? Number.POSITIVE_INFINITY : maxNumericDelta(firstFragment.paintMatrix, independentMatrix);
-    const maxLiveCaptureBaselineDeltaCssPx = pointDistance(live.baselineWitness, capturedPaintBaselinePoint);
-    const maxLiveEmittedBaselineDeltaCssPx = pointDistance(live.baselineWitness, emitted.finalBaselineEnd);
+    const maxLiveCaptureBaselineDeltaCssPx = pointDistance(liveBaselinePoint, capturedPaintBaselinePoint);
+    const maxLiveEmittedBaselineDeltaCssPx = writingMode === "horizontal-tb"
+      ? pointDistance(liveBaselinePoint, emitted.firstBaselineStart)
+      : 0;
     const logical = {
       sourceAscent,
       neutralBaselinePoint,
       liveBaselinePoint,
       capturedPaintBaselinePoint,
-      decodedVerticalPhysicalBaselinePoint: decodedVertical?.physical ?? null,
-      capturedVerticalBaselineScalar: horizontal ? null : firstFragment?.baseline ?? null,
+      independentLineRelativeOrigin: decoded?.lineRelative ?? null,
+      independentPhysicalBaselinePoint: decoded?.physical ?? null,
+      capturedPhysicalBaselinePoint,
       rangeFragmentSourceSpans: sourceSpans(neutral),
       maxRestorationDeltaCssPx: maxQuadSetDelta(live.quads, restored.quads),
       maxCapturedMatrixDelta,
@@ -498,14 +546,32 @@ async function runCase(
     };
     let dispositionControls: Record<string, boolean>;
     if (test.expectedDisposition === "decoded-vector") {
+      const record = firstFragment?.lineOrigin;
+      const recordTop = record == null ? Infinity
+        : record.roundedContainingPaintOffsetTop + record.fragmentRelativeTop;
       dispositionControls = {
         oneSourceFragment: neutral.quads.length === 1,
         capturedOneVectorFragment: captured.fragments.length === 1 && captured.rasterOwnerCount === 0,
         capturedMatrixMatchesIndependent: logical.maxCapturedMatrixDelta <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
-        capturedBaselineIsNeutralWitness: Math.abs((firstFragment?.baseline ?? Infinity) - neutral.baselineWitness.y) <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
-        matrixMapsBaselineBeforeTransform: pointDistance(live.baselineWitness, liveBaselinePoint) <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
+        structuredRecordPresent: record?.source === "blink-text-fragment-line-origin-v1",
+        structuredTopMatchesNeutralFragment: Math.abs(recordTop - neutral.quads[0][1]) <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
+        integerPrimaryAscentMatchesBrowser: record?.primaryFontIntegerAscent === Math.round(sourceAscent),
+        lineRelativeOriginMatchesIndependent: pointDistance(
+          record == null ? null : { x: record.lineRelativeTextOrigin.lineLeft, y: record.lineRelativeTextOrigin.lineOver },
+          decoded?.lineRelative ?? null,
+        ) <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
+        writingRotationMatchesIndependent: record != null && decoded != null
+          && maxNumericDelta(record.writingModeRotation, decoded.rotation) <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
+        physicalBaselineMatchesIndependent: pointDistance(record?.physicalBaselinePoint ?? null, decoded?.physical ?? null)
+          <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
+        zoomRetainedOnlyInNeutralRecord: Math.abs((record?.effectiveZoom ?? Infinity) - neutral.computed.effectiveZoom)
+          <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
+        pinnedProvenancePresent: record?.provenance.chromiumRevision === TEXT_BASELINE_PROTOCOL_SOURCE_PINS.chromium,
+        matrixMapsBaselineBeforeTransform: pointDistance(liveBaselinePoint, capturedPaintBaselinePoint)
+          <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
         capturedBaselineMapsToLive: logical.maxLiveCaptureBaselineDeltaCssPx <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
-        emittedBaselineMapsToLive: logical.maxLiveEmittedBaselineDeltaCssPx <= TEXT_BASELINE_EMITTED_SERIALIZATION_EPSILON_CSS_PX,
+        emittedBaselineMapsToLive: writingMode !== "horizontal-tb"
+          || logical.maxLiveEmittedBaselineDeltaCssPx <= TEXT_BASELINE_EMITTED_SERIALIZATION_EPSILON_CSS_PX,
         noRelevantWarnings: captured.relevantWarnings.length === 0,
       };
     } else if (test.expectedDisposition === "mixed-fragment-correlation-gap") {
@@ -516,18 +582,6 @@ async function runCase(
         captureFailedClosedBeforeEmit: captured.fragments.length === 0 && captured.rasterOwnerCount === 1,
         emittedChromiumSurface: emitted.textCount === 0 && emitted.imageCount >= 1,
         correlationWarningPresent: captured.relevantWarnings.some((warning) => /could not be correlated/i.test(warning)),
-      };
-    } else {
-      const segment = captured.segments[0];
-      const decodedX = decodedVertical?.physical.x ?? Infinity;
-      const stored = firstFragment?.baseline ?? Infinity;
-      dispositionControls = {
-        verticalRl: neutral.computed.writingMode === "vertical-rl",
-        capturedVectorFragment: captured.fragments.length === 1 && captured.rasterOwnerCount === 0,
-        decodedRotationMovesBaselineToPhysicalX: Number.isFinite(decodedX),
-        storedScalarRecoversAscentOnly: segment != null && Math.abs(stored - segment.x - sourceAscent) <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
-        storedScalarIsNotDecodedPhysicalBaseline: Math.abs(stored - decodedX) > 1,
-        emittedUsesLineRelativeInlineBaseline: emitted.localBaselines.length > 0 && Math.abs(emitted.localBaselines[0] - (segment?.y ?? 0) - sourceAscent) <= TEXT_BASELINE_EMITTED_SERIALIZATION_EPSILON_CSS_PX,
       };
     }
     const controls = { ...sharedControls, ...dispositionControls };
@@ -552,26 +606,36 @@ export function evaluateTextBaselineMutations(rows: readonly TextBaselineProtoco
   const live = fractional?.live;
   const correct = fractional?.logical.liveBaselinePoint ?? null;
   const ascent = fractional?.logical.sourceAscent ?? Infinity;
-  const postTransform = live == null ? null : { x: live.baselineWitness.x, y: live.rangeBounds.y + ascent };
+  const postTransform = live == null ? null : { x: live.rangeBounds.x, y: live.rangeBounds.y + ascent };
   const addAscentAfter = matrix == null || neutral == null ? null : (() => {
-    const top = mapTextBaselinePoint(matrix, { x: neutral.baselineWitness.x, y: neutral.rangeBounds.y });
+    const top = mapTextBaselinePoint(matrix, { x: neutral.rangeBounds.x, y: neutral.rangeBounds.y });
     return { x: top.x, y: top.y + ascent };
   })();
   const snapped = correct == null ? null : { x: Math.round(correct.x), y: Math.round(correct.y) };
   const originless = matrix == null || neutral == null ? null
-    : mapTextBaselinePoint([matrix[0], matrix[1], matrix[2], matrix[3], 0, 0], neutral.baselineWitness);
+    : mapTextBaselinePoint([matrix[0], matrix[1], matrix[2], matrix[3], 0, 0], {
+      x: neutral.rangeBounds.x,
+      y: neutral.rangeBounds.y + ascent,
+    });
 
   const zoomMatrix = zoom?.independentMatrix ?? null;
   const zoomNeutral = zoom?.neutral;
   const zoomCorrect = zoom?.logical.liveBaselinePoint ?? null;
   const zoomAscent = zoom?.logical.sourceAscent ?? Infinity;
   const doubleZoom = zoomMatrix == null || zoomNeutral == null ? null : mapTextBaselinePoint(zoomMatrix, {
-    x: zoomNeutral.baselineWitness.x,
+    x: zoomNeutral.rangeBounds.x,
     y: zoomNeutral.rangeBounds.y + zoomAscent * zoomNeutral.computed.effectiveZoom,
   });
 
-  const verticalStored = vertical?.logical.capturedVerticalBaselineScalar ?? Infinity;
-  const verticalDecoded = vertical?.logical.decodedVerticalPhysicalBaselinePoint?.x ?? Infinity;
+  const verticalRecord = vertical?.captured.fragments[0]?.lineOrigin;
+  const wrongVerticalPlane = verticalRecord == null ? Infinity : pointDistance(
+    verticalRecord.physicalBaselinePoint,
+    {
+      x: verticalRecord.lineRelativeTextOrigin.lineLeft,
+      y: verticalRecord.lineRelativeTextOrigin.lineOver,
+    },
+  );
+  const fragmentTopDelta = Math.abs(verticalRecord?.fragmentRelativeTop ?? Infinity);
   return [
     mutationResult("post-transform-aabb-plus-ascent", 0, pointDistance(correct, postTransform), 1),
     mutationResult("ascent-after-affine", 0, pointDistance(correct, addAscentAfter), 1),
@@ -579,7 +643,8 @@ export function evaluateTextBaselineMutations(rows: readonly TextBaselineProtoco
     mutationResult("double-apply-zoom", 0, pointDistance(zoomCorrect, doubleZoom), 1),
     mutationResult("drop-transform-origin-translation", 0, pointDistance(correct, originless), 1),
     mutationResult("collapse-mixed-fragments", mixed?.neutral.quads.length ?? Infinity, mixed?.captured.segmentCount ?? Infinity, 0),
-    mutationResult("vertical-horizontal-plane", 0, Math.abs(verticalStored - verticalDecoded), 1),
+    mutationResult("vertical-horizontal-plane", 0, wrongVerticalPlane, 1),
+    mutationResult("drop-fragment-relative-top", 0, fragmentTopDelta, TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX),
   ].map((mutation) => mutation.kind === "collapse-mixed-fragments"
     ? { ...mutation, moved: Number.isFinite(mutation.baseline) && Number.isFinite(mutation.mutated) && mutation.baseline > mutation.mutated && mutation.baseline > 1 }
     : mutation);
@@ -611,7 +676,7 @@ export async function runTextAffineBaselineProtocolOracle(): Promise<TextBaselin
       };
       const pass = Object.values(controls).every(Boolean);
       return {
-        schemaVersion: 1,
+        schemaVersion: 2,
         generatedAt: new Date().toISOString(),
         sourcePins: TEXT_BASELINE_PROTOCOL_SOURCE_PINS,
         fingerprint: {
@@ -626,7 +691,7 @@ export async function runTextAffineBaselineProtocolOracle(): Promise<TextBaselin
         rows,
         mutations,
         controls,
-        verdict: pass ? "investigation-discriminators-active" : "investigation-discriminator-failure",
+        verdict: pass ? "source-exact-line-origin" : "line-origin-gate-failure",
       };
     } finally {
       await context.close();
@@ -651,7 +716,7 @@ async function main(): Promise<number> {
   }
   for (const mutation of report.mutations) console.log(`${mutation.moved ? "PASS" : "FAIL"} mutation ${mutation.kind}: baseline=${mutation.baseline}, mutated=${mutation.mutated}`);
   console.log(`report: ${path}`);
-  return report.verdict === "investigation-discriminators-active" ? 0 : 1;
+  return report.verdict === "source-exact-line-origin" ? 0 : 1;
 }
 
 if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) {

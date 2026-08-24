@@ -2280,7 +2280,7 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   fallback; selected face keys must not reconstruct the semantics. This
   contract adds no pixel tolerance or font-name snapshot.
 
-<!-- DM-2544 -->
+<!-- DM-2544, DM-2547 -->
 - Affine text baseline ownership is a **separately decoded logical protocol**
   ([doc 215](../215-affine-text-baseline-protocol.md)), not an inference from
   final glyph pixels. Range rectangles and CDP text-node quads must retain the
@@ -2290,10 +2290,12 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   integer ascent in line-relative space, applies the writing-mode rotation, and
   only then applies the complete transform-origin-aware paint matrix. CSS zoom
   remains a local metric/layout input and must not be applied twice. The exact
-  fractional, nested-zoom, mixed-script, and vertical-rl rows plus all seven
-  wrong-plane mutations must remain active without screenshots. DM-2546 owns
-  pre-correlation physical-fragment/source-span splitting; DM-2547 owns the
-  structured line-relative/physical baseline record. Native glyph
+  fractional, nested-zoom, mixed-script, vertical-rl/lr, and sideways-rl/lr
+  rows plus all eight wrong-plane/snap/zoom/origin/cardinality mutations must
+  remain active without screenshots. Each v2 affine fragment must carry the
+  source-pinned structured neutral-plane record, and render must validate and
+  consume it exactly once before the affine map. DM-2546 alone owns
+  pre-correlation physical-fragment/source-span splitting. Native glyph
   antialiasing and all existing visual tolerances remain outside this geometry
   requirement.
 

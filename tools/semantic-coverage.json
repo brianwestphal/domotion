@@ -1248,13 +1248,13 @@
         "flat -> preserve-3d",
         "border-box -> fill-box",
         "static -> animated",
-        "unzoomed -> zoomed"
+        "unzoomed -> zoomed",
+        "horizontal baseline plane -> vertical line-relative/physical planes"
       ],
       "uncoveredStates": [
         "descendant-union owner -> used rendering-context root",
         "document timeline -> scroll/view/rAF timeline",
-        "single text segment -> multiple physical text fragments",
-        "horizontal baseline plane -> vertical line-relative/physical planes"
+        "single text segment -> multiple physical text fragments"
       ],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/layout",
@@ -1266,6 +1266,7 @@
       "productionOwners": [
         "src/capture/text-paint-geometry-cdp.ts",
         "src/capture/text-fragment-geometry.ts",
+        "src/capture/text-line-origin.ts",
         "src/capture/animation-frame.ts",
         "src/capture/projective-owner.ts",
         "src/capture/script/index.ts",
@@ -1287,6 +1288,7 @@
         "tools/transform-geometry-oracle.ts",
         "tools/text-transform-geometry-audit.ts",
         "tools/text-affine-baseline-protocol-oracle.ts",
+        ".github/workflows/text-transform-parity.yml",
         "tools/animated-projective-frame-oracle.ts",
         "tests/animation-frame.e2e.test.ts",
         "tests/animated-projective-frame.e2e.test.ts",
@@ -1308,12 +1310,14 @@
       ],
       "metamorphicTests": [
         "src/capture/text-fragment-geometry.test.ts",
+        "src/capture/text-line-origin.test.ts",
         "tests/animated-projective-frame-oracle.test.ts",
         "tests/nested-projective-ownership-audit.test.ts",
         "tests/projective-owner-release-gate.test.ts",
         "tests/projective-owner-release-workflow.test.ts",
         "src/render/text-affine.test.ts",
         "tests/text-affine-baseline-protocol-oracle.test.ts",
+        "tests/text-affine-line-origin-workflow.test.ts",
         "tests/timeline-sampling-ownership-oracle.test.ts",
         "src/render/projective-transform.test.ts",
         "src/stacking-context.test.ts",
@@ -1333,7 +1337,7 @@
         "tests/features.ts#perspective-fixed-containing-block-ownership"
       ],
       "coverage": "partial",
-      "boundary": "Computed perspective/origin, transformed text, inline SVG and fixed-containing-block ownership are source-audited and gated. Axis-aligned transformed flex descendants additionally cross 24 scale/origin/wrapper states with fractional local geometry, exact live/capture facts, documented one-decimal emitted SVG geometry, six active logical mutations, and no fixture relaxation in a native three-platform workflow. DM-2492 selects the smallest owner through Blink's direct-parent used-preserve propagation. DM-2493 crosses 25 context/grouping/negative families with four static/animated/environment profiles at DPR 1/2; its schema-v2 macOS/Linux/Windows aggregate requires exact owners, one direct atomic image, retained vector sentinels, restoration and warning integrity, lossless SHA/crop provenance, complete Cartesian artifacts, nine mutations and a secondary four-device-pixel bound. Unknown internal view-transition participation still warns and retains a conservative Chromium surface. DM-2531 source-traces scroll/view time to post-layout snapshots and the compositor scroll tree, and rAF to PageAnimator callbacks outside WAAPI enumeration. Its eleven-discriminator main/OOPIF logical oracle proves exact percentage holds and mutable sources, HTML-box versus SVG transform behavior, document/open/closed-shadow TreeScope omission, benign page-global clock freezing, and page-builtin/worker/late native rAF escapes. Production remains uncovered until DM-2553 authenticates logical-axis/SVG/all-TreeScope progress sources with rollback and DM-2554 owns or rejects every Window/worker callback queue. DM-2544 independently decodes the Range/CDP/paint-snap/ascent/writing-plane/transform-origin baseline protocol without pixels. Production still lacks pre-correlation splitting for multiple physical text fragments (DM-2546) and a structured vertical line-relative/physical baseline record (DM-2547), so all three transitions remain explicitly uncovered.",
+      "boundary": "Computed perspective/origin, transformed text, inline SVG and fixed-containing-block ownership are source-audited and gated. Axis-aligned transformed flex descendants additionally cross 24 scale/origin/wrapper states with fractional local geometry, exact live/capture facts, documented one-decimal emitted SVG geometry, six active logical mutations, and no fixture relaxation in a native three-platform workflow. DM-2492 selects the smallest owner through Blink's direct-parent used-preserve propagation. DM-2493 crosses 25 context/grouping/negative families with four static/animated/environment profiles at DPR 1/2; its schema-v2 macOS/Linux/Windows aggregate requires exact owners, one direct atomic image, retained vector sentinels, restoration and warning integrity, lossless SHA/crop provenance, complete Cartesian artifacts, nine mutations and a secondary four-device-pixel bound. Unknown internal view-transition participation still warns and retains a conservative Chromium surface. DM-2531 source-traces scroll/view time to post-layout snapshots and the compositor scroll tree, and rAF to PageAnimator callbacks outside WAAPI enumeration. Its eleven-discriminator main/OOPIF logical oracle proves exact percentage holds and mutable sources, HTML-box versus SVG transform behavior, document/open/closed-shadow TreeScope omission, benign page-global clock freezing, and page-builtin/worker/late native rAF escapes. Production remains uncovered until DM-2553 authenticates logical-axis/SVG/all-TreeScope progress sources with rollback and DM-2554 owns or rejects every Window/worker callback queue. DM-2547 promotes DM-2544's pixel-free Blink baseline protocol into a source-pinned structured record consumed once before affine paint, with all horizontal/vertical/sideways planes and eight mutations required on macOS/Linux/Windows. Only pre-correlation splitting for multiple physical text fragments remains uncovered under DM-2546.",
       "featureIds": [
         "capture.animated-projective-frame",
         "render.tree-to-svg",

@@ -1,172 +1,158 @@
 # Blink affine text baseline and fragment-origin protocol
 
-DM-2544 is an investigation, not an implementation. It independently decodes
-the baseline plane that docs 159 and 177 deliberately left as retained
-provenance. The result is narrower than a visual comparison:
+DM-2544 decoded Blink's text-paint origin without using pixels. DM-2547 now
+ships that result as the versioned `CapturedTextPaintLineOrigin` record used by
+ordinary affine text. The record is built in the transform-neutral plane,
+validated and consumed once, and only then mapped through the captured affine
+paint matrix. No raster threshold, visual tolerance, or native glyph
+antialiasing rule changed.
 
-- the existing one-fragment horizontal affine route applies Blink's neutral
-  baseline before the complete matrix and is logically correct;
-- a single `LayoutText` can expose several physical `FragmentItem`s while
-  Domotion captures one line segment, so the current affine correlator fails
-  closed to a Chromium surface; and
-- the vertical `baseline` field is not the physical baseline promised by its
-  schema. It carries `segment.x + ascent`, which the renderer converts back to
-  an ascent before constructing a line-relative SVG origin.
-
-No production behavior, raster threshold, pixel tolerance, or native glyph
-antialiasing rule changes in DM-2544.
+The remaining, separate boundary is DM-2546: one `LayoutText` may expose
+several physical `FragmentItem`s while the current normal capture has one
+line-grouped `TextSegment`. Ambiguous cardinality still fails closed to a
+Chromium surface.
 
 ## Pinned source boundary
 
-The source trace uses Chromium
-`7d859f271cbda744098ac69f44978d4edfa62be3`. Its `DEPS` file pins Skia
-`62efacd37737505732dbe3d8daa62abd679626a1` and HarfBuzz
-`511df88b82e697cd2a0f1f0635787aa0b18bddbb`. The Chromium dependency pin, not
-the newer standalone HarfBuzz checkout head, is authoritative for this
-protocol.
+The protocol is pinned to Chromium
+`7d859f271cbda744098ac69f44978d4edfa62be3`:
 
-### Fragment ownership and exposed coordinate spaces
+- `core/paint/text_fragment_painter.cc:62-87` constructs the physical fragment
+  rectangle by rounding the containing paint offset and retaining the
+  fragment-relative delta.
+- `core/paint/text_fragment_painter.cc:506-529` selects the scaled primary font,
+  takes integer `FontMetrics::Ascent`, and creates the line-relative origin.
+- `platform/fonts/simple_font_data.cc:416-428` and
+  `platform/fonts/font_metrics.h:109-166` establish that this is `Ascent`, not
+  `FixedAscent`.
+- `core/paint/line_relative_rect.cc:19-75` owns the writing-mode map.
+- `core/paint/paint_property_tree_builder.cc:1370-1456` and
+  `core/style/computed_style.cc:1415-1489` apply the later reference-box and
+  transform-origin-aware matrix.
 
-`Range::getClientRects()` calls `GetBorderAndTextQuads`, then
-`LayoutText::AbsoluteQuadsForRange`, and finally
-`Document::AdjustQuadsForScrollAndAbsoluteZoom`
-(`core/dom/range.cc:1656-1697,1748-1779`). In the LayoutNG path,
-`LayoutText::AbsoluteQuadsForRange` iterates the text's `FragmentItem`s with an
-`InlineCursor`, intersects each item's `TextOffsetRange`, and obtains its local
-rectangle with `CurrentLocalRect` (`core/layout/layout_text.cc:556-630`). A
-whole-text Range therefore returns one axis-aligned rectangle per intersecting
-physical text fragment, not necessarily one rectangle per DOM text node.
-
-`DOM.getContentQuads` reaches `InspectorHighlight::GetContentQuads` through
-`InspectorDOMAgent` (`core/inspector/inspector_dom_agent.cc:1839`).
-`CollectQuads` asks the text `LayoutObject` for `AbsoluteQuads`, maps frame
-coordinates into the viewport, and adjusts absolute zoom
-(`core/inspector/inspector_highlight.cc:1941-1969,2594-2609`). For
-`LayoutText`, `AbsoluteQuads` uses `CollectLineBoxRects`, which iterates the
-same physical items (`core/layout/layout_text.cc:484-511`). The neutral Range
-rects must consequently equal the axis-aligned bounds of the neutral CDP quads
-and have the same count.
-
-`AdjustQuadMaybeExcludingCSSZoom` divides the exposed quad by effective CSS
-zoom, or by layout zoom when standardized browser zoom is enabled
-(`core/layout/adjust_for_absolute_zoom.h:100-121`). CSS zoom still participates
-in local font metrics and layout; it is removed only from this exposed viewport
-coordinate projection. The affine prepass correctly leaves zoom active while
-neutralizing CSS transforms.
-
-### Baseline selection, paint snap, and writing plane
-
-Blink constructs the local paint origin before the paint-property transform:
+The construction order is:
 
 ```text
-physical top = round(paint offset top + parent offset top)
-             + (fragment top - parent offset top)
-line-relative origin = (physical left, physical top + integer ascent)
-painted origin = writing-mode rotation(line-relative origin), then paint CTM
+physical top = rounded containing paint offset top + fragment-relative top
+line-relative origin = (line left, physical top + integer primary ascent)
+physical baseline = writing-mode rotation(line-relative origin)
+painted baseline = captured affine paint matrix(physical baseline)
 ```
 
-The first expression is transcribed from `PhysicalBoxRect`; it rounds the
-containing paint offset while retaining the fragment-relative fractional delta
-(`core/paint/text_fragment_painter.cc:62-87`). `TextFragmentPainter` selects
-the fragment's scaled primary font, reads integer `FontMetrics::Ascent`, and
-adds it to that physical top (`text_fragment_painter.cc:506-529`). Blink's
-metric code explicitly uses `Ascent`, not `FixedAscent`, to agree with the
-painter (`platform/fonts/simple_font_data.cc:416-428`; `font_metrics.h:109-166`).
+Ascent, paint snap, and writing rotation therefore belong before the CSS
+affine matrix. Effective CSS zoom remains active while Blink shapes and lays
+out the neutral fragment; it is recorded as provenance and is not applied a
+second time.
 
-The resulting `LineRelativeOffset` changes plane in vertical writing.
-`LineRelativeRect::ComputeRelativeToPhysicalTransform` uses the following
-matrix for vertical-rl, vertical-lr, and sideways-rl, while sideways-lr uses
-the opposite rotation (`core/paint/line_relative_rect.cc:19-75`):
+## Versioned record
+
+`src/capture/text-line-origin.ts` produces this record for every correlated
+ordinary text fragment:
+
+```ts
+interface CapturedTextPaintLineOrigin {
+  source: "blink-text-fragment-line-origin-v1";
+  space: "pre-css-transform-viewport";
+  roundedContainingPaintOffsetTop: number;
+  fragmentRelativeTop: number;
+  primaryFontIntegerAscent: number;
+  lineRelativeTextOrigin: { lineLeft: number; lineOver: number };
+  writingModeRotation: [number, number, number, number, number, number];
+  physicalBaselinePoint: { x: number; y: number };
+  effectiveZoom: number;
+  provenance: {
+    chromiumRevision: "7d859f271cbda744098ac69f44978d4edfa62be3";
+    physicalBox: "core/paint/text_fragment_painter.cc:62-87";
+    primaryFontAscent: "core/paint/text_fragment_painter.cc:506-529";
+    writingModeRotation: "core/paint/line_relative_rect.cc:19-75";
+    transformOrigin: "core/style/computed_style.cc:1415-1489";
+    decomposition: "normalized-neutral-fragment-top";
+  };
+}
+```
+
+CDP exposes the completed neutral fragment, not Blink's private
+`paint_offset` and `parent_offset` operands. The record consequently stores a
+source-equivalent canonical decomposition: `round(neutralTop)` plus the exact
+unrounded remainder. Their sum is the observed physical top. The provenance
+labels this normalization explicitly instead of claiming private operands were
+observed.
+
+`CapturedTextPaintGeometry` and each fragment use
+`blink-text-fragment-affine-v2`; the old scalar `baseline` and duplicate
+top-level `effectiveZoom` are gone. `src/render/text-affine.ts` validates the
+record against its neutral segment, restores the decoded origin/ascent, and
+then computes `inverse(emitted CTM) * paintMatrix`. Wrong schema, plane,
+rotation, snap, provenance, zoom, or decoded point fails closed before SVG
+paint.
+
+## Writing-mode maps
+
+For fragment bounds `(left, top, width, height)`, horizontal-tb is identity.
+Vertical-rl, vertical-lr, and sideways-rl use Blink's clockwise map:
 
 ```text
-[ 0  1  -1  0  lineLeft + lineOver + blockSize  lineOver - lineLeft ]
+[0, 1, -1, 0, left + top + width, top - left]
 ```
 
-Finally, Blink records the complete transform matrix and a fragment-specific
-reference-box origin (`core/paint/paint_property_tree_builder.cc:1370-1456`).
-`ComputedStyle::ApplyTransform` translates to that resolved origin, applies
-independent transforms, motion path, and ordered transform operations, then
-translates back (`core/style/computed_style.cc:1415-1489`). Transform origin is
-therefore part of the later mapping; ascent is not recomputed in transformed
-space.
+Sideways-lr uses the opposite rotation:
 
-## Independent live/capture/emitted discriminator
+```text
+[0, -1, 1, 0, left - top, left + top + height]
+```
 
-Run the logical oracle with:
+The matrices and decoded physical points are exact unit-test facts; they are
+not inferred from final glyph bounds.
+
+## Logical oracle and destructive controls
+
+Run the headless logical oracle with:
 
 ```sh
 npm run transform:text-baseline-protocol -- --json /tmp/text-baseline-protocol.json
 ```
 
-It temporarily neutralizes every marked transform owner, takes same-frame
-whole-Range and per-UTF-16-unit rectangles plus CDP text-node quads, restores
-the page, captures it normally, and loads the emitted SVG in a second page.
-The report records unrounded coordinates and source spans. It never takes a
-screenshot or reads a pixel. The `1/64` CSS-pixel source discriminator is
-Blink's `LayoutUnit` quantum; the `1/32` emitted bound covers the renderer's
-existing hundredth-pixel SVG serialization. Neither is a visual tolerance.
+The 2026-08-24 local run passed 7/7 rows with verdict
+`source-exact-line-origin`: fractional horizontal, nested zoom, mixed-script
+safe boundary, vertical-rl, vertical-lr, sideways-rl, and sideways-lr. All
+vector rows independently agree on neutral Range geometry, CDP quads, captured
+record fields, the writing map, decoded physical origin, transform-origin-aware
+matrix, and emitted origin. The mixed-script row proves the already-ticketed
+DM-2546 `3 -> 1` cardinality gap and retains the outer Chromium surface.
 
-The 2026-08-23 darwin/arm64 run used Node 22.23.2, Playwright 1.59.1, and
-Chromium 147.0.7727.15:
+Eight destructive controls are mandatory:
 
-| Row | Neutral Blink facts | Captured/emitted result | Discriminator |
-| --- | --- | --- | --- |
-| fractional horizontal | one fragment; baseline witness `(301.703125, 103.375)`; ascent `22` | one vector fragment; painted endpoint `(296.517334, 145.557343)` | independently solved matrix maps the neutral baseline within `0.000009` CSS px; emitted endpoint is within `0.008693` CSS px after decimal serialization |
-| nested zoom | effective zoom `1.25`; one fragment; neutral baseline `(422.15625, 129.46875)` | one vector fragment; painted endpoint `(442.696808, 204.653290)` | captured matrix equals the independently solved matrix; emitted endpoint is within `0.023048` CSS px |
-| mixed Latin/Arabic/CJK | Range and CDP both expose three fragments with UTF-16 offsets `0..5`, `6..12`, and `13..15` | one `TextSegment`, zero correlated affine fragments, one outer Chromium image | proves the fragment-count/source-span correlation gap without consulting raster output |
-| vertical-rl | neutral quad `[102.25,80.375,129.25,80.375,129.25,176.375,102.25,176.375]`; ascent `22` | stored scalar `124.25`; emitted first local y `102.38` | decoded line-relative point `(102.25,102.375)` maps to physical baseline `(107.25,80.375)`, while `124.25 = segment.x + ascent`; the field is an ascent carrier, not physical x |
-
-The live-to-neutral-to-restored CDP quad delta is zero in all four rows. The
-mixed row's warning is the expected safe boundary: “neutral text segment could
-not be correlated with its protocol fragment.”
-
-Seven destructive controls are active and are expressed as logical coordinate
-or cardinality changes:
-
-| Mutation | Observed movement |
+| Mutation | Local discriminator |
 | --- | ---: |
-| post-transform AABB top plus ascent | `55.932349` CSS px |
-| apply ascent after the affine map | `4.454658` CSS px |
-| snap after the affine map | `0.654913` CSS px |
-| apply CSS zoom twice | `5.956938` CSS px |
+| post-transform AABB top plus ascent | `1.809447` CSS px |
+| apply ascent after affine mapping | `4.454658` CSS px |
+| snap after affine mapping | `0.255442` CSS px |
+| apply effective zoom twice | `5.956938` CSS px |
 | drop transform-origin translation | `62.408470` CSS px |
 | collapse mixed physical fragments | `3 -> 1` fragments |
-| interpret the vertical scalar in the horizontal plane | `17` CSS px |
+| interpret a vertical origin in the horizontal plane | `22.561028` CSS px |
+| drop the fractional fragment-relative top | `0.375000` CSS px |
 
-## Earliest Domotion seams
+The oracle never takes a screenshot or reads a pixel. Native macOS, Linux, and
+Windows jobs in `.github/workflows/text-transform-parity.yml` run it and retain
+the structured report before the existing final-ink integration leg. The
+line-origin release job depends on all three matrix rows; there is no headed
+browser flag or line-origin tolerance knob.
 
-The first correction belongs before affine matrix fitting.
-`src/capture/script/walker/text-segments.ts` groups per-character Range bounds
-into visual lines, so one DOM text node with same-line fallback/script items
-still becomes one `TextSegment`. `src/capture/text-fragment-geometry.ts` then
-matches each CDP physical fragment to one unused segment by rectangle distance
-with a 2 CSS-pixel cutoff. Three Blink fragments cannot map one-to-one onto one
-segment, so capture correctly fails closed but unnecessarily loses vector text.
+## Evidence and remaining boundary
 
-The second correction is a schema-plane repair. `src/capture/types.ts` describes
-`CapturedTextPaintFragment.baseline` as physical y for horizontal text and
-physical x for vertical text. Capture actually falls back to `segment.x +
-ascent` for vertical text (`src/capture/text-fragment-geometry.ts:221`), and
-`src/render/text-affine.ts:152-157` subtracts `segment.x` to recover the ascent.
-That round trip preserves the sampled output but cannot encode Blink's
-line-relative origin, paint snap, or writing rotation independently.
+- `src/capture/text-line-origin.test.ts` covers fractional decomposition, all
+  five writing modes, provenance, wrong-plane, origin-drop, and double-zoom
+  rejection.
+- `src/capture/text-fragment-geometry.test.ts` proves capture emits the v2
+  record for horizontal and vertical fragments.
+- `src/render/text-affine.test.ts` proves the record is consumed once before
+  the residual affine matrix and malformed records fail closed.
+- `tests/text-affine-baseline-protocol-oracle.test.ts` pins the seven-row/eight-
+  mutation corpus; `tests/text-affine-line-origin-workflow.test.ts` pins the
+  native release wiring.
+- `tests/text-affine-render.e2e.test.ts` retains the existing visual integration
+  safety leg without changing its tolerance.
 
-## Filed implementation tickets
-
-- **DM-2546 — Capture Blink text FragmentItem UTF-16 spans before affine
-  correlation.** Split the normal captured/shaped record at the ordered Range
-  fragment spans before one-to-one CDP correlation; retain source spans,
-  clusters, gids, advances, offsets, zoom, and fragment origins. Mixed fallback,
-  bidi, ligature, wrap, first-letter, and vertical rows plus collapse/reorder/
-  wrong-span mutations are mandatory.
-- **DM-2547 — Replace affine text scalar baseline with a structured Blink
-  line-relative origin.** Carry the rounded containing paint offset,
-  fragment-relative top, primary-font integer ascent, line-relative origin,
-  writing transform, decoded physical point, zoom, and provenance through
-  capture and render. Horizontal, all vertical/sideways modes, fractional
-  offsets, zoom, nested origins, and wrong-plane mutations are mandatory.
-
-DM-2546 is the earliest behavior-affecting seam and should land first. DM-2547
-then removes the misleading compatibility scalar without using output pixels
-as an answer table. Native glyph antialiasing remains owned by the existing
-terminal-raster evidence, outside both geometry tickets.
+DM-2547 closes the scalar/schema-plane gap. DM-2546 alone owns physical
+fragment/source-span splitting; no pixel fitting belongs in either protocol.

@@ -349,6 +349,49 @@ export type CapturedTextPaintQuad = [
 /** Complete signed 2D mapping `x' = ax + cy + e`, `y' = bx + dy + f`. */
 export type CapturedTextPaintAffine = [number, number, number, number, number, number];
 
+export interface CapturedTextPaintPoint {
+  x: number;
+  y: number;
+}
+
+/**
+ * Blink's pre-transform text origin, kept in each coordinate plane instead of
+ * overloading one scalar as both a physical baseline and an ascent carrier.
+ *
+ * `roundedContainingPaintOffsetTop + fragmentRelativeTop` is the physical
+ * fragment top used by `TextFragmentPainter`. The integer primary-font ascent
+ * produces the line-relative origin; `writingModeRotation` then decodes that
+ * origin into the physical point that the later `paintMatrix` consumes.
+ */
+export interface CapturedTextPaintLineOrigin {
+  source: "blink-text-fragment-line-origin-v1";
+  space: "pre-css-transform-viewport";
+  /** Integer containing-paint offset after Blink's LayoutUnit `Round()`. */
+  roundedContainingPaintOffsetTop: number;
+  /** Fractional fragment delta retained after the containing offset snap. */
+  fragmentRelativeTop: number;
+  /** `PrimaryFont()->GetFontMetrics().Ascent()`; deliberately an integer. */
+  primaryFontIntegerAscent: number;
+  lineRelativeTextOrigin: {
+    lineLeft: number;
+    lineOver: number;
+  };
+  /** `LineRelativeRect::ComputeRelativeToPhysicalTransform()`. */
+  writingModeRotation: CapturedTextPaintAffine;
+  /** `writingModeRotation(lineRelativeTextOrigin)`, before `paintMatrix`. */
+  physicalBaselinePoint: CapturedTextPaintPoint;
+  /** Cumulative CSS zoom already present in this record's local metrics. */
+  effectiveZoom: number;
+  provenance: {
+    chromiumRevision: "7d859f271cbda744098ac69f44978d4edfa62be3";
+    physicalBox: "core/paint/text_fragment_painter.cc:62-87";
+    primaryFontAscent: "core/paint/text_fragment_painter.cc:506-529";
+    writingModeRotation: "core/paint/line_relative_rect.cc:19-75";
+    transformOrigin: "core/style/computed_style.cc:1415-1489";
+    decomposition: "normalized-neutral-fragment-top";
+  };
+}
+
 /**
  * DM-2469: browser-owned local geometry for one physical text fragment.
  *
@@ -358,7 +401,7 @@ export type CapturedTextPaintAffine = [number, number, number, number, number, n
  * that renderer migration is complete.
  */
 export interface CapturedTextPaintFragment {
-  source: "blink-text-fragment-affine-v1";
+  source: "blink-text-fragment-affine-v2";
   space: "pre-css-transform-viewport";
   textSegmentIndex: number;
   sourceTextNodeIndex: number;
@@ -368,8 +411,8 @@ export interface CapturedTextPaintFragment {
   paintMatrix: CapturedTextPaintAffine;
   /** Maximum held-out corner error after applying `paintMatrix`. */
   affineResidual: number;
-  /** Physical baseline coordinate: Y for horizontal text, X for vertical. */
-  baseline: number;
+  /** Structured Blink line-relative origin decoded before `paintMatrix`. */
+  lineOrigin: CapturedTextPaintLineOrigin;
   /** Physical inline-axis start: X for horizontal text, Y for vertical. */
   inlineOffset: number;
   /** Per-code-unit shaped origins on the physical inline axis. */
@@ -380,12 +423,10 @@ export interface CapturedTextPaintFragment {
   direction: string;
   transformBox: string;
   transformOrigin: string;
-  /** Cumulative CSS zoom already present in local geometry and metrics. */
-  effectiveZoom: number;
 }
 
 export interface CapturedTextPaintGeometry {
-  source: "blink-text-fragment-affine-v1";
+  source: "blink-text-fragment-affine-v2";
   space: "pre-css-transform-viewport";
   fragments: CapturedTextPaintFragment[];
   /**

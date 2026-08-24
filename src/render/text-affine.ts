@@ -14,6 +14,7 @@ import type {
   CapturedTextPaintAffine,
   CapturedTextPaintGeometry,
 } from "../capture/types.js";
+import { capturedTextLineOriginErrors } from "../capture/text-line-origin.js";
 
 export const TEXT_PAINT_MATRIX_EPSILON = 1e-7;
 
@@ -136,6 +137,21 @@ export function prepareAffineTextPaint(
   const inverse = emittedCtm == null ? null : invertTextAffine(emittedCtm);
   if (inverse == null) return { element: el, failureReason: "emitted text ancestor matrix is singular" };
   const fragmentsBySegment = new Map(geometry.fragments.map((fragment) => [fragment.textSegmentIndex, fragment]));
+  for (const [index, segment] of (neutral.textSegments ?? []).entries()) {
+    const fragment = fragmentsBySegment.get(index);
+    if (fragment == null) continue;
+    const errors = capturedTextLineOriginErrors(fragment.lineOrigin, {
+      fragmentLeft: segment.x,
+      fragmentTop: segment.y,
+      fragmentWidth: segment.width,
+      fragmentHeight: segment.height,
+      writingMode: fragment.writingMode,
+      effectiveZoom: fragment.lineOrigin.effectiveZoom,
+    });
+    if (errors.length > 0) {
+      return { element: el, failureReason: `invalid Blink line-relative text origin: ${errors.join("; ")}` };
+    }
+  }
   const element: CapturedElement = {
     ...el,
     x: neutral.x,
@@ -147,14 +163,20 @@ export function prepareAffineTextPaint(
       const fragment = fragmentsBySegment.get(index);
       if (fragment == null) return { ...segment };
       const vertical = fragment.writingMode.startsWith("vertical") || fragment.writingMode.startsWith("sideways");
+      const lineOrigin = fragment.lineOrigin;
+      const fragmentTop = lineOrigin.roundedContainingPaintOffsetTop + lineOrigin.fragmentRelativeTop;
+      const topDelta = fragmentTop - segment.y;
       return {
         ...segment,
-        baseline: fragment.baseline,
+        y: fragmentTop,
+        baseline: vertical
+          ? lineOrigin.physicalBaselinePoint.x
+          : lineOrigin.physicalBaselinePoint.y,
         inlineOffset: fragment.inlineOffset,
-        fontAscent: fragment.baseline - (vertical ? segment.x : segment.y),
+        fontAscent: lineOrigin.primaryFontIntegerAscent,
         xOffsets: vertical ? segment.xOffsets : [...fragment.shapedOrigins],
         xAdvances: vertical ? segment.xAdvances : [...fragment.shapedAdvances],
-        yOffsets: vertical ? [...fragment.shapedOrigins] : segment.yOffsets,
+        yOffsets: vertical ? fragment.shapedOrigins.map((origin) => origin + topDelta) : segment.yOffsets,
         verticalAdvances: vertical ? [...fragment.shapedAdvances] : segment.verticalAdvances,
       };
     }),

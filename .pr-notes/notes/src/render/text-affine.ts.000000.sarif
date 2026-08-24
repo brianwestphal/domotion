@@ -64,6 +64,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6nrzmpadtq58qe",
+          "message": {
+            "text": "The structured line origin is validated and projected into the neutral text bundle before the residual paint matrix is returned. This ordering makes ascent, paint snap, writing rotation, decoded physical baseline, and shaped origins one neutral-plane operation; malformed or wrong-plane records fail closed instead of receiving a second affine or zoom application.",
+            "markdown": "The structured line origin is validated and projected into the neutral text bundle before the residual paint matrix is returned. This ordering makes ascent, paint snap, writing rotation, decoded physical baseline, and shaped origins one neutral-plane operation; malformed or wrong-plane records fail closed instead of receiving a second affine or zoom application."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-affine.ts"
+                },
+                "region": {
+                  "startLine": 139,
+                  "endLine": 191,
+                  "snippet": {
+                    "text": "  const fragmentsBySegment = new Map(geometry.fragments.map((fragment) => [fragment.textSegmentIndex, fragment]));\n  for (const [index, segment] of (neutral.textSegments ?? []).entries()) {\n    const fragment = fragmentsBySegment.get(index);\n    if (fragment == null) continue;\n    const errors = capturedTextLineOriginErrors(fragment.lineOrigin, {\n      fragmentLeft: segment.x,\n      fragmentTop: segment.y,\n      fragmentWidth: segment.width,\n      fragmentHeight: segment.height,\n      writingMode: fragment.writingMode,\n      effectiveZoom: fragment.lineOrigin.effectiveZoom,\n    });\n    if (errors.length > 0) {\n      return { element: el, failureReason: `invalid Blink line-relative text origin: ${errors.join(\"; \")}` };\n    }\n  }\n  const element: CapturedElement = {\n    ...el,\n    x: neutral.x,\n    y: neutral.y,\n    width: neutral.width,\n    height: neutral.height,\n    text: neutral.text,\n    textSegments: neutral.textSegments?.map((segment, index) => {\n      const fragment = fragmentsBySegment.get(index);\n      if (fragment == null) return { ...segment };\n      const vertical = fragment.writingMode.startsWith(\"vertical\") || fragment.writingMode.startsWith(\"sideways\");\n      const lineOrigin = fragment.lineOrigin;\n      const fragmentTop = lineOrigin.roundedContainingPaintOffsetTop + lineOrigin.fragmentRelativeTop;\n      const topDelta = fragmentTop - segment.y;\n      return {\n        ...segment,\n        y: fragmentTop,\n        baseline: vertical\n          ? lineOrigin.physicalBaselinePoint.x\n          : lineOrigin.physicalBaselinePoint.y,\n        inlineOffset: fragment.inlineOffset,\n        fontAscent: lineOrigin.primaryFontIntegerAscent,\n        xOffsets: vertical ? segment.xOffsets : [...fragment.shapedOrigins],\n        xAdvances: vertical ? segment.xAdvances : [...fragment.shapedAdvances],\n        yOffsets: vertical ? fragment.shapedOrigins.map((origin) => origin + topDelta) : segment.yOffsets,\n        verticalAdvances: vertical ? [...fragment.shapedAdvances] : segment.verticalAdvances,\n      };\n    }),\n    textTop: neutral.textTop,\n    textLeft: neutral.textLeft,\n    textHeight: neutral.textHeight,\n    textWidth: neutral.textWidth,\n    fontAscent: neutral.fontAscent,\n    fontDescent: neutral.fontDescent,\n    inputXOffsets: neutral.inputXOffsets == null ? undefined : [...neutral.inputXOffsets],\n  };\n  return { element, residualMatrix: multiplyTextAffine(inverse, paintMatrix) };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/text-line-origin.ts"
+                },
+                "region": {
+                  "startLine": 97
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2547"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "00f3aad58594958824d0b855cdc16506"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "7ed519819c5ff7633489c67b063e59594ea4c2e0",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

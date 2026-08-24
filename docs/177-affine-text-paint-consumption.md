@@ -31,7 +31,10 @@ contains a scalar text-transform calibration.
 in the same all-transform-neutral state used to obtain the source fragment
 quads. CSS `zoom` remains active in that bundle because it is a shaping/layout
 input. Each correlated fragment carries the signed neutral-to-painted affine
-matrix and exact local baseline, inline origin, shaped origins, and advances.
+matrix, structured Blink line origin, inline origin, shaped origins, and
+advances. The line-origin record carries paint snap, integer primary ascent,
+writing-mode rotation, decoded physical baseline, effective zoom, and pinned
+source provenance.
 
 `src/render/text-affine.ts` builds the CTM already emitted for every captured
 ancestor, applies the element's captured transform about its captured origin,
@@ -55,11 +58,14 @@ reactivate scalar placement.
 
 ## Explicit provenance boundaries
 
-The fragment baseline in DM-2469/2470 is the baseline carried by the normal
-captured shaped segment when present, otherwise the captured ascent plus its
-physical local origin. It has not been independently decoded from a private
-Blink `LayoutText` baseline protocol field. DM-2471 owns the independent
-macOS/Linux/Windows matrix-and-ink validation of that retained provenance.
+DM-2547 closes the ordinary-text baseline provenance boundary. Capture now
+constructs `CapturedTextPaintLineOrigin` from the pinned Blink painter order;
+render validates its neutral plane, integer ascent, writing rotation, physical
+point, zoom, and provenance before applying the residual affine matrix. The
+seven-row/eight-mutation logical gate runs natively on macOS, Linux, and
+Windows without pixels or a new tolerance. DM-2546 remains the distinct
+pre-correlation boundary where several physical `FragmentItem`s correspond to
+one line-grouped normal `TextSegment`.
 
 The DM-2467 generated-pseudo protocol is correlated after the transform-neutral
 text prepass. Its compatibility projection can therefore lack a matching
@@ -72,8 +78,12 @@ transformed clamped owner remains one explicit Chromium surface.
 ## Focused evidence
 
 - `src/render/text-affine.test.ts` proves signed composition, inversion,
-  transform-origin handling, residual cancellation, reflection, and fail-closed
-  singular/mixed planes.
+  transform-origin handling, structured line-origin consumption, residual
+  cancellation, reflection, and fail-closed singular/mixed planes.
+- `src/capture/text-line-origin.test.ts` proves all writing-mode maps, exact
+  fractional decomposition, and wrong-plane/provenance/zoom rejection.
+- `tools/text-affine-baseline-protocol-oracle.ts` proves seven live logical rows
+  and eight destructive mutations before raster comparison.
 - `tests/text-affine-render.e2e.test.ts` compares Chromium and generated-SVG ink
   bounds at DPR 1 and 2 across identity, translation, nested transforms,
   anisotropy, skew/reflection, wrap, RTL, vertical writing, zoom,
