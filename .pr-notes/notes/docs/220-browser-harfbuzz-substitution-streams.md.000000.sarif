@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6nasoj0w1v92yv",
+          "message": {
+            "text": "Run 32683947350 retained all six native proposal/validation artifacts. The repository aggregate reopened them locally and returned proposal-validation-agreement with the pinned corpus and logical digests, thirteen active mutations, and rasterization still explicitly not-started.",
+            "markdown": "Run 32683947350 retained all six native proposal/validation artifacts. The repository aggregate reopened them locally and returned proposal-validation-agreement with the pinned corpus and logical digests, thirteen active mutations, and rasterization still explicitly not-started."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/220-browser-harfbuzz-substitution-streams.md"
+                },
+                "region": {
+                  "startLine": 189,
+                  "endLine": 200,
+                  "snippet": {
+                    "text": "## First retained native aggregate\n\nGitHub Actions run **32683947350** (2026-08-24) retained all six independent\nmacOS/Linux/Windows proposal and validation reports plus the aggregate artifact.\nThe aggregate reopened every report and returned\n`proposal-validation-agreement` with corpus SHA-256\n`e03e725648f3a4a648e0b62fc4f0bb63257fdf06dc7050c46dc20d863217a360`\nand logical SHA-256\n`94f7cf5b027853b255e0a22e1b0fd65168580ed294c2e6dd268d1165de8a97a2`.\nAll six producers reported `exact-logical-agreement`, all thirteen hostile\nmutations were active, and `rasterization` remains deliberately `not-started`.\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 94,
+          "workItemUris": [
+            "DM-2552"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "a2a38b21444a1b4647f435c951db15ee"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "e552153bf269e247ba4faf77a7058826d73f66bd",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

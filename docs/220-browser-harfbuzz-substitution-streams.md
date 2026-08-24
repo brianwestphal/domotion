@@ -9,11 +9,11 @@ screenshots, fit pixels, widen a tolerance, or change production behavior.
 
 `tools/browser-harfbuzz-substitution-oracle.ts` is the implementation and
 `npm run fonts:browser-harfbuzz-substitutions` is its entry point. A local
-record can say `exact-logical-agreement`; the cross-platform aggregate remains
-`verdict-withheld` until it receives all six macOS/Linux/Windows ×
-proposal/validation artifacts with one byte-identical corpus digest and one
-byte-identical logical-stream digest. Rasterization remains explicitly
-`not-started` at that aggregate boundary.
+record can say `exact-logical-agreement`; retained run 32683947350 supplied all
+six macOS/Linux/Windows × proposal/validation artifacts with one byte-identical
+corpus digest and one byte-identical logical-stream digest, producing
+`proposal-validation-agreement`. Rasterization remains explicitly `not-started`
+at that aggregate boundary.
 
 ## Pinned source ownership
 
@@ -186,3 +186,14 @@ that artifact exists, the implementation is usable but the report correctly
 withholds cross-platform ratification; it does not fall back to raster grading
 or relax any existing visual cap. DM-2552 owns that bounded retained-evidence
 run and documentation update; it does not own production or raster changes.
+## First retained native aggregate
+
+GitHub Actions run **32683947350** (2026-08-24) retained all six independent
+macOS/Linux/Windows proposal and validation reports plus the aggregate artifact.
+The aggregate reopened every report and returned
+`proposal-validation-agreement` with corpus SHA-256
+`e03e725648f3a4a648e0b62fc4f0bb63257fdf06dc7050c46dc20d863217a360`
+and logical SHA-256
+`94f7cf5b027853b255e0a22e1b0fd65168580ed294c2e6dd268d1165de8a97a2`.
+All six producers reported `exact-logical-agreement`, all thirteen hostile
+mutations were active, and `rasterization` remains deliberately `not-started`.
