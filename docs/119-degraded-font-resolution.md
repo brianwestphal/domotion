@@ -79,3 +79,13 @@ arms when a helper is available. Cross-platform helper dispatch tests use
 cassette helpers for Linux and Windows, while native-host tests cover macOS.
 `helper-acquire.test.ts` pins the warning so acquisition failure cannot again be
 misreported as performance-only.
+
+`tools/helper-availability-contract.ts` makes the boundary a retained logical
+artifact on macOS, Linux, and Windows. Its enabled arm authenticates the built
+platform helper by executing `--version` and hashing the binary. Its disabled
+arm retains portable webfont and deterministic-termination guarantees but
+classifies installed-face nomination, system fallback ordering, native traits
+and axes, and native glyph geometry as `withheld`. The two arms include the
+route and reason in `cacheIdentity`; equality is a hard failure. This gate has
+no raster output, pixel threshold, or claim that the static chain reproduced a
+native answer.

@@ -1,0 +1,59 @@
+name: Helper availability contract
+
+on:
+  push:
+    paths:
+      - "src/render/helper-availability-contract.ts"
+      - "tools/helper-availability-contract.ts"
+      - ".github/workflows/helper-availability-contract.yml"
+  pull_request:
+    paths:
+      - "src/render/helper-availability-contract.ts"
+      - "tools/helper-availability-contract.ts"
+      - ".github/workflows/helper-availability-contract.yml"
+  workflow_dispatch:
+
+jobs:
+  logical-contract:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Build macOS helper
+        if: runner.os == 'macOS'
+        run: |
+          swift build -c release --package-path tools/macos-glyph-extractor
+          cp tools/macos-glyph-extractor/.build/release/DomotionGlyphPaths tools/macos-glyph-extractor/domotion-glyph-paths
+      - name: Build Linux helper
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential cmake libfreetype-dev libfontconfig1-dev pkg-config
+          cmake -S tools/linux-glyph-extractor -B /tmp/domotion-helper -DCMAKE_BUILD_TYPE=Release
+          cmake --build /tmp/domotion-helper -j
+          cp /tmp/domotion-helper/domotion-glyph-paths tools/linux-glyph-extractor/domotion-glyph-paths
+      - name: Build Windows helper
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./tools/win32-glyph-extractor/build.ps1
+      - name: Record helper-present logical route
+        run: node --import tsx tools/helper-availability-contract.ts --out helper-present.json
+      - name: Record helper-absent logical route
+        run: node --import tsx tools/helper-availability-contract.ts --out helper-absent.json
+        env:
+          DOMOTION_DISABLE_HELPER: "1"
+      - name: Require exact activation and cache separation
+        run: node --import tsx tools/helper-availability-contract.ts --compare helper-present.json,helper-absent.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: helper-availability-${{ matrix.os }}
+          path: |
+            helper-present.json
+            helper-absent.json
+          retention-days: 30
