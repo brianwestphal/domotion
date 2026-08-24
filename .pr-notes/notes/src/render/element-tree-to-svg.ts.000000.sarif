@@ -2218,6 +2218,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6mxfg7rmn82uak",
+          "message": {
+            "text": "Localized reference filters must be inside the blend Effect wrapper. Pinned Blink builds the general Effect/blend node before the Filter node; reversing those groups isolates SourceGraphic and makes mix-blend-mode miss its backdrop. The DPR1/2 oracle is source-exact across all filter/blend/isolation rows with unchanged four-code and eight-code bounds.",
+            "markdown": "Localized reference filters must be inside the blend Effect wrapper. Pinned Blink builds the general Effect/blend node before the Filter node; reversing those groups isolates SourceGraphic and makes mix-blend-mode miss its backdrop. The DPR1/2 oracle is source-exact across all filter/blend/isolation rows with unchanged four-code and eight-code bounds."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 5455,
+                  "endLine": 5470,
+                  "snippet": {
+                    "text": "  // \"Npx Mpx\" for the 50%-50% default). Add el.x/el.y to convert to the\n  // viewport coordinate system the SVG draws in. Chrome resolves every\n  // CSS transform function to a matrix in computed style, so we only\n  // need to translate matrix() / matrix3d() into SVG syntax.\n  const { needsGroup, groupAttrs, animClass, needsFilterOuter, localizeReferenceFilter, outerBlendStyle, hasTransform } = computeGroupWrapperAttrs(el, clipPathUrlId, maskUrlId, opacity, filterCss, blendCss);\n  const opened = needsGroup;\n  const wrapperStart = svgParts.length;\n  // Blink's general Effect/blend node is outside its Filter node. Keep a\n  // localized reference filter inside the blending group so it samples the\n  // source backdrop rather than creating an isolated outer source.\n  if (outerBlendStyle !== \"\") svgParts.push(`${indent}<g style=\"${esc(outerBlendStyle)}\">`);\n  if (needsFilterOuter) {\n    const localTransform = localizeReferenceFilter ? ` transform=\"translate(${r(el.x)} ${r(el.y)})\"` : \"\";\n    svgParts.push(`${indent}<g${localTransform} style=\"${esc(`filter:${filterCss}`)}\">`);\n    if (localizeReferenceFilter) svgParts.push(`${indent}<g transform=\"translate(${r(-el.x)} ${r(-el.y)})\">`);\n  }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2548"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "6e253d42774881bed69893da0b8dfcfd"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a22d2aff935ab5c703d9381b9be82b2ebf5e58ec",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

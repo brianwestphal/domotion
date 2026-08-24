@@ -4528,7 +4528,7 @@ function computeGroupWrapperAttrs(
   opacity: number,
   filterCss: string,
   blendCss: string,
-): { needsGroup: boolean; groupAttrs: string[]; animClass: string; needsFilterOuter: boolean; localizeReferenceFilter: boolean; hasTransform: boolean } {
+): { needsGroup: boolean; groupAttrs: string[]; animClass: string; needsFilterOuter: boolean; localizeReferenceFilter: boolean; outerBlendStyle: string; hasTransform: boolean } {
   const projective = el.projectiveTransform;
   const hasProjectiveTransform = projective != null;
   const transformAttr = hasProjectiveTransform
@@ -4599,16 +4599,20 @@ function computeGroupWrapperAttrs(
   // same local coordinate space while the result stays at its page position.
   const localizeReferenceFilter = /\burl\(\s*(?:["']?)#/i.test(filterCss);
   const needsFilterOuter = filterCss !== "" && (localizeReferenceFilter || clipPathUrlId != null || maskUrlId != null);
+  const filterInsideBlend = localizeReferenceFilter && needsFilterOuter && blendCss !== "";
   const styleParts: string[] = [];
   if (filterCss !== "" && !needsFilterOuter) styleParts.push(`filter:${filterCss}`);
-  if (blendCss !== "") styleParts.push(`mix-blend-mode:${blendCss}`);
-  if (needsIsolation) styleParts.push("isolation:isolate");
+  if (blendCss !== "" && !filterInsideBlend) styleParts.push(`mix-blend-mode:${blendCss}`);
+  if (needsIsolation && !filterInsideBlend) styleParts.push("isolation:isolate");
   if (el.displayNone === true) styleParts.push("display:none");
   // DM-486: HTML-escape the style attribute value. Chromium normalises
   // `filter: url(#id)` to `url("#id")` (with quotes) — emitting that raw
   // produced `style="filter:url("#id")"` and broke the SVG parser.
   if (styleParts.length > 0) groupAttrs.push(`style="${esc(styleParts.join(";"))}"`);
-  return { needsGroup, groupAttrs, animClass, needsFilterOuter, localizeReferenceFilter, hasTransform: transformAttr !== "" || hasProjectiveTransform };
+  const outerBlendStyle = filterInsideBlend
+    ? [`mix-blend-mode:${blendCss}`, ...(needsIsolation ? ["isolation:isolate"] : [])].join(";")
+    : "";
+  return { needsGroup, groupAttrs, animClass, needsFilterOuter, localizeReferenceFilter, outerBlendStyle, hasTransform: transformAttr !== "" || hasProjectiveTransform };
 }
 
 /**
@@ -5452,9 +5456,13 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   // viewport coordinate system the SVG draws in. Chrome resolves every
   // CSS transform function to a matrix in computed style, so we only
   // need to translate matrix() / matrix3d() into SVG syntax.
-  const { needsGroup, groupAttrs, animClass, needsFilterOuter, localizeReferenceFilter, hasTransform } = computeGroupWrapperAttrs(el, clipPathUrlId, maskUrlId, opacity, filterCss, blendCss);
+  const { needsGroup, groupAttrs, animClass, needsFilterOuter, localizeReferenceFilter, outerBlendStyle, hasTransform } = computeGroupWrapperAttrs(el, clipPathUrlId, maskUrlId, opacity, filterCss, blendCss);
   const opened = needsGroup;
   const wrapperStart = svgParts.length;
+  // Blink's general Effect/blend node is outside its Filter node. Keep a
+  // localized reference filter inside the blending group so it samples the
+  // source backdrop rather than creating an isolated outer source.
+  if (outerBlendStyle !== "") svgParts.push(`${indent}<g style="${esc(outerBlendStyle)}">`);
   if (needsFilterOuter) {
     const localTransform = localizeReferenceFilter ? ` transform="translate(${r(el.x)} ${r(el.y)})"` : "";
     svgParts.push(`${indent}<g${localTransform} style="${esc(`filter:${filterCss}`)}">`);
@@ -5674,6 +5682,7 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
     if (opened) svgParts.push(`${indent}</g>`);
     if (localizeReferenceFilter) svgParts.push(`${indent}</g>`);
     if (needsFilterOuter) svgParts.push(`${indent}</g>`);
+    if (outerBlendStyle !== "") svgParts.push(`${indent}</g>`);
   };
 
   if (backdropCompositeRaster != null) {

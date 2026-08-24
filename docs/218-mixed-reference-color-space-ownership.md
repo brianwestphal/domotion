@@ -1,9 +1,9 @@
 # 218 — Mixed reference-filter color-space ownership
 
 **Status:** Investigation complete. The pinned native filter terminal is modeled
-and ratcheted; no production or tolerance change landed. DM-2548 owns the
-source-proven localized filter/blend wrapper defect. DM-2549, blocked by that
-fix, promotes the matrix to an entirely strict native release gate.
+and ratcheted; DM-2548 has now landed the source-proven localized
+filter-inside-blend wrapper order without changing a tolerance. DM-2549
+promotes the matrix to an entirely strict native release gate.
 
 **Source pins:** Chromium
 `7d859f271cbda744098ac69f44978d4edfa62be3` and the Skia revision recorded by
@@ -21,11 +21,10 @@ result to sRGB only after the list. Replacing the native list with a locally
 authored `<fe*>` graph would silently implement different behavior.
 
 The investigation did find a separate, locally owned representation bug.
-Reference-filter localization currently places the CSS filter wrapper outside
-the element's blend wrapper. That reverses Blink's effect-tree order and makes
-the inner blend unable to sample its intended backdrop. This is an ordering and
-isolation defect, not a color-transfer approximation problem. It remains
-unmodified here because DM-2535 is investigation-only; DM-2548 owns the fix.
+Reference-filter localization now places the CSS filter wrapper inside
+the element's blend wrapper. That matches Blink's effect-tree order and lets
+the blend sample its source backdrop while retaining local filter coordinates.
+This was an ordering and isolation defect, not a color-transfer approximation.
 
 HarfBuzz has no role in this effect-tree, color-transfer, or pixel-compositing
 decision.
