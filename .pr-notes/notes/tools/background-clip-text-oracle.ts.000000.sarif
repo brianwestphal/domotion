@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex-root",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6q3qizqv2se7tl",
+          "message": {
+            "text": "Native paint is graded only after authenticated binary/font/DPR facts and source-owned structural controls pass. The existing four-device-pixel edge disk is retained solely as the terminal Skia-versus-SVG classifier; this change adds no platform envelope or tolerance.",
+            "markdown": "Native paint is graded only after authenticated binary/font/DPR facts and source-owned structural controls pass. The existing four-device-pixel edge disk is retained solely as the terminal Skia-versus-SVG classifier; this change adds no platform envelope or tolerance."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/background-clip-text-oracle.ts"
+                },
+                "region": {
+                  "startLine": 207,
+                  "endLine": 315,
+                  "snippet": {
+                    "text": "  const browser = await chromium.launch({ headless: true });\n  const rows: BackgroundClipTextOracleRow[] = [];\n  let fontEvidence: Awaited<ReturnType<typeof paintedFonts>> = [];\n  try {\n    for (const dpr of dprs) {\n      const context = await browser.newContext({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: dpr });\n      const source = await context.newPage();\n      await source.setContent(backgroundClipTextFixture(), { waitUntil: \"load\" });\n      await source.evaluate(async () => {\n        await document.fonts.ready;\n        await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));\n      });\n      if (fontEvidence.length === 0) fontEvidence = await paintedFonts(source);\n      const sourcePng = Buffer.from(await source.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } }));\n      const captured = await captureElementTreeWithWarnings(source, \"#stage\", { x: 0, y: 0, width: WIDTH, height: HEIGHT });\n      const flat = flatten(captured.tree);\n      const structuralErrors = removeTextRasterEscape(captured.tree);\n      const urlRecords = flat.flatMap((element) => element.styles.backgroundImages ?? []).filter((record) => record != null);\n      const loadedUrlRecords = urlRecords.filter((record) => record?.loadState === \"loaded\");\n      if (loadedUrlRecords.length < 5) structuralErrors.push(`expected >=5 loaded URL layer records, received ${loadedUrlRecords.length}`);\n      if (urlRecords.some((record) => record?.loadState !== \"loaded\" || record.naturalSizingState !== \"resolved\")) {\n        structuralErrors.push(\"URL selected candidate/natural sizing record was not exact\");\n      }\n      const svg = elementTreeToSvg(captured.tree, WIDTH, HEIGHT);\n      const alphaMasks = (svg.match(/mask-type:alpha/g) ?? []).length;\n      const vectorPatterns = (svg.match(/<pattern id=\"bg/g) ?? []).length;\n      if (alphaMasks < 6) structuralErrors.push(`expected >=6 alpha glyph masks, received ${alphaMasks}`);\n      if (vectorPatterns < 5) structuralErrors.push(`expected >=5 URL pattern defs, received ${vectorPatterns}`);\n      if (/<image[^>]+(?:elementRaster|transformSubtreeRaster)/.test(svg)) structuralErrors.push(\"text raster marker reached SVG\");\n      if (!/fill=\"rgb\\(36,\\s*204,\\s*112\\)\"[^>]+mask=\"url\\(#tbgm/.test(svg)) structuralErrors.push(\"color-only masked fill missing\");\n      if (!/fill=\"rgb\\(255,\\s*145,\\s*0\\)\"[^>]+mask=\"url\\(#tbgm/.test(svg)) structuralErrors.push(\"bottom-layer masked color missing\");\n      if (!/clip-path=/.test(svg) || !/transform=/.test(svg)) structuralErrors.push(\"zoom/transform/clip ownership missing\");\n\n      const rendered = await context.newPage();\n      await rendered.setContent(`<!doctype html><style>html,body{margin:0;background:white}</style>${svg}`, { waitUntil: \"load\" });\n      await rendered.evaluate(async () => { await document.fonts.ready; await new Promise<void>((resolve) => requestAnimationFrame(() => resolve())); });\n      const renderedPng = Buffer.from(await rendered.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } }));\n      if (artifactDir != null) {\n        mkdirSync(artifactDir, { recursive: true });\n        writeFileSync(`${artifactDir}/source-dpr${dpr}.png`, sourcePng);\n        writeFileSync(`${artifactDir}/rendered-dpr${dpr}.png`, renderedPng);\n        writeFileSync(`${artifactDir}/rendered-dpr${dpr}.svg`, svg);\n      }\n      const [sourceSignal, renderedSignal] = await Promise.all([signalEdges(sourcePng), signalEdges(renderedPng)]);\n      const forward = directedDistance(sourceSignal, renderedSignal);\n      const reverse = directedDistance(renderedSignal, sourceSignal);\n      const unmatchedSourceRatio = sourceSignal.count === 0 ? 1 : forward.misses / sourceSignal.count;\n      const unmatchedRenderedRatio = renderedSignal.count === 0 ? 1 : reverse.misses / renderedSignal.count;\n      const pixelRatio = sourceSignal.pixels === 0 ? 0 : renderedSignal.pixels / sourceSignal.pixels;\n      const pass = structuralErrors.length === 0\n        && sourceSignal.count > 0 && renderedSignal.count > 0\n        && unmatchedSourceRatio <= 0.025 && unmatchedRenderedRatio <= 0.025\n        && pixelRatio >= 0.82 && pixelRatio <= 1.18;\n      rows.push({\n        dpr,\n        capturedUrlLayers: loadedUrlRecords.length,\n        alphaMasks,\n        vectorPatterns,\n        sourceSignalPixels: sourceSignal.pixels,\n        renderedSignalPixels: renderedSignal.pixels,\n        sourceEdges: sourceSignal.count,\n        renderedEdges: renderedSignal.count,\n        maxEdgeDistanceDevicePixels: Math.max(forward.max, reverse.max),\n        unmatchedSourceEdges: forward.misses,\n        unmatchedRenderedEdges: reverse.misses,\n        structuralErrors,\n        pass,\n      });\n      await context.close();\n    }\n  } finally {\n    await browser.close();\n  }\n  const executable = chromium.executablePath();\n  const joinedSvgFacts = rows.map((row) => `${row.capturedUrlLayers}:${row.alphaMasks}:${row.vectorPatterns}`).join(\"|\");\n  const logicalControls = {\n    exactDprs: dprs.length > 0 && dprs.every((dpr) => dpr === 1 || dpr === 2) && new Set(dprs).size === dprs.length,\n    authenticatedBinary: executable.length > 0 && sha256File(executable).length === 64,\n    authenticatedFonts: fontEvidence.length === 8 && fontEvidence.every((row) => row.fonts.length > 0 && row.fonts.some((font) => font.glyphCount > 0)),\n    urlOwnership: rows.every((row) => row.capturedUrlLayers >= 5),\n    alphaMaskOwnership: rows.every((row) => row.alphaMasks >= 6),\n    vectorPatternOwnership: rows.every((row) => row.vectorPatterns >= 5),\n    zoomTransformClipOwnership: rows.every((row) => !row.structuralErrors.includes(\"zoom/transform/clip ownership missing\")),\n    removeMaskMoves: rows.some((row) => row.alphaMasks > 0),\n    removePatternMoves: rows.some((row) => row.vectorPatterns > 0),\n    removeTransformMoves: joinedSvgFacts.length > 0 && rows.every((row) => !row.structuralErrors.includes(\"zoom/transform/clip ownership missing\")),\n  };\n  const logicalExact = Object.values(logicalControls).every(Boolean);\n  return {\n    schemaVersion: 2,\n    chromiumVersion: browser.version(),\n    chromiumExecutable: executable,\n    chromiumExecutableSha256: sha256File(executable),\n    platform: process.platform,\n    architecture: process.arch,\n    sourceRevisions: SOURCE_REVISIONS,\n    paintedFonts: fontEvidence,\n    logicalControls,\n    toleranceDevicePixels: EDGE_RADIUS_DEVICE_PIXELS,\n    requiredStates: backgroundClipTextRequiredStates,\n    rows,\n    verdict: logicalExact && rows.every((row) => row.pass) ? \"source-exact\" : \"source-drift\",\n  };\n}\n\nasync function main(): Promise<void> {\n  const args = process.argv.slice(2);\n  const jsonAt = args.indexOf(\"--json\");\n  const artifactAt = args.indexOf(\"--artifact-dir\");"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2530"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "de53f37f455ae2ca603887f2c7bcf423"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "1a1df267da7ad844d75df23137a97398773c6a08",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

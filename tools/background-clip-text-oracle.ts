@@ -1,7 +1,8 @@
 #!/usr/bin/env tsx
 /** DM-2366 live Chromium-vs-vector background-clip:text paint oracle. */
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -15,6 +16,10 @@ import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
 const WIDTH = 760;
 const HEIGHT = 650;
 const EDGE_RADIUS_DEVICE_PIXELS = 4;
+const SOURCE_REVISIONS = {
+  chromium: "7d859f271cbda744098ac69f44978d4edfa62be3",
+  skia: "62efacd37737505732dbe3d8daa62abd679626a1",
+} as const;
 
 const SIGNALS = [
   [0, 190, 255],
@@ -47,6 +52,7 @@ export function backgroundClipTextFixture(): string {
     #owner b{font:700 38px/1.1 Arial,sans-serif}
     #wraps{display:flex;gap:28px;align-items:flex-start}.wrap{display:inline;width:218px;font-size:34px;line-height:39px;color:transparent;-webkit-text-fill-color:transparent;background-image:url("${TILE}");background-size:33px 17px;background-position:9px 4px;background-repeat:repeat;background-origin:content-box;background-clip:text;-webkit-background-clip:text;padding-inline:5px}
     #slice{box-decoration-break:slice;-webkit-box-decoration-break:slice}#clone{box-decoration-break:clone;-webkit-box-decoration-break:clone}
+    #owned-geometry{width:430px;overflow:hidden;clip-path:inset(1px 7px 2px 3px);zoom:1.25;transform:translate(7px,2px) rotate(.7deg);transform-origin:left top;background-image:linear-gradient(97deg,rgb(0,190,255),rgb(246,42,132));font-family:Arial,"Times New Roman",sans-serif;font-size:31px}
   </style><main id="stage">
     <p class="row clip" id="url">URL TILE POSITION</p>
     <p class="row clip" id="color">COLOR ONLY MASK</p>
@@ -54,7 +60,27 @@ export function backgroundClipTextFixture(): string {
     <p class="row" id="opaque">OPAQUE FILL + STROKE</p>
     <p class="row"><span id="owner"><b>DESCENDANT OWNER</b></span></p>
     <div id="wraps"><span class="wrap" id="slice">SLICE WRAPS ACROSS THREE LINES EXACTLY</span><span class="wrap" id="clone">CLONE RESTARTS ACROSS THREE LINES EXACTLY</span></div>
+    <p class="row clip" id="owned-geometry">ZOOM TRANSFORM CLIP Ω漢字</p>
   </main>`;
+}
+
+function sha256File(path: string): string {
+  return createHash("sha256").update(readFileSync(path)).digest("hex");
+}
+
+async function paintedFonts(page: import("@playwright/test").Page): Promise<Array<{ id: string; fonts: Array<{ familyName: string; glyphCount: number }> }>> {
+  const session = await page.context().newCDPSession(page);
+  await session.send("DOM.enable");
+  await session.send("CSS.enable");
+  const document = await session.send("DOM.getDocument", { depth: -1, pierce: true });
+  const rows = [];
+  for (const id of ["url", "color", "stack", "opaque", "owner", "slice", "clone", "owned-geometry"]) {
+    const query = await session.send("DOM.querySelector", { nodeId: document.root.nodeId, selector: `#${id}` });
+    const result = await session.send("CSS.getPlatformFontsForNode", { nodeId: query.nodeId });
+    rows.push({ id, fonts: result.fonts.map((font) => ({ familyName: font.familyName, glyphCount: font.glyphCount })) });
+  }
+  await session.detach();
+  return rows;
 }
 
 function flatten(tree: CapturedElement[]): CapturedElement[] {
@@ -148,10 +174,26 @@ export interface BackgroundClipTextOracleRow {
 }
 
 export interface BackgroundClipTextOracleReport {
-  schemaVersion: 1;
+  schemaVersion: 2;
   chromiumVersion: string;
+  chromiumExecutable: string;
+  chromiumExecutableSha256: string;
   platform: NodeJS.Platform;
   architecture: string;
+  sourceRevisions: typeof SOURCE_REVISIONS;
+  paintedFonts: Awaited<ReturnType<typeof paintedFonts>>;
+  logicalControls: {
+    exactDprs: boolean;
+    authenticatedBinary: boolean;
+    authenticatedFonts: boolean;
+    urlOwnership: boolean;
+    alphaMaskOwnership: boolean;
+    vectorPatternOwnership: boolean;
+    zoomTransformClipOwnership: boolean;
+    removeMaskMoves: boolean;
+    removePatternMoves: boolean;
+    removeTransformMoves: boolean;
+  };
   toleranceDevicePixels: 4;
   requiredStates: readonly string[];
   rows: BackgroundClipTextOracleRow[];
@@ -164,6 +206,7 @@ export async function runBackgroundClipTextOracle(
 ): Promise<BackgroundClipTextOracleReport> {
   const browser = await chromium.launch({ headless: true });
   const rows: BackgroundClipTextOracleRow[] = [];
+  let fontEvidence: Awaited<ReturnType<typeof paintedFonts>> = [];
   try {
     for (const dpr of dprs) {
       const context = await browser.newContext({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: dpr });
@@ -173,6 +216,7 @@ export async function runBackgroundClipTextOracle(
         await document.fonts.ready;
         await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
       });
+      if (fontEvidence.length === 0) fontEvidence = await paintedFonts(source);
       const sourcePng = Buffer.from(await source.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } }));
       const captured = await captureElementTreeWithWarnings(source, "#stage", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
       const flat = flatten(captured.tree);
@@ -191,6 +235,7 @@ export async function runBackgroundClipTextOracle(
       if (/<image[^>]+(?:elementRaster|transformSubtreeRaster)/.test(svg)) structuralErrors.push("text raster marker reached SVG");
       if (!/fill="rgb\(36,\s*204,\s*112\)"[^>]+mask="url\(#tbgm/.test(svg)) structuralErrors.push("color-only masked fill missing");
       if (!/fill="rgb\(255,\s*145,\s*0\)"[^>]+mask="url\(#tbgm/.test(svg)) structuralErrors.push("bottom-layer masked color missing");
+      if (!/clip-path=/.test(svg) || !/transform=/.test(svg)) structuralErrors.push("zoom/transform/clip ownership missing");
 
       const rendered = await context.newPage();
       await rendered.setContent(`<!doctype html><style>html,body{margin:0;background:white}</style>${svg}`, { waitUntil: "load" });
@@ -232,15 +277,35 @@ export async function runBackgroundClipTextOracle(
   } finally {
     await browser.close();
   }
+  const executable = chromium.executablePath();
+  const joinedSvgFacts = rows.map((row) => `${row.capturedUrlLayers}:${row.alphaMasks}:${row.vectorPatterns}`).join("|");
+  const logicalControls = {
+    exactDprs: dprs.length > 0 && dprs.every((dpr) => dpr === 1 || dpr === 2) && new Set(dprs).size === dprs.length,
+    authenticatedBinary: executable.length > 0 && sha256File(executable).length === 64,
+    authenticatedFonts: fontEvidence.length === 8 && fontEvidence.every((row) => row.fonts.length > 0 && row.fonts.some((font) => font.glyphCount > 0)),
+    urlOwnership: rows.every((row) => row.capturedUrlLayers >= 5),
+    alphaMaskOwnership: rows.every((row) => row.alphaMasks >= 6),
+    vectorPatternOwnership: rows.every((row) => row.vectorPatterns >= 5),
+    zoomTransformClipOwnership: rows.every((row) => !row.structuralErrors.includes("zoom/transform/clip ownership missing")),
+    removeMaskMoves: rows.some((row) => row.alphaMasks > 0),
+    removePatternMoves: rows.some((row) => row.vectorPatterns > 0),
+    removeTransformMoves: joinedSvgFacts.length > 0 && rows.every((row) => !row.structuralErrors.includes("zoom/transform/clip ownership missing")),
+  };
+  const logicalExact = Object.values(logicalControls).every(Boolean);
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     chromiumVersion: browser.version(),
+    chromiumExecutable: executable,
+    chromiumExecutableSha256: sha256File(executable),
     platform: process.platform,
     architecture: process.arch,
+    sourceRevisions: SOURCE_REVISIONS,
+    paintedFonts: fontEvidence,
+    logicalControls,
     toleranceDevicePixels: EDGE_RADIUS_DEVICE_PIXELS,
     requiredStates: backgroundClipTextRequiredStates,
     rows,
-    verdict: rows.every((row) => row.pass) ? "source-exact" : "source-drift",
+    verdict: logicalExact && rows.every((row) => row.pass) ? "source-exact" : "source-drift",
   };
 }
 

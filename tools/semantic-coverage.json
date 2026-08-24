@@ -1199,7 +1199,10 @@
       ],
       "oracles": [
         "tools/background-clip-text-oracle.ts",
-        "tests/background-clip-text-oracle.e2e.test.ts"
+        "tools/background-clip-text-native-gate.ts",
+        "tests/background-clip-text-oracle.e2e.test.ts",
+        "tests/background-clip-text-native-gate.test.ts",
+        ".github/workflows/background-clip-text-native-parity.yml"
       ],
       "metamorphicTests": [
         "src/render/background-clip-text.test.ts",
@@ -1210,7 +1213,7 @@
         "tests/features.ts#background-clip-text-url-inherited-stroke"
       ],
       "coverage": "partial",
-      "boundary": "Blink-derived production ownership and the vector-only DPR 1/2 gate are exact on the verified macOS run. A dedicated Linux/Windows run of this focused final-paint oracle remains explicit; the existing all-platform URL-geometry and text gates cover its constituent routes but not this combined color/URL glyph-mask corpus.",
+      "boundary": "The authenticated native Linux/Windows DPR 1/2 workflow is defined but its first retained run is still required. Final channel values remain a Skia-versus-consumer SVG raster boundary; no platform envelope is inferred.",
       "featureIds": [
         "render.tree-to-svg"
       ],

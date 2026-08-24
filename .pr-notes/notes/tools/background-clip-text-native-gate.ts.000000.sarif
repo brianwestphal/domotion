@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex-root",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6q3qofi7idjdue",
+          "message": {
+            "text": "The aggregate fails closed unless exactly one Linux and one Windows report contain DPR1/2, authenticated logical controls, painted-font evidence, and passing terminal rows. Duplicate-platform and inactive-control mutations are locked by the focused unit test.",
+            "markdown": "The aggregate fails closed unless exactly one Linux and one Windows report contain DPR1/2, authenticated logical controls, painted-font evidence, and passing terminal rows. Duplicate-platform and inactive-control mutations are locked by the focused unit test."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/background-clip-text-native-gate.ts"
+                },
+                "region": {
+                  "startLine": 6,
+                  "endLine": 25,
+                  "snippet": {
+                    "text": "export function adjudicateBackgroundClipTextNativeReports(reports: BackgroundClipTextOracleReport[]): string[] {\n  const errors: string[] = [];\n  const expected = new Set<NodeJS.Platform>([\"linux\", \"win32\"]);\n  if (reports.length !== 2) errors.push(`expected 2 native reports, received ${reports.length}`);\n  for (const report of reports) {\n    if (!expected.delete(report.platform)) errors.push(`unexpected or duplicate platform ${report.platform}`);\n    if (report.schemaVersion !== 2) errors.push(`${report.platform}: schema must be 2`);\n    if (report.verdict !== \"source-exact\") errors.push(`${report.platform}: verdict ${report.verdict}`);\n    if (report.chromiumExecutableSha256.length !== 64) errors.push(`${report.platform}: Chromium binary is not authenticated`);\n    if (report.rows.map((row) => row.dpr).join(\",\") !== \"1,2\") errors.push(`${report.platform}: DPR1/2 evidence is incomplete`);\n    if (!Object.values(report.logicalControls).every(Boolean)) errors.push(`${report.platform}: logical ownership/control failure`);\n    if (report.paintedFonts.length !== 8) errors.push(`${report.platform}: painted font evidence is incomplete`);\n    if (report.rows.some((row) => !row.pass)) errors.push(`${report.platform}: terminal source-edge classification failed`);\n  }\n  for (const platform of expected) errors.push(`missing ${platform} report`);\n  return errors;\n}\n\nfunction main(): void {\n  const paths = process.argv.slice(2);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2530"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "10cd550f94b06d5b49c1f1663074fd84"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "1a1df267da7ad844d75df23137a97398773c6a08",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

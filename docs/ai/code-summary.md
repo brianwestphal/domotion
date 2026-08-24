@@ -28,6 +28,8 @@ Demo-review evidence is resolved by `src/review/stage-evidence.ts`; the CI
 producer is `tools/collect-stage-evidence.ts` plus
 `tools/build-stage-evidence.ts`, and the server/client integration lives in
 `tests/review-server.tsx` and `tests/review-client.tsx`.
+
+DM-2530 extends `tools/background-clip-text-oracle.ts` with authenticated Chromium/font/DPR evidence and logical mutation controls; `tools/background-clip-text-native-gate.ts` and the native Linux/Windows workflow aggregate those reports before the unchanged terminal edge classifier.
 Dependency-roll evidence is adjudicated by `src/review/roll-differential.ts`;
 `src/review/source-drift-gate.ts` adds the fail-closed ICU/HarfBuzz boundary and
 `tools/source-drift-evidence.ts` fingerprints the source pins, ICU data, native

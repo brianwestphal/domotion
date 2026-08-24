@@ -145,16 +145,16 @@
     },
     {
       "id": "background-clip-text-paint",
-      "domotionSources": ["src/render/element-tree-to-svg.ts", "src/render/background-clip-text.test.ts", "src/render/text-stroke-synthesis.test.ts", "tools/background-clip-text-oracle.ts", "tests/background-clip-text-oracle.e2e.test.ts", "tests/features.ts"],
+      "domotionSources": ["src/render/element-tree-to-svg.ts", "src/render/background-clip-text.test.ts", "src/render/text-stroke-synthesis.test.ts", "tools/background-clip-text-oracle.ts", "tools/background-clip-text-native-gate.ts", "tests/background-clip-text-oracle.e2e.test.ts", "tests/background-clip-text-native-gate.test.ts", ".github/workflows/background-clip-text-native-parity.yml", "tests/features.ts"],
       "upstreamSources": ["external/chromium/third_party/blink/renderer/core/paint/box_painter_base.cc", "external/chromium/third_party/blink/renderer/core/paint/box_fragment_painter.cc", "external/chromium/third_party/blink/renderer/core/paint/text_painter.cc", "external/skia/include/core/SkBlendMode.h"],
       "oracle": "tools/background-clip-text-oracle.ts",
       "browserOracle": "tests/background-clip-text-oracle.e2e.test.ts",
       "sourceAudit": "audited",
       "oracleStatus": "exact-stage-gate",
-      "generatedCoverage": "Color-only, selected URL image, bottom-layer color plus URL, multiple image layers, transparent and opaque foregrounds, author text stroke, descendant text ownership, sliced and cloned wrapped inlines, exact size/position/repeat/origin inputs, and DPR 1/2. The live leg deletes every text-raster escape, requires selected-image/natural-sizing facts plus alpha-mask/pattern/color structural evidence, and compares saturated source-versus-vector signal edges in a constant four-device-pixel disk.",
+      "generatedCoverage": "Color-only, selected URL image, bottom-layer color plus URL, multiple image layers, transparent and opaque foregrounds, author text stroke, descendant text ownership, sliced and cloned wrapped inlines, fallback glyphs, zoom, transform, clipping, exact size/position/repeat/origin inputs, and DPR 1/2. The live leg deletes every text-raster escape, authenticates the headless Chromium binary and CDP-painted fonts, requires selected-image/natural-sizing facts plus alpha-mask/pattern/color structural evidence and active destructive controls, then compares saturated source-versus-vector signal edges in the unchanged four-device-pixel disk. Native Linux and Windows artifacts are independently retained and aggregated.",
       "platformCoverage": ["darwin"],
-      "knownGap": "The source/render contract is platform-neutral and the strict local DPR 1/2 gate is green on macOS; this focused ticket did not add a separate three-platform workflow beyond the existing URL-geometry and text-rendering native gates.",
-      "nextAction": "Keep the vector-only DPR gate green and promote it to the native platform matrix if a platform-specific glyph-mask or URL decode divergence appears."
+      "knownGap": "The authenticated headless Linux/Windows DPR1/2 workflow is defined but its first retained native run is still required. Final pixels remain the documented Skia-versus-consumer SVG raster boundary rather than a claim of byte-identical cross-platform paint.",
+      "nextAction": "Retain and review the first Linux/Windows run, then keep the gate green and add a source-linked positive plus rejecting mutation for every new ownership branch."
     },
     {
       "id": "native-scrollbar-layout-paint-ownership",

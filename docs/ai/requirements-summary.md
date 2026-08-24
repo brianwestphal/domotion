@@ -6,6 +6,8 @@ docs rather than duplicating them.
 
 ## The contract surface
 
+Native Linux/Windows `background-clip:text` evidence must authenticate the headless Chromium binary, painted fonts, source revisions and DPR1/2 artifacts, and must pass logical owner/mutation controls before terminal native edge classification. No platform envelope is inferred (DM-2530; doc 228).
+
 **Doc 120 (`docs/120-same-machine-text-parity-contract.md`) is normative.**
 Chromium and Domotion must produce identical logical font selection, shaping,
 and text layout in the same environment. Gates distinguish exact logical
