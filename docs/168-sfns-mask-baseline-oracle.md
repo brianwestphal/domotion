@@ -206,21 +206,51 @@ from `CTFontDrawGlyphs`.
 ### Pinned-Skia proposal collector
 
 `tools/sfns-pinned-skia-collector/sfns_post_conversion_collector.cpp` is copied
-into an isolated checkout of Skia revision
+temporarily into the authenticated checkout of Skia revision
 `62efacd37737505732dbe3d8daa62abd679626a1` and built by
 `tools/build-sfns-pinned-skia-collector.mjs`. It is a private-API evidence
 binary, not a production dependency. The build manifest pins its source, GN,
-Ninja, compiler, and output-binary digests. The native process opens the exact
-SFNS bytes as data, constructs a CoreText-backed varied typeface with the
-complete four-axis tuple, builds the raw rec with
+Ninja, compiler, shared scenario manifest, schema, collector, and output-binary
+digests. The build driver uses the existing authenticated Chromium build
+assets; it neither fetches tools nor leaves its temporary source overlay in the
+checkout.
+
+DM-2586 adds an independent Chromium-exact OTS step before the proposal arm.
+`tools/build-sfns-pinned-ots-sanitizer.mjs` builds the evidence-only wrapper in
+`tools/sfns-pinned-ots-sanitizer/` against OTS revision
+`46bea9879127d0ff1c6601b078e2ce98e83fcd33`. Its table actions and 128 MiB
+output envelope match pinned Blink's `WebFontDecoder`. Starting from the
+authenticated 7,909,644-byte `/System/Library/Fonts/SFNS.ttf`, the independent
+run produces a 7,806,016-byte SFNT with SHA-256
+`48eedcecfc1b0338a2b0deaac43b017df55b3023cff2c5e8ecc87570b4eacff4`.
+The proposal does not copy or read the validation arm's decoded font or mask
+bytes.
+
+The native process authenticates both the original and independently decoded
+SFNS bytes, constructs its CoreText-backed typeface from the decoded stream at
+collection index zero with the complete four-axis tuple, builds the raw rec with
 `SkScalerContext::MakeRecAndEffects`, obtains the scaler's actual filtered rec,
 calls `computeMatrices(kVertical)`, and materializes each retained glyph through
 `makeGlyph` plus `setImage`. It embeds every final mask byte in the JSON beside
-its exact dimensions, row bytes, format, and SHA-256.
+its exact dimensions, row bytes, format, and SHA-256. It also retains the full
+gamma table and all three 256-byte preblend tables, not only their digests.
+
+Both arms consume `tools/sfns-terminal-mask-manifest.ts`. That source-owned
+manifest declares only the authenticated corpus, gids, axis requests, exact
+white paint/surface/scaler inputs, source start and baseline, full live device
+matrix, and browser CSS request for five scenarios and six controls. It contains
+no shaped advances or offsets, derived origins, phases, records, metrics, or
+mask bytes. Each arm derives those outputs independently. Proposal observation
+IDs are arm-qualified. The native collector records shaped advances/offsets
+separately from strike advances/fixed subpixel offsets, the source and mapped
+positions on both sides of Skia's rounding step, raw and normalized CoreText
+metrics, both scaler records, all factored matrices, and every mask.
 
 The retained proposal artifact is
 `.pr-notes/artifacts/dm2577-sfns-pinned-skia-proposal.json` (artifact digest
-`d34a7cf15edeec865759375981eeca9dcfb202a2ff020375e19c50d1447b5a8d`).
+`0b84c3eac49fc805566b32f81cd3f52fea8343d713c36ed186ed4db23c015b0c`,
+file SHA-256
+`3ffcdef85e8e24c2a84354c4d1715ad565b457d0496e2a7a4936358a06a45d30`).
 It contains 26 separately launched native observations: two cold and two warm
 processes for each of the five fixed scenarios, plus active phase,
 anti-aliasing, hinting, device-matrix, optical-size, and
@@ -232,14 +262,17 @@ The collection launches no browser.
 On the retained host, `SkCTFontGetSmoothBehavior()` returned `some`. The normal
 rows record raw LCD16 recs and actual filtered A8 recs; all retained glyph
 images are exact A8 buffers. Gamma contributes a 2,048-byte table and the
-artifact retains all three 256-entry preblend digests. The base, transform,
+artifact retains the table bytes plus all three 256-byte preblend buffers. The base, transform,
 optical-none, and optical-size rows factor to `[26,26]`; cancellation factors
 to `[13,13]`. Every positive control moved its required exact evidence group,
 with no threshold or fitted comparison. The fail-closed schema in
-`tools/sfns-pinned-skia-mask-schema.ts` reopens all embedded base64 rec and mask
-bytes, recomputes their digests, validates identities/axes/phases/matrices and
-lifecycle equality, and seals the whole artifact. These are proposal facts
-only; they do not establish Chromium agreement by themselves.
+`tools/sfns-pinned-skia-mask-schema.ts` reopens all embedded base64 rec,
+gamma/preblend, and mask bytes; recomputes their digests; authenticates the
+record's process-local typeface ID against the decoded typeface; validates the
+manifest, OTS metadata, axes, derived positions, two-bit phases, matrices,
+CoreText normalization, arm-qualified IDs, and lifecycle equality; and seals
+the whole artifact. These are proposal facts only; they do not establish
+Chromium agreement by themselves.
 
 The independent validation boundary is the browser that constructs the record.
 DM-2575's test-only build at Chromium
@@ -350,10 +383,14 @@ closed. There is no pixel tolerance.
 
 The proposal-side pinned-Skia collector and independent test-only
 pinned-headless Chromium validator are implemented. DM-2576's adjudicator is
-`tools/sfns-terminal-mask-adjudicator.ts`; its retained report is
-`.pr-notes/artifacts/dm2576-sfns-terminal-mask-adjudication.json` (file SHA-256
-`ba14ff03e75e5ace2b609f14cbd7e0c18ff35ca99cd9a73571056028ca5caf3c`, sealed
-report digest `e730e1cf8216e9d15c62fd6ee06b3bcd2763c9ae735dfab8a7c24ba32613d72c`).
+`tools/sfns-terminal-mask-adjudicator.ts`. The original DM-2576 report (file
+SHA-256 `ba14ff03e75e5ace2b609f14cbd7e0c18ff35ca99cd9a73571056028ca5caf3c`,
+sealed report digest
+`e730e1cf8216e9d15c62fd6ee06b3bcd2763c9ae735dfab8a7c24ba32613d72c`)
+is the historical result described immediately below. DM-2586 replaces the
+retained report at
+`.pr-notes/artifacts/dm2576-sfns-terminal-mask-adjudication.json` with the v2
+re-adjudication described in its own subsection.
 It re-runs both arm schemas, recomputes both artifact digests, requires distinct
 authority/build/binary identities, pairs all 26 observations, and compares
 every required field and embedded mask byte. Only the first four
@@ -362,7 +399,7 @@ every required field and embedded mask byte. Only the first four
 until exact adjudication succeeds. None of this evidence infrastructure changes
 production rendering or the existing source-backed outline gate.
 
-### Exact cross-arm result
+### Original DM-2576 cross-arm result
 
 Both retained inputs pass their independent fail-closed schemas. Their build
 identities and binary digests are distinct, and all eight cancellation
@@ -400,6 +437,53 @@ inventing a normalization. The next evidence collection must independently
 produce the same OTS-decoded font stream, paint/surface inputs, run-coordinate
 placement and phase, complete metrics/offset/gamma fields, and arm-qualified
 observation IDs before the manual workflow can become an optional passing gate.
+
+### DM-2586 proposal recollection
+
+DM-2586 performs that correction on the proposal arm without consuming the
+validation arm's result bytes. Its pinned OTS executable independently
+reproduces and authenticates the sanitized SFNT. The new proposal collection
+uses the shared input-only manifest, the sanitized stream at collection index
+zero, Chromium's white paint and zero contrast/gamma surface envelope, the full
+translated device matrices, and arm-qualified IDs. Position, rounding, phase,
+record, metric, gamma, preblend, and mask outputs are derived inside the pinned
+Skia process. No diagnostic origin array is passed into the native collector.
+The exact data-backed identity is `.SFNS-Bold` at the named `opsz=17` instance;
+the non-named `opsz=26` instance reports
+`.SFNS-Regular_wdth_opsz1A0000_GRAD_wght2BC0000`. The schema pins that
+source-observed distinction literally rather than normalizing either name.
+
+The v2 adjudicator keeps the same sole record normalization: only the first
+four process-local `SkTypefaceID` bytes may be zeroed. It compares the decoded
+font identity, raw and normalized CoreText metrics, shaped advance/offset,
+strike advance/fixed offset, full placement and phase, full gamma/preblend
+buffers, and every mask byte as separate exact groups. The retained validation
+v1 input remains fail-closed and **not ready** because it does not contain the
+separate shaped offsets or full gamma/preblend buffers required by that v2
+contract. DM-2587 must independently recollect the validation arm from the same
+manifest before DM-2588 can ratify cross-arm equality. DM-2586 therefore makes
+no terminal-mask readiness claim.
+
+The retained v2 report has file SHA-256
+`740f8886167675c5b4d0f3c4fccbd784ec8649cb65ec136e582f2d5d59ad517b`
+and sealed report digest
+`508ebc27b7f3d2385f05a5b104e9af5401438855fb094e76ed7dd3e6fb24bd24`.
+Both inputs pass their own schemas; all 26 observations pair, all authorities,
+builds, binaries, and observation IDs are independent, and there are zero
+input-integrity errors. Cancellation remains exact at `[13,13]`. The result is
+still **not ready**, with 784 exact mismatch records. Of those, 338 are required
+facts absent from validation v1: 26 full-gamma groups, 156 shaped-advance
+groups, and 156 shaped-offset groups. The remaining 446 retain literal legacy
+v1 differences: 21 typeface groups; one font, raw-rec, and filtered-rec group;
+123 mask groups; 47 glyph-metric groups; 122 phase groups; and 130 placement
+groups. These are not excused or fitted. The shared-manifest validation v2
+recollection in DM-2587 must resolve or retain them independently before
+DM-2588 can make any equality claim.
+
+The work is evidence-only: it changes no production rendering source, route,
+or tolerance. Proposal recollection launches no browser. The validation
+collector continues to request Playwright `headless: true` explicitly in
+addition to Chromium's `--headless=new` argument.
 
 ### Production outline route (closed by DM-2567)
 
@@ -564,18 +648,19 @@ npm run fonts:sfns-outline:adjudicate -- --proposal tests/output/sfns-outline-pr
 The collector always launches Chromium with `headless: true`.
 
 Build, collect, and validate the private-Skia proposal on macOS with Xcode
-command-line tools and the pinned `external/skia` checkout available:
+command-line tools and the authenticated Chromium/Skia/OTS assets available:
 
 ```bash
+npm run fonts:sfns-pinned-ots:build
 npm run fonts:sfns-pinned-skia:build
 npm run fonts:sfns-pinned-skia:collect
 npm run fonts:sfns-pinned-skia:validate
 ```
 
-The build fetches pin-defined GN/Ninja only when they are absent, uses an
-isolated temporary worktree, and removes that worktree afterward. Collection
-launches native evidence processes only; it does not launch Chromium or any
-other browser.
+The builds verify every pinned revision and tool digest, reuse the authenticated
+GN/Ninja assets, remove their exact temporary source overlays, and refuse stale
+overlays. Collection launches native evidence processes only; it does not
+launch Chromium or any other browser.
 
 Build, collect, and validate the independent pinned-Chromium arm with the exact
 Chromium/Skia checkout and pinned Xcode Metal component available:

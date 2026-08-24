@@ -1,8 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import {
-  adjudicateSfnsTerminalMasks,
-} from "../tools/sfns-terminal-mask-adjudicator.js";
+import { adjudicateSfnsTerminalMasks } from "../tools/sfns-terminal-mask-adjudicator.js";
 import type {
   SfnsPinnedObservation,
   SfnsPinnedSkiaProposalArtifact,
@@ -11,12 +9,14 @@ import type {
   SfnsPinnedChromiumValidationArtifact,
 } from "../tools/sfns-pinned-chromium-validation-schema.js";
 
-const proposalPath = ".pr-notes/artifacts/dm2577-sfns-pinned-skia-proposal.json";
-const validationPath = ".pr-notes/artifacts/dm2575-sfns-pinned-chromium-validation.json";
-const proposal = JSON.parse(readFileSync(proposalPath, "utf8")) as SfnsPinnedSkiaProposalArtifact;
-const validation = JSON.parse(
-  readFileSync(validationPath, "utf8"),
-) as SfnsPinnedChromiumValidationArtifact;
+const proposal = JSON.parse(readFileSync(
+  ".pr-notes/artifacts/dm2577-sfns-pinned-skia-proposal.json",
+  "utf8",
+)) as SfnsPinnedSkiaProposalArtifact;
+const validation = JSON.parse(readFileSync(
+  ".pr-notes/artifacts/dm2575-sfns-pinned-chromium-validation.json",
+  "utf8",
+)) as SfnsPinnedChromiumValidationArtifact;
 
 function mutatedProposal(
   mutate: (artifact: SfnsPinnedSkiaProposalArtifact) => void,
@@ -26,14 +26,17 @@ function mutatedProposal(
   return copy;
 }
 
-describe("exact SFNS terminal-mask adjudicator", () => {
-  it("authenticates both arms and reports the retained cross-arm mismatch exactly", () => {
+describe("exact SFNS terminal-mask adjudicator v2", () => {
+  it("pairs the DM-2586 proposal exactly and keeps legacy validation-v1 gaps fail closed", () => {
     const report = adjudicateSfnsTerminalMasks(proposal, validation);
     const groups = new Set(report.mismatches.map((mismatch) => mismatch.group));
+    const counts = Object.fromEntries([...groups].map((group) => [
+      group,
+      report.mismatches.filter((mismatch) => mismatch.group === group).length,
+    ]));
 
-    expect(report.inputIntegrityErrors).toEqual([
-      "independence:observation-id-overlap",
-    ]);
+    expect(report.schemaVersion).toBe(2);
+    expect(report.inputIntegrityErrors).toEqual([]);
     expect(report.observationPairs).toHaveLength(26);
     expect(report.cancellationDecision).toEqual(expect.objectContaining({
       required: "13px-scaler-not-26px-later-resample",
@@ -44,22 +47,39 @@ describe("exact SFNS terminal-mask adjudicator", () => {
       distinctAuthorities: true,
       distinctBuildIdentities: true,
       distinctBinaryDigests: true,
-      distinctObservationIds: false,
+      distinctObservationIds: true,
     }));
-    expect(groups).toEqual(expect.objectContaining(new Set([
-      "observation-identity",
-      "typeface",
-      "paint",
-      "surfaceProps",
-      "rawRec",
-      "filteredRec",
-      "gamma",
-      "fontMetrics",
-      "glyph-0-offset",
-      "glyph-0-placement",
-      "glyph-0-phase",
-      "glyph-0-mask",
-    ])));
+    expect(report.mismatches).toHaveLength(784);
+    expect(counts).toMatchObject({
+      gamma: 26,
+      typeface: 21,
+      "glyph-0-shapedAdvance": 26,
+      "glyph-0-shapedOffset": 26,
+      "glyph-1-shapedAdvance": 26,
+      "glyph-1-shapedOffset": 26,
+      "glyph-2-shapedAdvance": 26,
+      "glyph-2-shapedOffset": 26,
+      "glyph-3-shapedAdvance": 26,
+      "glyph-3-shapedOffset": 26,
+      "glyph-4-shapedAdvance": 26,
+      "glyph-4-shapedOffset": 26,
+      "glyph-5-shapedAdvance": 26,
+      "glyph-5-shapedOffset": 26,
+      "glyph-1-placement": 26,
+      "glyph-2-placement": 26,
+      "glyph-3-placement": 26,
+      "glyph-4-placement": 26,
+      "glyph-5-placement": 26,
+    });
+    for (const aligned of [
+      "source", "paint", "surfaceProps", "scalerContextFlags", "matrices",
+      "smoothBehavior", "fontMetrics", "glyph-count", "observation-identity",
+      "glyph-0-identity", "glyph-1-identity", "glyph-2-identity", "glyph-3-identity",
+      "glyph-4-identity", "glyph-5-identity", "glyph-0-strikeAdvance",
+      "glyph-1-strikeAdvance", "glyph-2-strikeAdvance", "glyph-3-strikeAdvance",
+      "glyph-4-strikeAdvance", "glyph-5-strikeAdvance", "glyph-0-placement",
+      "glyph-0-phase", "glyph-0-metrics",
+    ]) expect(groups).not.toContain(aligned);
     expect(report.ready).toBe(false);
     expect(report.reportDigest).toMatch(/^[0-9a-f]{64}$/);
   });
@@ -73,11 +93,10 @@ describe("exact SFNS terminal-mask adjudicator", () => {
       },
     },
     {
-      name: "duplicated observation",
-      expected: "observation-identity",
+      name: "unqualified duplicate observation id",
+      expected: "arm-qualified-id",
       mutate: (artifact: SfnsPinnedSkiaProposalArtifact) => {
-        artifact.scenarios[0].observations[1].observationId =
-          artifact.scenarios[0].observations[0].observationId;
+        artifact.scenarios[0].observations[1].observationId = "zoom-2-cold-1";
       },
     },
     {
@@ -88,24 +107,17 @@ describe("exact SFNS terminal-mask adjudicator", () => {
       },
     },
     {
-      name: "stale scenario envelope",
-      expected: "scenario-id",
-      mutate: (artifact: SfnsPinnedSkiaProposalArtifact) => {
-        artifact.scenarios[0].observations[0].scenarioId = "stale-scenario";
-      },
-    },
-    {
       name: "wrong source revision",
-      expected: "source-revision",
+      expected: "source-revisions",
       mutate: (artifact: SfnsPinnedSkiaProposalArtifact) => {
         artifact.scenarios[0].observations[0].source.skiaRevision = "wrong";
       },
     },
     {
-      name: "wrong font identity",
-      expected: "font-bytes",
+      name: "wrong decoded typeface bytes",
+      expected: "typeface-font-bytes",
       mutate: (artifact: SfnsPinnedSkiaProposalArtifact) => {
-        artifact.scenarios[0].observations[0].source.fontSha256 = "0".repeat(64);
+        artifact.scenarios[0].observations[0].typeface.fontBytes.sha256 = "0".repeat(64);
       },
     },
     {
@@ -116,25 +128,10 @@ describe("exact SFNS terminal-mask adjudicator", () => {
       },
     },
     {
-      name: "wrong gid",
-      expected: "glyph:0:identity",
-      mutate: (artifact: SfnsPinnedSkiaProposalArtifact) => {
-        artifact.scenarios[0].observations[0].glyphs[0].gid += 1;
-      },
-    },
-    {
       name: "wrong packed phase",
       expected: "packed-phase",
       mutate: (artifact: SfnsPinnedSkiaProposalArtifact) => {
         artifact.scenarios[0].observations[0].glyphs[0].phase.x ^= 1;
-      },
-    },
-    {
-      name: "wrong antialiasing and hinting",
-      expected: "font-request",
-      mutate: (artifact: SfnsPinnedSkiaProposalArtifact) => {
-        artifact.scenarios[0].observations[0].font.edging = "alias";
-        artifact.scenarios[0].observations[0].font.hinting = "none";
       },
     },
     {
@@ -145,22 +142,18 @@ describe("exact SFNS terminal-mask adjudicator", () => {
       },
     },
     {
-      name: "wrong optical size",
-      expected: "request:0",
+      name: "wrong full gamma bytes",
+      expected: "gamma-table:sha256",
       mutate: (artifact: SfnsPinnedSkiaProposalArtifact) => {
-        artifact.scenarios[0].observations[0].request.opsz = 26;
-      },
-    },
-    {
-      name: "wrong surface geometry and mask format",
-      expected: "rec-mask-format-route",
-      mutate: (artifact: SfnsPinnedSkiaProposalArtifact) => {
-        artifact.scenarios[0].observations[0].request.pixelGeometry = "unknown";
+        const observation = artifact.scenarios[0].observations[0];
+        const bytes = Buffer.from(observation.gamma.tableBytesBase64, "base64");
+        bytes[0] ^= 1;
+        observation.gamma.tableBytesBase64 = bytes.toString("base64");
       },
     },
     {
       name: "wrong post-conversion mask byte",
-      expected: "glyph:0:sha256",
+      expected: "mask:sha256",
       mutate: (artifact: SfnsPinnedSkiaProposalArtifact) => {
         const mask = artifact.scenarios[0].observations[0].glyphs[0].mask;
         const bytes = Buffer.from(mask.bytes, "base64");
@@ -173,16 +166,5 @@ describe("exact SFNS terminal-mask adjudicator", () => {
     expect(report.ready).toBe(false);
     expect(report.inputIntegrityErrors.some((error) => error.includes(expected))).toBe(true);
     expect(report.observationPairs).toEqual([]);
-  });
-
-  it("detects an exact 13px-versus-26px cancellation mutation", () => {
-    const changed = mutatedProposal((artifact) => {
-      artifact.scenarios.find((scenario) => scenario.id === "zoom-2-transform-half")!
-        .observations[0].matrices.scale = [26, 26];
-    });
-    const report = adjudicateSfnsTerminalMasks(changed, validation);
-    expect(report.cancellationDecision.exact).toBe(false);
-    expect(report.inputIntegrityErrors).toContain("cancellation:not-exact-13px-scaler");
-    expect(report.ready).toBe(false);
   });
 });

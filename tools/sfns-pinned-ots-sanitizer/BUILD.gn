@@ -1,0 +1,7 @@
+executable("sfns_pinned_ots_sanitizer") {
+  sources = [ "sfns_pinned_ots_sanitizer.cc" ]
+  deps = [ "//third_party/ots" ]
+
+  configs -= [ "//build/config/compiler:chromium_code" ]
+  configs += [ "//build/config/compiler:no_chromium_code" ]
+}

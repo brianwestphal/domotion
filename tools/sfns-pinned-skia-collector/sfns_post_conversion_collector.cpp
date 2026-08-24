@@ -13,14 +13,18 @@
 #include "include/core/SkSurfaceProps.h"
 #include "include/core/SkTypeface.h"
 #include "include/ports/SkFontMgr_mac_ct.h"
+#include "include/ports/SkTypeface_mac.h"
 #include "src/core/SkArenaAlloc.h"
 #include "src/core/SkDescriptor.h"
 #include "src/core/SkGlyph.h"
 #include "src/core/SkMaskGamma.h"
 #include "src/core/SkScalerContext.h"
+#include "src/ports/SkTypeface_mac_ct.h"
 #include "src/utils/mac/SkCTFont.h"
+#include "src/utils/mac/SkCTFontCreateExactCopy.h"
 
 #include <CommonCrypto/CommonDigest.h>
+#include <CoreText/CoreText.h>
 
 #include <algorithm>
 #include <array>
@@ -42,18 +46,25 @@
 namespace {
 constexpr char kChromiumRevision[] = "7d859f271cbda744098ac69f44978d4edfa62be3";
 constexpr char kSkiaRevision[] = "62efacd37737505732dbe3d8daa62abd679626a1";
-constexpr char kFontPath[] = "/System/Library/Fonts/SFNS.ttf";
 constexpr char kFontSha256[] = "2bfd40dc72e6759e248f82a52a40d551338979fffc9b5c070e685b4b7ad19e66";
-constexpr char kCollectorAbi[] = "domotion-sfns-pinned-skia-mask-v1";
+constexpr size_t kFontByteLength = 7909644;
+constexpr char kDecodedFontSha256[] =
+    "48eedcecfc1b0338a2b0deaac43b017df55b3023cff2c5e8ecc87570b4eacff4";
+constexpr size_t kDecodedFontByteLength = 7806016;
+constexpr char kCollectorAbi[] = "domotion-sfns-pinned-skia-mask-v2";
 
 struct Options {
-    std::string scenario, observationId, lifecycle, outputDirectory;
-    float fontSize = 26, deviceScale = 1, opsz = 17, baseline = 43;
-    int ordinal = 1, warmups = 0, phaseShiftX = 0;
+    std::string caseId, kind, scenario, controlId, observationId, lifecycle;
+    std::string outputDirectory, sourceFontPath, decodedFontPath;
+    float fontSize = 26, wdth = 100, opsz = 17, grad = 400, wght = 700;
+    float sourceStartX = 0, sourceStartY = 0, deviceBaseline = 43;
+    float textContrast = 0, textGamma = 0;
+    uint32_t surfaceFlags = 0, scalerContextFlags = 3;
+    std::array<float, 9> deviceMatrix = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+    int ordinal = 1, warmups = 0;
     SkPixelGeometry pixelGeometry = kRGB_H_SkPixelGeometry;
     SkFont::Edging edging = SkFont::Edging::kSubpixelAntiAlias;
     SkFontHinting hinting = SkFontHinting::kNormal;
-    std::vector<float> origins;
     std::vector<SkGlyphID> glyphIds;
 };
 
@@ -128,6 +139,12 @@ int asInt(const std::string& input, const char* name) {
     if (errno || end == input.c_str() || *end) fail(std::string("invalid ") + name);
     return static_cast<int>(value);
 }
+uint32_t asUint32(const std::string& input, const char* name) {
+    char* end = nullptr; errno = 0; unsigned long value = std::strtoul(input.c_str(), &end, 10);
+    if (errno || end == input.c_str() || *end || value > UINT32_MAX)
+        fail(std::string("invalid ") + name);
+    return static_cast<uint32_t>(value);
+}
 
 Options parseOptions(int argc, char** argv) {
     std::map<std::string, std::string> values;
@@ -142,14 +159,30 @@ Options parseOptions(int argc, char** argv) {
         return it->second;
     };
     Options o;
-    o.scenario = req("scenario"); o.observationId = req("observation-id");
+    o.caseId = req("case-id"); o.kind = req("kind");
+    o.scenario = req("scenario"); o.controlId = req("control-id");
+    if (o.controlId == "-") o.controlId.clear();
+    o.observationId = req("observation-id");
     o.lifecycle = req("lifecycle"); o.outputDirectory = req("output-directory");
+    o.sourceFontPath = req("source-font"); o.decodedFontPath = req("decoded-font");
     o.fontSize = asFloat(req("font-size"), "font-size");
-    o.deviceScale = asFloat(req("device-scale"), "device-scale");
-    o.opsz = asFloat(req("opsz"), "opsz"); o.baseline = asFloat(req("baseline"), "baseline");
+    o.wdth = asFloat(req("wdth"), "wdth"); o.opsz = asFloat(req("opsz"), "opsz");
+    o.grad = asFloat(req("grad"), "grad"); o.wght = asFloat(req("wght"), "wght");
+    const auto start = split(req("source-start"), ',');
+    if (start.size() != 2) fail("source-start must have two elements");
+    o.sourceStartX = asFloat(start[0], "source-start-x");
+    o.sourceStartY = asFloat(start[1], "source-start-y");
+    o.deviceBaseline = asFloat(req("device-baseline"), "device-baseline");
+    const auto matrix = split(req("device-matrix"), ',');
+    if (matrix.size() != 9) fail("device-matrix must have nine elements");
+    for (size_t i = 0; i < matrix.size(); ++i) {
+        o.deviceMatrix[i] = asFloat(matrix[i], "device-matrix");
+    }
+    o.surfaceFlags = asUint32(req("surface-flags"), "surface-flags");
+    o.textContrast = asFloat(req("text-contrast"), "text-contrast");
+    o.textGamma = asFloat(req("text-gamma"), "text-gamma");
+    o.scalerContextFlags = asUint32(req("scaler-context-flags"), "scaler-context-flags");
     o.ordinal = asInt(req("ordinal"), "ordinal"); o.warmups = asInt(req("warmups"), "warmups");
-    o.phaseShiftX = asInt(req("phase-shift-x"), "phase-shift-x");
-    for (const auto& v : split(req("origins"), ',')) o.origins.push_back(asFloat(v, "origin"));
     for (const auto& v : split(req("glyph-ids"), ',')) {
         int gid = asInt(v, "glyph-id");
         if (gid < 0 || gid > 65535) fail("glyph id outside uint16");
@@ -173,12 +206,16 @@ Options parseOptions(int argc, char** argv) {
     else if (hinting == "normal") o.hinting = SkFontHinting::kNormal;
     else if (hinting == "full") o.hinting = SkFontHinting::kFull;
     else fail("unknown hinting");
-    if (o.origins.empty() || o.origins.size() != o.glyphIds.size()) fail("origin/gid length");
+    if (o.glyphIds.empty()) fail("empty glyph corpus");
+    if ((o.kind != "scenario" && o.kind != "control")
+        || (o.kind == "scenario" && !o.controlId.empty())
+        || (o.kind == "control" && o.controlId.empty())) fail("invalid case identity");
     if ((o.lifecycle != "cold" && o.lifecycle != "warm") || o.ordinal < 1 || o.ordinal > 2)
         fail("invalid lifecycle/ordinal");
     if ((o.lifecycle == "cold" && o.warmups != 0) ||
         (o.lifecycle == "warm" && o.warmups < 1)) fail("invalid warmup contract");
-    if (o.phaseShiftX < 0 || o.phaseShiftX > 3) fail("phase shift outside 0..3");
+    if (o.deviceMatrix[6] != 0 || o.deviceMatrix[7] != 0 || o.deviceMatrix[8] != 1)
+        fail("perspective device matrix is forbidden");
     return o;
 }
 
@@ -239,21 +276,27 @@ std::string recJson(const SkScalerContextRec& r) {
 }
 
 struct TypefaceBundle {
-    sk_sp<SkData> data;
+    sk_sp<SkData> sourceData;
+    sk_sp<SkData> decodedData;
     sk_sp<SkTypeface> typeface;
     std::vector<SkFontParameters::Variation::Axis> parameters;
     std::vector<SkFontArguments::VariationPosition::Coordinate> requested, actual;
 };
 
-TypefaceBundle makeTypeface(float opsz) {
+TypefaceBundle makeTypeface(const Options& o) {
     TypefaceBundle b;
-    b.data = SkData::MakeFromFileName(kFontPath);
-    if (!b.data) fail("could not read SFNS bytes");
-    const std::string digest = sha(b.data->data(), b.data->size());
-    if (digest != kFontSha256) fail("SFNS digest mismatch: " + digest);
+    b.sourceData = SkData::MakeFromFileName(o.sourceFontPath.c_str());
+    b.decodedData = SkData::MakeFromFileName(o.decodedFontPath.c_str());
+    if (!b.sourceData || !b.decodedData) fail("could not read source/decoded SFNS bytes");
+    const std::string sourceDigest = sha(b.sourceData->data(), b.sourceData->size());
+    const std::string decodedDigest = sha(b.decodedData->data(), b.decodedData->size());
+    if (b.sourceData->size() != kFontByteLength || sourceDigest != kFontSha256)
+        fail("source SFNS identity mismatch: " + sourceDigest);
+    if (b.decodedData->size() != kDecodedFontByteLength || decodedDigest != kDecodedFontSha256)
+        fail("independent OTS-decoded SFNS identity mismatch: " + decodedDigest);
     sk_sp<SkFontMgr> manager = SkFontMgr_New_CoreText(nullptr);
     if (!manager) fail("CoreText font manager unavailable");
-    sk_sp<SkTypeface> base = manager->makeFromData(b.data, 0);
+    sk_sp<SkTypeface> base = manager->makeFromData(b.decodedData, 0);
     if (!base) fail("data-backed base typeface unavailable");
     int count = base->getVariationDesignParameters({});
     if (count <= 0) fail("variation parameters unavailable");
@@ -262,13 +305,15 @@ TypefaceBundle makeTypeface(float opsz) {
             SkSpan<SkFontParameters::Variation::Axis>(b.parameters.data(), b.parameters.size()))
         != count) fail("variation parameter count changed");
     const std::map<SkFourByteTag, float> overrides = {
-        {tag("wdth"), 100}, {tag("opsz"), opsz}, {tag("GRAD"), 400}, {tag("wght"), 700},
+        {tag("wdth"), o.wdth}, {tag("opsz"), o.opsz},
+        {tag("GRAD"), o.grad}, {tag("wght"), o.wght},
     };
     for (const auto& axis : b.parameters) {
         auto it = overrides.find(axis.tag);
         b.requested.push_back({axis.tag, it == overrides.end() ? axis.def : it->second});
     }
-    for (const auto& [required, unused] : overrides) {
+    for (const auto& overrideEntry : overrides) {
+        const SkFourByteTag required = overrideEntry.first;
         if (std::none_of(b.parameters.begin(), b.parameters.end(),
                          [&](const auto& axis) { return axis.tag == required; }))
             fail("required SFNS axis missing: " + tagName(required));
@@ -276,7 +321,7 @@ TypefaceBundle makeTypeface(float opsz) {
     SkFontArguments args;
     args.setCollectionIndex(0).setVariationDesignPosition(
         {b.requested.data(), static_cast<int>(b.requested.size())});
-    b.typeface = manager->makeFromStream(std::make_unique<SkMemoryStream>(b.data), args);
+    b.typeface = manager->makeFromStream(std::make_unique<SkMemoryStream>(b.decodedData), args);
     if (!b.typeface) fail("varied data-backed typeface unavailable");
     count = b.typeface->getVariationDesignPosition({});
     if (count != static_cast<int>(b.parameters.size())) fail("incomplete actual axis tuple");
@@ -315,13 +360,16 @@ struct ContextBundle {
 
     ContextBundle(const Options& o, sk_sp<SkTypeface> face)
         : font(std::move(face), o.fontSize)
-        , props(SkSurfaceProps::kDefault_Flag, o.pixelGeometry, 0.5f, 0.0f) {
+        , props(o.surfaceFlags, o.pixelGeometry, o.textContrast, o.textGamma) {
         font.setEdging(o.edging); font.setHinting(o.hinting);
         font.setSubpixel(true); font.setLinearMetrics(true); font.setEmbeddedBitmaps(false);
-        paint.setColor(SK_ColorBLACK); paint.setStyle(SkPaint::kFill_Style);
-        deviceMatrix.setScale(o.deviceScale, o.deviceScale);
+        paint.setColor(SK_ColorWHITE); paint.setStyle(SkPaint::kFill_Style);
+        deviceMatrix.setAll(
+            o.deviceMatrix[0], o.deviceMatrix[1], o.deviceMatrix[2],
+            o.deviceMatrix[3], o.deviceMatrix[4], o.deviceMatrix[5],
+            o.deviceMatrix[6], o.deviceMatrix[7], o.deviceMatrix[8]);
         SkScalerContext::MakeRecAndEffects(
-            font, paint, props, SkScalerContextFlags::kFakeGammaAndBoostContrast,
+            font, paint, props, static_cast<SkScalerContextFlags>(o.scalerContextFlags),
             deviceMatrix, &rawRec, &effects);
         SkAutoDescriptor descriptor;
         SkScalerContext::AutoDescriptorGivenRecAndEffects(rawRec, effects, &descriptor);
@@ -330,15 +378,42 @@ struct ContextBundle {
     }
 };
 
-std::string glyphsJson(const Options& o, ContextBundle& c, bool persist) {
+std::string pointJson(const SkPoint& point) {
+    return "[" + num(point.x()) + "," + num(point.y()) + "]";
+}
+
+struct DerivedRun {
+    std::vector<SkScalar> widths;
+    std::vector<SkPoint> sourcePositions;
+};
+
+DerivedRun deriveRun(const Options& o, const SkFont& font) {
+    DerivedRun run;
+    run.widths.resize(o.glyphIds.size());
+    run.sourcePositions.resize(o.glyphIds.size());
+    font.getWidths(SkSpan<const SkGlyphID>(o.glyphIds.data(), o.glyphIds.size()),
+                   SkSpan<SkScalar>(run.widths.data(), run.widths.size()));
+    font.getPos(SkSpan<const SkGlyphID>(o.glyphIds.data(), o.glyphIds.size()),
+                SkSpan<SkPoint>(run.sourcePositions.data(), run.sourcePositions.size()),
+                {o.sourceStartX, o.sourceStartY});
+    return run;
+}
+
+std::string glyphsJson(const Options& o, ContextBundle& c, const DerivedRun& run,
+                       bool persist) {
     const SkGlyphPositionRoundingSpec rounding(
         c.context->isSubpixel(), c.context->computeAxisAlignmentForHText());
     std::ostringstream out; out << '[';
     for (size_t i = 0; i < o.glyphIds.size(); ++i) {
         if (i) out << ',';
-        SkPoint point{o.origins[i] + o.phaseShiftX * 0.25f, o.baseline};
-        point += rounding.halfAxisSampleFreq;
-        SkPackedGlyphID packed(o.glyphIds[i], point, rounding.ignorePositionFieldMask);
+        const SkPoint sourcePosition = run.sourcePositions[i];
+        const SkPoint deviceOrigin = c.deviceMatrix.mapPoint(sourcePosition);
+        const SkPoint mappedWithRounding = deviceOrigin + rounding.halfAxisSampleFreq;
+        const SkPoint roundedDeviceOrigin{
+            static_cast<SkScalar>(std::floor(mappedWithRounding.x())),
+            static_cast<SkScalar>(std::floor(mappedWithRounding.y()))};
+        SkPackedGlyphID packed(o.glyphIds[i], mappedWithRounding,
+                               rounding.ignorePositionFieldMask);
         SkSTArenaAlloc<4096> arena;
         SkGlyph glyph = c.context->makeGlyph(packed, &arena);
         if (!glyph.setImage(&arena, c.context.get())) fail("glyph image unavailable");
@@ -355,9 +430,17 @@ std::string glyphsJson(const Options& o, ContextBundle& c, bool persist) {
         }
         uint32_t id = packed.value();
         out << "{\"index\":" << i << ",\"gid\":" << o.glyphIds[i]
-            << ",\"advance\":[" << num(glyph.advanceX()) << ',' << num(glyph.advanceY()) << ']'
-            << ",\"offset\":[0,0],\"baseline\":" << num(o.baseline)
-            << ",\"deviceOrigin\":" << num(o.origins[i]) << ",\"phaseShiftX\":" << o.phaseShiftX
+            << ",\"shapedAdvance\":[" << num(run.widths[i]) << ",0]"
+            << ",\"shapedOffset\":[0,0]"
+            << ",\"sourcePosition\":" << pointJson(sourcePosition)
+            << ",\"deviceOrigin\":" << pointJson(deviceOrigin)
+            << ",\"mappedWithRounding\":" << pointJson(mappedWithRounding)
+            << ",\"roundedDeviceOrigin\":" << pointJson(roundedDeviceOrigin)
+            << ",\"deviceBaseline\":" << num(o.deviceBaseline)
+            << ",\"strikeAdvance\":[" << num(glyph.advanceX()) << ','
+            << num(glyph.advanceY()) << ']'
+            << ",\"subpixelOffsetFixed\":[" << glyph.getSubXFixed() << ','
+            << glyph.getSubYFixed() << ']'
             << ",\"packedId\":" << id << ",\"phase\":{\"x\":" << (id & 3)
             << ",\"y\":" << ((id >> 18) & 3) << "},\"rounding\":{\"halfAxisSampleFreq\":["
             << num(rounding.halfAxisSampleFreq.x()) << ','
@@ -374,11 +457,51 @@ std::string glyphsJson(const Options& o, ContextBundle& c, bool persist) {
     return out.str() + "]";
 }
 
+std::string coreTextJson(const Options& o, const TypefaceBundle& face,
+                         const SkVector& scale) {
+    CTFontRef base = SkTypeface_GetCTFontRef(face.typeface.get());
+    if (!base) fail("CoreText font unavailable from decoded typeface");
+    const auto* macTypeface = static_cast<const SkTypeface_Mac*>(face.typeface.get());
+    SkUniqueCFRef<CTFontRef> font = SkCTFontCreateExactCopy(
+        base, scale.y(), macTypeface->fOpszVariation);
+    if (!font) fail("could not create exact-sized CoreText font");
+    CGRect bounds = CTFontGetBoundingBox(font.get());
+    const double ascent = CTFontGetAscent(font.get());
+    const double descent = CTFontGetDescent(font.get());
+    const double leading = CTFontGetLeading(font.get());
+    const double capHeight = CTFontGetCapHeight(font.get());
+    const double xHeight = CTFontGetXHeight(font.get());
+    std::ostringstream out;
+    out << "{\"raw\":{\"pointSize\":" << num(CTFontGetSize(font.get()))
+        << ",\"unitsPerEm\":" << CTFontGetUnitsPerEm(font.get())
+        << ",\"ascent\":" << num(ascent)
+        << ",\"descent\":" << num(descent)
+        << ",\"leading\":" << num(leading)
+        << ",\"capHeight\":" << num(capHeight)
+        << ",\"xHeight\":" << num(xHeight)
+        << ",\"boundingBox\":[" << num(bounds.origin.x) << ','
+        << num(bounds.origin.y) << ',' << num(bounds.size.width) << ','
+        << num(bounds.size.height) << "]},\"normalized\":{"
+        << "\"coordinateSystem\":\"device-y-down\",\"baseline\":"
+        << num(o.deviceBaseline) << ",\"ascent\":" << num(-ascent)
+        << ",\"descent\":" << num(descent)
+        << ",\"leading\":" << num(leading)
+        << ",\"capHeight\":" << num(-capHeight)
+        << ",\"xHeight\":" << num(-xHeight)
+        << ",\"top\":" << num(o.deviceBaseline - ascent)
+        << ",\"bottom\":" << num(o.deviceBaseline + descent)
+        << ",\"boundingBox\":[" << num(bounds.origin.x) << ','
+        << num(-(bounds.origin.y + bounds.size.height)) << ','
+        << num(bounds.size.width) << ',' << num(bounds.size.height) << "]}}";
+    return out.str();
+}
+
 std::string collect(const Options& o) {
-    TypefaceBundle face = makeTypeface(o.opsz);
+    TypefaceBundle face = makeTypeface(o);
     std::optional<ContextBundle> context;
     context.emplace(o, face.typeface);
-    for (int i = 0; i < o.warmups; ++i) (void)glyphsJson(o, *context, false);
+    const DerivedRun run = deriveRun(o, context->font);
+    for (int i = 0; i < o.warmups; ++i) (void)glyphsJson(o, *context, run, false);
     if (!context) fail("scaler context unavailable");
     const SkScalerContextRec& filtered = context->context->getRec();
     SkVector scale;
@@ -397,6 +520,10 @@ std::string collect(const Options& o) {
         return sha(value ? static_cast<const void*>(value) : static_cast<const void*>(""),
                    value ? 256 : 0);
     };
+    auto base64256 = [](const uint8_t* value) {
+        return b64(value ? static_cast<const void*>(value) : static_cast<const void*>(""),
+                   value ? 256 : 0);
+    };
 
     SkString family, postscript;
     face.typeface->getFamilyName(&family);
@@ -406,13 +533,23 @@ std::string collect(const Options& o) {
     SkFontStyle style = face.typeface->fontStyle();
 
     std::ostringstream out;
-    out << "{\"schemaVersion\":1,\"collectorAbi\":" << q(kCollectorAbi)
-        << ",\"observationId\":" << q(o.observationId) << ",\"scenarioId\":" << q(o.scenario)
+    const SkPoint requestedDeviceStart = context->deviceMatrix.mapPoint(
+        {o.sourceStartX, o.sourceStartY});
+    out << "{\"schemaVersion\":2,\"collectorAbi\":" << q(kCollectorAbi)
+        << ",\"observationId\":" << q(o.observationId)
+        << ",\"caseId\":" << q(o.caseId) << ",\"kind\":" << q(o.kind)
+        << ",\"scenarioId\":" << q(o.scenario)
+        << ",\"controlId\":" << q(o.controlId)
         << ",\"lifecycle\":" << q(o.lifecycle) << ",\"ordinal\":" << o.ordinal
         << ",\"warmupCount\":" << o.warmups << ",\"source\":{\"chromiumRevision\":"
         << q(kChromiumRevision) << ",\"skiaRevision\":" << q(kSkiaRevision)
-        << ",\"fontPath\":" << q(kFontPath) << ",\"fontByteLength\":" << face.data->size()
-        << ",\"fontSha256\":" << q(kFontSha256) << "},\"buildRuntime\":{\"clangVersion\":"
+        << ",\"original\":{\"fontPath\":" << q(o.sourceFontPath)
+        << ",\"byteLength\":" << face.sourceData->size()
+        << ",\"sha256\":" << q(kFontSha256)
+        << "},\"decoded\":{\"authority\":\"chromium-exact-ots\",\"fontPath\":"
+        << q(o.decodedFontPath) << ",\"byteLength\":" << face.decodedData->size()
+        << ",\"sha256\":" << q(kDecodedFontSha256)
+        << ",\"collectionIndex\":0}},\"buildRuntime\":{\"clangVersion\":"
         << q(__clang_version__)
 #if defined(__aarch64__) || defined(__arm64__)
         << ",\"architecture\":\"arm64\"}"
@@ -422,14 +559,29 @@ std::string collect(const Options& o) {
         << ",\"architecture\":\"unknown\"}"
 #endif
         << ",\"request\":{\"fontSize\":" << num(o.fontSize)
-        << ",\"deviceScale\":" << num(o.deviceScale) << ",\"opsz\":" << num(o.opsz)
-        << ",\"baseline\":" << num(o.baseline) << ",\"phaseShiftX\":" << o.phaseShiftX
-        << ",\"edging\":" << q(edgeName(o.edging)) << ",\"hinting\":" << q(hintName(o.hinting))
-        << ",\"pixelGeometry\":" << q(geometryName(o.pixelGeometry)) << "},\"typeface\":{\"uniqueId\":"
+        << ",\"axes\":{\"wdth\":" << num(o.wdth) << ",\"opsz\":" << num(o.opsz)
+        << ",\"GRAD\":" << num(o.grad) << ",\"wght\":" << num(o.wght)
+        << "},\"font\":{\"scaleX\":1,\"skewX\":0,\"subpixel\":true,"
+        << "\"linearMetrics\":true,\"embeddedBitmaps\":false,\"edging\":"
+        << q(edgeName(o.edging)) << ",\"hinting\":" << q(hintName(o.hinting))
+        << "},\"paint\":{\"color\":4294967295,\"style\":\"fill\"},"
+        << "\"surface\":{\"flags\":" << o.surfaceFlags
+        << ",\"pixelGeometry\":" << q(geometryName(o.pixelGeometry))
+        << ",\"textContrast\":" << num(o.textContrast)
+        << ",\"textGamma\":" << num(o.textGamma)
+        << "},\"scalerContextFlags\":" << o.scalerContextFlags
+        << ",\"run\":{\"sourceStart\":[" << num(o.sourceStartX) << ','
+        << num(o.sourceStartY) << "],\"deviceStart\":" << pointJson(requestedDeviceStart)
+        << ",\"deviceBaseline\":" << num(o.deviceBaseline)
+        << ",\"liveDeviceMatrix\":" << matrixJson(context->deviceMatrix)
+        << "}},\"typeface\":{\"uniqueId\":"
         << face.typeface->uniqueID() << ",\"family\":" << q(family.c_str()) << ",\"postscriptName\":"
         << q(hasPostscript ? postscript.c_str() : "") << ",\"style\":{\"weight\":" << style.weight()
         << ",\"width\":" << style.width() << ",\"slant\":" << static_cast<int>(style.slant())
-        << "},\"axes\":" << axesJson(face) << "},\"font\":{\"size\":" << num(context->font.getSize())
+        << "},\"axes\":" << axesJson(face)
+        << ",\"fontBytes\":{\"authority\":\"ots-sanitized-sfnt\",\"byteLength\":"
+        << face.decodedData->size() << ",\"collectionIndex\":0,\"sha256\":"
+        << q(kDecodedFontSha256) << "}},\"font\":{\"size\":" << num(context->font.getSize())
         << ",\"scaleX\":" << num(context->font.getScaleX()) << ",\"skewX\":"
         << num(context->font.getSkewX()) << ",\"subpixel\":"
         << (context->font.isSubpixel() ? "true" : "false") << ",\"linearMetrics\":"
@@ -442,7 +594,7 @@ std::string collect(const Options& o) {
         << q(geometryName(context->props.pixelGeometry())) << ",\"textContrast\":"
         << num(context->props.textContrast()) << ",\"textGamma\":"
         << num(context->props.textGamma()) << "},\"scalerContextFlags\":"
-        << q("fake-gamma-and-boost-contrast") << ",\"rawRec\":" << recJson(context->rawRec)
+        << o.scalerContextFlags << ",\"rawRec\":" << recJson(context->rawRec)
         << ",\"filteredRec\":" << recJson(filtered) << ",\"matrices\":{\"device\":"
         << matrixJson(context->deviceMatrix) << ",\"total\":" << matrixJson(total)
         << ",\"scale\":[" << num(scale.x()) << ',' << num(scale.y()) << "],\"remaining\":"
@@ -451,24 +603,33 @@ std::string collect(const Options& o) {
         << matrixJson(remainingRotation) << ",\"invertible\":"
         << (invertible ? "true" : "false") << "},\"smoothBehavior\":"
         << q(smoothName(SkCTFontGetSmoothBehavior()))
-        << ",\"gamma\":{\"inputContrast\":0.5,\"inputDeviceGamma\":0,\"tableApplicable\":"
+        << ",\"gamma\":{\"inputContrast\":" << num(o.textContrast)
+        << ",\"inputDeviceGamma\":" << num(o.textGamma) << ",\"tableApplicable\":"
         << (gammaBytes ? "true" : "false") << ",\"tableWidth\":" << gammaWidth
         << ",\"tableHeight\":" << gammaHeight << ",\"tableByteLength\":"
         << (gammaBytes ? gammaSize : 0) << ",\"tableSha256\":"
         << q(sha(gammaBytes ? static_cast<const void*>(gammaBytes) : static_cast<const void*>(""),
                  gammaBytes ? gammaSize : 0))
+        << ",\"tableBytesBase64\":"
+        << q(b64(gammaBytes ? static_cast<const void*>(gammaBytes) : static_cast<const void*>(""),
+                 gammaBytes ? gammaSize : 0))
         << ",\"preblendApplicable\":" << (preblend.isApplicable() ? "true" : "false")
+        << ",\"preblendByteLength\":" << (preblend.isApplicable() ? 256 : 0)
         << ",\"preblendR256Sha256\":" << q(digest256(preblend.fR))
         << ",\"preblendG256Sha256\":" << q(digest256(preblend.fG))
         << ",\"preblendB256Sha256\":" << q(digest256(preblend.fB))
-        << "},\"fontMetrics\":{\"top\":" << num(metrics.fTop)
+        << ",\"preblendR256Base64\":" << q(base64256(preblend.fR))
+        << ",\"preblendG256Base64\":" << q(base64256(preblend.fG))
+        << ",\"preblendB256Base64\":" << q(base64256(preblend.fB))
+        << "},\"coreTextMetrics\":" << coreTextJson(o, face, scale)
+        << ",\"fontMetrics\":{\"top\":" << num(metrics.fTop)
         << ",\"ascent\":" << num(metrics.fAscent) << ",\"descent\":" << num(metrics.fDescent)
         << ",\"bottom\":" << num(metrics.fBottom) << ",\"leading\":" << num(metrics.fLeading)
         << ",\"avgCharWidth\":" << num(metrics.fAvgCharWidth) << ",\"maxCharWidth\":"
         << num(metrics.fMaxCharWidth) << ",\"xMin\":" << num(metrics.fXMin)
         << ",\"xMax\":" << num(metrics.fXMax) << ",\"xHeight\":" << num(metrics.fXHeight)
         << ",\"capHeight\":" << num(metrics.fCapHeight) << "},\"glyphs\":"
-        << glyphsJson(o, *context, true) << '}';
+        << glyphsJson(o, *context, run, true) << '}';
     return out.str();
 }
 }  // namespace

@@ -13,14 +13,17 @@ import {
 import { dirname, relative, resolve } from "node:path";
 import { chromium, type Browser, type Page } from "playwright";
 import {
+  SFNS_TERMINAL_MASK_CONTROL_IDS,
+  SFNS_TERMINAL_MASK_MANIFEST,
+  SFNS_TERMINAL_MASK_SCENARIO_IDS,
+  sfnsTerminalMaskCase,
+} from "./sfns-terminal-mask-manifest.js";
+import {
   SFNS_VALIDATION_CHROMIUM_REVISION,
-  SFNS_VALIDATION_CONTROLS,
   SFNS_VALIDATION_DEPOT_TOOLS_REVISION,
   SFNS_VALIDATION_FONT_BYTE_LENGTH,
   SFNS_VALIDATION_FONT_SHA256,
-  SFNS_VALIDATION_GLYPH_IDS,
   SFNS_VALIDATION_HOOK_ABI,
-  SFNS_VALIDATION_SCENARIOS,
   SFNS_VALIDATION_SKIA_REVISION,
   sfnsValidationArtifactDigest,
   sfnsValidationChangedEvidenceGroups,
@@ -37,7 +40,7 @@ import {
   type SfnsValidationScenarioId,
 } from "./sfns-pinned-chromium-validation-schema.js";
 
-const TEXT = "zoom2!";
+const TEXT = SFNS_TERMINAL_MASK_MANIFEST.corpus.text;
 const WIDTH = 240;
 const HEIGHT = 100;
 const FONT_ORIGIN = "https://dm2575-sfns.invalid";
@@ -108,25 +111,34 @@ function chromiumLaunchArgs(request: ObservationRequest): string[] {
   ];
 }
 
-function scenarioCss(request: ObservationRequest): { target: string; anchorLeft: number; opsz: number } {
-  let target = request.scenarioId === "transform-scale-2"
-    ? "transform:scale(2);transform-origin:0 0"
-    : request.scenarioId === "zoom-2-transform-half"
-      ? "zoom:2;transform:scale(.5);transform-origin:0 0"
-      : "zoom:2";
-  let anchorLeft = 37.25;
-  let opsz = request.scenarioId === "opsz-26-mutation" ? 26 : 17;
-  if (request.scenarioId === "optical-sizing-none") target += ";font-optical-sizing:none";
-  switch (request.controlId) {
-    case "subpixel-phase": anchorLeft += 0.25; break;
-    case "anti-aliasing": target += ";-webkit-font-smoothing:antialiased"; break;
-    case "hinting": target += ";text-rendering:geometricPrecision"; break;
-    case "device-matrix": target = "zoom:2;transform:scale(1.25);transform-origin:0 0"; break;
-    case "optical-size": opsz = 26; break;
-    case "surface-mask-format": target += ";mix-blend-mode:multiply"; break;
-    default: break;
+function scenarioCss(request: ObservationRequest): {
+  target: string; anchorLeft: number; anchorTop: number; fontSize: number; opsz: number;
+} {
+  const caseId = request.controlId === ""
+    ? request.scenarioId
+    : `control-${request.controlId}` as const;
+  const manifestRequest = sfnsTerminalMaskCase(caseId).request;
+  const css = manifestRequest.browserCss;
+  const declarations = [] as string[];
+  if (css.zoom !== 1) declarations.push(`zoom:${css.zoom}`);
+  if (css.transformScale !== 1) {
+    declarations.push(`transform:scale(${css.transformScale})`, "transform-origin:0 0");
   }
-  return { target, anchorLeft, opsz };
+  if (css.fontOpticalSizing !== "auto") {
+    declarations.push(`font-optical-sizing:${css.fontOpticalSizing}`);
+  }
+  if (css.fontSmoothing !== "auto") {
+    declarations.push(`-webkit-font-smoothing:${css.fontSmoothing}`);
+  }
+  if (css.textRendering !== "auto") declarations.push(`text-rendering:${css.textRendering}`);
+  if (css.mixBlendMode !== "normal") declarations.push(`mix-blend-mode:${css.mixBlendMode}`);
+  return {
+    target: declarations.join(";"),
+    anchorLeft: css.anchorLeft,
+    anchorTop: css.anchorTop,
+    fontSize: manifestRequest.fontSize / css.zoom,
+    opsz: manifestRequest.axes.opsz,
+  };
 }
 
 function html(request: ObservationRequest): string {
@@ -137,8 +149,8 @@ function html(request: ObservationRequest): string {
     @font-face{font-family:DM2575Evidence;src:url("${FONT_ORIGIN}/evidence-${request.observationId}.ttf") format("truetype");font-weight:100 900;font-stretch:50% 200%}
     @font-face{font-family:DM2575Warmup;src:url("${FONT_ORIGIN}/warmup-${request.observationId}.ttf") format("truetype");font-weight:100 900;font-stretch:50% 200%}
     *{box-sizing:border-box}html,body{margin:0;width:${WIDTH}px;height:${HEIGHT}px;background:#000;overflow:hidden}
-    #anchor{position:absolute;left:${config.anchorLeft}px;top:18.25px}
-    #target{display:inline-block;color:#fff;background:#000;white-space:pre;font-family:${warm ? "DM2575Warmup" : "DM2575Evidence"};font-weight:700;font-size:13px;line-height:normal;font-variation-settings:${axes};${config.target}}
+    #anchor{position:absolute;left:${config.anchorLeft}px;top:${config.anchorTop}px}
+    #target{display:inline-block;color:#fff;background:#000;white-space:pre;font-family:${warm ? "DM2575Warmup" : "DM2575Evidence"};font-weight:700;font-size:${config.fontSize}px;line-height:normal;font-variation-settings:${axes};${config.target}}
   </style><div id="anchor"><span id="target">${warm ? "W" : TEXT}</span></div>`;
 }
 
@@ -316,13 +328,14 @@ async function collectObservation(request: ObservationRequest): Promise<SfnsVali
     await page.evaluate(() => document.fonts.ready);
     if (request.lifecycle === "warm") {
       await page.screenshot({ type: "png" });
-      await page.evaluate(async (text) => {
+      const config = scenarioCss(request);
+      await page.evaluate(async ({ text, fontSize }) => {
         const target = document.querySelector<HTMLElement>("#target")!;
         target.style.fontFamily = "DM2575Evidence";
         target.textContent = text;
-        await document.fonts.load('700 13px "DM2575Evidence"', text);
+        await document.fonts.load(`700 ${fontSize}px "DM2575Evidence"`, text);
         await document.fonts.ready;
-      }, TEXT);
+      }, { text: TEXT, fontSize: config.fontSize });
     }
     const screenshot = await page.screenshot({ type: "png" });
     const browserFacts = await collectBrowserFacts(page, browser, screenshot, launchArgs);
@@ -380,7 +393,7 @@ function observationRequest(
     lifecycle,
     ordinal,
     controlId: "",
-    observationId: `${scenarioId}-${lifecycle}-${ordinal}`,
+    observationId: `validation-${scenarioId}-${lifecycle}-${ordinal}`,
   };
 }
 
@@ -423,7 +436,7 @@ if (probe) {
 }
 
 const scenarios: SfnsPinnedChromiumValidationArtifact["scenarios"] = [];
-for (const id of SFNS_VALIDATION_SCENARIOS) {
+for (const id of SFNS_TERMINAL_MASK_SCENARIO_IDS) {
   const observations = [
     await collectObservation(observationRequest(id, "cold", 1)),
     await collectObservation(observationRequest(id, "cold", 2)),
@@ -439,10 +452,10 @@ for (const id of SFNS_VALIDATION_SCENARIOS) {
 
 const baseline = scenarios.find((scenario) => scenario.id === "zoom-2")!.observations[0];
 const controls: SfnsPinnedChromiumValidationArtifact["controls"] = [];
-for (const id of SFNS_VALIDATION_CONTROLS) {
+for (const id of SFNS_TERMINAL_MASK_CONTROL_IDS) {
   const observation = await collectObservation({
     scenarioId: "zoom-2",
-    observationId: `control-${id}-1`,
+    observationId: `validation-control-${id}-1`,
     lifecycle: "control",
     ordinal: 1,
     controlId: id,
@@ -515,7 +528,7 @@ const withoutDigest: Omit<SfnsPinnedChromiumValidationArtifact, "artifactDigest"
     fontPath,
     fontByteLength: fontBytes.byteLength,
     fontSha256: sha(fontBytes),
-    glyphIds: [...SFNS_VALIDATION_GLYPH_IDS],
+    glyphIds: [...SFNS_TERMINAL_MASK_MANIFEST.corpus.glyphIds],
   },
   scenarios,
   controls,

@@ -2059,6 +2059,24 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   recollection remains required before terminal masks become a complete gate;
   that follow-up cannot change production rendering or widen a visual
   tolerance.
+  DM-2586 completes the proposal-side recollection without consuming validation
+  result bytes. A source-owned input-only manifest declares the five scenarios,
+  six controls, corpus/gids/axes, exact white paint/surface/scaler inputs,
+  source start/baseline, full live matrices, and browser CSS while containing
+  no derived positions, phases, records, metrics, gamma, or masks. Both
+  collectors consume it independently. A pinned Chromium OTS wrapper reproduces
+  the authenticated 7,806,016-byte sanitized SFNT, and proposal v2 constructs
+  its collection-index-zero typeface from that stream. Its 26 arm-qualified
+  native observations retain separate shaped and strike placement, raw and
+  normalized CoreText metrics, exact records/matrices/phases, full gamma and
+  three preblend buffers, and every mask byte. The v2 schema/adjudicator permits
+  only the four-byte process-local typeface-ID normalization. Validation v1
+  remains intentionally NOT READY: the retained v2 report pairs all 26 rows
+  with zero input-integrity errors and preserves 784 exact mismatches, including
+  338 shaped-advance/offset and full-gamma facts absent from v1. DM-2587
+  recollects validation from the shared manifest and DM-2588 ratifies exact
+  equality. Proposal collection launches no browser, validation remains
+  explicitly headless, and no production rendering or tolerance changes.
 
 <!-- Animated viewBox culling source audit, implementation, and oracle -->
 - Animated viewBox culling's composed-timeline path is implemented (doc 155):

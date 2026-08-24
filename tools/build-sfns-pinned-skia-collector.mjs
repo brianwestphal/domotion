@@ -2,9 +2,9 @@
 /** Build the evidence-only collector inside Chromium's pinned Skia. */
 import { createHash } from "node:crypto";
 import {
-  copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync,
+  copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync,
 } from "node:fs";
-import { arch, platform, tmpdir } from "node:os";
+import { arch, platform } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -12,6 +12,7 @@ import { spawnSync } from "node:child_process";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SKIA_REVISION = "62efacd37737505732dbe3d8daa62abd679626a1";
 const CHROMIUM_REVISION = "7d859f271cbda744098ac69f44978d4edfa62be3";
+const DEPOT_TOOLS_REVISION = "612d70c7ccb01d4a405e822ad0505206de636d7e";
 const GN_ARGS = [
   "is_debug=false", "is_official_build=true",
   "skia_enable_ganesh=false", "skia_enable_graphite=false", "skia_enable_pdf=false",
@@ -25,8 +26,8 @@ const GN_ARGS = [
   "skia_use_wuffs=false", "skia_use_zlib=false",
 ].join(" ");
 const ROOT_GROUP = [
-  "", "# DOMOTION_SFNS_PINNED_SKIA_COLLECTOR",
-  "group(\"dm2577_sfns_collector\") {",
+  "", "# DOMOTION_SFNS_PINNED_SKIA_COLLECTOR_DM2586",
+  "group(\"dm2586_sfns_collector\") {",
   "  deps = [ \"//tools/sfns-pinned-skia-collector:sfns_post_conversion_collector\" ]",
   "}", "",
 ].join("\n");
@@ -36,7 +37,13 @@ const value = (flag) => {
   const index = argv.indexOf(flag);
   return index < 0 ? undefined : argv[index + 1];
 };
-const requestedSource = value("--source-dir");
+const chromiumRoot = resolve(value("--chromium-root") ?? ".chromium-build/shared/src");
+const sourceDir = resolve(value("--source-dir") ?? join(chromiumRoot, "third_party/skia"));
+const gnChromiumRoot = resolve(value("--gn-chromium-root")
+  ?? ".chromium-build/worktrees/dm2575/src");
+const gn = resolve(value("--gn")
+  ?? join(gnChromiumRoot, "buildtools/mac/gn"));
+const ninja = resolve(value("--ninja") ?? ".chromium-build/depot_tools/ninja");
 const outputDir = resolve(value("--out") ?? "tests/output/sfns-pinned-skia-collector");
 const sha = (path) => createHash("sha256").update(readFileSync(path)).digest("hex");
 const run = (command, args, cwd) => {
@@ -56,50 +63,53 @@ if (platform() !== "darwin") throw new Error("pinned-Skia SFNS collector build r
 if (!["arm64", "x64"].includes(arch())) throw new Error("unsupported architecture " + arch());
 mkdirSync(outputDir, { recursive: true });
 
-const sourceDir = requestedSource == null
-  ? join(mkdtempSync(join(tmpdir(), "domotion-sfns-skia-")), "source")
-  : resolve(requestedSource);
-const ownsWorktree = requestedSource == null;
+if (!existsSync(chromiumRoot) || !existsSync(sourceDir) || !existsSync(gnChromiumRoot)
+    || !existsSync(gn) || !existsSync(ninja)) {
+  throw new Error("authenticated Skia/GN/Ninja inputs are missing");
+}
+if (run("git", ["rev-parse", "HEAD"], chromiumRoot) !== CHROMIUM_REVISION
+    || run("git", ["rev-parse", "HEAD"], gnChromiumRoot) !== CHROMIUM_REVISION
+    || run("git", ["-C", dirname(ninja), "rev-parse", "HEAD"], ROOT)
+      !== DEPOT_TOOLS_REVISION) {
+  throw new Error("Chromium/depot_tools checkout identity mismatch");
+}
+const actualRevision = run("git", ["rev-parse", "HEAD"], sourceDir);
+const skiaStatus = run("git", ["status", "--porcelain"], sourceDir);
+if (actualRevision !== SKIA_REVISION || skiaStatus !== "") {
+  throw new Error(
+    "Skia checkout must be exact and clean (revision " + actualRevision + ")",
+  );
+}
+const overlayDir = join(sourceDir, "tools/sfns-pinned-skia-collector");
+const rootBuildPath = join(sourceDir, "BUILD.gn");
+const rootBuild = readFileSync(rootBuildPath, "utf8");
+if (existsSync(overlayDir) || rootBuild.includes("DOMOTION_SFNS_PINNED_SKIA_COLLECTOR_DM2586")) {
+  throw new Error("stale DM-2586 Skia collector overlay refused");
+}
 try {
-  if (ownsWorktree) {
-    run("git", [
-      "-C", join(ROOT, "external/skia"), "worktree", "add", "--detach", sourceDir, SKIA_REVISION,
-    ], ROOT);
-    run("git", ["-C", sourceDir, "sparse-checkout", "disable"], ROOT);
-  }
-  const actualRevision = run("git", ["rev-parse", "HEAD"], sourceDir);
-  if (actualRevision !== SKIA_REVISION) {
-    throw new Error("Skia checkout is " + actualRevision + "; required " + SKIA_REVISION);
-  }
-  const overlayDir = join(sourceDir, "tools/sfns-pinned-skia-collector");
   mkdirSync(overlayDir, { recursive: true });
   for (const file of ["BUILD.gn", "sfns_post_conversion_collector.cpp"]) {
     copyFileSync(join(ROOT, "tools/sfns-pinned-skia-collector", file), join(overlayDir, file));
   }
-  const rootBuildPath = join(sourceDir, "BUILD.gn");
-  const rootBuild = readFileSync(rootBuildPath, "utf8");
-  if (!rootBuild.includes('group("dm2577_sfns_collector")')) {
-    writeFileSync(rootBuildPath, rootBuild.trimEnd() + "\n" + ROOT_GROUP, "utf8");
-  }
-  if (!existsSync(join(sourceDir, "bin/gn"))) run("python3", ["bin/fetch-gn"], sourceDir);
-  if (!existsSync(join(sourceDir, "third_party/ninja/ninja"))) {
-    run("python3", ["bin/fetch-ninja"], sourceDir);
-  }
-  run(join(sourceDir, "bin/gn"), [
-    "gen", "out/domotion-sfns", "--args=" + GN_ARGS,
+  writeFileSync(rootBuildPath, rootBuild.trimEnd() + "\n" + ROOT_GROUP, "utf8");
+  run(gn, [
+    "gen", "out/domotion-sfns-dm2586", "--args=" + GN_ARGS,
   ], sourceDir);
-  run(join(sourceDir, "third_party/ninja/ninja"), [
-    "-C", "out/domotion-sfns", "dm2577_sfns_collector",
+  run(ninja, [
+    "-C", "out/domotion-sfns-dm2586", "dm2586_sfns_collector",
   ], sourceDir);
-  const builtBinary = join(sourceDir, "out/domotion-sfns/sfns_post_conversion_collector");
+  const builtBinary = join(
+    sourceDir, "out/domotion-sfns-dm2586/sfns_post_conversion_collector",
+  );
   const outputBinary = join(outputDir, "sfns_post_conversion_collector");
   copyFileSync(builtBinary, outputBinary);
   const clangPath = run("xcrun", ["--find", "clang++"], sourceDir);
   const metadata = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     authority: "proposal-private-pinned-skia",
     chromiumRevision: CHROMIUM_REVISION,
     skiaRevision: SKIA_REVISION,
+    depotToolsRevision: DEPOT_TOOLS_REVISION,
     platform: platform(),
     architecture: arch(),
     gnArgs: GN_ARGS,
@@ -108,10 +118,13 @@ try {
       cppSha256: sha(join(ROOT,
         "tools/sfns-pinned-skia-collector/sfns_post_conversion_collector.cpp")),
       buildGnSha256: sha(join(ROOT, "tools/sfns-pinned-skia-collector/BUILD.gn")),
+      manifestSha256: sha(join(ROOT, "tools/sfns-terminal-mask-manifest.ts")),
+      schemaSha256: sha(join(ROOT, "tools/sfns-pinned-skia-mask-schema.ts")),
+      collectorSha256: sha(join(ROOT, "tools/sfns-pinned-skia-mask-collector.ts")),
     },
     toolchain: {
-      gnSha256: sha(join(sourceDir, "bin/gn")),
-      ninjaSha256: sha(join(sourceDir, "third_party/ninja/ninja")),
+      gnSha256: sha(gn),
+      ninjaSha256: sha(ninja),
       clangPath,
       clangSha256: sha(clangPath),
       clangVersion: run("xcrun", ["clang++", "--version"], sourceDir),
@@ -122,9 +135,6 @@ try {
   writeFileSync(metadataPath, JSON.stringify(metadata, null, 2) + "\n");
   console.log(JSON.stringify({ binary: outputBinary, metadata: metadataPath }));
 } finally {
-  if (ownsWorktree && existsSync(sourceDir)) {
-    run("git", [
-      "-C", join(ROOT, "external/skia"), "worktree", "remove", "--force", sourceDir,
-    ], ROOT);
-  }
+  writeFileSync(rootBuildPath, rootBuild, "utf8");
+  if (existsSync(overlayDir)) rmSync(overlayDir, { recursive: true, force: false });
 }

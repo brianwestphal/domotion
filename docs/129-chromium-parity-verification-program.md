@@ -136,8 +136,19 @@ proposal and validation reuse scenario observation IDs, do not share one
 OTS/typeface, paint/surface, placement/phase, offset/gamma-table evidence
 envelope, and disagree on every post-conversion mask byte. A manual-only CI
 workflow therefore stays fail-closed until aligned independent artifacts are
-recollected. The boundary remains partial; no screenshot tolerance or
-production route may stand in for exact cross-arm equality.
+recollected. DM-2586 now supplies the proposal-side correction: both collectors
+consume a source-owned input-only manifest; an independently executed pinned
+Chromium OTS wrapper authenticates the proposal's decoded SFNT; and proposal v2
+uses Chromium's exact white-paint/surface/matrix envelope with arm-qualified
+IDs, separately retained shaped/strike placement, normalized CoreText metrics,
+full gamma/preblend buffers, records, phases, and masks. Validation v1 remains
+intentionally insufficient. The v2 re-adjudication authenticates and pairs all
+26 observations with zero input-integrity errors, then retains 784 exact
+mismatches rather than hiding them; 338 are the validation-v1 shaped
+advance/offset and full-gamma omissions. DM-2587 must recollect validation from
+the shared manifest before DM-2588 can ratify exact equality. The boundary
+remains partial; no screenshot tolerance or production route may stand in for
+exact cross-arm equality.
 
 Animated viewBox culling uses the one-sided optimization form of this contract
 ([doc 166](166-animated-culling-geometry-oracle.md)): an unculled production SVG
