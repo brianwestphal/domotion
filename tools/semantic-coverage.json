@@ -826,41 +826,51 @@
       "exactStates": [
         "separate -> collapse",
         "whole-row break -> continued-row break",
-        "horizontal -> vertical fragmentation"
+        "horizontal -> vertical fragmentation",
+        "screen fragmentation -> paged-media fragmentation"
       ],
       "uncoveredStates": [
-        "single fragment -> repeated header/footer",
-        "screen fragmentation -> paged-media fragmentation"
+        "single fragment -> repeated header/footer"
       ],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/layout/table",
+        "external/chromium/third_party/blink/renderer/core/layout/paginated_root_layout_algorithm.cc",
         "external/chromium/third_party/blink/renderer/core/paint/table_painters.cc",
         "external/chromium/third_party/blink/renderer/core/paint/pre_paint_tree_walk.cc",
         "external/chromium/third_party/blink/renderer/core/dom/element.cc",
-        "external/chromium/third_party/blink/renderer/core/layout/layout_box.cc"
+        "external/chromium/third_party/blink/renderer/core/layout/layout_box.cc",
+        "external/chromium/third_party/blink/public/devtools_protocol/domains/Page.pdl",
+        "external/chromium/headless/lib/browser/protocol/page_handler.cc",
+        "external/chromium/components/printing/renderer/print_render_frame_helper.cc"
       ],
       "productionOwners": [
         "src/capture/collapsed-border-fragment-record.ts",
         "src/capture/collapsed-border-fragment-cdp.ts",
+        "src/capture/paged-collapsed-table-record.ts",
+        "src/capture/paged-collapsed-table-cdp.ts",
         "src/capture/script/walker/collapsed-border.ts",
         "src/capture/script/walker/borders-backgrounds.ts",
         "src/render/element-tree-to-svg.ts"
       ],
       "oracles": [
         "tools/paint-geometry-oracle.ts",
-        "tools/collapsed-border-fragmentation-oracle.ts"
+        "tools/collapsed-border-fragmentation-oracle.ts",
+        "tools/paged-collapsed-table-ownership-audit.ts"
       ],
       "metamorphicTests": [
         "src/capture/collapsed-border-fragment-record.test.ts",
+        "src/capture/paged-collapsed-table-record.test.ts",
         "src/capture/script/walker/collapsed-border.test.ts",
-        "tests/collapsed-border-fragmentation-oracle.test.ts"
+        "tests/collapsed-border-fragmentation-oracle.test.ts",
+        "tests/paged-collapsed-table-ownership-audit.test.ts"
       ],
       "visualFixtures": [
         "src/capture/collapsed-border-fragment-cdp.e2e.test.ts",
+        "src/capture/paged-collapsed-table-cdp.e2e.test.ts",
         "tests/border-collapse-conflict.e2e.test.ts"
       ],
       "coverage": "partial",
-      "boundary": "DM-2557 authenticates non-repeated screen physical fragments before vector paint: ordered transform-neutral CSSOM/CDP geometry must agree exactly at Blink LayoutUnit granularity and restore exactly, then a versioned record retains fragment, section/paint-slot, global-row, exact row/column-offset, continuation, caption, writing, and source provenance. The explicit-headless pixel-free corpus passes 15 logical discriminators and 11 hostile mutations. Repeated header/footer aliases fail closed pending DM-2558; screen CSSOM cannot observe DM-2559's distinct paged-media tree, and DM-2560 owns the later all-platform logical/final-ink gate. No border tolerance changed.",
+      "boundary": "DM-2557 authenticates non-repeated screen physical fragments before vector paint: ordered transform-neutral CSSOM/CDP geometry must agree exactly at Blink LayoutUnit granularity and restore exactly, then a versioned record retains fragment, section/paint-slot, global-row, exact row/column-offset, continuation, caption, writing, and source provenance. The explicit-headless pixel-free screen corpus passes 15 logical discriminators and 11 hostile mutations. Repeated header/footer aliases fail closed pending explicit occurrence ownership. DM-2559 pins Chromium's transient PrintBegin/page-fragment/PrintEnd lifetime and Page.printToPDF's PDF-only result; a complete private paged schema names page/table/section/global-row/break/repeat/caption/span/edge/joint/writing ownership, while public CDP stays unavailable across seven live cases, eight matrix cells, fourteen named missing facts, and fifteen active mutations. Screen CSSOM and PDF/vector/raster output cannot substitute, all source observations restore exactly, pixelsRead is false, and no border tolerance changed. The later all-platform logical/final-ink gate must preserve that state unless a complete private transport is present.",
       "featureIds": [
         "render.tree-to-svg"
       ],

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6v2eh59le7i7og",
+          "message": {
+            "text": "This call exercises the real Chromium print lifecycle while withholding every logical fact from the returned PDF. The source observation is repeated after print and must match exactly; the PDF contributes only a hash and page count, with logicalFactsDerivedFromPdf and pixelsRead permanently false.",
+            "markdown": "This call exercises the real Chromium print lifecycle while withholding every logical fact from the returned PDF. The source observation is repeated after print and must match exactly; the PDF contributes only a hash and page count, with logicalFactsDerivedFromPdf and pixelsRead permanently false."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/paged-collapsed-table-cdp.ts"
+                },
+                "region": {
+                  "startLine": 113,
+                  "endLine": 148,
+                  "snippet": {
+                    "text": "    const pdf = await page.pdf(PRINT_PARAMETERS);\n    const screenAfter = await observeScreen(page, selector);\n    const pdfText = pdf.toString(\"latin1\");\n    const parametersSha256 = createHash(\"sha256\")\n      .update(JSON.stringify(PRINT_PARAMETERS))\n      .digest(\"hex\");\n    return {\n      record: unavailablePagedCollapsedTableRecord(\n        \"public CDP exposes Page.printToPDF bytes/stream but not Blink's transient paginated PhysicalBoxFragment table facts\",\n      ),\n      sourcePins: PAGED_COLLAPSED_TABLE_SOURCE_PINS,\n      runtime: {\n        product: version.product,\n        revision: version.revision,\n        protocolVersion: version.protocolVersion,\n        userAgent: version.userAgent,\n        jsVersion: version.jsVersion,\n        loaderId: frameTree.frameTree.frame.loaderId,\n        protocolDomains: schema.domains.map((domain) => ({\n          name: domain.name,\n          version: domain.version,\n        })),\n      },\n      screenBefore,\n      screenAfter,\n      sourceRestoredExactly: JSON.stringify(screenBefore) === JSON.stringify(screenAfter),\n      print: {\n        parameters: PRINT_PARAMETERS,\n        parametersSha256,\n        pdfSha256: createHash(\"sha256\").update(pdf).digest(\"hex\"),\n        pdfPageCount: pdfText.match(/\\/Type\\s*\\/Page\\b/g)?.length ?? 0,\n        returnedPayload: \"pdf-bytes\",\n        logicalFactsDerivedFromPdf: false,\n        pixelsRead: false,\n      },\n      protocolSupportsLogicalPrintFragments: false,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 94,
+          "workItemUris": [
+            "DM-2559"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "1ca1cbc7260a2129ae8d6ecc5be69a97"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "03d7e68e04d0ef23e6cc90b1f1d0adfa21eeeb6e",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

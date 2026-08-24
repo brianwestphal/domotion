@@ -177,10 +177,17 @@ conversion; ambiguity withholds vectors instead of reviving CSSOM inference.
 
 Repeatable header/footer rectangles still alias every occurrence to the source
 prototype. Those cases now fail closed pending DM-2558's explicit occurrence
-ownership rather than synthetically placing edges. Paged-media capture remains
-the independent DM-2559 boundary because screen CSSOM cannot expose Blink's
-print fragment tree; `@page` output stays outside the screen-capture contract
-until an authenticated page-fragment transport exists.
+ownership rather than synthetically placing edges. The independent paged-media
+audit now pins Chromium's transient `PrintBegin`/anonymous-page-fragment/
+`PrintEnd` lifetime and the `Page.printToPDF` protocol result. Public CDP returns
+only PDF bytes or a stream, so the paged collapsed-table record explicitly
+withholds all fourteen page/table/section/row/break/repeat/caption/span/edge/
+joint/writing facts. Its seven-case, eight-cell, fifteen-mutation headless audit
+passes only when every route stays unavailable, screen state restores exactly,
+and no PDF/vector/raster fact is promoted. `@page` output therefore remains
+outside vector ownership until a pinned private fragment transport supplies the
+complete logical record; this is a bounded fail-closed result, not inferred
+geometry.
 
 Captioned tables preserve a second, independent box boundary. At the pinned
 revision, `TableLayoutAlgorithm` records `TableGridRect` after top captions and

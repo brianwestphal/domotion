@@ -1,7 +1,7 @@
 # Fragmented collapsed-table physical ownership
 
-**Tickets:** DM-2526, DM-2557
-**Status:** Screen physical section-fragment record authenticated for non-repeated sections; repeated occurrences and paged media remain bounded follow-ups
+**Tickets:** DM-2526, DM-2557, DM-2559, DM-2571
+**Status:** Screen physical section-fragment record authenticated for non-repeated sections; public paged-media ownership explicitly fails closed; repeated occurrences remain a bounded follow-up
 **Source pin:** Chromium `7d859f271cbda744098ac69f44978d4edfa62be3`
 
 ## Verdict
@@ -35,6 +35,23 @@ Paged media is a separate proven gap. In the headless logical print control,
 exposed one table rectangle and one header rectangle. A screen
 `getClientRects()` capture cannot infer the print fragment tree.
 
+DM-2559 closes that boundary without inventing a transport. Pinned Chromium
+enters print mode with `PrintBegin`, constructs anonymous page containers and
+their private physical fragment trees, serializes the selected pages, and calls
+`PrintEnd` before the `Page.printToPDF` callback receives anything. The public
+protocol result contains only PDF bytes or an IO stream. It exposes none of the
+page/table/section occurrence ids, global row intervals, break tokens, repeated
+section roles, row/column offsets, collapsed-edge traversal, or joint decisions
+that `TablePainter` consumes.
+
+`paged-collapsed-table-record.ts` defines the complete private transport that
+would be required to promote print ownership. Its public-CDP producer always
+returns a structured `unavailable` record naming every missing fact. Screen
+CSSOM, PDF operators, vector geometry, and raster pixels are all forbidden as
+substitutes. This is the requested exact rejection route: paged collapsed-table
+vectors cannot be claimed until Chromium exposes, or a pinned native helper
+serializes, the transient `PhysicalBoxFragment` facts directly.
+
 No production renderer, pixel threshold, phase envelope, or tolerance changed.
 The logical oracle reads no screenshot pixels; its print leg reads only PDF
 page structure.
@@ -49,6 +66,9 @@ page structure.
 | Collapsed-border paint | `core/paint/table_painters.cc:35-328,490-727` | Paint iterates physical table fragments and child section fragments, consumes the section's global start row and row offsets, distinguishes whole-row from continued-row breaks, paints half an inline edge at whole-row fragmentainer boundaries, omits that edge at continued-row seams, carries block edges through continuation without joint adjustment, and suppresses the shared row of adjacent sections with `previous_painted_row_index`. Physical writing conversion precedes pixel snapping. |
 | Repeated-section traversal | `core/paint/pre_paint_tree_walk.cc:1290-1312` | Repeated headers and footers receive physical fragment traversal; they are occurrences in the paint tree, not coordinate aliases to be expanded blindly. |
 | CSSOM rectangles | `core/dom/element.cc:3419-3485`; `core/layout/layout_box.cc:1199-1216` | `getClientRects()` returns bounding boxes derived from `AbsoluteQuads()` over physical fragments. It does not serialize global table row identity, section paint slots, row break tokens, or repeat ownership. |
+| Paginated root | `core/layout/paginated_root_layout_algorithm.cc:28-155` | Print creates one anonymous page-container fragment per page, linked by fragmentainer break tokens; page containers have independent coordinate systems and may be rebuilt after total-page-count discovery. |
+| Print lifetime | `components/printing/renderer/print_render_frame_helper.cc:799-944,1085-1135,1368-1420,2273-2398` | `PrintBegin` creates the print layout, page serialization consumes it, and `PrintEnd` destroys print mode before the browser callback completes. The layout tree is a transient renderer-owned object, not persistent screen CSSOM state. |
+| Public print protocol | `third_party/blink/public/devtools_protocol/domains/Page.pdl:922-985`; `headless/lib/browser/protocol/page_handler.cc:37-115` | `Page.printToPDF` accepts paper/range/template controls and returns only base64 PDF data or an IO stream. There is no logical page-fragment result field. |
 
 The source fixtures are the pinned Blink WPT horizontal-tb/LTR,
 vertical-lr/RTL, and vertical-rl/LTR collapsed-border fragmentation cases under
@@ -75,10 +95,20 @@ row.
 - Missing, ambiguous, stale, or aliased records serialize an unavailable
   reason, suppress cell/structural collapsed borders, and return an empty table
   vector list. There is no CSSOM heuristic fallback.
+- `src/capture/paged-collapsed-table-record.ts` defines the only promotable
+  paged record: one authenticated `PrintBegin`-to-`PrintEnd` epoch with page and
+  table occurrence order, section/global-row/break/repeat/caption/span facts,
+  writing progression, global offsets, and collapsed edge/joint decisions.
+- `src/capture/paged-collapsed-table-cdp.ts` exercises real print layout but
+  returns `unavailable` because public CDP carries PDF bytes only. It verifies
+  the screen source restores exactly and permanently records that neither the
+  PDF nor screen rectangles supplied logical ownership.
 
 The remaining screen boundary is repeated section occurrence ownership
-(DM-2558). The independent print fragment transport remains DM-2559, followed
-by DM-2560's all-platform logical and final-ink release legs.
+(DM-2558). Paged media now has an exact fail-closed contract rather than an
+unbounded inference. The later all-platform logical and final-ink release leg
+(DM-2560) must preserve that unavailable state unless a complete private
+transport is present.
 
 ## Headless logical corpus
 
@@ -120,6 +150,35 @@ proves aliased repeats fail closed. `tests/border-collapse-conflict.e2e.test.ts`
 keeps horizontal/vertical, whole/continued-row, span/joint, empty-fragment, and
 repeat-withholding behavior live.
 
+## Headless paged-media capability audit
+
+`tools/paged-collapsed-table-ownership-audit.ts` launches Chromium with
+`headless: true`, invokes its real PDF print path, reads no pixels, and emits a
+schema-1 source/runtime/loader/print-parameter fingerprint. Seven fixtures
+cover eight required cells: whole-row and continued-row breaks, repeated
+header/footer sections, captions, span joints, vertical-lr positive and
+vertical-rl negative block progression, and an empty terminal page.
+
+The audit refuses to run as source-authenticated unless the local sparse
+Chromium checkout resolves to the pinned revision. The retained local run
+matched `7d859f271cbda744098ac69f44978d4edfa62be3` and produced
+3/3/5/3/2/2/3 PDF pages while screen CSSOM
+reported one table rectangle in every case. Every source observation restored
+byte-for-byte after print, every public route returned all fourteen logical
+facts as missing, all fifteen hostile mutations moved, and `pixelsRead` stayed
+`false`. The verdict is
+`public-print-fragment-transport-unavailable-fail-closed`; it is a passing
+contract verdict, not a claim that print fragments were captured.
+
+Run the independent screen and print legs with:
+
+```sh
+npm run borders:collapsed-fragmentation-audit -- --json /tmp/collapsed-border-fragmentation.json
+npm run borders:paged-collapsed-ownership-audit -- --json /tmp/paged-collapsed-table.json
+npx vitest run src/capture/paged-collapsed-table-record.test.ts tests/paged-collapsed-table-ownership-audit.test.ts
+npx vitest run --config vitest.e2e.config.ts src/capture/paged-collapsed-table-cdp.e2e.test.ts
+```
+
 ## Bounded follow-up sequence
 
 1. **DM-2557 — completed.** The versioned source-pinned screen record is
@@ -127,11 +186,16 @@ repeat-withholding behavior live.
 2. **DM-2558 — Replace repeated table header/footer alias heuristic with
    explicit occurrence ownership.** This is blocked by DM-2557 and must consume
    its physical section-fragment record rather than add a second model.
-3. **DM-2559 — Define exact paged-media collapsed-table capture ownership.**
-   This is independent of the screen multicol implementation. It must collect
-   authenticated print fragments or reject the route explicitly; PDF/vector or
-   native raster evidence remains downstream.
-4. **DM-2560 — Gate fragmented collapsed-border records and final ink
+3. **DM-2559 — completed by explicit rejection.** Public CDP has no logical
+   print-fragment result, so the source-pinned record refuses promotion and
+   names all missing ownership facts. PDF/vector/raster evidence remains
+   downstream and cannot fill the record.
+4. **DM-2571 — Expose a pinned Blink paged-table physical-fragment
+   transport.** This investigation owns the native helper or DevTools bridge
+   needed to serialize the complete transient record during the
+   `PrintBegin`-to-`PrintEnd` epoch. It may not reconstruct facts from PDF,
+   screen geometry, raster output, or tolerance.
+5. **DM-2560 — Gate fragmented collapsed-border records and final ink
    independently on all platforms.** This is blocked by DM-2557, DM-2558, and
    DM-2559. The logical Cartesian corpus must pass on macOS, Linux, and Windows
    before a separate native final-ink leg can support release.

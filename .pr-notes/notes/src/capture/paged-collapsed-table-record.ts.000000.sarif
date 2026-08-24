@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6v2egnxugizpgu",
+          "message": {
+            "text": "The schema is intentionally stricter than the public protocol because Blink destroys print mode before Page.printToPDF returns. Promotion requires the private physical fragment facts listed here; screen rectangles and PDF output remain downstream evidence and cannot become geometry. See the public producer at the fail-closed boundary (0).",
+            "markdown": "The schema is intentionally stricter than the public protocol because Blink destroys print mode before Page.printToPDF returns. Promotion requires the private physical fragment facts listed here; screen rectangles and PDF output remain downstream evidence and cannot become geometry. See the public producer at [the fail-closed boundary](0)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/paged-collapsed-table-record.ts"
+                },
+                "region": {
+                  "startLine": 1,
+                  "endLine": 30,
+                  "snippet": {
+                    "text": "/**\n * Exact logical ownership contract for collapsed tables in Blink's paginated\n * fragment tree.\n *\n * The public DevTools protocol does not expose this record. `Page.printToPDF`\n * enters print mode, serializes pages, leaves print mode, and returns only PDF\n * bytes (or a stream). Callers must therefore provide a private Blink fragment\n * transport carrying every field below, or keep the route explicitly\n * unavailable. PDF/vector/raster output is never accepted as logical input.\n */\n\nexport const PAGED_COLLAPSED_TABLE_RECORD_VERSION = 1 as const;\nexport const PAGED_COLLAPSED_TABLE_CHROMIUM_REVISION =\n  \"7d859f271cbda744098ac69f44978d4edfa62be3\" as const;\n\nexport const PAGED_COLLAPSED_TABLE_SOURCE_PINS = {\n  chromium: PAGED_COLLAPSED_TABLE_CHROMIUM_REVISION,\n  pageProtocol:\n    \"third_party/blink/public/devtools_protocol/domains/Page.pdl:922-985\",\n  printLifecycle:\n    \"components/printing/renderer/print_render_frame_helper.cc:799-944,1085-1135,1368-1420,2273-2398\",\n  paginatedRoot:\n    \"third_party/blink/renderer/core/layout/paginated_root_layout_algorithm.cc:28-155\",\n  sectionRows:\n    \"third_party/blink/renderer/core/layout/table/table_section_layout_algorithm.cc:47-164\",\n  repeatedSections:\n    \"third_party/blink/renderer/core/layout/table/table_layout_algorithm.cc:1002-1151,1271-1339,1452-1528,1701-1719\",\n  collapsedPaint:\n    \"third_party/blink/renderer/core/paint/table_painters.cc:35-328,490-727\",\n} as const;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/paged-collapsed-table-cdp.ts"
+                },
+                "region": {
+                  "startLine": 96
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2559"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "529a5104524c2969bdf69148c95292eb"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "03d7e68e04d0ef23e6cc90b1f1d0adfa21eeeb6e",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

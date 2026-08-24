@@ -1154,7 +1154,7 @@ file-backed `CTFontCreateForString` route reaches the protected face. Exact
 primary/fallback identity coverage lives in
 `src/render/generic-script-families.test.ts`; see doc 224.
 
-### Fragmented collapsed-table borders (DM-2526, DM-2557)
+### Fragmented collapsed-table borders (DM-2526, DM-2557, DM-2559)
 
 `collapsed-border-fragment-cdp.ts` correlates ordered CSSOM rectangles with CDP
 content quads in one all-transform-neutral epoch; the pure
@@ -1163,10 +1163,18 @@ canonical geometry and exact source restoration before promoting physical
 fragment ids, section slots, global rows, row/column offsets, continuation,
 caption, writing, and provenance facts. `borders-backgrounds.ts` validates and
 consumes that record once before vector paint and fails closed on ambiguity.
-Repeated header/footer aliases deliberately withhold vectors pending DM-2558;
-paged media remains DM-2559. The explicit-headless schema-2 oracle passes 15
-logical discriminators and 11 hostile mutations without pixels or tolerance
-changes. See [doc 225](../225-fragmented-collapsed-table-ownership.md).
+Repeated header/footer aliases deliberately withhold vectors pending DM-2558.
+For paged media, `paged-collapsed-table-record.ts` defines the complete private
+PrintBegin-to-PrintEnd record needed for page/table/section/row/break/repeat/
+caption/span/edge/joint/writing ownership, while
+`paged-collapsed-table-cdp.ts` runs real print layout and explicitly returns
+`unavailable`: public `Page.printToPDF` exposes only PDF bytes or a stream. The
+screen schema-2 oracle passes 15 logical discriminators/11 mutations; the
+explicit-headless paged audit covers eight matrix cells/15 mutations and passes
+only when the local sparse Chromium checkout matches the source pin, all
+fourteen logical facts stay withheld, source state restores, and pixels remain
+unread. No tolerance changes. See
+[doc 225](../225-fragmented-collapsed-table-ownership.md).
 
 ### Pre-navigation rAF capture ownership (DM-2554)
 

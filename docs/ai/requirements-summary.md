@@ -2406,6 +2406,17 @@ pixel tolerance or fitted font-name table (DM-2550, doc 224).
 - Screen CSSOM fragmentation cannot stand in for paged media. Collect an exact
   print fragment record or fail the print route closed when page/section/row,
   continuation, repetition, and paint-order ownership is unavailable.
+- The public paged route is now **explicitly fail-closed**. Chromium constructs
+  its anonymous page containers and private physical fragments only between
+  `PrintBegin` and `PrintEnd`; `Page.printToPDF` returns PDF bytes/stream after
+  that lifetime and exposes none of the required logical facts. The paged
+  record schema accepts only a source-pinned private fragment transport with
+  exact page/table/section/global-row/break/repeat/caption/span/edge/joint/
+  writing ownership. Its headless seven-case/eight-cell audit names all
+  fourteen missing facts, authenticates the local sparse Chromium revision,
+  proves screen restoration, and rejects screen/PDF/vector/raster substitution
+  through fifteen active mutations. `pixelsRead` is false and no tolerance
+  changed.
 - Keep logical fragment-record gates and native final-ink evidence independent
   on macOS, Linux, and Windows. Pixels may validate the terminal only after the
   logical record passes; they may not fill missing provenance or justify a

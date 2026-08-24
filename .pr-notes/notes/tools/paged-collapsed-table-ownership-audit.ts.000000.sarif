@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6vojujo91v0vfd",
+          "message": {
+            "text": "The explicit-headless audit passed the fail-closed contract against the exact pinned sparse Chromium checkout across seven live fixtures and all eight matrix cells. The retained run produced PDF page counts 3/3/5/3/2/2/3 against one screen table rectangle per case, restored every source observation, named all fourteen missing logical facts, moved all fifteen mutations, and read no pixels.",
+            "markdown": "The explicit-headless audit passed the fail-closed contract against the exact pinned sparse Chromium checkout across seven live fixtures and all eight matrix cells. The retained run produced PDF page counts 3/3/5/3/2/2/3 against one screen table rectangle per case, restored every source observation, named all fourteen missing logical facts, moved all fifteen mutations, and read no pixels."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/paged-collapsed-table-ownership-audit.ts"
+                },
+                "region": {
+                  "startLine": 203,
+                  "endLine": 231,
+                  "snippet": {
+                    "text": "    browser = await chromium.launch({ headless: true });\n    const page = await browser.newPage({\n      viewport: { width: 620, height: 900 },\n      deviceScaleFactor: 1,\n    });\n    const cases: PagedCollapsedTableCaseReport[] = [];\n    for (const fixture of fixtures) cases.push(await runFixture(page, fixture));\n    const localChromiumSourceRevision = execFileSync(\n      \"git\",\n      [\"-C\", resolve(ROOT, \"external/chromium\"), \"rev-parse\", \"HEAD\"],\n      { encoding: \"utf8\" },\n    ).trim();\n    const matrix = new Set(cases.flatMap((row) => row.matrix));\n    const discriminators: PagedCollapsedTableOwnershipReport[\"discriminators\"] = {\n      localChromiumSourceMatchesPin:\n        localChromiumSourceRevision === PAGED_COLLAPSED_TABLE_SOURCE_PINS.chromium,\n      requiredMatrixComplete: REQUIRED_PAGED_COLLAPSED_TABLE_MATRIX.every((cell) => matrix.has(cell)),\n      everyRouteFailsClosed: cases.every((row) => row.collection.record.status === \"unavailable\"\n        && row.collection.protocolSupportsLogicalPrintFragments === false),\n      everyMissingFactNamed: cases.every((row) =>\n        REQUIRED_PAGED_COLLAPSED_TABLE_FACTS.every((fact) => row.collection.record.missingFacts.includes(fact))),\n      printPayloadNeverSuppliesLogicalFacts: cases.every((row) =>\n        row.collection.print.returnedPayload === \"pdf-bytes\"\n        && row.collection.print.logicalFactsDerivedFromPdf === false),\n      screenCssomNeverSubstitutesForPages: cases.every((row) =>\n        row.collection.print.pdfPageCount > (row.collection.screenBefore.tableRectCounts[0] ?? 0)),\n      sourceRestoresAfterPrint: cases.every((row) => row.collection.sourceRestoredExactly),\n      realPaginationWasExercised: cases.every((row) => row.collection.print.pdfPageCount > 1),\n      pixelsRead: cases.some((row) => row.collection.print.pixelsRead),"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2559"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "996fb3379234511151d1a363cdb7a5b0"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8538dbbdf49ac8b487a93565f42a569442520ada",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
