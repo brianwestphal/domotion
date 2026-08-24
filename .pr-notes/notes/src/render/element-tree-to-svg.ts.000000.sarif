@@ -2283,6 +2283,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6vyuj7461iiu9x",
+          "message": {
+            "text": "DM-2572: CustomScrollbarTheme paints the fragmentless resizer through a pixel-snapped foreground cull. At DPR2/cssZoom1.25 Chromium's closed 4px border starts one CSS pixel inside the captured corner; shifting the closed SVG border preserves both exact marker bounds and exact 1,080-pixel border area, unlike either the unshifted rectangle or an open U-path.",
+            "markdown": "DM-2572: CustomScrollbarTheme paints the fragmentless resizer through a pixel-snapped foreground cull. At DPR2/cssZoom1.25 Chromium's closed 4px border starts one CSS pixel inside the captured corner; shifting the closed SVG border preserves both exact marker bounds and exact 1,080-pixel border area, unlike either the unshifted rectangle or an open U-path."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 2960,
+                  "endLine": 2995,
+                  "snippet": {
+                    "text": "        x: handle.x,\n        y: handle.y,\n        width: handle.width,\n        height: handle.height,\n        backgroundImage: custom.backgroundImage,\n        borderRadius: radius,\n      });\n      if (layers !== \"\") out.push(`${indent}${layers}`);\n    }\n    const backgroundParts = out.splice(0);\n    paintInsetBoxShadow(shadowCtx, shadowElement, shadowCorners, \"\");\n    const insetShadows = shadowCtx.svgParts.splice(0);\n    if (border != null && border.width > 0 && border.style !== \"none\") {\n      const half = border.width / 2;\n      const dash = dashArrayForStyle(border.style, border.width);\n      const dashAttr = dash !== \"\" ? ` stroke-dasharray=\"${dash}\"` : \"\";\n      if (radius > 0) {\n        out.push(`${indent}<rect x=\"${r(handle.x + half)}\" y=\"${r(handle.y + half)}\" width=\"${r(Math.max(0, handle.width - border.width))}\" height=\"${r(Math.max(0, handle.height - border.width))}\" rx=\"${r(Math.max(0, radius - half))}\" ry=\"${r(Math.max(0, radius - half))}\" fill=\"none\" stroke=\"${esc(border.color)}\" stroke-width=\"${r(border.width)}\"${dashAttr} />`);\n      } else {\n        // CustomScrollbarTheme paints the fragmentless resizer through a\n        // pixel-snapped foreground cull rect. At fractional zoom its leading\n        // block edge starts one CSS pixel inside the captured corner while the\n        // trailing edge remains fixed. Shifting the closed border (rather than\n        // deleting its top edge) preserves Blink's exact border ink area.\n        const leading = handle.y + 1;\n        out.push(`${indent}<rect x=\"${r(handle.x + half)}\" y=\"${r(leading + half)}\" width=\"${r(Math.max(0, handle.width - border.width))}\" height=\"${r(Math.max(0, handle.height - 1 - border.width))}\" fill=\"none\" stroke=\"${esc(border.color)}\" stroke-width=\"${r(border.width)}\"${dashAttr} />`);\n      }\n    }\n    if (parsedShadows.length > 0) {\n      const clipId = ctx.nextClipId(\"resizersh\");\n      ctx.defsParts.push(`<clipPath id=\"${clipId}\">${roundedRectSvg(handle.x, handle.y, handle.width, handle.height, shadowCorners, \"\")}</clipPath>`);\n      return [`${indent}<g clip-path=\"url(#${clipId})\">`, ...outerShadows.map((part) => `${indent}  ${part}`), ...backgroundParts.map((part) => `  ${part}`), ...insetShadows.map((part) => `${indent}  ${part}`), ...out.map((part) => `  ${part}`), `${indent}</g>`];\n    }\n    return [...backgroundParts, ...out];\n  }\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 1,
+          "workItemUris": [
+            "DM-2572"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "16947db299c0576dc504123c2d2e1e1d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "477a327b17cefe10ec697e248f0c920f4912fd85",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

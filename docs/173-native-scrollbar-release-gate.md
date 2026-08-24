@@ -75,6 +75,12 @@ including their shared corner, before hashing and embedding the source pixels.
 This prevents a theme button that did not respond to marker CSS from silently
 disappearing in the generated result.
 
+For a square custom `::-webkit-resizer`, Blink paints the fragmentless part
+through a pixel-snapped foreground cull. Its leading block-edge border begins
+one CSS pixel inside the captured corner while the trailing edge stays fixed;
+the SVG uses that same shifted closed border so fractional zoom does not add an
+extra top ink row or lose border area.
+
 ## Strict adjudication
 
 `tools/check-native-scrollbar-release.ts` recursively loads the six reports,

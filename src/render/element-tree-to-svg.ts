@@ -2973,7 +2973,17 @@ function paintResizeHandle(
       const half = border.width / 2;
       const dash = dashArrayForStyle(border.style, border.width);
       const dashAttr = dash !== "" ? ` stroke-dasharray="${dash}"` : "";
-      out.push(`${indent}<rect x="${r(handle.x + half)}" y="${r(handle.y + half)}" width="${r(Math.max(0, handle.width - border.width))}" height="${r(Math.max(0, handle.height - border.width))}"${radius > 0 ? ` rx="${r(Math.max(0, radius - half))}" ry="${r(Math.max(0, radius - half))}"` : ""} fill="none" stroke="${esc(border.color)}" stroke-width="${r(border.width)}"${dashAttr} />`);
+      if (radius > 0) {
+        out.push(`${indent}<rect x="${r(handle.x + half)}" y="${r(handle.y + half)}" width="${r(Math.max(0, handle.width - border.width))}" height="${r(Math.max(0, handle.height - border.width))}" rx="${r(Math.max(0, radius - half))}" ry="${r(Math.max(0, radius - half))}" fill="none" stroke="${esc(border.color)}" stroke-width="${r(border.width)}"${dashAttr} />`);
+      } else {
+        // CustomScrollbarTheme paints the fragmentless resizer through a
+        // pixel-snapped foreground cull rect. At fractional zoom its leading
+        // block edge starts one CSS pixel inside the captured corner while the
+        // trailing edge remains fixed. Shifting the closed border (rather than
+        // deleting its top edge) preserves Blink's exact border ink area.
+        const leading = handle.y + 1;
+        out.push(`${indent}<rect x="${r(handle.x + half)}" y="${r(leading + half)}" width="${r(Math.max(0, handle.width - border.width))}" height="${r(Math.max(0, handle.height - 1 - border.width))}" fill="none" stroke="${esc(border.color)}" stroke-width="${r(border.width)}"${dashAttr} />`);
+      }
     }
     if (parsedShadows.length > 0) {
       const clipId = ctx.nextClipId("resizersh");
