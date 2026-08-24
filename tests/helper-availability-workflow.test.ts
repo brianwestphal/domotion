@@ -23,5 +23,9 @@ describe("helper availability all-platform gate", () => {
     const oracle = readFileSync("tools/helper-availability-contract.ts", "utf8");
     expect(oracle).toContain("isGlyphHelperAvailable()");
     expect(oracle).toContain("activation was inert");
+    const routeOracle = readFileSync("tools/renderer-font-route-oracle.ts", "utf8");
+    expect(routeOracle).toContain("helperRouteLedgerEnvironment");
+    expect(routeOracle).toContain('nativeFacts: helperEnvironment.helper.mode === "helper-present"');
+    expect(routeOracle).toContain('"degraded-evidence-complete"');
   });
 });

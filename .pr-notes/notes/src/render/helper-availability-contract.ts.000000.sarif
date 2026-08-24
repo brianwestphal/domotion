@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6s0tvtputo8m4o",
+          "message": {
+            "text": "Renderer-route evidence is comparable only within the same authenticated helper environment. The ledger fingerprint binds the helper mode, reason, implementation-derived cache identity, and fact availability; helper-absent native facts remain withheld rather than becoming a static-chain Chromium claim. Focused mutation tests reject present/absent promotion, changed helper builds, and forged native facts.",
+            "markdown": "Renderer-route evidence is comparable only within the same authenticated helper environment. The ledger fingerprint binds the helper mode, reason, implementation-derived cache identity, and fact availability; helper-absent native facts remain withheld rather than becoming a static-chain Chromium claim. Focused mutation tests reject present/absent promotion, changed helper builds, and forged native facts."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/helper-availability-contract.ts"
+                },
+                "region": {
+                  "startLine": 87,
+                  "endLine": 130,
+                  "snippet": {
+                    "text": "/** Bind a renderer-route ledger to the helper contract that owned its native facts. */\nexport function helperRouteLedgerEnvironment(\n  helper: HelperAvailabilityContract,\n): HelperRouteLedgerEnvironment {\n  const payload = JSON.stringify({\n    schemaVersion: 1,\n    helperVersion: helper.version,\n    platform: helper.platform,\n    mode: helper.mode,\n    reason: helper.reason,\n    cacheIdentity: helper.cacheIdentity,\n    logicalFacts: helper.logicalFacts,\n  });\n  return {\n    schemaVersion: 1,\n    helper: structuredClone(helper),\n    fingerprint: createHash(\"sha256\").update(payload).digest(\"hex\"),\n  };\n}\n\n/**\n * Fail closed before comparing or promoting route records from different\n * helper environments. Native facts from an absent arm are explicitly\n * withheld; they are never treated as a static-chain Chromium answer.\n */\nexport function assertComparableHelperRouteLedgers(\n  left: HelperRouteLedgerEnvironment,\n  right: HelperRouteLedgerEnvironment,\n): void {\n  if (left.fingerprint !== right.fingerprint\n      || left.helper.cacheIdentity !== right.helper.cacheIdentity) {\n    throw new Error(\"renderer route ledgers have different helper availability identities\");\n  }\n  if (left.helper.mode === \"helper-absent\") {\n    const nativeFacts = [\n      left.helper.logicalFacts.installedFaceNomination,\n      left.helper.logicalFacts.systemFallbackOrdering,\n      left.helper.logicalFacts.nativeTraitsAndAxes,\n      left.helper.logicalFacts.nativeGlyphGeometry,\n    ];\n    if (nativeFacts.some((fact) => fact !== \"withheld\")) {\n      throw new Error(\"helper-absent route ledger claimed native-only facts\");\n    }\n  }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2561"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "5b15d58422ed7b3cb3768af96099725a"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "32998a22e9ae8c4f48a7c3d8dc0f51d3d02c3332",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

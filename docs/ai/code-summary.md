@@ -68,6 +68,10 @@ those oracles and emitted glyphs.
 `src/render/text-run-provenance.ts` and
 `tools/renderer-font-route-oracle.ts` close that seam for representative
 production runs without adding overhead unless explicitly enabled (doc 143).
+The route report also embeds the authenticated helper-availability contract:
+its implementation/cache identity is part of the environment fingerprint, and
+helper-absent records explicitly withhold native nomination, ordering, axes,
+traits, and geometry instead of promoting static-chain guesses.
 DM-2511 extends the transition stream to early transform-subtree, text-segment,
 and legacy element capture rasters. The MathML oracle grades that terminal on
 the unchanged capture and obtains exact pre-terminal selection by rerunning a

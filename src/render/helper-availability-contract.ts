@@ -26,6 +26,12 @@ export interface HelperAvailabilityContract {
   };
 }
 
+export interface HelperRouteLedgerEnvironment {
+  schemaVersion: 1;
+  helper: HelperAvailabilityContract;
+  fingerprint: string;
+}
+
 /**
  * Classify the helper route without converting absence into a parity claim.
  * `implementationIdentity` is the authenticated helper version/build digest in
@@ -76,4 +82,50 @@ export function helperAvailabilityContract(input: {
       nativeGlyphGeometry: nativeFact,
     },
   };
+}
+
+/** Bind a renderer-route ledger to the helper contract that owned its native facts. */
+export function helperRouteLedgerEnvironment(
+  helper: HelperAvailabilityContract,
+): HelperRouteLedgerEnvironment {
+  const payload = JSON.stringify({
+    schemaVersion: 1,
+    helperVersion: helper.version,
+    platform: helper.platform,
+    mode: helper.mode,
+    reason: helper.reason,
+    cacheIdentity: helper.cacheIdentity,
+    logicalFacts: helper.logicalFacts,
+  });
+  return {
+    schemaVersion: 1,
+    helper: structuredClone(helper),
+    fingerprint: createHash("sha256").update(payload).digest("hex"),
+  };
+}
+
+/**
+ * Fail closed before comparing or promoting route records from different
+ * helper environments. Native facts from an absent arm are explicitly
+ * withheld; they are never treated as a static-chain Chromium answer.
+ */
+export function assertComparableHelperRouteLedgers(
+  left: HelperRouteLedgerEnvironment,
+  right: HelperRouteLedgerEnvironment,
+): void {
+  if (left.fingerprint !== right.fingerprint
+      || left.helper.cacheIdentity !== right.helper.cacheIdentity) {
+    throw new Error("renderer route ledgers have different helper availability identities");
+  }
+  if (left.helper.mode === "helper-absent") {
+    const nativeFacts = [
+      left.helper.logicalFacts.installedFaceNomination,
+      left.helper.logicalFacts.systemFallbackOrdering,
+      left.helper.logicalFacts.nativeTraitsAndAxes,
+      left.helper.logicalFacts.nativeGlyphGeometry,
+    ];
+    if (nativeFacts.some((fact) => fact !== "withheld")) {
+      throw new Error("helper-absent route ledger claimed native-only facts");
+    }
+  }
 }

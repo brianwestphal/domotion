@@ -1,5 +1,7 @@
 #!/usr/bin/env tsx
-import { writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import { readFileSync, writeFileSync } from "node:fs";
 import { chromium } from "playwright";
 import {
   clearEmbeddedFonts,
@@ -13,6 +15,8 @@ import {
   type RenderTextMode,
 } from "../src/render/text-to-path.js";
 import type { FontVariantEmojiOverride } from "../src/render/font-resolution.js";
+import { isGlyphHelperAvailable, resolvedGlyphHelperPathForEvidence } from "../src/render/glyph-helper.js";
+import { helperAvailabilityContract, helperRouteLedgerEnvironment } from "../src/render/helper-availability-contract.js";
 import { parityEnvironment } from "./parity-environment.js";
 import { bidiLevelsFor, segmentForShaping } from "../src/render/script-segmentation.js";
 import bidiFactory from "bidi-js";
@@ -90,6 +94,21 @@ function graphemeCandidates(text: string): Array<{ start: number; end: number }>
 }
 
 async function main(): Promise<number> {
+  const helperObserved = isGlyphHelperAvailable();
+  const helperPath = resolvedGlyphHelperPathForEvidence();
+  const helperImplementationIdentity = helperPath == null
+    ? ""
+    : createHash("sha256")
+      .update(execFileSync(helperPath, ["--version"], { encoding: "utf8" }).trim())
+      .update("\0")
+      .update(readFileSync(helperPath))
+      .digest("hex");
+  const helperEnvironment = helperRouteLedgerEnvironment(helperAvailabilityContract({
+    platform: process.platform as "darwin" | "linux" | "win32",
+    helperObserved,
+    explicitlyDisabled: process.env.DOMOTION_DISABLE_HELPER === "1",
+    implementationIdentity: helperImplementationIdentity,
+  }));
   setTextRunProvenanceEnabled(true);
   const domotion = [];
   const previousCluster = process.env.DOMOTION_CLUSTER_FALLBACK;
@@ -167,7 +186,18 @@ async function main(): Promise<number> {
         const name = run.selected.instantiatedPostscriptName ?? run.selected.postscriptName;
         return name == null ? null : chromeNames.some((chrome) => normalizeFace(chrome) === normalizeFace(name));
       });
-      records.push({ input: item, chrome: { fonts, origins }, domotion: ours, logical: { segments }, comparison: { faceAgreement, graded: item.gradeFaces !== false, rasterPhase: "separate-visual-oracle" } });
+      records.push({
+        input: item,
+        chrome: { fonts, origins },
+        domotion: ours,
+        logical: { segments },
+        comparison: {
+          faceAgreement,
+          graded: item.gradeFaces !== false && helperEnvironment.helper.mode === "helper-present",
+          nativeFacts: helperEnvironment.helper.mode === "helper-present" ? "native-observed" : "withheld",
+          rasterPhase: "separate-visual-oracle",
+        },
+      });
     }
     const byId = new Map(records.map((record) => [record.input.id, record]));
     const mechanisms = [...new Set(records.flatMap((record) => record.domotion.runs.map((run) => run.mechanism)))];
@@ -275,8 +305,11 @@ async function main(): Promise<number> {
       schemaVersion: 3,
       stage: "production-text-run-provenance",
       sourceRevision: "chromium:7d859f271cbda744098ac69f44978d4edfa62be3",
-      verdict: complete ? "evidence-complete" : "verdict-withheld",
+      verdict: complete
+        ? helperEnvironment.helper.mode === "helper-present" ? "evidence-complete" : "degraded-evidence-complete"
+        : "verdict-withheld",
       environment: parityEnvironment({ corpusIdentity: "renderer-font-route-v3", sampleIdentity: cases.map((item) => item.id).join(",") }),
+      routeEnvironment: helperEnvironment,
       mechanisms,
       controls,
       records,

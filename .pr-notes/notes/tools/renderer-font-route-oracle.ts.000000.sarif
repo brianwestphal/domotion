@@ -219,6 +219,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6s0u1fripo5q7h",
+          "message": {
+            "text": "The real renderer-route producer authenticates the selected helper with its --version output and binary bytes before rendering. A headless macOS run produced evidence-complete with all 29 records native-observed; the explicit cache-invalidation test proves DOMOTIONDISABLEHELPER moves the production predicate and yields an incomparable ledger identity.",
+            "markdown": "The real renderer-route producer authenticates the selected helper with its --version output and binary bytes before rendering. A headless macOS run produced evidence-complete with all 29 records native-observed; the explicit cache-invalidation test proves DOMOTION_DISABLE_HELPER moves the production predicate and yields an incomparable ledger identity."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/renderer-font-route-oracle.ts"
+                },
+                "region": {
+                  "startLine": 96,
+                  "endLine": 111,
+                  "snippet": {
+                    "text": "async function main(): Promise<number> {\n  const helperObserved = isGlyphHelperAvailable();\n  const helperPath = resolvedGlyphHelperPathForEvidence();\n  const helperImplementationIdentity = helperPath == null\n    ? \"\"\n    : createHash(\"sha256\")\n      .update(execFileSync(helperPath, [\"--version\"], { encoding: \"utf8\" }).trim())\n      .update(\"\\0\")\n      .update(readFileSync(helperPath))\n      .digest(\"hex\");\n  const helperEnvironment = helperRouteLedgerEnvironment(helperAvailabilityContract({\n    platform: process.platform as \"darwin\" | \"linux\" | \"win32\",\n    helperObserved,\n    explicitlyDisabled: process.env.DOMOTION_DISABLE_HELPER === \"1\",\n    implementationIdentity: helperImplementationIdentity,\n  }));"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 88,
+          "workItemUris": [
+            "DM-2561"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "bdb8d06588a937b3216287cd017f5afb"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "32998a22e9ae8c4f48a7c3d8dc0f51d3d02c3332",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

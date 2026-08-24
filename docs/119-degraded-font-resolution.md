@@ -89,3 +89,10 @@ and axes, and native glyph geometry as `withheld`. The two arms include the
 route and reason in `cacheIdentity`; equality is a hard failure. This gate has
 no raster output, pixel threshold, or claim that the static chain reproduced a
 native answer.
+
+The production renderer-route ledger embeds that contract and a canonical
+ledger fingerprint. Installed-face nomination, system fallback ordering,
+native axes/traits, and native glyph geometry are `native-observed` only in the
+authenticated helper-present arm; the degraded arm records them as `withheld`.
+Ledgers with different helper cache identities cannot be compared or promoted,
+including after explicit font-environment cache invalidation changes the arm.

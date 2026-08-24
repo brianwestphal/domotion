@@ -85,6 +85,11 @@ export function isGlyphHelperAvailable(): boolean {
   return helperAvailable;
 }
 
+/** Evidence-only access to the exact resolved helper selected for this run. */
+export function resolvedGlyphHelperPathForEvidence(): string | null {
+  return isGlyphHelperAvailable() ? (helperPath ?? null) : null;
+}
+
 interface PathCommand { command: string; args: number[] }
 
 /**

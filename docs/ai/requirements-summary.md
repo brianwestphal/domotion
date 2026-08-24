@@ -406,7 +406,10 @@ they describe (see `CLAUDE.md` "Documentation"):
   when automatic helper acquisition fails, and explicitly relinquish Chromium
   parity for installed-family selection, fallback faces, traits, axes, and
   pixels. Helper-present routing remains live-before-static; Windows retains
-  its Chromium-derived hardcoded nomination stage.
+  its Chromium-derived hardcoded nomination stage. Renderer-route evidence must
+  fingerprint the helper implementation and availability arm; records from
+  different arms are incomparable after cache invalidation, and native-only
+  facts in the absent arm are explicitly withheld.
 
 - **Doc 126 (`docs/126-backdrop-filter-isolation.md`, DM-2171) — Shipped for
   direct target isolation; source-surface transitions remain partial.**
