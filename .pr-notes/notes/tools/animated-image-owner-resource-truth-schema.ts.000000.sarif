@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex GPT-5",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt7lefxpumskrak2",
+          "message": {
+            "text": "Cross-build normalization removes only run-local identities and intrinsically volatile candidate tokens while retaining the body SHA, selected/response URL semantics, slot, cache/revalidation/service-worker facts, and every expected outcome. Raw reports still retain and validate the exact per-transaction candidate and epoch digests; the normalized stream exists solely so fresh processes and operating systems can be compared without equating their pointer-derived identifiers.",
+            "markdown": "Cross-build normalization removes only run-local identities and intrinsically volatile candidate tokens while retaining the body SHA, selected/response URL semantics, slot, cache/revalidation/service-worker facts, and every expected outcome. Raw reports still retain and validate the exact per-transaction candidate and epoch digests; the normalized stream exists solely so fresh processes and operating systems can be compared without equating their pointer-derived identifiers."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/animated-image-owner-resource-truth-schema.ts"
+                },
+                "region": {
+                  "startLine": 1134,
+                  "endLine": 1210,
+                  "snippet": {
+                    "text": "      },\n      requestIdentity: value.requestIdentity == null ? null : {\n        requestMode: value.requestIdentity.requestMode,\n        credentialsMode: value.requestIdentity.credentialsMode,\n      },\n    };\n  }\n  return {\n    outcome: value.outcome,\n    strictRequest: {\n      requestedFrameIndex: value.strictRequest.requestedFrameIndex,\n      limitsFingerprint: value.strictRequest.limitsFingerprint,\n    },\n    owner: {\n      kind: value.owner.kind,\n      shadowRootTypes: value.owner.shadowRootTypes,\n      pseudoType: value.owner.pseudo?.type ?? null,\n      slot: value.owner.slot,\n      currentSrc: value.owner.currentSrc == null ? null : normalizeUrl(value.owner.currentSrc),\n      selectedResourceUrl: normalizeUrl(value.owner.selectedResourceUrl),\n      // This digest intentionally binds the exact source attributes only\n      // within one helper transaction. It can include per-context blob UUIDs\n      // and loopback ports, so the cross-build logical digest records that the\n      // validated epoch exists without comparing its run-local hash value.\n      candidateFactsSha256: \"<authenticated-per-run>\",\n      devicePixelRatio: value.owner.devicePixelRatio,\n      viewportSha256: value.owner.viewportSha256,\n    },\n    resource: {\n      requestMode: value.resource.requestMode,\n      credentialsMode: value.resource.credentialsMode,\n      redirects: value.resource.redirects.map((redirect) => ({\n        requestUrl: normalizeUrl(redirect.requestUrl),\n        responseUrl: normalizeUrl(redirect.responseUrl),\n        status: redirect.status,\n      })),\n      currentRequestUrl: normalizeUrl(value.resource.currentRequestUrl),\n      responseUrl: normalizeUrl(value.resource.responseUrl),\n      status: value.resource.status,\n      mimeType: value.resource.mimeType,\n      rawContentType: value.resource.rawContentType,\n      fetchResponseType: value.resource.fetchResponseType,\n      corsSameOrigin: value.resource.corsSameOrigin,\n      singleSecurityOrigin: value.resource.singleSecurityOrigin,\n      fromDiskCache: value.resource.fromDiskCache,\n      fromMemoryCache: value.resource.fromMemoryCache,\n      // The raw artifact retains the exact count. Cross-build adjudication\n      // compares the logical fact that an exact memory-cache use occurred;\n      // platform cache bookkeeping may perform additional equivalent lookups.\n      memoryCacheHitObserved: value.resource.memoryCacheHitCount > 0,\n      fromServiceWorker: value.resource.fromServiceWorker,\n      serviceWorkerControllerPresent:\n        value.resource.serviceWorkerControllerVersionId !== null,\n      serviceWorkerResponseSource: value.resource.serviceWorkerResponseSource,\n      serviceWorkerRouterSha256: value.resource.serviceWorkerRouterSha256,\n      serviceWorkerUrlList: value.resource.serviceWorkerUrlList.map(normalizeUrl),\n      cacheStorageCacheName: value.resource.cacheStorageCacheName,\n      revalidationCount: value.resource.revalidationCount,\n      lastRevalidationStatus: value.resource.lastRevalidationStatus,\n      resourceResponseSequence: value.epochs.resourceResponseSequence,\n    },\n    body: value.body,\n  };\n}\n\nexport function normalizedAnimatedImageTruthRowsSha256(\n  rows: AnimatedImageTruthProbeRow[],\n): string {\n  return animatedImageTruthSha256([...rows]\n    .sort((left, right) => `${left.probeId}/${left.caseId}`.localeCompare(`${right.probeId}/${right.caseId}`))\n    .map((row) => ({\n      probeId: row.probeId,\n      caseId: row.caseId,\n      expected: row.expected,\n      begin: normalizedRecord(row.begin),\n      finish: normalizedRecord(row.finish),\n      transactionUnchanged: row.transactionUnchanged,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/animated-image-owner-resource-truth-schema.ts"
+                },
+                "region": {
+                  "startLine": 1347
+                }
+              }
+            }
+          ],
+          "rank": 88,
+          "workItemUris": [
+            "DM-2583"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "7f39fa8412e210a580a5de5078aae072"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt7pju4aawumse2u",
+          "message": {
+            "text": "A six-arm report cannot establish authority merely by carrying well-formed hashes that agree with each other. The adjudicator therefore pins DM-2583's exact normalized helper patch and reopened source-manifest identities, then requires the expected headless_shell token and mapped Blink core/platform components for each arm. Hostile tests replace all six reports with one mutually consistent foreign authority and corrupt binary manifests; both cases remain withheld, while the retained proposal and validation pass with only the four truly absent OS arms.",
+            "markdown": "A six-arm report cannot establish authority merely by carrying well-formed hashes that agree with each other. The adjudicator therefore pins DM-2583's exact normalized helper patch and reopened source-manifest identities, then requires the expected headless_shell token and mapped Blink core/platform components for each arm. Hostile tests replace all six reports with one mutually consistent foreign authority and corrupt binary manifests; both cases remain withheld, while the retained proposal and validation pass with only the four truly absent OS arms."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/animated-image-owner-resource-truth-schema.ts"
+                },
+                "region": {
+                  "startLine": 1396,
+                  "endLine": 1458,
+                  "snippet": {
+                    "text": "    }\n    if (report.schemaSha256 !== ANIMATED_IMAGE_TRUTH_SCHEMA_SHA256) {\n      failures.push(`${key}: schema digest drift`);\n    }\n    validateSha(report.sourceManifestSha256, `${key}.sourceManifestSha256`, failures);\n    validateSha(report.patchSha256, `${key}.patchSha256`, failures);\n    if (report.sourceManifestSha256 !==\n        ANIMATED_IMAGE_TRUTH_SOURCE_MANIFEST_SHA256) {\n      failures.push(`${key}: source-manifest authority drift`);\n    }\n    if (report.patchSha256 !== ANIMATED_IMAGE_TRUTH_PATCH_SHA256) {\n      failures.push(`${key}: helper patch authority drift`);\n    }\n    validateSha(report.normalizedLogicalSha256, `${key}.normalizedLogicalSha256`, failures);\n    if (report.explicitHeadless !== true) failures.push(`${key}: browser launch was not explicitly headless`);\n    if (typeof report.buildInvocationId !== \"string\" ||\n        report.buildInvocationId.length === 0 ||\n        typeof report.observationId !== \"string\" || report.observationId.length === 0 ||\n        typeof report.browserContextId !== \"string\" || report.browserContextId.length === 0 ||\n        !Number.isInteger(report.browserProcessId) || report.browserProcessId <= 0) {\n      failures.push(`${key}: build/process/context provenance incomplete`);\n    }\n    if (!exactKeys(\n      report.binaries, BINARIES_KEYS, `${key}.binaries`, failures,\n    )) continue;\n    const browserIsValid = validateBinary(\n      report.binaries.browser, `${key}.browser`, failures,\n    );\n    const rendererIsValid = validateBinary(\n      report.binaries.renderer, `${key}.renderer`, failures,\n    );\n    if (browserIsValid && rendererIsValid) {\n      if (report.binaries.browser.sha256 !== report.binaries.renderer.sha256 ||\n          report.binaries.browser.byteLength !== report.binaries.renderer.byteLength) {\n        failures.push(`${key}: multiprocess browser/renderer executable identity differs`);\n      }\n      const expectedExecutableToken = report.operatingSystem === \"Windows\"\n        ? \"headless_shell.exe\"\n        : \"headless_shell\";\n      if (report.binaries.browser.pathToken !== expectedExecutableToken ||\n          report.binaries.renderer.pathToken !== expectedExecutableToken) {\n        failures.push(`${key}: browser/renderer executable path token drift`);\n      }\n    }\n    if (!Array.isArray(report.binaries.loadedLibraries)) {\n      failures.push(`${key}.loadedLibraries: expected an array`);\n      continue;\n    }\n    const validLibraries = report.binaries.loadedLibraries.flatMap(\n      (binary, index) => validateBinary(\n        binary, `${key}.loadedLibraries[${index}]`, failures,\n      ) ? [binary] : [],\n    );\n    const libraryTokens = validLibraries.map((binary) =>\n      binary.pathToken.toLowerCase());\n    if (validLibraries.length !== report.binaries.loadedLibraries.length) {\n      failures.push(`${key}: loaded-library manifest contains malformed entries`);\n    } else if (new Set(libraryTokens).size !== libraryTokens.length) {\n      failures.push(`${key}: loaded-library manifest contains duplicate paths`);\n    }\n    if (!libraryTokens.some((token) => token.includes(\"blink_core\")) ||\n        !libraryTokens.some((token) => token.includes(\"blink_platform\"))) {\n      failures.push(`${key}: loaded-library manifest lacks Blink core/platform`);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 98,
+          "workItemUris": [
+            "DM-2583"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "5300edfb0524a6fb6bdd71f110c18301"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d1ceb8c7a3e26bdb453aabd179f7374bf6544e74",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

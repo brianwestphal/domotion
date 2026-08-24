@@ -427,6 +427,68 @@ Every browser arm in those tickets must launch Chromium with explicit
 retain source revision, browser version, OS/arch, request ledger, logical
 records, and mutation results. Sensitive denied bodies are never artifacts.
 
+## Implemented private-oracle evidence
+
+DM-2583 implements this investigation oracle as an evidence-only private
+Chromium patch; it does not put patched Chromium on Domotion's production
+runtime path. The reproducible 26-file patch is
+`tools/animated-image-owner-resource-truth-chromium.patch` (file SHA-256
+`3665513738fd42e310ec382c2087949927c805abeab4b0da2bd9e07213f51afa`). It
+applies cleanly to the pinned revision above. Its normalized source patch
+identity is
+`93e150ec097a69dd4ef923bc223570ca7da3c647526cf147b1b3c3b1170e174f`;
+the reopened source-manifest identity is
+`3dc66cab6e2982a336eb275cc808a260b590b535ed304a0701c43350f3b838cd`.
+
+The private `DomotionAnimatedImageTruth` renderer domain is excluded from
+untrusted DevTools clients. It resolves the exact owner and slot directly to
+`ImageResourceContent` and its `Resource`, then requires that exact pointer in
+the inspector request ledger. Its response, redirect, cache, active/settled
+revalidation, service-worker/router, CORS, single-origin, and `ResourceBuffer`
+facts are bounded and snapshotted before and after public-body collection.
+Only an authorized unchanged record carries body length/SHA. Every denial is
+constructed before body serialization and has an exact safe structural key
+set; even a debugger-readable no-CORS body is discarded without its bytes,
+length, digest, URL query, protocol payload, or error entering an artifact.
+
+The stable evidence surface is split deliberately:
+
+- `tools/animated-image-owner-resource-truth-schema.ts` owns schema SHA-256
+  `52969c415240f444dde400e0bd6920f0aee0ff2c68787a4edfe204b8c958b2c5`,
+  22 source-linked probes, 38 exact cases, strict redaction, logical
+  normalization, and the six-artifact adjudicator;
+- the probes and fixture server retain source references and exercise every
+  HTML, SVG, input, CSS layer/item, image-set, generated-pseudo, closed-shadow,
+  cache, redirect, revalidation, service-worker, CORS, data/blob, multipart,
+  adoption, detachment, DPR, and stale-navigation route required above;
+- the collector has one browser launch site, always passes `headless: true`,
+  uses hard timeouts for private calls and teardown, authenticates live browser
+  and renderer executable/library mappings, and serializes only rows that pass
+  the exact schema; and
+- the adjudicator reopens and hashes each complete input file, checks fresh
+  proposal/validation build/process/context independence on every OS, compares
+  the normalized logical digest exactly, and self-hashes its sorted report.
+
+The first retained macOS proposal contains all 38 rows (20 authorized and 18
+body-free denied) with normalized logical SHA-256
+`2af7b4b95aeac7f8bd94c2f619e7b2bbdbb9c7c676a54f0ea8b4e63940eade5a`.
+Its artifact SHA-256 is
+`53e7a5f8bf43d47545bcf13a5a930a1fbca25e69fdeb6a04143d4eb6f278d61e`.
+The independently rebuilt macOS validation arm contains the same 38 rows and
+20/18 authorization split, with distinct build, process, observation, and
+browser-context provenance. Its artifact SHA-256 is
+`e8333f8e2d19d9cff00eba6e0a4a894f72edc9db48cc935f3ea9a06153c96f08`,
+and it reopens to the same normalized logical SHA-256 above.
+
+The retained two-arm adjudication file SHA-256 is
+`0d4ce53fa5e5730b5138a75bed4496c7741f51b9b507491aabc7b9c5eb513f26`;
+its canonical report self-hash is
+`6cc9deb0697a4d865b742228b83e4a479279c5c69dab8cff3d3261f41d38706d`.
+It withholds the global verdict for exactly four absent artifacts: Linux
+proposal/validation and Windows proposal/validation, owned by DM-2589. The
+macOS pair is a private logical evidence checkpoint, not authorization for the
+stock-CDP or production collectors and not a macOS-only global verdict.
+
 ## Follow-up ownership
 
 The implementation sequence is deliberately split:

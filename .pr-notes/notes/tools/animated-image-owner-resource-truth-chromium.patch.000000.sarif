@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex GPT-5",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt7lenepjqlfxoow",
+          "message": {
+            "text": "This is the complete reproducible 26-file private Chromium change, not a sketch extracted from generated output. Its whitespace-clean file SHA-256 is 3665513738fd42e310ec382c2087949927c805abeab4b0da2bd9e07213f51afa, the embedded normalized source authority is 93e150ec097a69dd4ef923bc223570ca7da3c647526cf147b1b3c3b1170e174f, and exact forward/reverse git apply --check succeeds at Chromium 7d859f271cbda744098ac69f44978d4edfa62be3.",
+            "markdown": "This is the complete reproducible 26-file private Chromium change, not a sketch extracted from generated output. Its whitespace-clean file SHA-256 is 3665513738fd42e310ec382c2087949927c805abeab4b0da2bd9e07213f51afa, the embedded normalized source authority is 93e150ec097a69dd4ef923bc223570ca7da3c647526cf147b1b3c3b1170e174f, and exact forward/reverse git apply --check succeeds at Chromium 7d859f271cbda744098ac69f44978d4edfa62be3."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/animated-image-owner-resource-truth-chromium.patch"
+                },
+                "region": {
+                  "startLine": 1,
+                  "endLine": 13,
+                  "snippet": {
+                    "text": "diff --git a/third_party/blink/public/devtools_protocol/BUILD.gn b/third_party/blink/public/devtools_protocol/BUILD.gn\nindex d88feab1fb458d2dafc26236981aaaccc765f41f..199f4dc2278906db78380c47d763ee74ff39a8e8 100644\n--- a/third_party/blink/public/devtools_protocol/BUILD.gn\n+++ b/third_party/blink/public/devtools_protocol/BUILD.gn\n@@ -21,6 +21,7 @@ domains = [\n   \"domains/DOMDebugger.pdl\",\n   \"domains/DOMSnapshot.pdl\",\n   \"domains/DOMStorage.pdl\",\n+  \"domains/DomotionAnimatedImageTruth.pdl\",\n   \"domains/DeviceAccess.pdl\",\n   \"domains/DeviceOrientation.pdl\",\n   \"domains/Emulation.pdl\",\ndiff --git a/third_party/blink/public/devtools_protocol/browser_protocol.pdl b/third_party/blink/public/devtools_protocol/browser_protocol.pdl"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/animated-image-owner-resource-truth-manifest.mjs"
+                },
+                "region": {
+                  "startLine": 18
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2583"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "268dd622d76c83aed0edbe3d1fd88685"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d1ceb8c7a3e26bdb453aabd179f7374bf6544e74",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

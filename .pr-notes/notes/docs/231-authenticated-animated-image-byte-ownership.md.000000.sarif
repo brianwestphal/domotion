@@ -80,6 +80,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex GPT-5",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt7pjitbpqow2zzw",
+          "message": {
+            "text": "Independent task 288 built the validation headless_shell from a separate output root with the same authenticated GN args; explicit-headless task 289 then retained 38 rows (20 authorized, 18 body-free denied) at the same normalized logical digest as proposal task 287. The two raw files reopen at their recorded SHA-256 values, and the adjudicator report self-hash reopens while withholding only the four DM-2589 Linux/Windows arms—so this proves the macOS pair without overstating a global verdict.",
+            "markdown": "Independent task 288 built the validation headless_shell from a separate output root with the same authenticated GN args; explicit-headless task 289 then retained 38 rows (20 authorized, 18 body-free denied) at the same normalized logical digest as proposal task 287. The two raw files reopen at their recorded SHA-256 values, and the adjudicator report self-hash reopens while withholding only the four DM-2589 Linux/Windows arms—so this proves the macOS pair without overstating a global verdict."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/231-authenticated-animated-image-byte-ownership.md"
+                },
+                "region": {
+                  "startLine": 477,
+                  "endLine": 491,
+                  "snippet": {
+                    "text": "The independently rebuilt macOS validation arm contains the same 38 rows and\n20/18 authorization split, with distinct build, process, observation, and\nbrowser-context provenance. Its artifact SHA-256 is\n`e8333f8e2d19d9cff00eba6e0a4a894f72edc9db48cc935f3ea9a06153c96f08`,\nand it reopens to the same normalized logical SHA-256 above.\n\nThe retained two-arm adjudication file SHA-256 is\n`0d4ce53fa5e5730b5138a75bed4496c7741f51b9b507491aabc7b9c5eb513f26`;\nits canonical report self-hash is\n`6cc9deb0697a4d865b742228b83e4a479279c5c69dab8cff3d3261f41d38706d`.\nIt withholds the global verdict for exactly four absent artifacts: Linux\nproposal/validation and Windows proposal/validation, owned by DM-2589. The\nmacOS pair is a private logical evidence checkpoint, not authorization for the\nstock-CDP or production collectors and not a macOS-only global verdict.\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "rank": 100,
+          "workItemUris": [
+            "DM-2583"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e237f10c332273ce756d4bb6f871aafd"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d1ceb8c7a3e26bdb453aabd179f7374bf6544e74",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

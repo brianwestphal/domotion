@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex GPT-5",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt7le493r8li3kjc",
+          "message": {
+            "text": "Private-domain calls and teardown are hard-bounded because an inspector traversal or crashed renderer can otherwise strand the evidence worker indefinitely. Timeout and teardown errors use fixed safe labels and are discarded without interpolating protocol payloads, preserving the denied-body non-serialization boundary even on failure.",
+            "markdown": "Private-domain calls and teardown are hard-bounded because an inspector traversal or crashed renderer can otherwise strand the evidence worker indefinitely. Timeout and teardown errors use fixed safe labels and are discarded without interpolating protocol payloads, preserving the denied-body non-serialization boundary even on failure."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/animated-image-owner-resource-truth-collector.ts"
+                },
+                "region": {
+                  "startLine": 143,
+                  "endLine": 184,
+                  "snippet": {
+                    "text": "async function bounded<T>(\n  operation: Promise<T>,\n  milliseconds: number,\n  safeLabel: string,\n): Promise<T> {\n  let timeout: ReturnType<typeof setTimeout> | undefined;\n  try {\n    return await Promise.race([\n      operation,\n      new Promise<never>((_resolve, reject) => {\n        timeout = setTimeout(\n          () => reject(new Error(safeLabel)),\n          milliseconds,\n        );\n      }),\n    ]);\n  } finally {\n    if (timeout) clearTimeout(timeout);\n  }\n}\n\nasync function sendPrivate<T>(\n  cdp: CDPSession,\n  method: \"DomotionAnimatedImageTruth.begin\" |\n    \"DomotionAnimatedImageTruth.finish\",\n  params: Record<string, unknown>,\n): Promise<T> {\n  return await bounded(\n    cdp.send(method as never, params as never) as unknown as Promise<T>,\n    PRIVATE_PROTOCOL_TIMEOUT_MS,\n    \"bounded private protocol timeout\",\n  );\n}\n\nasync function boundedTeardown(operation: Promise<unknown>): Promise<void> {\n  try {\n    await bounded(operation, TEARDOWN_TIMEOUT_MS, \"bounded teardown timeout\");\n  } catch {\n    // Teardown diagnostics must not replace the already sealed failure stage,\n    // and protocol errors may contain resource facts. Discard them entirely.\n  }\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2583"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "2e5b7b07cab901f890c064485a2832ad"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt7le8mrzlm3e3oe",
+          "message": {
+            "text": "Denied bytes can exist only transiently inside the trusted collector and never enter a retained row. A denied Network.getResponseBody result is immediately dropped without logging; if an authorized preflight later denies, the preflight record and public digest are replaced by the sanitized finish denial, and the schema revalidates the exact safe envelope before serialization.",
+            "markdown": "Denied bytes can exist only transiently inside the trusted collector and never enter a retained row. A denied Network.getResponseBody result is immediately dropped without logging; if an authorized preflight later denies, the preflight record and public digest are replaced by the sanitized finish denial, and the schema revalidates the exact safe envelope before serialization."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/animated-image-owner-resource-truth-collector.ts"
+                },
+                "region": {
+                  "startLine": 624,
+                  "endLine": 806,
+                  "snippet": {
+                    "text": "  }\n  const evidence = {\n    transport: record.body.transport,\n    base64EncodedByProtocol,\n    byteLength: bytes.byteLength,\n    sha256: sha256Bytes(bytes),\n  };\n  bytes.fill(0);\n  return evidence;\n}\n\nasync function discardDeniedInspectorBody(\n  cdp: CDPSession,\n  record: AnimatedImageTruthDeniedRecord,\n): Promise<void> {\n  if (!record.requestIdentity?.inspectorRequestId) return;\n  try {\n    let transient: unknown = await cdp.send(\"Network.getResponseBody\", {\n        requestId: record.requestIdentity.inspectorRequestId,\n      });\n    transient = undefined;\n    void transient;\n  } catch {\n    // Availability is not authorization. Error details are intentionally not\n    // logged because this is a denied route.\n  }\n}\n\nasync function mutate(\n  page: Page,\n  cdp: CDPSession,\n  steps: MutationStep[],\n): Promise<void> {\n  for (const step of steps) {\n    if (step.kind === \"evaluate\") {\n      let timeout: ReturnType<typeof setTimeout> | undefined;\n      try {\n        await Promise.race([\n          page.evaluate(\n            (source) => (0, eval)(`(async () => {\\n${source}\\n})()`),\n            step.source,\n          ),\n          new Promise<never>((_resolve, reject) => {\n            timeout = setTimeout(\n              () => reject(new Error(\"bounded fixture mutation timeout\")),\n              15_000,\n            );\n          }),\n        ]);\n      } finally {\n        if (timeout) clearTimeout(timeout);\n      }\n    } else if (step.kind === \"cdp\") {\n      await cdp.send(step.method as never, (step.params ?? {}) as never);\n    } else if (step.kind === \"navigate\") {\n      await page.goto(step.url, { waitUntil: step.waitUntil ?? \"load\" });\n    } else {\n      await page.waitForTimeout(step.milliseconds);\n    }\n  }\n}\n\nasync function collectRow(\n  page: Page,\n  cdp: CDPSession,\n  browserCdp: CDPSession,\n  plan: ProbePlanRow,\n  expectedPatchSha256: string,\n): Promise<AnimatedImageTruthProbeRow> {\n  const stage = (name: string): void => {\n    // Stage names and sealed probe ids are safe diagnostics. Never include a\n    // caught protocol object or error message here: a denied body may have\n    // existed transiently in the collector process.\n    safeFailureStage = `probe ${plan.probeId}/${plan.caseId}: ${name}`;\n    process.stderr.write(\n      `animated-image truth collector at ${safeFailureStage}\\n`,\n    );\n  };\n  stage(\"navigation\");\n  await page.goto(plan.url, { waitUntil: \"load\" });\n  stage(\"fixture readiness\");\n  await page.waitForFunction(() =>\n    (globalThis as { __domotionProbeReady?: boolean }).__domotionProbeReady === true,\n  );\n  if (await page.evaluate(() =>\n    (globalThis as { __domotionProbeFailed?: boolean }).__domotionProbeFailed === true,\n  )) {\n    throw new Error(\"fixture probe setup failed\");\n  }\n  if (plan.settleMilliseconds) await page.waitForTimeout(plan.settleMilliseconds);\n  stage(\"strict owner lookup\");\n  const backendNodeId = await ownerBackendNodeId(\n    cdp,\n    plan.ownerSelectorToken,\n    plan.pseudoType,\n  );\n  stage(\"private begin\");\n  const begin = await sendPrivate<PrivateBeginResult>(\n    cdp,\n    \"DomotionAnimatedImageTruth.begin\",\n    {\n      backendNodeId,\n      property: plan.property,\n      index: plan.index,\n      ownerSelectorToken: plan.ownerSelectorToken,\n      requestedFrameIndex: plan.requestedFrameIndex,\n      limitsFingerprint: ANIMATED_IMAGE_TRUTH_LIMITS_FINGERPRINT,\n    },\n  );\n  stage(\"begin authority\");\n  requireOracleAuthority(begin.record, expectedPatchSha256);\n  requireStrictOwnerRoute(begin.record, plan, backendNodeId);\n  await requireTargetFrameRoute(cdp, begin.record);\n  await requireLiveRendererProcess(\n    browserCdp,\n    begin.record.oracle.rendererProcessId,\n  );\n\n  let transientPublicBody: AnimatedImageTruthPublicBodyEvidence | null = null;\n  stage(\"preflight body policy\");\n  if (begin.record.outcome === \"authorized\") {\n    transientPublicBody = await publicBody(page, cdp, begin.record);\n  } else if (plan.exerciseDeniedInspectorBody) {\n    await discardDeniedInspectorBody(cdp, begin.record);\n  }\n\n  stage(\"mutation\");\n  await mutate(page, cdp, plan.mutationSteps);\n  stage(\"private finish\");\n  const finish = await sendPrivate<PrivateFinishResult>(\n    cdp,\n    \"DomotionAnimatedImageTruth.finish\",\n    { transactionId: begin.transactionId },\n  );\n  stage(\"finish authority\");\n  requireOracleAuthority(finish.record, expectedPatchSha256);\n  requireStrictOwnerRoute(finish.record, plan, backendNodeId);\n  await requireTargetFrameRoute(cdp, finish.record);\n  if (finish.record.oracle.rendererProcessId !==\n      begin.record.oracle.rendererProcessId) {\n    throw new Error(\"renderer process changed inside a truth transaction\");\n  }\n  await requireLiveRendererProcess(\n    browserCdp,\n    finish.record.oracle.rendererProcessId,\n  );\n\n  const retainPublicBody = begin.record.outcome === \"authorized\" &&\n    finish.record.outcome === \"authorized\" && finish.unchanged;\n  stage(\"outcome policy\");\n  if (!retainPublicBody && finish.record.outcome !== \"denied\") {\n    throw new Error(\"failed transaction did not return a sanitized denial\");\n  }\n  // Negative artifacts retain only the helper's sanitized postflight denial.\n  // The authorized preflight record and public digest remain process-local and\n  // become unreachable before this row is serialized.\n  const retainedBegin = retainPublicBody ? begin.record : finish.record;\n  const row: AnimatedImageTruthProbeRow = {\n    probeId: plan.probeId,\n    caseId: plan.caseId,\n    expected: plan.expected,\n    begin: retainedBegin,\n    finish: finish.record,\n    transactionUnchanged: finish.unchanged,\n    publicBody: retainPublicBody ? transientPublicBody : null,\n    deniedInspectorBodyDiscarded: !retainPublicBody,\n    activation: {\n      sourceReferences: plan.sourceReferences,\n      mutatedFacts: plan.mutatedFacts,\n      observedFailure: finish.record.outcome === \"denied\"\n        ? finish.record.denialCode\n        : null,\n    },\n  };\n  transientPublicBody = null;\n  stage(\"row schema validation\");\n  const failures = validateAnimatedImageTruthProbeRow(row);\n  if (failures.length > 0) {\n    // Validator failures are locally generated schema labels only; they never\n    // interpolate resource values or protocol payloads. Retaining them in the\n    // stage string makes a failed-closed run actionable without exposing data.\n    const safeOutcome = (record: AnimatedImageTruthRecord): string =>\n      record.outcome === \"authorized\""
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/animated-image-owner-resource-truth-schema.ts"
+                },
+                "region": {
+                  "startLine": 763
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2583"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "fa9bdc7f82a97e542a747d8b6a1bfc58"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d1ceb8c7a3e26bdb453aabd179f7374bf6544e74",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

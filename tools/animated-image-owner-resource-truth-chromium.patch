@@ -1,0 +1,1954 @@
+diff --git a/third_party/blink/public/devtools_protocol/BUILD.gn b/third_party/blink/public/devtools_protocol/BUILD.gn
+index d88feab1fb458d2dafc26236981aaaccc765f41f..199f4dc2278906db78380c47d763ee74ff39a8e8 100644
+--- a/third_party/blink/public/devtools_protocol/BUILD.gn
++++ b/third_party/blink/public/devtools_protocol/BUILD.gn
+@@ -21,6 +21,7 @@ domains = [
+   "domains/DOMDebugger.pdl",
+   "domains/DOMSnapshot.pdl",
+   "domains/DOMStorage.pdl",
++  "domains/DomotionAnimatedImageTruth.pdl",
+   "domains/DeviceAccess.pdl",
+   "domains/DeviceOrientation.pdl",
+   "domains/Emulation.pdl",
+diff --git a/third_party/blink/public/devtools_protocol/browser_protocol.pdl b/third_party/blink/public/devtools_protocol/browser_protocol.pdl
+index c8e47c29b4d06431381495a5d42a40eaead4879d..ce08080f07ce9e525f6932348c71558ead8abaa5 100644
+--- a/third_party/blink/public/devtools_protocol/browser_protocol.pdl
++++ b/third_party/blink/public/devtools_protocol/browser_protocol.pdl
+@@ -24,6 +24,7 @@ include domains/DOM.pdl
+ include domains/DOMDebugger.pdl
+ include domains/DOMSnapshot.pdl
+ include domains/DOMStorage.pdl
++include domains/DomotionAnimatedImageTruth.pdl
+ include domains/DeviceAccess.pdl
+ include domains/DeviceOrientation.pdl
+ include domains/Emulation.pdl
+diff --git a/third_party/blink/renderer/core/css/css_image_set_value.cc b/third_party/blink/renderer/core/css/css_image_set_value.cc
+index 6e5600626809ed9921046625bb7600d72ee5137e..afa4c0d0e8398a8446d6323ce4612efa5f4b35db 100644
+--- a/third_party/blink/renderer/core/css/css_image_set_value.cc
++++ b/third_party/blink/renderer/core/css/css_image_set_value.cc
+@@ -45,7 +45,8 @@ CSSImageSetValue::~CSSImageSetValue() = default;
+
+ const CSSImageSetOptionValue* CSSImageSetValue::GetBestOption(
+     const CSSLengthResolver& resolver,
+-    const float device_scale_factor) {
++    const float device_scale_factor,
++    int* selected_option_index) {
+   // This method is implementing the selection logic described in the
+   // "CSS Images Module Level 4" spec:
+   // https://w3c.github.io/csswg-drafts/css-images-4/#image-set-notation
+@@ -97,11 +98,26 @@ const CSSImageSetOptionValue* CSSImageSetValue::GetBestOption(
+
+   for (const auto& option : options_) {
+     if (option && option->ComputedResolution(resolver) >= device_scale_factor) {
++      *selected_option_index = -1;
++      for (wtf_size_t index = 0; index < length(); ++index) {
++        if (&Item(index) == option.Get()) {
++          *selected_option_index = static_cast<int>(index);
++          break;
++        }
++      }
+       return option.Get();
+     }
+   }
+
+-  return options_.back().Get();
++  const CSSImageSetOptionValue* option = options_.back().Get();
++  *selected_option_index = -1;
++  for (wtf_size_t index = 0; option && index < length(); ++index) {
++    if (&Item(index) == option) {
++      *selected_option_index = static_cast<int>(index);
++      break;
++    }
++  }
++  return option;
+ }
+
+ bool CSSImageSetValue::IsCachePending(const float device_scale_factor) const {
+@@ -116,8 +132,10 @@ StyleImage* CSSImageSetValue::CachedImage(
+ }
+
+ StyleImage* CSSImageSetValue::CacheImage(StyleImage* style_image,
+-                                         const float device_scale_factor) {
+-  cached_image_ = MakeGarbageCollected<StyleImageSet>(style_image, this);
++                                         const float device_scale_factor,
++                                         int selected_option_index) {
++  cached_image_ = MakeGarbageCollected<StyleImageSet>(style_image, this,
++                                                      selected_option_index);
+   cached_device_scale_factor_ = device_scale_factor;
+   return cached_image_.Get();
+ }
+diff --git a/third_party/blink/renderer/core/css/css_image_set_value.h b/third_party/blink/renderer/core/css/css_image_set_value.h
+index e290fe8dd08bf1c6d7cad3ee2c5f289d0a487738..bc00d0ff75003911f8549d53f00203bd86e9219d 100644
+--- a/third_party/blink/renderer/core/css/css_image_set_value.h
++++ b/third_party/blink/renderer/core/css/css_image_set_value.h
+@@ -53,10 +53,13 @@ class CORE_EXPORT CSSImageSetValue : public CSSValueList {
+
+   bool IsCachePending(const float device_scale_factor) const;
+   StyleImage* CachedImage(const float device_scale_factor) const;
+-  StyleImage* CacheImage(StyleImage*, const float device_scale_factor);
++  StyleImage* CacheImage(StyleImage*,
++                         const float device_scale_factor,
++                         int selected_option_index);
+
+   const CSSImageSetOptionValue* GetBestOption(const CSSLengthResolver&,
+-                                              const float device_scale_factor);
++                                              const float device_scale_factor,
++                                              int* selected_option_index);
+
+   String CustomCSSText() const;
+
+diff --git a/third_party/blink/renderer/core/css/resolver/element_style_resources.cc b/third_party/blink/renderer/core/css/resolver/element_style_resources.cc
+index 13ebf0bb2c12fc414cb749832b3e02c103f8d032..32ce682baf1c48ca0073630598485cfc936e7fa5 100644
+--- a/third_party/blink/renderer/core/css/resolver/element_style_resources.cc
++++ b/third_party/blink/renderer/core/css/resolver/element_style_resources.cc
+@@ -88,7 +88,8 @@ class StyleImageLoader {
+                                 const CSSLengthResolver&);
+   StyleImage* ResolveImageSet(CSSImageSetValue& image_set_value,
+                               CrossOriginAttributeValue,
+-                              const CSSLengthResolver&);
++                              const CSSLengthResolver&,
++                              int* selected_option_index);
+
+   Document& document_;
+   ComputedStyleBuilder& builder_;
+@@ -135,9 +136,12 @@ StyleImage* StyleImageLoader::Load(
+   }
+
+   if (auto* image_set_value = DynamicTo<CSSImageSetValue>(value)) {
++    int selected_option_index = -1;
+     StyleImage* style_image =
+-        ResolveImageSet(*image_set_value, cross_origin, length_resolver);
+-    return image_set_value->CacheImage(style_image, device_scale_factor_);
++        ResolveImageSet(*image_set_value, cross_origin, length_resolver,
++                        &selected_option_index);
++    return image_set_value->CacheImage(style_image, device_scale_factor_,
++                                       selected_option_index);
+   }
+
+   NOTREACHED();
+@@ -165,9 +169,10 @@ StyleImage* StyleImageLoader::CrossfadeArgument(
+ StyleImage* StyleImageLoader::ResolveImageSet(
+     CSSImageSetValue& image_set_value,
+     CrossOriginAttributeValue cross_origin,
+-    const CSSLengthResolver& length_resolver) {
+-  const CSSImageSetOptionValue* option =
+-      image_set_value.GetBestOption(length_resolver, device_scale_factor_);
++    const CSSLengthResolver& length_resolver,
++    int* selected_option_index) {
++  const CSSImageSetOptionValue* option = image_set_value.GetBestOption(
++      length_resolver, device_scale_factor_, selected_option_index);
+   if (!option) {
+     return nullptr;
+   }
+diff --git a/third_party/blink/renderer/core/exported/web_dev_tools_agent_impl.cc b/third_party/blink/renderer/core/exported/web_dev_tools_agent_impl.cc
+index e65bcb014a7e5c5e734b64ce1c1cb773c987feb2..0bf3b613c557d7618ea07106c1dc2acba67ad809 100644
+--- a/third_party/blink/renderer/core/exported/web_dev_tools_agent_impl.cc
++++ b/third_party/blink/renderer/core/exported/web_dev_tools_agent_impl.cc
+@@ -67,6 +67,7 @@
+ #include "third_party/blink/renderer/core/inspector/inspector_dom_agent.h"
+ #include "third_party/blink/renderer/core/inspector/inspector_dom_debugger_agent.h"
+ #include "third_party/blink/renderer/core/inspector/inspector_dom_snapshot_agent.h"
++#include "third_party/blink/renderer/core/inspector/inspector_domotion_animated_image_truth_agent.h"
+ #include "third_party/blink/renderer/core/inspector/inspector_emulation_agent.h"
+ #include "third_party/blink/renderer/core/inspector/inspector_event_breakpoints_agent.h"
+ #include "third_party/blink/renderer/core/inspector/inspector_io_agent.h"
+@@ -341,6 +342,9 @@ void WebDevToolsAgentImpl::AttachSession(DevToolsSession* session,
+       session->CreateAndAppend<InspectorNetworkAgent>(inspected_frames, nullptr,
+                                                       session->V8Session());
+
++  session->CreateAndAppend<InspectorDomotionAnimatedImageTruthAgent>(
++      inspected_frames, network_agent, session->SessionId());
++
+   session->CreateAndAppend<InspectorCrashReportContextAgent>(inspected_frames);
+   auto* css_agent = session->CreateAndAppend<InspectorCSSAgent>(
+       dom_agent, inspected_frames, network_agent,
+diff --git a/third_party/blink/renderer/core/inspector/BUILD.gn b/third_party/blink/renderer/core/inspector/BUILD.gn
+index 18bde4d97ad92642313c14051188e091141e3757..c586e3bfa459b4b97fec170af618eb7200286885 100644
+--- a/third_party/blink/renderer/core/inspector/BUILD.gn
++++ b/third_party/blink/renderer/core/inspector/BUILD.gn
+@@ -52,6 +52,8 @@ inspector_protocol_generate("protocol_sources") {
+     "inspector/protocol/dom_snapshot.h",
+     "inspector/protocol/dom_storage.cc",
+     "inspector/protocol/dom_storage.h",
++    "inspector/protocol/domotion_animated_image_truth.cc",
++    "inspector/protocol/domotion_animated_image_truth.h",
+     "inspector/protocol/event_breakpoints.cc",
+     "inspector/protocol/event_breakpoints.h",
+     "inspector/protocol/emulation.cc",
+diff --git a/third_party/blink/renderer/core/inspector/build.gni b/third_party/blink/renderer/core/inspector/build.gni
+index fb53f52d9c6d3666eb74c59c38e073510234bedd..530e8579b515fdab08d93dc3307de91234c75141 100644
+--- a/third_party/blink/renderer/core/inspector/build.gni
++++ b/third_party/blink/renderer/core/inspector/build.gni
+@@ -49,6 +49,8 @@ blink_core_sources_inspector = [
+   "inspector_dom_debugger_agent.h",
+   "inspector_dom_snapshot_agent.cc",
+   "inspector_dom_snapshot_agent.h",
++  "inspector_domotion_animated_image_truth_agent.cc",
++  "inspector_domotion_animated_image_truth_agent.h",
+   "inspector_event_breakpoints_agent.cc",
+   "inspector_event_breakpoints_agent.h",
+   "inspector_diff.cc",
+diff --git a/third_party/blink/renderer/core/inspector/devtools_session.h b/third_party/blink/renderer/core/inspector/devtools_session.h
+index fcf0fa1b4a0f23cb30c00b97c06d3480fbf832ae..4b3370f2be3d5f4b4be53c8eb7026e02e76b0290 100644
+--- a/third_party/blink/renderer/core/inspector/devtools_session.h
++++ b/third_party/blink/renderer/core/inspector/devtools_session.h
+@@ -76,6 +76,7 @@ class CORE_EXPORT DevToolsSession
+
+   void ConnectToV8(v8_inspector::V8Inspector*, int context_group_id);
+   v8_inspector::V8InspectorSession* V8Session() { return v8_session_.get(); }
++  const String& SessionId() const { return session_id_; }
+
+   template <typename Agent, typename... Args>
+   Agent* CreateAndAppend(Args&&... args) {
+diff --git a/third_party/blink/renderer/core/inspector/inspector_network_agent.cc b/third_party/blink/renderer/core/inspector/inspector_network_agent.cc
+index 0df73bd85c7daf4e28519451cb089418ba1144e4..273e098a24b61c9603c5263a6b1447996e31b39e 100644
+--- a/third_party/blink/renderer/core/inspector/inspector_network_agent.cc
++++ b/third_party/blink/renderer/core/inspector/inspector_network_agent.cc
+@@ -1632,7 +1632,12 @@ void InspectorNetworkAgent::WillSendRequest(
+
+ void InspectorNetworkAgent::MarkResourceAsCached(DocumentLoader* loader,
+                                                  uint64_t identifier) {
+-  GetFrontend()->requestServedFromCache(RequestId(loader, identifier));
++  String request_id = RequestId(loader, identifier);
++  if (auto* data = const_cast<NetworkResourcesData::ResourceData*>(
++          resources_data_->Data(request_id))) {
++    data->SetServedFromMemoryCacheForInspector();
++  }
++  GetFrontend()->requestServedFromCache(request_id);
+ }
+
+ void InspectorNetworkAgent::DidReceiveResourceResponse(
+@@ -1790,6 +1795,11 @@ void InspectorNetworkAgent::DidFinishLoading(
+   String request_id = RequestId(loader, identifier);
+   streaming_request_ids_.erase(request_id);
+
++  if (auto* data = const_cast<NetworkResourcesData::ResourceData*>(
++          resources_data_->Data(request_id))) {
++    data->SetLoadingFinishedForInspector(encoded_data_length);
++  }
++
+   NetworkResourcesData::ResourceData const* resource_data =
+       resources_data_->Data(request_id);
+
+diff --git a/third_party/blink/renderer/core/inspector/inspector_network_agent.h b/third_party/blink/renderer/core/inspector/inspector_network_agent.h
+index 75c9a1b4db57d2f92a7e6a217b97693cec30bc30..b159e39b0cbac46b387fbd9f5ceba9787246a81a 100644
+--- a/third_party/blink/renderer/core/inspector/inspector_network_agent.h
++++ b/third_party/blink/renderer/core/inspector/inspector_network_agent.h
+@@ -73,6 +73,7 @@ class ExecutionContext;
+ struct FetchInitiatorInfo;
+ class LocalFrame;
+ class HTTPHeaderMap;
++class InspectorDomotionAnimatedImageTruthAgent;
+ class KURL;
+ class NetworkResourcesData;
+ enum class RenderBlockingBehavior : uint8_t;
+@@ -369,6 +370,13 @@ class CORE_EXPORT InspectorNetworkAgent final
+   static String GetProtocolAsString(const ResourceResponse& response);
+
+  private:
++  friend class InspectorDomotionAnimatedImageTruthAgent;
++
++  // Read-only evidence seam for the private DM-2583 inspector domain.
++  NetworkResourcesData* ResourcesDataForDomotionInspector() const {
++    return resources_data_.Get();
++  }
++
+   String RequestId(DocumentLoader*, uint64_t identifier);
+   void Enable();
+   void WillSendRequestInternal(
+diff --git a/third_party/blink/renderer/core/inspector/inspector_protocol_config.json b/third_party/blink/renderer/core/inspector/inspector_protocol_config.json
+index 353bde4f3a9f87bb0bcba35b390df8e33dce51eb..ea825e3a648f6837dd9d3bbdac4971e25cc1e390 100644
+--- a/third_party/blink/renderer/core/inspector/inspector_protocol_config.json
++++ b/third_party/blink/renderer/core/inspector/inspector_protocol_config.json
+@@ -44,6 +44,9 @@
+             {
+                 "domain": "DOMStorage"
+             },
++            {
++                "domain": "DomotionAnimatedImageTruth"
++            },
+             {
+                 "domain": "EventBreakpoints"
+             },
+diff --git a/third_party/blink/renderer/core/inspector/network_resources_data.h b/third_party/blink/renderer/core/inspector/network_resources_data.h
+index 899f7d65c432bdde673b2100707d115cc53714d2..2a9192aff4d57ac9392c5e0fbda2d5f2ac282a0a 100644
+--- a/third_party/blink/renderer/core/inspector/network_resources_data.h
++++ b/third_party/blink/renderer/core/inspector/network_resources_data.h
+@@ -171,6 +171,25 @@ class CORE_EXPORT NetworkResourcesData final
+
+     const std::optional<SegmentedBuffer>& Data() const { return data_buffer_; }
+
++    // Read-only completion/cache facts retained for the private DM-2583
++    // inspector oracle. No body bytes are exposed through these accessors.
++    bool ServedFromMemoryCacheForInspector() const {
++      return served_from_memory_cache_for_inspector_;
++    }
++    void SetServedFromMemoryCacheForInspector() {
++      served_from_memory_cache_for_inspector_ = true;
++    }
++    bool LoadingFinishedForInspector() const {
++      return loading_finished_for_inspector_;
++    }
++    void SetLoadingFinishedForInspector(int64_t encoded_data_length) {
++      loading_finished_for_inspector_ = true;
++      network_encoded_data_length_for_inspector_ = encoded_data_length;
++    }
++    int64_t NetworkEncodedDataLengthForInspector() const {
++      return network_encoded_data_length_for_inspector_;
++    }
++
+    private:
+     bool HasData() const { return data_buffer_.has_value(); }
+     void AppendData(base::span<const char> data);
+@@ -189,6 +208,9 @@ class CORE_EXPORT NetworkResourcesData final
+     bool base64_encoded_;
+     std::optional<SegmentedBuffer> data_buffer_;
+     bool is_content_evicted_;
++    bool served_from_memory_cache_for_inspector_ = false;
++    bool loading_finished_for_inspector_ = false;
++    int64_t network_encoded_data_length_for_inspector_ = -1;
+     InspectorPageAgent::ResourceType type_;
+     int http_status_code_;
+
+diff --git a/third_party/blink/renderer/core/loader/resource/image_resource.cc b/third_party/blink/renderer/core/loader/resource/image_resource.cc
+index 784d4fe2625525e1e4b63a83d06d54dd18116e4b..388961ee747717e1dba66b731364ee0e5f10a7ed 100644
+--- a/third_party/blink/renderer/core/loader/resource/image_resource.cc
++++ b/third_party/blink/renderer/core/loader/resource/image_resource.cc
+@@ -265,6 +265,8 @@ class ImageResource::ImageResourceInfoImpl final
+     return priority;
+   }
+
++  Resource* ResourceForInspector() const override { return resource_.Get(); }
++
+   const Member<ImageResource> resource_;
+ };
+
+diff --git a/third_party/blink/renderer/core/loader/resource/image_resource.h b/third_party/blink/renderer/core/loader/resource/image_resource.h
+index 168a70e6f45bafa73d6850cd7b291199a51e84c9..07c6c4d91b44caa34d7f3550f5d6b2d7f8c93daf 100644
+--- a/third_party/blink/renderer/core/loader/resource/image_resource.h
++++ b/third_party/blink/renderer/core/loader/resource/image_resource.h
+@@ -118,6 +118,9 @@ class CORE_EXPORT ImageResource final
+   }
+   void OnRequestSpeculativeDecode() { requested_speculative_decode_ = true; }
+
++  // Read-only evidence seam for the private DM-2583 inspector oracle.
++  bool IsMultipartForInspector() const { return !!multipart_parser_; }
++
+   // If the ImageResource came from a user agent CSS stylesheet then we should
+   // flag it so that it can persist beyond navigation.
+   void FlagAsUserAgentResource();
+diff --git a/third_party/blink/renderer/core/loader/resource/image_resource_content.cc b/third_party/blink/renderer/core/loader/resource/image_resource_content.cc
+index 6a9e1ca3567132addbe2bde561a1c41130669fd0..2382b2b44f1ec5d88002d03cbf07f4091e5b0b52 100644
+--- a/third_party/blink/renderer/core/loader/resource/image_resource_content.cc
++++ b/third_party/blink/renderer/core/loader/resource/image_resource_content.cc
+@@ -319,6 +319,10 @@ scoped_refptr<const SharedBuffer> ImageResourceContent::ResourceBuffer() const {
+   return nullptr;
+ }
+
++Resource* ImageResourceContent::ResourceForInspector() const {
++  return info_ ? info_->ResourceForInspector() : nullptr;
++}
++
+ bool ImageResourceContent::ShouldUpdateImageImmediately() const {
+   // If we don't have the size available yet, then update immediately since
+   // we need to know the image size as soon as possible. Likewise for
+diff --git a/third_party/blink/renderer/core/loader/resource/image_resource_content.h b/third_party/blink/renderer/core/loader/resource/image_resource_content.h
+index b5ca2cbf3056be49053d00657ca18a63663f627c..b86b9734728302380fa5404e5a66c5e5c29df0ed 100644
+--- a/third_party/blink/renderer/core/loader/resource/image_resource_content.h
++++ b/third_party/blink/renderer/core/loader/resource/image_resource_content.h
+@@ -31,6 +31,7 @@ namespace blink {
+
+ class FetchParameters;
+ class ImageResourceInfo;
++class Resource;
+ class KURL;
+ class ResourceError;
+ class ResourceFetcher;
+@@ -206,6 +207,8 @@ class CORE_EXPORT ImageResourceContent final
+   // Returns the current Resource's priority used by MediaTiming.
+   std::optional<WebURLRequest::Priority> RequestPriority() const override;
+   scoped_refptr<const SharedBuffer> ResourceBuffer() const;
++  // Read-only exact ownership seam for the private DM-2583 inspector oracle.
++  Resource* ResourceForInspector() const;
+   bool ShouldUpdateImageImmediately() const;
+   bool HasObservers() const {
+     return !observers_.empty() || !finished_observers_.empty();
+diff --git a/third_party/blink/renderer/core/loader/resource/image_resource_info.h b/third_party/blink/renderer/core/loader/resource/image_resource_info.h
+index 8335a3bd17381f1f987b1ba5c0448a57f1f88223..b0b5b3032648e172ff911f9758b5399d6b206d04 100644
+--- a/third_party/blink/renderer/core/loader/resource/image_resource_info.h
++++ b/third_party/blink/renderer/core/loader/resource/image_resource_info.h
+@@ -20,6 +20,7 @@ namespace blink {
+
+ class ResourceError;
+ class ResourceFetcher;
++class Resource;
+ class ResourceResponse;
+
+ // Delegate class of ImageResource that encapsulates the interface and data
+@@ -66,6 +67,10 @@ class CORE_EXPORT ImageResourceInfo : public GarbageCollectedMixin {
+
+   virtual std::optional<WebURLRequest::Priority> RequestPriority() const = 0;
+
++  // Private inspector evidence seam. The default keeps existing test/mocked
++  // ImageResourceInfo implementations source-compatible.
++  virtual Resource* ResourceForInspector() const { return nullptr; }
++
+   void Trace(Visitor* visitor) const override {}
+ };
+
+diff --git a/third_party/blink/renderer/core/style/style_image_set.cc b/third_party/blink/renderer/core/style/style_image_set.cc
+index a7a68dcd4e7e9ec59422484ec19003e60e917626..f294186bc5485d030a0b55ca6208d963fbaeadb7 100644
+--- a/third_party/blink/renderer/core/style/style_image_set.cc
++++ b/third_party/blink/renderer/core/style/style_image_set.cc
+@@ -32,8 +32,11 @@
+ namespace blink {
+
+ StyleImageSet::StyleImageSet(StyleImage* best_fit_image,
+-                             CSSImageSetValue* image_set_value)
+-    : best_fit_image_(best_fit_image), image_set_value_(image_set_value) {
++                             CSSImageSetValue* image_set_value,
++                             int selected_option_index)
++    : best_fit_image_(best_fit_image),
++      image_set_value_(image_set_value),
++      selected_option_index_for_inspector_(selected_option_index) {
+   is_image_resource_set_ = true;
+ }
+
+diff --git a/third_party/blink/renderer/core/style/style_image_set.h b/third_party/blink/renderer/core/style/style_image_set.h
+index 97e4ec1558ba284b93751db6ec010be881dcfc4d..112e210c9289de71ced8aceb6400d5d02b993ee2 100644
+--- a/third_party/blink/renderer/core/style/style_image_set.h
++++ b/third_party/blink/renderer/core/style/style_image_set.h
+@@ -42,7 +42,9 @@ class CSSImageSetValue;
+ // alternatives via the referenced CSSImageSetValue.
+ class StyleImageSet final : public StyleImage {
+  public:
+-  StyleImageSet(StyleImage* best_fit_image, CSSImageSetValue* image_set_val);
++  StyleImageSet(StyleImage* best_fit_image,
++                CSSImageSetValue* image_set_val,
++                int selected_option_index);
+   ~StyleImageSet() override;
+
+   CSSValue* CssValue() const override;
+@@ -79,6 +81,9 @@ class StyleImageSet final : public StyleImage {
+   bool KnownToBeOpaque(const Document&, const ComputedStyle&) const override;
+
+   ImageResourceContent* CachedImage() const override;
++  int SelectedOptionIndexForInspector() const {
++    return selected_option_index_for_inspector_;
++  }
+
+   void Trace(Visitor*) const override;
+
+@@ -88,6 +93,7 @@ class StyleImageSet final : public StyleImage {
+   Member<StyleImage> best_fit_image_;
+
+   Member<CSSImageSetValue> image_set_value_;  // Not retained; it owns us.
++  int selected_option_index_for_inspector_ = -1;
+ };
+
+ template <>
+diff --git a/third_party/blink/renderer/platform/loader/fetch/resource.cc b/third_party/blink/renderer/platform/loader/fetch/resource.cc
+index ee91f284cf56eac6d38ece1b145270f8a95d7893..0acf51461fef9e1e0c9d37358813e80769a4e254 100644
+--- a/third_party/blink/renderer/platform/loader/fetch/resource.cc
++++ b/third_party/blink/renderer/platform/loader/fetch/resource.cc
+@@ -610,6 +610,11 @@ void Resource::SetResponse(const ResourceResponse& response) {
+ }
+
+ void Resource::ResponseReceived(const ResourceResponse& response) {
++  ++response_sequence_for_inspector_;
++  if (IsCacheValidator()) {
++    ++revalidation_count_for_inspector_;
++    last_revalidation_status_for_inspector_ = response.HttpStatusCode();
++  }
+   response_timestamp_ = Now();
+   if (IsCacheValidator()) {
+     if (IsSuccessfulRevalidationResponse(response)) {
+diff --git a/third_party/blink/renderer/platform/loader/fetch/resource.h b/third_party/blink/renderer/platform/loader/fetch/resource.h
+index c21b7e121199680e79535067be0717bd49b3f1bf..0399ef1ee102db84748203f658dd52445c1e166f 100644
+--- a/third_party/blink/renderer/platform/loader/fetch/resource.h
++++ b/third_party/blink/renderer/platform/loader/fetch/resource.h
+@@ -376,7 +376,9 @@ class PLATFORM_EXPORT Resource : public GarbageCollected<Resource>,
+   // attributes.
+   bool ForceIntegrityChecks() const;
+
+-  const blink::IntegrityReport& IntegrityReport() const { return integrity_report_; }
++  const blink::IntegrityReport& IntegrityReport() const {
++    return integrity_report_;
++  }
+   bool MustRefetchDueToIntegrityMetadata(const FetchParameters&) const;
+
+   bool IsAlive() const { return is_alive_; }
+@@ -482,6 +484,30 @@ class PLATFORM_EXPORT Resource : public GarbageCollected<Resource>,
+            !finished_clients_.empty() || !finish_observers_.empty();
+   }
+
++  // Read-only response/cache epochs for the private DM-2583 inspector oracle.
++  // These expose no response body and do not change loading or revalidation.
++  wtf_size_t RedirectCountForInspector() const {
++    return redirect_chain_.size();
++  }
++  const ResourceResponse& RedirectResponseForInspector(wtf_size_t index) const {
++    return redirect_chain_[index].redirect_response_;
++  }
++  void DidLoadFromMemoryCacheForDomotionInspector() {
++    ++domotion_memory_cache_use_count_for_inspector_;
++  }
++  uint64_t DomotionMemoryCacheUseCountForInspector() const {
++    return domotion_memory_cache_use_count_for_inspector_;
++  }
++  uint64_t ResponseSequenceForInspector() const {
++    return response_sequence_for_inspector_;
++  }
++  uint64_t RevalidationCountForInspector() const {
++    return revalidation_count_for_inspector_;
++  }
++  std::optional<int> LastRevalidationStatusForInspector() const {
++    return last_revalidation_status_for_inspector_;
++  }
++
+  protected:
+   Resource(const ResourceRequestHead&,
+            ResourceType,
+@@ -597,6 +623,10 @@ class PLATFORM_EXPORT Resource : public GarbageCollected<Resource>,
+   bool is_preloaded_by_early_hints_ = false;
+
+   uint32_t memory_cache_hit_count_ = 0;
++  uint64_t domotion_memory_cache_use_count_for_inspector_ = 0;
++  uint64_t response_sequence_for_inspector_ = 0;
++  uint64_t revalidation_count_for_inspector_ = 0;
++  std::optional<int> last_revalidation_status_for_inspector_;
+   double decayed_hit_score_ = 0.0;
+
+   enum class RevalidationStatus {
+diff --git a/third_party/blink/renderer/platform/loader/fetch/resource_fetcher.cc b/third_party/blink/renderer/platform/loader/fetch/resource_fetcher.cc
+index 8a48724326cbaa9926b0f25d351b30d861da9f13..c6b28d5b81e258c937ef62d5181eff87e5fb8e37 100644
+--- a/third_party/blink/renderer/platform/loader/fetch/resource_fetcher.cc
++++ b/third_party/blink/renderer/platform/loader/fetch/resource_fetcher.cc
+@@ -932,6 +932,10 @@ void ResourceFetcher::DidLoadResourceFromMemoryCache(
+     const ResourceRequest& request,
+     bool is_static_data,
+     RenderBlockingBehavior render_blocking_behavior) {
++  // Evidence-only accounting for the private DM-2583 inspector oracle. This
++  // is the exact kUse/cached-resource seam and does not alter cache policy,
++  // resource loading, decoding, or observer delivery.
++  resource->DidLoadFromMemoryCacheForDomotionInspector();
+   if (IsDetached() || !resource_load_observer_) {
+     return;
+   }
+diff --git a/third_party/blink/public/devtools_protocol/domains/DomotionAnimatedImageTruth.pdl b/third_party/blink/public/devtools_protocol/domains/DomotionAnimatedImageTruth.pdl
+new file mode 100644
+index 0000000000000000000000000000000000000000..052b5fa259bce6f12fffb3e6ed2957c431c9a076
+--- /dev/null
++++ b/third_party/blink/public/devtools_protocol/domains/DomotionAnimatedImageTruth.pdl
+@@ -0,0 +1,41 @@
++# Copyright 2026 The Chromium Authors
++# Use of this source code is governed by a BSD-style license that can be
++# found in the LICENSE file.
++
++# Evidence-only private protocol used by the DM-2583 pinned Chromium build.
++# This domain is intentionally not available to untrusted DevTools clients.
++experimental domain DomotionAnimatedImageTruth
++  depends on DOM
++
++  type SlotProperty extends string
++    enum
++      html-current
++      svg-href
++      input-src
++      background-image
++      content
++      list-style-image
++      border-image-source
++      mask-image
++
++  # Starts one bounded owner -> content -> resource truth transaction.
++  command begin
++    parameters
++      DOM.BackendNodeId backendNodeId
++      SlotProperty property
++      integer index
++      string ownerSelectorToken
++      integer requestedFrameIndex
++      string limitsFingerprint
++    returns
++      string transactionId
++      object record
++
++  # Re-resolves the exact owner and slot, consumes the transaction, and returns
++  # only an authorized exact record or a body-free denial record.
++  command finish
++    parameters
++      string transactionId
++    returns
++      boolean unchanged
++      object record
+diff --git a/third_party/blink/renderer/core/inspector/inspector_domotion_animated_image_truth_agent.cc b/third_party/blink/renderer/core/inspector/inspector_domotion_animated_image_truth_agent.cc
+new file mode 100644
+index 0000000000000000000000000000000000000000..1ebe58f6c3d09c9a9e3cff7a5c4ee01794b13edc
+--- /dev/null
++++ b/third_party/blink/renderer/core/inspector/inspector_domotion_animated_image_truth_agent.cc
+@@ -0,0 +1,1291 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "third_party/blink/renderer/core/inspector/inspector_domotion_animated_image_truth_agent.h"
++
++#include <limits>
++#include <utility>
++#include <vector>
++
++#include "base/containers/span.h"
++#include "base/process/process_handle.h"
++#include "base/strings/string_number_conversions.h"
++#include "services/network/public/mojom/fetch_api.mojom-blink.h"
++#include "third_party/blink/public/platform/modules/service_worker/web_service_worker_network_provider.h"
++#include "third_party/blink/renderer/core/dom/document.h"
++#include "third_party/blink/renderer/core/dom/dom_node_ids.h"
++#include "third_party/blink/renderer/core/dom/element.h"
++#include "third_party/blink/renderer/core/dom/node.h"
++#include "third_party/blink/renderer/core/dom/pseudo_element.h"
++#include "third_party/blink/renderer/core/dom/shadow_root.h"
++#include "third_party/blink/renderer/core/frame/local_frame.h"
++#include "third_party/blink/renderer/core/frame/local_frame_view.h"
++#include "third_party/blink/renderer/core/html/forms/html_input_element.h"
++#include "third_party/blink/renderer/core/html/html_image_element.h"
++#include "third_party/blink/renderer/core/html/html_picture_element.h"
++#include "third_party/blink/renderer/core/html_names.h"
++#include "third_party/blink/renderer/core/inspector/identifiers_factory.h"
++#include "third_party/blink/renderer/core/inspector/inspected_frames.h"
++#include "third_party/blink/renderer/core/inspector/inspector_dom_agent.h"
++#include "third_party/blink/renderer/core/inspector/inspector_network_agent.h"
++#include "third_party/blink/renderer/core/inspector/network_resources_data.h"
++#include "third_party/blink/renderer/core/loader/document_loader.h"
++#include "third_party/blink/renderer/core/loader/image_loader.h"
++#include "third_party/blink/renderer/core/loader/resource/image_resource.h"
++#include "third_party/blink/renderer/core/loader/resource/image_resource_content.h"
++#include "third_party/blink/renderer/core/style/computed_style.h"
++#include "third_party/blink/renderer/core/style/content_data.h"
++#include "third_party/blink/renderer/core/style/fill_layer.h"
++#include "third_party/blink/renderer/core/style/style_image.h"
++#include "third_party/blink/renderer/core/style/style_image_set.h"
++#include "third_party/blink/renderer/core/svg/svg_image_element.h"
++#include "third_party/blink/renderer/core/svg_names.h"
++#include "third_party/blink/renderer/core/xlink_names.h"
++#include "third_party/blink/renderer/platform/crypto.h"
++#include "third_party/blink/renderer/platform/graphics/image.h"
++#include "third_party/blink/renderer/platform/loader/fetch/resource.h"
++#include "third_party/blink/renderer/platform/loader/fetch/resource_error.h"
++#include "third_party/blink/renderer/platform/loader/fetch/resource_request.h"
++#include "third_party/blink/renderer/platform/loader/fetch/resource_response.h"
++#include "third_party/blink/renderer/platform/loader/fetch/service_worker_router_info.h"
++#include "third_party/blink/renderer/platform/network/encoded_form_data.h"
++#include "third_party/blink/renderer/platform/network/http_names.h"
++#include "third_party/blink/renderer/platform/wtf/shared_buffer.h"
++#include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
++#include "third_party/blink/renderer/platform/wtf/text/string_utf8_adaptor.h"
++
++namespace blink {
++
++namespace {
++
++constexpr char kProtocol[] = "domotion-animated-image-bytes-v1";
++constexpr char kChromiumRevision[] = "7d859f271cbda744098ac69f44978d4edfa62be3";
++constexpr char kSchemaSha256[] =
++    "52969c415240f444dde400e0bd6920f0aee0ff2c68787a4edfe204b8c958b2c5";
++// Replaced after the source manifest is sealed. The manifest algorithm
++// normalizes this one value, so it has no self-reference.
++constexpr char kPatchSha256[] =
++    "93e150ec097a69dd4ef923bc223570ca7da3c647526cf147b1b3c3b1170e174f";
++constexpr char kLimitsFingerprint[] =
++    "b020def31cbbf0944279249bbe1f802cb98fc73436a012a57bd854f79d32c195";
++
++constexpr size_t kMaximumTransactions = 128;
++constexpr size_t kMaximumResourceBytes = 64u * 1024u * 1024u;
++constexpr size_t kMaximumTransactionBytes = 256u * 1024u * 1024u;
++constexpr size_t kMaximumRedirects = 20;
++
++using Dictionary = protocol::DictionaryValue;
++using List = protocol::ListValue;
++using Value = protocol::Value;
++
++bool IsSafeOwnerSelectorToken(const String& token) {
++  if (token.empty() || token.length() > 128) {
++    return false;
++  }
++  for (wtf_size_t index = 0; index < token.length(); ++index) {
++    const UChar character = token[index];
++    if (!((character >= 'A' && character <= 'Z') ||
++          (character >= 'a' && character <= 'z') ||
++          (character >= '0' && character <= '9') || character == '.' ||
++          character == '_' || character == '-')) {
++      return false;
++    }
++  }
++  return true;
++}
++
++String DigestBytes(base::span<const uint8_t> bytes) {
++  DigestValue digest;
++  if (!ComputeDigest(kHashAlgorithmSha256, bytes, digest)) {
++    return String();
++  }
++  return String::FromUtf8(base::HexEncodeLower(digest));
++}
++
++String DigestString(const String& value) {
++  StringUtf8Adaptor utf8(value);
++  return DigestBytes(base::as_byte_span(utf8));
++}
++
++String DigestDictionary(const Dictionary& value) {
++  std::vector<uint8_t> cbor;
++  value.AppendSerialized(&cbor);
++  return DigestBytes(base::span(cbor));
++}
++
++void SetNullableString(Dictionary* object,
++                       const String& name,
++                       const String& value) {
++  if (value.IsNull()) {
++    object->setValue(name, Value::null());
++  } else {
++    object->setString(name, value);
++  }
++}
++
++String RequestModeString(network::mojom::RequestMode mode) {
++  switch (mode) {
++    case network::mojom::RequestMode::kSameOrigin:
++      return "same-origin";
++    case network::mojom::RequestMode::kNoCors:
++      return "no-cors";
++    case network::mojom::RequestMode::kCors:
++      return "cors";
++    case network::mojom::RequestMode::kCorsWithForcedPreflight:
++      return "cors-with-forced-preflight";
++    case network::mojom::RequestMode::kNavigate:
++      return "navigate";
++  }
++}
++
++String CredentialsModeString(network::mojom::CredentialsMode mode) {
++  switch (mode) {
++    case network::mojom::CredentialsMode::kOmit:
++      return "omit";
++    case network::mojom::CredentialsMode::kSameOrigin:
++      return "same-origin";
++    case network::mojom::CredentialsMode::kInclude:
++      return "include";
++    case network::mojom::CredentialsMode::kOmitBug_775438_Workaround:
++      return "omit-spec-workaround";
++  }
++}
++
++String FetchResponseTypeString(network::mojom::FetchResponseType type) {
++  switch (type) {
++    case network::mojom::FetchResponseType::kBasic:
++      return "basic";
++    case network::mojom::FetchResponseType::kCors:
++      return "cors";
++    case network::mojom::FetchResponseType::kDefault:
++      return "default";
++    case network::mojom::FetchResponseType::kError:
++      return "error";
++    case network::mojom::FetchResponseType::kOpaque:
++      return "opaque";
++    case network::mojom::FetchResponseType::kOpaqueRedirect:
++      return "opaque-redirect";
++  }
++}
++
++String ServiceWorkerResponseSourceString(
++    network::mojom::FetchResponseSource source) {
++  switch (source) {
++    case network::mojom::FetchResponseSource::kUnspecified:
++      return "fallback-code";
++    case network::mojom::FetchResponseSource::kNetwork:
++      return "network";
++    case network::mojom::FetchResponseSource::kHttpCache:
++      return "http-cache";
++    case network::mojom::FetchResponseSource::kCacheStorage:
++      return "cache-storage";
++  }
++}
++
++String ShadowRootTypeString(const ShadowRoot& root) {
++  if (root.IsUserAgent()) {
++    return "user-agent";
++  }
++  return root.IsOpen() ? "open" : "closed";
++}
++
++struct OwnerResolution {
++  STACK_ALLOCATED();
++
++ public:
++  Node* query_node = nullptr;
++  Element* base_owner = nullptr;
++  Element* style_owner = nullptr;
++  PseudoElement* pseudo = nullptr;
++  Document* document = nullptr;
++  LocalFrame* frame = nullptr;
++  ImageResourceContent* content = nullptr;
++  StyleImage* style_image = nullptr;
++  String kind;
++  String property;
++  int index = 0;
++  int image_set_option_index = -1;
++  String current_src;
++  String candidate_facts_sha256;
++  String viewport_sha256;
++  double device_pixel_ratio = 1;
++  Vector<int> shadow_host_backend_node_ids;
++  Vector<String> shadow_root_types;
++  String denial_code;
++};
++
++void AppendAttributeFact(StringBuilder& builder,
++                         const Element& element,
++                         const QualifiedName& name) {
++  builder.Append(name.LocalName());
++  builder.Append('=');
++  // SVG URI attributes are animatable and therefore may have a dirty
++  // synchronized value. FastGetAttribute() deliberately DCHECKs for such
++  // attributes; getAttribute(QualifiedName) preserves the namespace and
++  // synchronizes the exact source-owned attribute before hashing it.
++  builder.Append(element.getAttribute(name));
++  builder.Append('\n');
++}
++
++String HtmlCandidateFacts(const HTMLImageElement& image) {
++  StringBuilder builder;
++  AppendAttributeFact(builder, image, html_names::kSrcAttr);
++  AppendAttributeFact(builder, image, html_names::kSrcsetAttr);
++  AppendAttributeFact(builder, image, html_names::kSizesAttr);
++  AppendAttributeFact(builder, image, html_names::kCrossoriginAttr);
++  AppendAttributeFact(builder, image, html_names::kReferrerpolicyAttr);
++  if (const auto* picture = DynamicTo<HTMLPictureElement>(image.parentNode())) {
++    for (Node* child = picture->firstChild(); child;
++         child = child->nextSibling()) {
++      const auto* element = DynamicTo<Element>(child);
++      if (!element) {
++        continue;
++      }
++      builder.Append(element->tagName());
++      builder.Append('\n');
++      AppendAttributeFact(builder, *element, html_names::kSrcAttr);
++      AppendAttributeFact(builder, *element, html_names::kSrcsetAttr);
++      AppendAttributeFact(builder, *element, html_names::kSizesAttr);
++      AppendAttributeFact(builder, *element, html_names::kMediaAttr);
++      AppendAttributeFact(builder, *element, html_names::kTypeAttr);
++    }
++  }
++  return DigestString(builder.ToString());
++}
++
++StyleImage* FillLayerImageAt(const FillLayer& first, int index) {
++  const FillLayer* layer = &first;
++  for (int current = 0; layer && current < index; ++current) {
++    layer = layer->Next();
++  }
++  return layer ? layer->GetImage() : nullptr;
++}
++
++OwnerResolution ResolveOwner(int backend_node_id,
++                             const String& property,
++                             int index) {
++  OwnerResolution result;
++  result.property = property;
++  result.index = index;
++  if (index < 0 || index > 64) {
++    result.denial_code = "unsupported-slot";
++    return result;
++  }
++  result.query_node = DOMNodeIds::NodeForId(backend_node_id);
++  if (!result.query_node) {
++    result.denial_code = "strict-owner-not-found";
++    return result;
++  }
++  if (!result.query_node->isConnected()) {
++    result.denial_code = "owner-detached";
++    return result;
++  }
++  result.style_owner = DynamicTo<Element>(result.query_node);
++  if (!result.style_owner) {
++    result.denial_code = "unsupported-owner";
++    return result;
++  }
++  result.pseudo = DynamicTo<PseudoElement>(result.style_owner);
++  result.base_owner = result.pseudo
++                          ? &result.pseudo->UltimateOriginatingElement()
++                          : result.style_owner;
++  result.document = &result.style_owner->GetDocument();
++  result.frame = result.document->GetFrame();
++  if (!result.frame || !result.document->Loader()) {
++    result.denial_code = "stale-document";
++    return result;
++  }
++
++  for (Node* cursor = result.style_owner; cursor;) {
++    ShadowRoot* root = cursor->ContainingShadowRoot();
++    if (!root) {
++      break;
++    }
++    Element& host = root->host();
++    result.shadow_host_backend_node_ids.push_back(
++        IdentifiersFactory::IntIdForNode(&host));
++    result.shadow_root_types.push_back(ShadowRootTypeString(*root));
++    cursor = &host;
++  }
++
++  if (property == "html-current") {
++    auto* image = DynamicTo<HTMLImageElement>(result.base_owner);
++    if (!image || result.pseudo || index != 0) {
++      result.denial_code = "unsupported-slot";
++      return result;
++    }
++    result.kind = "html-image";
++    result.content = image->CachedImage();
++    result.current_src = image->currentSrc();
++    result.candidate_facts_sha256 = HtmlCandidateFacts(*image);
++  } else if (property == "svg-href") {
++    auto* image = DynamicTo<SVGImageElement>(result.base_owner);
++    if (!image || result.pseudo || index != 0) {
++      result.denial_code = "unsupported-slot";
++      return result;
++    }
++    result.kind = "svg-image";
++    result.content = image->CachedImage();
++    StringBuilder facts;
++    AppendAttributeFact(facts, *image, svg_names::kHrefAttr);
++    AppendAttributeFact(facts, *image, xlink_names::kHrefAttr);
++    result.candidate_facts_sha256 = DigestString(facts.ToString());
++  } else if (property == "input-src") {
++    auto* input = DynamicTo<HTMLInputElement>(result.base_owner);
++    if (!input || result.pseudo || index != 0 ||
++        input->FormControlType() !=
++            mojom::blink::FormControlType::kInputImage) {
++      result.denial_code = "unsupported-slot";
++      return result;
++    }
++    result.kind = "image-input";
++    result.content =
++        input->ImageLoader() ? input->ImageLoader()->GetContent() : nullptr;
++    StringBuilder facts;
++    AppendAttributeFact(facts, *input, html_names::kSrcAttr);
++    AppendAttributeFact(facts, *input, html_names::kCrossoriginAttr);
++    result.candidate_facts_sha256 = DigestString(facts.ToString());
++  } else {
++    result.kind = "css-image";
++    const ComputedStyle* style = result.style_owner->GetComputedStyle();
++    if (!style) {
++      result.denial_code = "candidate-pending";
++      return result;
++    }
++    if (property == "background-image") {
++      result.style_image = FillLayerImageAt(style->BackgroundLayers(), index);
++    } else if (property == "mask-image") {
++      result.style_image = FillLayerImageAt(style->MaskLayers(), index);
++    } else if (property == "content") {
++      ContentData* item = style->GetContentData();
++      for (int current = 0; item && current < index; ++current) {
++        item = item->Next();
++      }
++      if (auto* image = DynamicTo<ImageContentData>(item)) {
++        result.style_image = image->GetImage();
++      }
++    } else if (property == "list-style-image" && index == 0) {
++      result.style_image = style->ListStyleImage();
++    } else if (property == "border-image-source" && index == 0) {
++      result.style_image = style->BorderImageSource();
++    } else {
++      result.denial_code = "unsupported-slot";
++      return result;
++    }
++    if (!result.style_image) {
++      result.denial_code = "candidate-pending";
++      return result;
++    }
++    result.content = result.style_image->CachedImage();
++    if (auto* image_set = DynamicTo<StyleImageSet>(result.style_image)) {
++      result.image_set_option_index =
++          image_set->SelectedOptionIndexForInspector();
++      if (result.image_set_option_index < 0) {
++        result.denial_code = "candidate-pending";
++        return result;
++      }
++    }
++    StringBuilder facts;
++    facts.Append(property);
++    facts.Append('|');
++    facts.AppendNumber(index);
++    facts.Append('|');
++    facts.AppendNumber(result.image_set_option_index);
++    facts.Append('|');
++    facts.Append(result.style_image->IsImageResourceSet() ? "image-set"
++                                                          : "image-resource");
++    result.candidate_facts_sha256 = DigestString(facts.ToString());
++  }
++
++  if (!result.content) {
++    result.denial_code = "candidate-pending";
++    return result;
++  }
++
++  result.device_pixel_ratio = result.frame->DevicePixelRatio();
++  StringBuilder viewport;
++  if (result.frame->View()) {
++    viewport.AppendNumber(result.frame->View()->Size().width());
++    viewport.Append('x');
++    viewport.AppendNumber(result.frame->View()->Size().height());
++  }
++  viewport.Append('@');
++  viewport.AppendNumber(result.device_pixel_ratio);
++  result.viewport_sha256 = DigestString(viewport.ToString());
++  return result;
++}
++
++std::unique_ptr<Dictionary> BuildOracle(const String& root_frame_id,
++                                        const String& session_id) {
++  auto oracle = Dictionary::create();
++  oracle->setString("chromiumRevision", kChromiumRevision);
++  oracle->setString("schemaSha256", kSchemaSha256);
++  oracle->setString("patchSha256", kPatchSha256);
++  oracle->setInteger("rendererProcessId", base::GetCurrentProcId());
++  oracle->setString("rootFrameId", root_frame_id);
++  oracle->setString("sessionId", session_id);
++  return oracle;
++}
++
++std::unique_ptr<Dictionary> BuildStrictRequest(
++    const String& owner_selector_token,
++    int requested_frame_index) {
++  auto request = Dictionary::create();
++  request->setString("ownerSelectorToken", owner_selector_token);
++  request->setInteger("requestedFrameIndex", requested_frame_index);
++  request->setString("limitsFingerprint", kLimitsFingerprint);
++  return request;
++}
++
++std::unique_ptr<Dictionary> BuildSafeDocument(const OwnerResolution& owner,
++                                              const String& root_frame_id,
++                                              const String& nonce,
++                                              uint64_t navigation_sequence,
++                                              bool authorized) {
++  if (!owner.document || !owner.frame || !owner.document->Loader()) {
++    return nullptr;
++  }
++  auto document = Dictionary::create();
++  document->setString("targetId", root_frame_id);
++  document->setString("frameId", IdentifiersFactory::FrameId(owner.frame));
++  document->setString("documentLoaderId",
++                      IdentifiersFactory::LoaderId(owner.document->Loader()));
++  document->setString("documentNonce", nonce);
++  document->setDouble("navigationSequence",
++                      static_cast<double>(navigation_sequence));
++  if (authorized) {
++    document->setString("url", owner.document->Url().GetString());
++    document->setString(
++        "origin",
++        owner.document->GetExecutionContext()->GetSecurityOrigin()->ToString());
++  }
++  return document;
++}
++
++std::unique_ptr<Dictionary> BuildSafeOwner(const OwnerResolution& owner,
++                                           bool authorized) {
++  if (!owner.base_owner || owner.kind.empty()) {
++    return nullptr;
++  }
++  auto result = Dictionary::create();
++  result->setString("kind", owner.kind);
++  result->setInteger("backendNodeId",
++                     IdentifiersFactory::IntIdForNode(owner.base_owner));
++  auto hosts = List::create();
++  for (int id : owner.shadow_host_backend_node_ids) {
++    hosts->pushValue(protocol::FundamentalValue::create(id));
++  }
++  result->setArray("shadowHostBackendNodeIds", std::move(hosts));
++  auto root_types = List::create();
++  for (const String& type : owner.shadow_root_types) {
++    root_types->pushValue(protocol::StringValue::create(type));
++  }
++  result->setArray("shadowRootTypes", std::move(root_types));
++  if (owner.pseudo) {
++    auto pseudo = Dictionary::create();
++    pseudo->setInteger("backendNodeId",
++                       IdentifiersFactory::IntIdForNode(owner.pseudo));
++    pseudo->setString("type", InspectorDOMAgent::ProtocolPseudoElementType(
++                                  owner.pseudo->GetPseudoIdForStyling()));
++    result->setObject("pseudo", std::move(pseudo));
++  } else {
++    result->setValue("pseudo", Value::null());
++  }
++  auto slot = Dictionary::create();
++  slot->setString("property", owner.property);
++  slot->setInteger("index", owner.index);
++  if (owner.image_set_option_index < 0) {
++    slot->setValue("imageSetOptionIndex", Value::null());
++  } else {
++    slot->setInteger("imageSetOptionIndex", owner.image_set_option_index);
++  }
++  result->setObject("slot", std::move(slot));
++  if (authorized) {
++    SetNullableString(result.get(), "currentSrc", owner.current_src);
++    result->setString("selectedResourceUrl", owner.content->Url().GetString());
++    result->setString("candidateFactsSha256", owner.candidate_facts_sha256);
++    result->setDouble("devicePixelRatio", owner.device_pixel_ratio);
++    result->setString("viewportSha256", owner.viewport_sha256);
++  }
++  return result;
++}
++
++struct ResourceResolution {
++  STACK_ALLOCATED();
++
++ public:
++  Resource* resource = nullptr;
++  const NetworkResourcesData::ResourceData* ledger = nullptr;
++  String request_id;
++  String request_mode;
++  String credentials_mode;
++  String body_sha256;
++  size_t body_size = 0;
++  String redirect_sha256;
++  String response_sha256;
++  String service_worker_controller_version_id;
++  String service_worker_sha256;
++  String cache_sha256;
++  String denial_code;
++};
++
++void AppendRouterSemanticFacts(StringBuilder& facts,
++                               const ServiceWorkerRouterInfo& router) {
++  facts.AppendNumber(
++      router.RuleIdMatched().value_or(std::numeric_limits<uint32_t>::max()));
++  facts.Append('|');
++  if (router.MatchedSourceType()) {
++    facts.Append(ServiceWorkerRouterInfo::GetRouterSourceTypeString(
++        *router.MatchedSourceType()));
++  }
++  facts.Append('|');
++  if (router.ActualSourceType()) {
++    facts.Append(ServiceWorkerRouterInfo::GetRouterSourceTypeString(
++        *router.ActualSourceType()));
++  }
++  facts.Append('|');
++  facts.AppendNumber(router.RouteRuleNum());
++  facts.Append('|');
++  if (router.EvaluationWorkerStatus()) {
++    facts.AppendNumber(static_cast<int>(*router.EvaluationWorkerStatus()));
++  }
++}
++
++String RouterSha256(const ResourceResponse& response) {
++  const ServiceWorkerRouterInfo* router = response.GetServiceWorkerRouterInfo();
++  if (!router) {
++    return String();
++  }
++  StringBuilder facts;
++  AppendRouterSemanticFacts(facts, *router);
++  return DigestString(facts.ToString());
++}
++
++String RouterEpochSha256(const ResourceResponse& response) {
++  const ServiceWorkerRouterInfo* router = response.GetServiceWorkerRouterInfo();
++  if (!router) {
++    return String();
++  }
++  StringBuilder facts;
++  AppendRouterSemanticFacts(facts, *router);
++  facts.Append('|');
++  facts.AppendNumber(router->RouterEvaluationTime().InMicroseconds());
++  facts.Append('|');
++  facts.AppendNumber(router->CacheLookupTime().InMicroseconds());
++  return DigestString(facts.ToString());
++}
++
++ResourceResolution ResolveResource(const OwnerResolution& owner,
++                                   NetworkResourcesData* resources_data) {
++  ResourceResolution result;
++  if (!owner.content) {
++    result.denial_code =
++        owner.denial_code.empty() ? "candidate-pending" : owner.denial_code;
++    return result;
++  }
++  result.resource = owner.content->ResourceForInspector();
++  if (!result.resource) {
++    result.denial_code = "ambiguous-resource";
++    return result;
++  }
++  const ResourceRequestHead& request = result.resource->GetResourceRequest();
++  result.request_mode = RequestModeString(request.GetMode());
++  result.credentials_mode = CredentialsModeString(request.GetCredentialsMode());
++  result.request_id =
++      IdentifiersFactory::SubresourceRequestId(result.resource->InspectorId());
++  const KURL& url = request.Url();
++  const bool is_http = url.ProtocolIsInHttpFamily();
++  const bool is_data = url.ProtocolIsData();
++  const bool is_blob = url.ProtocolIs("blob");
++  if (!is_http && !is_data && !is_blob) {
++    result.denial_code = "unsupported-scheme";
++    return result;
++  }
++  if (is_http) {
++    result.ledger =
++        resources_data ? resources_data->Data(result.request_id) : nullptr;
++    if (!result.ledger) {
++      result.denial_code = "missing-request-ledger";
++      return result;
++    }
++    // An active validator has a request ledger before DidReceiveResponse can
++    // attach its CachedResource. The direct owner -> content -> Resource link
++    // and Resource::IsCacheValidator are authoritative; deny before any body
++    // or response fact is eligible for serialization.
++    if (result.resource->IsCacheValidator()) {
++      result.denial_code = "revalidation-in-flight";
++      return result;
++    }
++    // Failed CORS/access-check loads do not reach the response callback that
++    // attaches CachedResource to the inspector ledger. The direct owner-held
++    // Resource and its ResourceError are authoritative and body-free.
++    if (result.resource->LoadFailedOrCanceled()) {
++      const ResourceError& error = result.resource->GetResourceError();
++      result.denial_code =
++          error.CorsErrorStatus().has_value() || error.IsAccessCheck()
++              ? "cors-denied"
++              : "unsupported-owner";
++      return result;
++    }
++    if (result.ledger->CachedResource() != result.resource) {
++      result.denial_code = "ambiguous-resource";
++      return result;
++    }
++    if (result.ledger->IsContentEvicted()) {
++      result.denial_code = "body-evicted";
++      return result;
++    }
++    if (!result.ledger->LoadingFinishedForInspector()) {
++      result.denial_code = "candidate-pending";
++      return result;
++    }
++  }
++  if (result.resource->RedirectCountForInspector() > kMaximumRedirects) {
++    result.denial_code = "body-limit-exceeded";
++    return result;
++  }
++
++  const ResourceResponse& response = result.resource->GetResponse();
++  if (owner.document && owner.document->Loader()) {
++    WebServiceWorkerNetworkProvider* provider =
++        owner.document->Loader()->GetServiceWorkerNetworkProvider();
++    if (provider &&
++        provider->GetControllerServiceWorkerMode() !=
++            mojom::blink::ControllerServiceWorkerMode::kNoController) {
++      result.service_worker_controller_version_id =
++          String::Number(provider->ControllerServiceWorkerID());
++    }
++  }
++  String mime = response.MimeType();
++  String raw_content_type = response.HttpHeaderField(http_names::kContentType);
++  if (To<ImageResource>(result.resource)->IsMultipartForInspector() ||
++      EqualIgnoringAsciiCase(mime, "multipart/x-mixed-replace") ||
++      raw_content_type.StartsWithIgnoringAsciiCase(
++          "multipart/x-mixed-replace")) {
++    result.denial_code = "multipart-response";
++    return result;
++  }
++  if (response.GetType() == network::mojom::FetchResponseType::kOpaque ||
++      response.GetType() ==
++          network::mojom::FetchResponseType::kOpaqueRedirect) {
++    result.denial_code = "opaque-response";
++    return result;
++  }
++  if (!response.IsCorsSameOrigin()) {
++    result.denial_code = "unsupported-owner";
++    return result;
++  }
++  if (!EqualIgnoringAsciiCase(mime, "image/gif") &&
++      !EqualIgnoringAsciiCase(mime, "image/png") &&
++      !EqualIgnoringAsciiCase(mime, "image/webp")) {
++    result.denial_code = "unsupported-mime";
++    return result;
++  }
++  if (is_http &&
++      (response.HttpStatusCode() < 200 || response.HttpStatusCode() >= 300)) {
++    result.denial_code = "response-drift";
++    return result;
++  }
++  if (owner.content->ErrorOccurred() || !owner.content->IsLoaded() ||
++      !owner.content->GetImage() || !owner.content->IsAnimatedImage()) {
++    result.denial_code = "unsupported-owner";
++    return result;
++  }
++  if (!owner.content->GetImage()->HasSingleSecurityOrigin()) {
++    result.denial_code = "multiple-security-origins";
++    return result;
++  }
++  if (!owner.content->IsCorsSameOrigin()) {
++    result.denial_code = "cors-denied";
++    return result;
++  }
++  scoped_refptr<const SharedBuffer> buffer = owner.content->ResourceBuffer();
++  if (!buffer) {
++    result.denial_code = "body-evicted";
++    return result;
++  }
++  result.body_size = buffer->size();
++  if (result.body_size == 0 || result.body_size > kMaximumResourceBytes) {
++    result.denial_code = "body-limit-exceeded";
++    return result;
++  }
++  DigestValue digest;
++  if (!ComputeDigest(kHashAlgorithmSha256, buffer.get(), digest)) {
++    result.denial_code = "body-digest-mismatch";
++    return result;
++  }
++  result.body_sha256 = String::FromUtf8(base::HexEncodeLower(digest));
++
++  StringBuilder redirects;
++  for (wtf_size_t index = 0;
++       index < result.resource->RedirectCountForInspector(); ++index) {
++    const ResourceResponse& redirect =
++        result.resource->RedirectResponseForInspector(index);
++    redirects.Append(redirect.CurrentRequestUrl().GetString());
++    redirects.Append('|');
++    redirects.Append(redirect.ResponseUrl().GetString());
++    redirects.Append('|');
++    redirects.AppendNumber(redirect.HttpStatusCode());
++    redirects.Append('|');
++    redirects.AppendNumber(
++        redirect.ResponseTime().InMillisecondsFSinceUnixEpochIgnoringNull());
++    redirects.Append('\n');
++  }
++  result.redirect_sha256 = DigestString(redirects.ToString());
++  StringBuilder response_facts;
++  response_facts.Append(response.CurrentRequestUrl().GetString());
++  response_facts.Append('|');
++  response_facts.Append(response.ResponseUrl().GetString());
++  response_facts.Append('|');
++  response_facts.AppendNumber(response.HttpStatusCode());
++  response_facts.Append('|');
++  response_facts.Append(mime);
++  response_facts.Append('|');
++  response_facts.Append(raw_content_type);
++  response_facts.Append('|');
++  response_facts.Append(FetchResponseTypeString(response.GetType()));
++  result.response_sha256 = DigestString(response_facts.ToString());
++  StringBuilder sw;
++  sw.AppendNumber(response.WasFetchedViaServiceWorker());
++  sw.Append('|');
++  sw.Append(ServiceWorkerResponseSourceString(
++      response.GetServiceWorkerResponseSource()));
++  sw.Append('|');
++  sw.Append(result.service_worker_controller_version_id);
++  sw.Append('|');
++  sw.Append(RouterEpochSha256(response));
++  for (const KURL& sw_url : response.UrlListViaServiceWorker()) {
++    sw.Append('|');
++    sw.Append(sw_url.GetString());
++  }
++  sw.Append('|');
++  sw.Append(response.CacheStorageCacheName());
++  result.service_worker_sha256 = DigestString(sw.ToString());
++  StringBuilder cache;
++  cache.AppendNumber(response.WasCached());
++  cache.Append('|');
++  cache.AppendNumber(result.ledger &&
++                     result.ledger->ServedFromMemoryCacheForInspector());
++  cache.Append('|');
++  cache.AppendNumber(
++      result.resource->DomotionMemoryCacheUseCountForInspector());
++  result.cache_sha256 = DigestString(cache.ToString());
++  return result;
++}
++
++std::unique_ptr<Dictionary> BuildRequestIdentity(
++    const OwnerResolution& owner,
++    const ResourceResolution& resource) {
++  if (!resource.resource) {
++    return nullptr;
++  }
++  auto result = Dictionary::create();
++  result->setString("inspectorRequestId", resource.request_id);
++  String loader_id = resource.ledger ? resource.ledger->LoaderId() : String();
++  if (loader_id.empty() && owner.document && owner.document->Loader()) {
++    loader_id = IdentifiersFactory::LoaderId(owner.document->Loader());
++  }
++  result->setString("requestLoaderId", loader_id);
++  String frame_id = resource.ledger ? resource.ledger->FrameId() : String();
++  if (frame_id.empty() && owner.frame) {
++    frame_id = IdentifiersFactory::FrameId(owner.frame);
++  }
++  result->setString("requestFrameId", frame_id);
++  result->setString("requestMode", resource.request_mode);
++  result->setString("credentialsMode", resource.credentials_mode);
++  return result;
++}
++
++std::unique_ptr<Dictionary> BuildDeniedRecord(
++    const OwnerResolution& owner,
++    const ResourceResolution& resource,
++    const String& denial_code,
++    const String& root_frame_id,
++    const String& session_id,
++    const String& owner_selector_token,
++    int requested_frame_index,
++    const String& document_nonce,
++    uint64_t navigation_sequence) {
++  auto record = Dictionary::create();
++  record->setString("protocol", kProtocol);
++  record->setString("outcome", "denied");
++  record->setObject("oracle", BuildOracle(root_frame_id, session_id));
++  record->setObject("strictRequest", BuildStrictRequest(owner_selector_token,
++                                                        requested_frame_index));
++  record->setString("denialCode", denial_code);
++  if (auto document = BuildSafeDocument(owner, root_frame_id, document_nonce,
++                                        navigation_sequence, false)) {
++    record->setObject("document", std::move(document));
++  } else {
++    record->setValue("document", Value::null());
++  }
++  if (auto safe_owner = BuildSafeOwner(owner, false)) {
++    record->setObject("owner", std::move(safe_owner));
++  } else {
++    record->setValue("owner", Value::null());
++  }
++  if (auto request = BuildRequestIdentity(owner, resource)) {
++    record->setObject("requestIdentity", std::move(request));
++  } else {
++    record->setValue("requestIdentity", Value::null());
++  }
++  return record;
++}
++
++std::unique_ptr<Dictionary> BuildAuthorizedBase(
++    const OwnerResolution& owner,
++    const ResourceResolution& resource,
++    const String& content_logical_id,
++    const String& resource_logical_id,
++    const String& root_frame_id,
++    const String& session_id,
++    const String& owner_selector_token,
++    int requested_frame_index,
++    const String& document_nonce,
++    uint64_t navigation_sequence) {
++  const ResourceResponse& response = resource.resource->GetResponse();
++  auto record = Dictionary::create();
++  record->setString("protocol", kProtocol);
++  record->setString("outcome", "authorized");
++  record->setObject("oracle", BuildOracle(root_frame_id, session_id));
++  record->setObject("strictRequest", BuildStrictRequest(owner_selector_token,
++                                                        requested_frame_index));
++  record->setObject("document",
++                    BuildSafeDocument(owner, root_frame_id, document_nonce,
++                                      navigation_sequence, true));
++  record->setObject("owner", BuildSafeOwner(owner, true));
++
++  auto resource_object = Dictionary::create();
++  resource_object->setString("contentLogicalId", content_logical_id);
++  resource_object->setString("resourceLogicalId", resource_logical_id);
++  resource_object->setString("inspectorRequestId", resource.request_id);
++  resource_object->setString(
++      "requestLoaderId",
++      resource.ledger ? resource.ledger->LoaderId()
++                      : IdentifiersFactory::LoaderId(owner.document->Loader()));
++  resource_object->setString("requestFrameId",
++                             resource.ledger
++                                 ? resource.ledger->FrameId()
++                                 : IdentifiersFactory::FrameId(owner.frame));
++  resource_object->setString("requestMode", resource.request_mode);
++  resource_object->setString("credentialsMode", resource.credentials_mode);
++  auto redirect_list = List::create();
++  for (wtf_size_t index = 0;
++       index < resource.resource->RedirectCountForInspector(); ++index) {
++    const ResourceResponse& redirect =
++        resource.resource->RedirectResponseForInspector(index);
++    auto item = Dictionary::create();
++    item->setString("requestUrl", redirect.CurrentRequestUrl().GetString());
++    item->setString("responseUrl", redirect.ResponseUrl().GetString());
++    item->setInteger("status", redirect.HttpStatusCode());
++    item->setDouble(
++        "responseTime",
++        redirect.ResponseTime().InMillisecondsFSinceUnixEpochIgnoringNull());
++    redirect_list->pushValue(std::move(item));
++  }
++  resource_object->setArray("redirects", std::move(redirect_list));
++  resource_object->setString(
++      "currentRequestUrl",
++      resource.resource->GetResourceRequest().Url().GetString());
++  resource_object->setString("responseUrl", response.ResponseUrl().GetString());
++  resource_object->setInteger("status", response.HttpStatusCode());
++  resource_object->setString("mimeType", response.MimeType());
++  SetNullableString(resource_object.get(), "rawContentType",
++                    response.HttpHeaderField(http_names::kContentType));
++  resource_object->setString("fetchResponseType",
++                             FetchResponseTypeString(response.GetType()));
++  resource_object->setBoolean("corsSameOrigin", true);
++  resource_object->setBoolean("singleSecurityOrigin", true);
++  const bool memory_cache =
++      resource.ledger && resource.ledger->ServedFromMemoryCacheForInspector();
++  resource_object->setBoolean("fromDiskCache",
++                              response.WasCached() && !memory_cache);
++  resource_object->setBoolean("fromMemoryCache", memory_cache);
++  resource_object->setDouble(
++      "memoryCacheHitCount",
++      static_cast<double>(
++          resource.resource->DomotionMemoryCacheUseCountForInspector()));
++  resource_object->setBoolean("fromServiceWorker",
++                              response.WasFetchedViaServiceWorker());
++  SetNullableString(resource_object.get(), "serviceWorkerControllerVersionId",
++                    resource.service_worker_controller_version_id);
++  if (response.WasFetchedViaServiceWorker()) {
++    resource_object->setString("serviceWorkerResponseSource",
++                               ServiceWorkerResponseSourceString(
++                                   response.GetServiceWorkerResponseSource()));
++  } else {
++    resource_object->setValue("serviceWorkerResponseSource", Value::null());
++  }
++  String router_sha = RouterSha256(response);
++  SetNullableString(resource_object.get(), "serviceWorkerRouterSha256",
++                    router_sha);
++  auto sw_urls = List::create();
++  for (const KURL& sw_url : response.UrlListViaServiceWorker()) {
++    sw_urls->pushValue(protocol::StringValue::create(sw_url.GetString()));
++  }
++  resource_object->setArray("serviceWorkerUrlList", std::move(sw_urls));
++  SetNullableString(resource_object.get(), "cacheStorageCacheName",
++                    response.CacheStorageCacheName());
++  resource_object->setDouble(
++      "responseTime",
++      response.ResponseTime().InMillisecondsFSinceUnixEpochIgnoringNull());
++  resource_object->setDouble("originalResponseTime",
++                             response.OriginalResponseTime()
++                                 .InMillisecondsFSinceUnixEpochIgnoringNull());
++  resource_object->setDouble(
++      "revalidationCount",
++      static_cast<double>(resource.resource->RevalidationCountForInspector()));
++  if (auto status = resource.resource->LastRevalidationStatusForInspector()) {
++    resource_object->setInteger("lastRevalidationStatus", *status);
++  } else {
++    resource_object->setValue("lastRevalidationStatus", Value::null());
++  }
++  resource_object->setDouble(
++      "networkEncodedDataLength",
++      resource.ledger
++          ? static_cast<double>(
++                resource.ledger->NetworkEncodedDataLengthForInspector())
++          : -1);
++  record->setObject("resource", std::move(resource_object));
++
++  auto body = Dictionary::create();
++  const KURL& url = resource.resource->GetResourceRequest().Url();
++  if (url.ProtocolIsInHttpFamily()) {
++    body->setString("transport", "network-get-response-body");
++    body->setBoolean("base64EncodedByProtocol", true);
++    body->setBoolean("networkLoadingFinished", true);
++  } else if (url.ProtocolIsData()) {
++    body->setString("transport", "data-url");
++    body->setBoolean("base64EncodedByProtocol", false);
++    body->setValue("networkLoadingFinished", Value::null());
++  } else {
++    body->setString("transport", "blob-read");
++    body->setBoolean("base64EncodedByProtocol", false);
++    body->setValue("networkLoadingFinished", Value::null());
++  }
++  body->setDouble("byteLength", static_cast<double>(resource.body_size));
++  body->setString("sha256", resource.body_sha256);
++  record->setObject("body", std::move(body));
++
++  auto epochs = Dictionary::create();
++  epochs->setDouble(
++      "resourceResponseSequence",
++      static_cast<double>(resource.resource->ResponseSequenceForInspector()));
++  record->setObject("epochs", std::move(epochs));
++  return record;
++}
++
++std::unique_ptr<Dictionary> FinalizeAuthorizedRecord(
++    const Dictionary& base,
++    const String& preflight_sha256,
++    const String& postflight_sha256) {
++  auto record = Dictionary::cast(base.clone());
++  Dictionary* epochs = record->getObject("epochs");
++  epochs->setString("preflightSha256", preflight_sha256);
++  epochs->setString("postflightSha256", postflight_sha256);
++  epochs->setDouble("collectedAtMonotonicMs",
++                    base::TimeTicks::Now().since_origin().InMillisecondsF());
++  return record;
++}
++
++}  // namespace
++
++class InspectorDomotionAnimatedImageTruthAgent::Transaction final
++    : public GarbageCollected<Transaction> {
++ public:
++  int backend_node_id = 0;
++  String property;
++  int index = 0;
++  String owner_selector_token;
++  int requested_frame_index = 0;
++  String document_nonce;
++  uint64_t navigation_sequence = 0;
++  WeakMember<Node> query_node;
++  WeakMember<Document> document;
++  WeakMember<LocalFrame> frame;
++  WeakMember<ImageResourceContent> content;
++  WeakMember<StyleImage> style_image;
++  WeakMember<Resource> resource;
++  String candidate_facts_sha256;
++  String viewport_sha256;
++  double device_pixel_ratio = 1;
++  int image_set_option_index = -1;
++  String request_id;
++  String request_mode;
++  String credentials_mode;
++  String redirect_sha256;
++  String service_worker_sha256;
++  String cache_sha256;
++  String body_sha256;
++  size_t body_size = 0;
++  String content_logical_id;
++  String resource_logical_id;
++  String exact_sha256;
++  size_t reserved_body_bytes = 0;
++  bool authorized = false;
++
++  String DriftCode(const OwnerResolution& after_owner,
++                   const ResourceResolution& after_resource) const {
++    if (!after_owner.denial_code.empty()) {
++      return after_owner.denial_code;
++    }
++    if (!after_resource.denial_code.empty()) {
++      return after_resource.denial_code;
++    }
++    if (document != after_owner.document || frame != after_owner.frame) {
++      return "navigation-drift";
++    }
++    if (query_node != after_owner.query_node ||
++        content != after_owner.content ||
++        style_image != after_owner.style_image ||
++        candidate_facts_sha256 != after_owner.candidate_facts_sha256 ||
++        viewport_sha256 != after_owner.viewport_sha256 ||
++        device_pixel_ratio != after_owner.device_pixel_ratio ||
++        image_set_option_index != after_owner.image_set_option_index) {
++      return "candidate-drift";
++    }
++    if (resource != after_resource.resource ||
++        request_id != after_resource.request_id) {
++      return "request-drift";
++    }
++    if (request_mode != after_resource.request_mode) {
++      return "request-drift";
++    }
++    if (credentials_mode != after_resource.credentials_mode) {
++      return "credential-mode-mismatch";
++    }
++    if (after_resource.resource &&
++        after_resource.resource->IsCacheValidator()) {
++      return "revalidation-in-flight";
++    }
++    if (redirect_sha256 != after_resource.redirect_sha256) {
++      return "redirect-drift";
++    }
++    if (service_worker_sha256 != after_resource.service_worker_sha256) {
++      return "service-worker-drift";
++    }
++    if (cache_sha256 != after_resource.cache_sha256) {
++      return "cache-entry-drift";
++    }
++    if (body_size != after_resource.body_size) {
++      return "body-length-mismatch";
++    }
++    if (body_sha256 != after_resource.body_sha256) {
++      return "body-digest-mismatch";
++    }
++    return "response-drift";
++  }
++
++  void Trace(Visitor* visitor) const {
++    visitor->Trace(query_node);
++    visitor->Trace(document);
++    visitor->Trace(frame);
++    visitor->Trace(content);
++    visitor->Trace(style_image);
++    visitor->Trace(resource);
++  }
++};
++
++InspectorDomotionAnimatedImageTruthAgent::
++    InspectorDomotionAnimatedImageTruthAgent(InspectedFrames* inspected_frames,
++                                             InspectorNetworkAgent* network,
++                                             const String& session_id)
++    : inspected_frames_(inspected_frames),
++      network_agent_(network),
++      session_id_(session_id) {}
++
++InspectorDomotionAnimatedImageTruthAgent::
++    ~InspectorDomotionAnimatedImageTruthAgent() = default;
++
++void InspectorDomotionAnimatedImageTruthAgent::Trace(Visitor* visitor) const {
++  visitor->Trace(inspected_frames_);
++  visitor->Trace(network_agent_);
++  visitor->Trace(transactions_);
++  visitor->Trace(document_epochs_);
++  InspectorBaseAgent::Trace(visitor);
++}
++
++protocol::Response InspectorDomotionAnimatedImageTruthAgent::begin(
++    int backend_node_id,
++    const String& property,
++    int index,
++    const String& owner_selector_token,
++    int requested_frame_index,
++    const String& limits_fingerprint,
++    String* transaction_id,
++    std::unique_ptr<Dictionary>* record) {
++  if (limits_fingerprint != kLimitsFingerprint) {
++    return protocol::Response::InvalidParams("limits fingerprint mismatch");
++  }
++  if (!IsSafeOwnerSelectorToken(owner_selector_token) ||
++      requested_frame_index < 0) {
++    return protocol::Response::InvalidParams("invalid strict request");
++  }
++  if (transactions_.size() >= kMaximumTransactions) {
++    return protocol::Response::ServerError("body-limit-exceeded");
++  }
++
++  LocalFrame* root = inspected_frames_->Root();
++  if (!root) {
++    return protocol::Response::ServerError("stale-document");
++  }
++  String root_frame_id = IdentifiersFactory::FrameId(root);
++  OwnerResolution owner = ResolveOwner(backend_node_id, property, index);
++  String document_nonce;
++  uint64_t navigation_sequence = 0;
++  if (owner.document) {
++    auto insert = document_epochs_.insert(owner.document, DocumentEpoch());
++    if (insert.is_new_entry) {
++      insert.stored_value->value.nonce = IdentifiersFactory::CreateIdentifier();
++      insert.stored_value->value.navigation_sequence =
++          next_navigation_sequence_++;
++    }
++    document_nonce = insert.stored_value->value.nonce;
++    navigation_sequence = insert.stored_value->value.navigation_sequence;
++  }
++  ResourceResolution resource = ResolveResource(
++      owner, network_agent_->ResourcesDataForDomotionInspector());
++
++  auto* transaction = MakeGarbageCollected<Transaction>();
++  transaction->backend_node_id = backend_node_id;
++  transaction->property = property;
++  transaction->index = index;
++  transaction->owner_selector_token = owner_selector_token;
++  transaction->requested_frame_index = requested_frame_index;
++  transaction->document_nonce = document_nonce;
++  transaction->navigation_sequence = navigation_sequence;
++  transaction->query_node = owner.query_node;
++  transaction->document = owner.document;
++  transaction->frame = owner.frame;
++  transaction->content = owner.content;
++  transaction->style_image = owner.style_image;
++  transaction->resource = resource.resource;
++  transaction->candidate_facts_sha256 = owner.candidate_facts_sha256;
++  transaction->viewport_sha256 = owner.viewport_sha256;
++  transaction->device_pixel_ratio = owner.device_pixel_ratio;
++  transaction->image_set_option_index = owner.image_set_option_index;
++  transaction->request_id = resource.request_id;
++  transaction->request_mode = resource.request_mode;
++  transaction->credentials_mode = resource.credentials_mode;
++  transaction->redirect_sha256 = resource.redirect_sha256;
++  transaction->service_worker_sha256 = resource.service_worker_sha256;
++  transaction->cache_sha256 = resource.cache_sha256;
++  transaction->body_sha256 = resource.body_sha256;
++  transaction->body_size = resource.body_size;
++
++  String denial =
++      !owner.denial_code.empty() ? owner.denial_code : resource.denial_code;
++  if (denial.empty() &&
++      active_body_bytes_ + resource.body_size > kMaximumTransactionBytes) {
++    denial = "body-limit-exceeded";
++  }
++  if (denial.empty()) {
++    transaction->content_logical_id = IdentifiersFactory::CreateIdentifier();
++    transaction->resource_logical_id = IdentifiersFactory::CreateIdentifier();
++    auto base = BuildAuthorizedBase(
++        owner, resource, transaction->content_logical_id,
++        transaction->resource_logical_id, root_frame_id, session_id_,
++        owner_selector_token, requested_frame_index, document_nonce,
++        navigation_sequence);
++    transaction->exact_sha256 = DigestDictionary(*base);
++    transaction->authorized = true;
++    transaction->reserved_body_bytes = resource.body_size;
++    active_body_bytes_ += resource.body_size;
++    *record = FinalizeAuthorizedRecord(*base, transaction->exact_sha256,
++                                       transaction->exact_sha256);
++  } else {
++    *record =
++        BuildDeniedRecord(owner, resource, denial, root_frame_id, session_id_,
++                          owner_selector_token, requested_frame_index,
++                          document_nonce, navigation_sequence);
++    transaction->exact_sha256 = DigestDictionary(**record);
++  }
++
++  *transaction_id = IdentifiersFactory::CreateIdentifier();
++  transactions_.Set(*transaction_id, transaction);
++  return protocol::Response::Success();
++}
++
++protocol::Response InspectorDomotionAnimatedImageTruthAgent::finish(
++    const String& transaction_id,
++    bool* unchanged,
++    std::unique_ptr<Dictionary>* record) {
++  auto found = transactions_.find(transaction_id);
++  if (found == transactions_.end()) {
++    return protocol::Response::InvalidParams("unknown or consumed transaction");
++  }
++  Member<Transaction> transaction = found->value;
++  transactions_.erase(found);
++  if (transaction->reserved_body_bytes <= active_body_bytes_) {
++    active_body_bytes_ -= transaction->reserved_body_bytes;
++  } else {
++    active_body_bytes_ = 0;
++  }
++
++  LocalFrame* root = inspected_frames_->Root();
++  String root_frame_id = root ? IdentifiersFactory::FrameId(root) : String();
++  OwnerResolution owner = ResolveOwner(
++      transaction->backend_node_id, transaction->property, transaction->index);
++  String document_nonce;
++  uint64_t navigation_sequence = 0;
++  if (owner.document) {
++    // An owner can be adopted into a previously unseen document between
++    // begin and finish. Allocate that current document's identity before
++    // emitting the body-free drift denial so its frame/loader/epoch facts
++    // remain source-owned and internally consistent.
++    auto insert = document_epochs_.insert(owner.document, DocumentEpoch());
++    if (insert.is_new_entry) {
++      insert.stored_value->value.nonce =
++          IdentifiersFactory::CreateIdentifier();
++      insert.stored_value->value.navigation_sequence =
++          next_navigation_sequence_++;
++    }
++    document_nonce = insert.stored_value->value.nonce;
++    navigation_sequence = insert.stored_value->value.navigation_sequence;
++  }
++  ResourceResolution resource = ResolveResource(
++      owner, network_agent_->ResourcesDataForDomotionInspector());
++  String denial =
++      !owner.denial_code.empty() ? owner.denial_code : resource.denial_code;
++
++  if (transaction->authorized && denial.empty()) {
++    auto base = BuildAuthorizedBase(
++        owner, resource, transaction->content_logical_id,
++        transaction->resource_logical_id, root_frame_id, session_id_,
++        transaction->owner_selector_token, transaction->requested_frame_index,
++        document_nonce, navigation_sequence);
++    String postflight_sha256 = DigestDictionary(*base);
++    *unchanged = transaction->query_node == owner.query_node &&
++                 transaction->document == owner.document &&
++                 transaction->content == owner.content &&
++                 transaction->style_image == owner.style_image &&
++                 transaction->resource == resource.resource &&
++                 transaction->exact_sha256 == postflight_sha256;
++    if (*unchanged) {
++      *record = FinalizeAuthorizedRecord(*base, transaction->exact_sha256,
++                                         postflight_sha256);
++      return protocol::Response::Success();
++    }
++    denial = transaction->DriftCode(owner, resource);
++  } else if (!transaction->authorized && !denial.empty()) {
++    auto denied = BuildDeniedRecord(
++        owner, resource, denial, root_frame_id, session_id_,
++        transaction->owner_selector_token, transaction->requested_frame_index,
++        document_nonce, navigation_sequence);
++    *unchanged = transaction->exact_sha256 == DigestDictionary(*denied);
++    *record = std::move(denied);
++    return protocol::Response::Success();
++  } else if (denial.empty()) {
++    denial = "response-drift";
++  }
++
++  *unchanged = false;
++  *record = BuildDeniedRecord(owner, resource, denial, root_frame_id,
++                              session_id_, transaction->owner_selector_token,
++                              transaction->requested_frame_index,
++                              document_nonce, navigation_sequence);
++  return protocol::Response::Success();
++}
++
++}  // namespace blink
+diff --git a/third_party/blink/renderer/core/inspector/inspector_domotion_animated_image_truth_agent.h b/third_party/blink/renderer/core/inspector/inspector_domotion_animated_image_truth_agent.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..43917a3f1ddd571c9e434d2962be69930b348fdf
+--- /dev/null
++++ b/third_party/blink/renderer/core/inspector/inspector_domotion_animated_image_truth_agent.h
+@@ -0,0 +1,67 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef THIRD_PARTY_BLINK_RENDERER_CORE_INSPECTOR_INSPECTOR_DOMOTION_ANIMATED_IMAGE_TRUTH_AGENT_H_
++#define THIRD_PARTY_BLINK_RENDERER_CORE_INSPECTOR_INSPECTOR_DOMOTION_ANIMATED_IMAGE_TRUTH_AGENT_H_
++
++#include "third_party/blink/renderer/core/core_export.h"
++#include "third_party/blink/renderer/core/inspector/inspector_base_agent.h"
++#include "third_party/blink/renderer/core/inspector/protocol/domotion_animated_image_truth.h"
++#include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_map.h"
++#include "third_party/blink/renderer/platform/heap/member.h"
++
++namespace blink {
++
++class InspectorNetworkAgent;
++class InspectedFrames;
++class Document;
++
++// Private, bounded, evidence-only owner -> encoded ResourceBuffer oracle.
++// DevToolsSession intentionally does not allow this domain to untrusted
++// clients. It changes no loading, decoding, animation, paint, or capture path.
++class CORE_EXPORT InspectorDomotionAnimatedImageTruthAgent final
++    : public InspectorBaseAgent<
++          protocol::DomotionAnimatedImageTruth::Metainfo> {
++ public:
++  InspectorDomotionAnimatedImageTruthAgent(InspectedFrames*,
++                                           InspectorNetworkAgent*,
++                                           const String& session_id);
++  ~InspectorDomotionAnimatedImageTruthAgent() override;
++
++  void Trace(Visitor*) const override;
++
++  protocol::Response begin(
++      int backend_node_id,
++      const String& property,
++      int index,
++      const String& owner_selector_token,
++      int requested_frame_index,
++      const String& limits_fingerprint,
++      String* transaction_id,
++      std::unique_ptr<protocol::DictionaryValue>* record) override;
++  protocol::Response finish(
++      const String& transaction_id,
++      bool* unchanged,
++      std::unique_ptr<protocol::DictionaryValue>* record) override;
++
++ private:
++  class Transaction;
++
++  struct DocumentEpoch {
++    String nonce;
++    uint64_t navigation_sequence = 0;
++  };
++
++  Member<InspectedFrames> inspected_frames_;
++  Member<InspectorNetworkAgent> network_agent_;
++  const String session_id_;
++  HeapHashMap<String, Member<Transaction>> transactions_;
++  HeapHashMap<WeakMember<Document>, DocumentEpoch> document_epochs_;
++  uint64_t next_navigation_sequence_ = 1;
++  size_t active_body_bytes_ = 0;
++};
++
++}  // namespace blink
++
++#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_INSPECTOR_INSPECTOR_DOMOTION_ANIMATED_IMAGE_TRUTH_AGENT_H_
