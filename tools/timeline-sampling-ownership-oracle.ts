@@ -50,8 +50,8 @@ export const REQUIRED_TIMELINE_OWNERSHIP_DISCRIMINATORS = [
   "projective-html-box-does-not-retime-view-timeline",
   "transformed-svg-subject-retimes-view-timeline",
   "percentage-hold-freezes-effect-not-source",
-  "document-enumeration-misses-shadow-progress",
-  "current-helper-rejects-enumerated-progress-but-raf-mutates",
+  "closed-shadow-progress-fails-before-mutation",
+  "document-and-open-shadow-progress-held",
   "pre-navigation-clock-freezes-benign-main-and-oopif-raf",
   "pre-navigation-clock-exposes-native-raf-escape",
   "pre-navigation-clock-does-not-own-worker-raf",
@@ -168,12 +168,12 @@ interface CaptureBoundaryReport {
   afterRafCounts: Record<"main" | "oopif", number>;
   nonStrictFailures: string[];
   strictError: string | null;
-  progressTimelineRejected: boolean;
+  closedScopeRejected: boolean;
+  reachableProgressHeld: boolean;
   rafMutatedDuringCaptureSettle: boolean;
   treeScopesBefore: Record<"main" | "oopif", TreeScopeAnimationState>;
-  treeScopesAfterDocumentCancellation: Record<"main" | "oopif", TreeScopeAnimationState>;
-  shadowOnlyStrictError: string | null;
-  shadowOnlyStrictAccepted: boolean;
+  reachableState: Awaited<ReturnType<typeof seekAnimationsToFrame>> | null;
+  reachableError: string | null;
   pass: boolean;
 }
 
@@ -223,9 +223,9 @@ interface LateClockEscapeReport {
 }
 
 export interface TimelineSamplingOwnershipReport {
-  schemaVersion: 1;
-  ticket: "DM-2531";
-  contract: "investigation-only-logical-timeline-ownership-no-pixels";
+  schemaVersion: 2;
+  ticket: "DM-2553";
+  contract: "source-exact-progress-timeline-ownership-no-pixels";
   generatedAt: string;
   sourcePins: typeof TIMELINE_OWNERSHIP_SOURCE_PINS;
   environment: {
@@ -275,7 +275,7 @@ function isExactParallelogram(quad: number[]): boolean {
 function timelineHtml(
   port: number,
   child: boolean,
-  options: { nativeEscape: boolean; builtinEscape: boolean; workerEscape: boolean },
+  options: { nativeEscape: boolean; builtinEscape: boolean; workerEscape: boolean; omitClosed: boolean },
 ): string {
   const role = child ? "oopif" : "main";
   const childQuery = new URLSearchParams(Object.entries(options)
@@ -300,7 +300,7 @@ function timelineHtml(
     iframe{position:absolute;left:330px;top:24px;width:320px;height:430px;border:0}
   </style><div id="stage" data-role="${role}">
     <div id="scroller"><div id="content"><div id="scrollTarget"></div><div id="numberProbe"></div><div id="viewOwner"><div id="viewSubject"></div></div><svg id="svgViewOwner" viewBox="0 0 60 60"><rect id="svgViewSubject" x="5" y="5" width="40" height="40" fill="#286"></rect></svg></div></div>
-    <div id="openShadowHost" class="shadow-host"></div><div id="closedShadowHost" class="shadow-host"></div>
+    <div id="openShadowHost" class="shadow-host"></div>${options.omitClosed ? "" : '<div id="closedShadowHost" class="shadow-host"></div>'}
     ${frame}
   </div><script>
   (() => {
@@ -325,7 +325,7 @@ function timelineHtml(
       return { root, source, target, timeline, animation };
     };
     const openShadow = makeShadowScope(document.querySelector('#openShadowHost'), 'open');
-    const closedShadow = makeShadowScope(document.querySelector('#closedShadowHost'), 'closed');
+    const closedShadow = ${options.omitClosed ? "null" : "makeShadowScope(document.querySelector('#closedShadowHost'), 'closed')"};
     globalThis.__dm2531 = { scroller, scrollTarget, viewSubject, svgViewSubject, scrollTimeline, viewTimeline, svgViewTimeline, scrollAnimation, viewAnimation, svgViewAnimation, openShadow, closedShadow };
     globalThis.__dm2531RafCount = 0;
     globalThis.__dm2531BuiltinRafCount = 0;
@@ -366,6 +366,7 @@ async function startFixtureServer(): Promise<{ server: Server; port: number }> {
       nativeEscape: url.searchParams.get("nativeEscape") === "1",
       builtinEscape: url.searchParams.get("builtinEscape") === "1",
       workerEscape: url.searchParams.get("workerEscape") === "1",
+      omitClosed: url.searchParams.get("omitClosed") === "1",
     }));
   });
   await new Promise<void>((resolveListen, rejectListen) => {
@@ -751,12 +752,6 @@ async function readTreeScopePair(
   return { main, oopif };
 }
 
-async function cancelDocumentScopeAnimations(frames: { main: Frame; oopif: Frame }): Promise<void> {
-  await Promise.all([frames.main, frames.oopif].map((frame) => frame.evaluate(() => {
-    for (const animation of document.getAnimations()) animation.cancel();
-  })));
-}
-
 async function runCaptureBoundary(page: Page, frames: { main: Frame; oopif: Frame }): Promise<CaptureBoundaryReport> {
   const treeScopesBefore = await readTreeScopePair(frames);
   const beforeRafCounts = await rafCounts(frames);
@@ -770,44 +765,42 @@ async function runCaptureBoundary(page: Page, frames: { main: Frame; oopif: Fram
   } catch (error) {
     strictError = String(error);
   }
-  const progressTimelineRejected = nonStrictFailures.some((failure) => /refused document-time seek/.test(failure))
-    && nonStrictFailures.some((failure) => /non-document timeline currentTime/.test(failure))
+  const closedScopeRejected = nonStrictFailures.some((failure) => /closed shadow TreeScope/.test(failure))
     && strictError != null
     && /Stable animation frame unavailable/.test(strictError);
-  const rafMutatedDuringCaptureSettle = afterRafCounts.main > beforeRafCounts.main
-    && afterRafCounts.oopif > beforeRafCounts.oopif;
-  await cancelDocumentScopeAnimations(frames);
-  let shadowOnlyStrictError: string | null = null;
+  const reachableUrl = new URL(page.url());
+  reachableUrl.searchParams.set("omitClosed", "1");
+  await page.goto(reachableUrl.href);
+  const reachableFrames = await fixtureFrames(page);
+  const beforeReachableRafCounts = await rafCounts(reachableFrames);
+  let reachableState: Awaited<ReturnType<typeof seekAnimationsToFrame>> | null = null;
+  let reachableError: string | null = null;
   try {
-    await seekAnimationsToFrame(page, 375, { strict: true, includeChildFrames: true });
+    reachableState = await seekAnimationsToFrame(page, 375, { strict: true, includeChildFrames: true });
   } catch (error) {
-    shadowOnlyStrictError = String(error);
+    reachableError = String(error);
   }
-  const treeScopesAfterDocumentCancellation = await readTreeScopePair(frames);
-  const shadowOnlyStrictAccepted = shadowOnlyStrictError == null
-    && Object.values(treeScopesAfterDocumentCancellation).every((state) =>
-      state.documentAnimationCount === 0
-      && state.documentProgressCount === 0
-      && state.openShadowAnimationCount === 1
-      && state.openShadowProgressCount === 1
-      && state.closedShadowAnimationCount === 1
-      && state.closedShadowProgressCount === 1)
-    && Object.values(treeScopesBefore).every((state) =>
-      state.documentProgressCount >= 3
-      && state.openShadowProgressCount === 1
-      && state.closedShadowProgressCount === 1);
+  const afterReachableRafCounts = await rafCounts(reachableFrames);
+  const rafMutatedDuringCaptureSettle = afterReachableRafCounts.main > beforeReachableRafCounts.main
+    && afterReachableRafCounts.oopif > beforeReachableRafCounts.oopif;
+  const reachableProgressHeld = reachableError == null
+    && reachableState != null
+    && reachableState.progressTimelineCount === 8
+    && reachableState.treeScopeCount === 4
+    && reachableState.documents.every((state) => state.failures.length === 0
+      && state.progressTimelines.length === 4);
   return {
     beforeRafCounts,
     afterRafCounts,
     nonStrictFailures,
     strictError,
-    progressTimelineRejected,
+    closedScopeRejected,
+    reachableProgressHeld,
     rafMutatedDuringCaptureSettle,
     treeScopesBefore,
-    treeScopesAfterDocumentCancellation,
-    shadowOnlyStrictError,
-    shadowOnlyStrictAccepted,
-    pass: progressTimelineRejected && rafMutatedDuringCaptureSettle && shadowOnlyStrictAccepted,
+    reachableState,
+    reachableError,
+    pass: closedScopeRejected && reachableProgressHeld && rafMutatedDuringCaptureSettle,
   };
 }
 
@@ -1008,7 +1001,8 @@ export function validateTimelineOwnershipCorpus(): string[] {
     "absolute-milliseconds-rejected",
     "projective-html-box-does-not-retime-view-timeline",
     "transformed-svg-subject-retimes-view-timeline",
-    "document-enumeration-misses-shadow-progress",
+    "closed-shadow-progress-fails-before-mutation",
+    "document-and-open-shadow-progress-held",
     "pre-navigation-clock-exposes-native-raf-escape",
     "pre-navigation-clock-does-not-own-worker-raf",
     "late-clock-cannot-own-saved-native-raf",
@@ -1054,8 +1048,8 @@ export async function runTimelineSamplingOwnershipOracle(): Promise<TimelineSamp
       "projective-html-box-does-not-retime-view-timeline": allFrames.every((frame) => frame.projectiveHtmlSubject.pass),
       "transformed-svg-subject-retimes-view-timeline": allFrames.every((frame) => frame.transformedSvgSubject.pass),
       "percentage-hold-freezes-effect-not-source": allFrames.every((frame) => frame.heldEffects.pass),
-      "document-enumeration-misses-shadow-progress": native.captureBoundary.shadowOnlyStrictAccepted,
-      "current-helper-rejects-enumerated-progress-but-raf-mutates": native.captureBoundary.progressTimelineRejected
+      "closed-shadow-progress-fails-before-mutation": native.captureBoundary.closedScopeRejected,
+      "document-and-open-shadow-progress-held": native.captureBoundary.reachableProgressHeld
         && native.captureBoundary.rafMutatedDuringCaptureSettle,
       "pre-navigation-clock-freezes-benign-main-and-oopif-raf": benignPreNavigation.pass,
       "pre-navigation-clock-exposes-native-raf-escape": preNavigationEscapes.exposedNativeCallbacksAdvanced,
@@ -1069,9 +1063,9 @@ export async function runTimelineSamplingOwnershipOracle(): Promise<TimelineSamp
     const clockInjectedPath = resolve(playwrightRoot, "lib/generated/clockSource.js");
     const pass = native.pass && clocks.pass && Object.values(discriminators).every(Boolean);
     return {
-      schemaVersion: 1,
-      ticket: "DM-2531",
-      contract: "investigation-only-logical-timeline-ownership-no-pixels",
+      schemaVersion: 2,
+      ticket: "DM-2553",
+      contract: "source-exact-progress-timeline-ownership-no-pixels",
       generatedAt: new Date().toISOString(),
       sourcePins: TIMELINE_OWNERSHIP_SOURCE_PINS,
       environment: {

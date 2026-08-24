@@ -143,6 +143,69 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6oo0cdeb3owbxm",
+          "message": {
+            "text": "The production boundary is now discriminative rather than investigation-only: a closed-shadow fixture must reject before mutation, then a fresh main/OOPIF fixture without closed roots must hold eight Document/open-shadow progress effects with four authenticated TreeScopes while the separate rAF counter proves DM-2554 remains unresolved.",
+            "markdown": "The production boundary is now discriminative rather than investigation-only: a closed-shadow fixture must reject before mutation, then a fresh main/OOPIF fixture without closed roots must hold eight Document/open-shadow progress effects with four authenticated TreeScopes while the separate rAF counter proves DM-2554 remains unresolved."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/timeline-sampling-ownership-oracle.ts"
+                },
+                "region": {
+                  "startLine": 752,
+                  "endLine": 820,
+                  "snippet": {
+                    "text": "  return { main, oopif };\n}\n\nasync function runCaptureBoundary(page: Page, frames: { main: Frame; oopif: Frame }): Promise<CaptureBoundaryReport> {\n  const treeScopesBefore = await readTreeScopePair(frames);\n  const beforeRafCounts = await rafCounts(frames);\n  const nonStrict = await seekAnimationsToFrame(page, 375, { strict: false, includeChildFrames: true });\n  const afterRafCounts = await rafCounts(frames);\n  const nonStrictFailures = nonStrict.documents.flatMap((document) =>\n    document.failures.map((failure) => `${document.url}: ${failure}`));\n  let strictError: string | null = null;\n  try {\n    await seekAnimationsToFrame(page, 375, { strict: true, includeChildFrames: true });\n  } catch (error) {\n    strictError = String(error);\n  }\n  const closedScopeRejected = nonStrictFailures.some((failure) => /closed shadow TreeScope/.test(failure))\n    && strictError != null\n    && /Stable animation frame unavailable/.test(strictError);\n  const reachableUrl = new URL(page.url());\n  reachableUrl.searchParams.set(\"omitClosed\", \"1\");\n  await page.goto(reachableUrl.href);\n  const reachableFrames = await fixtureFrames(page);\n  const beforeReachableRafCounts = await rafCounts(reachableFrames);\n  let reachableState: Awaited<ReturnType<typeof seekAnimationsToFrame>> | null = null;\n  let reachableError: string | null = null;\n  try {\n    reachableState = await seekAnimationsToFrame(page, 375, { strict: true, includeChildFrames: true });\n  } catch (error) {\n    reachableError = String(error);\n  }\n  const afterReachableRafCounts = await rafCounts(reachableFrames);\n  const rafMutatedDuringCaptureSettle = afterReachableRafCounts.main > beforeReachableRafCounts.main\n    && afterReachableRafCounts.oopif > beforeReachableRafCounts.oopif;\n  const reachableProgressHeld = reachableError == null\n    && reachableState != null\n    && reachableState.progressTimelineCount === 8\n    && reachableState.treeScopeCount === 4\n    && reachableState.documents.every((state) => state.failures.length === 0\n      && state.progressTimelines.length === 4);\n  return {\n    beforeRafCounts,\n    afterRafCounts,\n    nonStrictFailures,\n    strictError,\n    closedScopeRejected,\n    reachableProgressHeld,\n    rafMutatedDuringCaptureSettle,\n    treeScopesBefore,\n    reachableState,\n    reachableError,\n    pass: closedScopeRejected && reachableProgressHeld && rafMutatedDuringCaptureSettle,\n  };\n}\n\nasync function readClockState(frame: Frame): Promise<ClockFrameState> {\n  return frame.evaluate(() => {\n    type ClockGlobal = typeof globalThis & {\n      __dm2531RafCount: number;\n      __dm2531BuiltinRafCount: number;\n      __dm2531WorkerRafCount: number;\n      __pwClock?: { builtins?: { requestAnimationFrame?: unknown } };\n    };\n    const scope = globalThis as ClockGlobal;\n    return {\n      rafCount: scope.__dm2531RafCount,\n      builtinRafCount: scope.__dm2531BuiltinRafCount,\n      workerRafCount: scope.__dm2531WorkerRafCount,\n      performanceNow: performance.now(),"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ]
+          },
+          "workItemUris": [
+            "DM-2553"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "3e674ffa85c044f93cd2f1ab35b58709"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "5aac92ae3910b6775a63f665d8ae1e412811b3fe",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

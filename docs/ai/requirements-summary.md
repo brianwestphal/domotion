@@ -2142,19 +2142,22 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   perspective/grouping expected owner was copied from production's former
   descendant-union assumption; DM-2492 corrected both expectations and the
   selector, and the focused gate is 64/64 with 5/5 mutations.
-- Scroll/view/rAF timing remains an **investigated, explicit production
-  boundary** (DM-2531, [doc 221](../221-scroll-view-raf-timeline-ownership.md)).
+- Scroll/view progress timing is **source-owned and shipped; rAF remains an
+  explicit boundary** (DM-2531/DM-2553,
+  [doc 221](../221-scroll-view-raf-timeline-ownership.md)).
   Pinned Blink proves that ScrollTimeline/ViewTimeline time is a CSS percentage
   from post-layout scroll/range snapshots and can also tick from the compositor
   scroll tree. HTML/CSS-box position/size ignores projective paint for this
   purpose, while SVG-child size uses transform-sensitive mapped bounds.
   `document.getAnimations()` is TreeScope-limited. rAF is a PageAnimator queue
   outside that enumeration. The live main/OOPIF oracle proves exact percentage
-  holds freeze effects but not sources, shadow progress is silently missed,
+  holds freeze effects but not sources. Production now enumerates Document and
+  reachable open-shadow participants, rejects closed/unresolved scopes before
+  mutation, carries logical axis/direction, source/range/zoom, HTML stitched
+  size or SVG mapped bounds, and revalidates the same source snapshot between
+  capture prepasses. The oracle also proves
   and a pre-navigation Playwright clock stops benign page-global callbacks but
-  exposes saved native rAF and misses worker rAF. DM-2553 must carry logical
-  axis/direction, SVG geometry, source/snapshot, rollback, and all-TreeScope
-  authority. DM-2554 must own, disable, or reject page-native and worker escapes
+  exposes saved native rAF and misses worker rAF. DM-2554 must own, disable, or reject page-native and worker escapes
   and pass the combined ordering gate. No millisecond-to-percentage mapping,
   pixel evidence, or tolerance is authorized.
 - Nested projective owner selection is **source-derived and shipped**

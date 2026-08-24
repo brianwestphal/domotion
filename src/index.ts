@@ -28,11 +28,12 @@ export {
   injectBrandVariables,
 } from "./capture/index.js";
 export type { CaptureOptions, CaptureElementTreeOptions } from "./capture/index.js";
-export { seekAnimationsToFrame } from "./capture/animation-frame.js";
+export { reverifyAnimationsAtFrame, seekAnimationsToFrame } from "./capture/animation-frame.js";
 export type {
   SeekAnimationsToFrameOptions,
   StableAnimationDocumentState,
   StableAnimationFrameState,
+  StableProgressTimelineState,
 } from "./capture/animation-frame.js";
 export {
   getLastCaptureWarnings,

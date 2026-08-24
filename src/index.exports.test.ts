@@ -131,6 +131,7 @@ const EXPECTED_VALUE_EXPORTS = [
   "resolveRangeRects",
   "resolveTextTrack",
   "resolveThemeSpec",
+  "reverifyAnimationsAtFrame",
   "runActions",
   "safeAreaGuideSvg",
   "safeAreaPadding",

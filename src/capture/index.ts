@@ -40,7 +40,7 @@ import {
   type ProjectivePaintQuad,
   type ProjectiveSvgRole,
 } from "./projective-owner.js";
-import { seekAnimationsToFrame, type StableAnimationFrameState } from "./animation-frame.js";
+import { reverifyAnimationsAtFrame, seekAnimationsToFrame, type StableAnimationFrameState } from "./animation-frame.js";
 import {
   axisAlignedQuadBounds,
   mapCssRectToSourcePixels,
@@ -1671,7 +1671,7 @@ export async function captureElementTreeWithWarnings(
   selector: string = "body",
   viewport: { x: number; y: number; width: number; height: number },
   opts?: CaptureElementTreeOptions,
-): Promise<{ tree: CapturedElement[]; warnings: CaptureWarning[]; frameScrollState: CapturedFrameScrollState }> {
+): Promise<{ tree: CapturedElement[]; warnings: CaptureWarning[]; frameScrollState: CapturedFrameScrollState; animationFrameState?: StableAnimationFrameState }> {
   let animationFrameState: StableAnimationFrameState | undefined;
   if (opts?.animationTimeMs != null) {
     animationFrameState = await seekAnimationsToFrame(page, opts.animationTimeMs, {
@@ -1679,6 +1679,12 @@ export async function captureElementTreeWithWarnings(
       includeChildFrames: true,
     });
   }
+  const reverifyAnimationFrame = async (): Promise<void> => {
+    if (animationFrameState == null) return;
+    await reverifyAnimationsAtFrame(page, animationFrameState, {
+      includeChildFrames: true,
+    });
+  };
   // DM-829 / DM-496: external-file `clip-path` / `mask-image` fragment refs
   // (`url("./shapes.svg#id")`) can't be resolved by the synchronous capture
   // walk (it can't fetch). Run an async pre-pass that fetches the external
@@ -1689,6 +1695,7 @@ export async function captureElementTreeWithWarnings(
   // external refs exist; a fetch failure leaves the ref intact so the walk
   // warns as before.
   await inlineExternalSvgRefs(page);
+  await reverifyAnimationFrame();
 
   // Default-on (DOMOTION_GENERIC_PROBE=0 disables): probe THIS capture Page's
   // painted generic families and serialize them on its captured root(s) — the
@@ -1701,6 +1708,7 @@ export async function captureElementTreeWithWarnings(
   // pages cannot contaminate one another. See `generic-font-probe.ts`.
   const sessionGenericFamilies = await ensureSessionGenericFamilyOverrides(page);
   await assertGenericFamilyTargetConsistency(page, sessionGenericFamilies);
+  await reverifyAnimationFrame();
 
   const [maskIntrinsicPrime, backgroundImagePrime] = await Promise.all([
     primeMaskImageIntrinsics(page),
@@ -1713,6 +1721,7 @@ export async function captureElementTreeWithWarnings(
     ]);
     throw error;
   });
+  await reverifyAnimationFrame();
   let pseudoStyles: Awaited<ReturnType<typeof captureResolvedControlPseudoStyles>> | undefined;
   let effectiveAppearance: Awaited<ReturnType<typeof captureEffectiveAppearanceFacts>> | undefined;
   let scrollbarCapture: Awaited<ReturnType<typeof prepareCapturedScrollbarSets>> | undefined;
@@ -1722,19 +1731,25 @@ export async function captureElementTreeWithWarnings(
   let result: unknown;
   try {
     const resizerMetrics = await measureBlinkPlatformResizer(page);
+    await reverifyAnimationFrame();
     pseudoStyles = await captureResolvedControlPseudoStyles(page);
+    await reverifyAnimationFrame();
     effectiveAppearance = await captureEffectiveAppearanceFacts(page);
+    await reverifyAnimationFrame();
     scrollbarCapture = await prepareCapturedScrollbarSets(page, selector, viewport, pseudoStyles, {
       sourceImagePath: opts?.rasterizeFromImagePath,
       frameScrollCapture,
     });
+    await reverifyAnimationFrame();
     projectiveProbe = await measureProjectivePaintQuads(
       page,
       selector,
       viewport,
       animationFrameState != null,
     );
+    await reverifyAnimationFrame();
     pseudoFragmentProbe = await preparePseudoFragmentGeometry(page, selector, viewport);
+    await reverifyAnimationFrame();
     const captureArgs = {
       sel: selector,
       vp: viewport,
@@ -1765,6 +1780,7 @@ export async function captureElementTreeWithWarnings(
         return neutralResult as { tree: CapturedElement[] };
       },
     );
+    await reverifyAnimationFrame();
     result = await page.evaluate(`(${CAPTURE_SCRIPT})(${JSON.stringify({
       ...captureArgs,
       tgk: textPaintProbe.key,
@@ -1806,6 +1822,7 @@ export async function captureElementTreeWithWarnings(
     // transparent Chromium atlas supplies only the closed-shadow/native
     // decoration layer. The CDP-retained part references remain alive until
     // this pass validates and consumes them.
+    await reverifyAnimationFrame();
     await rasterizeNativeControlDecorations(page, typed.tree, viewport, {
       warnings,
       sourceNodeKey: projectiveProbe?.key,
@@ -1815,6 +1832,7 @@ export async function captureElementTreeWithWarnings(
     // nearest to the synchronous DOM capture. One authoritative source frame
     // plus one atomic alpha-isolation frame replace the old per-control
     // screenshots; failures append to this capture's own warnings array.
+    await reverifyAnimationFrame();
     await rasterizeNativeControlSurfaces(page, typed.tree, viewport, {
       warnings,
       sourceNodeKey: projectiveProbe?.key,
@@ -1823,6 +1841,7 @@ export async function captureElementTreeWithWarnings(
     // DM-2463: closed broken-image UA shadow roots are only available through
     // Chromium CDP. Consume their geometry/text/AX facts while the same private
     // live-node registry used by the projective/control passes is still alive.
+    await reverifyAnimationFrame();
     await captureBrokenImageFallbackFacts(
       page,
       typed.tree,
@@ -1830,7 +1849,9 @@ export async function captureElementTreeWithWarnings(
       warnings,
       projectiveProbe?.key,
     );
+    await reverifyAnimationFrame();
     await captureSummaryMarkerGeometry(page, typed.tree, viewport, warnings, projectiveProbe?.key);
+    await reverifyAnimationFrame();
     await rasterizeProjectiveSurfaces(page, typed.tree, viewport, projectiveProbe?.key);
   } finally {
     await pseudoStyles?.dispose();
@@ -1838,13 +1859,16 @@ export async function captureElementTreeWithWarnings(
     await projectiveProbe?.dispose();
     projectiveProbe = undefined;
   }
+  await reverifyAnimationFrame();
   await refineLineClampEllipsisFragments(page, typed.tree, viewport, warnings);
+  await reverifyAnimationFrame();
   await rasterizeUrlFilterSurfaces(page, typed.tree, viewport);
   if (textPaintProbe != null) {
     // Bitmap glyphs and pseudo fallbacks belong to the same pre-transform
     // plane as vector glyphs. Materialize only affine-owned candidates while
     // the source DOM is neutral, then let the live pass handle everything
     // without an authoritative text geometry record.
+    await reverifyAnimationFrame();
     await textPaintProbe.withNeutralTransforms(() => rasterizeBitmapGlyphs(
       page,
       typed.tree,
@@ -1867,7 +1891,12 @@ export async function captureElementTreeWithWarnings(
     const captured = serializeSessionGenericFamilyProbe(sessionGenericFamilies);
     for (const root of typed.tree) root.sessionGenericFamilies = captured;
   }
-  return { tree: typed.tree, warnings, frameScrollState };
+  return {
+    tree: typed.tree,
+    warnings,
+    frameScrollState,
+    ...(animationFrameState == null ? {} : { animationFrameState }),
+  };
   } finally {
     await frameScrollCapture.dispose();
     await pseudoStyles?.dispose();

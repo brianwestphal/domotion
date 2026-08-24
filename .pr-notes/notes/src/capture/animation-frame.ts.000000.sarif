@@ -66,6 +66,69 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6ocs92xpw3bdna",
+          "message": {
+            "text": "Progress timelines are held only in their native CSS-percentage domain. The complete Document/open-shadow participant set is prevalidated before pause/currentTime mutation; closed roots are rejected from a flattened CDP snapshot because page script cannot enumerate them, avoiding irreversible partial auto-alignment.",
+            "markdown": "Progress timelines are held only in their native CSS-percentage domain. The complete Document/open-shadow participant set is prevalidated before pause/currentTime mutation; closed roots are rejected from a flattened CDP snapshot because page script cannot enumerate them, avoiding irreversible partial auto-alignment."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/animation-frame.ts"
+                },
+                "region": {
+                  "startLine": 151,
+                  "endLine": 210,
+                  "snippet": {
+                    "text": "        axis,\n        writingMode: style.writingMode,\n        direction: style.direction,\n        zoom: style.zoom,\n        scrollLeft: scroll.scrollLeft,\n        scrollTop: scroll.scrollTop,\n        scrollWidth: scroll.scrollWidth,\n        scrollHeight: scroll.scrollHeight,\n        clientWidth: scroll.clientWidth,\n        clientHeight: scroll.clientHeight,\n        subject: subjectState,\n      });\n    };\n    const collectScopes = (): AnimationScope[] => {\n      const scopes: AnimationScope[] = [document];\n      const visit = (scope: Document | ShadowRoot): void => {\n        for (const element of scope.querySelectorAll(\"*\")) {\n          if (element.shadowRoot == null) continue;\n          scopes.push(element.shadowRoot as AnimationScope);\n          visit(element.shadowRoot);\n        }\n      };\n      visit(document);\n      return scopes;\n    };\n    const collectAnimations = (scopes: AnimationScope[]): Animation[] => {\n      const seen = new Set<Animation>();\n      const result: Animation[] = [];\n      for (const scope of scopes) {\n        for (const animation of scope.getAnimations()) {\n          if (seen.has(animation)) continue;\n          seen.add(animation);\n          result.push(animation);\n        }\n      }\n      return result;\n    };\n\n    // A CSS animation joins the document timeline only after the first style\n    // recalc. Settle once per Document before enumeration (DM-1781), then\n    // settle again after the seek so every later CDP/layout read observes the\n    // same committed compositor frame.\n    if (root != null && root.__domotionSeekSettled !== true) {\n      root.__domotionSeekSettled = true;\n      await new Promise<void>((resolve) => {\n        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));\n      });\n    }\n\n    const scopes = collectScopes();\n    const before = collectAnimations(scopes);\n    const documentAnimations: Animation[] = [];\n    const progressAnimations: ProgressFact[] = [];\n\n    // Prevalidate the complete reachable set before mutating any Animation.\n    // Blink may auto-align a progress animation as soon as pause() runs, so a\n    // later rejected numeric seek cannot be rolled back reliably.\n    for (let index = 0; index < before.length; index++) {\n      const animation = before[index];\n      const currentTime = animation.currentTime;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ]
+          },
+          "workItemUris": [
+            "DM-2553"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e6efaf0c004f886f76a9d22fedc0b460"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "5aac92ae3910b6775a63f665d8ae1e412811b3fe",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

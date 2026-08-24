@@ -23,9 +23,10 @@ describe("DM-2531 live timeline sampling ownership", () => {
       && frame.heldEffects.effectProgressExact
       && frame.heldEffects.computedStylesExact)).toBe(true);
 
-    expect(report.native.captureBoundary.progressTimelineRejected).toBe(true);
+    expect(report.native.captureBoundary.closedScopeRejected).toBe(true);
+    expect(report.native.captureBoundary.reachableProgressHeld).toBe(true);
     expect(report.native.captureBoundary.rafMutatedDuringCaptureSettle).toBe(true);
-    expect(report.native.captureBoundary.shadowOnlyStrictAccepted).toBe(true);
+    expect(report.native.captureBoundary.reachableState?.progressTimelineCount).toBe(8);
     expect(report.clocks.benignPreNavigation.targets.distinctOopifTargets).toBe(true);
     expect(report.clocks.benignPreNavigation.targetLocalTimesExact).toBe(true);
     expect(report.clocks.benignPreNavigation.countersFrozen).toBe(true);

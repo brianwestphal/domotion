@@ -20,6 +20,11 @@ describe("animated projective frame parity workflow", () => {
     expect(workflow).toContain("if-no-files-found: error");
   });
 
+  it("runs the exact headless document/progress timeline ownership regression on every OS", () => {
+    expect(workflow).toContain("tests/animation-frame.e2e.test.ts");
+    expect(workflow).not.toContain("headless: false");
+  });
+
   it("gates pull requests and main", () => {
     expect(workflow).toMatch(/on:\s*\n\s*pull_request:/);
     expect(workflow).toMatch(/\n\s*push:\s*\n\s*branches: \[main\]/);

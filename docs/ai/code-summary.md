@@ -810,21 +810,20 @@ shortest possible map:
   expectation and production selector: perspective owns its plane; direct
   parent used-preserve propagation chooses the context root; grouping breaks
   start a fresh nested root. The gate is 64/64 locally at DPR 1/2.
-- **Scroll/view/rAF timeline ownership investigation (DM-2531, doc 221)** —
-  `tools/timeline-sampling-ownership-oracle.ts` leaves production untouched and
-  joins pinned Blink post-layout snapshots, compositor scroll-tree ticks, and
-  PageAnimator rAF callbacks to exact live main/OOPIF facts. Absolute numeric
-  seeks are rejected for progress timelines; a `CSS.percent(...)` hold freezes
-  the effect but not its source timeline. Transformed scrollers and projective
-  HTML-box subjects do not retime, while transformed SVG-subject mapped bounds
-  do. `document.getAnimations()` misses open/closed-shadow progress effects. A
+- **Scroll/view/rAF timeline ownership (DM-2531/DM-2553, doc 221)** —
+  `tools/timeline-sampling-ownership-oracle.ts` joins pinned Blink post-layout
+  snapshots, compositor scroll-tree ticks, and PageAnimator callbacks to exact
+  live main/OOPIF facts. `src/capture/animation-frame.ts` now prevalidates the
+  Document plus reachable open ShadowRoots, rejects closed/unresolved scopes
+  before mutation, holds each progress effect at its own `CSS.percent(...)`,
+  records axis/target/scroll/range/zoom and HTML stitched-size or SVG
+  mapped-bounds facts, and revalidates the record between capture prepasses. A
   pre-navigation Playwright clock freezes benign Window-global callbacks but
   exposes saved native rAF through `__pwClock.builtins` and does not instrument
   worker rAF; a late install also cannot own retained native rAF. Focused unit
-  and browser tests gate eleven logical discriminators without pixels. DM-2553
-  owns all-TreeScope progress/source capture and DM-2554 owns a non-page-visible
-  or fail-closed Window/worker rAF protocol; current strict capture owns neither
-  boundary completely.
+  and browser tests gate the logical discriminators without pixels. DM-2554
+  still owns a non-page-visible or fail-closed Window/worker rAF protocol and
+  the final controlled-rendering barrier.
 - **Nested projective ownership audit (DM-2356, doc 189)** —
   `tools/nested-projective-ownership-audit.ts` reconstructs pinned Blink
   `RenderingContextId` propagation from live used-style/CDP facts and compares

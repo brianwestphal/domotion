@@ -704,6 +704,69 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6ocsec1otcak66",
+          "message": {
+            "text": "Every asynchronous capture prepass is separated by an exact timeline revalidation. Re-running the hold protocol and comparing its serialized source/target/range facts catches scroll, subject, TreeScope, or target churn instead of assuming one early pause remains authoritative.",
+            "markdown": "Every asynchronous capture prepass is separated by an exact timeline revalidation. Re-running the hold protocol and comparing its serialized source/target/range facts catches scroll, subject, TreeScope, or target churn instead of assuming one early pause remains authoritative."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/index.ts"
+                },
+                "region": {
+                  "startLine": 1682,
+                  "endLine": 1691,
+                  "snippet": {
+                    "text": "  const reverifyAnimationFrame = async (): Promise<void> => {\n    if (animationFrameState == null) return;\n    await reverifyAnimationsAtFrame(page, animationFrameState, {\n      includeChildFrames: true,\n    });\n  };\n  // DM-829 / DM-496: external-file `clip-path` / `mask-image` fragment refs\n  // (`url(\"./shapes.svg#id\")`) can't be resolved by the synchronous capture\n  // walk (it can't fetch). Run an async pre-pass that fetches the external\n  // `.svg`, inlines its `<clipPath>` / `<mask>` as a same-document def, and"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ]
+          },
+          "workItemUris": [
+            "DM-2553"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "55b43680fbfc446b5e29c08341c3fa00"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "5aac92ae3910b6775a63f665d8ae1e412811b3fe",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

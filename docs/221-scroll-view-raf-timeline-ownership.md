@@ -1,11 +1,12 @@
 # 221 — Scroll/view/rAF timeline sampling ownership
 
-**Status:** DM-2531 source and live investigation complete. Production rejects
-enumerated document-TreeScope ScrollTimeline/ViewTimeline seeks, silently
-misses progress animations in other TreeScopes, and neither owns nor reports
-requestAnimationFrame motion. DM-2553 and DM-2554 own the two bounded
-implementation protocols. No capture semantics, raster threshold, or
-tolerance changed in this investigation.
+**Status:** DM-2553 progress ownership implemented. Production prevalidates
+document and reachable open-shadow TreeScopes, holds every resolved
+ScrollTimeline/ViewTimeline effect at its exact CSS percentage, records and
+reverifies source/subject facts before capture prepasses, and fails before
+mutation on closed/inaccessible or unresolved scopes. DM-2554 still owns rAF
+callback queues and the final controlled-rendering barrier. No raster threshold
+or tolerance changed.
 
 ## Question and verdict
 
@@ -52,23 +53,29 @@ This order rules out two tempting approximations. A document millisecond is not
 a progress percentage, and a painted/projected subject quad is not a
 ViewTimeline range. The source state has to be carried explicitly.
 
-## Current capture discriminator
+## Production progress protocol
 
-`src/capture/animation-frame.ts` deliberately keeps its document-timeline
-contract. For every Frame it:
+`src/capture/animation-frame.ts` now carries a versioned document-and-progress
+timeline contract. For every Frame it:
 
 1. waits two rAF callbacks for initial style/animation enrollment;
-2. calls `pause()` and assigns the requested numeric millisecond to every
-   `document.getAnimations()` result;
-3. waits two more rAF callbacks and requires stable enumeration, numeric time,
-   and paused/finished state.
+2. enumerates the Document and every reachable open ShadowRoot, deduplicates
+   animations, and prevalidates all participants before mutation;
+3. assigns numeric milliseconds only to document timelines and reassigns each
+   progress animation's own resolved `CSS.percent(...)` value;
+4. records timeline kind/axis, target identity, writing mode, direction, zoom,
+   signed scroll offsets and ranges, plus HTML stitched-size or SVG mapped-bounds
+   subject facts; then waits for commit and requires stable enumeration, effect
+   progress, source facts, and paused/finished state;
+5. re-runs and byte-compares that contract between capture prepasses so source,
+   target, range, TreeScope, or target-process churn fails closed.
 
-That rejects progress timelines visible to the queried document TreeScope.
-The numeric assignment is rejected and the later `currentTime` remains a
-`CSSUnitValue`, so strict capture reports both facts. It does not query shadow
-roots: after cancelling document-scope animations, strict capture succeeds
-while open- and closed-shadow progress animations remain live. It is also not
-fail-closed for rAF motion; its settle callbacks can mutate DOM state.
+Closed ShadowRoots are detected with a flattened CDP DOMSnapshot and rejected
+before any Animation or SMIL timeline is touched because their animation set is
+not script-enumerable. Same-process child documents are authenticated by the
+main target snapshot; OOPIFs use their own CDP session. rAF remains the explicit
+DM-2554 boundary: the current settle callbacks can still run page or worker
+script, so progress/source exactness is not a claim of callback quiescence.
 
 ## Exact live logical oracle
 
@@ -132,13 +139,9 @@ tree state.
 ## Bounded follow-ups
 
 - **DM-2553 — Implement exact ScrollTimeline/ViewTimeline percentage-hold and
-  source-snapshot capture protocol.** Carry every resolved percentage and
-  source/range/compositor fact before every prepass; resolve writing
-  mode/direction and RTL/reversal; support or reject the SVG mapped-bounds
-  branch; enumerate or explicitly refuse every document and shadow TreeScope;
-  prevalidate or roll back before a non-mutating rejection; and kill drift,
-  inactive, hidden-scope, and target-churn mutations without mapping a document
-  millisecond to progress.
+  source-snapshot capture protocol.** Completed as described above. The native
+  three-platform animated-projective workflow runs the exact document/open-
+  shadow/closed-shadow and HTML/SVG branch regression headlessly.
 - **DM-2554 — Install and authenticate pre-navigation rAF clocks across main
   and OOPIF capture targets.** Use non-page-visible ownership or fail-closed
   detection for saved native builtins; own, disable, or reject dedicated-worker
@@ -146,8 +149,6 @@ tree state.
   barrier; reject late/native escape and target churn; then run the combined
   progress/source/controlled-rendering/rAF ordering gate after DM-2553.
 
-Until those tickets land, the production statement remains unchanged:
-document timelines are deterministic; enumerated document-scope scroll/view
-timelines are reported and rejected rather than approximated, shadow-scope
-progress can be missed, and rAF is unsupported, unreported, and can mutate
-state during the current settle.
+Until DM-2554 lands, document and progress timelines are deterministic under
+their separate native units and source facts, but rAF remains unsupported,
+unreported, and able to mutate state during the current settle.
