@@ -115,15 +115,24 @@ DM-2568 pins the next Skia stages: Chromium's live draw matrix enters mask
 strike construction and phase packing, CoreGraphics smoothing is classified at
 runtime, and Skia performs its own RGB-to-A8/LCD conversion and preblend. That
 source path selects a 13px scaler for the zoom-2/transform-.5 cancellation row,
-but a drifted explicitly headless Chrome command log is corroboration rather
-than pinned proof. The private pinned-Skia proposal collector now builds at the
+and the previously drifted explicitly headless Chrome command log remains
+corroboration only. The private pinned-Skia proposal collector builds at the
 exact source revision and retains 26 isolated observations: exact raw/filtered
 recs, `[26,26]` and cancellation `[13,13]` factorization, runtime smoothing,
 gamma/preblend, embedded A8 bytes, two cold/two warm samples per scenario, and
-six active controls. Collection launches no browser. The test-only
-pinned-headless Chromium validator and byte-exact cross-arm adjudicator remain
-independent requirements, so the boundary is still partial; no screenshot
-tolerance or production route may stand in for that validation arm.
+six active controls. Collection launches no browser. DM-2575's independent
+test-only pinned-headless Chromium arm now retains the browser-constructed raw
+and filtered records, matrix/phase inputs, selected typeface and axes,
+surface/gamma/preblend state, and every post-conversion mask byte across the
+same five lifecycles and six active controls. Its 26 browser processes are all
+explicitly headless; normal rows explicitly enable Chromium's macOS headless
+LCD route while the surface control disables it and reaches unknown pixel
+geometry/A8. The pinned browser result confirms `[13,13]` cancellation rather
+than a 26px mask followed by resampling. Its false-default hook changes no
+production build.
+Only byte-exact proposal/validation adjudication remains, so the boundary is
+still partial; no screenshot tolerance or production route may stand in for
+that exact cross-arm gate.
 
 Animated viewBox culling uses the one-sided optimization form of this contract
 ([doc 166](166-animated-culling-geometry-oracle.md)): an unculled production SVG

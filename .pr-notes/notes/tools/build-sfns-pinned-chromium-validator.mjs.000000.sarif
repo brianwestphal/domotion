@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex GPT-5",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt7cqspwulqmkymb",
+          "message": {
+            "text": "The final authenticated reproduction pass pinned Chromium, Skia, depottools, Metal, GN args, overlay header, and the isolated Node dependency boundary. GN regenerated 31,490 targets and Ninja reported no work; headlessshell remained SHA-256 83976ae5819f7b2bfa60a10d72cd1c68324d9c78efbefbd43859600c70a41826 and the retained/COW hook headers both remained 35019b9c8233b464025d099efc243ec3870440256f15f112faac89efc9fdd406.",
+            "markdown": "The final authenticated reproduction pass pinned Chromium, Skia, depot_tools, Metal, GN args, overlay header, and the isolated Node dependency boundary. GN regenerated 31,490 targets and Ninja reported no work; headless_shell remained SHA-256 83976ae5819f7b2bfa60a10d72cd1c68324d9c78efbefbd43859600c70a41826 and the retained/COW hook headers both remained 35019b9c8233b464025d099efc243ec3870440256f15f112faac89efc9fdd406."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/build-sfns-pinned-chromium-validator.mjs"
+                },
+                "region": {
+                  "startLine": 29,
+                  "endLine": 96,
+                  "snippet": {
+                    "text": "if (git(root, \"rev-parse\", \"HEAD\") !== CHROMIUM_REVISION\n    || git(`${root}/third_party/skia`, \"rev-parse\", \"HEAD\") !== SKIA_REVISION\n    || git(depotTools, \"rev-parse\", \"HEAD\") !== DEPOT_TOOLS_REVISION) {\n  throw new Error(\"refusing to build outside the DM-2575 Chromium/Skia/depot_tools pins\");\n}\n\n// The pinned Chromium GCS bundle deliberately filters @types/estree. If a\n// generic npm restore puts it back, @types/esquery becomes structurally\n// incompatible with Chromium's pinned TSESTree API. Refuse that non-authentic\n// dependency layout, then isolate TypeScript's upward Node resolver from this\n// repository's unrelated development dependencies during the build.\nif (existsSync(`${root}/third_party/node/node_modules/@types/estree`)) {\n  throw new Error(\"refusing unfiltered Chromium node_modules; restore the pinned GCS bundle first\");\n}\n\nfunction applyExactPatch(cwd, patchPath, probePath, probeText) {\n  const probe = readFileSync(resolve(cwd, probePath), \"utf8\");\n  if (probe.includes(probeText)) return;\n  execFileSync(\"git\", [\"-C\", cwd, \"apply\", \"--check\", patchPath], { stdio: \"inherit\" });\n  execFileSync(\"git\", [\"-C\", cwd, \"apply\", patchPath], { stdio: \"inherit\" });\n}\n\napplyExactPatch(root, `${assets}/chromium-build.patch`, \"skia/BUILD.gn\",\n  \"sk_domotion_sfns_validation_hook\");\napplyExactPatch(`${root}/third_party/skia`, `${assets}/skia-hook.patch`,\n  \"src/core/SkScalerContext.cpp\", \"SkDomotionSfnsValidation.h\");\n\nconst headerSource = `${assets}/SkDomotionSfnsValidation.h`;\nconst headerTarget = `${root}/third_party/skia/src/core/SkDomotionSfnsValidation.h`;\nif (!existsSync(headerTarget) || sha(headerTarget) !== sha(headerSource)) copyFileSync(headerSource, headerTarget);\nif (sha(headerTarget) !== sha(headerSource)) throw new Error(\"hook header copy did not authenticate\");\n\nconst outputDirectory = resolve(root, out);\nmkdirSync(outputDirectory, { recursive: true });\nconst argsPath = `${outputDirectory}/args.gn`;\nwriteFileSync(argsPath, [\n  \"is_debug = false\",\n  \"is_component_build = false\",\n  \"symbol_level = 0\",\n  \"blink_symbol_level = 0\",\n  \"v8_symbol_level = 0\",\n  \"use_remoteexec = false\",\n  \"use_siso = false\",\n  \"treat_warnings_as_errors = false\",\n  \"sk_domotion_sfns_validation_hook = true\",\n  \"\",\n].join(\"\\n\"));\n\nexecFileSync(`${root}/buildtools/mac/gn`, [\"gen\", out], { cwd: root, stdio: \"inherit\" });\nexecFileSync(\"/usr/bin/sandbox-exec\", [\n  \"-D\", `DOMOTION_NODE_MODULES=${resolve(projectRoot, \"node_modules\")}`,\n  \"-f\", nodeIsolationProfile,\n  `${depotTools}/autoninja`, \"-C\", out, \"headless_shell\",\n], {\n  cwd: root,\n  stdio: \"inherit\",\n  env: { ...process.env, TOOLCHAINS: METAL_TOOLCHAIN },\n});\nconst binary = `${outputDirectory}/headless_shell`;\nif (!existsSync(binary)) throw new Error(`headless_shell build did not produce ${binary}`);\nconsole.log(JSON.stringify({\n  chromiumRevision: CHROMIUM_REVISION,\n  skiaRevision: SKIA_REVISION,\n  depotToolsRevision: DEPOT_TOOLS_REVISION,\n  metalToolchain: METAL_TOOLCHAIN,\n  binary,\n  binarySha256: sha(binary),\n  hookHeaderSha256: sha(headerTarget),"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "rank": 98,
+          "workItemUris": [
+            "DM-2575"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "a6ff06823e6270f06c2a617a9b886775"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a7b2f6e1dd555a2384db2a04318f5dacbabb0187",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

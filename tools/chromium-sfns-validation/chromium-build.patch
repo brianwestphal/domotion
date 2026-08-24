@@ -1,0 +1,27 @@
+diff --git a/skia/BUILD.gn b/skia/BUILD.gn
+index 8f1417a941..08bcdebf70 100644
+--- a/skia/BUILD.gn
++++ b/skia/BUILD.gn
+@@ -18,6 +18,12 @@ import("//third_party/skia/modules/pathops/pathops.gni")
+ import("//third_party/skia/modules/skcms/skcms.gni")
+ import("features.gni")
+
++# Private, test-only switch for DM-2575's pinned SFNS scaler/mask oracle.
++# This is false for every normal Chromium build.
++declare_args() {
++  sk_domotion_sfns_validation_hook = false
++}
++
+ if (current_cpu == "arm") {
+   import("//build/config/arm.gni")
+ }
+@@ -176,6 +182,9 @@ config("skia_config") {
+ config("skia_library_config") {
+   # Turn on SK_API to export Skia's public API (using base/component_export.h)
+   defines = [ "IS_SKIA_IMPL=1" ]
++  if (sk_domotion_sfns_validation_hook) {
++    defines += [ "SK_DOMOTION_SFNS_VALIDATION_HOOK=1" ]
++  }
+   if (!allow_avx512) {
+     defines += [ "SKCMS_DISABLE_SKX=1" ]
+   }

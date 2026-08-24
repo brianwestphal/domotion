@@ -1,0 +1,145 @@
+diff --git a/src/core/SkGlyphRunPainter.cpp b/src/core/SkGlyphRunPainter.cpp
+index 1ff0ebc..0781cbf 100644
+--- a/src/core/SkGlyphRunPainter.cpp
++++ b/src/core/SkGlyphRunPainter.cpp
+@@ -31,6 +31,10 @@
+ #include "src/core/SkMask.h"
+ #include "src/core/SkMipmap.h"
+ #include "src/core/SkScalerContext.h"
++
++#if defined(SK_DOMOTION_SFNS_VALIDATION_HOOK)
++#include "src/core/SkDomotionSfnsValidation.h"
++#endif
+ #include "src/core/SkStrike.h"
+ #include "src/core/SkStrikeSpec.h"
+ #include "src/text/GlyphRun.h"
+@@ -326,6 +330,18 @@ void GlyphRunListPainter::drawForBitmapDevice(SkCanvas* canvas,
+
+             auto strike = strikeSpec.findOrCreateStrike();
+
++#if defined(SK_DOMOTION_SFNS_VALIDATION_HOOK)
++            if (runFont.getTypeface()) {
++                sk_domotion_sfns_validation::WriteRun(*runFont.getTypeface(),
++                                                      runFont,
++                                                      props,
++                                                      fScalerContextFlags,
++                                                      positionMatrix,
++                                                      strike->roundingSpec(),
++                                                      source);
++            }
++#endif
++
+             auto [accepted, rejected] = prepare_for_direct_mask_drawing(strike.get(),
+                                                                         positionMatrix,
+                                                                         source,
+diff --git a/src/core/SkScalerContext.cpp b/src/core/SkScalerContext.cpp
+index d653f8a..15fb988 100644
+--- a/src/core/SkScalerContext.cpp
++++ b/src/core/SkScalerContext.cpp
+@@ -7,6 +7,10 @@
+
+ #include "src/core/SkScalerContext.h"
+
++#if defined(SK_DOMOTION_SFNS_VALIDATION_HOOK)
++#include "src/core/SkDomotionSfnsValidation.h"
++#endif
++
+ #include "include/core/SkColorType.h"
+ #include "include/core/SkDrawable.h"
+ #include "include/core/SkFont.h"
+@@ -1219,6 +1223,16 @@ void SkScalerContext::MakeRecAndEffects(const SkFont& font, const SkPaint& paint
+     }
+
+     new (effects) SkScalerContextEffects{paint};
++
++#if defined(SK_DOMOTION_SFNS_VALIDATION_HOOK)
++    sk_domotion_sfns_validation::WriteRaw(*typeface,
++                                          font,
++                                          paint,
++                                          surfaceProps,
++                                          scalerContextFlags,
++                                          deviceMatrix,
++                                          *rec);
++#endif
+ }
+
+ SkDescriptor* SkScalerContext::CreateDescriptorAndEffectsUsingPaint(
+@@ -1327,4 +1341,3 @@ std::unique_ptr<SkScalerContext> SkScalerContext::MakeEmpty(
+
+
+
+-
+diff --git a/src/ports/SkScalerContext_mac_ct.cpp b/src/ports/SkScalerContext_mac_ct.cpp
+index a54c45b..9b20841 100644
+--- a/src/ports/SkScalerContext_mac_ct.cpp
++++ b/src/ports/SkScalerContext_mac_ct.cpp
+@@ -41,6 +41,10 @@
+ #include "src/core/SkMathPriv.h"
+ #include "src/core/SkMemset.h"
+ #include "src/ports/SkScalerContext_mac_ct.h"
++
++#if defined(SK_DOMOTION_SFNS_VALIDATION_HOOK)
++#include "src/core/SkDomotionSfnsValidation.h"
++#endif
+ #include "src/ports/SkTypeface_mac_ct.h"
+ #include "src/sfnt/SkOTTableTypes.h"
+ #include "src/sfnt/SkOTTable_OS_2.h"
+@@ -543,6 +547,18 @@ void SkScalerContext_Mac::generateImage(const SkGlyph& glyph, void* imageBuffer)
+             SkDEBUGFAIL("unexpected mask format");
+             break;
+     }
++
++#if defined(SK_DOMOTION_SFNS_VALIDATION_HOOK)
++    sk_domotion_sfns_validation::WriteMask(*this->getTypeface(),
++                                           fRec,
++                                           glyph,
++                                           imageBuffer,
++                                           fTransform,
++                                           fInvTransform,
++                                           fCTFont.get(),
++                                           requestSmooth,
++                                           fPreBlend);
++#endif
+ }
+
+ namespace {
+diff --git a/src/ports/SkTypeface_mac_ct.cpp b/src/ports/SkTypeface_mac_ct.cpp
+index c1b40e0..1d47fdf 100644
+--- a/src/ports/SkTypeface_mac_ct.cpp
++++ b/src/ports/SkTypeface_mac_ct.cpp
+@@ -45,6 +45,10 @@
+ #include "src/core/SkFontDescriptor.h"
+ #include "src/core/SkMask.h"
+ #include "src/core/SkScalerContext.h"
++
++#if defined(SK_DOMOTION_SFNS_VALIDATION_HOOK)
++#include "src/core/SkDomotionSfnsValidation.h"
++#endif
+ #include "src/core/SkTypefaceCache.h"
+ #include "src/core/SkUTF.h"
+ #include "src/ports/SkScalerContext_mac_ct.h"
+@@ -885,6 +889,10 @@ std::unique_ptr<SkScalerContext> SkTypeface_Mac::onCreateScalerContext(
+ }
+
+ void SkTypeface_Mac::onFilterRec(SkScalerContextRec* rec) const {
++#if defined(SK_DOMOTION_SFNS_VALIDATION_HOOK)
++    const SkScalerContextRec domotionSfnsBefore = *rec;
++#endif
++
+     rec->useStrokeForFakeBold();
+
+     if (rec->fFlags & SkScalerContext::kLCD_BGROrder_Flag ||
+@@ -984,6 +992,13 @@ void SkTypeface_Mac::onFilterRec(SkScalerContextRec* rec) const {
+         // CoreGraphics dialates smoothed text to provide contrast.
+         rec->setContrast(0);
+     }
++
++#if defined(SK_DOMOTION_SFNS_VALIDATION_HOOK)
++    sk_domotion_sfns_validation::WriteFiltered(*const_cast<SkTypeface_Mac*>(this),
++                                               domotionSfnsBefore,
++                                               *rec,
++                                               smoothBehavior);
++#endif
+ }
+
+ /** Takes ownership of the CFStringRef. */

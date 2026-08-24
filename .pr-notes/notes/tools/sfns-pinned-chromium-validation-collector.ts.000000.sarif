@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex GPT-5",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt7cqsd9gu9s5ui3",
+          "message": {
+            "text": "The authoritative collector completed 26 fresh browser processes with Playwright headless:true and --headless=new; artifact digest 30f3772ec25f2c078c256ac1a015d9ca5d57d246d68a6512f8fd029095d05fd6 passed fail-closed validation. Two temporary-free quiescence windows, separated by navigation to about:blank, are necessary because screenshot acknowledgement and live-page teardown can each race a queued compositor raster; any remaining .tmp is rejected rather than ignored.",
+            "markdown": "The authoritative collector completed 26 fresh browser processes with Playwright headless:true and --headless=new; artifact digest 30f3772ec25f2c078c256ac1a015d9ca5d57d246d68a6512f8fd029095d05fd6 passed fail-closed validation. Two temporary-free quiescence windows, separated by navigation to about:blank, are necessary because screenshot acknowledgement and live-page teardown can each race a queued compositor raster; any remaining .tmp is rejected rather than ignored."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/sfns-pinned-chromium-validation-collector.ts"
+                },
+                "region": {
+                  "startLine": 297,
+                  "endLine": 363,
+                  "snippet": {
+                    "text": "    const launchArgs = chromiumLaunchArgs(request);\n    browser = await chromium.launch({\n      executablePath: binaryPath,\n      headless: true,\n      env: exactEnvironment(request, directory),\n      args: launchArgs,\n    });\n    const context = await browser.newContext({\n      viewport: { width: WIDTH, height: HEIGHT },\n      deviceScaleFactor: 1,\n    });\n    await context.route(`${FONT_ORIGIN}/**`, (route) => route.fulfill({\n      status: 200,\n      contentType: \"font/ttf\",\n      headers: { \"Access-Control-Allow-Origin\": \"*\" },\n      body: fontBytes,\n    }));\n    const page = await context.newPage();\n    await page.setContent(html(request), { waitUntil: \"load\" });\n    await page.evaluate(() => document.fonts.ready);\n    if (request.lifecycle === \"warm\") {\n      await page.screenshot({ type: \"png\" });\n      await page.evaluate(async (text) => {\n        const target = document.querySelector<HTMLElement>(\"#target\")!;\n        target.style.fontFamily = \"DM2575Evidence\";\n        target.textContent = text;\n        await document.fonts.load('700 13px \"DM2575Evidence\"', text);\n        await document.fonts.ready;\n      }, TEXT);\n    }\n    const screenshot = await page.screenshot({ type: \"png\" });\n    const browserFacts = await collectBrowserFacts(page, browser, screenshot, launchArgs);\n    // A screenshot acknowledgement can precede a queued compositor raster.\n    // Keep the renderer alive until its atomic trace files have been stable and\n    // temporary-free for a full quiet window; any surviving .tmp remains fatal.\n    await page.evaluate(() => new Promise<void>((resolvePromise) => {\n      requestAnimationFrame(() => requestAnimationFrame(() => resolvePromise()));\n    }));\n    await waitForTraceQuiescence(directory);\n    // Remove the authenticated SFNS page while its renderer is still alive,\n    // then drain any final invalidation raster before terminating the process.\n    // Closing a live painted page can otherwise kill a just-started atomic\n    // trace write even though the screenshot raster itself was quiescent.\n    await page.goto(\"about:blank\", { waitUntil: \"load\" });\n    await waitForTraceQuiescence(directory);\n    await context.close();\n    await new Promise((resolvePromise) => setTimeout(resolvePromise, 250));\n    await browser.close();\n    browser = undefined;\n    let events: SfnsHookEvent[];\n    try {\n      events = readEvents(directory);\n    } catch (error) {\n      if (probe) {\n        console.error(JSON.stringify({ observationId: request.observationId, browser: browserFacts }, null, 2));\n      }\n      throw error;\n    }\n    const observation: SfnsValidationObservation = {\n      observationId: request.observationId,\n      scenarioId: request.scenarioId,\n      lifecycle: request.lifecycle,\n      controlId: request.controlId,\n      ordinal: request.ordinal,\n      browser: browserFacts,\n      events,\n      selection: selectEvidence(events),"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "rank": 100,
+          "workItemUris": [
+            "DM-2575"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "82e7d3531bd79ad7131482d63abc206d"
+          },
+          "attachments": [
+            {
+              "artifactLocation": {
+                "uri": ".pr-notes/artifacts/dm2575-sfns-pinned-chromium-validation.json",
+                "properties": {
+                  "ext-sha256": "a7df226ea4b5ec279e57d839b054515d7dcb5f13ec3ac37c0fbfe1841d2c102d"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a7b2f6e1dd555a2384db2a04318f5dacbabb0187",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

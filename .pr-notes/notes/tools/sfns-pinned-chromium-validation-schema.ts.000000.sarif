@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex GPT-5",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt7cqsjl6m48l7xg",
+          "message": {
+            "text": "The pinned Chromium result decides the cancellation branch exactly: a 26px SkFont with the live 0.5 matrix factors to [13,13], while ordinary rows factor to [26,26]. Validation reopens every scaler record and mask, enforces exact emitted doubles with no rounding or tolerance, links raw-to-filtered-to-run-to-mask identity and sequence, and requires each of the six controls to move its owned evidence groups.",
+            "markdown": "The pinned Chromium result decides the cancellation branch exactly: a 26px SkFont with the live 0.5 matrix factors to [13,13], while ordinary rows factor to [26,26]. Validation reopens every scaler record and mask, enforces exact emitted doubles with no rounding or tolerance, links raw-to-filtered-to-run-to-mask identity and sequence, and requires each of the six controls to move its owned evidence groups."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/sfns-pinned-chromium-validation-schema.ts"
+                },
+                "region": {
+                  "startLine": 546,
+                  "endLine": 706,
+                  "snippet": {
+                    "text": "function validateObservation(\n  observation: SfnsValidationObservation,\n  scenarioId: SfnsValidationScenarioId,\n  errors: string[],\n): void {\n  const label = observation.observationId || `${scenarioId}:unnamed`;\n  if (observation.scenarioId !== scenarioId) errors.push(`${label}:scenario-id`);\n  if (!observation.browser.explicitlyHeadless\n      || !observation.browser.launchArgs.some((arg) => arg.startsWith(\"--headless\"))) {\n    errors.push(`${label}:not-explicitly-headless`);\n  }\n  if (!validSha(observation.browser.screenshotSha256)) errors.push(`${label}:screenshot-sha256`);\n  if (observation.browser.platformFonts.length !== 1\n      || !observation.browser.platformFonts[0].isCustomFont\n      || observation.browser.platformFonts[0].glyphCount !== SFNS_VALIDATION_GLYPH_IDS.length\n      || !observation.browser.platformFonts[0].postScriptName.startsWith(\".SFNS-\")) {\n    errors.push(`${label}:platform-font`);\n  }\n  if (observation.events.length === 0) errors.push(`${label}:events-empty`);\n  const sequences = observation.events.map((event) => event.sequence);\n  if (new Set(sequences).size !== sequences.length) errors.push(`${label}:duplicate-sequence`);\n  if (sequences.some((sequence, index) => index > 0 && sequence <= sequences[index - 1])) {\n    errors.push(`${label}:event-reordered`);\n  }\n  if (sequences.some((sequence, index) => sequence !== index)) errors.push(`${label}:event-dropped`);\n  for (const event of observation.events) validateEventEnvelope(event, observation, errors);\n\n  const evidence = selected(observation);\n  if (evidence.raw?.event !== \"raw\" || evidence.filtered?.event !== \"filtered\"\n      || evidence.run?.event !== \"run\" || evidence.masks.length !== observation.selection.maskSequences.length\n      || evidence.masks.some((event) => event.event !== \"mask\")) errors.push(`${label}:selection`);\n  if (evidence.raw == null || evidence.filtered == null || evidence.run == null) return;\n  if (observation.events.some((event) => event.processId !== observation.selection.processId)) {\n    errors.push(`${label}:cross-process-events`);\n  }\n  const selectedEvents = [evidence.raw, evidence.filtered, evidence.run, ...evidence.masks];\n  if (selectedEvents.some((event) => event.processId !== observation.selection.processId\n      || event.typeface.uniqueId !== evidence.run!.typeface.uniqueId)) {\n    errors.push(`${label}:selection-identity`);\n  }\n  if (!(evidence.raw.sequence < evidence.filtered.sequence\n      && evidence.filtered.sequence < evidence.run.sequence\n      && evidence.masks.every((mask) => mask.sequence > evidence.run!.sequence))) {\n    errors.push(`${label}:selection-order`);\n  }\n\n  const raw = evidence.raw.payload as SfnsRawPayload;\n  const filtered = evidence.filtered.payload as SfnsFilteredPayload;\n  const run = evidence.run.payload as SfnsRunPayload;\n  const masks = evidence.masks.map((event) => event.payload as SfnsMaskPayload);\n  validateRec(raw.rawRec, `${label}:raw-rec`, errors);\n  validateRec(filtered.before, `${label}:filter-before`, errors);\n  validateRec(filtered.after, `${label}:filter-after`, errors);\n  if (recTypefaceId(raw.rawRec) !== evidence.raw.typeface.uniqueId\n      || recTypefaceId(filtered.before) !== evidence.filtered.typeface.uniqueId\n      || recTypefaceId(filtered.after) !== evidence.filtered.typeface.uniqueId) {\n    errors.push(`${label}:rec-typeface-identity`);\n  }\n  if (raw.rawRec.sha256 !== filtered.before.sha256) errors.push(`${label}:raw-filter-link`);\n  const expectedRawMaskFormat = observation.controlId === \"anti-aliasing\"\n    || observation.controlId === \"surface-mask-format\" ? \"A8\" : \"LCD16\";\n  if (raw.rawRec.maskFormat !== expectedRawMaskFormat\n      || filtered.before.maskFormat !== expectedRawMaskFormat\n      || filtered.after.maskFormat !== \"A8\") {\n    errors.push(`${label}:lcd-to-a8-route`);\n  }\n  const contract = SFNS_VALIDATION_SCENARIO_CONTRACT[scenarioId];\n  const expectedTextSize = observation.controlId === \"device-matrix\"\n    ? SFNS_VALIDATION_SCENARIO_CONTRACT[\"zoom-2\"].textSize\n    : contract.textSize;\n  if (raw.rawRec.textSize !== expectedTextSize\n      || filtered.before.textSize !== expectedTextSize\n      || filtered.after.textSize !== expectedTextSize\n      || (raw.font.size as number) !== expectedTextSize\n      || (run.font.size as number) !== expectedTextSize) {\n    errors.push(`${label}:raw-text-size`);\n  }\n  if (run.glyphs.length !== SFNS_VALIDATION_GLYPH_IDS.length\n      || run.glyphs.some((glyph, index) => glyph.index !== index\n        || glyph.gid !== SFNS_VALIDATION_GLYPH_IDS[index])) errors.push(`${label}:glyph-order`);\n  const expectedGeometry = observation.controlId === \"\"\n    ? SFNS_VALIDATION_SCENARIO_CONTRACT[scenarioId]\n    : SFNS_VALIDATION_CONTROL_GEOMETRY[observation.controlId as SfnsValidationControlId];\n  if (!exactNumbers(\n    run.glyphs.map((glyph) => glyph.deviceOrigin[0]), expectedGeometry.origins,\n  )) errors.push(`${label}:device-origins`);\n  if (!exactNumbers(\n    run.glyphs.map((glyph) => glyph.deviceOrigin[1]),\n    Array(run.glyphs.length).fill(expectedGeometry.baseline),\n  )) errors.push(`${label}:baseline`);\n  const expectedPackedIds = [...new Set(run.glyphs.map((glyph) => glyph.packedId))];\n  if (!exactNumbers(masks.map((mask) => mask.glyph.packedId), expectedPackedIds)) {\n    errors.push(`${label}:mask-order-or-coverage`);\n  }\n  for (const [index, mask] of masks.entries()) {\n    validateRec(mask.filteredRec, `${label}:mask:${index}:rec`, errors);\n    if (recTypefaceId(mask.filteredRec) !== evidence.masks[index].typeface.uniqueId) {\n      errors.push(`${label}:mask:${index}:rec-typeface-identity`);\n    }\n    if (mask.filteredRec.sha256 !== filtered.after.sha256) errors.push(`${label}:mask:${index}:rec-link`);\n    const bytes = decodeExactBase64(mask.glyph.mask.bytes);\n    if (bytes == null) errors.push(`${label}:mask:${index}:base64`);\n    else {\n      if (bytes.length !== mask.glyph.metrics.imageSize) errors.push(`${label}:mask:${index}:size`);\n      if (shaBytes(bytes) !== mask.glyph.mask.sha256) errors.push(`${label}:mask:${index}:sha256`);\n    }\n    if (mask.glyph.metrics.maskFormat !== \"A8\") errors.push(`${label}:mask:${index}:format`);\n    const runGlyph = run.glyphs.find((glyph) => glyph.packedId === mask.glyph.packedId);\n    if (runGlyph == null || runGlyph.gid !== mask.glyph.gid\n        || runGlyph.phase.x !== mask.glyph.phase.x\n        || runGlyph.phase.y !== mask.glyph.phase.y) {\n      errors.push(`${label}:mask:${index}:run-phase-link`);\n    }\n    const gamma = mask.gamma;\n    const gammaDigests = [\n      gamma.preblendR256Sha256,\n      gamma.preblendG256Sha256,\n      gamma.preblendB256Sha256,\n    ];\n    if (gamma.recordDump !== mask.filteredRec.dump\n        || !/lum bits [0-9a-f]+, device gamma \\d+, contrast \\d+/.test(mask.filteredRec.dump)\n        || typeof gamma.preblendApplicable !== \"boolean\"\n        || gammaDigests.some((digest) => !validSha(digest))) {\n      errors.push(`${label}:mask:${index}:gamma-preblend`);\n    }\n    const coreText = mask.coreText;\n    if (coreText.pointSize !== (observation.controlId === \"device-matrix\" ? 32.5 : contract.scaler)\n        || typeof coreText.unitsPerEm !== \"number\"\n        || typeof coreText.ascent !== \"number\"\n        || typeof coreText.descent !== \"number\"\n        || !Array.isArray(coreText.boundingBox)) {\n      errors.push(`${label}:mask:${index}:coretext-metrics`);\n    }\n  }\n  const expectedScaler = observation.controlId === \"device-matrix\" ? 32.5 : contract.scaler;\n  if (!exactNumbers(filtered.matrices.scale, [expectedScaler, expectedScaler])) {\n    errors.push(`${label}:factored-scale`);\n  }\n  if (!filtered.matrices.invertible) errors.push(`${label}:matrix-invertible`);\n  const axes = new Map(evidence.run.typeface.axes.map((axis) => [axis.tag, axis.actual]));\n  const expectedAxes: Record<string, number> = {\n    wdth: 100,\n    opsz: observation.controlId === \"optical-size\" ? 26 : contract.opsz,\n    GRAD: 400,\n    wght: 700,\n  };\n  for (const [tag, expected] of Object.entries(expectedAxes)) {\n    if (axes.get(tag) !== expected) errors.push(`${label}:axis:${tag}`);\n  }\n  if (observation.logicalDigest !== sfnsValidationObservationDigest(observation)) {\n    errors.push(`${label}:logical-digest`);\n  }\n}\n\nconst REQUIRED_CONTROL_GROUPS: Record<SfnsValidationControlId, readonly string[]> = {\n  \"subpixel-phase\": [\"phase\", \"mask\"],\n  \"anti-aliasing\": [\"raw\", \"filtered\", \"browser\"],\n  hinting: [\"raw\", \"filtered\", \"browser\"],\n  \"device-matrix\": [\"matrix\", \"mask\"],\n  \"optical-size\": [\"axis\", \"mask\"],\n  \"surface-mask-format\": [\"surface\", \"raw\", \"filtered\"],"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "rank": 100,
+          "workItemUris": [
+            "DM-2575"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4e1c134c94455e22321a9f6af23403fe"
+          },
+          "attachments": [
+            {
+              "artifactLocation": {
+                "uri": ".pr-notes/artifacts/dm2575-sfns-pinned-chromium-validation.json",
+                "properties": {
+                  "ext-sha256": "a7df226ea4b5ec279e57d839b054515d7dcb5f13ec3ac37c0fbfe1841d2c102d"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a7b2f6e1dd555a2384db2a04318f5dacbabb0187",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -1997,7 +1997,7 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   identities and validation residuals no greater than proposal; the 348-cell
   core and every scalar visual threshold are unchanged.
 
-<!-- DM-2452 / DM-2567 / DM-2568 -->
+<!-- DM-2452 / DM-2567 / DM-2568 / DM-2575 -->
 - The macOS SFNS mask/baseline oracle (doc 168) is diagnostic-only. It routes
   the exact `SFNS.ttf` bytes through Chromium, fixes
   `wdth=100, opsz=17, GRAD=400, wght=700`, and requires Chromium CSS,
@@ -2039,10 +2039,19 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   It requires two cold/two warm processes for every scenario and six active
   phase/AA/hinting/matrix/opsz/surface controls; collection launches no browser.
   A schema reopens every rec and mask buffer and enforces exact lifecycle and
-  envelope digests. The separate test-only pinned-headless Chromium validator
-  and exact cross-arm adjudicator remain required before terminal masks become
-  a complete gate. Those follow-ups cannot change production rendering or
-  widen a visual tolerance.
+  envelope digests. DM-2575 adds the independent false-default test-only
+  pinned-headless Chromium validation arm: exact routed SFNS bytes, typeface
+  axes, raw/filtered records, draw matrices, packed phases, surface and
+  gamma/preblend facts, and embedded post-conversion masks are retained across
+  two cold and two warm processes per scenario plus six active controls. All
+  26 browser launches are explicitly headless; dropped, duplicate, reordered,
+  stale, wrong-process, wrong-source, or byte-corrupt evidence fails closed.
+  Normal rows explicitly enable Chromium's macOS headless LCD route; the
+  surface control disables it and proves unknown pixel geometry plus A8. The
+  cancellation row factors exactly to `[13,13]`, not 26px raster-plus-resample.
+  The exact cross-arm adjudicator remains required before terminal masks become
+  a complete gate. That follow-up cannot change production rendering or widen
+  a visual tolerance.
 
 <!-- Animated viewBox culling source audit, implementation, and oracle -->
 - Animated viewBox culling's composed-timeline path is implemented (doc 155):

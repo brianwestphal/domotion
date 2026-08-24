@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex GPT-5",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt7cqs788zbrn1h5",
+          "message": {
+            "text": "The hook binds two different font identities because Blink authenticates the 7,909,644-byte source before OTS while Skia receives the exact 7,806,016-byte sanitized stream. Requiring both digests plus the private ABI and observation envelope prevents an unrelated font or ordinary Chromium process from emitting evidence; the false-default GN guard keeps this out of production builds.",
+            "markdown": "The hook binds two different font identities because Blink authenticates the 7,909,644-byte source before OTS while Skia receives the exact 7,806,016-byte sanitized stream. Requiring both digests plus the private ABI and observation envelope prevents an unrelated font or ordinary Chromium process from emitting evidence; the false-default GN guard keeps this out of production builds."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/chromium-sfns-validation/SkDomotionSfnsValidation.h"
+                },
+                "region": {
+                  "startLine": 54,
+                  "endLine": 195,
+                  "snippet": {
+                    "text": "inline constexpr char kHookAbi[] = \"domotion-sfns-pinned-chromium-hook-v1\";\ninline constexpr char kChromiumRevision[] = \"7d859f271cbda744098ac69f44978d4edfa62be3\";\ninline constexpr char kSkiaRevision[] = \"62efacd37737505732dbe3d8daa62abd679626a1\";\ninline constexpr char kSourceFontSha256[] =\n    \"2bfd40dc72e6759e248f82a52a40d551338979fffc9b5c070e685b4b7ad19e66\";\ninline constexpr size_t kSourceFontByteLength = 7909644;\ninline constexpr char kDecodedFontSha256[] =\n    \"48eedcecfc1b0338a2b0deaac43b017df55b3023cff2c5e8ecc87570b4eacff4\";\ninline constexpr size_t kDecodedFontByteLength = 7806016;\ninline constexpr std::array<SkGlyphID, 6> kGlyphIds = {969, 815, 815, 795, 1310, 1377};\n\nstruct HookContext {\n    std::string outputDirectory;\n    std::string observationId;\n    std::string scenarioId;\n    std::string lifecycle;\n    std::string controlId;\n    int ordinal;\n};\n\nstruct FontIdentity {\n    size_t byteLength;\n    int collectionIndex;\n    std::string sha256;\n};\n\ninline bool safeToken(std::string_view value) {\n    if (value.empty() || value.size() > 128) return false;\n    for (unsigned char c : value) {\n        if (!(std::isalnum(c) || c == '-' || c == '_' || c == '.')) return false;\n    }\n    return true;\n}\n\ninline std::optional<HookContext> context() {\n    const char* abi = std::getenv(\"DOMOTION_SFNS_HOOK_ABI\");\n    const char* directory = std::getenv(\"DOMOTION_SFNS_OUTPUT_DIR\");\n    const char* observation = std::getenv(\"DOMOTION_SFNS_OBSERVATION_ID\");\n    const char* scenario = std::getenv(\"DOMOTION_SFNS_SCENARIO_ID\");\n    const char* lifecycle = std::getenv(\"DOMOTION_SFNS_LIFECYCLE\");\n    const char* ordinalText = std::getenv(\"DOMOTION_SFNS_ORDINAL\");\n    const char* control = std::getenv(\"DOMOTION_SFNS_CONTROL_ID\");\n    const char* sourceSha = std::getenv(\"DOMOTION_SFNS_SOURCE_SHA256\");\n    const char* sourceLength = std::getenv(\"DOMOTION_SFNS_SOURCE_BYTE_LENGTH\");\n    if (!abi || std::string_view(abi) != kHookAbi || !directory || !*directory ||\n        !observation || !scenario || !lifecycle || !ordinalText || !sourceSha ||\n        std::string_view(sourceSha) != kSourceFontSha256 || !sourceLength ||\n        std::string_view(sourceLength) != std::to_string(kSourceFontByteLength)) {\n        return std::nullopt;\n    }\n    if (!safeToken(observation) || !safeToken(scenario) || !safeToken(lifecycle) ||\n        (control && *control && !safeToken(control))) return std::nullopt;\n    char* end = nullptr;\n    errno = 0;\n    long ordinal = std::strtol(ordinalText, &end, 10);\n    if (errno || end == ordinalText || *end || ordinal < 1 || ordinal > 2) return std::nullopt;\n    if (std::string_view(lifecycle) != \"cold\" && std::string_view(lifecycle) != \"warm\" &&\n        std::string_view(lifecycle) != \"control\") return std::nullopt;\n    return HookContext{directory, observation, scenario, lifecycle,\n                       control ? control : \"\", static_cast<int>(ordinal)};\n}\n\ninline std::string escape(std::string_view value) {\n    std::ostringstream out;\n    for (unsigned char c : value) {\n        switch (c) {\n            case '\"': out << \"\\\\\\\"\"; break;\n            case '\\\\': out << \"\\\\\\\\\"; break;\n            case '\\n': out << \"\\\\n\"; break;\n            case '\\r': out << \"\\\\r\"; break;\n            case '\\t': out << \"\\\\t\"; break;\n            default:\n                if (c < 0x20) out << \"\\\\u\" << std::hex << std::setw(4)\n                                  << std::setfill('0') << static_cast<int>(c) << std::dec;\n                else out << c;\n        }\n    }\n    return out.str();\n}\n\ninline std::string quote(std::string_view value) { return \"\\\"\" + escape(value) + \"\\\"\"; }\n\ninline std::string number(double value) {\n    if (!std::isfinite(value)) return \"null\";\n    std::ostringstream out;\n    out << std::setprecision(17) << value;\n    return out.str();\n}\n\ninline std::string sha256(const void* bytes, size_t size) {\n    std::array<unsigned char, CC_SHA256_DIGEST_LENGTH> digest{};\n    CC_SHA256(bytes, static_cast<CC_LONG>(size), digest.data());\n    std::ostringstream out;\n    for (unsigned char byte : digest) {\n        out << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte);\n    }\n    return out.str();\n}\n\ninline std::string base64(const void* raw, size_t size) {\n    static constexpr char alphabet[] =\n        \"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/\";\n    const auto* bytes = static_cast<const uint8_t*>(raw);\n    std::string out;\n    out.reserve(((size + 2) / 3) * 4);\n    for (size_t i = 0; i < size; i += 3) {\n        uint32_t value = static_cast<uint32_t>(bytes[i]) << 16;\n        if (i + 1 < size) value |= static_cast<uint32_t>(bytes[i + 1]) << 8;\n        if (i + 2 < size) value |= bytes[i + 2];\n        out += alphabet[(value >> 18) & 63];\n        out += alphabet[(value >> 12) & 63];\n        out += i + 1 < size ? alphabet[(value >> 6) & 63] : '=';\n        out += i + 2 < size ? alphabet[value & 63] : '=';\n    }\n    return out;\n}\n\ninline std::optional<FontIdentity> authenticateTypeface(SkTypeface& typeface) {\n    static std::mutex mutex;\n    static std::map<SkTypefaceID, std::optional<FontIdentity>> cache;\n    std::lock_guard<std::mutex> lock(mutex);\n    auto found = cache.find(typeface.uniqueID());\n    if (found != cache.end()) return found->second;\n    int collectionIndex = -1;\n    std::unique_ptr<SkStreamAsset> stream = typeface.openStream(&collectionIndex);\n    if (!stream || stream->getLength() != kDecodedFontByteLength) {\n        cache[typeface.uniqueID()] = std::nullopt;\n        return std::nullopt;\n    }\n    std::vector<uint8_t> bytes(kDecodedFontByteLength);\n    if (stream->read(bytes.data(), bytes.size()) != bytes.size()) {\n        cache[typeface.uniqueID()] = std::nullopt;\n        return std::nullopt;\n    }\n    FontIdentity identity{bytes.size(), collectionIndex, sha256(bytes.data(), bytes.size())};\n    if (identity.sha256 != kDecodedFontSha256) {\n        cache[typeface.uniqueID()] = std::nullopt;\n        return std::nullopt;\n    }\n    cache[typeface.uniqueID()] = identity;\n    return identity;\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 96,
+          "workItemUris": [
+            "DM-2575"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e9fd1667ec28e95dd28d4bfe721ae3b3"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a7b2f6e1dd555a2384db2a04318f5dacbabb0187",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

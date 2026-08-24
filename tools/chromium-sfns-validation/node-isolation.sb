@@ -1,0 +1,8 @@
+(version 1)
+(allow default)
+
+; Chromium's filtered, pinned WebUI dependency bundle intentionally omits
+; @types/estree. Prevent TypeScript's Node-style resolver from escaping the
+; isolated checkout and finding domotion's unrelated development dependency.
+(deny file-read*
+  (subpath (param "DOMOTION_NODE_MODULES")))

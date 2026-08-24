@@ -96,9 +96,18 @@ per observation and retains raw/filtered rec bytes, matrix factorization,
 runtime smoothing, gamma/preblend, and embedded post-conversion masks for five
 two-cold/two-warm scenarios plus six active controls; it launches no browser.
 `tools/sfns-pinned-skia-mask-schema.ts` validates every embedded byte and exact
-lifecycle digest. The independent pinned-headless Chromium arm and cross-arm
-adjudicator remain required. Terminal mask coverage therefore remains partial,
-and no production route or renderer pixel tolerance changes.
+lifecycle digest. DM-2575 adds `tools/chromium-sfns-validation/`, a false-default
+test-only hook at raw-record, macOS filter, phase-packing, and post-conversion
+mask seams; `tools/build-sfns-pinned-chromium-validator.mjs` builds only the
+exact Chromium/Skia pins; and
+`tools/sfns-pinned-chromium-validation-{collector,schema}.ts` retain and
+fail-closed validate 26 one-process-per-observation explicitly headless traces,
+including six active controls and exact embedded mask bytes. Normal rows
+explicitly enable the macOS headless LCD route; the surface control disables
+it. The pinned result selects `[13,13]` cancellation, not a 26px raster followed
+by resampling. The cross-arm adjudicator remains required. Terminal mask
+coverage therefore remains partial, and no production route or renderer pixel
+tolerance changes.
 `tools/paths-native-raster-collector.ts` and
 `tools/paths-native-raster-corpus.ts` own doc 197's terminal raster evidence:
 six SHA-pinned outline technologies, a declared 348-cell source-table-owned

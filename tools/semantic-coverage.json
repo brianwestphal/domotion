@@ -286,20 +286,25 @@
         "tools/build-sfns-pinned-skia-collector.mjs",
         "tools/sfns-pinned-skia-collector/sfns_post_conversion_collector.cpp",
         "tools/sfns-pinned-skia-mask-collector.ts",
-        "tools/sfns-pinned-skia-mask-schema.ts"
+        "tools/sfns-pinned-skia-mask-schema.ts",
+        "tools/build-sfns-pinned-chromium-validator.mjs",
+        "tools/chromium-sfns-validation/SkDomotionSfnsValidation.h",
+        "tools/sfns-pinned-chromium-validation-collector.ts",
+        "tools/sfns-pinned-chromium-validation-schema.ts"
       ],
       "metamorphicTests": [
         "src/render/coretext-variable-outline.test.ts",
         "src/render/glyph-registry.test.ts",
         "tests/sfns-mask-baseline-oracle.test.ts",
         "tests/sfns-outline-parity-workflow.test.ts",
-        "tests/sfns-pinned-skia-mask-schema.test.ts"
+        "tests/sfns-pinned-skia-mask-schema.test.ts",
+        "tests/sfns-pinned-chromium-validation-schema.test.ts"
       ],
       "visualFixtures": [
         ".github/workflows/sfns-outline-parity.yml"
       ],
       "coverage": "partial",
-      "boundary": "DM-2452/doc 168 pins exact SFNS bytes, axes, gids, metrics, uniform matrix candidates, x/y quarter phases, and cold/warm lifecycle across Chromium, CoreText mask/path, and production paths. DM-2567 closes the bounded file-backed macOS variable-outline seam: the exact selected face/axes route through CoreText, helper absence fails closed, cache identity includes axes and commands, and two explicitly headless independent arms require authenticated helper bytes plus exact command topology/count/digest equality for all 30 gid observations per arm with maxDesignUnitDelta=0 and a moving opsz control. DM-2568 pins browser font globals, scaler-record construction, live draw-matrix-to-strike and phase ownership, macOS record filtering, runtime smoothing, RGB-to-A8/LCD conversion, gamma, and preblend. A proposal-only private-Skia collector now builds at the exact pin and retains 26 isolated native observations with exact raw/filtered recs, `[26,26]` and cancellation `[13,13]` matrices, runtime `some` smoothing, gamma/preblend, embedded A8 masks, lifecycle equality, and six active controls without launching a browser. The state remains partial because the independent test-only pinned-headless Chromium bytes and exact cross-arm adjudication are still absent; direct RGBA evidence remains diagnostic.",
+      "boundary": "DM-2452/doc 168 pins exact SFNS bytes, axes, gids, metrics, uniform matrix candidates, x/y quarter phases, and cold/warm lifecycle across Chromium, CoreText mask/path, and production paths. DM-2567 closes the bounded file-backed macOS variable-outline seam: the exact selected face/axes route through CoreText, helper absence fails closed, cache identity includes axes and commands, and two explicitly headless independent arms require authenticated helper bytes plus exact command topology/count/digest equality for all 30 gid observations per arm with maxDesignUnitDelta=0 and a moving opsz control. DM-2568 pins browser font globals, scaler-record construction, live draw-matrix-to-strike and phase ownership, macOS record filtering, runtime smoothing, RGB-to-A8/LCD conversion, gamma, and preblend. The private-Skia proposal collector retains 26 isolated native observations with exact raw/filtered recs, `[26,26]` and cancellation `[13,13]` matrices, runtime `some` smoothing, gamma/preblend, embedded A8 masks, lifecycle equality, and six active controls without launching a browser. DM-2575 adds the independent false-default pinned-Chromium validation hook and 26 one-process-per-observation explicitly headless traces, retaining the same browser-constructed record, typeface/axes, phases, surfaces, gamma/preblend, and exact post-conversion bytes with fail-closed lifecycle and mutation checks. The state remains partial only because proposal and validation have not yet been byte-adjudicated into one exact cross-arm digest; direct RGBA evidence remains diagnostic.",
       "featureIds": [
         "render.text",
         "fonts.glyph-helper"
