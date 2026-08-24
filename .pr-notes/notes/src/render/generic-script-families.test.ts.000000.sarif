@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6muxoir8iq4b9f",
+          "message": {
+            "text": "These logical assertions guard both sides of the stage boundary: the hidden Hebrew paint identity cannot become a declared primary, while the native CoreText cascade from Apple Chancery must return the exact .ArialHebrewDeskInterface face. The focused suite passed 25/25 on macOS with no raster threshold.",
+            "markdown": "These logical assertions guard both sides of the stage boundary: the hidden Hebrew paint identity cannot become a declared primary, while the native CoreText cascade from Apple Chancery must return the exact .ArialHebrewDeskInterface face. The focused suite passed 25/25 on macOS with no raster threshold."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/generic-script-families.test.ts"
+                },
+                "region": {
+                  "startLine": 207,
+                  "endLine": 232,
+                  "snippet": {
+                    "text": "      expect(resolveFontKey(\"serif\")).toMatch(/^(?:georgia|sysfb:Georgia)$/);\n    });\n  });\n\n  it.runIf(process.platform === \"darwin\")(\"a hidden Hebrew painted face remains a fallback from the captured Common cursive primary\", () => {\n    withHostPlatform(\"darwin\", () => {\n      setSessionGenericFamilyOverrides({\n        common: new Map([ [\"cursive\", \"AppleChancery\"] ]),\n        byScript: new Map([ [\"HEBREW\", new Map([ [\"cursive\", \".ArialHebrewDeskInterface\"] ])] ]),\n      });\n      // `FontCache::CreateFontPlatformData` rejects the dot-prefixed name.\n      // The declared face must therefore remain Apple Chancery; Hebrew is\n      // resolved later through Blink's CTFontCreateForString fallback stage.\n      expect(resolveFontKey(\"cursive\", \"he\")).toMatch(/^(?:apple-chancery|sysfb:AppleChancery)$/);\n    });\n  });\n\n  it.runIf(process.platform === \"darwin\" && isGlyphHelperAvailable())(\"CoreText reaches the hidden Hebrew identity only from the Apple Chancery handle\", () => {\n    const base = resolveInstalledFont(\"Apple Chancery\");\n    expect(base).not.toBeNull();\n    const fallback = resolveSystemFallbackFonts([0x05d0], base!.postscriptName, {\n      weight: 400,\n      italic: false,\n      fontSize: 32,\n      basePath: base!.path,\n    }).get(0x05d0);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 94,
+          "workItemUris": [
+            "DM-2550"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "21bc891d818182219fb0e87926d774e9"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a22d2aff935ab5c703d9381b9be82b2ebf5e58ec",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

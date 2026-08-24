@@ -42,6 +42,16 @@ ownership (`FontCache::SystemFontFamily`/`MatchSystemUIFont`). Staying stable
 when the seven generic preference maps mutate proves separation, not complete
 cross-platform `system-ui` parity.
 
+On macOS, a script probe can report a protected dot-prefixed face selected by
+CoreText fallback rather than the declared Page setting itself. Such a face is
+kept as fallback evidence: renderer replay retains the captured Common generic
+as its primary, does not insert the script STANDARD face ahead of the platform
+stage, and lets `CTFontCreateForString` recover the hidden identity. Static
+single-face paths whose table entry omits a PostScript-name hint derive the
+cascade base from the opened instance; treating them like in-memory webfonts
+would incorrectly replace that base with Times.
+See [doc 224](224-hidden-macos-hebrew-generic-face.md).
+
 ## The race and the ownership correction
 
 The retired design probed once and installed the result in one module-global.
@@ -70,6 +80,14 @@ crosses shadow hosts, and consults `Document::ContentLanguage()` last
 (`external/chromium/third_party/blink/renderer/core/dom/element.cc`, revision
 `7d859f271c`). Reachable child-frame DOM language attributes remain an
 additional control; this does not claim target-divergent OOPIF Settings.
+
+Each scripted row restores a quoted author-important `-webkit-locale` after
+its hostile-style `all: initial` reset. This mirrors
+`Element::MapLanguageAttributeToLocale()`: `-webkit-locale` is inherited,
+font-affecting, and parsed as either `auto` or a CSS string, and its
+`LayoutLocale` supplies `FontDescription::GetScript()`. Assigning `lang` before
+the reset is not equivalent—the reset returns the row to the document locale
+and silently asks the Common/document script map.
 
 Legacy array captures serialize the concrete answers as
 `sessionGenericFamilies` on each top-level captured root. The stable
@@ -109,7 +127,10 @@ table when Page authority is absent.
 Chromium headless/headed and full Chrome headless/headed. Every mode records a
 stable default state, then applies a controlled `Page.setFontFamilies` mutation
 whose replacement faces come only from that exact run's observed installed
-faces. It crosses seven settings generics over Common plus ten scripts (77
+faces. Script mutations select only among faces that Blink just proved paint
+that script's scalar; localized display names use the authenticated PostScript
+identity because they are not necessarily accepted as Settings family lookup
+strings. The gate crosses seven settings generics over Common plus ten scripts (77
 settings rows), adds Common/script `system-ui` separation controls (11 rows)
 and quoted `"serif"` keyword-classification controls (11 rows). Each state
 therefore observes 99 rows: 88 exact preference/classification rows plus 11
@@ -118,7 +139,9 @@ mandatory stable `system-ui` separation controls.
 The report also runs the old process-global ownership as a destructive
 discriminator: B must contaminate at least one A settings row, the captured A
 scope must recover all 77 settings rows, and the prior explicit global must be
-restored. It records
+restored. Face agreement is graded after the production per-codepoint fallback
+walk rather than at `resolveFont()`'s primary-only boundary, so protected
+fallback faces cannot pass or fail under the wrong stage. It records
 browser/product/protocol revisions, launch engine/headful state, locale,
 OS/architecture, Node and Playwright versions, source revisions, and a native
 font-inventory digest. No tolerance or snapshot can turn a face mismatch green.
@@ -154,10 +177,10 @@ pixels, a font-name snapshot, or a tolerance.
   locale-tagged `system-ui` controls unchanged. Production supports only the
   non-divergent state and fails closed when authenticated target Settings
   disagree; it does not clone main-Page authority into a divergent target.
-- The isolated DM-2539 discriminators restore Blink's `lang`-owned
-  `-webkit-locale` after `all: initial`, so Japanese and Devanagari rows select
-  the claimed script maps. DM-2551 owns that locale fix across the broader
-  production probe; DM-2550 owns the hidden macOS Hebrew face it exposes.
+- The production probe and independent gate restore Blink's `lang`-owned
+  `-webkit-locale` after `all: initial`, so every dynamic script row selects
+  its claimed Settings map. This exposes protected macOS fallback identities;
+  [doc 224](224-hidden-macos-hebrew-generic-face.md) owns their CoreText replay.
 - `system-ui` remains outside this gate's parity claim. Its separate exact
   CoreText / Linux renderer-family / Windows menu-font route oracle shipped in
   [doc 211](211-platform-system-ui-preference-route.md); the rows here remain

@@ -2484,6 +2484,241 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6muxii08a2ydnm",
+          "message": {
+            "text": "A protected macOS probe face belongs to Blink's fallback stage, so replay must preserve the captured Common generic as the declared primary. Chromium revision 7d859f271c rejects dot-prefixed families in FontCache::CreateFontPlatformData and reaches them only through CTFontCreateForString; attempting to reopen the painted PostScript name substitutes Times.",
+            "markdown": "A protected macOS probe face belongs to Blink's fallback stage, so replay must preserve the captured Common generic as the declared primary. Chromium revision 7d859f271c rejects dot-prefixed families in FontCache::CreateFontPlatformData and reaches them only through CTFontCreateForString; attempting to reopen the painted PostScript name substitutes Times."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 8424,
+                  "endLine": 8437,
+                  "snippet": {
+                    "text": " * `FontCache::CreateFontPlatformData` (`IsSystemFontName` → nullptr), then\n * reaches the face only through `CTFontCreateForString` from the current\n * primary. Preserve that stage boundary by replaying the captured Common\n * generic as the primary; the ordinary fallback resolver can then ask\n * CoreText from the same base Chrome used. */\nfunction sessionScriptPrimaryFace(\n  scriptFace: string,\n  settingsName: string,\n): string {\n  if (hostPlatform() !== \"darwin\" || !scriptFace.startsWith(\".\")) return scriptFace;\n  return sessionGenericFamilyOverrides?.common.get(settingsName) ?? scriptFace;\n}\n\n// ── Session generic-family overrides (live browser authority) ──"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 96,
+          "workItemUris": [
+            "DM-2550"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "75460b9d4ab09a0c67710461b0b5e35b"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a22d2aff935ab5c703d9381b9be82b2ebf5e58ec",
+          "branch": "main"
+        }
+      ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "version": "gpt-5",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6n814sj0t5jgq1",
+          "message": {
+            "text": "A static font spec without an optional PostScript hint is still a normal declared face. Blink asks fallback from the instantiated current font; deriving its opened identity avoids misclassifying Apple Chancery as an in-memory webfont and substituting Times.",
+            "markdown": "A static font spec without an optional PostScript hint is still a normal declared face. Blink asks fallback from the instantiated current font; deriving its opened identity avoids misclassifying Apple Chancery as an in-memory webfont and substituting Times."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 2665,
+                  "endLine": 2690,
+                  "snippet": {
+                    "text": "  const spec = resolveFontSpec(cutKey) ?? resolveFontSpec(primaryKey);\n  let base: { name: string; path?: string; data?: Buffer };\n  if (spec?.postscriptName == null || spec.postscriptName === \"\") {\n    const resolvedInstance = getFontInstance(primaryKey, weight, fontSize, slant, undefined, stretch);\n    const resolvedName = resolvedInstance?.instantiatedPostscriptName ?? resolvedInstance?.postscriptName;\n    // A static single-face path may omit its optional PostScript-name hint.\n    // It is still a normal CoreText-backed declared face, not an in-memory\n    // webfont. Blink asks fallback from the instantiated current font, so use\n    // the identity the opened instance reports instead of substituting Times.\n    if (spec != null && resolvedName != null && resolvedName !== \"\") {\n      base = { name: resolvedName, path: getFontSourceInfo(resolvedInstance)?.path ?? spec.path };\n      fallbackBaseCache.set(cacheKey, base);\n      return base;\n    }\n    // A primary with no on-disk spec of its own — a webfont / local-alias\n    // registry key, i.e. exactly the faces for which Blink's `ct_font` is\n    // null (FreeType-backed webfonts, some color fonts). `GetSubstituteFont`\n    // then substitutes from a **Times** base, not Helvetica:\n    // `CTFontCreateWithName(CFSTR(\"Times\"), size, nullptr)` handed to\n    // `CTFontCreateForString` (`mac/font_cache_mac.mm:137-147`, rev\n    // 7d859f27, quoting the \"default value of standard font from user\n    // settings\"). `Times-Roman` is the face the \"Times\" family name\n    // instantiates.\n    base = _webfontFallbackBaseEnabled && resolvedInstance?.webfontBuffer != null\n      ? { name: resolvedInstance.postscriptName ?? \"\", data: resolvedInstance.webfontBuffer }\n      : { name: \"Times-Roman\" };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "workItemUris": [
+            "DM-2551"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "16df4887eacd3ce0fbc0de61d60fcc9b"
+          },
+          "attachments": [
+            {
+              "artifactLocation": {
+                "uri": "external/chromium/third_party/blink/renderer/platform/fonts/mac/font_cache_mac.mm",
+                "properties": {
+                  "ext-sha256": "2479021eea4b6b0381c044e64a109b8d752c570bee022257a0af175671828b6f"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6n81af8cxj3asi",
+          "message": {
+            "text": "A dot-prefixed macOS script probe answer is platform-fallback evidence. Preserve the captured Common generic as primary and carry the evidence marker into family-chain construction.",
+            "markdown": "A dot-prefixed macOS script probe answer is platform-fallback evidence. Preserve the captured Common generic as primary and carry the evidence marker into family-chain construction."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 8432,
+                  "endLine": 8452,
+                  "snippet": {
+                    "text": "/** A dot-prefixed macOS probe answer is a CoreText FALLBACK face, not a\n * declared-family setting. Blink refuses these names in\n * `FontCache::CreateFontPlatformData` (`IsSystemFontName` → nullptr), then\n * reaches the face only through `CTFontCreateForString` from the current\n * primary. Preserve that stage boundary by replaying the captured Common\n * generic as the primary; the ordinary fallback resolver can then ask\n * CoreText from the same base Chrome used. */\nfunction sessionScriptPrimaryFace(\n  scriptFace: string,\n  settingsName: string,\n): string {\n  if (hostPlatform() !== \"darwin\" || !scriptFace.startsWith(\".\")) return scriptFace;\n  return sessionGenericFamilyOverrides?.common.get(settingsName) ?? scriptFace;\n}\n\nfunction sessionScriptFaceIsFallbackOwned(name: string, generic: boolean, lang?: string): boolean {\n  if (!generic || lang == null || hostPlatform() !== \"darwin\") return false;\n  const script = localeToScriptCodeForFontSelection(lang);\n  return sessionGenericFamilyOverrides?.byScript\n    .get(script)?.get(genericSettingsFamilyName(name))?.startsWith(\".\") === true;\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "workItemUris": [
+            "DM-2551"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "a7e6c254e00ce860fde4d6ac71720e62"
+          },
+          "attachments": [
+            {
+              "artifactLocation": {
+                "uri": "external/chromium/third_party/blink/renderer/platform/fonts/mac/font_matcher_mac.mm",
+                "properties": {
+                  "ext-sha256": "eb2792d02527af64b6e4c8bcde5dddd14dea748fa31bed14d7dfcec4024481a6"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6n81gj0czbg68n",
+          "message": {
+            "text": "The authenticated Hebrew cursive row paints .ArialHebrewDeskInterface. Appending the script STANDARD face consumes U+05D0 as Times before CoreText; suppressing STANDARD only for protected fallback evidence restores the exact production-stage result while all 77 logical rows stay exact.",
+            "markdown": "The authenticated Hebrew cursive row paints .ArialHebrewDeskInterface. Appending the script STANDARD face consumes U+05D0 as Times before CoreText; suppressing STANDARD only for protected fallback evidence restores the exact production-stage result while all 77 logical rows stay exact."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 9250,
+                  "endLine": 9282,
+                  "snippet": {
+                    "text": " * of that stage would contradict the authenticated paint.\n */\nexport function resolveFontKeyChain(fontFamily: string, lang?: string): string[] {\n  const out: string[] = [];\n  const entries = splitFontFamilyNames(fontFamily);\n  let protectedScriptFallback = false;\n  for (const entry of entries) {\n    protectedScriptFallback ||= sessionScriptFaceIsFallbackOwned(entry.name, entry.generic, lang);\n    const key = matchFamilyNameToKey(\n      entry.name, entry.generic, lang, entry.canonicalSystemUiName, entry.lookupName,\n    );\n    if (key != null && !out.includes(key)) out.push(key);\n  }\n  // Blink's family list ends with the STANDARD family: a codepoint no\n  // declared family covers is asked of `GetFallbackFontFamily` →\n  // `settings.Standard(script)` BEFORE the per-codepoint system fallback\n  // (`font_fallback_iterator.cc:167-179` walks `FontFallbackList::FontDataAt`\n  // until it is exhausted, and that list's final entry is the standard\n  // family). `times` is that stage for the Common/default script, but when the\n  // content locale keys a per-script standard entry, the script-keyed face\n  // takes the position instead.\n  // Measured: lang=zh-Hant `monospace` paints Han from PingFang TC (the hant\n  // standard, first-available of \",PingFang TC,Heiti TC\") while Latin stays\n  // Courier — 253 of 253 oracle rows in the 4E00-4EFF slice moved on exactly\n  // this stage.\n  // A protected dot-prefixed script answer is evidence for the platform\n  // fallback selected from this generic's Common primary, not a declared\n  // family. Appending the script STANDARD face here would consume the scalar\n  // at kFontFamily (Times covers Hebrew) before Blink's CoreText stage can\n  // produce that authenticated hidden face.\n  if (!protectedScriptFallback) {\n    const std = matchFamilyNameToKey(\"-webkit-standard\", true, lang) ?? \"times\";\n    if (!out.includes(std)) out.push(std);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "workItemUris": [
+            "DM-2551"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f5f50bcca1cb76a0de91195476ab8d3a"
+          },
+          "attachments": [
+            {
+              "artifactLocation": {
+                "uri": "/tmp/dm2551-headless-final2.json"
+              }
+            }
+          ]
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "90bc7d952c943c07805d471d267971eaa2dfc787",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

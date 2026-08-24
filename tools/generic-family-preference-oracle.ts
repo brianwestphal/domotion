@@ -37,8 +37,13 @@ import {
   type SessionGenericFamilyProbe,
 } from "../src/capture/generic-font-probe.js";
 import {
+  getFontInstance,
   getSessionGenericFamilyOverrides,
   resolveFont,
+  resolveFontForCodepoint,
+  resolveFontKey,
+  resolveFontKeyChain,
+  resolveFontSpec,
   setSessionGenericFamilyOverrides,
   withSessionGenericFamilyOverrides,
 } from "../src/render/font-resolution.js";
@@ -190,6 +195,8 @@ const MODES: LaunchMode[] = [
 
 let probeSequence = 0;
 const face = (row: BlinkPreferenceRow): string => row.postScriptName ?? row.familyName;
+const settingsRequestName = (row: BlinkPreferenceRow): string =>
+  /^[\x20-\x7e]+$/.test(row.familyName) ? row.familyName : face(row);
 const normFace = (value: string | null | undefined): string => (value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
 const targetKey = (target: Pick<LogicalProbeTarget, "script" | "generic">): string => `${target.script ?? "COMMON"}/${target.generic}`;
 const isSettingsGeneric = (generic: GenericName): generic is SettingsGenericName =>
@@ -204,7 +211,10 @@ export function logicalProbeTargets(): LogicalProbeTarget[] {
       .map((target, index) => ({
         id: `guis${index}`,
         generic: "system-ui" as const,
-        text: target.text,
+        // Keep Page generic-family settings out of this negative control:
+        // use a glyph covered by the platform UI face while retaining the
+        // locale tag that distinguishes script ownership.
+        text: "A",
         lang: target.lang,
         script: target.script,
       })),
@@ -237,6 +247,10 @@ async function readBlinkPreferenceRows(page: Page, cdp: CDPSession): Promise<Bli
       span.id = `${id}_${row.id}`;
       span.style.cssText = "all:initial;display:block;font-size:32px;line-height:normal";
       if (row.lang != null) span.lang = row.lang;
+      // `lang` maps to Blink's inherited -webkit-locale presentation
+      // property. `all: initial` above resets it, so restore the same quoted
+      // value after neutralization before asking which script preference won.
+      if (row.lang != null) span.style.setProperty("-webkit-locale", JSON.stringify(row.lang));
       if (row.generic !== "standard") {
         span.style.fontFamily = row.generic === "quoted-serif" ? '"serif"' : row.generic;
       }
@@ -308,36 +322,70 @@ function domotionRows(
   probe: SessionGenericFamilyProbe,
 ): LogicalAgreementRow[] {
   return withSessionGenericFamilyOverrides(probe, () => sourceRows.map((row) => {
-    const family = row.generic === "standard"
-      ? "__domotion_dm2351_missing_family__"
-      : row.generic === "quoted-serif" ? '"serif"' : row.generic;
-    const resolved = resolveFont(family, 400, 32, 0, undefined, 100, row.lang ?? undefined);
-    const domotionFace = resolved?.instantiatedPostscriptName ?? resolved?.postscriptName ?? null;
+    const domotionFace = resolveDomotionPaintedFace(row);
     return { ...row, domotionFace, exact: normFace(domotionFace) === normFace(face(row)) };
   }));
+}
+
+/** Resolve the face that paints the row's scalar, not merely its declared
+ * primary. This distinction is load-bearing for protected macOS faces: Blink
+ * rejects a dot-prefixed family as a direct setting, then reaches it from the
+ * Common primary through CTFontCreateForString at the fallback stage. */
+function resolveDomotionPaintedFace(row: BlinkPreferenceRow): string | null {
+  const family = row.generic === "standard"
+    ? "__domotion_dm2351_missing_family__"
+    : row.generic === "quoted-serif" ? '"serif"' : row.generic;
+  const lang = row.lang ?? undefined;
+  const primaryKey = resolveFontKey(family, lang);
+  const primary = resolveFont(family, 400, 32, 0, undefined, 100, lang);
+  const cp = row.text.codePointAt(0);
+  if (primary == null || cp == null) return null;
+  const painted = resolveFontForCodepoint(
+    cp,
+    primary,
+    primaryKey,
+    400,
+    32,
+    0,
+    undefined,
+    lang,
+    resolveFontKeyChain(family, lang),
+    row.generic === "system-ui",
+    100,
+    undefined,
+    family,
+  );
+  const instance = painted.fontOverride ?? getFontInstance(painted.key, 400, 32, 0);
+  return instance?.instantiatedPostscriptName
+    ?? instance?.postscriptName
+    ?? resolveFontSpec(painted.key)?.postscriptName
+    ?? null;
 }
 
 /** Build mutations only from faces this exact browser/host just painted.
  * There is intentionally no committed OS preference table in this oracle. */
 export function buildPreferenceMutation(defaultRows: BlinkPreferenceRow[]): PreferenceMutationPlan {
-  const commonCandidates = defaultRows
-    .filter((row) => row.script == null && isSettingsGeneric(row.generic))
-    .filter((row, index, rows) => rows.findIndex((candidate) =>
+  const candidatesFor = (rows: BlinkPreferenceRow[], owner: string): BlinkPreferenceRow[] => {
+    const candidates = rows.filter((row, index) => rows.findIndex((candidate) =>
       normFace(face(candidate)) === normFace(face(row))) === index);
-  if (commonCandidates.length < 2) {
-    throw new Error("controlled mutation needs at least two distinct installed Common faces");
-  }
-  const choose = (row: BlinkPreferenceRow): BlinkPreferenceRow => {
-    const candidate = commonCandidates.find((item) => normFace(face(item)) !== normFace(face(row)));
+    if (candidates.length < 2) {
+      throw new Error(`controlled mutation needs at least two distinct faces proven to paint ${owner}`);
+    }
+    return candidates;
+  };
+  const choose = (row: BlinkPreferenceRow, candidates: BlinkPreferenceRow[]): BlinkPreferenceRow => {
+    const candidate = candidates.find((item) => normFace(face(item)) !== normFace(face(row)));
     if (candidate == null) throw new Error(`no distinct installed mutation face for ${targetKey(row)}`);
     return candidate;
   };
 
   const expectedFaceByTarget: Record<string, string> = {};
   const common: FontFamilies = {};
-  for (const row of defaultRows.filter((item) => item.script == null && isSettingsGeneric(item.generic))) {
-    const selected = choose(row);
-    common[PROTOCOL_KEYS[row.generic as SettingsGenericName]] = selected.familyName;
+  const commonRows = defaultRows.filter((item) => item.script == null && isSettingsGeneric(item.generic));
+  const commonCandidates = candidatesFor(commonRows, "COMMON");
+  for (const row of commonRows) {
+    const selected = choose(row, commonCandidates);
+    common[PROTOCOL_KEYS[row.generic as SettingsGenericName]] = settingsRequestName(selected);
     expectedFaceByTarget[targetKey(row)] = face(selected);
   }
 
@@ -354,10 +402,18 @@ export function buildPreferenceMutation(defaultRows: BlinkPreferenceRow[]): Pref
   for (const [script, rows] of scriptGroups) {
     const protocolScript = SCRIPT_PROTOCOL_NAMES[script];
     if (protocolScript == null) throw new Error(`missing protocol script spelling for ${script}`);
+    // A Common face may not cover this script's sample and would leave the
+    // requested Settings mutation inert after fallback. Only select among
+    // faces Blink has just proved can paint this exact script probe.
+    const scriptCandidates = candidatesFor(rows, script);
     const fontFamilies: FontFamilies = {};
     for (const row of rows) {
-      const selected = choose(row);
-      fontFamilies[PROTOCOL_KEYS[row.generic as SettingsGenericName]] = selected.familyName;
+      const selected = choose(row, scriptCandidates);
+      // Localized display family names (for example PingFang's macOS name)
+      // need not be accepted as a Settings lookup string; use the concrete
+      // authenticated PostScript identity for those names only. Ordinary
+      // family names preserve Blink's family-name lookup path.
+      fontFamilies[PROTOCOL_KEYS[row.generic as SettingsGenericName]] = settingsRequestName(selected);
       expectedFaceByTarget[targetKey(row)] = face(selected);
     }
     forScripts.push({ script: protocolScript, fontFamilies });
@@ -432,11 +488,7 @@ function rowsByKey(rows: BlinkPreferenceRow[]): Map<string, BlinkPreferenceRow> 
 function resolveAgainstCurrentGlobal(rows: BlinkPreferenceRow[]): number {
   let exact = 0;
   for (const row of rows) {
-    const family = row.generic === "standard"
-      ? "__domotion_dm2351_missing_family__"
-      : row.generic === "quoted-serif" ? '"serif"' : row.generic;
-    const resolved = resolveFont(family, 400, 32, 0, undefined, 100, row.lang ?? undefined);
-    const name = resolved?.instantiatedPostscriptName ?? resolved?.postscriptName ?? null;
+    const name = resolveDomotionPaintedFace(row);
     if (normFace(name) === normFace(face(row))) exact++;
   }
   return exact;

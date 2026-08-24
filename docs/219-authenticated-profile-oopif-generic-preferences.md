@@ -71,10 +71,13 @@ neutralization and paints a scalar covered by the requested script. This is why
 the gate can require all seven Japanese and all seven Devanagari fields rather
 than counting unchecked rows as successes.
 
-The broader production capture probe still has this neutralization issue.
-DM-2551 owns that correction across its complete dynamic-script matrix;
-DM-2550 owns the hidden macOS Hebrew face that a locale-honest version exposes.
-They are explicit follow-ups, not exemptions in this oracle.
+The broader production capture probe and its independent preference gate now
+apply the same correction across their complete dynamic-script matrices.
+Their mutations are derived per script from faces already proven to paint that
+script's scalar, while locale-tagged `system-ui` controls retain an ASCII glyph
+so generic-map fallback cannot masquerade as system-family ownership. Protected
+macOS Hebrew identities exposed by the locale-honest probe are handled by the
+CoreText route documented in [doc 224](224-hidden-macos-hebrew-generic-face.md).
 
 ## Per-target OOPIF settings
 

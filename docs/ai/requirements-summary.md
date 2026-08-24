@@ -1818,9 +1818,8 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   transfer/order/isolation models, and independently active source/candidate
   mutations. Blink's blend Effect remains the outer consumer of its inner
   Filter: source content is filtered before it blends with the effect backdrop.
-  The current localized reference-filter wrapper reverses that nesting; DM-2548
-  owns the source-derived reorder, and DM-2549 owns strict three-platform
-  promotion afterward. DM-2535 changes neither production behavior nor the
+  Localized reference filters now preserve that nesting; DM-2549 owns strict
+  three-platform promotion afterward. DM-2535 changes neither production behavior nor the
   fixed four-code channel and eight-code mutation bounds.
 
 <!-- Ordinary backdrop ownership -->
@@ -2323,3 +2322,11 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
 - Preserve computed SVG paint and separately hoist reachable out-of-subtree resources under a collision-free output namespace.
 - Fail closed on missing, stale, external, cross-scope, unreachable, or structurally forged evidence; retain authenticated cycles for native SVG resource-specific handling.
 - Do not replace source-owned logic with pixel thresholds or bake computed geometry/transform values that would override unit-sensitive SVG attributes.
+### Hidden macOS generic fallback faces
+
+Protected dot-prefixed faces reported by a macOS script generic probe must not
+be reopened or treated as declared families. Preserve the captured Common
+generic primary and reach the protected face through CoreText per-codepoint
+fallback, matching Blink's `IsSystemFontName` rejection and
+`CTFontCreateForString` route. Require exact PostScript identity; do not add a
+pixel tolerance or fitted font-name table (DM-2550, doc 224).

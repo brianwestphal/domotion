@@ -1002,11 +1002,10 @@ shortest possible map:
   blend/isolation surfaces, six vector ownership rows, four hostile models, and
   live source/candidate mutations at DPR 1/2. All filter-only rows are exact.
   The bounded investigation ratchet exposes a separate renderer gap:
-  reference-filter localization currently emits the filter wrapper outside the
-  blend wrapper, reversing Blink's outer Effect / inner Filter order and hiding
-  the intended backdrop from `mix-blend-mode`. DM-2548 owns the wrapper reorder;
-  DM-2549 then removes the bounded gap set and promotes source-exact evidence on
-  macOS/Linux/Windows. No production path or tolerance changed in DM-2535.
+  reference-filter localization emits the filter wrapper inside the outer
+  blend wrapper, matching Blink's outer Effect / inner Filter order while
+  preserving the filter's local reference box. DM-2549 promotes source-exact
+  evidence on macOS/Linux/Windows. No tolerance changed in DM-2535 or DM-2548.
 
 - **Strict ordinary backdrop ownership (docs 187/194/195)** —
   `backdrop-composite-raster.ts` owns atomic opacity/blend/mask roots and the
@@ -1108,3 +1107,11 @@ logical mutation gates.
 ### Transitive SVG fragment resources (DM-2529)
 
 `src/capture/script/walker/masks-clips.ts` closes each local mask/clip reference over live, TreeScope-owned SVG `href`/`url()` dependencies and serializes sibling resources plus computed paint. `src/render/mask.ts::rewriteFragmentResourceGraph` authenticates scope, reachability, token occurrences, containment, and cycle evidence before assigning one output namespace. Geometry and transform attributes remain native inputs so later consumer positioning does not double-apply them.
+### Hidden macOS script-probe fallback ownership (DM-2550)
+
+`src/render/font-resolution.ts` classifies dot-prefixed macOS faces from a
+script-keyed live generic probe as CoreText fallback results, not declared Page
+families. It preserves the captured Common generic primary so the existing
+file-backed `CTFontCreateForString` route reaches the protected face. Exact
+primary/fallback identity coverage lives in
+`src/render/generic-script-families.test.ts`; see doc 224.

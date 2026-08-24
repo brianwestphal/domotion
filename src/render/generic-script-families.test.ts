@@ -25,8 +25,9 @@ import {
 import {
   resolveFontKey, resolveFontKeyChain, setSessionGenericFamilyOverrides,
   getSystemFallbackResolution, setSystemFallbackResolution,
-  clearFontResolutionCaches,
+  clearFontResolutionCaches, __resolveFontForCodepointForTest, resolveFontSpec,
 } from "./font-resolution.js";
+import { isGlyphHelperAvailable, resolveInstalledFont, resolveSystemFallbackFonts } from "./glyph-helper.js";
 import { withHostPlatform } from "./host-platform.js";
 
 const require = createRequire(import.meta.url);
@@ -205,6 +206,44 @@ describe("resolveFontKey(family, lang) moves the settings-mapped generics per sc
       expect(resolveFontKey("serif", "ja-JP")).toMatch(/^(?:menlo|sysfb:Menlo-Regular)$/);
       expect(resolveFontKey("serif")).toMatch(/^(?:georgia|sysfb:Georgia)$/);
     });
+  });
+
+  it.runIf(process.platform === "darwin")("a hidden Hebrew painted face remains a fallback from the captured Common cursive primary", () => {
+    withHostPlatform("darwin", () => {
+      setSessionGenericFamilyOverrides({
+        common: new Map([ ["cursive", "AppleChancery"] ]),
+        byScript: new Map([ ["HEBREW", new Map([ ["cursive", ".ArialHebrewDeskInterface"] ])] ]),
+      });
+      // `FontCache::CreateFontPlatformData` rejects the dot-prefixed name.
+      // The declared face must therefore remain Apple Chancery; Hebrew is
+      // resolved later through Blink's CTFontCreateForString fallback stage.
+      expect(resolveFontKey("cursive", "he")).toMatch(/^(?:apple-chancery|sysfb:AppleChancery)$/);
+    });
+  });
+
+  it.runIf(process.platform === "darwin" && isGlyphHelperAvailable())("CoreText reaches the hidden Hebrew identity only from the Apple Chancery handle", () => {
+    const base = resolveInstalledFont("Apple Chancery");
+    expect(base).not.toBeNull();
+    const fallback = resolveSystemFallbackFonts([0x05d0], base!.postscriptName, {
+      weight: 400,
+      italic: false,
+      fontSize: 32,
+      basePath: base!.path,
+    }).get(0x05d0);
+    expect(fallback?.postscriptName).toBe(".ArialHebrewDeskInterface");
+
+    setSessionGenericFamilyOverrides({
+      common: new Map([ ["cursive", "AppleChancery"] ]),
+      byScript: new Map([ ["HEBREW", new Map([ ["cursive", ".ArialHebrewDeskInterface"] ])] ]),
+    });
+    setSystemFallbackResolution(true);
+    try {
+      const production = __resolveFontForCodepointForTest(0x05d0, "cursive", 400, 32, 0, "he");
+      expect(production).not.toBeNull();
+      expect(resolveFontSpec(production!.key)?.postscriptName).toBe(".ArialHebrewDeskInterface");
+    } finally {
+      setSystemFallbackResolution(false);
+    }
   });
 
   it("linux: lang never moves a generic (Playwright's linux table has no forScripts)", () => {

@@ -258,6 +258,9 @@ async function readPageGenericFamilies(
       span.style.setProperty("display", "block", "important");
       span.style.setProperty("font-size", "32px", "important");
       span.style.setProperty("line-height", "normal", "important");
+      if (row.lang != null) {
+        span.style.setProperty("-webkit-locale", JSON.stringify(row.lang), "important");
+      }
       if (row.generic !== "standard") span.style.setProperty("font-family", row.generic, "important");
       span.textContent = row.text;
       container.appendChild(span);

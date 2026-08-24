@@ -322,6 +322,81 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "version": "gpt-5",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6myrsdp39opwgr",
+          "message": {
+            "text": "Blink maps lang to the inherited -webkit-locale presentation property, but hostile-style neutralization with all: initial clears it. Restore the quoted locale after neutralization so FontDescription::GetScript reads the row language.",
+            "markdown": "Blink maps lang to the inherited -webkit-locale presentation property, but hostile-style neutralization with all: initial clears it. Restore the quoted locale after neutralization so FontDescription::GetScript reads the row language."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/generic-font-probe.ts"
+                },
+                "region": {
+                  "startLine": 252,
+                  "endLine": 263,
+                  "snippet": {
+                    "text": "      if (row.lang != null) span.lang = row.lang;\n      // Inline author-important declarations beat any hostile page author\n      // rule, including `* { font-family: ... !important }`. A user-origin\n      // important rule remains allowed to win because that is part of the\n      // launched session we are deliberately measuring.\n      span.style.setProperty(\"all\", \"initial\", \"important\");\n      span.style.setProperty(\"display\", \"block\", \"important\");\n      span.style.setProperty(\"font-size\", \"32px\", \"important\");\n      span.style.setProperty(\"line-height\", \"normal\", \"important\");\n      if (row.lang != null) {\n        span.style.setProperty(\"-webkit-locale\", JSON.stringify(row.lang), \"important\");\n      }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "workItemUris": [
+            "DM-2551"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "be2b5aefd5d2cae2ced2aa5bcebc0e22"
+          },
+          "attachments": [
+            {
+              "artifactLocation": {
+                "uri": "external/chromium/third_party/blink/renderer/core/dom/element.cc",
+                "properties": {
+                  "ext-sha256": "3754f90538c359456bb2c8d482fb7eff433e93a9a64658077b1b5073542ff699"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a22d2aff935ab5c703d9381b9be82b2ebf5e58ec",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -2665,6 +2665,17 @@ function fallbackBaseFor(
   const spec = resolveFontSpec(cutKey) ?? resolveFontSpec(primaryKey);
   let base: { name: string; path?: string; data?: Buffer };
   if (spec?.postscriptName == null || spec.postscriptName === "") {
+    const resolvedInstance = getFontInstance(primaryKey, weight, fontSize, slant, undefined, stretch);
+    const resolvedName = resolvedInstance?.instantiatedPostscriptName ?? resolvedInstance?.postscriptName;
+    // A static single-face path may omit its optional PostScript-name hint.
+    // It is still a normal CoreText-backed declared face, not an in-memory
+    // webfont. Blink asks fallback from the instantiated current font, so use
+    // the identity the opened instance reports instead of substituting Times.
+    if (spec != null && resolvedName != null && resolvedName !== "") {
+      base = { name: resolvedName, path: getFontSourceInfo(resolvedInstance)?.path ?? spec.path };
+      fallbackBaseCache.set(cacheKey, base);
+      return base;
+    }
     // A primary with no on-disk spec of its own — a webfont / local-alias
     // registry key, i.e. exactly the faces for which Blink's `ct_font` is
     // null (FreeType-backed webfonts, some color fonts). `GetSubstituteFont`
@@ -2674,9 +2685,8 @@ function fallbackBaseFor(
     // 7d859f27, quoting the "default value of standard font from user
     // settings"). `Times-Roman` is the face the "Times" family name
     // instantiates.
-    const registryInstance = getFontInstance(primaryKey, weight, fontSize, slant, undefined, stretch);
-    base = _webfontFallbackBaseEnabled && registryInstance?.webfontBuffer != null
-      ? { name: registryInstance.postscriptName ?? "", data: registryInstance.webfontBuffer }
+    base = _webfontFallbackBaseEnabled && resolvedInstance?.webfontBuffer != null
+      ? { name: resolvedInstance.postscriptName ?? "", data: resolvedInstance.webfontBuffer }
       : { name: "Times-Roman" };
   } else {
     base = { name: spec.postscriptName, path: spec.path };
@@ -8419,6 +8429,28 @@ function sessionProbedFaceKey(faceName: string): string | null {
   return key;
 }
 
+/** A dot-prefixed macOS probe answer is a CoreText FALLBACK face, not a
+ * declared-family setting. Blink refuses these names in
+ * `FontCache::CreateFontPlatformData` (`IsSystemFontName` → nullptr), then
+ * reaches the face only through `CTFontCreateForString` from the current
+ * primary. Preserve that stage boundary by replaying the captured Common
+ * generic as the primary; the ordinary fallback resolver can then ask
+ * CoreText from the same base Chrome used. */
+function sessionScriptPrimaryFace(
+  scriptFace: string,
+  settingsName: string,
+): string {
+  if (hostPlatform() !== "darwin" || !scriptFace.startsWith(".")) return scriptFace;
+  return sessionGenericFamilyOverrides?.common.get(settingsName) ?? scriptFace;
+}
+
+function sessionScriptFaceIsFallbackOwned(name: string, generic: boolean, lang?: string): boolean {
+  if (!generic || lang == null || hostPlatform() !== "darwin") return false;
+  const script = localeToScriptCodeForFontSelection(lang);
+  return sessionGenericFamilyOverrides?.byScript
+    .get(script)?.get(genericSettingsFamilyName(name))?.startsWith(".") === true;
+}
+
 // ── Session generic-family overrides (live browser authority) ──
 // The concrete family behind a CSS generic keyword is a property of the
 // LAUNCHED browser session, not of Chromium's source: Playwright applies its
@@ -8520,9 +8552,10 @@ function matchFamilyCandidateToKey(
     const script = localeToScriptCodeForFontSelection(lang);
     const probed = sessionGenericFamilyOverrides?.byScript.get(script)?.get(settingsName);
     if (probed != null) {
-      const exact = sessionProbedFaceKey(probed);
+      const primary = sessionScriptPrimaryFace(probed, settingsName);
+      const exact = sessionProbedFaceKey(primary);
       if (exact != null) return exact;
-      const key = matchFamilyNameToKey(probed.toLowerCase(), false);
+      const key = matchFamilyNameToKey(primary.toLowerCase(), false);
       if (key != null) return key;
     }
     const scriptValue = perScriptGenericFamily(hostPlatform(), lang, name);
@@ -9209,14 +9242,19 @@ export function resolveFontKey(fontFamily: string, lang?: string): string {
  * the first family lacks can be drawn by a LATER declared family (e.g. the CJK
  * compatibility fixtures whose `"Hiragino Sans","Arial Unicode MS",…` stacks let
  * Chrome paint +90 cells from Arial Unicode MS that a primary-only resolver
- * misses — see the probe in `tools/probe-2f800-facewalk.mjs`). The final entry
+ * misses — see the probe in `tools/probe-2f800-facewalk.mjs`). Ordinarily the final entry
  * is Blink's preferred STANDARD family, which is still part of
  * `kFontGroupFonts`; platform system fallback and the notdef last-resort come
- * later.
+ * later. A protected dot-prefixed Page probe answer is the observable exception:
+ * it identifies the later platform-fallback face, so inserting STANDARD ahead
+ * of that stage would contradict the authenticated paint.
  */
 export function resolveFontKeyChain(fontFamily: string, lang?: string): string[] {
   const out: string[] = [];
-  for (const entry of splitFontFamilyNames(fontFamily)) {
+  const entries = splitFontFamilyNames(fontFamily);
+  let protectedScriptFallback = false;
+  for (const entry of entries) {
+    protectedScriptFallback ||= sessionScriptFaceIsFallbackOwned(entry.name, entry.generic, lang);
     const key = matchFamilyNameToKey(
       entry.name, entry.generic, lang, entry.canonicalSystemUiName, entry.lookupName,
     );
@@ -9234,8 +9272,15 @@ export function resolveFontKeyChain(fontFamily: string, lang?: string): string[]
   // standard, first-available of ",PingFang TC,Heiti TC") while Latin stays
   // Courier — 253 of 253 oracle rows in the 4E00-4EFF slice moved on exactly
   // this stage.
-  const std = matchFamilyNameToKey("-webkit-standard", true, lang) ?? "times";
-  if (!out.includes(std)) out.push(std);
+  // A protected dot-prefixed script answer is evidence for the platform
+  // fallback selected from this generic's Common primary, not a declared
+  // family. Appending the script STANDARD face here would consume the scalar
+  // at kFontFamily (Times covers Hebrew) before Blink's CoreText stage can
+  // produce that authenticated hidden face.
+  if (!protectedScriptFallback) {
+    const std = matchFamilyNameToKey("-webkit-standard", true, lang) ?? "times";
+    if (!out.includes(std)) out.push(std);
+  }
   return out;
 }
 

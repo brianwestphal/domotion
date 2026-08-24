@@ -101,6 +101,81 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "version": "gpt-5",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6myryl7sf71hv7",
+          "message": {
+            "text": "A Page.setFontFamilies mutation is valid only when its alternate face was observed painting the same script scalar. Common candidates can be uncovered and inert; localized family display names use the observed PostScript identity.",
+            "markdown": "A Page.setFontFamilies mutation is valid only when its alternate face was observed painting the same script scalar. Common candidates can be uncovered and inert; localized family display names use the observed PostScript identity."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/generic-family-preference-oracle.ts"
+                },
+                "region": {
+                  "startLine": 329,
+                  "endLine": 385,
+                  "snippet": {
+                    "text": "/** Build mutations only from faces this exact browser/host just painted.\n * There is intentionally no committed OS preference table in this oracle. */\nexport function buildPreferenceMutation(defaultRows: BlinkPreferenceRow[]): PreferenceMutationPlan {\n  const candidatesFor = (rows: BlinkPreferenceRow[], owner: string): BlinkPreferenceRow[] => {\n    const candidates = rows.filter((row, index) => rows.findIndex((candidate) =>\n      normFace(face(candidate)) === normFace(face(row))) === index);\n    if (candidates.length < 2) {\n      throw new Error(`controlled mutation needs at least two distinct faces proven to paint ${owner}`);\n    }\n    return candidates;\n  };\n  const choose = (row: BlinkPreferenceRow, candidates: BlinkPreferenceRow[]): BlinkPreferenceRow => {\n    const candidate = candidates.find((item) => normFace(face(item)) !== normFace(face(row)));\n    if (candidate == null) throw new Error(`no distinct installed mutation face for ${targetKey(row)}`);\n    return candidate;\n  };\n\n  const expectedFaceByTarget: Record<string, string> = {};\n  const common: FontFamilies = {};\n  const commonRows = defaultRows.filter((item) => item.script == null && isSettingsGeneric(item.generic));\n  const commonCandidates = candidatesFor(commonRows, \"COMMON\");\n  for (const row of commonRows) {\n    const selected = choose(row, commonCandidates);\n    common[PROTOCOL_KEYS[row.generic as SettingsGenericName]] = settingsRequestName(selected);\n    expectedFaceByTarget[targetKey(row)] = face(selected);\n  }\n\n  const scriptGroups = new Map<string, BlinkPreferenceRow[]>();\n  for (const row of defaultRows.filter((item) => item.script != null && isSettingsGeneric(item.generic))) {\n    let group = scriptGroups.get(row.script!);\n    if (group == null) {\n      group = [];\n      scriptGroups.set(row.script!, group);\n    }\n    group.push(row);\n  }\n  const forScripts: ScriptFontFamilies[] = [];\n  for (const [script, rows] of scriptGroups) {\n    const protocolScript = SCRIPT_PROTOCOL_NAMES[script];\n    if (protocolScript == null) throw new Error(`missing protocol script spelling for ${script}`);\n    // A Common face may not cover this script's sample and would leave the\n    // requested Settings mutation inert after fallback. Only select among\n    // faces Blink has just proved can paint this exact script probe.\n    const scriptCandidates = candidatesFor(rows, script);\n    const fontFamilies: FontFamilies = {};\n    for (const row of rows) {\n      const selected = choose(row, scriptCandidates);\n      // Localized display family names (for example PingFang's macOS name)\n      // need not be accepted as a Settings lookup string; use the concrete\n      // authenticated PostScript identity for those names only. Ordinary\n      // family names preserve Blink's family-name lookup path.\n      fontFamilies[PROTOCOL_KEYS[row.generic as SettingsGenericName]] = settingsRequestName(selected);\n      expectedFaceByTarget[targetKey(row)] = face(selected);\n    }\n    forScripts.push({ script: protocolScript, fontFamilies });\n  }\n  return { fontFamilies: common, forScripts, expectedFaceByTarget };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "workItemUris": [
+            "DM-2551"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "656053ad1243d188165a26292e635a62"
+          },
+          "attachments": [
+            {
+              "artifactLocation": {
+                "uri": "external/chromium/third_party/blink/renderer/core/inspector/inspector_page_agent.cc",
+                "properties": {
+                  "ext-sha256": "c6e669ad4ab09a1d3fd41a2ffc9a7b756a4d238584313252c815e91301fc804b"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a22d2aff935ab5c703d9381b9be82b2ebf5e58ec",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

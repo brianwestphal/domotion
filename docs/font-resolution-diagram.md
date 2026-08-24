@@ -362,7 +362,11 @@ script-keyed STANDARD family, matching Blink's `kFontFamily` iteration.
 > generics, ten standing content scripts, and every additional script derived
 > from the Page's language facts across that same family set. Those facts come
 > from the flattened `DOMSnapshot` (including closed shadow roots) plus each
-> document's response-header-owned `contentLanguage`. Two consecutive
+> document's response-header-owned `contentLanguage`. Scripted spans restore
+> Blink's quoted, inherited `-webkit-locale` after
+> hostile-style `all: initial` neutralization, preserving the `lang`-owned
+> `FontDescription::GetScript()` instead of accidentally probing the document
+> script. Two consecutive
 > identical paints are required (up to three attempts), so a first-layout race
 > between Playwright's `Page.setFontFamilies` and Blink's constructor defaults
 > is not installed as truth. Legacy arrays serialize the Common and script-keyed
@@ -374,6 +378,10 @@ script-keyed STANDARD family, matching Blink's `kFontFamily` iteration.
 > mutates one Page's Settings and a fresh Inspector session can mutate it again:
 > a BrowserContext/Page cache or process-global production setting is unsound.
 > Mixed annotated/legacy roots and conflicting Page records fail closed.
+> A dot-prefixed macOS script answer is retained as platform-fallback evidence:
+> the captured Common generic stays primary, its opened PostScript identity is
+> the CoreText cascade base, and the script STANDARD entry is not inserted
+> ahead of that platform ask.
 > `matchFamilyNameToKey` prefers the exact
 > probed script answer over the static `forScripts` transcription, then uses
 > the probed Common answer ahead of calibrated static routes. CDP PostScript
