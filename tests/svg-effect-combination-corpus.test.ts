@@ -6,6 +6,7 @@ import {
   SVG_EFFECT_VIEWPORT,
   buildSvgEffectCombinationHtml,
   generateSvgEffectCombinations,
+  svgEffectHigherOrderCoverage,
   svgEffectPairCoverage,
   validateSvgEffectCombinationCorpus,
 } from "../tools/svg-effect-combination-corpus.js";
@@ -13,11 +14,16 @@ import {
 describe("generated SVG effect combination corpus (DM-2358)", () => {
   it("is deterministic and covers every pair of source-owned class inputs", () => {
     expect(generateSvgEffectCombinations()).toEqual(SVG_EFFECT_CASES);
-    expect(SVG_EFFECT_CASES).toHaveLength(24);
+    expect(SVG_EFFECT_CASES).toHaveLength(37);
     expect(svgEffectPairCoverage(SVG_EFFECT_CASES)).toEqual({
-      expectedPairs: 953,
-      coveredPairs: 953,
+      expectedPairs: 1088,
+      coveredPairs: 1088,
       missingPairs: [],
+    });
+    expect(svgEffectHigherOrderCoverage(SVG_EFFECT_CASES)).toEqual({
+      expectedTargetedTriples: 83,
+      coveredTargetedTriples: 83,
+      missingTargetedTriples: [],
     });
     expect(validateSvgEffectCombinationCorpus()).toEqual([]);
 
@@ -25,12 +31,12 @@ describe("generated SVG effect combination corpus (DM-2358)", () => {
       expect(new Set(SVG_EFFECT_CASES.map((test) => test.values[dimension.name])))
         .toEqual(new Set(dimension.values));
     }
-    expect(Object.values(SVG_EFFECT_SOURCE_DECISIONS)).toHaveLength(8);
+    expect(Object.values(SVG_EFFECT_SOURCE_DECISIONS)).toHaveLength(11);
   });
 
   it("emits native SVG owners and never invents the invalid URL-plus-box grammar", () => {
     const html = buildSvgEffectCombinationHtml();
-    expect(SVG_EFFECT_VIEWPORT).toEqual({ width: 720, height: 900 });
+    expect(SVG_EFFECT_VIEWPORT).toEqual({ width: 720, height: 1500 });
     expect(html.match(/data-effect-case=/g)).toHaveLength(SVG_EFFECT_CASES.length);
     expect(html).toContain('gradientUnits="objectBoundingBox"');
     expect(html).toContain('gradientUnits="userSpaceOnUse"');
@@ -41,6 +47,8 @@ describe("generated SVG effect combination corpus (DM-2358)", () => {
     expect(html).toContain('marker-start:url("#marker-');
     expect(html).toContain("vector-effect:non-scaling-stroke");
     expect(html).toContain("color-interpolation:linearRGB");
+    expect(html).toContain('filter:url("#filter-');
+    expect(html).toContain("transform:perspective(520px) rotateY(9deg)");
     expect(html).toContain("mask-composite:exclude,add");
     expect(html).not.toMatch(/clip-path\s*:\s*url\([^;]+\)\s+(?:fill|stroke|view)-box/);
   });

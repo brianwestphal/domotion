@@ -2093,7 +2093,8 @@
         "root viewport -> nested viewport",
         "untransformed -> transformed",
         "curated rows -> generated pairwise native-SVG combinations",
-        "pairwise-covered classes -> higher-order/future combinations"
+        "pairwise-covered classes -> source-selected triples/projective ownership",
+        "selected triples -> unselected higher-order/future combinations"
       ],
       "exactStates": [
         "objectBoundingBox -> userSpaceOnUse",
@@ -2101,10 +2102,11 @@
         "stroke-box -> view-box",
         "root viewport -> nested viewport",
         "untransformed -> transformed",
-        "curated rows -> generated pairwise native-SVG combinations"
+        "curated rows -> generated pairwise native-SVG combinations",
+        "pairwise-covered classes -> source-selected triples/projective ownership"
       ],
       "uncoveredStates": [
-        "pairwise-covered classes -> higher-order/future combinations"
+        "selected triples -> unselected higher-order/future combinations"
       ],
       "upstreamSources": [
         "external/chromium/third_party/blink/renderer/core/layout/svg",
@@ -2131,7 +2133,7 @@
         "tests/svg-effect-combination-oracle.e2e.test.ts"
       ],
       "coverage": "partial",
-      "boundary": "The generated gate covers all 953 pairs among 18 enumerated native-SVG effect axes, including affine transforms. Higher-order combinations, future effect classes, and projective SVG ownership remain explicit boundaries.",
+      "boundary": "The generated gate covers all 1,088 pairs among 19 enumerated native-SVG effect axes and all 83 values of six source-selected Blink dependency triples. Exact resource/reference graphs and native-inline versus Chromium-projective owner/transform identity reject four logical mutations before fixed DPR-1/2 paint evidence. This is not exhaustive CSS Cartesian coverage; unselected higher-order combinations and future effect classes remain explicit boundaries.",
       "featureIds": [
         "render.tree-to-svg"
       ],

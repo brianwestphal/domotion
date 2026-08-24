@@ -162,15 +162,17 @@ adds source-derived URL-mask `round`/`space` ownership: mask-origin supplies
 tile size/phase, mask-clip supplies the tiled paint destination, and a
 collapsed-area mutation is rejected structurally and by DPR-1/2 Chromium ink.
 DM-2358/[doc 188](../188-generated-svg-effect-combinations.md) extends that
-contract from curated rows to 24 deterministic cases covering all 953 pairs
-among 18 shape, unit, reference-box, viewport, marker, non-scaling-stroke,
-transform, mask-longhand/composition, and interpolation axes. External CSS
+contract from curated rows to 37 deterministic cases covering all 1,088 pairs
+among 19 shape, unit, reference-box, viewport, filter, marker, non-scaling-stroke,
+transform, mask-longhand/composition, and interpolation axes, plus all 83 values
+of six source-selected Blink dependency triples. External CSS
 marker resources, `vector-effect`, and SVG `color-interpolation` are now baked
 as computed declarations without moving their geometry into Domotion. The
-local DPR-1/2 source-versus-final-SVG run is exact on all 48 rows; destructive
-removal of each new transition moves, and the native macOS/Linux/Windows
-workflow records fingerprinted DPR-1/2 reports. Higher-order and future effect
-classes remain the explicit partial boundary.
+logical gate proves resource/reference identity and native versus Chromium-owned
+projective ownership with four destructive controls before fixed DPR evidence;
+the native macOS/Linux/Windows workflow records fingerprinted DPR-1/2 reports.
+Unselected higher-order combinations and future effect classes remain the
+explicit partial boundary; this is not exhaustive CSS Cartesian coverage.
 
 **Doc 107 routine parity matrix — Shipped.** The synthetic workflow derives a
 deterministic modulo-256 low-byte bucket and complementary coverage focus from

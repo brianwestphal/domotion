@@ -360,9 +360,11 @@ shortest possible map:
   `vector-effect:non-scaling-stroke`, and SVG `color-interpolation`
   self-contained on the atomic clone; native SVG still owns every associated
   geometry decision. `tools/svg-effect-combination-corpus.ts` generates a
-  deterministic 24-case/953-pair matrix across 18 effect axes, and
-  `tools/svg-effect-combination-oracle.ts` hard-gates structure, exact final
-  pixels, URL grammar, and three destructive transition controls at DPR 1/2
+  deterministic 37-case/1,088-pair matrix across 19 effect axes plus all 83
+  values of six Blink-dependency triples. `tools/svg-effect-combination-oracle.ts`
+  hard-gates exact resource graphs, native/projective owner and transform identity,
+  four logical mutations before fixed DPR evidence, URL grammar, and three paint
+  transition controls at DPR 1/2
   ([doc 188](../188-generated-svg-effect-combinations.md)).
 - **`src/animation/`** — multi-frame composition (animator, magic-move) +
   the **caret + selection track** (doc 101): `text-address.ts` (node-side

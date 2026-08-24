@@ -1,7 +1,8 @@
 # 188 — Generated SVG gradient, mask, and clip combinations
 
-DM-2358 replaces the small hand-picked SVG effect cross-product with a
-deterministic, source-linked pairwise corpus. The gate keeps the ownership
+DM-2358 replaced the small hand-picked SVG effect cross-product with a
+deterministic, source-linked pairwise corpus. DM-2538 extends it with
+source-selected triples and projective SVG ownership. The gate keeps the ownership
 boundary explicit: Domotion makes Chromium's computed SVG paint choices
 self-contained, while the output browser continues to own gradient, clip,
 mask, marker, viewport, and stroke geometry.
@@ -19,8 +20,11 @@ The matrix is pinned to Chromium revision
 | `clipPathUnits` mapping | `layout/svg/layout_svg_resource_clipper.cc:229-248` |
 | `maskUnits` and `maskContentUnits` | `layout/svg/layout_svg_resource_masker.cc:73-110` |
 | CSS mask positioning, clipping, tiling, and composition | `paint/svg_mask_painter.cc:115-190` |
+| filter data cache and effect reference box | `layout/svg/svg_resources.cc:357-421` |
+| joint clip/mask paint-property invalidation | `layout/svg/layout_svg_model_object.cc:145-177` |
 | marker placement and viewport transform | `layout/svg/layout_svg_resource_marker.cc:120-168` |
 | non-scaling stroke host transform | `layout/svg/layout_svg_shape.cc:468-508` |
+| transform/reference-box dependency | `layout/svg/transform_helper.cc:64-176` |
 
 Those classes are not reconstructed from screenshot bounds. XML units and
 viewports remain in the cloned SVG, affine transforms use the already captured
@@ -29,8 +33,19 @@ resource layout and paint.
 
 ## Generated corpus
 
-`tools/svg-effect-combination-corpus.ts` generates 24 cases that cover all 953
-pairs among these 18 axes:
+`tools/svg-effect-combination-corpus.ts` generates 37 cases that cover all 1,088
+pairs among 19 axes, including URL filters and identity/affine/projective
+transform classes. It additionally covers all 83 values of six deliberately
+selected three-axis dependencies:
+
+- mask units × clip units × reference box;
+- filter route × clip route × mask units;
+- gradient units × interpolation × filter route;
+- markers × vector effect × transform;
+- transform × reference box × clip route; and
+- viewport × transform × filter route.
+
+The remaining axes include:
 
 - rectangle, circle, and path owners;
 - linear and radial gradients;
@@ -42,7 +57,7 @@ pairs among these 18 axes:
 - root and nested SVG viewports;
 - no markers versus start/mid/end markers;
 - ordinary and non-scaling strokes;
-- identity and affine transforms;
+- identity, affine, and projective transforms;
 - independent fill/stroke/view mask origin and clip boxes;
 - `auto`, percentage, and `cover` mask sizes;
 - no-repeat, repeat-x, and space tiling; and
@@ -54,9 +69,9 @@ unit gate reruns the generator, requires byte-stable case ordering, proves all
 953 pairs, and rejects any accidental `url(...) <geometry-box>` clip because
 Blink parses a reference clip as an exclusive grammar branch.
 
-Pairwise coverage is deliberate. It is much stronger than one row per feature
-without turning CI into the full Cartesian product. Higher-order interactions
-and any future effect class remain an explicit partial boundary.
+The higher-order set comes from the cited Blink paint-property and resource
+dependencies. It is deliberately not the full three-way Cartesian product,
+and this gate makes no claim of exhaustive CSS coverage.
 
 ## Production transition and discriminators
 
@@ -73,7 +88,11 @@ winner when external CSS overrode an authored presentation attribute. URL
 references are still namespaced by the existing SVG inliner. No marker,
 non-scaling-stroke, or interpolation geometry moved into Domotion.
 
-Three destructive controls remove the newly preserved decisions from the final
+Before any screenshot is scored, four destructive logical controls remove a
+filter definition, forge a clip reference, remove a gradient reference, and demote a
+projective owner. Exact resource IDs/references, owner class, and transform
+class must reject all four. Three later paint controls remove the preserved
+decisions from the final
 SVG. On the local DPR-1 run they changed 5,425 marker pixels, 1,836
 non-scaling-stroke pixels, and 11,326 interpolation pixels. At DPR 2 they
 changed 20,951, 5,742, and 45,548 pixels. A future accidental no-op therefore
@@ -91,7 +110,10 @@ npm run paint:svg-effect-combinations -- --dpr 1,2 \
 The oracle requires all of the following:
 
 - one self-contained native SVG owner for every generated case;
-- no element or transform-subtree raster replacing a case;
+- no raster owner for identity/affine cases and exactly one Chromium-owned
+  projective raster for each projective case;
+- exact gradient/clip/mask/marker/filter resource graph, reference identity,
+  transform class, and all four destructive logical mutations before pixels;
 - no relevant capture warning and no emitted `<image>` escape;
 - exact serialized unit classes, reference owners, native paint properties,
   and nested viewport structure;
@@ -102,9 +124,10 @@ The oracle requires all of the following:
   and
 - all three destructive transitions moving at least 40 DPR-scaled pixels.
 
-The focused local macOS run passed 48/48 DPR-1/2 rows. Every row had zero mean
-channel error, zero changed pixels, and zero ink-bound delta; the stated bounds
-remain fixed failure limits rather than values tuned to the result. The JSON
+The DM-2538 focused local macOS headless run passed all 37 DPR-1 rows after the
+logical gate. The existing fixed pixel limits were not changed or fitted; they
+remain downstream integration evidence, while the resource/owner/transform
+record is the parity proof. The JSON
 records Chromium, Playwright, Node, OS/release/architecture, viewport, DPRs,
 thresholds, source paths, cases, pair coverage, grammar controls, row metrics,
 and mutation deltas.
@@ -119,6 +142,6 @@ workflow is the durable cross-platform evidence collector.
 This matrix does not authorize geometry approximations or a looser visual
 tolerance. A new SVG effect class must first be tied to its Blink owner, added
 as a corpus dimension, and given a destructive discriminator if capture or
-render production gains a new transition. Projective SVG ownership and
-higher-order combinations beyond the enumerated pairwise surface remain
-explicit future work.
+render production gains a new transition. The six enumerated dependency triples
+and current projective root boundary are covered; other higher-order
+combinations and future effect classes remain explicit partial boundaries.

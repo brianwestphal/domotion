@@ -16,6 +16,7 @@ import {
   SVG_EFFECT_VIEWPORT,
   buildSvgEffectCombinationHtml,
   svgEffectPairCoverage,
+  svgEffectHigherOrderCoverage,
   validateSvgEffectCombinationCorpus,
 } from "./svg-effect-combination-corpus.js";
 
@@ -46,6 +47,12 @@ export interface SvgEffectOracleRow {
   id: string;
   deviceScaleFactor: number;
   structuralErrors: string[];
+  logical: {
+    resourceIds: string[];
+    references: string[];
+    owner: "native-inline-svg" | "chromium-projective-raster";
+    transform: string;
+  };
   pixels: SvgEffectPixelResult;
   pass: boolean;
 }
@@ -58,8 +65,14 @@ export interface SvgEffectMutationResult {
   moved: boolean;
 }
 
+export interface SvgEffectLogicalMutationResult {
+  id: "drop-filter-resource" | "misbind-clip-resource" | "drop-gradient-reference" | "drop-projective-owner";
+  rejected: boolean;
+  errors: string[];
+}
+
 export interface SvgEffectCombinationReport {
-  schemaVersion: 1;
+  schemaVersion: 2;
   generatedAt: string;
   sourceRevision: string;
   sourceDecisions: typeof SVG_EFFECT_SOURCE_DECISIONS;
@@ -79,6 +92,8 @@ export interface SvgEffectCombinationReport {
     cases: number;
     expectedPairs: number;
     coveredPairs: number;
+    expectedTargetedTriples: number;
+    coveredTargetedTriples: number;
   };
   grammar: {
     bareUrlSupported: boolean;
@@ -86,6 +101,7 @@ export interface SvgEffectCombinationReport {
   };
   rows: SvgEffectOracleRow[];
   mutations: SvgEffectMutationResult[];
+  logicalMutations: SvgEffectLogicalMutationResult[];
   structuralErrors: string[];
   verdict: "source-exact-native-svg-delegation" | "svg-effect-combination-drift";
 }
@@ -196,6 +212,7 @@ function caseStructuralErrors(id: string, markup: string | undefined): string[] 
     `vector-effect: ${test.values.vectorEffect}`,
     `color-interpolation: ${test.values.gradientInterpolation.toLowerCase()}`,
   ];
+  if (test.values.filterRoute === "url") required.push(`filter: url(&quot;#filter-${test.ordinal}&quot;)`);
   for (const fragment of required) if (!markup.includes(fragment)) errors.push(`missing ${fragment}`);
   if (test.values.viewport === "nested" && (markup.match(/<svg\b/g) ?? []).length < 2) errors.push("nested viewport missing");
   if (test.values.markers === "all") {
@@ -209,6 +226,63 @@ function caseStructuralErrors(id: string, markup: string | undefined): string[] 
   if (test.values.clipRoute === "url" && !new RegExp(`clip-path: url\\((?:&quot;)?#clip-${test.ordinal}(?:&quot;)?\\)`).test(markup)) errors.push("URL clip resource missing");
   if (test.values.clipRoute !== "url" && !markup.includes(`${test.values.referenceBox}`)) errors.push("basic-shape reference box missing");
   return errors;
+}
+
+function logicalEvidence(id: string, markup: string, projectiveOwner: boolean): SvgEffectOracleRow["logical"] {
+  const test = SVG_EFFECT_CASES.find((candidate) => candidate.id === id)!;
+  const resourceIds = [...markup.matchAll(/\bid="(gradient|clip|mask|marker|filter)-(\d+)"/g)]
+    .map((match) => `${match[1]}-${match[2]}`).sort();
+  const references = [...markup.matchAll(/(?:url\((?:&quot;|\")?#|(?:href|xlink:href)=(?:&quot;|\")#)([\w-]+)/g)]
+    .map((match) => match[1]).sort();
+  return {
+    resourceIds,
+    references,
+    owner: projectiveOwner ? "chromium-projective-raster" : "native-inline-svg",
+    transform: test.values.transform,
+  };
+}
+
+function expectedLogicalEvidence(test: typeof SVG_EFFECT_CASES[number]): SvgEffectOracleRow["logical"] {
+  const resourceIds = ["clip", "filter", "gradient", "marker", "mask"].map((kind) => `${kind}-${test.ordinal}`).sort();
+  const references = [`gradient-${test.ordinal}`, `mask-${test.ordinal}`];
+  if (test.values.clipRoute === "url") references.push(`clip-${test.ordinal}`);
+  if (test.values.filterRoute === "url") references.push(`filter-${test.ordinal}`);
+  if (test.values.markers === "all") references.push(`marker-${test.ordinal}`);
+  return {
+    resourceIds,
+    references: references.sort(),
+    owner: test.values.transform === "projective" ? "chromium-projective-raster" : "native-inline-svg",
+    transform: test.values.transform,
+  };
+}
+
+function validateLogicalEvidence(test: typeof SVG_EFFECT_CASES[number], actual: SvgEffectOracleRow["logical"]): string[] {
+  const expected = expectedLogicalEvidence(test);
+  const errors: string[] = [];
+  for (const id of expected.resourceIds) if (!actual.resourceIds.includes(id)) errors.push(`missing resource id ${id}`);
+  for (const reference of expected.references) if (!actual.references.includes(reference)) errors.push(`missing reference ${reference}`);
+  if (actual.owner !== expected.owner) errors.push(`owner mismatch: expected ${expected.owner}, received ${actual.owner}`);
+  if (actual.transform !== expected.transform) errors.push(`transform mismatch: expected ${expected.transform}, received ${actual.transform}`);
+  return errors;
+}
+
+function logicalMutationEvidence(): SvgEffectLogicalMutationResult[] {
+  const projective = SVG_EFFECT_CASES.find((test) => test.values.transform === "projective")!;
+  const filter = SVG_EFFECT_CASES.find((test) => test.values.filterRoute === "url")!;
+  const clip = SVG_EFFECT_CASES.find((test) => test.values.clipRoute === "url")!;
+  const gradient = SVG_EFFECT_CASES[0];
+  const arms: Array<{ id: SvgEffectLogicalMutationResult["id"]; test: typeof projective; mutate: (record: SvgEffectOracleRow["logical"]) => void }> = [
+    { id: "drop-filter-resource", test: filter, mutate: (record) => { record.resourceIds = record.resourceIds.filter((id) => id !== `filter-${filter.ordinal}`); } },
+    { id: "misbind-clip-resource", test: clip, mutate: (record) => { record.references = record.references.map((id) => id === `clip-${clip.ordinal}` ? "clip-forged" : id); } },
+    { id: "drop-gradient-reference", test: gradient, mutate: (record) => { record.references = record.references.filter((id) => id !== `gradient-${gradient.ordinal}`); } },
+    { id: "drop-projective-owner", test: projective, mutate: (record) => { record.owner = "native-inline-svg"; record.transform = "none"; } },
+  ];
+  return arms.map((arm) => {
+    const evidence = expectedLogicalEvidence(arm.test);
+    arm.mutate(evidence);
+    const errors = validateLogicalEvidence(arm.test, evidence);
+    return { id: arm.id, rejected: errors.length > 0, errors };
+  });
 }
 
 async function settle(page: Page): Promise<void> {
@@ -252,6 +326,7 @@ export async function runSvgEffectCombinationOracle(options: { deviceScaleFactor
   const browser = await chromium.launch({ headless: true });
   const rows: SvgEffectOracleRow[] = [];
   const mutations: SvgEffectMutationResult[] = [];
+  const logicalMutations = logicalMutationEvidence();
   const structuralErrors: string[] = [];
   try {
     const fingerprintPage = await browser.newPage({ viewport: SVG_EFFECT_VIEWPORT });
@@ -279,13 +354,16 @@ export async function runSvgEffectCombinationOracle(options: { deviceScaleFactor
         const capturedByCase = capturedSvgByCase(captured.tree);
         if (capturedByCase.size !== SVG_EFFECT_CASES.length) structuralErrors.push(`dpr${dpr}: expected ${SVG_EFFECT_CASES.length} inline SVG owners, received ${capturedByCase.size}`);
         const rasterOwners = walk(captured.tree).filter((element) => element.elementRaster != null || element.transformSubtreeRaster != null);
-        if (rasterOwners.length > 0) structuralErrors.push(`dpr${dpr}: ${rasterOwners.length} raster owners replaced native SVG`);
         const warnings = captured.warnings.map((warning) => typeof warning === "string" ? warning : JSON.stringify(warning));
         const effectWarnings = warnings.filter((warning) => /inline-svg|gradient|clip|mask|marker|vector-effect/i.test(warning));
         if (effectWarnings.length > 0) structuralErrors.push(`dpr${dpr}: relevant warnings: ${effectWarnings.join(" | ")}`);
 
         const svg = render.elementTreeToSvg(captured.tree, SVG_EFFECT_VIEWPORT.width, SVG_EFFECT_VIEWPORT.height, { hiDPIFactor: dpr });
-        if (/<image\b/.test(svg)) structuralErrors.push(`dpr${dpr}: generated SVG contains an image owner`);
+        const expectedProjectiveOwners = SVG_EFFECT_CASES.filter((test) => test.values.transform === "projective").length;
+        const emittedImageOwners = (svg.match(/<image\b/g) ?? []).length;
+        if (emittedImageOwners !== expectedProjectiveOwners) {
+          structuralErrors.push(`dpr${dpr}: expected ${expectedProjectiveOwners} projective image owners, received ${emittedImageOwners}`);
+        }
         await output.setContent(`<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:white}svg{display:block}</style>${svg}`, { waitUntil: "load" });
         await settle(output);
         const generatedPng = await output.screenshot({ type: "png" });
@@ -294,9 +372,15 @@ export async function runSvgEffectCombinationOracle(options: { deviceScaleFactor
           throw new Error(`pixel dimensions differ at DPR ${dpr}`);
         }
         for (const test of SVG_EFFECT_CASES) {
-          const rowErrors = caseStructuralErrors(test.id, capturedByCase.get(test.id));
+          const markup = capturedByCase.get(test.id);
+          const matchingOwners = rasterOwners.filter((owner) => owner.svgContent?.includes(`data-effect-case="${test.id}"`));
+          const expectsProjective = test.values.transform === "projective";
+          const rowErrors = caseStructuralErrors(test.id, markup);
+          if (matchingOwners.length !== (expectsProjective ? 1 : 0)) rowErrors.push(`expected ${expectsProjective ? 1 : 0} projective owner, received ${matchingOwners.length}`);
           const pixels = compareTile(sourcePixels, generatedPixels, test.ordinal, dpr);
-          rows.push({ id: test.id, deviceScaleFactor: dpr, structuralErrors: rowErrors, pixels, pass: rowErrors.length === 0 && pixels.pass });
+          const logical = logicalEvidence(test.id, markup ?? "", matchingOwners.length === 1);
+          rowErrors.push(...validateLogicalEvidence(test, logical));
+          rows.push({ id: test.id, deviceScaleFactor: dpr, structuralErrors: rowErrors, logical, pixels, pass: rowErrors.length === 0 && pixels.pass });
         }
 
         for (const mutation of [
@@ -315,9 +399,11 @@ export async function runSvgEffectCombinationOracle(options: { deviceScaleFactor
     if (!grammar.bareUrlSupported) structuralErrors.push("Chromium rejected the bare URL clip control");
     if (!grammar.urlPlusGeometryBoxRejected) structuralErrors.push("Chromium accepted a URL-plus-geometry-box negative control");
     const coverage = svgEffectPairCoverage(SVG_EFFECT_CASES);
-    const pass = structuralErrors.length === 0 && rows.every((row) => row.pass) && mutations.every((mutation) => mutation.moved);
+    const higherOrder = svgEffectHigherOrderCoverage(SVG_EFFECT_CASES);
+    const pass = structuralErrors.length === 0 && logicalMutations.every((mutation) => mutation.rejected)
+      && rows.every((row) => row.pass) && mutations.every((mutation) => mutation.moved);
     return {
-      schemaVersion: 1,
+      schemaVersion: 2,
       generatedAt: new Date().toISOString(),
       sourceRevision: SVG_EFFECT_SOURCE_REVISION,
       sourceDecisions: SVG_EFFECT_SOURCE_DECISIONS,
@@ -333,10 +419,11 @@ export async function runSvgEffectCombinationOracle(options: { deviceScaleFactor
         deviceScaleFactors: dprs,
         thresholds: SVG_EFFECT_PIXEL_THRESHOLDS,
       },
-      corpus: { cases: SVG_EFFECT_CASES.length, expectedPairs: coverage.expectedPairs, coveredPairs: coverage.coveredPairs },
+      corpus: { cases: SVG_EFFECT_CASES.length, expectedPairs: coverage.expectedPairs, coveredPairs: coverage.coveredPairs, ...higherOrder },
       grammar,
       rows,
       mutations,
+      logicalMutations,
       structuralErrors,
       verdict: pass ? "source-exact-native-svg-delegation" : "svg-effect-combination-drift",
     };
