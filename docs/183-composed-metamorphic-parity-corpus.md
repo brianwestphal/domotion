@@ -16,6 +16,11 @@ Focused oracles prove one decision at a time. They do not prove that independent
 6. same-origin iframe recursion containing its own fallback, bidi, gradient, mask, and clip decisions; and
 7. transformed canvas pixels frozen at capture while an explicitly stacked overlay remains vector.
 
+Each family also names a three-decision crossing selected from capture/render
+dependencies rather than a CSS Cartesian product. The manifest carries those
+triples, the unit gate rejects missing or foreign members, and a destructive
+control proves that retiring a family witness makes the aggregate incomplete.
+
 The independent pinned html-test page is `tests/fixtures/html-test/36-composed-metamorphic-parity.html`. `tools/html-test-parity-corpus.json` records its SHA-256 beside the earlier blind-spot page. The sharded html-test workflow injects both pages into every macOS, Linux, and Windows clone and records the combined `parity-corpus-v2` identity before rendering.
 
 ## Metamorphic relations
@@ -53,4 +58,4 @@ The platform legs judge Chromium against Domotion on that same native producer. 
 
 ## Boundary
 
-This is a composed regression and discovery corpus, not a replacement for the stage oracles in [the Chromium parity verification program](129-chromium-parity-verification-program.md). A visual failure must still be reduced to the earliest divergent selection, geometry, or paint stage before it can justify a production change. The seven families and six relations are deliberate high-value crossings, not an exhaustive Cartesian product of CSS.
+This is a composed regression and discovery corpus, not a replacement for the stage oracles in [the Chromium parity verification program](129-chromium-parity-verification-program.md). A visual failure must still be reduced to the earliest divergent selection, geometry, or paint stage before it can justify a production change. The seven dependency-driven triples and six relations are deliberate high-value crossings, not an exhaustive Cartesian product of CSS.

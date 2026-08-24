@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "htmlTestFixture": "tests/fixtures/html-test/36-composed-metamorphic-parity.html",
   "repositoryFixtures": [
-    { "name": "composed-multilingual-flex-grid", "family": "multilingual-flex-grid", "axes": ["neutral-wrapper", "node-split"] },
-    { "name": "composed-responsive-fragmented-controls", "family": "responsive-fragmented-controls", "axes": ["equivalent-syntax"] },
-    { "name": "composed-gradient-mask-clip-stacking", "family": "gradient-mask-clip-stacking", "axes": ["dom-order"] },
-    { "name": "composed-svg-effects-translation", "family": "svg-effects", "axes": ["translation"] },
-    { "name": "composed-zoom-transform-scale", "family": "zoom-transforms", "axes": ["scale"] },
-    { "name": "composed-same-origin-iframe", "family": "same-origin-iframe", "axes": ["neutral-wrapper"] },
-    { "name": "composed-dynamic-replaced-freeze", "family": "dynamic-replaced-content", "axes": ["dom-order"] }
+    { "name": "composed-multilingual-flex-grid", "family": "multilingual-flex-grid", "axes": ["neutral-wrapper", "node-split"], "dependencyTriples": [["platform fallback", "bidi isolation", "inline fragmentation"]] },
+    { "name": "composed-responsive-fragmented-controls", "family": "responsive-fragmented-controls", "axes": ["equivalent-syntax"], "dependencyTriples": [["native control ownership", "multicol fragmentation", "accent/color scheme"]] },
+    { "name": "composed-gradient-mask-clip-stacking", "family": "gradient-mask-clip-stacking", "axes": ["dom-order"], "dependencyTriples": [["stacking phases", "mask composition", "clip geometry"]] },
+    { "name": "composed-svg-effects-translation", "family": "svg-effects", "axes": ["translation"], "dependencyTriples": [["SVG effect bounds", "filter/marker ownership", "translation covariance"]] },
+    { "name": "composed-zoom-transform-scale", "family": "zoom-transforms", "axes": ["scale"], "dependencyTriples": [["effective zoom", "nested affine transforms", "transform origin"]] },
+    { "name": "composed-same-origin-iframe", "family": "same-origin-iframe", "axes": ["neutral-wrapper"], "dependencyTriples": [["same-origin recursion", "inner fallback/bidi", "inner mask/gradient"]] },
+    { "name": "composed-dynamic-replaced-freeze", "family": "dynamic-replaced-content", "axes": ["dom-order"], "dependencyTriples": [["canvas snapshot ownership", "capture-time freezing", "explicit stacking order"]] }
   ]
 }

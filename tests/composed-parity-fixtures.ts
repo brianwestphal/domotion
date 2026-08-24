@@ -21,6 +21,8 @@ export interface ComposedParityFixture extends FeatureTest {
   family: ComposedParityFamily;
   axes: MetamorphicAxis[];
   decisions: string[];
+  /** Source-owner decisions sharing capture/render state and crossed together. */
+  dependencyTriples: [string, string, string][];
 }
 
 const COMMON = `
@@ -37,6 +39,7 @@ export const COMPOSED_PARITY_FIXTURES: ComposedParityFixture[] = [
     family: "multilingual-flex-grid",
     axes: ["neutral-wrapper", "node-split"],
     decisions: ["platform fallback", "bidi isolation", "flex/grid placement", "inline fragmentation"],
+    dependencyTriples: [["platform fallback", "bidi isolation", "inline fragmentation"]],
     width: 760,
     height: 250,
     html: `<style>${COMMON}
@@ -57,6 +60,7 @@ export const COMPOSED_PARITY_FIXTURES: ComposedParityFixture[] = [
     family: "responsive-fragmented-controls",
     axes: ["equivalent-syntax"],
     decisions: ["native control ownership", "multicol fragmentation", "responsive grid", "accent/color scheme"],
+    dependencyTriples: [["native control ownership", "multicol fragmentation", "accent/color scheme"]],
     width: 760,
     height: 270,
     html: `<style>${COMMON}
@@ -78,6 +82,7 @@ export const COMPOSED_PARITY_FIXTURES: ComposedParityFixture[] = [
     family: "gradient-mask-clip-stacking",
     axes: ["dom-order"],
     decisions: ["stacking phases", "gradient geometry", "mask composition", "clip geometry"],
+    dependencyTriples: [["stacking phases", "mask composition", "clip geometry"]],
     width: 760,
     height: 270,
     html: `<style>${COMMON}
@@ -96,6 +101,7 @@ export const COMPOSED_PARITY_FIXTURES: ComposedParityFixture[] = [
     family: "svg-effects",
     axes: ["translation"],
     decisions: ["SVG effect bounds", "filter/marker ownership", "clip path", "translation covariance"],
+    dependencyTriples: [["SVG effect bounds", "filter/marker ownership", "translation covariance"]],
     width: 760,
     height: 270,
     html: `<style>${COMMON}
@@ -111,6 +117,7 @@ export const COMPOSED_PARITY_FIXTURES: ComposedParityFixture[] = [
     family: "zoom-transforms",
     axes: ["scale"],
     decisions: ["effective zoom", "nested affine transforms", "transform origin", "scale-normalized geometry"],
+    dependencyTriples: [["effective zoom", "nested affine transforms", "transform origin"]],
     width: 760,
     height: 270,
     html: `<style>${COMMON}
@@ -126,6 +133,7 @@ export const COMPOSED_PARITY_FIXTURES: ComposedParityFixture[] = [
     family: "same-origin-iframe",
     axes: ["neutral-wrapper"],
     decisions: ["same-origin recursion", "inner canvas background", "inner fallback/bidi", "inner mask/gradient"],
+    dependencyTriples: [["same-origin recursion", "inner fallback/bidi", "inner mask/gradient"]],
     width: 760,
     height: 275,
     html: `<style>${COMMON}
@@ -140,6 +148,7 @@ export const COMPOSED_PARITY_FIXTURES: ComposedParityFixture[] = [
     family: "dynamic-replaced-content",
     axes: ["dom-order"],
     decisions: ["canvas snapshot ownership", "capture-time freezing", "nested transform", "explicit stacking order"],
+    dependencyTriples: [["canvas snapshot ownership", "capture-time freezing", "explicit stacking order"]],
     width: 760,
     height: 275,
     html: `<style>${COMMON}

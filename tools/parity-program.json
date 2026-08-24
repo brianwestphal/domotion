@@ -252,10 +252,10 @@
       "oracle": "src/review/compare-pngs.ts",
       "sourceAudit": "not-applicable",
       "oracleStatus": "pixel-integration-gate",
-      "generatedCoverage": "feature, showcase, HTML, Unicode, and real-world corpora, including seven isolated composed pages crossing multilingual fallback/bidi with flex/grid, native controls with responsive fragmentation, gradient/mask/clip stacking, SVG effects, zoom/transforms, same-origin iframe recursion, and capture-frozen canvas paint; live neutral-wrapper, equivalent-syntax, node-split, translation, scale, and DOM-order relations are activation-checked before the source-versus-SVG leg",
+      "generatedCoverage": "Feature, showcase, HTML, Unicode, and real-world corpora include seven isolated composed pages. Every family names a dependency-inventory-driven three-decision crossing; unit controls reject missing or foreign triple members and a retired witness. Live neutral-wrapper, equivalent-syntax, node-split, translation, scale, DOM-order and capture-freeze relations are activation-checked before native macOS/Linux/Windows source-versus-SVG producers.",
       "platformCoverage": ["darwin", "linux", "win32"],
       "knownGap": "Pixels cannot prove that the correct decision path ran or distinguish logical defects from accepted rasterization noise.",
-      "nextAction": "Consume stage-oracle evidence in demo reports and classify each region before ticket creation; expand the composed manifest when a newly audited decision pair lacks a crossing row rather than treating the current seven families as exhaustive."
+      "nextAction": "Consume stage-oracle evidence in demo reports and classify each region before ticket creation; add a named dependency triple when a newly audited shared state owner lacks a crossing rather than treating the current seven families as exhaustive."
     }
   ]
 }

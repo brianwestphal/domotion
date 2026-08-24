@@ -23,7 +23,7 @@ interface CorpusManifest {
 interface ComposedManifest {
   schemaVersion: number;
   htmlTestFixture: string;
-  repositoryFixtures: Array<{ name: string; family: string; axes: string[] }>;
+  repositoryFixtures: Array<{ name: string; family: string; axes: string[]; dependencyTriples: string[][] }>;
 }
 
 const PINNED_FILE = "tests/fixtures/html-test/36-composed-metamorphic-parity.html";
@@ -41,6 +41,11 @@ describe("composed real-world and metamorphic parity corpus", () => {
     );
     for (const fixture of COMPOSED_PARITY_FIXTURES) {
       expect(fixture.decisions.length, `${fixture.name} must cross independent decisions`).toBeGreaterThanOrEqual(4);
+      expect(fixture.dependencyTriples.length, `${fixture.name} must name a dependency-driven triple`).toBeGreaterThan(0);
+      for (const triple of fixture.dependencyTriples) {
+        expect(triple).toHaveLength(3);
+        expect(triple.every((decision) => fixture.decisions.includes(decision))).toBe(true);
+      }
       expect(fixture.html).toContain(`data-family="${fixture.family}"`);
       expect(fixture.width).toBeGreaterThanOrEqual(700);
       expect(fixture.height).toBeGreaterThanOrEqual(240);
@@ -53,7 +58,16 @@ describe("composed real-world and metamorphic parity corpus", () => {
       name: fixture.name,
       family: fixture.family,
       axes: fixture.axes,
+      dependencyTriples: fixture.dependencyTriples,
     })));
+  });
+
+  it("keeps destructive controls attached to every dependency-driven family", () => {
+    const controls = new Map(COMPOSED_PARITY_FIXTURES.map((fixture) => [fixture.family, fixture.axes.length > 0 && fixture.dependencyTriples.length > 0]));
+    expect([...controls.values()].every(Boolean)).toBe(true);
+    const retired = new Map(controls);
+    retired.set("svg-effects", false);
+    expect([...retired.values()].every(Boolean)).toBe(false);
   });
 
   it("keeps every transformation discriminating instead of label-only", () => {

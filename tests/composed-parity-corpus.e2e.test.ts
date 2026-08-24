@@ -14,7 +14,7 @@ const FIXTURE_URL = pathToFileURL(resolve("tests/fixtures/html-test/36-composed-
 
 const env = await (async () => {
   try {
-    return { browser: await chromium.launch() };
+    return { browser: await chromium.launch({ headless: true }) };
   } catch {
     return null;
   }

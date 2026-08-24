@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex-root",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6qg8fmxo3lvetj",
+          "message": {
+            "text": "The corpus grows by source-owner dependency triples, not a CSS Cartesian product. Every triple names three decisions already active in one family, and the manifest/unit controls fail if a member is foreign or the witness is retired; native visual producers remain unchanged.",
+            "markdown": "The corpus grows by source-owner dependency triples, not a CSS Cartesian product. Every triple names three decisions already active in one family, and the manifest/unit controls fail if a member is foreign or the witness is retired; native visual producers remain unchanged."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/composed-parity-fixtures.ts"
+                },
+                "region": {
+                  "startLine": 18,
+                  "endLine": 32,
+                  "snippet": {
+                    "text": "  | \"dom-order\";\n\nexport interface ComposedParityFixture extends FeatureTest {\n  family: ComposedParityFamily;\n  axes: MetamorphicAxis[];\n  decisions: string[];\n  /** Source-owner decisions sharing capture/render state and crossed together. */\n  dependencyTriples: [string, string, string][];\n}\n\nconst COMMON = `\n  *{box-sizing:border-box}\n  .fixture{margin:0;padding:14px;background:#0d1117;color:#e6edf3;font:15px/1.35 Arial,sans-serif}\n  .pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}\n  .stage{position:relative;min-width:0;overflow:hidden;border:1px solid #40536d;border-radius:8px;background:#152235}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 86,
+          "workItemUris": [
+            "DM-2541"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "620d8c21f98757f4d8afaaab1199a444"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f0899f23f60f04f27ca114ab26907e42614708f5",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
