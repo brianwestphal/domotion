@@ -17,6 +17,7 @@
  */
 
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { hostPlatform } from "./host-platform.js";
 import { existsSync } from "node:fs";
 import * as nodePath from "node:path";
@@ -7862,7 +7863,56 @@ interface HelperOutlineResolution {
   disposition: "helper-outline" | "helper-font-unopenable" | "helper-glyph-unavailable";
 }
 
-const helperOutlineCache = new Map<string, HelperOutlineResolution>(); // `${path}#${id}` → classified result
+const helperOutlineCache = new Map<string, HelperOutlineResolution>(); // `${source identity}#${id}` → classified result
+
+export type CoreTextDesignOutlineEligibility =
+  | "eligible"
+  | "not-darwin"
+  | "source-unavailable"
+  | "static-source"
+  | "face-index-unknown"
+  | "face-name-unmatched"
+  | "face-reopen-unaddressable";
+
+/**
+ * Classify the deliberately narrow non-empty-outline route to CoreText.
+ *
+ * Pinned Skia constructs macOS data-backed typefaces through
+ * `SkTypeface_Mac::MakeFromStream`, then creates paths from the resulting
+ * CoreText face (`SkFontMgr_mac_ct.cpp:485-507`,
+ * `SkTypeface_mac_ct.cpp:1279-1325`, and
+ * `SkScalerContext_mac_ct.cpp:621-675`, Skia 62efacd3). Only an authenticated
+ * physical variable-face instance is equivalent to that handoff. Static
+ * sources retain fontkit, while webfonts/unmatched collection members have no
+ * exact file/face/axis identity to reopen and therefore remain ineligible.
+ */
+export function coreTextDesignOutlineEligibility(
+  source: FontSourceInfo | null | undefined,
+  platform: NodeJS.Platform = hostPlatform(),
+): CoreTextDesignOutlineEligibility {
+  if (platform !== "darwin") return "not-darwin";
+  if (source == null) return "source-unavailable";
+  if (source.variationAxes == null) return "static-source";
+  if (source.faceIndex == null) return "face-index-unknown";
+  if (!source.nameMatched) return "face-name-unmatched";
+  // The helper addresses a collection member by PostScript name. With no
+  // name it can only reopen the file's first member, so a known nonzero member
+  // is still not an exact reopen target.
+  if (source.faceIndex !== 0 && source.postscriptName == null) return "face-reopen-unaddressable";
+  return "eligible";
+}
+
+function helperOutlineSourceIdentity(source: FontSourceInfo): string {
+  const axes = source.variationAxes == null
+    ? null
+    : Object.fromEntries(Object.entries(source.variationAxes).sort(([left], [right]) => left.localeCompare(right)));
+  return JSON.stringify({
+    path: source.path,
+    postscriptName: source.postscriptName ?? null,
+    faceIndex: source.faceIndex,
+    axes,
+  });
+}
 
 
 // A glyph is worth probing the helper for only if at least one source codepoint
@@ -7905,18 +7955,24 @@ export function classifyEmptyGlyphOutline(
     : "helper-glyph-unavailable";
 }
 
-/** Fetch glyph `glyphId`'s outline from the native helper opening `srcPath`.
- * Cached per (path, id) and preserves whether the face could not be opened or
- * the selected glyph produced no path; those are distinct degraded facts. */
-function helperGlyphOutline(srcPath: string, postscriptName: string | undefined, glyphId: number): HelperOutlineResolution {
-  const cacheKey = `${srcPath}#${glyphId}`;
+/** Fetch glyph `glyphId`'s outline from the native helper opening the exact
+ * selected file/face/variation tuple. The cache preserves whether the face
+ * could not be opened or the selected glyph produced no path; those are
+ * distinct degraded facts. */
+function helperGlyphOutline(source: FontSourceInfo, glyphId: number): HelperOutlineResolution {
+  const sourceIdentity = helperOutlineSourceIdentity(source);
+  const cacheKey = `${sourceIdentity}#${glyphId}`;
   const cached = helperOutlineCache.get(cacheKey);
   if (cached !== undefined) return cached;
 
-  let helper = helperFontCache.get(srcPath);
+  let helper = helperFontCache.get(sourceIdentity);
   if (helper === undefined) {
-    helper = (createGlyphHelperFont({ postscriptName, fontPath: srcPath }) as unknown as FontInstance) ?? null;
-    helperFontCache.set(srcPath, helper);
+    helper = (createGlyphHelperFont({
+      postscriptName: source.postscriptName,
+      fontPath: source.path,
+      variations: source.variationAxes ?? undefined,
+    }) as unknown as FontInstance) ?? null;
+    helperFontCache.set(sourceIdentity, helper);
   }
 
   let result: HelperOutlineResolution;
@@ -7957,20 +8013,45 @@ export function resolveGlyphCommands(
    * objects by gid, so `glyph.codePoints` is only a fallback when the emitter
    * cannot map the glyph back to source text. */
   sourceCodePoints?: number[],
+  /** The exact selected run instance. Supplying it avoids re-resolving a
+   * variable face without the run's complete variation settings and is
+   * required for the bounded macOS CoreText outline route. */
+  selectedFont?: FontInstance,
 ): GlyphCommandResolution {
   const cmds: PathCommand[] = glyph?.path?.commands ?? [];
-  if (cmds.length > 0) return { commands: cmds, disposition: "source-outline" };
   const helperAvailable = isGlyphHelperAvailable();
+  const codePoints = sourceCodePoints ?? glyph?.codePoints;
+  const expectation = glyphInkExpectation({ codePoints });
+
+  // Preserve source-owned empty outcomes before considering a native outline.
+  // A space in a variable face is still genuinely inkless, not a helper error.
+  if (cmds.length === 0) {
+    if (glyph == null || glyph.id === 0) return { commands: [], disposition: "missing-glyph" };
+    if (expectation === "inkless") return { commands: [], disposition: "legitimately-inkless" };
+    if (expectation === "unknown") return { commands: [], disposition: "unclassified-empty-glyph" };
+  }
+
+  const selectedSource = selectedFont == null
+    ? undefined
+    : fontSourceMap.get(selectedFont as unknown as object);
+  if (selectedSource != null && coreTextDesignOutlineEligibility(selectedSource) === "eligible") {
+    // Once this exact variable instance is known to belong to CoreText, a
+    // missing helper cannot truthfully fall back to fontkit's different path.
+    if (!helperAvailable) return { commands: [], disposition: "helper-unavailable" };
+    return helperGlyphOutline(selectedSource, glyph!.id);
+  }
+
+  if (cmds.length > 0) return { commands: cmds, disposition: "source-outline" };
   const initial = classifyEmptyGlyphOutline({
     glyphPresent: glyph != null,
     glyphId: glyph?.id ?? 0,
-    codePoints: sourceCodePoints ?? glyph?.codePoints,
+    codePoints,
     helperAvailable,
   });
   if (initial !== "probe-helper") return { commands: [], disposition: initial };
   // Re-resolve the instance (cache hit) to read the exact file fontkit loaded.
   // variationSettings don't affect the file path, so they're omitted here.
-  const inst = getFontInstance(fontKey, weight, fontSize, slant);
+  const inst = selectedFont ?? getFontInstance(fontKey, weight, fontSize, slant);
   const src = inst != null ? fontSourceMap.get(inst as unknown as object) : undefined;
   if (src == null) {
     return { commands: [], disposition: classifyEmptyGlyphOutline({
@@ -7979,13 +8060,20 @@ export function resolveGlyphCommands(
       helperAvailable, sourceAvailable: false,
     }) as GlyphCommandDisposition };
   }
-  return helperGlyphOutline(src.path, src.postscriptName, glyph!.id);
+  return helperGlyphOutline(src, glyph!.id);
 }
 
 /** Backward-compatible command-only projection used outside the ownership-aware
  * text emitter. New routing code must consume `resolveGlyphCommands` instead. */
-export function commandsFor(glyph: FontkitGlyph | null | undefined, fontKey: string, weight: number, fontSize: number, slant: number): PathCommand[] {
-  return resolveGlyphCommands(glyph, fontKey, weight, fontSize, slant).commands;
+export function commandsFor(
+  glyph: FontkitGlyph | null | undefined,
+  fontKey: string,
+  weight: number,
+  fontSize: number,
+  slant: number,
+  selectedFont?: FontInstance,
+): PathCommand[] {
+  return resolveGlyphCommands(glyph, fontKey, weight, fontSize, slant, undefined, selectedFont).commands;
 }
 
 /** Test-only: clear the per-glyph fallback caches (helper instances + outlines). */
@@ -9413,7 +9501,11 @@ export function ensureGlyphDef(
    *  the condensed run's registered outlines glyph id for glyph id. */
   stretch: number = 100,
 ): string {
-  const key = `${fontKey}-${weight}-${fontSize}-${slant}${stretch !== 100 ? `-w${stretch}` : ""}-${glyphId}`;
+  // The same CSS tuple/gid can name different variable-axis outlines (custom
+  // GRAD and opsz mutations are the concrete discriminator). Bind the cache to
+  // the actual commands so a warm render cannot reuse a prior instance's path.
+  const outlineSha256 = createHash("sha256").update(JSON.stringify(commands)).digest("hex");
+  const key = `${fontKey}-${weight}-${fontSize}-${slant}${stretch !== 100 ? `-w${stretch}` : ""}-${glyphId}-${outlineSha256}`;
   const existing = glyphKeyToId.get(key);
   if (existing != null) return existing;
 

@@ -77,12 +77,15 @@ and legacy element capture rasters. The MathML oracle grades that terminal on
 the unchanged capture and obtains exact pre-terminal selection by rerunning a
 raster-metadata-free clone through the same renderer; it consumes DM-2512's
 pure Linux FreeSans token validator rather than inventing another shaper.
-`tools/sfns-mask-baseline-oracle.ts` plus its Swift helper form the diagnostic
-macOS SFNS stage split (doc 168): exact bytes, four explicit axes, gids, and
-quarter-pixel origins cross Chromium, direct CoreText mask, pinned-Skia
-CoreText path, and production Domotion path arms, while baseline/typographic
-metrics and cold/warm evidence remain separate. It authorizes no renderer or
-tolerance change.
+`tools/sfns-mask-baseline-oracle.ts` plus its Swift helper form the macOS SFNS
+stage split (doc 168): exact bytes, four explicit axes, gids, and quarter-pixel
+origins cross Chromium, direct CoreText mask, pinned-Skia CoreText path, and
+production Domotion path arms, while baseline/typographic metrics and
+cold/warm evidence remain separate. DM-2567 adds the bounded production route
+for authenticated file-backed macOS variable instances and an exact
+helper-owned design-command proposal/validation gate. The collector is
+explicitly headless; terminal mask coverage remains diagnostic and no renderer
+pixel tolerance changes.
 `tools/paths-native-raster-collector.ts` and
 `tools/paths-native-raster-corpus.ts` own doc 197's terminal raster evidence:
 six SHA-pinned outline technologies, a declared 348-cell source-table-owned

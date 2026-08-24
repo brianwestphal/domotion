@@ -2719,6 +2719,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6sszu7xe8sc4x2",
+          "message": {
+            "text": "The native route is intentionally keyed to an authenticated selected instance, not a family name or a visual residual. Pinned Skia keeps data-backed macOS variable faces on CoreText; requiring Darwin, variable axes, a known matched physical member, and an addressable reopen target reproduces that ownership without widening static, webfont, or ambiguous collection routes. An unnamed nonzero collection member is refused because the helper can only select it by PostScript name. Once eligible, failure stays explicit because returning the known-different fontkit outline would make the evidence false.",
+            "markdown": "The native route is intentionally keyed to an authenticated selected instance, not a family name or a visual residual. Pinned Skia keeps data-backed macOS variable faces on CoreText; requiring Darwin, variable axes, a known matched physical member, and an addressable reopen target reproduces that ownership without widening static, webfont, or ambiguous collection routes. An unnamed nonzero collection member is refused because the helper can only select it by PostScript name. Once eligible, failure stays explicit because returning the known-different fontkit outline would make the evidence false."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 7888,
+                  "endLine": 7902,
+                  "snippet": {
+                    "text": "export function coreTextDesignOutlineEligibility(\n  source: FontSourceInfo | null | undefined,\n  platform: NodeJS.Platform = hostPlatform(),\n): CoreTextDesignOutlineEligibility {\n  if (platform !== \"darwin\") return \"not-darwin\";\n  if (source == null) return \"source-unavailable\";\n  if (source.variationAxes == null) return \"static-source\";\n  if (source.faceIndex == null) return \"face-index-unknown\";\n  if (!source.nameMatched) return \"face-name-unmatched\";\n  return \"eligible\";\n}\n\nfunction helperOutlineSourceIdentity(source: FontSourceInfo): string {\n  const axes = source.variationAxes == null\n    ? null"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 8032
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 465
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2567"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "d99f6065902417eec2851cdba625fdaa"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "92ba34f73bcf74981b5b1f7252e71168f3bfbe88",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -154,6 +154,7 @@
     "fonts:paths-raster:linux-mathml:collect": "tsx tools/linux-mathml-greek-raster-collector.ts",
     "fonts:paths-raster:linux-mathml:gate": "tsx tools/linux-mathml-greek-raster-gate.ts",
     "fonts:sfns-mask-baseline": "npm run build:capture-script && tsx tools/sfns-mask-baseline-oracle.ts",
+    "fonts:sfns-outline:adjudicate": "node --import tsx tools/sfns-outline-parity-gate.ts",
     "stage:evidence:collect": "tsx tools/collect-stage-evidence.ts",
     "stage:evidence:build": "tsx tools/build-stage-evidence.ts",
     "stage:evidence:compare-roll": "tsx tools/compare-roll-evidence.ts",

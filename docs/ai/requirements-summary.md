@@ -1997,7 +1997,7 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   identities and validation residuals no greater than proposal; the 348-cell
   core and every scalar visual threshold are unchanged.
 
-<!-- DM-2452 -->
+<!-- DM-2452 / DM-2567 -->
 - The macOS SFNS mask/baseline oracle (doc 168) is diagnostic-only. It routes
   the exact `SFNS.ttf` bytes through Chromium, fixes
   `wdth=100, opsz=17, GRAD=400, wght=700`, and requires Chromium CSS,
@@ -2015,11 +2015,20 @@ Per `CLAUDE.md` "Platform support — non-negotiable":
   phases, uniform residual matrices, and cold/warm behavior. It adjudicates the
   dominant residual as CoreText/Skia terminal smoothing, hinting, gamma, mask
   conversion, preblend, and possible compositor resampling; the direct RGBA
-  CoreText arm is not a byte-exact Skia A8/LCD mask. Separately,
-  `resolveGlyphCommands` returns fontkit's non-empty SFNS variable outline
-  before its CoreText helper, which owns the stable <=1.266-design-unit outline
-  discrepancy. That logical route gap requires a bounded follow-up; it must not
-  be hidden by a pixel tolerance.
+  CoreText arm is not a byte-exact Skia A8/LCD mask. DM-2567 closes the separate
+  variable-outline gap: on macOS, an authenticated file-backed variable run
+  with a known matched member routes every nonempty gid through CoreText using
+  the selected instance's complete axes; static/unmatched sources retain
+  fontkit, and helper absence fails closed. Helper/font caches include the
+  physical face and sorted axes, while SVG-def identity includes the exact
+  commands. Provenance records the resolved outline disposition. Two
+  explicitly headless proposal/validation arms authenticate SFNS and helper
+  bytes, axes, gids, x/y quarter inputs, two cold/two warm observations, uniform
+  zoom/transform/cancellation rows, and a moving `opsz=26` control. All 30 gid
+  observations per arm are `helper-outline` and equal the independent
+  pinned-Skia/CoreText stream exactly on the declared 0.001-design-unit protocol
+  lattice (`maxDesignUnitDelta = 0`); no pixel tolerance changed. Terminal mask
+  and pre-compositor raster ownership remain the only gap in this area.
 
 <!-- Animated viewBox culling source audit, implementation, and oracle -->
 - Animated viewBox culling's composed-timeline path is implemented (doc 155):

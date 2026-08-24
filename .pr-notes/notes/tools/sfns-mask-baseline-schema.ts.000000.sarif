@@ -90,6 +90,106 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6st00y7n0yv7t8",
+          "message": {
+            "text": "The outline closure is exact and independently repeatable, while terminal pixels remain diagnostic. Each arm authenticates SFNS and helper bytes, full axes, gids, quarter inputs, two cold and two warm observations, helper ownership, command counts, topology, and canonical command SHA on the helper protocol's fixed 0.001-design-unit serialization lattice. Proposal and validation must have distinct observation IDs and the same stable logical digest; no epsilon, pixel fit, or tolerance participates.",
+            "markdown": "The outline closure is exact and independently repeatable, while terminal pixels remain diagnostic. Each arm authenticates SFNS and helper bytes, full axes, gids, quarter inputs, two cold and two warm observations, helper ownership, command counts, topology, and canonical command SHA on the helper protocol's fixed 0.001-design-unit serialization lattice. Proposal and validation must have distinct observation IDs and the same stable logical digest; no epsilon, pixel fit, or tolerance participates."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/sfns-mask-baseline-schema.ts"
+                },
+                "region": {
+                  "startLine": 358,
+                  "endLine": 447,
+                  "snippet": {
+                    "text": "export function validateSfnsExactOutlineArtifact(artifact: SfnsOracleArtifact): string[] {\n  const errors: string[] = [];\n  if (artifact.schemaVersion !== 2) errors.push(\"schema-version\");\n  if (artifact.arm !== \"proposal\" && artifact.arm !== \"validation\") errors.push(\"arm\");\n  if (artifact.observationId.trim() === \"\") errors.push(\"observation-id\");\n  if (!artifact.environment.helper.available) errors.push(\"helper-unavailable\");\n  if (artifact.environment.helper.path.trim() === \"\") errors.push(\"helper-path\");\n  if (!/^[0-9a-f]{64}$/.test(artifact.environment.helper.sha256)) errors.push(\"helper-sha256\");\n\n  const byId = new Map(artifact.rows.map((row) => [row.id, row]));\n  for (const id of SFNS_REQUIRED_SCENARIOS) {\n    const row = byId.get(id);\n    if (row == null) {\n      errors.push(`missing-scenario:${id}`);\n      continue;\n    }\n    if (!row.sourceIdentity.chromiumCustomFont) errors.push(`${id}:chromium-not-exact-byte-font`);\n    if (row.sourceIdentity.chromiumSourceSha256 !== artifact.environment.fontSha256) {\n      errors.push(`${id}:chromium-font-bytes`);\n    }\n    if (row.sourceIdentity.domotionSourcePath !== artifact.environment.fontPath\n        || row.sourceIdentity.domotionSourceSha256 !== artifact.environment.fontSha256) {\n      errors.push(`${id}:domotion-font-bytes`);\n    }\n    if (!axesMatch(row.chromiumAxes, row.requestedAxes)) errors.push(`${id}:chromium-css-axis-state`);\n    if (!axesMatch(row.nativeAxes, row.requestedAxes)) errors.push(`${id}:native-axis-state`);\n    if (!axesMatch(row.domotionAxes, row.requestedAxes)) errors.push(`${id}:domotion-axis-state`);\n    if (!sameNumbers(row.nativeGlyphIds, row.nativeMappedGlyphIds)\n        || !sameNumbers(row.nativeGlyphIds, row.domotionGlyphIds)) errors.push(`${id}:glyph-identity`);\n    if (!sameNumbers(row.quarterPixelOrigins, row.rawOrigins.map(quantizeQuarter))) {\n      errors.push(`${id}:quarter-origin-derivation`);\n    }\n    if (!sameNumbers(row.nativeOrigins, row.quarterPixelOrigins)) errors.push(`${id}:native-origin-routing`);\n    if (row.nativeBaselines.length !== row.nativeGlyphIds.length\n        || !sameNumbers(row.nativeBaselines, row.nativeBaselines.map(() => row.baseline.emittedBaseline))) {\n      errors.push(`${id}:native-baseline-routing`);\n    }\n    if (!lifecycleStable(row.lifecycle)) errors.push(`${id}:cold-warm-instability`);\n    if (row.outlineDispositions.length !== row.domotionGlyphIds.length\n        || row.outlineDispositions.some((disposition) => disposition !== \"helper-outline\")) {\n      errors.push(`${id}:outline-ownership`);\n    }\n    if (!sameNumbers(row.pathCommandCounts.native, row.pathCommandCounts.domotion.map((count) => count ?? -1))) {\n      errors.push(`${id}:command-counts`);\n    }\n    if (row.designCommandDigests.native !== row.designCommandDigests.domotion) {\n      errors.push(`${id}:design-command-digest`);\n    }\n    if (!row.pathGeometry.topologyMatches) errors.push(`${id}:command-topology`);\n    if (row.pathGeometry.designUnitQuantum !== 0.001) errors.push(`${id}:design-unit-quantum`);\n    if (row.pathGeometry.maxDesignUnitDelta !== 0\n        || row.pathGeometry.maxPaintPixelDelta !== 0\n        || row.pathGeometry.meanPaintPixelDelta !== 0) {\n      errors.push(`${id}:exact-design-geometry`);\n    }\n  }\n\n  const base = byId.get(\"zoom-2\");\n  const mutation = byId.get(\"opsz-26-mutation\");\n  const mutationMoved = base != null && mutation != null\n    && base.stageDigests.chromium !== mutation.stageDigests.chromium\n    && base.stageDigests.nativeMask !== mutation.stageDigests.nativeMask\n    && base.stageDigests.coreTextPath !== mutation.stageDigests.coreTextPath\n    && base.stageDigests.domotionPath !== mutation.stageDigests.domotionPath;\n  if (!mutationMoved || !artifact.mutationControlMoved) errors.push(\"opsz-mutation-did-not-move-all-stages\");\n  if (base != null && mutation != null\n      && (base.designCommandDigests.native === mutation.designCommandDigests.native\n        || base.designCommandDigests.domotion === mutation.designCommandDigests.domotion)) {\n    errors.push(\"opsz-mutation-did-not-move-design-commands\");\n  }\n  if (artifact.logicalDigest !== sfnsOutlineLogicalDigest(artifact)) errors.push(\"logical-digest\");\n  return errors;\n}\n\n/** Require two independently launched observations to reach the same exact\n * logical result. This is an equality gate, not a threshold or pixel fit. */\nexport function validateSfnsProposalValidation(\n  proposal: SfnsOracleArtifact,\n  validation: SfnsOracleArtifact,\n): string[] {\n  const errors = [\n    ...validateSfnsExactOutlineArtifact(proposal).map((error) => `proposal:${error}`),\n    ...validateSfnsExactOutlineArtifact(validation).map((error) => `validation:${error}`),\n  ];\n  if (proposal.arm !== \"proposal\") errors.push(\"proposal:wrong-arm\");\n  if (validation.arm !== \"validation\") errors.push(\"validation:wrong-arm\");\n  if (proposal.observationId === validation.observationId) errors.push(\"observations-not-independent\");\n  if (proposal.logicalDigest !== validation.logicalDigest) errors.push(\"proposal-validation-logical-digest\");\n  return errors;\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/sfns-mask-baseline-oracle.ts"
+                },
+                "region": {
+                  "startLine": 261
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/coretext-variable-outline.test.ts"
+                },
+                "region": {
+                  "startLine": 39
+                }
+              }
+            },
+            {
+              "id": 2,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/sfns-outline-parity.yml"
+                },
+                "region": {
+                  "startLine": 38
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "workItemUris": [
+            "DM-2567"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "8e46297d8a40772d3ec6a30fb7da3a6f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "92ba34f73bcf74981b5b1f7252e71168f3bfbe88",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

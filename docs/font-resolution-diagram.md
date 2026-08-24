@@ -620,6 +620,16 @@ DM-891, doc [52](52-embedded-mode-glyph-fallback.md)) supplies a single glyph's
 outline from the SAME file when fontkit opened the font but returned an empty path
 for one inkable glyph.
 
+DM-2567 adds one bounded non-empty tier on macOS. If the already-selected run
+is an authenticated file-backed **variable** face with a known, name-matched
+physical member, `resolveGlyphCommands` asks the CoreText helper for that gid
+using the exact selected axis dictionary before accepting fontkit's path. This
+matches pinned Skia's data-backed CoreText typeface/path ownership. Static
+faces and unknown/unmatched collection members remain on fontkit; an eligible
+variable face with no helper fails closed. The helper cache includes path,
+name, member, sorted axes, and gid, and the SVG-def cache includes the emitted
+command SHA, so warm axis mutations cannot alias.
+
 **Outline offset — where CoreText says the glyph goes vs where it draws it.**
 `createGlyphHelperFont` measures one per-face vertical correction on macOS and
 applies it to every outline it returns (`measureOutlineOffsetY` →

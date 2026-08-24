@@ -1,8 +1,11 @@
 # SFNS CoreText mask and baseline oracle
 
-DM-2452 is a diagnostic follow-up to the three font-size-space work. It does
-not change renderer geometry or accept a visual tolerance. The focused macOS
-runner is `tools/sfns-mask-baseline-oracle.ts`; its native companion is
+DM-2452 is the diagnostic follow-up to the three font-size-space work. DM-2567
+closes the bounded variable-outline ownership gap that diagnostic exposed. It
+does not accept a visual tolerance: the terminal mask comparison remains
+diagnostic, while the CoreText design-command seam is now an exact logical
+proposal/validation gate. The focused macOS runner is
+`tools/sfns-mask-baseline-oracle.ts`; its native companion is
 `tools/sfns-mask-baseline.swift`.
 
 ## Question and fixed inputs
@@ -156,22 +159,39 @@ a useful native-raster discriminator, but it is not byte-equivalent to Skia's
 post-conversion A8/LCD mask. Its proximity to Chromium therefore cannot define
 a tolerance or prove a Domotion route change.
 
-### Separate production outline route
+### Production outline route (closed by DM-2567)
 
-There is one smaller logical gap above that terminal mask boundary. For any
-non-empty glyph, production `resolveGlyphCommands` returns fontkit's
-`glyph.path.commands` immediately; the CoreText glyph helper is consulted only
-for an empty outline (`src/render/font-resolution.ts:7960-7982`). The exact
-SFNS variable instance therefore reaches production SVG through fontkit while
-Chromium's macOS typeface/path route reaches CoreText. The retained artifact
-finds identical topology and command counts but up to 1.266 design units of
-coordinate difference. For example, gid 969 starts at x `120` in the
-production definition and x `120.5` in the exact CoreText design outline.
+The pre-DM-2567 route returned fontkit's non-empty SFNS outline before asking
+CoreText. Its topology and command counts matched, but coordinates differed by
+as much as 1.266 design units: gid 969 began at x `120` in fontkit and x `120.5`
+in CoreText. That retained measurement is the activation proof for the fix,
+not a tolerance.
 
-That discrepancy is real, stable, and source-routed even though it is too small
-to explain the dominant pixels. It must be resolved by routing the exact macOS
-variable outline through CoreText or by proving fontkit/CoreText geometry
-equivalence over a bounded corpus—not by widening a visual threshold.
+Production now classifies one deliberately narrow route with
+`coreTextDesignOutlineEligibility`: the host must be macOS, and the already
+selected run must expose an authenticated file-backed variable source, known
+physical member, and matched face name. Every outline-owning emitter passes
+that exact `FontInstance` into `resolveGlyphCommands`; the helper reopens the
+same path with the complete selected axis dictionary. Static sources and
+unmatched/unknown collection members retain fontkit. Once a run is eligible,
+helper absence or failure is an explicit degraded disposition and cannot fall
+back to the known-different fontkit geometry.
+
+Helper caches are keyed by path, PostScript name, member, sorted axis location,
+and gid. The SVG glyph registry additionally hashes the actual command stream,
+so an `opsz` or custom-axis mutation cannot reuse a warm definition for the
+same CSS tuple and gid. Production provenance records the resolved command
+identity and `outlineDisposition`, rather than describing the bypassed fontkit
+outline as emitted evidence.
+
+The independent Swift arm now exports the pinned-Skia 4x-x path both at paint
+size and at unitsPerEm. Both independent streams are canonicalized onto the
+helper protocol's declared 0.001-design-unit serialization lattice and then
+compared by exact command topology, coordinates, counts, and SHA-256—there is
+no epsilon. The authenticated helper path and bytes are part of each report.
+Two separately launched macOS workflow jobs collect `proposal` and
+`validation`; adjudication requires different observation IDs and one exact
+logical digest.
 
 ## Integrity gates
 
@@ -189,12 +209,19 @@ A report is refused before classification unless all of these hold:
 - the `opsz=26` mutation moves Chromium, native mask, CoreText path, and
   Domotion path digests.
 
+The DM-2567 outline gate additionally requires the helper to be present and
+SHA-authenticated, all 30 production gid observations to report
+`helper-outline`, native/Domotion command counts and canonical command digests
+to match, and every design-coordinate delta to be exactly zero. The mutation
+must also move both design-command streams. Terminal raster classifications do
+not participate in this equality decision.
+
 The `font-optical-sizing:none` row is the negative control: because explicit
 `opsz=17` already owns the coordinate, it is byte-identical to `zoom:2`.
 
-## Measured result
+## Retained pre-fix diagnostic result
 
-The retained artifact was collected on Chromium `147.0.7727.15`, arm64 macOS,
+The table below is the pre-DM-2567 activation artifact, collected on Chromium `147.0.7727.15`, arm64 macOS,
 at DPR 1. Coverage numbers are normalized mean absolute white-coverage deltas
 over the fixed 240x100 surface. All best integer baseline shifts were zero, so
 fixed-position and baseline-fitted values are identical in this run.
@@ -215,6 +242,21 @@ serialized scale (`0.0127` at 26px, `0.00635` at 13px) and CoreText's exact
 2048-UPM scales (`0.0126953125`, `0.00634765625`) are recorded separately.
 This proves the first numeric stage difference without showing that it causes
 the dominant pixels.
+
+## Post-fix exact outline result
+
+Two independent, explicitly headless local arms exercise five scenarios and
+six gids per scenario (30 observations per arm), including two cold and two
+warm production renders. Every row reports `helper-outline`, exact command
+counts `[13, 32, 32, 37, 33, 15]`, equal canonical design-command digests, and
+`maxDesignUnitDelta = 0`. The `opsz=26` control changes both native and
+production command digests. Proposal and validation produce the same logical
+digest while retaining distinct observation IDs.
+
+The raster classifications remain diagnostic and still show differences after
+the exact outline seam, as expected: SVG number/transform serialization and
+the terminal CoreText/Skia mask pipeline are different questions. No pixel
+threshold, baseline fit, or tolerance changed with the logical closure.
 
 At 26 paint px the native CoreText mask is materially closer to Chromium than
 either vector raster: in `zoom-2`, for example, its mean delta is about 3.46x
@@ -252,12 +294,10 @@ rather than an exact pixel gate. A bounded Skia harness or trace may capture
 the scaler record, smoothing classification, post-conversion mask, and
 pre-compositor scale/phase if exact terminal pixels become a requirement.
 
-Separately, production's fontkit-first outline route owns the measured
-sub-1.266-design-unit geometry discrepancy and needs its own logical fix and
-exact design-unit gate (the bounded DM-2567 follow-up). Exact terminal-mask and
-pre-compositor evidence, if required, is isolated in DM-2568. This
-investigation authorizes neither production change nor any visual-tolerance
-change.
+The former fontkit-first variable-outline gap is closed by DM-2567's bounded
+CoreText route and exact proposal/validation gate. Exact terminal-mask and
+pre-compositor evidence, if required, remains isolated in DM-2568; it cannot
+justify changing this logical route or widening a visual tolerance.
 
 Run the diagnostic on macOS with:
 
@@ -267,3 +307,13 @@ npm run fonts:sfns-mask-baseline -- --out tests/output/sfns-mask-baseline-dm2452
 
 The JSON report and PNG/SVG arms are written beneath that output directory;
 they are diagnostic artifacts, not checked-in baselines.
+
+Run the exact independent outline arms and adjudicator with:
+
+```bash
+npm run fonts:sfns-mask-baseline -- --arm proposal --out tests/output/sfns-outline-proposal
+npm run fonts:sfns-mask-baseline -- --arm validation --out tests/output/sfns-outline-validation
+npm run fonts:sfns-outline:adjudicate -- --proposal tests/output/sfns-outline-proposal/report.json --validation tests/output/sfns-outline-validation/report.json
+```
+
+The collector always launches Chromium with `headless: true`.

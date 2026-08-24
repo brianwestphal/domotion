@@ -23,7 +23,8 @@ Each selected run records:
 - logical font key plus concrete PostScript name, source path, collection
   member, variation axes, and HarfBuzz ownership;
 - glyph IDs, clusters, advances, and offsets from the selected production
-  shaping instance; and
+  shaping instance, plus the SHA/count identity and ownership disposition of
+  the exact resolved command stream handed to the emitter (DM-2567); and
 - emitter and stable emitted identity, plus embedded-success,
   embedded-decline-to-paths, path-success, path-decline, or source-owned
   boundary transitions. DM-2399 adds the exact decline reason and UTF-16

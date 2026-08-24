@@ -58,6 +58,7 @@ describe("production text-run provenance", () => {
         id: expect.any(Number), cluster: expect.any(Number), xAdvance: expect.any(Number),
         sourceSpan: expect.any(Array), sourceCodepointSpan: expect.any(Array),
         sourceOutline: expect.objectContaining({ sha256: expect.stringMatching(/^[0-9a-f]{64}$/) }),
+        outlineDisposition: "source-outline",
       }),
     ]));
   });

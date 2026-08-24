@@ -56,4 +56,19 @@ describe("glyph registry resets per generation (DM-1338)", () => {
     expect(defCount(getGlyphDefs())).toBe(3);
     clearGlyphDefs();
   });
+
+  it("does not reuse a gid when an exact variable-axis outline changes", () => {
+    clearGlyphDefs();
+    const base = ensureGlyphDef("sf-pro", 700, 13, 0, 969, CMDS);
+    const mutatedCommands = CMDS.map((command, index) => index === 0
+      ? { ...command, args: [0.5, 0] }
+      : command);
+    const mutation = ensureGlyphDef("sf-pro", 700, 13, 0, 969, mutatedCommands);
+
+    expect(base).toBe("g0");
+    expect(mutation).toBe("g1");
+    expect(ensureGlyphDef("sf-pro", 700, 13, 0, 969, CMDS)).toBe(base);
+    expect(defCount(getGlyphDefs())).toBe(2);
+    clearGlyphDefs();
+  });
 });

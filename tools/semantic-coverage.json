@@ -256,11 +256,11 @@
       ],
       "exactStates": [
         "default optical size -> explicit opsz 26",
-        "cold glyph lookup -> warm glyph lookup"
+        "cold glyph lookup -> warm glyph lookup",
+        "fontkit variable outline -> CoreText variable outline"
       ],
       "uncoveredStates": [
-        "CoreText path mask -> Chromium Skia glyph mask",
-        "fontkit variable outline -> CoreText variable outline"
+        "CoreText path mask -> Chromium Skia glyph mask"
       ],
       "upstreamSources": [
         "external/chromium/third_party/skia",
@@ -275,14 +275,21 @@
       ],
       "oracles": [
         "tools/sfns-mask-baseline-oracle.ts",
-        "tools/sfns-mask-baseline.swift"
+        "tools/sfns-mask-baseline.swift",
+        "tools/sfns-mask-baseline-schema.ts",
+        "tools/sfns-outline-parity-gate.ts"
       ],
       "metamorphicTests": [
-        "tests/sfns-mask-baseline-oracle.test.ts"
+        "src/render/coretext-variable-outline.test.ts",
+        "src/render/glyph-registry.test.ts",
+        "tests/sfns-mask-baseline-oracle.test.ts",
+        "tests/sfns-outline-parity-workflow.test.ts"
       ],
-      "visualFixtures": [],
+      "visualFixtures": [
+        ".github/workflows/sfns-outline-parity.yml"
+      ],
       "coverage": "partial",
-      "boundary": "DM-2452/doc 168 pins exact SFNS bytes, axes, gids, metrics, uniform matrix candidates, x/y quarter phases, and cold/warm lifecycle across Chromium, CoreText mask/path, and production paths. Pinned Blink/Skia source plus Apple's public API contract adjudicates the dominant residual as terminal CoreText-to-Skia smoothing, hinting, gamma, mask conversion, preblend, and possible compositor resampling; the direct RGBA arm is diagnostic rather than a byte-exact Skia mask. Separately, production returns fontkit's non-empty variable outline before consulting its CoreText helper, leaving a measured <=1.266-design-unit fontkit/CoreText geometry gap that requires a bounded logical fix rather than a tolerance.",
+      "boundary": "DM-2452/doc 168 pins exact SFNS bytes, axes, gids, metrics, uniform matrix candidates, x/y quarter phases, and cold/warm lifecycle across Chromium, CoreText mask/path, and production paths. DM-2567 closes the bounded file-backed macOS variable-outline seam: the exact selected face/axes route through CoreText, helper absence fails closed, cache identity includes axes and commands, and two explicitly headless independent arms require authenticated helper bytes plus exact command topology/count/digest equality for all 30 gid observations per arm with maxDesignUnitDelta=0 and a moving opsz control. Pinned Blink/Skia source plus Apple's public API contract still adjudicates the uncovered terminal residual as CoreText-to-Skia smoothing, hinting, gamma, mask conversion, preblend, and possible compositor resampling; the direct RGBA arm is diagnostic rather than a byte-exact Skia mask.",
       "featureIds": [
         "render.text",
         "fonts.glyph-helper"

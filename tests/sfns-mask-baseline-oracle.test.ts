@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   SFNS_BASE_AXES, SFNS_MUTATION_AXES, SFNS_REQUIRED_SCENARIOS,
-  classifySfnsOracleRow, quantizeQuarter, validateSfnsOracleArtifact,
+  classifySfnsOracleRow, quantizeQuarter, sfnsOutlineLogicalDigest,
+  validateSfnsExactOutlineArtifact, validateSfnsOracleArtifact,
+  validateSfnsProposalValidation,
   type CoverageDiff, type SfnsAxes, type SfnsOracleArtifact, type SfnsOracleRow,
   type SfnsScenarioId,
 } from "../tools/sfns-mask-baseline-schema.js";
@@ -37,8 +39,11 @@ function row(id: SfnsScenarioId, axes: SfnsAxes = { ...SFNS_BASE_AXES }): SfnsOr
       domotionSourceSha256: "font",
     },
     pathCommandCounts: { native: [5, 6], domotion: [5, 6] },
+    designCommandDigests: { native: digest, domotion: digest },
+    outlineDispositions: ["helper-outline", "helper-outline"],
     pathGeometry: {
-      topologyMatches: true, maxDesignUnitDelta: 0, maxPaintPixelDelta: 0,
+      topologyMatches: true, designUnitQuantum: 0.001,
+      maxDesignUnitDelta: 0, maxPaintPixelDelta: 0,
       meanPaintPixelDelta: 0, exactScale: 26 / 2048, domotionSerializedScale: 0.0127,
     },
     baseline: {
@@ -71,8 +76,11 @@ function artifact(): SfnsOracleArtifact {
     id, id === "opsz-26-mutation" ? { ...SFNS_MUTATION_AXES } : { ...SFNS_BASE_AXES },
   ));
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     authority: "diagnostic-only",
+    arm: "proposal",
+    observationId: "proposal-observation",
+    logicalDigest: "",
     environment: {
       platform: "darwin",
       chromiumRevision: "7d859f271cbda744098ac69f44978d4edfa62be3",
@@ -80,6 +88,7 @@ function artifact(): SfnsOracleArtifact {
       fontPath: "/System/Library/Fonts/SFNS.ttf",
       fontSha256: "font", deviceScaleFactor: 1,
       chromiumVersion: "Chromium", osVersion: "macOS", arch: "arm64",
+      helper: { available: true, path: "/helper", sha256: "a".repeat(64) },
     },
     rows,
     classifications: rows.map((candidate) => ({ id: candidate.id, ...classifySfnsOracleRow(candidate) })),
@@ -140,5 +149,37 @@ describe("SFNS mask/baseline oracle integrity", () => {
     const wrongBytes = artifact();
     wrongBytes.rows[0].sourceIdentity.chromiumSourceSha256 = "different";
     expect(validateSfnsOracleArtifact(wrongBytes)).toContain("zoom-2:chromium-font-bytes");
+  });
+
+  it("accepts only exact CoreText-owned design commands", () => {
+    const evidence = artifact();
+    evidence.logicalDigest = sfnsOutlineLogicalDigest(evidence);
+    expect(validateSfnsExactOutlineArtifact(evidence)).toEqual([]);
+
+    evidence.rows[0].outlineDispositions[0] = "source-outline";
+    evidence.rows[0].pathGeometry.maxDesignUnitDelta = 0.001;
+    evidence.logicalDigest = sfnsOutlineLogicalDigest(evidence);
+    expect(validateSfnsExactOutlineArtifact(evidence)).toEqual(expect.arrayContaining([
+      "zoom-2:outline-ownership",
+      "zoom-2:exact-design-geometry",
+    ]));
+  });
+
+  it("requires independent proposal and validation arms with one exact logical digest", () => {
+    const proposal = artifact();
+    proposal.logicalDigest = sfnsOutlineLogicalDigest(proposal);
+    const validation = structuredClone(proposal);
+    validation.arm = "validation";
+    validation.observationId = "validation-observation";
+    expect(validateSfnsProposalValidation(proposal, validation)).toEqual([]);
+
+    validation.observationId = proposal.observationId;
+    validation.rows[0].pathCommandCounts.domotion[0] = 7;
+    validation.logicalDigest = sfnsOutlineLogicalDigest(validation);
+    expect(validateSfnsProposalValidation(proposal, validation)).toEqual(expect.arrayContaining([
+      "observations-not-independent",
+      "validation:zoom-2:command-counts",
+      "proposal-validation-logical-digest",
+    ]));
   });
 });

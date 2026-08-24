@@ -55,6 +55,11 @@ struct RectOutput: Codable {
 struct GlyphPathOutput: Codable {
     let gid: UInt16
     let svgPath: String
+    /** The same Skia-style 4x-X CoreText path opened at unitsPerEm. This is the
+     * independent design-space arm used to adjudicate the renderer's 0.001-DU
+     * serialized command lattice without deriving design coordinates by
+     * dividing a six-decimal paint-space string. */
+    let designSvgPath: String
     let commandCount: Int
     let bounds: RectOutput
     let advance: Double
@@ -199,7 +204,16 @@ func mappedGlyphs(_ text: String, font: CTFont) -> [UInt16] {
     return glyphs.map { UInt16($0) }
 }
 
-func glyphPathOutputs(_ glyphIds: [UInt16], font: CTFont) -> [GlyphPathOutput] {
+func skiaStylePath(_ font: CTFont, _ glyph: CGGlyph) -> CGPath? {
+    var hintingScale = CGAffineTransform(scaleX: 4, y: 1)
+    guard let hintedPath = CTFontCreatePathForGlyph(font, glyph, &hintingScale) else {
+        return nil
+    }
+    var inverseScale = CGAffineTransform(scaleX: 0.25, y: 1)
+    return hintedPath.copy(using: &inverseScale)
+}
+
+func glyphPathOutputs(_ glyphIds: [UInt16], font: CTFont, designFont: CTFont) -> [GlyphPathOutput] {
     glyphIds.map { value in
         var glyph = CGGlyph(value)
         var advance = CGSize.zero
@@ -211,18 +225,19 @@ func glyphPathOutputs(_ glyphIds: [UInt16], font: CTFont) -> [GlyphPathOutput] {
         // preserving Y hinting, then scales X back (`kScaleForSubPixelPositionHinting`,
         // Skia 62efacd3, SkScalerContext_mac_ct.cpp:621-675). Mirror that exact
         // discriminator instead of treating a plain CoreText path as Skia's.
-        var hintingScale = CGAffineTransform(scaleX: 4, y: 1)
-        guard let hintedPath = CTFontCreatePathForGlyph(font, glyph, &hintingScale) else {
-            return GlyphPathOutput(gid: value, svgPath: "", commandCount: 0,
-                                   bounds: RectOutput(bounds), advance: advance.width)
-        }
-        var inverseScale = CGAffineTransform(scaleX: 0.25, y: 1)
-        guard let path = hintedPath.copy(using: &inverseScale) else {
-            return GlyphPathOutput(gid: value, svgPath: "", commandCount: 0,
+        guard let path = skiaStylePath(font, glyph),
+              let designPath = skiaStylePath(designFont, glyph) else {
+            return GlyphPathOutput(gid: value, svgPath: "", designSvgPath: "", commandCount: 0,
                                    bounds: RectOutput(bounds), advance: advance.width)
         }
         let serialized = svgPath(path)
+        let designSerialized = svgPath(designPath)
+        guard serialized.1 == designSerialized.1 else {
+            return GlyphPathOutput(gid: value, svgPath: "", designSvgPath: "", commandCount: 0,
+                                   bounds: RectOutput(bounds), advance: advance.width)
+        }
         return GlyphPathOutput(gid: value, svgPath: serialized.0,
+                               designSvgPath: designSerialized.0,
                                commandCount: serialized.1,
                                bounds: RectOutput(bounds), advance: advance.width)
     }
@@ -301,6 +316,11 @@ do {
         var rows: [SampleOutput] = []
         for sample in input.samples {
             let font = try openFont(path: input.fontPath, pointSize: sample.pointSize, axes: sample.axes)
+            let designFont = try openFont(
+                path: input.fontPath,
+                pointSize: CGFloat(CTFontGetUnitsPerEm(font)),
+                axes: sample.axes
+            )
             let maskURL = outputDirectory.appendingPathComponent("\(safeName(sample.id))-\(iteration)-ct-mask.png")
             try writeMask(font: font, glyphIds: sample.glyphIds, positions: sample.positions,
                           width: sample.width, height: sample.height, output: maskURL)
@@ -312,7 +332,7 @@ do {
                 mappedGlyphIds: mappedGlyphs(sample.text, font: font),
                 suppliedGlyphIds: sample.glyphIds,
                 positions: sample.positions,
-                glyphPaths: glyphPathOutputs(sample.glyphIds, font: font),
+                glyphPaths: glyphPathOutputs(sample.glyphIds, font: font, designFont: designFont),
                 metrics: metrics(font)
             ))
         }

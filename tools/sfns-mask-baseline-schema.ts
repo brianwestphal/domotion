@@ -4,6 +4,7 @@
  * This module deliberately classifies observations; it does not define a
  * renderer tolerance. The live collector is `sfns-mask-baseline-oracle.ts`.
  */
+import { createHash } from "node:crypto";
 
 export const SFNS_BASE_AXES = {
   wdth: 100,
@@ -100,8 +101,14 @@ export interface SfnsOracleRow {
     domotionSourceSha256: string;
   };
   pathCommandCounts: { native: number[]; domotion: Array<number | null> };
+  designCommandDigests: { native: string; domotion: string };
+  /** Production ownership recorded at the emitter boundary for every gid. */
+  outlineDispositions: string[];
   pathGeometry: {
     topologyMatches: boolean;
+    /** Both independent command streams are compared on the helper's exact
+     * serialized design-space lattice, never through a paint-pixel tolerance. */
+    designUnitQuantum: 0.001;
     maxDesignUnitDelta: number;
     maxPaintPixelDelta: number;
     meanPaintPixelDelta: number;
@@ -147,8 +154,11 @@ export interface SfnsRowClassification {
 }
 
 export interface SfnsOracleArtifact {
-  schemaVersion: 1;
+  schemaVersion: 2;
   authority: "diagnostic-only";
+  arm: "proposal" | "validation";
+  observationId: string;
+  logicalDigest: string;
   environment: {
     platform: "darwin";
     chromiumRevision: "7d859f271cbda744098ac69f44978d4edfa62be3";
@@ -159,6 +169,11 @@ export interface SfnsOracleArtifact {
     chromiumVersion: string;
     osVersion: string;
     arch: string;
+    helper: {
+      available: true;
+      path: string;
+      sha256: string;
+    };
   };
   rows: SfnsOracleRow[];
   classifications: Array<{ id: SfnsScenarioId } & SfnsRowClassification>;
@@ -252,7 +267,7 @@ export function classifySfnsOracleRow(row: SfnsOracleRow): SfnsRowClassification
 
 export function validateSfnsOracleArtifact(artifact: SfnsOracleArtifact): string[] {
   const errors: string[] = [];
-  if (artifact.schemaVersion !== 1) errors.push("schema-version");
+  if (artifact.schemaVersion !== 2) errors.push("schema-version");
   if (artifact.authority !== "diagnostic-only") errors.push("authority");
   const byId = new Map(artifact.rows.map((row) => [row.id, row]));
   for (const id of SFNS_REQUIRED_SCENARIOS) {
@@ -280,5 +295,154 @@ export function validateSfnsOracleArtifact(artifact: SfnsOracleArtifact): string
     && base.stageDigests.coreTextPath !== mutation.stageDigests.coreTextPath
     && base.stageDigests.domotionPath !== mutation.stageDigests.domotionPath;
   if (!mutationMoved || !artifact.mutationControlMoved) errors.push("opsz-mutation-did-not-move-all-stages");
+  return errors;
+}
+
+/** Exact logical identity exported for independent proposal/validation arms.
+ * Filesystem paths, observation nonce, raster bytes, and per-arm lifecycle
+ * hashes are deliberately excluded. Lifecycle stability is validated inside
+ * each arm; every source, axis, gid, quarter-origin, command-ownership, and
+ * command-geometry fact remains in the cross-arm digest. */
+export function sfnsOutlineLogicalDigest(artifact: SfnsOracleArtifact): string {
+  const rows = [...artifact.rows]
+    .sort((left, right) => left.id.localeCompare(right.id))
+    .map((row) => ({
+      id: row.id,
+      mutation: row.mutation,
+      requestedAxes: row.requestedAxes,
+      chromiumAxes: row.chromiumAxes,
+      nativeAxes: row.nativeAxes,
+      domotionAxes: row.domotionAxes,
+      nativeGlyphIds: row.nativeGlyphIds,
+      nativeMappedGlyphIds: row.nativeMappedGlyphIds,
+      domotionGlyphIds: row.domotionGlyphIds,
+      quarterPixelOrigins: row.quarterPixelOrigins,
+      nativeOrigins: row.nativeOrigins,
+      nativeBaselines: row.nativeBaselines,
+      sizes: row.sizes,
+      sourceIdentity: row.sourceIdentity,
+      pathCommandCounts: row.pathCommandCounts,
+      designCommandDigests: row.designCommandDigests,
+      outlineDispositions: row.outlineDispositions,
+      pathGeometry: row.pathGeometry,
+    }));
+  const payload = {
+    environment: {
+      platform: artifact.environment.platform,
+      chromiumRevision: artifact.environment.chromiumRevision,
+      skiaRevision: artifact.environment.skiaRevision,
+      fontPath: artifact.environment.fontPath,
+      fontSha256: artifact.environment.fontSha256,
+      deviceScaleFactor: artifact.environment.deviceScaleFactor,
+      chromiumVersion: artifact.environment.chromiumVersion,
+      arch: artifact.environment.arch,
+      helper: artifact.environment.helper,
+    },
+    rows,
+    mutationControlMoved: artifact.mutationControlMoved,
+  };
+  const canonicalize = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(canonicalize);
+    if (value != null && typeof value === "object") {
+      return Object.fromEntries(Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, entry]) => [key, canonicalize(entry)]));
+    }
+    return value;
+  };
+  return createHash("sha256").update(JSON.stringify(canonicalize(payload))).digest("hex");
+}
+
+/** Gate only the exact outline-ownership seam closed by DM-2567. The sibling
+ * mask/baseline classifier remains diagnostic because terminal raster coverage
+ * is a separate representation question. */
+export function validateSfnsExactOutlineArtifact(artifact: SfnsOracleArtifact): string[] {
+  const errors: string[] = [];
+  if (artifact.schemaVersion !== 2) errors.push("schema-version");
+  if (artifact.arm !== "proposal" && artifact.arm !== "validation") errors.push("arm");
+  if (artifact.observationId.trim() === "") errors.push("observation-id");
+  if (!artifact.environment.helper.available) errors.push("helper-unavailable");
+  if (artifact.environment.helper.path.trim() === "") errors.push("helper-path");
+  if (!/^[0-9a-f]{64}$/.test(artifact.environment.helper.sha256)) errors.push("helper-sha256");
+
+  const byId = new Map(artifact.rows.map((row) => [row.id, row]));
+  for (const id of SFNS_REQUIRED_SCENARIOS) {
+    const row = byId.get(id);
+    if (row == null) {
+      errors.push(`missing-scenario:${id}`);
+      continue;
+    }
+    if (!row.sourceIdentity.chromiumCustomFont) errors.push(`${id}:chromium-not-exact-byte-font`);
+    if (row.sourceIdentity.chromiumSourceSha256 !== artifact.environment.fontSha256) {
+      errors.push(`${id}:chromium-font-bytes`);
+    }
+    if (row.sourceIdentity.domotionSourcePath !== artifact.environment.fontPath
+        || row.sourceIdentity.domotionSourceSha256 !== artifact.environment.fontSha256) {
+      errors.push(`${id}:domotion-font-bytes`);
+    }
+    if (!axesMatch(row.chromiumAxes, row.requestedAxes)) errors.push(`${id}:chromium-css-axis-state`);
+    if (!axesMatch(row.nativeAxes, row.requestedAxes)) errors.push(`${id}:native-axis-state`);
+    if (!axesMatch(row.domotionAxes, row.requestedAxes)) errors.push(`${id}:domotion-axis-state`);
+    if (!sameNumbers(row.nativeGlyphIds, row.nativeMappedGlyphIds)
+        || !sameNumbers(row.nativeGlyphIds, row.domotionGlyphIds)) errors.push(`${id}:glyph-identity`);
+    if (!sameNumbers(row.quarterPixelOrigins, row.rawOrigins.map(quantizeQuarter))) {
+      errors.push(`${id}:quarter-origin-derivation`);
+    }
+    if (!sameNumbers(row.nativeOrigins, row.quarterPixelOrigins)) errors.push(`${id}:native-origin-routing`);
+    if (row.nativeBaselines.length !== row.nativeGlyphIds.length
+        || !sameNumbers(row.nativeBaselines, row.nativeBaselines.map(() => row.baseline.emittedBaseline))) {
+      errors.push(`${id}:native-baseline-routing`);
+    }
+    if (!lifecycleStable(row.lifecycle)) errors.push(`${id}:cold-warm-instability`);
+    if (row.outlineDispositions.length !== row.domotionGlyphIds.length
+        || row.outlineDispositions.some((disposition) => disposition !== "helper-outline")) {
+      errors.push(`${id}:outline-ownership`);
+    }
+    if (!sameNumbers(row.pathCommandCounts.native, row.pathCommandCounts.domotion.map((count) => count ?? -1))) {
+      errors.push(`${id}:command-counts`);
+    }
+    if (row.designCommandDigests.native !== row.designCommandDigests.domotion) {
+      errors.push(`${id}:design-command-digest`);
+    }
+    if (!row.pathGeometry.topologyMatches) errors.push(`${id}:command-topology`);
+    if (row.pathGeometry.designUnitQuantum !== 0.001) errors.push(`${id}:design-unit-quantum`);
+    if (row.pathGeometry.maxDesignUnitDelta !== 0
+        || row.pathGeometry.maxPaintPixelDelta !== 0
+        || row.pathGeometry.meanPaintPixelDelta !== 0) {
+      errors.push(`${id}:exact-design-geometry`);
+    }
+  }
+
+  const base = byId.get("zoom-2");
+  const mutation = byId.get("opsz-26-mutation");
+  const mutationMoved = base != null && mutation != null
+    && base.stageDigests.chromium !== mutation.stageDigests.chromium
+    && base.stageDigests.nativeMask !== mutation.stageDigests.nativeMask
+    && base.stageDigests.coreTextPath !== mutation.stageDigests.coreTextPath
+    && base.stageDigests.domotionPath !== mutation.stageDigests.domotionPath;
+  if (!mutationMoved || !artifact.mutationControlMoved) errors.push("opsz-mutation-did-not-move-all-stages");
+  if (base != null && mutation != null
+      && (base.designCommandDigests.native === mutation.designCommandDigests.native
+        || base.designCommandDigests.domotion === mutation.designCommandDigests.domotion)) {
+    errors.push("opsz-mutation-did-not-move-design-commands");
+  }
+  if (artifact.logicalDigest !== sfnsOutlineLogicalDigest(artifact)) errors.push("logical-digest");
+  return errors;
+}
+
+/** Require two independently launched observations to reach the same exact
+ * logical result. This is an equality gate, not a threshold or pixel fit. */
+export function validateSfnsProposalValidation(
+  proposal: SfnsOracleArtifact,
+  validation: SfnsOracleArtifact,
+): string[] {
+  const errors = [
+    ...validateSfnsExactOutlineArtifact(proposal).map((error) => `proposal:${error}`),
+    ...validateSfnsExactOutlineArtifact(validation).map((error) => `validation:${error}`),
+  ];
+  if (proposal.arm !== "proposal") errors.push("proposal:wrong-arm");
+  if (validation.arm !== "validation") errors.push("validation:wrong-arm");
+  if (proposal.observationId === validation.observationId) errors.push("observations-not-independent");
+  if (proposal.logicalDigest !== validation.logicalDigest) errors.push("proposal-validation-logical-digest");
   return errors;
 }

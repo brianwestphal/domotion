@@ -7,7 +7,7 @@
  * production Domotion path. See docs/168-sfns-mask-baseline-oracle.md.
  */
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   mkdirSync, mkdtempSync, readFileSync, writeFileSync,
 } from "node:fs";
@@ -21,12 +21,16 @@ import {
   clearFontResolutionCaches, clearGlyphDefs, setRenderTextMode,
 } from "../src/render/font-resolution.js";
 import {
+  isGlyphHelperAvailable, resolvedGlyphHelperPathForEvidence,
+} from "../src/render/glyph-helper.js";
+import {
   getTextRunProvenance, resetTextRunProvenance, setTextRunProvenanceEnabled,
   type TextRunProvenanceDiagnostic,
 } from "../src/render/text-run-provenance.js";
 import {
   SFNS_BASE_AXES, SFNS_MUTATION_AXES, classifySfnsOracleRow,
-  quantizeQuarter, validateSfnsOracleArtifact,
+  quantizeQuarter, sfnsOutlineLogicalDigest, validateSfnsExactOutlineArtifact,
+  validateSfnsOracleArtifact,
   type CoverageDiff, type SfnsAxes, type SfnsOracleArtifact,
   type SfnsOracleRow, type SfnsScenarioId,
 } from "./sfns-mask-baseline-schema.js";
@@ -58,6 +62,7 @@ const scenarios: Scenario[] = [
 interface NativePath {
   gid: number;
   svgPath: string;
+  designSvgPath: string;
   commandCount: number;
   bounds: { x: number; y: number; width: number; height: number };
   advance: number;
@@ -128,6 +133,12 @@ const value = (flag: string): string | undefined => {
   return index < 0 ? undefined : argv[index + 1];
 };
 const outputDirectory = resolve(value("--out") ?? "tests/output/sfns-mask-baseline");
+const armValue = value("--arm");
+if (armValue != null && armValue !== "proposal" && armValue !== "validation") {
+  throw new Error(`invalid --arm ${JSON.stringify(armValue)} (expected proposal or validation)`);
+}
+const arm = (armValue ?? "proposal") as "proposal" | "validation";
+const exactGateMode = armValue != null;
 
 function scenarioHtml(scenario: Scenario, fontUrl: string): string {
   const axisCss = Object.entries(scenario.axes)
@@ -247,6 +258,22 @@ function canonicalPath(path: string): CanonicalPathCommand[] {
   return result;
 }
 
+function canonicalDesignUnit(value: number): number {
+  const magnitude = Math.round(Math.abs(value) * 1000) / 1000;
+  return Object.is(magnitude, 0) ? 0 : Math.sign(value) * magnitude;
+}
+
+function canonicalDesignPaths(paths: string[]): CanonicalPathCommand[][] {
+  return paths.map((path) => canonicalPath(path).map((command) => ({
+    command: command.command,
+    coordinates: command.coordinates.map(canonicalDesignUnit),
+  })));
+}
+
+function designCommandDigest(paths: string[]): string {
+  return sha256(JSON.stringify(canonicalDesignPaths(paths)));
+}
+
 function domotionUsePaths(svg: string): string[] {
   const definitions = new Map([...svg.matchAll(/<path id="([^"]+)" d="([^"]*)"/g)]
     .map((match) => [match[1], match[2]]));
@@ -265,12 +292,12 @@ function comparePathGeometry(
   native: NativeSample, domotionSvg: string, serializedScale: number,
 ): SfnsOracleRow["pathGeometry"] {
   const domotion = domotionUsePaths(domotionSvg);
-  const nativeInk = native.glyphPaths.filter((glyph) => glyph.svgPath !== "");
+  const nativeInk = native.glyphPaths.filter((glyph) => glyph.designSvgPath !== "");
   const exactScale = native.metrics.pointSize / native.metrics.unitsPerEm;
   let topologyMatches = nativeInk.length === domotion.length;
   let maxDesignUnitDelta = 0; let sumPaintPixelDelta = 0; let coordinateCount = 0;
   for (let glyphIndex = 0; glyphIndex < Math.min(nativeInk.length, domotion.length); glyphIndex++) {
-    const left = canonicalPath(nativeInk[glyphIndex].svgPath);
+    const left = canonicalPath(nativeInk[glyphIndex].designSvgPath);
     const right = canonicalPath(domotion[glyphIndex]);
     if (left.length !== right.length) topologyMatches = false;
     for (let commandIndex = 0; commandIndex < Math.min(left.length, right.length); commandIndex++) {
@@ -279,7 +306,14 @@ function comparePathGeometry(
         topologyMatches = false; continue;
       }
       for (let coordinateIndex = 0; coordinateIndex < a.coordinates.length; coordinateIndex++) {
-        const designUnitDelta = Math.abs(a.coordinates[coordinateIndex] / exactScale - b.coordinates[coordinateIndex]);
+        // The production helper's Swift protocol serializes design coordinates
+        // at an exact 0.001-DU lattice. Canonicalize the independent native arm
+        // to that same declared representation before exact equality; this is
+        // neither a paint-pixel tolerance nor an inferred fit.
+        const designUnitDelta = Math.abs(
+          canonicalDesignUnit(a.coordinates[coordinateIndex])
+          - canonicalDesignUnit(b.coordinates[coordinateIndex]),
+        );
         maxDesignUnitDelta = Math.max(maxDesignUnitDelta, designUnitDelta);
         sumPaintPixelDelta += designUnitDelta * exactScale;
         coordinateCount++;
@@ -288,6 +322,7 @@ function comparePathGeometry(
   }
   return {
     topologyMatches,
+    designUnitQuantum: 0.001,
     maxDesignUnitDelta,
     maxPaintPixelDelta: maxDesignUnitDelta * exactScale,
     meanPaintPixelDelta: coordinateCount === 0 ? 0 : sumPaintPixelDelta / coordinateCount,
@@ -383,7 +418,9 @@ function nativeSample(output: NativeOutput, iteration: number, id: SfnsScenarioI
 }
 
 function nativePathDigest(sample: NativeSample): string {
-  return sha256(JSON.stringify(sample.glyphPaths.map(({ gid, svgPath, commandCount }) => ({ gid, svgPath, commandCount }))));
+  return sha256(JSON.stringify(sample.glyphPaths.map(({ gid, svgPath, designSvgPath, commandCount }) => ({
+    gid, svgPath, designSvgPath, commandCount,
+  }))));
 }
 
 function runNative(binary: string, input: string, output: string): NativeOutput {
@@ -413,6 +450,14 @@ if (process.platform !== "darwin") {
 mkdirSync(outputDirectory, { recursive: true });
 const fontBytes = readFileSync(FONT_PATH);
 const fontSha256 = sha256(fontBytes);
+if (!isGlyphHelperAvailable()) {
+  throw new Error("SFNS exact outline evidence requires the native glyph helper (fail closed)");
+}
+const helperPath = resolvedGlyphHelperPathForEvidence();
+if (helperPath == null) {
+  throw new Error("SFNS exact outline evidence could not authenticate the native glyph-helper path");
+}
+const helperSha256 = sha256(readFileSync(helperPath));
 const swiftSource = new URL("./sfns-mask-baseline.swift", import.meta.url).pathname;
 const buildDirectory = mkdtempSync(join(tmpdir(), "domotion-sfns-mask-"));
 const nativeBinary = join(buildDirectory, "sfns-mask-baseline");
@@ -607,6 +652,15 @@ try {
         native: native.glyphPaths.map((glyph) => glyph.commandCount),
         domotion: item.domotion.provenance.glyphs.map((glyph) => glyph.sourceOutline?.commandCount ?? null),
       },
+      designCommandDigests: {
+        native: designCommandDigest(native.glyphPaths
+          .filter((glyph) => glyph.designSvgPath !== "")
+          .map((glyph) => glyph.designSvgPath)),
+        domotion: designCommandDigest(domotionUsePaths(item.domotion.coldSvg)),
+      },
+      outlineDispositions: item.domotion.provenance.glyphs.map(
+        (glyph) => glyph.outlineDisposition ?? "missing-disposition",
+      ),
       pathGeometry: comparePathGeometry(native, item.domotion.coldSvg, item.domotion.emittedScale),
       baseline: {
         rangeTop: item.cssom.rangeTop,
@@ -662,8 +716,11 @@ try {
     && base.stageDigests.coreTextPath !== mutation.stageDigests.coreTextPath
     && base.stageDigests.domotionPath !== mutation.stageDigests.domotionPath;
   const artifact: SfnsOracleArtifact = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     authority: "diagnostic-only",
+    arm,
+    observationId: `${arm}:${process.pid}:${Date.now()}:${randomUUID()}`,
+    logicalDigest: "",
     environment: {
       platform: "darwin",
       chromiumRevision: CHROMIUM_REVISION,
@@ -674,12 +731,16 @@ try {
       chromiumVersion: await browser.version(),
       osVersion: osVersion(),
       arch: arch(),
+      helper: { available: true, path: helperPath, sha256: helperSha256 },
     },
     rows,
     classifications,
     mutationControlMoved,
   };
-  const errors = validateSfnsOracleArtifact(artifact);
+  artifact.logicalDigest = sfnsOutlineLogicalDigest(artifact);
+  const errors = exactGateMode
+    ? validateSfnsExactOutlineArtifact(artifact)
+    : validateSfnsOracleArtifact(artifact);
   const reportPath = join(outputDirectory, "report.json");
   writeFileSync(reportPath, `${JSON.stringify(artifact, null, 2)}\n`);
   console.log(`SFNS mask/baseline oracle: ${rows.length} rows; mutation moved=${mutationControlMoved}`);

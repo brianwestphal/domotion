@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
-import { getFontSourceInfo, type FontRun, type FontVariantEmojiOverride } from "./font-resolution.js";
+import { ITALIC_SLNT, getFontSourceInfo, resolveGlyphCommands, type FontRun, type FontVariantEmojiOverride } from "./font-resolution.js";
 
 export interface TextRunRequestDiagnostic {
   fontFamily: string;
@@ -50,6 +50,8 @@ export interface TextRunProvenanceDiagnostic {
     /** Identity of the exact source outline handed to the emitter. Empty
      * outlines (spaces, color-raster glyphs) are recorded as null. */
     sourceOutline: { sha256: string; commandCount: number } | null;
+    /** Ownership result for the exact command stream handed to the emitter. */
+    outlineDisposition?: string;
     rasterRepresentation?: string;
   }>;
   emittedIdentity: string;
@@ -162,13 +164,29 @@ export function recordSelectedFontRuns(
         const cluster = clusters[index] ?? 0;
         const relativeEnd = clusterEnd(run.text, cluster, clusters);
         const sourceSpan: [number, number] = [run.startIdx + cluster, run.startIdx + relativeEnd];
+        const sourceCodePoints = [...sourceText.slice(sourceSpan[0], sourceSpan[1])]
+          .map((character) => character.codePointAt(0)!);
+        const slant = request.fontStyle != null
+          && (request.fontStyle.toLowerCase() === "italic" || request.fontStyle.toLowerCase().startsWith("oblique"))
+          ? ITALIC_SLNT
+          : 0;
+        const outline = resolveGlyphCommands(
+          glyph,
+          run.fontKey,
+          request.fontWeight,
+          request.fontSizePx,
+          slant,
+          sourceCodePoints,
+          run.font,
+        );
         return {
           id: glyph.id,
           cluster,
           sourceSpan,
           sourceCodepointSpan: [codepointIndexAtUtf16(sourceText, sourceSpan[0]), codepointIndexAtUtf16(sourceText, sourceSpan[1])],
           ...position,
-          sourceOutline: outlineIdentity(glyph.path.commands),
+          sourceOutline: outlineIdentity(outline.commands),
+          outlineDisposition: outline.disposition,
           ...(glyph.rasterRepresentation == null ? {} : { rasterRepresentation: glyph.rasterRepresentation }),
         };
       });

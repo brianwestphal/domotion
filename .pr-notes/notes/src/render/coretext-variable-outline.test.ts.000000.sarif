@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6stb1g2juvs4h1",
+          "message": {
+            "text": "The macOS route was exercised against the live SFNS.ttf and CoreText helper for gids 969, 815, 815, 795, 1310, and 1377 at opsz 17 and 26. Two cache-cleared iterations each matched their direct CoreText command arrays on cold and warm reads; gid 969 moved from x 120.5 at opsz 17 to the mutated outline. Independently launched headless proposal and validation collectors then passed 5 scenarios and 30 gid observations with max design delta exactly zero and adjudicated to one logical digest.",
+            "markdown": "The macOS route was exercised against the live SFNS.ttf and CoreText helper for gids 969, 815, 815, 795, 1310, and 1377 at opsz 17 and 26. Two cache-cleared iterations each matched their direct CoreText command arrays on cold and warm reads; gid 969 moved from x 120.5 at opsz 17 to the mutated outline. Independently launched headless proposal and validation collectors then passed 5 scenarios and 30 gid observations with max design delta exactly zero and adjudicated to one logical digest."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/coretext-variable-outline.test.ts"
+                },
+                "region": {
+                  "startLine": 48,
+                  "endLine": 103,
+                  "snippet": {
+                    "text": "\n    for (let coldIteration = 0; coldIteration < 2; coldIteration++) {\n      clearFontResolutionCaches();\n      __clearGlyphFallbackCaches();\n\n      const iteration: { base: unknown[]; mutation: unknown[] } = { base: [], mutation: [] };\n      for (const [label, axes] of [[\"base\", BASE_AXES], [\"mutation\", MUTATION_AXES]] as const) {\n        const font = getFontInstance(\"sf-pro\", 700, 13, 0, axes, 100, true);\n        expect(font, `${label} font`).not.toBeNull();\n        const source = getFontSourceInfo(font);\n        expect(source).toMatchObject({\n          path: SFNS,\n          faceIndex: 0,\n          nameMatched: true,\n          variationAxes: axes,\n        });\n        expect(coreTextDesignOutlineEligibility(source)).toBe(\"eligible\");\n\n        const native = createGlyphHelperFont({ fontPath: SFNS, variations: axes });\n        expect(native, `${label} CoreText face`).not.toBeNull();\n        const layout = font!.layout(TEXT);\n        expect(layout.glyphs.map((glyph) => glyph.id)).toEqual([969, 815, 815, 795, 1310, 1377]);\n\n        const cold = layout.glyphs.map((glyph, index) => resolveGlyphCommands(\n          glyph,\n          \"sf-pro\",\n          700,\n          13,\n          0,\n          [TEXT.codePointAt(index)!],\n          font!,\n        ));\n        const warm = layout.glyphs.map((glyph, index) => resolveGlyphCommands(\n          glyph,\n          \"sf-pro\",\n          700,\n          13,\n          0,\n          [TEXT.codePointAt(index)!],\n          font!,\n        ));\n        const expected = layout.glyphs.map((glyph) => native!.getGlyph(glyph.id).path.commands);\n\n        expect(cold.map((result) => result.disposition)).toEqual(Array(6).fill(\"helper-outline\"));\n        expect(cold.map((result) => result.commands)).toEqual(expected);\n        expect(warm).toEqual(cold);\n        iteration[label] = cold.map((result) => result.commands);\n      }\n      coldWarmEvidence.push(iteration);\n    }\n\n    expect(coldWarmEvidence[1]).toEqual(coldWarmEvidence[0]);\n    expect(coldWarmEvidence[0].base).not.toEqual(coldWarmEvidence[0].mutation);\n    expect((coldWarmEvidence[0].base[0] as Array<{ args: number[] }>)[0].args[0]).toBe(120.5);\n  });\n});"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/sfns-outline-parity-gate.ts"
+                },
+                "region": {
+                  "startLine": 23
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/sfns-mask-baseline-oracle.ts"
+                },
+                "region": {
+                  "startLine": 468
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2567"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "35381375b01b328dab5f10b952e62ea7"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "92ba34f73bcf74981b5b1f7252e71168f3bfbe88",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

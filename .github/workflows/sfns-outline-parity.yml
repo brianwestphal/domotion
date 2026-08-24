@@ -1,0 +1,93 @@
+name: SFNS exact CoreText outline parity
+
+on:
+  pull_request:
+    paths:
+      - "src/render/font-resolution.ts"
+      - "src/render/text-to-path.ts"
+      - "src/render/text-run-provenance.ts"
+      - "src/render/glyph-helper.ts"
+      - "tools/macos-glyph-extractor/Sources/DomotionGlyphPaths/main.swift"
+      - "tools/sfns-mask-baseline.swift"
+      - "tools/sfns-mask-baseline-oracle.ts"
+      - "tools/sfns-mask-baseline-schema.ts"
+      - "tools/sfns-outline-parity-gate.ts"
+      - "tests/sfns-mask-baseline-oracle.test.ts"
+      - "tests/sfns-outline-parity-workflow.test.ts"
+      - "package.json"
+      - ".github/workflows/sfns-outline-parity.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/render/font-resolution.ts"
+      - "src/render/text-to-path.ts"
+      - "src/render/text-run-provenance.ts"
+      - "src/render/glyph-helper.ts"
+      - "tools/macos-glyph-extractor/Sources/DomotionGlyphPaths/main.swift"
+      - "tools/sfns-mask-baseline.swift"
+      - "tools/sfns-mask-baseline-oracle.ts"
+      - "tools/sfns-mask-baseline-schema.ts"
+      - "tools/sfns-outline-parity-gate.ts"
+      - "package.json"
+      - ".github/workflows/sfns-outline-parity.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    name: ${{ matrix.arm }} independent CoreText observation
+    strategy:
+      fail-fast: false
+      matrix:
+        arm: [proposal, validation]
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install pinned Chromium for explicitly headless capture
+        run: npx playwright install chromium
+      - name: Build CoreText outline helper
+        run: bash tools/macos-glyph-extractor/build.sh
+      - name: Collect authenticated exact outline evidence (headless)
+        run: >-
+          npm run fonts:sfns-mask-baseline --
+          --arm ${{ matrix.arm }}
+          --out evidence/${{ matrix.arm }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sfns-outline-${{ matrix.arm }}
+          path: evidence/${{ matrix.arm }}
+          if-no-files-found: error
+          retention-days: 30
+
+  adjudicate:
+    needs: collect
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: sfns-outline-proposal
+          path: evidence/proposal
+      - uses: actions/download-artifact@v4
+        with:
+          name: sfns-outline-validation
+          path: evidence/validation
+      - name: Require exact independent logical agreement
+        run: >-
+          npm run fonts:sfns-outline:adjudicate --
+          --proposal evidence/proposal/report.json
+          --validation evidence/validation/report.json

@@ -469,12 +469,14 @@ function ownedCommandsFor(
   weight: number,
   fontSize: number,
   slant: number,
+  selectedFont: FontInstance,
   sourceSpan: [number, number],
   sourceText: string,
 ): PathCommand[] {
   const resolution = resolveGlyphCommands(
     glyph, fontKey, weight, fontSize, slant,
     codePointsInSourceSpan(sourceText, sourceSpan),
+    selectedFont,
   );
   if (resolution.disposition === "source-outline" || resolution.disposition === "helper-outline") {
     ownership.vectorGlyphs++;
@@ -821,6 +823,7 @@ function renderTextPathRuns(
             }
             const gCmds = ownedCommandsFor(
               ownership, g, run.fontKey, weight, fontSize, slant,
+              run.font,
               boundedSourceSpan(text, i, nextI),
               text,
             );
@@ -1064,6 +1067,7 @@ function renderTextPathRuns(
               ? []
               : ownedCommandsFor(
                 ownership, glyph, run.fontKey, weight, fontSize, slant,
+                run.font,
                 boundedSourceSpan(
                   text,
                   run.startIdx + seg.start + glyphSourceSpans[gi][0],
@@ -1128,6 +1132,7 @@ function renderTextPathRuns(
         ? []
         : ownedCommandsFor(
           ownership, glyph, run.fontKey, weight, fontSize, slant,
+          run.font,
           boundedSourceSpan(
             text,
             run.startIdx + glyphSourceSpans[i][0],
@@ -1436,6 +1441,7 @@ function singleFontMarkup(
         ? []
         : ownedCommandsFor(
           ownership, glyph, fontKey, weight, fontSize, slant,
+          font,
           boundedSourceSpan(text, textIdx, textIdx + clusterSpan),
           text,
         );
@@ -1498,6 +1504,7 @@ function singleFontMarkup(
       ? []
       : ownedCommandsFor(
         ownership, glyph, fontKey, weight, fontSize, slant,
+        font,
         boundedSourceSpan(text, sourceCursor, sourceCursor + clusterSpan),
         text,
       );
@@ -2702,7 +2709,7 @@ function renderEmbeddedGlyphRuns(
         run.font, run.fontKey, glyph, fontSize, weight, slant);
       const commandResolution = rasterOwned
         ? null
-        : resolveGlyphCommands(glyph, run.fontKey, weight, fontSize, slant);
+        : resolveGlyphCommands(glyph, run.fontKey, weight, fontSize, slant, undefined, run.font);
 
       let xCss: number;
       let yCss = 0;
@@ -3151,7 +3158,7 @@ export function glyphRasterRepresentation(
     try { if (glyph.getImageForSize?.(fontSize) != null) return "sbix"; } catch { /* use table/path evidence below */ }
   }
   if (glyph.type === "COLR" && font.COLR?.baseGlyphRecord?.some((record) => record.gid === glyph.id)) return "colr";
-  if (commandsFor(glyph, fontKey, weight, fontSize, slant).length > 0) return null;
+  if (commandsFor(glyph, fontKey, weight, fontSize, slant, font).length > 0) return null;
   const tables = font.directory?.tables;
   if (tables != null && "CBDT" in tables && "CBLC" in tables) return "bitmap";
   if (tables != null && "sbix" in tables) return "sbix";
@@ -3969,7 +3976,7 @@ export function renderStretchyFenceGlyph(
   // path. Use the same native-helper fallback as ordinary glyph emission;
   // otherwise this dedicated stretchy branch returns null and the caller falls
   // through to baseline text, which is about 5 px too low for the row fence.
-  const glyphCommands = commandsFor(glyph, useKey, weight, fontSize, slant);
+  const glyphCommands = commandsFor(glyph, useKey, weight, fontSize, slant, font);
   if (glyphCommands.length === 0) return null;
   let bbox = glyph.bbox;
   if (bbox == null || !(bbox.maxY > bbox.minY)) {
