@@ -56,6 +56,15 @@ GitHub image, Node/ICU/Unicode, launched Chromium, Playwright, fontconfig, full
 font inventory, checkout, and all release asset digests. Volatile timestamps
 remain outside the fingerprint.
 
+The source portion is fail-closed: the checkout plus the governing Chromium,
+HarfBuzz, Skia, and ICU inputs must each be a full 40-hex revision inside the
+fingerprinted environment. The acquisition leg rejects an absent or abbreviated
+revision, and the finalizer repeats that semantic check rather than trusting an
+`acquisition-exact` label. Native run `32688604271` passed every parity leg but
+recorded a null Chromium revision (and omitted the other upstream revisions),
+so it is retained as evidence of the gate defect and is not release-consumer
+proof.
+
 ## Parity matrix and verdict
 
 After acquisition succeeds, the workflow runs eight independently named legs:

@@ -5,6 +5,7 @@ import {
   decorationEvidenceErrors,
   parseElfIdentity,
   REQUIRED_OUTCOMES,
+  sourceFingerprintErrors,
   stableFingerprint,
 } from "../tools/linux-arm64-release-evidence.js";
 
@@ -35,6 +36,15 @@ const exactAcquisition = {
   target: { platform: "linux", architecture: "arm64" },
   verdict: "acquisition-exact" as const,
   environmentFingerprint: "b".repeat(64),
+  environment: {
+    source: {
+      checkoutSha: "1".repeat(40),
+      chromiumRevision: "2".repeat(40),
+      harfbuzzRevision: "3".repeat(40),
+      skiaRevision: "4".repeat(40),
+      icuSourceRevision: "5".repeat(40),
+    },
+  },
 };
 
 describe("DM-2353 Linux arm64 release evidence", () => {
@@ -57,6 +67,17 @@ describe("DM-2353 Linux arm64 release evidence", () => {
     const moved = { nested: { fonts: ["A", "C"], arch: "arm64" }, platform: "linux" };
     expect(stableFingerprint(left)).toBe(stableFingerprint(same));
     expect(stableFingerprint(left)).not.toBe(stableFingerprint(moved));
+  });
+
+  it("fails closed when any governing source revision is absent or abbreviated", () => {
+    expect(sourceFingerprintErrors(exactAcquisition.environment)).toEqual([]);
+    expect(sourceFingerprintErrors({
+      source: {
+        ...exactAcquisition.environment.source,
+        chromiumRevision: null,
+        skiaRevision: "62efacd",
+      },
+    }).join("\n")).toMatch(/chromiumRevision[\s\S]*skiaRevision/);
   });
 
   it("requires the complete coherent-DPR decoration matrix without widening its envelope", () => {
@@ -101,5 +122,16 @@ describe("DM-2353 Linux arm64 release evidence", () => {
     expect(report.errors.join("\n")).toMatch(/not linux\/arm64/);
     expect(report.errors.join("\n")).toMatch(/shaping outcome is failure/);
     expect(report.errors.join("\n")).toMatch(/unicode\/results\.json/);
+  });
+
+  it("does not accept an exact acquisition label with an incomplete source fingerprint", () => {
+    const report = buildFinalReport(
+      { ...exactAcquisition, environment: { source: { checkoutSha: "1".repeat(40) } } },
+      successfulOutcomes,
+      requiredArtifacts,
+    );
+    expect(report.verdict).toBe("arm64-release-parity-drift");
+    expect(report.errors.join("\n")).toMatch(/chromiumRevision/);
+    expect(report.errors.join("\n")).toMatch(/icuSourceRevision/);
   });
 });

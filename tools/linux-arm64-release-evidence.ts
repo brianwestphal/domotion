@@ -424,7 +424,13 @@ async function captureEnvironment(assets: AcquisitionReport["assets"]): Promise<
     source: {
       checkoutSha: process.env.GITHUB_SHA ?? execText("git", ["rev-parse", "HEAD"]),
       packageVersion: PKG.version,
-      chromiumRevision: execText("git", ["-C", "external/chromium", "rev-parse", "HEAD"]),
+      chromiumRevision: process.env.DOMOTION_CHROMIUM_REVISION
+        ?? execText("git", ["-C", "external/chromium", "rev-parse", "HEAD"]),
+      harfbuzzRevision: process.env.DOMOTION_HARFBUZZ_REVISION
+        ?? execText("git", ["-C", "external/harfbuzz", "rev-parse", "HEAD"]),
+      skiaRevision: process.env.DOMOTION_SKIA_REVISION
+        ?? execText("git", ["-C", "external/skia", "rev-parse", "HEAD"]),
+      icuSourceRevision: process.env.DOMOTION_ICU_SOURCE_REVISION ?? null,
     },
     fonts: fontInventory(),
     releaseAssets: {
@@ -433,6 +439,30 @@ async function captureEnvironment(assets: AcquisitionReport["assets"]): Promise<
       icuData: { tag: assets.icuData.tag, name: assets.icuData.name, sha256: assets.icuData.sha256 },
     },
   };
+}
+
+const REQUIRED_SOURCE_REVISIONS = [
+  "checkoutSha",
+  "chromiumRevision",
+  "harfbuzzRevision",
+  "skiaRevision",
+  "icuSourceRevision",
+] as const;
+
+/** A digest is only source evidence when every governing checkout is identified. */
+export function sourceFingerprintErrors(environment: unknown): string[] {
+  const source = environment != null && typeof environment === "object"
+    ? (environment as { source?: unknown }).source
+    : null;
+  if (source == null || typeof source !== "object") {
+    return ["source fingerprint is missing"];
+  }
+  const record = source as Record<string, unknown>;
+  return REQUIRED_SOURCE_REVISIONS.flatMap((name) => (
+    typeof record[name] === "string" && /^[0-9a-f]{40}$/.test(record[name])
+      ? []
+      : [`source fingerprint ${name} is missing or is not a full revision`]
+  ));
 }
 
 function ensureCleanCacheRoot(cacheRoot: string): void {
@@ -505,6 +535,7 @@ async function acquireEvidence(cacheRoot: string, version: string): Promise<Acqu
   if (Object.values(cacheReuse).some((value) => !value)) errors.push("second acquisition did not reuse byte-identical cache entries");
   const smoke = { glyph: helperSmoke(glyphPath), icu: icuSmoke(icuPath) };
   const environment = await captureEnvironment(assets);
+  errors.push(...sourceFingerprintErrors(environment));
   const report: AcquisitionReport = {
     schemaVersion: 1,
     ticket: "DM-2353",
@@ -633,6 +664,7 @@ export function buildFinalReport(
   if (acquisition.target?.platform !== "linux" || acquisition.target?.architecture !== "arm64") errors.push("acquisition target is not linux/arm64");
   if (acquisition.verdict !== "acquisition-exact") errors.push("acquisition verdict is not exact");
   if (typeof acquisition.environmentFingerprint !== "string" || !/^[0-9a-f]{64}$/.test(acquisition.environmentFingerprint)) errors.push("acquisition environment fingerprint is missing");
+  errors.push(...sourceFingerprintErrors(acquisition.environment));
   for (const name of REQUIRED_OUTCOMES) {
     if (outcomes[name] !== "success") errors.push(`${name} outcome is ${outcomes[name] ?? "missing"}`);
   }

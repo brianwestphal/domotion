@@ -11,8 +11,13 @@ describe("DM-2353 Linux arm64 release parity workflow", () => {
     expect(workflow).toContain("mcr.microsoft.com/playwright:v1.59.1-noble");
     expect(workflow).toContain("node-version: 22.21.0");
     expect(workflow).toMatch(/defaults:\s*\n\s*run:\s*\n\s*shell: bash/);
-    for (const key of ["DOMOTION_CHROMIUM_REVISION", "DOMOTION_HARFBUZZ_REVISION", "DOMOTION_SKIA_REVISION", "DOMOTION_ICU_SOURCE_REVISION"]) {
-      expect(workflow).toContain(`${key}:`);
+    for (const [key, revision] of Object.entries({
+      DOMOTION_CHROMIUM_REVISION: "7d859f271cbda744098ac69f44978d4edfa62be3",
+      DOMOTION_HARFBUZZ_REVISION: "4de187dd0a915d13c976fa8bd474c084229f3aab",
+      DOMOTION_SKIA_REVISION: "62efacd37737505732dbe3d8daa62abd679626a1",
+      DOMOTION_ICU_SOURCE_REVISION: "d578f2e8b7bd5938e21cfb6bf15c079e0aa5b738",
+    })) {
+      expect(workflow).toContain(`${key}: ${revision}`);
     }
   });
 
