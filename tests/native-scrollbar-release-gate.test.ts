@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { adjudicateNativeScrollbarReports, SCROLLBAR_GATE_DPRS, SCROLLBAR_GATE_PLATFORMS, SCROLLBAR_GATE_SCENARIOS, SCROLLBAR_GATE_SOURCE_REVISIONS, SCROLLBAR_GATE_ZOOMS, type NativeScrollbarAuditReport } from "../tools/native-scrollbar-release-gate.js";
+import { scrollbarAuditSceneGeometry } from "../tools/native-scrollbar-ownership-audit.js";
 
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 function report(platform: typeof SCROLLBAR_GATE_PLATFORMS[number], evidenceRole: "proposal" | "validation"): NativeScrollbarAuditReport {
@@ -48,5 +49,22 @@ describe("native scrollbar six-role release adjudicator", () => {
     const reports = complete(); reports[0].controls.exact = false;
     const result = adjudicateNativeScrollbarReports([{}, ...reports]);
     expect(result.blockers.join("\n")).toMatch(/schema v2 rejected|controls are not all active/);
+  });
+});
+
+describe("native scrollbar Cartesian scene", () => {
+  it("keeps every release zoom fully inside the authenticated viewport", () => {
+    for (const zoom of SCROLLBAR_GATE_ZOOMS) {
+      const scene = scrollbarAuditSceneGeometry(zoom);
+      expect(scene.clip.x + scene.clip.width).toBeLessThanOrEqual(scene.viewport.width);
+      expect(scene.clip.y + scene.clip.height).toBeLessThanOrEqual(scene.viewport.height);
+      expect(scene.targetVisual.width).toBeLessThan(scene.clip.width);
+      expect(scene.targetVisual.height).toBeLessThan(scene.clip.height);
+    }
+  });
+
+  it("rejects off-contract zooms instead of silently clipping the probe", () => {
+    expect(() => scrollbarAuditSceneGeometry(0)).toThrow(/unsupported scrollbar audit zoom/);
+    expect(() => scrollbarAuditSceneGeometry(2.01)).toThrow(/unsupported scrollbar audit zoom/);
   });
 });

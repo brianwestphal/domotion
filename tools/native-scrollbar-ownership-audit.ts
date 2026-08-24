@@ -22,7 +22,40 @@ const SOURCE_REVISIONS = {
   skiaPinnedByChromium: "62efacd37737505732dbe3d8daa62abd679626a1",
 } as const;
 
-const VIEWPORT = { width: 270, height: 205 };
+const TARGET_ORIGIN = { x: 34, y: 27 } as const;
+const TARGET_SIZE = { width: 156, height: 118 } as const;
+const CLIP_SIZE = { width: 176, height: 142 } as const;
+const MAX_AUDIT_ZOOM = 2;
+// Keep the complete zoomed clip and target inside the authenticated scene.
+// A fixed 270x205 scene clipped zoom=2 scrollbars out of the capture region,
+// making those Cartesian cells vacuous rather than testing Blink ownership.
+const VIEWPORT = {
+  width: TARGET_ORIGIN.x + CLIP_SIZE.width * MAX_AUDIT_ZOOM + 44,
+  height: TARGET_ORIGIN.y + CLIP_SIZE.height * MAX_AUDIT_ZOOM + 39,
+};
+
+export function scrollbarAuditSceneGeometry(cssZoom: number): {
+  viewport: typeof VIEWPORT;
+  clip: { x: number; y: number; width: number; height: number };
+  targetVisual: { width: number; height: number };
+} {
+  if (!Number.isFinite(cssZoom) || cssZoom <= 0 || cssZoom > MAX_AUDIT_ZOOM) {
+    throw new Error(`unsupported scrollbar audit zoom ${cssZoom}`);
+  }
+  return {
+    viewport: VIEWPORT,
+    clip: {
+      x: TARGET_ORIGIN.x,
+      y: TARGET_ORIGIN.y,
+      width: CLIP_SIZE.width * cssZoom,
+      height: CLIP_SIZE.height * cssZoom,
+    },
+    targetVisual: {
+      width: TARGET_SIZE.width * cssZoom,
+      height: TARGET_SIZE.height * cssZoom,
+    },
+  };
+}
 const TARGET_BACKGROUND = [237, 241, 245] as const;
 const MARKER_DISTANCE_SQUARED = 30 ** 2 * 3;
 
@@ -49,6 +82,7 @@ interface AuditCase {
   contentCss: string;
   custom?: boolean;
   clipCss?: string;
+  clipSize?: { width: number; height: number };
   mutation?: { left?: number; top?: number };
   dprs?: number[];
   background?: readonly [number, number, number];
@@ -304,7 +338,8 @@ const CASES: AuditCase[] = [
     expectedRoute: "custom-vector",
     targetCss: "left:-9px;top:-7px;overflow:auto;border-width:3px 9px 7px 5px",
     contentCss: "width:390px;height:330px",
-    clipCss: "overflow:hidden;width:145px;height:112px",
+    clipCss: "overflow:hidden",
+    clipSize: { width: 145, height: 112 },
     custom: true,
     mutation: { left: 97, top: 76 },
   },
@@ -364,12 +399,15 @@ const CASES: AuditCase[] = [
 
 function htmlFor(test: AuditCase, cssZoom = 1): string {
   const background = test.background ?? TARGET_BACKGROUND;
+  const scene = scrollbarAuditSceneGeometry(cssZoom);
+  const clipWidth = (test.clipSize?.width ?? CLIP_SIZE.width) * cssZoom;
+  const clipHeight = (test.clipSize?.height ?? CLIP_SIZE.height) * cssZoom;
   return `<!doctype html><style>
     html,body{margin:0;width:${VIEWPORT.width}px;height:${VIEWPORT.height}px;background:#fff;overflow:hidden}
     *{box-sizing:border-box}
     #scene{position:relative;width:${VIEWPORT.width}px;height:${VIEWPORT.height}px;background:#fff;overflow:hidden}
-    #clip{position:absolute;left:34px;top:27px;width:176px;height:142px;${test.clipCss ?? "overflow:visible"}}
-    #target{position:absolute;left:0;top:0;width:156px;height:118px;border:4px solid #343d48;background:rgb(${background.join(",")});${test.targetCss};zoom:${cssZoom}}
+    #clip{position:absolute;left:${scene.clip.x}px;top:${scene.clip.y}px;width:${clipWidth}px;height:${clipHeight}px;${test.clipCss ?? "overflow:visible"}}
+    #target{position:absolute;left:0;top:0;width:${TARGET_SIZE.width}px;height:${TARGET_SIZE.height}px;border:4px solid #343d48;background:rgb(${background.join(",")});${test.targetCss};zoom:${cssZoom}}
     #content{display:block;background:rgb(${background.join(",")});${test.contentCss}}
     ${test.custom ? CUSTOM_SCROLLBAR_CSS : ""}
   </style><div id="scene"><div id="clip"><div id="target"><i id="content"></i></div></div></div>`;
@@ -450,7 +488,8 @@ function findCapturedScroller(elements: CapturedElement[]): CapturedElement | nu
     // The fixture target is the only bordered descendant.  Selecting by
     // overflow would accidentally choose the ancestor clip in the clip row and
     // would make the overflow:visible negative disappear from capture facts.
-    if (element.width < 220 && element.height < 190
+    if (element.width <= TARGET_SIZE.width * MAX_AUDIT_ZOOM
+        && element.height <= TARGET_SIZE.height * MAX_AUDIT_ZOOM
         && [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth]
           .some((width) => (parseFloat(width ?? "0") || 0) > 0)) return element;
     const child = findCapturedScroller(element.children ?? []);

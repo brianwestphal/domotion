@@ -48,6 +48,10 @@ retain:
   `--hide-scrollbars` was removed;
 - observed overlay/classic preference;
 - every fixture at DPR 1 and 2 crossed with CSS zoom 1, 1.25, and 2; and
+- a zoom-scaled clip inside one authenticated maximum-zoom viewport, so the
+  complete target, scrollbar, corner, and resizer remain observable at every
+  Cartesian cell (the deliberately clipped-border row scales its own source
+  clip by the same zoom); and
 - row-level scheme, forced-colors state, capture route/status, source state,
   and lossless source/generated PNG metadata and SHA-256; and
 - canonical hashes over logical rows, complete rows, and the artifact manifest,

@@ -168,6 +168,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6v10vyf9kcxn5q",
+          "message": {
+            "text": "DM-2570: the fixed 270x205 audit scene clipped cssZoom=2 scrollbars out of the capture region, making release cells vacuous. The scene now derives one authenticated viewport from the maximum supported zoom and scales both ordinary and deliberately clipped source clips with authored zoom; pure and explicit-headless controls prove every supported target remains in-frame without changing any visual tolerance.",
+            "markdown": "DM-2570: the fixed 270x205 audit scene clipped cssZoom=2 scrollbars out of the capture region, making release cells vacuous. The scene now derives one authenticated viewport from the maximum supported zoom and scales both ordinary and deliberately clipped source clips with authored zoom; pure and explicit-headless controls prove every supported target remains in-frame without changing any visual tolerance."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/native-scrollbar-ownership-audit.ts"
+                },
+                "region": {
+                  "startLine": 25,
+                  "endLine": 58,
+                  "snippet": {
+                    "text": "const TARGET_ORIGIN = { x: 34, y: 27 } as const;\nconst TARGET_SIZE = { width: 156, height: 118 } as const;\nconst CLIP_SIZE = { width: 176, height: 142 } as const;\nconst MAX_AUDIT_ZOOM = 2;\n// Keep the complete zoomed clip and target inside the authenticated scene.\n// A fixed 270x205 scene clipped zoom=2 scrollbars out of the capture region,\n// making those Cartesian cells vacuous rather than testing Blink ownership.\nconst VIEWPORT = {\n  width: TARGET_ORIGIN.x + CLIP_SIZE.width * MAX_AUDIT_ZOOM + 44,\n  height: TARGET_ORIGIN.y + CLIP_SIZE.height * MAX_AUDIT_ZOOM + 39,\n};\n\nexport function scrollbarAuditSceneGeometry(cssZoom: number): {\n  viewport: typeof VIEWPORT;\n  clip: { x: number; y: number; width: number; height: number };\n  targetVisual: { width: number; height: number };\n} {\n  if (!Number.isFinite(cssZoom) || cssZoom <= 0 || cssZoom > MAX_AUDIT_ZOOM) {\n    throw new Error(`unsupported scrollbar audit zoom ${cssZoom}`);\n  }\n  return {\n    viewport: VIEWPORT,\n    clip: {\n      x: TARGET_ORIGIN.x,\n      y: TARGET_ORIGIN.y,\n      width: CLIP_SIZE.width * cssZoom,\n      height: CLIP_SIZE.height * cssZoom,\n    },\n    targetVisual: {\n      width: TARGET_SIZE.width * cssZoom,\n      height: TARGET_SIZE.height * cssZoom,\n    },\n  };\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 1,
+          "workItemUris": [
+            "DM-2570"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "9952547b763b6161d0414b2eca9fbbfd"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "5d22f3fd439ef1ef2f67c9dd0f2fd6b311ce025a",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
