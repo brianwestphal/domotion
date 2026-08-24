@@ -862,14 +862,16 @@
       "oracles": [
         "tools/paint-geometry-oracle.ts",
         "tools/collapsed-border-fragmentation-oracle.ts",
-        "tools/paged-collapsed-table-ownership-audit.ts"
+        "tools/paged-collapsed-table-ownership-audit.ts",
+        "tools/fragmented-collapsed-table-release-gate.ts"
       ],
       "metamorphicTests": [
         "src/capture/collapsed-border-fragment-record.test.ts",
         "src/capture/paged-collapsed-table-record.test.ts",
         "src/capture/script/walker/collapsed-border.test.ts",
         "tests/collapsed-border-fragmentation-oracle.test.ts",
-        "tests/paged-collapsed-table-ownership-audit.test.ts"
+        "tests/paged-collapsed-table-ownership-audit.test.ts",
+        "tests/fragmented-collapsed-table-release-gate.test.ts"
       ],
       "visualFixtures": [
         "src/capture/collapsed-border-fragment-cdp.e2e.test.ts",

@@ -2438,6 +2438,11 @@ pixel tolerance or fitted font-name table (DM-2550, doc 224).
   on macOS, Linux, and Windows. Pixels may validate the terminal only after the
   logical record passes; they may not fill missing provenance or justify a
   tolerance change (DM-2526, DM-2557–DM-2560, doc 225).
+- The release aggregate requires nine independent reports: exact screen
+  fragment logic, exact public-print fail-closed ownership, and the unchanged
+  reviewed native border envelope for macOS, Linux, and Windows. Missing
+  mutations, platforms, artifact identity, or logical ownership fail before
+  native ink is considered; all browser launches are headless.
 - Do not infer paged-table row breaks, repeated-section occurrences, or
   collapsed-edge decisions from `Page.printToPDF`, PDF objects, vector output,
   or pixels. Public CDP returns only PDF bytes after `PrintEnd` destroys the

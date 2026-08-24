@@ -193,6 +193,23 @@ npx vitest run src/capture/paged-collapsed-table-record.test.ts tests/paged-coll
 npx vitest run --config vitest.e2e.config.ts src/capture/paged-collapsed-table-cdp.e2e.test.ts
 ```
 
+## Three-platform release gate
+
+`.github/workflows/fragmented-collapsed-table-release.yml` runs three separate
+legs on macOS, Linux, and Windows. The screen leg must retain all 21 exact
+logical discriminators and all 15 destructive controls. The public-print leg
+must retain the eight-cell, 15-mutation fail-closed result; a PDF or screenshot
+cannot fill any of its 14 missing private facts. Only after those reports pass
+does the terminal leg apply the unchanged reviewed border-phase envelope to
+the complete DPR 1/2/4 × zoom 0.8/1/1.25 matrix.
+
+`tools/fragmented-collapsed-table-release-gate.ts` requires all nine reports
+and refuses promotion if any platform, mutation, logical verdict, artifact-set
+identity, or native scenario is absent. Exact terminal ink cannot excuse an
+incomplete screen record or a falsely promoted print record. The workflow
+retains the complete Cartesian artifact set and every Chromium launch is
+explicitly headless.
+
 ## Bounded follow-up sequence
 
 1. **DM-2557 — completed.** The versioned source-pinned screen record is
@@ -210,10 +227,9 @@ npx vitest run --config vitest.e2e.config.ts src/capture/paged-collapsed-table-c
    needed to serialize the complete transient record during the
    `PrintBegin`-to-`PrintEnd` epoch. It may not reconstruct facts from PDF,
    screen geometry, raster output, or tolerance.
-5. **DM-2560 — Gate fragmented collapsed-border records and final ink
-   independently on all platforms.** This is blocked by DM-2557, DM-2558, and
-   DM-2559. The logical Cartesian corpus must pass on macOS, Linux, and Windows
-   before a separate native final-ink leg can support release.
+5. **DM-2560 — implemented release gate.** The three-platform workflow and
+   aggregate require screen logic, public-print rejection, and native final ink
+   independently. Promotion waits for its first retained complete artifact.
 
 The dependency order prevents a release gate from blessing today's
 CSSOM-only reconstruction and keeps screen fragmentation, repeated-section

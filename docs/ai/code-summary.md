@@ -1196,6 +1196,11 @@ fragment tree is valid only after `PrintBegin` and is destroyed by `PrintEnd`
 before CDP returns. [Doc 230](../230-paged-table-private-fragment-transport.md)
 selects an evidence-only pinned renderer Mojo/DevTools sidecar; PDF parsing,
 Skia instrumentation, and tracing are not accepted as logical substitutes.
+`tools/fragmented-collapsed-table-release-gate.ts` and its three-platform
+workflow require screen-fragment logic, public-print rejection, and the
+unchanged native border-phase envelope independently. The retained aggregate
+contains all nine platform/leg reports; raster evidence cannot fill a missing
+logical record.
 
 ### Pre-navigation rAF capture ownership (DM-2554)
 

@@ -110,6 +110,7 @@
     "borders:phase-ratify": "tsx tools/border-phase-ratifier.ts",
     "borders:collapsed-fragmentation-audit": "node --import tsx tools/collapsed-border-fragmentation-oracle.ts",
     "borders:paged-collapsed-ownership-audit": "node --import tsx tools/paged-collapsed-table-ownership-audit.ts",
+    "borders:fragmented-release-gate": "node --import tsx tools/fragmented-collapsed-table-release-gate.ts",
     "paint:geometry-oracle": "tsx tools/paint-geometry-oracle.ts",
     "paint:geometry-browser-oracle": "tsx tools/paint-geometry-browser-oracle.ts",
     "paint:svg-effect-combinations": "node --import tsx tools/svg-effect-combination-oracle.ts",

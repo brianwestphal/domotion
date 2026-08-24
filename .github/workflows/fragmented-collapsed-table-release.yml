@@ -1,0 +1,83 @@
+name: Fragmented collapsed-table release
+
+on:
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "22.21.0"
+  CHROMIUM_SOURCE_REVISION: "7d859f271cbda744098ac69f44978d4edfa62be3"
+
+jobs:
+  collect:
+    name: ${{ matrix.label }} logical and final-ink evidence
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest
+            label: macOS
+          - runner: ubuntu-latest
+            label: Linux
+          - runner: windows-latest
+            label: Windows
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: npm }
+      - run: npm ci
+      - name: Install explicitly headless Chromium and Linux dependencies
+        run: npx playwright install chromium
+      - name: Install Linux Chromium dependencies
+        if: runner.os == 'Linux'
+        run: npx playwright install-deps chromium
+      - name: Authenticate pinned Chromium commit without a source checkout
+        shell: bash
+        run: |
+          mkdir -p external/chromium
+          git -C external/chromium init
+          git -C external/chromium remote add origin https://chromium.googlesource.com/chromium/src.git
+          git -C external/chromium fetch --depth=1 --filter=tree:0 origin "$CHROMIUM_SOURCE_REVISION"
+          git -C external/chromium update-ref refs/heads/pinned FETCH_HEAD
+          git -C external/chromium symbolic-ref HEAD refs/heads/pinned
+      - name: Collect exact screen logical record (headless, no pixels)
+        run: npm run borders:collapsed-fragmentation-audit -- --json tests/output/fragmented-table/screen-logical.json
+      - name: Collect exact public-print fail-closed record (headless, no pixels)
+        run: npm run borders:paged-collapsed-ownership-audit -- --json tests/output/fragmented-table/paged-logical.json
+      - name: Collect native final ink independently (headless)
+        run: npm run borders:phase-oracle -- --dsf 1,2,4 --zoom 0.8,1,1.25 --report-only --json tests/output/fragmented-table/border-phase.json --keep tests/output/fragmented-table/artifacts
+      - name: Record runner environment
+        run: node scripts/run-env.mjs tests/output/fragmented-table/run-env.json
+      - name: Apply the unchanged reviewed native border envelope
+        run: npm run borders:phase-ratify -- --baseline tests/baselines/border-phase-envelopes.json --report tests/output/fragmented-table/border-phase.json --run-env tests/output/fragmented-table/run-env.json --artifact-dir tests/output/fragmented-table/artifacts --json tests/output/fragmented-table/final-ink.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fragmented-collapsed-table-${{ runner.os }}
+          path: tests/output/fragmented-table/
+          if-no-files-found: error
+
+  adjudicate:
+    name: Strict complete Cartesian release gate
+    if: always()
+    needs: collect
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: npm }
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: fragmented-collapsed-table-*
+          path: tests/output/fragmented-table-release
+      - name: Require all logical, print, and native-ink legs
+        run: npm run borders:fragmented-release-gate -- --reports tests/output/fragmented-table-release
+      - name: Retain the complete Cartesian evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fragmented-collapsed-table-release-evidence
+          path: tests/output/fragmented-table-release/
+          if-no-files-found: error

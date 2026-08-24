@@ -215,6 +215,14 @@ outside vector ownership until a pinned private fragment transport supplies the
 complete logical record; this is a bounded fail-closed result, not inferred
 geometry.
 
+The fragmented-table release workflow keeps three evidence layers independent
+on macOS, Linux, and Windows. It requires the complete screen logical
+discriminator/mutation set, the complete public-print fail-closed matrix, and
+the existing reviewed native border-phase envelope as nine separate reports.
+Its aggregate rejects a missing platform, logical drift, pixel use in a logical
+leg, incomplete mutations, changed native scenarios, or missing artifact
+identity; terminal ink cannot excuse a logical failure.
+
 Captioned tables preserve a second, independent box boundary. At the pinned
 revision, `TableLayoutAlgorithm` records `TableGridRect` after top captions and
 before bottom captions, and `TablePainter::PaintBoxDecorationBackground` uses
