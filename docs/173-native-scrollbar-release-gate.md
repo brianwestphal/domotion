@@ -61,6 +61,16 @@ retain:
 An unsupported platform state remains a row. It may prove no ink, but it may
 not disappear from the Cartesian product.
 
+For classic native scrollbars, the authenticated raster owner is the complete
+layout-reserved gutter, not the connected components left by diagnostic pseudo
+markers. Blink's `ScrollbarTheme::PaintTrackBackgroundAndButtons` paints both
+native end buttons and the track within the scrollbar display-item rectangle;
+the thumb is composed in that same strip. Capture therefore derives the full
+horizontal and vertical strips from the live border/client/gutter geometry,
+including their shared corner, before hashing and embedding the source pixels.
+This prevents a theme button that did not respond to marker CSS from silently
+disappearing in the generated result.
+
 ## Strict adjudication
 
 `tools/check-native-scrollbar-release.ts` recursively loads the six reports,

@@ -246,6 +246,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mt6v9ylnxrbr8mek",
+          "message": {
+            "text": "DM-2569: native pseudo-marker connected components are ownership discriminators, not complete native paint bounds. Chromium ScrollbarTheme paints both end buttons and the track inside the full scrollbar display-item rectangle. Classic native crops now use exact border/client/gutter geometry (including corner overlap) so platform buttons that ignore marker CSS remain in the authenticated source raster.",
+            "markdown": "DM-2569: native pseudo-marker connected components are ownership discriminators, not complete native paint bounds. Chromium ScrollbarTheme paints both end buttons and the track inside the full scrollbar display-item rectangle. Classic native crops now use exact border/client/gutter geometry (including corner overlap) so platform buttons that ignore marker CSS remain in the authenticated source raster."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/scrollbar-capture.ts"
+                },
+                "region": {
+                  "startLine": 340,
+                  "endLine": 430,
+                  "snippet": {
+                    "text": "  if (part === \"track\") return styles[\"scrollbar-track\"];\n  if (part === \"back-track\" || part === \"forward-track\") return styles[\"scrollbar-track-piece\"];\n  if (part === \"thumb\") return styles[\"scrollbar-thumb\"];\n  if (part === \"corner\") return styles[\"scrollbar-corner\"];\n  return undefined;\n}\n\nexport function classicNativeScrollbarFrame(\n  candidate: Pick<BrowserCandidate,\n    | \"outputRect\" | \"layoutGutterVertical\" | \"layoutGutterHorizontal\"\n    | \"effectiveZoom\" | \"direction\" | \"borderTop\" | \"borderRight\"\n    | \"borderBottom\" | \"borderLeft\">,\n  orientation: \"horizontal\" | \"vertical\",\n): CapturedScrollbarRect | null {\n  const layoutGutter = orientation === \"horizontal\"\n    ? candidate.layoutGutterHorizontal\n    : candidate.layoutGutterVertical;\n  if (layoutGutter <= 0.5) return null;\n  const zoom = candidate.effectiveZoom;\n  const vertical = candidate.layoutGutterVertical * zoom;\n  const horizontal = candidate.layoutGutterHorizontal * zoom;\n  const left = candidate.borderLeft * zoom;\n  const right = candidate.borderRight * zoom;\n  const top = candidate.borderTop * zoom;\n  const bottom = candidate.borderBottom * zoom;\n  if (orientation === \"horizontal\") return {\n    x: candidate.outputRect.x + left,\n    y: candidate.outputRect.y + candidate.outputRect.height - bottom - horizontal,\n    width: Math.max(0, candidate.outputRect.width - left - right),\n    height: horizontal,\n  };\n  return {\n    x: candidate.direction === \"rtl\"\n      ? candidate.outputRect.x + left\n      : candidate.outputRect.x + candidate.outputRect.width - right - vertical,\n    y: candidate.outputRect.y + top,\n    width: vertical,\n    height: Math.max(0, candidate.outputRect.height - top - bottom),\n  };\n}\n\nfunction scrollbarForOrientation(\n  orientation: \"horizontal\" | \"vertical\",\n  candidate: BrowserCandidate,\n  components: readonly ClassifiedComponent[],\n  route: CapturedScrollbar[\"route\"],\n  styles: Record<string, CapturedScrollbarPseudoStyle | undefined>,\n): CapturedScrollbar | null {\n  const paintOrder: Readonly<Record<CapturedScrollbarPartKind, number>> = {\n    background: 0,\n    \"back-button\": 1,\n    \"forward-button\": 1,\n    track: 2,\n    \"back-track\": 3,\n    \"forward-track\": 3,\n    thumb: 4,\n    corner: 5,\n  };\n  const owned = components.filter((component) => component.orientation === orientation)\n    .sort((a, b) => paintOrder[a.kind] - paintOrder[b.kind]\n      || (orientation === \"horizontal\" ? a.rect.x - b.rect.x : a.rect.y - b.rect.y));\n  if (owned.length === 0) return null;\n  const backgroundRects = owned.filter(({ kind }) => kind === \"background\").map(({ rect }) => rect);\n  let frameRect = unionRects(backgroundRects.length > 0 ? backgroundRects : owned.map(({ rect }) => rect));\n  // Classic native scrollbars paint buttons, tracks and thumbs throughout the\n  // complete layout-reserved gutter. Marker isolation is only the ownership\n  // discriminator; its connected components are not authoritative native\n  // paint bounds (Linux theme buttons can otherwise be omitted). Derive the\n  // strip from Blink-owned border/client geometry and reserve the opposite\n  // axis' corner exactly once.\n  const layoutGutter = orientation === \"horizontal\"\n    ? candidate.layoutGutterHorizontal\n    : candidate.layoutGutterVertical;\n  if (route === \"native-raster\" && layoutGutter > 0.5) {\n    frameRect = classicNativeScrollbarFrame(candidate, orientation);\n  }\n  if (frameRect == null) return null;\n  const parts: CapturedScrollbarPart[] = owned.map(({ kind, rect }) => ({\n    kind,\n    rect,\n    finalPseudoStyle: finalStyleForPart(kind, styles),\n  }));\n  const missingFacts: string[] = [];\n  const hoveredPart = candidate.hostHovered ? \"unknown\" : null;\n  const pressedPart = candidate.hostPressed ? \"unknown\" : null;\n  if (route === \"author-custom\" && hoveredPart === \"unknown\") missingFacts.push(\"hovered-part\");\n  if (route === \"author-custom\" && pressedPart === \"unknown\") missingFacts.push(\"pressed-part\");\n  const isOverlay = route === \"native-raster\" && layoutGutter <= 0.5;\n  const styleOpacity = Number.parseFloat(styles.scrollbar?.opacity ?? \"1\");\n  return {\n    orientation,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 1,
+          "workItemUris": [
+            "DM-2569"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ff9023ce13db498242d2c28e1274b8a4"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "03d7e68e04d0ef23e6cc90b1f1d0adfa21eeeb6e",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

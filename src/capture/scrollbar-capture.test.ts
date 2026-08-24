@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  classicNativeScrollbarFrame,
   nativeScrollbarCornerRect,
   SCROLLBAR_MARKERS,
   scrollbarMarkerComponents,
@@ -26,6 +27,28 @@ function paint(
 }
 
 describe("Blink live scrollbar marker classification", () => {
+  it("owns the complete classic native gutters, including both button ends", () => {
+    const candidate = {
+      outputRect: { x: 34, y: 27, width: 156, height: 118 },
+      layoutGutterVertical: 15,
+      layoutGutterHorizontal: 15,
+      effectiveZoom: 1,
+      direction: "ltr",
+      borderTop: 4,
+      borderRight: 4,
+      borderBottom: 4,
+      borderLeft: 4,
+    };
+    expect(classicNativeScrollbarFrame(candidate, "vertical"))
+      .toEqual({ x: 171, y: 31, width: 15, height: 110 });
+    expect(classicNativeScrollbarFrame(candidate, "horizontal"))
+      .toEqual({ x: 38, y: 126, width: 148, height: 15 });
+    expect(classicNativeScrollbarFrame({ ...candidate, direction: "rtl" }, "vertical"))
+      .toEqual({ x: 38, y: 31, width: 15, height: 110 });
+    expect(classicNativeScrollbarFrame({ ...candidate, layoutGutterHorizontal: 0 }, "horizontal"))
+      .toBeNull();
+  });
+
   it("derives the native corner from the physical horizontal/vertical frame overlap", () => {
     expect(nativeScrollbarCornerRect(
       { frameRect: { x: 12, y: 90, width: 78, height: 10 } },

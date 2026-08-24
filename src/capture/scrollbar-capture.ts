@@ -107,6 +107,10 @@ interface BrowserCandidate {
   scrollTop: number;
   layoutGutterVertical: number;
   layoutGutterHorizontal: number;
+  borderTop: number;
+  borderRight: number;
+  borderBottom: number;
+  borderLeft: number;
   effectiveZoom: number;
   devicePixelRatio: number;
   forcedColors: boolean;
@@ -340,6 +344,40 @@ function finalStyleForPart(
   return undefined;
 }
 
+export function classicNativeScrollbarFrame(
+  candidate: Pick<BrowserCandidate,
+    | "outputRect" | "layoutGutterVertical" | "layoutGutterHorizontal"
+    | "effectiveZoom" | "direction" | "borderTop" | "borderRight"
+    | "borderBottom" | "borderLeft">,
+  orientation: "horizontal" | "vertical",
+): CapturedScrollbarRect | null {
+  const layoutGutter = orientation === "horizontal"
+    ? candidate.layoutGutterHorizontal
+    : candidate.layoutGutterVertical;
+  if (layoutGutter <= 0.5) return null;
+  const zoom = candidate.effectiveZoom;
+  const vertical = candidate.layoutGutterVertical * zoom;
+  const horizontal = candidate.layoutGutterHorizontal * zoom;
+  const left = candidate.borderLeft * zoom;
+  const right = candidate.borderRight * zoom;
+  const top = candidate.borderTop * zoom;
+  const bottom = candidate.borderBottom * zoom;
+  if (orientation === "horizontal") return {
+    x: candidate.outputRect.x + left,
+    y: candidate.outputRect.y + candidate.outputRect.height - bottom - horizontal,
+    width: Math.max(0, candidate.outputRect.width - left - right),
+    height: horizontal,
+  };
+  return {
+    x: candidate.direction === "rtl"
+      ? candidate.outputRect.x + left
+      : candidate.outputRect.x + candidate.outputRect.width - right - vertical,
+    y: candidate.outputRect.y + top,
+    width: vertical,
+    height: Math.max(0, candidate.outputRect.height - top - bottom),
+  };
+}
+
 function scrollbarForOrientation(
   orientation: "horizontal" | "vertical",
   candidate: BrowserCandidate,
@@ -362,7 +400,19 @@ function scrollbarForOrientation(
       || (orientation === "horizontal" ? a.rect.x - b.rect.x : a.rect.y - b.rect.y));
   if (owned.length === 0) return null;
   const backgroundRects = owned.filter(({ kind }) => kind === "background").map(({ rect }) => rect);
-  const frameRect = unionRects(backgroundRects.length > 0 ? backgroundRects : owned.map(({ rect }) => rect));
+  let frameRect = unionRects(backgroundRects.length > 0 ? backgroundRects : owned.map(({ rect }) => rect));
+  // Classic native scrollbars paint buttons, tracks and thumbs throughout the
+  // complete layout-reserved gutter. Marker isolation is only the ownership
+  // discriminator; its connected components are not authoritative native
+  // paint bounds (Linux theme buttons can otherwise be omitted). Derive the
+  // strip from Blink-owned border/client geometry and reserve the opposite
+  // axis' corner exactly once.
+  const layoutGutter = orientation === "horizontal"
+    ? candidate.layoutGutterHorizontal
+    : candidate.layoutGutterVertical;
+  if (route === "native-raster" && layoutGutter > 0.5) {
+    frameRect = classicNativeScrollbarFrame(candidate, orientation);
+  }
   if (frameRect == null) return null;
   const parts: CapturedScrollbarPart[] = owned.map(({ kind, rect }) => ({
     kind,
@@ -374,9 +424,6 @@ function scrollbarForOrientation(
   const pressedPart = candidate.hostPressed ? "unknown" : null;
   if (route === "author-custom" && hoveredPart === "unknown") missingFacts.push("hovered-part");
   if (route === "author-custom" && pressedPart === "unknown") missingFacts.push("pressed-part");
-  const layoutGutter = orientation === "horizontal"
-    ? candidate.layoutGutterHorizontal
-    : candidate.layoutGutterVertical;
   const isOverlay = route === "native-raster" && layoutGutter <= 0.5;
   const styleOpacity = Number.parseFloat(styles.scrollbar?.opacity ?? "1");
   return {
@@ -1029,6 +1076,10 @@ export async function prepareCapturedScrollbarSets(
             scrollTop: (element as HTMLElement).scrollTop ?? 0,
             layoutGutterVertical: Math.max(0, layoutWidth - (element as HTMLElement).clientWidth - borderLeft - borderRight),
             layoutGutterHorizontal: Math.max(0, layoutHeight - (element as HTMLElement).clientHeight - borderTop - borderBottom),
+            borderTop,
+            borderRight,
+            borderBottom,
+            borderLeft,
             effectiveZoom: zoom,
             devicePixelRatio: window.devicePixelRatio,
             forcedColors: matchMedia("(forced-colors: active)").matches,
