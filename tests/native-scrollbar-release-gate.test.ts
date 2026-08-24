@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { adjudicateNativeScrollbarReports, SCROLLBAR_GATE_DPRS, SCROLLBAR_GATE_PLATFORMS, SCROLLBAR_GATE_SCENARIOS, SCROLLBAR_GATE_SOURCE_REVISIONS, SCROLLBAR_GATE_ZOOMS, type NativeScrollbarAuditReport } from "../tools/native-scrollbar-release-gate.js";
 import { scrollbarAuditSceneGeometry } from "../tools/native-scrollbar-ownership-audit.js";
@@ -30,6 +31,11 @@ function complete(): NativeScrollbarAuditReport[] {
 }
 
 describe("native scrollbar six-role release adjudicator", () => {
+  it("labels artifact integrity failures from the schema-v2 host identity", () => {
+    const source = readFileSync("tools/check-native-scrollbar-release.ts", "utf8");
+    expect(source).toContain("parsed.data.host.platform");
+    expect(source).not.toContain("parsed.data.environment.platform");
+  });
   it("accepts a complete independent and hash-authenticated Cartesian set", () => {
     expect(adjudicateNativeScrollbarReports(complete())).toMatchObject({ ready: true, blockers: [] });
   });

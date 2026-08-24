@@ -31,7 +31,7 @@ async function verifyArtifacts(reportPath: string, input: unknown): Promise<stri
   for (const row of parsed.data.rows) {
     for (const artifact of row.artifacts) {
       const path = resolve(reportRoot, artifact.path);
-      const display = `${parsed.data.environment.platform}/${row.id}@${row.deviceScaleFactor}x/z${row.cssZoom}/${artifact.role}-${artifact.part}`;
+      const display = `${parsed.data.host.platform}/${row.id}@${row.deviceScaleFactor}x/z${row.cssZoom}/${artifact.role}-${artifact.part}`;
       if (relative(reportRoot, path).startsWith("..")) {
         blockers.push(`${display}: artifact path escapes its report directory`);
         continue;
