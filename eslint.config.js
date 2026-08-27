@@ -36,8 +36,6 @@ export default [
       // checkouts, each pinned to a different commit. Linting them reports
       // problems from code that is not even checked out here.
       ".claude/worktrees/**",
-      // Shared Chromium source/build mount used by parity evidence collectors.
-      ".chromium-build/**",
       // Container-run artifacts redirected out of tests/output.
       "tests/output-*/**",
       // Vendored third-party build output (committed, but not our code, and

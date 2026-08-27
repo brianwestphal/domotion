@@ -45,13 +45,9 @@ describe("animated-image stock-CDP support adjudicator", () => {
     expect(report.eligibleCaseKeys).toEqual([
       "img-src-mutation/stable-animated-webp",
       "img-src-mutation/stable-apng",
-      "css-background-layer-reorder/layer-one",
-      "css-background-layer-reorder/border-image",
-      "css-mask-layer-reorder/mask-one",
       "redirect-response-mime-drift/stable-redirect",
       "data-url-mutation/stable-data",
       "blob-replacement-revocation/stable-blob",
-      "owner-adoption-detachment/stable-svg",
       "navigation-stale-backend-node/stable-input",
     ]);
     expect(ANIMATED_IMAGE_STOCK_CDP_CASE_MATRIX).toHaveLength(38);
@@ -75,7 +71,7 @@ describe("animated-image stock-CDP support adjudicator", () => {
     );
   });
 
-  it("keeps ambiguous, cached, service-worker, CORS, image-set, and shadow routes unavailable", () => {
+  it("keeps ambiguous, cached, service-worker, CORS, CSS, SVG, and shadow routes unavailable", () => {
     const decisions = new Map(ANIMATED_IMAGE_STOCK_CDP_CASE_MATRIX.map((row) =>
       [`${row.probeId}/${row.caseId}`, row]));
     expect(decisions.get("same-url-competing-requests/two-img-owners"))
@@ -87,8 +83,6 @@ describe("animated-image stock-CDP support adjudicator", () => {
     expect(decisions.get("cors-anonymous-success/anonymous"))
       .toMatchObject({ stockDecision: "unsupported", reasonCode: "cors-denied" });
     expect(decisions.get("owner-adoption-detachment/stable-svg"))
-      .toMatchObject({ stockDecision: "eligible", reasonCode: null });
-    expect(decisions.get("css-image-set-option-reorder/stable-selected-option"))
       .toMatchObject({ stockDecision: "unsupported", reasonCode: "unsupported-owner" });
     expect(decisions.get("shadow-pseudo-slot-collision/stable-closed-shadow-before"))
       .toMatchObject({
