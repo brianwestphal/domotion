@@ -66,6 +66,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtb1zdsbnd4qzwit",
+          "message": {
+            "text": "Only the authenticated owner slot is changed after both fresh decoders agree. CSS copies the full computed layer list and substitutes exactly one indexed item, so all unselected image layers survive while repeat/position/size/slice/mask geometry remains in the separately captured computed properties; SVG changes only href.",
+            "markdown": "Only the authenticated owner slot is changed after both fresh decoders agree. CSS copies the full computed layer list and substitutes exactly one indexed item, so all unselected image layers survive while repeat/position/size/slice/mask geometry remains in the separately captured computed properties; SVG changes only href."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/animated-image-static-frame.ts"
+                },
+                "region": {
+                  "startLine": 163,
+                  "endLine": 186,
+                  "snippet": {
+                    "text": "      const current = expected.ownerKind === \"html-image\" && owner instanceof HTMLImageElement ? owner.currentSrc || owner.src\n        : expected.ownerKind === \"input-image\" && owner instanceof HTMLInputElement && owner.type === \"image\" ? owner.src\n        : expected.ownerKind === \"svg-image\" && owner instanceof SVGImageElement ? new URL(owner.href.baseVal, document.baseURI).href\n        : expected.ownerKind === \"css-image\" ? getComputedStyle(owner).getPropertyValue(expected.ownerSlot) : \"\";\n      const nonce = (globalThis as typeof globalThis & { __domotionAnimatedImageDocumentNonce?: string })\n        .__domotionAnimatedImageDocumentNonce ?? \"\";\n      const expectedCurrent = expected.ownerKind === \"css-image\" ? expected.ownerSerializedValue : expected.selectedUrl;\n      if (current !== expectedCurrent || nonce !== expected.documentNonce) return { failure: \"source-record-drift\" as const };\n      const pngDataUrl = `data:image/png;base64,${first.pngBase64}`;\n      if (expected.ownerKind === \"html-image\" && owner instanceof HTMLImageElement) {\n        owner.closest(\"picture\")?.querySelectorAll(\"source\").forEach((source) => source.removeAttribute(\"srcset\"));\n        owner.removeAttribute(\"srcset\"); owner.src = pngDataUrl;\n      } else if (expected.ownerKind === \"input-image\" && owner instanceof HTMLInputElement && owner.type === \"image\") owner.src = pngDataUrl;\n      else if (expected.ownerKind === \"svg-image\" && owner instanceof SVGImageElement) owner.href.baseVal = pngDataUrl;\n      else if (expected.ownerKind === \"css-image\" && expected.ownerSlotIndex != null) {\n        const items = splitTopLevel(expected.ownerSerializedValue);\n        if (items[expected.ownerSlotIndex] == null) return { failure: \"replacement-missing\" as const };\n        items[expected.ownerSlotIndex] = `url(\"${pngDataUrl}\")`;\n        (owner as HTMLElement | SVGElement).style.setProperty(expected.ownerSlot, items.join(\", \"));\n      } else return { failure: \"replacement-missing\" as const };\n      if (expected.ownerKind === \"html-image\" || expected.ownerKind === \"input-image\") await new Promise<void>((resolve, reject) => {\n        const image = owner as HTMLImageElement; if (image.complete) resolve();\n        else { image.addEventListener(\"load\", () => resolve(), { once: true }); image.addEventListener(\"error\", () => reject(new Error()), { once: true }); }\n      }); else await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.94
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2581"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "5b5c09eecae141b6b0dd35c4ce9a1e05"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "49ee87e61dd506ae1b068a48bbb39bbfd343e1d6",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

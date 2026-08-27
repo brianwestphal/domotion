@@ -78,6 +78,33 @@ describe("authenticated animated-image byte collector (DM-2585)", () => {
     await collector.dispose(); await page.close();
   });
 
+  it("authenticates the ratified SVG href and indexed ordinary CSS url slots", async () => {
+    const data = `data:image/gif;base64,${GIF.toString("base64")}`;
+    const cssData = `data:image/gif;owner=css;base64,${GIF.toString("base64")}`;
+    const { page, collector } = await pageWith(`
+      <svg><image id="svg" href="${data}" width="1" height="1"/></svg>
+      <div id="css" style="background-image:url('${cssData}'),url('${data}')"></div>`);
+    const results = await collector.collect([
+      { selector: "#svg", frameIndex: 1, slot: "svg-href" },
+      { selector: "#css", frameIndex: 2, slot: "background-image", index: 0 },
+    ]);
+    expect(results.map(({ record }) => [record.ownerKind, record.ownerSlot, record.ownerSlotIndex]))
+      .toEqual([["svg-image", "svg-href", null], ["css-image", "background-image", 0]]);
+    expect(results[1].record.ownerSerializedValue).toContain(",");
+    await collector.dispose(); await page.close();
+  });
+
+  it("rejects non-ordinary CSS image functions and missing CSS indexes", async () => {
+    const data = `data:image/gif;base64,${GIF.toString("base64")}`;
+    const { page, collector } = await pageWith(
+      `<div id="target" style="background-image:image-set(url('${data}') 1x)"></div>`,
+    );
+    await expect(collector.collect([{
+      selector: "#target", frameIndex: 0, slot: "background-image", index: 0,
+    }])).rejects.toThrow("unsupported-owner");
+    await collector.dispose(); await page.close();
+  });
+
   it("authenticates a settled same-origin redirect", async () => {
     const { page, collector } = await pageWith(`<img id="target" src="${origin}/redirect.gif">`);
     const [result] = await collector.collect([{ selector: "#target", frameIndex: 0 }]);

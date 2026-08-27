@@ -11,6 +11,7 @@ const bytes = Uint8Array.from([1, 2, 3, 4]);
 const logical: Omit<AuthenticatedAnimatedImageByteRecord, "epochDigest"> = {
   protocol: AUTHENTICATED_ANIMATED_IMAGE_BYTE_PROTOCOL,
   selector: "#image", requestedFrameIndex: 2, ownerKind: "html-image", ownerSlot: "html-current",
+  ownerSlotIndex: null, ownerSerializedValue: "https://example.test/image.gif",
   backendNodeId: 10, frameId: "frame", documentLoaderId: "loader", documentNonce: "nonce",
   selectedUrl: "https://example.test/image.gif", currentSrc: "https://example.test/image.gif",
   devicePixelRatio: 1, viewport: { width: 800, height: 600 }, requestId: "request",

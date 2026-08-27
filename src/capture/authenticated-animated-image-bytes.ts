@@ -31,7 +31,15 @@ export class AnimatedImageByteCollectorError extends Error {
 export interface StrictAnimatedImageFrameRequest {
   selector: string;
   frameIndex: number;
+  /** Omit for the legacy <img>/<picture>/<input type=image> owner. */
+  slot?: "svg-href" | "background-image" | "border-image-source" | "mask-image" | "list-style-image";
+  /** Required for CSS slots; identifies the top-level computed-value item. */
+  index?: number;
 }
+
+export type AnimatedImageOwnerKind = "html-image" | "input-image" | "svg-image" | "css-image";
+export type AnimatedImageOwnerSlot = "html-current" | "input-src" | "svg-href" |
+  "background-image" | "border-image-source" | "mask-image" | "list-style-image";
 
 interface LedgerEntry {
   requestId: string;
@@ -55,8 +63,10 @@ export interface AuthenticatedAnimatedImageByteRecord {
   protocol: typeof AUTHENTICATED_ANIMATED_IMAGE_BYTE_PROTOCOL;
   selector: string;
   requestedFrameIndex: number;
-  ownerKind: "html-image" | "input-image";
-  ownerSlot: "html-current" | "input-src";
+  ownerKind: AnimatedImageOwnerKind;
+  ownerSlot: AnimatedImageOwnerSlot;
+  ownerSlotIndex: number | null;
+  ownerSerializedValue: string;
   backendNodeId: number;
   frameId: string;
   documentLoaderId: string;
@@ -102,8 +112,10 @@ export function verifyAuthenticatedAnimatedImageBytes(
 }
 
 interface OwnerSnapshot {
-  ownerKind: "html-image" | "input-image";
-  ownerSlot: "html-current" | "input-src";
+  ownerKind: AnimatedImageOwnerKind;
+  ownerSlot: AnimatedImageOwnerSlot;
+  ownerSlotIndex: number | null;
+  ownerSerializedValue: string;
   backendNodeId: number;
   frameId: string;
   documentLoaderId: string;
@@ -141,7 +153,10 @@ function dataUrlBytes(url: string): Uint8Array {
   } catch { return fail("data-url-parse-failed"); }
 }
 
-async function snapshotOwner(page: Page, cdp: CDPSession, selector: string): Promise<OwnerSnapshot> {
+async function snapshotOwner(
+  page: Page, cdp: CDPSession, request: StrictAnimatedImageFrameRequest,
+): Promise<OwnerSnapshot> {
+  const { selector } = request;
   const evaluated = await cdp.send("Runtime.evaluate", {
     expression: `document.querySelectorAll(${JSON.stringify(selector)}).length`, returnByValue: true,
   });
@@ -150,30 +165,67 @@ async function snapshotOwner(page: Page, cdp: CDPSession, selector: string): Pro
   if (count !== 1) fail("ambiguous-owner");
   const handle = await page.$(selector);
   if (handle == null) fail("strict-owner-not-found");
-  const document = await cdp.send("DOM.getDocument", { depth: 0, pierce: false });
-  const queried = await cdp.send("DOM.querySelector", { nodeId: document.root.nodeId, selector });
+  const domDocument = await cdp.send("DOM.getDocument", { depth: 0, pierce: false });
+  const queried = await cdp.send("DOM.querySelector", { nodeId: domDocument.root.nodeId, selector });
   const described = await cdp.send("DOM.describeNode", { nodeId: queried.nodeId });
   const backendNodeId = described.node.backendNodeId;
-  const facts = await handle.evaluate((node) => {
+  const facts = await handle.evaluate((node, requested) => {
     const nonce = (globalThis as typeof globalThis & { __domotionAnimatedImageDocumentNonce?: string })
       .__domotionAnimatedImageDocumentNonce ?? "";
-    if (node instanceof HTMLImageElement) return {
+    if (requested.slot == null && node instanceof HTMLImageElement) return {
       ownerKind: "html-image" as const, ownerSlot: "html-current" as const,
+      ownerSlotIndex: null, ownerSerializedValue: node.currentSrc || node.src,
       selectedUrl: node.currentSrc || node.src, currentSrc: node.currentSrc,
       nonce, dpr: devicePixelRatio, viewport: { width: innerWidth, height: innerHeight },
     };
-    if (node instanceof HTMLInputElement && node.type === "image") return {
+    if (requested.slot == null && node instanceof HTMLInputElement && node.type === "image") return {
       ownerKind: "input-image" as const, ownerSlot: "input-src" as const,
+      ownerSlotIndex: null, ownerSerializedValue: node.src,
       selectedUrl: node.src, currentSrc: "", nonce, dpr: devicePixelRatio,
       viewport: { width: innerWidth, height: innerHeight },
     };
+    const splitTopLevel = (value: string): string[] => {
+      const output: string[] = []; let start = 0; let depth = 0; let quote = "";
+      for (let index = 0; index < value.length; index++) {
+        const ch = value[index];
+        if (quote !== "") { if (ch === "\\") index++; else if (ch === quote) quote = ""; continue; }
+        if (ch === "\"" || ch === "'") quote = ch;
+        else if (ch === "(") depth++;
+        else if (ch === ")") depth--;
+        else if (ch === "," && depth === 0) { output.push(value.slice(start, index).trim()); start = index + 1; }
+      }
+      output.push(value.slice(start).trim()); return output;
+    };
+    const plainUrl = (value: string): string | null => {
+      const match = /^url\(\s*(["']?)(.*?)\1\s*\)$/i.exec(value);
+      return match == null || /[\\\r\n]/.test(match[2]) ? null : match[2];
+    };
+    if (requested.slot === "svg-href" && node instanceof SVGImageElement && requested.index == null) {
+      const raw = node.href.baseVal; if (raw === "") return null;
+      return { ownerKind: "svg-image" as const, ownerSlot: "svg-href" as const,
+        ownerSlotIndex: null, ownerSerializedValue: raw,
+        selectedUrl: new URL(raw, document.baseURI).href, currentSrc: "", nonce,
+        dpr: devicePixelRatio, viewport: { width: innerWidth, height: innerHeight } };
+    }
+    const cssSlots = new Set(["background-image", "border-image-source", "mask-image", "list-style-image"]);
+    if (requested.slot != null && cssSlots.has(requested.slot) &&
+        Number.isInteger(requested.index) && (requested.index ?? -1) >= 0) {
+      const serialized = getComputedStyle(node).getPropertyValue(requested.slot);
+      const item = splitTopLevel(serialized)[requested.index!]; const raw = item == null ? null : plainUrl(item);
+      if (raw == null) return null;
+      return { ownerKind: "css-image" as const, ownerSlot: requested.slot,
+        ownerSlotIndex: requested.index!, ownerSerializedValue: serialized,
+        selectedUrl: new URL(raw, document.baseURI).href, currentSrc: "", nonce,
+        dpr: devicePixelRatio, viewport: { width: innerWidth, height: innerHeight } };
+    }
     return null;
-  });
+  }, request);
   await handle.dispose();
   if (facts == null) fail("unsupported-owner");
   const tree = await cdp.send("Page.getFrameTree");
   return {
-    ownerKind: facts.ownerKind, ownerSlot: facts.ownerSlot, backendNodeId,
+    ownerKind: facts.ownerKind, ownerSlot: facts.ownerSlot, ownerSlotIndex: facts.ownerSlotIndex,
+    ownerSerializedValue: facts.ownerSerializedValue, backendNodeId,
     frameId: tree.frameTree.frame.id, documentLoaderId: tree.frameTree.frame.loaderId,
     documentNonce: facts.nonce, selectedUrl: facts.selectedUrl, currentSrc: facts.currentSrc,
     devicePixelRatio: facts.dpr, viewport: facts.viewport,
@@ -249,9 +301,12 @@ export class AuthenticatedAnimatedImageByteCollector {
     if (requests.length > AUTHENTICATED_ANIMATED_IMAGE_LIMITS.maximumOwners) fail("body-limit-exceeded");
     const results: AuthenticatedAnimatedImageBytes[] = [];
     const usedRequestIds = new Set<string>();
+    const usedSelectedUrls = new Set<string>();
     for (const request of requests) {
       if (!Number.isInteger(request.frameIndex) || request.frameIndex < 0) fail("unsupported-owner");
       const result = await this.collectOne(request);
+      if (usedSelectedUrls.has(result.record.selectedUrl)) fail("ambiguous-resource");
+      usedSelectedUrls.add(result.record.selectedUrl);
       if (result.record.requestId != null && usedRequestIds.has(result.record.requestId)) {
         fail("ambiguous-resource");
       }
@@ -262,7 +317,7 @@ export class AuthenticatedAnimatedImageByteCollector {
   }
 
   private async collectOne(request: StrictAnimatedImageFrameRequest): Promise<AuthenticatedAnimatedImageBytes> {
-    const before = await snapshotOwner(this.page, this.cdp, request.selector);
+    const before = await snapshotOwner(this.page, this.cdp, request);
     if (before.documentNonce !== this.nonce) fail("stale-document");
     const url = new URL(before.selectedUrl, this.page.url());
     let bytes: Uint8Array; let entry: LedgerEntry | undefined; let transportMime = "";
@@ -328,7 +383,7 @@ export class AuthenticatedAnimatedImageByteCollector {
     const record: AuthenticatedAnimatedImageByteRecord = {
       ...logical, epochDigest: authenticatedAnimatedImageRecordDigest(logical),
     };
-    const after = await snapshotOwner(this.page, this.cdp, request.selector);
+    const after = await snapshotOwner(this.page, this.cdp, request);
     if (canonical(before) !== canonical(after)) fail("candidate-drift");
     if (entry != null && sha256(canonical(entry)) !== ledgerDigestBefore) fail("response-drift");
     verifyAuthenticatedAnimatedImageBytes(record, bytes);

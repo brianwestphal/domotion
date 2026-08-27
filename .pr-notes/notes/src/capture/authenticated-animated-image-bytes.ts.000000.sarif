@@ -66,6 +66,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtb1zdmrb8f6ru6r",
+          "message": {
+            "text": "The production owner join is intentionally limited to the DM-2591-ratified public subset. It binds the complete computed CSS value (plus explicit top-level index) or SVG href to the backend node and document epoch, then reopens those facts after byte acquisition; richer image functions and unavailable pseudo/shadow identities therefore fail before any body is exposed.",
+            "markdown": "The production owner join is intentionally limited to the DM-2591-ratified public subset. It binds the complete computed CSS value (plus explicit top-level index) or SVG href to the backend node and document epoch, then reopens those facts after byte acquisition; richer image functions and unavailable pseudo/shadow identities therefore fail before any body is exposed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/authenticated-animated-image-bytes.ts"
+                },
+                "region": {
+                  "startLine": 156,
+                  "endLine": 232,
+                  "snippet": {
+                    "text": "async function snapshotOwner(\n  page: Page, cdp: CDPSession, request: StrictAnimatedImageFrameRequest,\n): Promise<OwnerSnapshot> {\n  const { selector } = request;\n  const evaluated = await cdp.send(\"Runtime.evaluate\", {\n    expression: `document.querySelectorAll(${JSON.stringify(selector)}).length`, returnByValue: true,\n  });\n  const count = evaluated.result.value as number;\n  if (count === 0) fail(\"strict-owner-not-found\");\n  if (count !== 1) fail(\"ambiguous-owner\");\n  const handle = await page.$(selector);\n  if (handle == null) fail(\"strict-owner-not-found\");\n  const domDocument = await cdp.send(\"DOM.getDocument\", { depth: 0, pierce: false });\n  const queried = await cdp.send(\"DOM.querySelector\", { nodeId: domDocument.root.nodeId, selector });\n  const described = await cdp.send(\"DOM.describeNode\", { nodeId: queried.nodeId });\n  const backendNodeId = described.node.backendNodeId;\n  const facts = await handle.evaluate((node, requested) => {\n    const nonce = (globalThis as typeof globalThis & { __domotionAnimatedImageDocumentNonce?: string })\n      .__domotionAnimatedImageDocumentNonce ?? \"\";\n    if (requested.slot == null && node instanceof HTMLImageElement) return {\n      ownerKind: \"html-image\" as const, ownerSlot: \"html-current\" as const,\n      ownerSlotIndex: null, ownerSerializedValue: node.currentSrc || node.src,\n      selectedUrl: node.currentSrc || node.src, currentSrc: node.currentSrc,\n      nonce, dpr: devicePixelRatio, viewport: { width: innerWidth, height: innerHeight },\n    };\n    if (requested.slot == null && node instanceof HTMLInputElement && node.type === \"image\") return {\n      ownerKind: \"input-image\" as const, ownerSlot: \"input-src\" as const,\n      ownerSlotIndex: null, ownerSerializedValue: node.src,\n      selectedUrl: node.src, currentSrc: \"\", nonce, dpr: devicePixelRatio,\n      viewport: { width: innerWidth, height: innerHeight },\n    };\n    const splitTopLevel = (value: string): string[] => {\n      const output: string[] = []; let start = 0; let depth = 0; let quote = \"\";\n      for (let index = 0; index < value.length; index++) {\n        const ch = value[index];\n        if (quote !== \"\") { if (ch === \"\\\\\") index++; else if (ch === quote) quote = \"\"; continue; }\n        if (ch === \"\\\"\" || ch === \"'\") quote = ch;\n        else if (ch === \"(\") depth++;\n        else if (ch === \")\") depth--;\n        else if (ch === \",\" && depth === 0) { output.push(value.slice(start, index).trim()); start = index + 1; }\n      }\n      output.push(value.slice(start).trim()); return output;\n    };\n    const plainUrl = (value: string): string | null => {\n      const match = /^url\\(\\s*([\"']?)(.*?)\\1\\s*\\)$/i.exec(value);\n      return match == null || /[\\\\\\r\\n]/.test(match[2]) ? null : match[2];\n    };\n    if (requested.slot === \"svg-href\" && node instanceof SVGImageElement && requested.index == null) {\n      const raw = node.href.baseVal; if (raw === \"\") return null;\n      return { ownerKind: \"svg-image\" as const, ownerSlot: \"svg-href\" as const,\n        ownerSlotIndex: null, ownerSerializedValue: raw,\n        selectedUrl: new URL(raw, document.baseURI).href, currentSrc: \"\", nonce,\n        dpr: devicePixelRatio, viewport: { width: innerWidth, height: innerHeight } };\n    }\n    const cssSlots = new Set([\"background-image\", \"border-image-source\", \"mask-image\", \"list-style-image\"]);\n    if (requested.slot != null && cssSlots.has(requested.slot) &&\n        Number.isInteger(requested.index) && (requested.index ?? -1) >= 0) {\n      const serialized = getComputedStyle(node).getPropertyValue(requested.slot);\n      const item = splitTopLevel(serialized)[requested.index!]; const raw = item == null ? null : plainUrl(item);\n      if (raw == null) return null;\n      return { ownerKind: \"css-image\" as const, ownerSlot: requested.slot,\n        ownerSlotIndex: requested.index!, ownerSerializedValue: serialized,\n        selectedUrl: new URL(raw, document.baseURI).href, currentSrc: \"\", nonce,\n        dpr: devicePixelRatio, viewport: { width: innerWidth, height: innerHeight } };\n    }\n    return null;\n  }, request);\n  await handle.dispose();\n  if (facts == null) fail(\"unsupported-owner\");\n  const tree = await cdp.send(\"Page.getFrameTree\");\n  return {\n    ownerKind: facts.ownerKind, ownerSlot: facts.ownerSlot, ownerSlotIndex: facts.ownerSlotIndex,\n    ownerSerializedValue: facts.ownerSerializedValue, backendNodeId,\n    frameId: tree.frameTree.frame.id, documentLoaderId: tree.frameTree.frame.loaderId,\n    documentNonce: facts.nonce, selectedUrl: facts.selectedUrl, currentSrc: facts.currentSrc,\n    devicePixelRatio: facts.dpr, viewport: facts.viewport,\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2581"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "8bf38a079de2b7e373d8878294986a51"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "49ee87e61dd506ae1b068a48bbb39bbfd343e1d6",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

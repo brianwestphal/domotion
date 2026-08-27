@@ -43,6 +43,29 @@ describe("strict animated-image static frame capture (DM-2579)", () => {
     await collector.dispose(); await page.close();
   });
 
+  it.each(["svg-href", "background-image", "border-image-source", "mask-image", "list-style-image"] as const)(
+    "substitutes only the authenticated %s owner slot", async (slot) => {
+    const fixture = ANIMATED_IMAGE_FIXTURES[0]; const page = await browser.newPage();
+    const collector = await AuthenticatedAnimatedImageByteCollector.install(page); await page.goto(origin);
+    const data = `data:${fixture.mimeType};base64,${fixture.base64}`;
+    const cssValue = slot === "background-image" || slot === "mask-image"
+      ? `url('${data}'),linear-gradient(red,blue)` : `url('${data}')`;
+    await page.setContent(slot === "svg-href"
+      ? `<svg><image id="target" href="${data}" width="2" height="2"/></svg>`
+      : `<div id="target" style="${slot}:${cssValue}"></div>`);
+    const request = slot === "svg-href"
+      ? { selector: "#target", frameIndex: 1, slot }
+      : { selector: "#target", frameIndex: 1, slot, index: 0 };
+    const bytes = await collector.collect([request]);
+    const [record] = await freezeAuthenticatedAnimatedImageFrames(page, bytes);
+    const value = await page.locator("#target").evaluate((owner, selectedSlot) => selectedSlot === "svg-href"
+      ? (owner as SVGImageElement).href.baseVal
+      : (owner as HTMLElement).style.getPropertyValue(selectedSlot), slot);
+    expect(value).toContain(record.pngDataUrl);
+    if (slot === "background-image" || slot === "mask-image") expect(value).toContain("linear-gradient");
+    await collector.dispose(); await page.close();
+  });
+
   it("emits only the authenticated frozen PNG through the production capture path", async () => {
     const recorder = new DemoRecorder(origin, {
       width: 100, height: 100, selfContained: true, embedRemoteImagesResize: true,

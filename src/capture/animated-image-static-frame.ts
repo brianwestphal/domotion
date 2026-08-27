@@ -149,27 +149,49 @@ export async function freezeAuthenticatedAnimatedImageFrames(
       }
       const owner = document.querySelector(selector);
       if (owner == null) return { failure: "replacement-missing" as const };
-      const current = owner instanceof HTMLImageElement ? owner.currentSrc || owner.src
-        : owner instanceof HTMLInputElement && owner.type === "image" ? owner.src : "";
+      const splitTopLevel = (value: string): string[] => {
+        const output: string[] = []; let start = 0; let depth = 0; let quote = "";
+        for (let index = 0; index < value.length; index++) {
+          const ch = value[index];
+          if (quote !== "") { if (ch === "\\") index++; else if (ch === quote) quote = ""; continue; }
+          if (ch === "\"" || ch === "'") quote = ch;
+          else if (ch === "(") depth++; else if (ch === ")") depth--;
+          else if (ch === "," && depth === 0) { output.push(value.slice(start, index).trim()); start = index + 1; }
+        }
+        output.push(value.slice(start).trim()); return output;
+      };
+      const current = expected.ownerKind === "html-image" && owner instanceof HTMLImageElement ? owner.currentSrc || owner.src
+        : expected.ownerKind === "input-image" && owner instanceof HTMLInputElement && owner.type === "image" ? owner.src
+        : expected.ownerKind === "svg-image" && owner instanceof SVGImageElement ? new URL(owner.href.baseVal, document.baseURI).href
+        : expected.ownerKind === "css-image" ? getComputedStyle(owner).getPropertyValue(expected.ownerSlot) : "";
       const nonce = (globalThis as typeof globalThis & { __domotionAnimatedImageDocumentNonce?: string })
         .__domotionAnimatedImageDocumentNonce ?? "";
-      if (current !== expected.selectedUrl || nonce !== expected.documentNonce) return { failure: "source-record-drift" as const };
+      const expectedCurrent = expected.ownerKind === "css-image" ? expected.ownerSerializedValue : expected.selectedUrl;
+      if (current !== expectedCurrent || nonce !== expected.documentNonce) return { failure: "source-record-drift" as const };
       const pngDataUrl = `data:image/png;base64,${first.pngBase64}`;
-      if (owner instanceof HTMLImageElement) {
+      if (expected.ownerKind === "html-image" && owner instanceof HTMLImageElement) {
         owner.closest("picture")?.querySelectorAll("source").forEach((source) => source.removeAttribute("srcset"));
         owner.removeAttribute("srcset"); owner.src = pngDataUrl;
-      } else if (owner instanceof HTMLInputElement && owner.type === "image") owner.src = pngDataUrl;
-      else return { failure: "replacement-missing" as const };
-      await new Promise<void>((resolve, reject) => {
+      } else if (expected.ownerKind === "input-image" && owner instanceof HTMLInputElement && owner.type === "image") owner.src = pngDataUrl;
+      else if (expected.ownerKind === "svg-image" && owner instanceof SVGImageElement) owner.href.baseVal = pngDataUrl;
+      else if (expected.ownerKind === "css-image" && expected.ownerSlotIndex != null) {
+        const items = splitTopLevel(expected.ownerSerializedValue);
+        if (items[expected.ownerSlotIndex] == null) return { failure: "replacement-missing" as const };
+        items[expected.ownerSlotIndex] = `url("${pngDataUrl}")`;
+        (owner as HTMLElement | SVGElement).style.setProperty(expected.ownerSlot, items.join(", "));
+      } else return { failure: "replacement-missing" as const };
+      if (expected.ownerKind === "html-image" || expected.ownerKind === "input-image") await new Promise<void>((resolve, reject) => {
         const image = owner as HTMLImageElement; if (image.complete) resolve();
         else { image.addEventListener("load", () => resolve(), { once: true }); image.addEventListener("error", () => reject(new Error()), { once: true }); }
-      });
+      }); else await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       return { track, observation: first.observation, pngDataUrl,
         environment: { userAgent: navigator.userAgent, platform: navigator.platform, secureContext: isSecureContext } };
     }, {
       selector: input.record.selector, frameIndex: input.record.requestedFrameIndex,
       mimeType: input.record.mimeType, base64: Buffer.from(sourceBytes).toString("base64"),
-      expected: { selectedUrl: input.record.selectedUrl, documentNonce: input.record.documentNonce },
+      expected: { selectedUrl: input.record.selectedUrl, documentNonce: input.record.documentNonce,
+        ownerKind: input.record.ownerKind, ownerSlot: input.record.ownerSlot,
+        ownerSlotIndex: input.record.ownerSlotIndex, ownerSerializedValue: input.record.ownerSerializedValue },
     });
     sourceBytes.fill(0);
     if ("failure" in output && output.failure != null) fail(output.failure);
