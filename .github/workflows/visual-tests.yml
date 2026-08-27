@@ -121,7 +121,9 @@ jobs:
     needs: setup
     if: needs.setup.outputs.macos_on == 'true'
     runs-on: macos-latest
-    timeout-minutes: 45
+    # Unicode's CJK-extension fixtures progress normally but take ~60–65 min
+    # on stock CoreText runners; retain headroom for artifact finalization.
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.setup.outputs.macos_matrix) }}
@@ -223,7 +225,9 @@ jobs:
     needs: setup
     if: needs.setup.outputs.linux_on == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # Keep parity with macOS: a slow native-font shard must still reach the
+    # always-run evidence and artifact steps instead of being killed mid-file.
+    timeout-minutes: 90
     container:
       image: mcr.microsoft.com/playwright:v1.59.1-noble
     strategy:

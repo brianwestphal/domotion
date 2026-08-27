@@ -61,6 +61,7 @@ import {
 // of the published barrel (see the note in `../animation/index.ts`).
 import { OVERLAY_DEFAULT_DELAY_MS } from "../animation/animator.js";
 import { captureElementTreeSelfContained, launchChromium, attachWebfontTracker, discoverAndRegisterWebfonts, injectBrandVariables } from "../capture/index.js";
+import { createCapturedTreeEnvelope } from "../capture/tree-envelope.js";
 import { loadBrand, brandSchema, type Brand } from "../templates/brand.js";
 import { type BoxAnchor, borderBox } from "../capture/content-box.js";
 import type { CapturedElement } from "../capture/types.js";
@@ -2971,9 +2972,25 @@ export async function composeAnimateFrames(
       // either tree is absent (e.g. a scroll-block neighbor) or buildMagicMove
       // finds nothing to animate (returns null).
       if (i > 0 && frames[i - 1]?.transition?.type === "magic-move" && prevFrameTree != null && frameTree != null) {
+        // Magic-move appends cloned roots from the previous frame to the next
+        // frame's roots. Legacy Page-authority annotations live only on the
+        // original roots, so that synthetic list would otherwise look like a
+        // forbidden mix of authoritative and unauthoritative captures. Both
+        // frames came from this one Page session: lift the next frame's record
+        // into an envelope and strip only the redundant root annotations from
+        // the transient bridge list.
+        const bridgeEnvelope = createCapturedTreeEnvelope(frameTree);
         frames[i - 1].magicMove = buildMagicMove(
           prevFrameTree, frameTree,
-          (roots, prefix) => elementTreeToSvgInner(roots, cfg.width, cfg.height, prefix, true, 2, false),
+          (roots, prefix) => elementTreeToSvgInner({
+            ...bridgeEnvelope,
+            tree: roots.map((root) => {
+              if (root.sessionGenericFamilies == null) return root;
+              const copy = { ...root };
+              delete copy.sessionGenericFamilies;
+              return copy;
+            }),
+          }, cfg.width, cfg.height, prefix, true, 2, false),
           `mm${i - 1}-`,
         );
       }

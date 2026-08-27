@@ -27,6 +27,7 @@ interface PreparedFrame {
   frame: Frame;
   token: string;
   rows: FrameRow[];
+  hasTransformOwners: boolean;
 }
 
 interface MeasuredRow extends FrameRow {
@@ -89,9 +90,9 @@ async function setupFrameRegistry(
   token: string,
 ): Promise<PreparedFrame | null> {
   try {
-    const rows = await frame.evaluate(({ selector, key, token, isTop }) => {
+    const prepared = await frame.evaluate(({ selector, key, token, isTop }) => {
       const root = isTop ? document.querySelector(selector) : document.documentElement;
-      if (root == null) return [];
+      if (root == null) return { rows: [], hasTransformOwners: false };
       const elements = [root, ...Array.from(root.querySelectorAll("*"))];
       const indexByElement = new WeakMap<Element, number>();
       for (let index = 0; index < elements.length; index++) indexByElement.set(elements[index], index);
@@ -180,9 +181,9 @@ async function setupFrameRegistry(
         snapshots: null,
         factsByElement: Object.create(null),
       };
-      return result;
+      return { rows: result, hasTransformOwners: owners.length > 0 };
     }, { selector, key, token, isTop: frame === frame.page().mainFrame() });
-    return { frame, token, rows };
+    return { frame, token, rows: prepared.rows, hasTransformOwners: prepared.hasTransformOwners };
   } catch {
     return null;
   }
@@ -221,7 +222,7 @@ async function mutateFrames(frames: readonly PreparedFrame[], key: string, neutr
 }
 
 async function settleFrames(frames: readonly PreparedFrame[]): Promise<void> {
-  await Promise.all(frames.map(({ frame }) => frame.evaluate(() => new Promise<void>((resolve) => {
+  await Promise.all(frames.filter(({ hasTransformOwners }) => hasTransformOwners).map(({ frame }) => frame.evaluate(() => new Promise<void>((resolve) => {
     requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
   })).catch(() => undefined)));
 }
