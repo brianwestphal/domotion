@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtaxkrmhxopj0u7d",
+          "message": {
+            "text": "DM-2580 downstream proof: strict provenance is keyed only by DM-2579 frozen PNG URIs. The resize pass verifies the frozen PNG SHA before Sharp/libvips, records output dimensions/length/SHA with source epoch and requested index, and throws on strict digest/resize failure instead of reopening the animated source or falling back to page zero. Legacy images retain best-effort behavior.",
+            "markdown": "DM-2580 downstream proof: strict provenance is keyed only by DM-2579 frozen PNG URIs. The resize pass verifies the frozen PNG SHA before Sharp/libvips, records output dimensions/length/SHA with source epoch and requested index, and throws on strict digest/resize failure instead of reopening the animated source or falling back to page zero. Legacy images retain best-effort behavior."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/tree-ops/resize-embedded-images.ts"
+                },
+                "region": {
+                  "startLine": 85,
+                  "endLine": 190,
+                  "snippet": {
+                    "text": "  };\n  const walk = (els: CapturedElement[]): void => {\n    for (const el of els) {\n      consider(el.imageSrc, el.width, el.height);\n      if (el.pseudoImages != null) {\n        for (const pi of el.pseudoImages) consider(pi.url, pi.width, pi.height);\n      }\n      collectFromCss(el.styles.backgroundImage, el.width, el.height);\n      collectFromCss(el.styles.maskImage, el.width, el.height);\n      // border-image renders to the full border box (== el.width × el.height\n      // in our captured rects, since x/y/width/height already cover the\n      // border box).\n      collectFromCss(el.styles.borderImageSource, el.width, el.height);\n      // list-style-image paints in an em-box at the element's font-size.\n      // Fall back to 16px if fontSize is missing or unparsable.\n      const fontPx = parseFloat(el.styles.fontSize ?? \"16\") || 16;\n      collectFromCss(el.styles.listStyleImage, fontPx, fontPx);\n      if (el.children.length > 0) walk(el.children);\n    }\n  };\n  walk(tree);\n  if (tuples.size === 0) return [];\n  const provenanceByPng = new Map(\n    (options.authenticatedAnimatedFrames ?? []).map((record) => [record.pngDataUrl, record] as const),\n  );\n  const frozenRecords: FrozenAnimatedImageResizeRecord[] = [];\n\n  // Resize in parallel — each sharp call decodes + resizes + encodes\n  // independently. Failures are isolated per-tuple: a corrupt source falls\n  // back to the original data URI in the cache so the renderer just emits\n  // the source bytes (at source resolution) instead of crashing the capture.\n  const tasks = Array.from(tuples.values(), async ({ url, sizeKey, w, h }) => {\n    const sourceDataUri = _dataUriCache.get(url);\n    if (sourceDataUri == null) return;\n    const sourceBytes = decodeDataUri(sourceDataUri);\n    if (sourceBytes == null) return;\n    const frozenSource = provenanceByPng.get(url);\n    if (frozenSource != null && createHash(\"sha256\").update(sourceBytes).digest(\"hex\") !==\n        frozenSource.observation.pngSha256) {\n      throw new Error(\"strict animated-image frozen PNG digest mismatch\");\n    }\n    try {\n      // Resize threshold: skip when the source is already at-or-below the\n      // target on both axes. Re-encoding a same-size JPEG/PNG accumulates\n      // artifacts (or grows the file when re-encoding a small icon as PNG).\n      // Read intrinsic dims from sharp metadata so we don't need to parse\n      // headers ourselves.\n      const meta = await sharp(sourceBytes).metadata();\n      const sw = meta.width ?? 0;\n      const sh = meta.height ?? 0;\n      if (sw > 0 && sh > 0 && sw <= w && sh <= h) {\n        // Source is small enough — keep source bytes. Cache the original\n        // data URI under this sizeKey so the renderer's lookup is uniform.\n        rememberResized(url, sizeKey, sourceDataUri);\n        rememberFrozenResize(frozenSource, sourceBytes, sw, sh, w, h, false, frozenRecords);\n        return;\n      }\n      // `fit: \"inside\"` preserves aspect ratio within the target box;\n      // `withoutEnlargement: true` is defense-in-depth in case the threshold\n      // check above mis-fires.\n      const out = await sharp(sourceBytes)\n        .resize(w, h, { fit: \"inside\", withoutEnlargement: true })\n        .png({ compressionLevel: 9 })\n        .toBuffer();\n      // DM-542: if the resized PNG ended up LARGER than the source bytes\n      // (PNG-of-photo can outweigh a tightly-compressed source JPEG when\n      // the resize ratio is small), keep the source. Otherwise we'd\n      // pessimise the SVG size for every photo whose target rect is close\n      // to source resolution. Validated empirically against\n      // apple-desktop-fold: without this guard the SVG GROWS by ~12.6 %\n      // (PNG re-encode of source-resolution photos > source JPEG bytes);\n      // with it, the resize pass is a no-op for those tiles and other\n      // captures still see their full reduction.\n      if (out.length >= sourceBytes.length) {\n        rememberResized(url, sizeKey, sourceDataUri);\n        rememberFrozenResize(frozenSource, sourceBytes, sw, sh, w, h, false, frozenRecords);\n        return;\n      }\n      const dataUri = `data:image/png;base64,${out.toString(\"base64\")}`;\n      rememberResized(url, sizeKey, dataUri);\n      const outputMeta = await sharp(out).metadata();\n      rememberFrozenResize(frozenSource, out, outputMeta.width ?? 0, outputMeta.height ?? 0, w, h, true, frozenRecords);\n    } catch {\n      if (frozenSource != null) throw new Error(\"strict animated-image frozen PNG resize failed\");\n      // Per-image failure: fall back to source bytes so the SVG still\n      // renders. The renderer's `embedResizedDataUri` lookup will hit the\n      // source data URI cached under this sizeKey.\n      rememberResized(url, sizeKey, sourceDataUri);\n    }\n  });\n  await Promise.all(tasks);\n  return frozenRecords.sort((a, b) => a.requestedFrameIndex - b.requestedFrameIndex ||\n    a.target.width - b.target.width || a.target.height - b.target.height);\n}\n\nfunction rememberFrozenResize(\n  source: AnimatedImageStaticFrameRecord | undefined,\n  output: Buffer,\n  width: number,\n  height: number,\n  targetWidth: number,\n  targetHeight: number,\n  resized: boolean,\n  records: FrozenAnimatedImageResizeRecord[],\n): void {\n  if (source == null) return;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "rank": 1,
+          "workItemUris": [
+            "DM-2580"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "682c05355009595e73fd25d69ab07bd9"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "73f982e4739b2e4df442f6c572f69e2bdf551909",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -480,14 +480,69 @@ browser-context provenance. Its artifact SHA-256 is
 `e8333f8e2d19d9cff00eba6e0a4a894f72edc9db48cc935f3ea9a06153c96f08`,
 and it reopens to the same normalized logical SHA-256 above.
 
-The retained two-arm adjudication file SHA-256 is
+The retained macOS two-arm adjudication file SHA-256 is
 `0d4ce53fa5e5730b5138a75bed4496c7741f51b9b507491aabc7b9c5eb513f26`;
 its canonical report self-hash is
 `6cc9deb0697a4d865b742228b83e4a479279c5c69dab8cff3d3261f41d38706d`.
-It withholds the global verdict for exactly four absent artifacts: Linux
-proposal/validation and Windows proposal/validation, owned by DM-2589. The
-macOS pair is a private logical evidence checkpoint, not authorization for the
-stock-CDP or production collectors and not a macOS-only global verdict.
+DM-2589 additionally retains independent Linux x64 proposal and validation
+arms with artifact SHA-256 identities
+`1218ffadfaed3d1272a79b5681d47f0d4283c5ff4293eae5138d9e813594964b` and
+`51f0455203bb8e5497ed59f4946c6ff651cc015338d0cb84554960294d407f0a`.
+Each contains the same 38 rows, 20/18 authorization split, explicit-headless
+launch authority, body-free denied envelopes, and normalized logical SHA-256
+above, with distinct build, process, observation, and browser-context
+provenance. A fail-closed four-artifact macOS/Linux adjudication has zero
+failures and report self-hash
+`5be4a89902b2eeccd605226dce912be12c83db22e57567a09c63794852dddb38`.
+The global verdict remains withheld for exactly two absent artifacts: Windows
+proposal and validation, now owned by DM-2590. The four retained arms are a
+private logical evidence checkpoint, not authorization for the stock-CDP or
+production collectors and not a partial-platform global verdict.
+
+## Implemented stock-CDP support adjudication
+
+The evidence-only stock-CDP adjudicator is
+`tools/animated-image-stock-cdp-support.ts`. It reopens the retained four-arm
+macOS/Linux adjudication by exact input-file identity and report self-hash,
+then publishes a 38-case supported/denied/unsupported matrix. The accepted
+interim matrix SHA-256 is
+`7c7f3087c909686030efb0760dfd399043d66587021a268b1c33735aae88e9a6`.
+Windows remains expressly withheld; this is not a three-platform verdict.
+
+The smallest production-eligible network subset is same-origin HTTP(S)
+`<img>`, `<picture>`, and `<input type=image>` with a settled GIF, APNG, or
+animated WebP response. The ledger must be attached before navigation and
+must contain exactly one request matching the selected URL, frame, and
+document loader. Backend owner/slot, document nonce, responsive candidate,
+DPR, viewport, redirect chain, response, and decoded entity length/SHA-256
+must be identical before and after `Network.getResponseBody`. A redirect is
+eligible only when every hop is settled and same-origin.
+
+This uniqueness requirement closes the public-protocol gap conservatively.
+`DOM.pdl:95-180` exposes backend node, shadow, and pseudo structure but no
+`Network.RequestId`; `Network.pdl:445-487,1167-1176,1377-1515` exposes the
+request/frame/loader ledger and exact response body but no selected
+`ImageResourceContent*`. The join therefore rejects repeated same-URL owners
+or shared resources instead of treating URL equality as authority.
+
+The retained `data:` and same-partition `blob:` positives ratify only ordinary
+HTML `<img>` owners: parse the selected data URL once and hash twice, or read
+the blob in its owning document realm and double-hash it. Cross-origin CORS
+success, memory/disk-cache and settled-304 responses, service-worker or
+CacheStorage responses, SVG images, CSS layers/items, generated pseudos, and
+closed-shadow pseudos remain unsupported by stock CDP in this increment.
+Their private-truth positives do not expose enough public ownership or
+authorization state to make them safe. CORS/no-CORS failures, active
+revalidation, multipart responses, candidate mutation, and stale-document
+controls remain explicit body-free denials.
+
+The eligible retained positive cases are the stable HTML WebP and APNG rows,
+the settled same-origin redirect row, the stable HTML data/blob rows, and the
+stable image-input row. The existing private-truth schema already requires
+each retained public body to equal the private `ResourceBuffer` in transport,
+decoded byte length, and SHA-256, and requires every denied or mutated row to
+retain no public body facts. DM-2585 may implement only this bounded subset;
+broader routes require new public evidence rather than a relaxed join.
 
 ## Follow-up ownership
 

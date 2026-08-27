@@ -8,9 +8,9 @@
 import { spawnSync } from "node:child_process";
 import sharp from "sharp";
 import { chromium, type Browser, type BrowserContext, type CDPSession, type ElementHandle, type LaunchOptions, type Page } from "@playwright/test";
-import { elementTreeToSvgInner, wrapSvg, rootSvgColorSchemeAttr } from "../render/element-tree-to-svg.js";
+import { _dataUriCache, elementTreeToSvgInner, wrapSvg, rootSvgColorSchemeAttr } from "../render/element-tree-to-svg.js";
 import { embedRemoteImages, type EmbedRemoteImagesOptions } from "./embed.js";
-import { resizeEmbeddedImages } from "../tree-ops/resize-embedded-images.js";
+import { resizeEmbeddedImages, type FrozenAnimatedImageResizeRecord } from "../tree-ops/resize-embedded-images.js";
 import { rasterizeConicGradients } from "../render/conic-raster.js";
 import { rasterizeAdvancedGradients } from "../render/advanced-gradient-raster.js";
 import { resetGeneration, registerLocalFontAlias, registerWebfont } from "../render/text-to-path.js";
@@ -63,6 +63,15 @@ import { _resetLastCaptureWarnings } from "./warnings.js";
 import type { CapturedElement, CapturedFrameScrollState, CapturedTreeEnvelope, CaptureWarning } from "./types.js";
 import { forEachElement } from "../tree-ops/for-each-element.js";
 import { createFontRendererSession, withFontRendererSession, type FontRendererSession } from "../render/font-resolution.js";
+import {
+  AuthenticatedAnimatedImageByteCollector,
+  type AuthenticatedAnimatedImageBytes,
+  type StrictAnimatedImageFrameRequest,
+} from "./authenticated-animated-image-bytes.js";
+import {
+  freezeAuthenticatedAnimatedImageFrames,
+  type AnimatedImageStaticFrameRecord,
+} from "./animated-image-static-frame.js";
 // Brand kit (docs/85 + docs/92). `brand.js` has no browser/Playwright deps
 // (node:fs / node:path / zod only), so importing it here creates no cycle with
 // the capture pipeline (the template subsystem imports FROM this module, not the
@@ -87,6 +96,13 @@ export type {
   CapturedTreeEnvelope,
   CapturedTreeInput,
 } from "./types.js";
+export type {
+  AuthenticatedAnimatedImageByteRecord,
+  AuthenticatedAnimatedImageBytes,
+  AnimatedImageByteFailureCode,
+  StrictAnimatedImageFrameRequest,
+} from "./authenticated-animated-image-bytes.js";
+export type { AnimatedImageFrameObservation, AnimatedImageStaticFrameRecord } from "./animated-image-static-frame.js";
 
 export interface CaptureOptions {
   width: number;
@@ -158,6 +174,13 @@ export interface CaptureOptions {
    * only use it on trusted pages. See docs/81-iframe-recursion.md.
    */
   captureCrossOriginFrames?: string;
+  /**
+   * DM-2585: strict opt-in encoded-byte acquisition for the ratified base
+   * animated-image owners. The ledger is attached before navigation only when
+   * this non-empty list is present. Frame decoding/replacement is owned by
+   * DM-2579 and is intentionally not performed here.
+   */
+  animatedImageFrames?: StrictAnimatedImageFrameRequest[];
 }
 
 /**
@@ -272,6 +295,11 @@ export class DemoRecorder {
   private embedRemoteImagesResize: boolean;
   private embedRemoteImagesHiDPIFactor: number | undefined;
   private captureCrossOriginFrames: string | undefined;
+  private readonly animatedImageFrames: StrictAnimatedImageFrameRequest[];
+  private animatedImageByteCollector: AuthenticatedAnimatedImageByteCollector | null = null;
+  private authenticatedAnimatedImageBytes: AuthenticatedAnimatedImageBytes[] = [];
+  private animatedImageStaticFrameRecords: AnimatedImageStaticFrameRecord[] = [];
+  private frozenAnimatedImageResizeRecords: FrozenAnimatedImageResizeRecord[] = [];
   private readonly fontRendererSession: FontRendererSession = createFontRendererSession();
 
   constructor(baseUrl: string, opts: CaptureOptions) {
@@ -285,6 +313,9 @@ export class DemoRecorder {
     this.embedRemoteImagesResize = opts.embedRemoteImagesResize ?? false;
     this.embedRemoteImagesHiDPIFactor = opts.embedRemoteImagesHiDPIFactor;
     this.captureCrossOriginFrames = opts.captureCrossOriginFrames;
+    this.animatedImageFrames = opts.animatedImageFrames == null
+      ? []
+      : opts.animatedImageFrames.map((request) => ({ ...request }));
   }
 
   async init(opts: CaptureOptions): Promise<void> {
@@ -332,6 +363,9 @@ export class DemoRecorder {
     // and large captures push past 30 s without being genuinely stuck.
     this.page.setDefaultTimeout(90_000);
     this.page.setDefaultNavigationTimeout(90_000);
+    if (this.animatedImageFrames.length > 0) {
+      this.animatedImageByteCollector = await AuthenticatedAnimatedImageByteCollector.install(this.page);
+    }
   }
 
   /** Navigate to a URL and capture the visible DOM as SVG. */
@@ -339,7 +373,29 @@ export class DemoRecorder {
     if (this.page == null) throw new Error("Call init() first");
     await this.page.goto(`${this.baseUrl}${path}`, { waitUntil: opts?.networkIdle === true ? "networkidle" : "load" });
     await this.page.waitForTimeout(waitMs);
+    if (this.animatedImageByteCollector != null) {
+      this.authenticatedAnimatedImageBytes = await this.animatedImageByteCollector.collect(this.animatedImageFrames);
+      this.animatedImageStaticFrameRecords = await freezeAuthenticatedAnimatedImageFrames(
+        this.page, this.authenticatedAnimatedImageBytes,
+      );
+    }
     return this.captureCurrent(idPrefix);
+  }
+
+  /** Immutable-copy handoff consumed by the later DM-2579 transaction. */
+  getAuthenticatedAnimatedImageBytes(): AuthenticatedAnimatedImageBytes[] {
+    return this.authenticatedAnimatedImageBytes.map(({ record, copyBytes }) => ({
+      record: structuredClone(record),
+      copyBytes: () => copyBytes(),
+    }));
+  }
+
+  getAnimatedImageStaticFrameRecords(): AnimatedImageStaticFrameRecord[] {
+    return structuredClone(this.animatedImageStaticFrameRecords);
+  }
+
+  getFrozenAnimatedImageResizeRecords(): FrozenAnimatedImageResizeRecord[] {
+    return structuredClone(this.frozenAnimatedImageResizeRecords);
   }
 
   /**
@@ -356,7 +412,13 @@ export class DemoRecorder {
       retryBackoffMs: this.embedRemoteImagesRetryBackoffMs,
     });
     if (this.selfContained && this.embedRemoteImagesResize) {
-      await resizeEmbeddedImages(tree, { hiDPIFactor: this.embedRemoteImagesHiDPIFactor });
+      for (const record of this.animatedImageStaticFrameRecords) {
+        _dataUriCache.set(record.pngDataUrl, record.pngDataUrl);
+      }
+      this.frozenAnimatedImageResizeRecords = await resizeEmbeddedImages(tree, {
+        hiDPIFactor: this.embedRemoteImagesHiDPIFactor,
+        authenticatedAnimatedFrames: this.animatedImageStaticFrameRecords,
+      });
     }
     // DM-2327: captureElementTree already asked this live Chromium page to
     // paint conic tiles. Fill only missing entries with the historical CPU
@@ -408,6 +470,8 @@ export class DemoRecorder {
   }
 
   async close(): Promise<void> {
+    await this.animatedImageByteCollector?.dispose();
+    this.animatedImageByteCollector = null;
     await this.browser?.close();
   }
 }

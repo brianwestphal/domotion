@@ -145,6 +145,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtaox333r6z0ypk9",
+          "message": {
+            "text": "The retained Linux arms may advance platform evidence but cannot advance the global verdict. Both 38-row artifacts reopen to the macOS logical digest with independent provenance and body-free denials, while the canonical six-artifact contract still requires Windows; DM-2590 therefore owns only that missing authority.",
+            "markdown": "The retained Linux arms may advance platform evidence but cannot advance the global verdict. Both 38-row artifacts reopen to the macOS logical digest with independent provenance and body-free denials, while the canonical six-artifact contract still requires Windows; DM-2590 therefore owns only that missing authority."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/231-authenticated-animated-image-byte-ownership.md"
+                },
+                "region": {
+                  "startLine": 487,
+                  "endLine": 500,
+                  "snippet": {
+                    "text": "DM-2589 additionally retains independent Linux x64 proposal and validation\narms with artifact SHA-256 identities\n`1218ffadfaed3d1272a79b5681d47f0d4283c5ff4293eae5138d9e813594964b` and\n`51f0455203bb8e5497ed59f4946c6ff651cc015338d0cb84554960294d407f0a`.\nEach contains the same 38 rows, 20/18 authorization split, explicit-headless\nlaunch authority, body-free denied envelopes, and normalized logical SHA-256\nabove, with distinct build, process, observation, and browser-context\nprovenance. A fail-closed four-artifact macOS/Linux adjudication has zero\nfailures and report self-hash\n`5be4a89902b2eeccd605226dce912be12c83db22e57567a09c63794852dddb38`.\nThe global verdict remains withheld for exactly two absent artifacts: Windows\nproposal and validation, now owned by DM-2590. The four retained arms are a\nprivate logical evidence checkpoint, not authorization for the stock-CDP or\nproduction collectors and not a partial-platform global verdict."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2589"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "8450f775d632ad669f0731cdc20ad672"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "73f982e4739b2e4df442f6c572f69e2bdf551909",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

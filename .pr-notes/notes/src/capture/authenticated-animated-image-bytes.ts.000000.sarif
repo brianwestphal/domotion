@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtaw1yevt7qehh01",
+          "message": {
+            "text": "DM-2585 proof boundary: the strict collector installs its document nonce and bounded Network ledger before navigation, preserves redirect/frame/loader/cache/SW facts, and is only constructed by DemoRecorder for a non-empty animatedImageFrames option. HTTP(S) collection later uses only Network.getResponseBody and rejects cache/SW/ambiguity; data/blob remain separate transports. Focused pure and explicitly-headless tests cover exact bytes, owner routes, redirect, data/blob, immutable copies, and body-free failures.",
+            "markdown": "DM-2585 proof boundary: the strict collector installs its document nonce and bounded Network ledger before navigation, preserves redirect/frame/loader/cache/SW facts, and is only constructed by DemoRecorder for a non-empty animatedImageFrames option. HTTP(S) collection later uses only Network.getResponseBody and rejects cache/SW/ambiguity; data/blob remain separate transports. Focused pure and explicitly-headless tests cover exact bytes, owner routes, redirect, data/blob, immutable copies, and body-free failures."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/authenticated-animated-image-bytes.ts"
+                },
+                "region": {
+                  "startLine": 189,
+                  "endLine": 245,
+                  "snippet": {
+                    "text": "  static async install(page: Page): Promise<AuthenticatedAnimatedImageByteCollector> {\n    const collector = new AuthenticatedAnimatedImageByteCollector(\n      page, await page.context().newCDPSession(page),\n    );\n    await page.context().addInitScript((nonce) => {\n      Object.defineProperty(globalThis, \"__domotionAnimatedImageDocumentNonce\", {\n        value: nonce, configurable: false, enumerable: false, writable: false,\n      });\n    }, collector.nonce);\n    collector.cdp.on(\"Network.requestWillBeSent\", (event) => {\n      const prior = collector.ledger.get(event.requestId);\n      const redirects = prior?.redirects ?? [];\n      const requestedUrls = prior?.requestedUrls ?? [];\n      if (event.redirectResponse != null) redirects.push({\n        url: event.redirectResponse.url, status: event.redirectResponse.status,\n        mimeType: event.redirectResponse.mimeType,\n      });\n      collector.ledger.set(event.requestId, {\n        requestId: event.requestId, requestUrl: event.request.url,\n        requestedUrls: [...requestedUrls, event.request.url],\n        frameId: event.frameId ?? \"\", loaderId: event.loaderId,\n        requestMode: \"no-cors\", credentialsMode: \"include\",\n        redirects, completed: false, failed: false,\n        servedFromCache: prior?.servedFromCache ?? false,\n      });\n    });\n    collector.cdp.on(\"Network.responseReceived\", (event) => {\n      const entry = collector.ledger.get(event.requestId); if (entry == null) return;\n      entry.response = {\n        url: event.response.url, status: event.response.status, mimeType: event.response.mimeType,\n        rawContentType: String(event.response.headers[\"content-type\"] ?? event.response.headers[\"Content-Type\"] ?? \"\"),\n        fromDiskCache: (event.response.fromDiskCache ?? false) || entry.servedFromCache,\n        fromServiceWorker: event.response.fromServiceWorker ?? false,\n      };\n    });\n    collector.cdp.on(\"Network.loadingFinished\", (event) => {\n      const entry = collector.ledger.get(event.requestId); if (entry != null) entry.completed = true;\n    });\n    collector.cdp.on(\"Network.requestServedFromCache\", (event) => {\n      const entry = collector.ledger.get(event.requestId);\n      if (entry != null) {\n        entry.servedFromCache = true;\n        if (entry.response != null) entry.response.fromDiskCache = true;\n      }\n    });\n    collector.cdp.on(\"Network.loadingFailed\", (event) => {\n      const entry = collector.ledger.get(event.requestId); if (entry != null) entry.failed = true;\n    });\n    await Promise.all([\n      collector.cdp.send(\"DOM.enable\"), collector.cdp.send(\"Runtime.enable\"), collector.cdp.send(\"Page.enable\"),\n      collector.cdp.send(\"Network.enable\", {\n        maxTotalBufferSize: AUTHENTICATED_ANIMATED_IMAGE_LIMITS.maximumTotalBytes,\n        maxResourceBufferSize: AUTHENTICATED_ANIMATED_IMAGE_LIMITS.maximumResourceBytes,\n        maxPostDataSize: 0,\n      }),\n    ]);\n    return collector;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "rank": 1,
+          "workItemUris": [
+            "DM-2585"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "1e4d244b079e3bc54b916d48ab6360ba"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "73f982e4739b2e4df442f6c572f69e2bdf551909",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -17,8 +17,10 @@
  */
 
 import sharp from "sharp";
+import { createHash } from "node:crypto";
 import { _dataUriCache, _resizedDataUriCache } from "../render/element-tree-to-svg.js";
 import type { CapturedElement } from "../capture/types.js";
+import type { AnimatedImageStaticFrameRecord } from "../capture/animated-image-static-frame.js";
 
 export interface ResizeEmbeddedImagesOptions {
   /**
@@ -28,6 +30,16 @@ export interface ResizeEmbeddedImagesOptions {
    * blurry SVG even at default zoom).
    */
   hiDPIFactor?: number;
+  authenticatedAnimatedFrames?: readonly AnimatedImageStaticFrameRecord[];
+}
+
+export interface FrozenAnimatedImageResizeRecord {
+  sourceEpochDigest: string;
+  encodedSourceSha256: string;
+  requestedFrameIndex: number;
+  frozenPngSha256: string;
+  target: { width: number; height: number };
+  output: { width: number; height: number; byteLength: number; sha256: string; resized: boolean };
 }
 
 const DEFAULT_HIDPI_FACTOR = 2;
@@ -41,7 +53,7 @@ const MIN_HIDPI_FACTOR = 1;
 export async function resizeEmbeddedImages(
   tree: CapturedElement[],
   options: ResizeEmbeddedImagesOptions = {},
-): Promise<void> {
+): Promise<FrozenAnimatedImageResizeRecord[]> {
   const hiDPI = Math.max(MIN_HIDPI_FACTOR, options.hiDPIFactor ?? DEFAULT_HIDPI_FACTOR);
 
   // Collect (URL, sizeKey, w, h) tuples. Only consider URLs that
@@ -91,7 +103,11 @@ export async function resizeEmbeddedImages(
     }
   };
   walk(tree);
-  if (tuples.size === 0) return;
+  if (tuples.size === 0) return [];
+  const provenanceByPng = new Map(
+    (options.authenticatedAnimatedFrames ?? []).map((record) => [record.pngDataUrl, record] as const),
+  );
+  const frozenRecords: FrozenAnimatedImageResizeRecord[] = [];
 
   // Resize in parallel — each sharp call decodes + resizes + encodes
   // independently. Failures are isolated per-tuple: a corrupt source falls
@@ -102,6 +118,11 @@ export async function resizeEmbeddedImages(
     if (sourceDataUri == null) return;
     const sourceBytes = decodeDataUri(sourceDataUri);
     if (sourceBytes == null) return;
+    const frozenSource = provenanceByPng.get(url);
+    if (frozenSource != null && createHash("sha256").update(sourceBytes).digest("hex") !==
+        frozenSource.observation.pngSha256) {
+      throw new Error("strict animated-image frozen PNG digest mismatch");
+    }
     try {
       // Resize threshold: skip when the source is already at-or-below the
       // target on both axes. Re-encoding a same-size JPEG/PNG accumulates
@@ -115,6 +136,7 @@ export async function resizeEmbeddedImages(
         // Source is small enough — keep source bytes. Cache the original
         // data URI under this sizeKey so the renderer's lookup is uniform.
         rememberResized(url, sizeKey, sourceDataUri);
+        rememberFrozenResize(frozenSource, sourceBytes, sw, sh, w, h, false, frozenRecords);
         return;
       }
       // `fit: "inside"` preserves aspect ratio within the target box;
@@ -135,11 +157,15 @@ export async function resizeEmbeddedImages(
       // captures still see their full reduction.
       if (out.length >= sourceBytes.length) {
         rememberResized(url, sizeKey, sourceDataUri);
+        rememberFrozenResize(frozenSource, sourceBytes, sw, sh, w, h, false, frozenRecords);
         return;
       }
       const dataUri = `data:image/png;base64,${out.toString("base64")}`;
       rememberResized(url, sizeKey, dataUri);
+      const outputMeta = await sharp(out).metadata();
+      rememberFrozenResize(frozenSource, out, outputMeta.width ?? 0, outputMeta.height ?? 0, w, h, true, frozenRecords);
     } catch {
+      if (frozenSource != null) throw new Error("strict animated-image frozen PNG resize failed");
       // Per-image failure: fall back to source bytes so the SVG still
       // renders. The renderer's `embedResizedDataUri` lookup will hit the
       // source data URI cached under this sizeKey.
@@ -147,6 +173,30 @@ export async function resizeEmbeddedImages(
     }
   });
   await Promise.all(tasks);
+  return frozenRecords.sort((a, b) => a.requestedFrameIndex - b.requestedFrameIndex ||
+    a.target.width - b.target.width || a.target.height - b.target.height);
+}
+
+function rememberFrozenResize(
+  source: AnimatedImageStaticFrameRecord | undefined,
+  output: Buffer,
+  width: number,
+  height: number,
+  targetWidth: number,
+  targetHeight: number,
+  resized: boolean,
+  records: FrozenAnimatedImageResizeRecord[],
+): void {
+  if (source == null) return;
+  records.push({
+    sourceEpochDigest: source.sourceEpochDigest,
+    encodedSourceSha256: source.sourceSha256,
+    requestedFrameIndex: source.requestedFrameIndex,
+    frozenPngSha256: source.observation.pngSha256,
+    target: { width: targetWidth, height: targetHeight },
+    output: { width, height, byteLength: output.byteLength,
+      sha256: createHash("sha256").update(output).digest("hex"), resized },
+  });
 }
 
 function rememberResized(url: string, sizeKey: string, dataUri: string): void {

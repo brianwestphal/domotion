@@ -9,6 +9,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import sharp from "sharp";
+import { createHash } from "node:crypto";
 import {
   _dataUriCache,
   _resizedDataUriCache,
@@ -56,6 +57,52 @@ afterEach(() => {
 });
 
 describe("DM-539 resizeEmbeddedImages — core pre-pass", () => {
+  it("DM-2580 binds strict frozen-PNG resize output to source/frame provenance", async () => {
+    const sourceDataUri = await makePngDataUri(1200, 800);
+    const sourceBytes = decodePngBytes(sourceDataUri);
+    const pngSha256 = createHash("sha256").update(sourceBytes).digest("hex");
+    _dataUriCache.set(sourceDataUri, sourceDataUri);
+    const records = await resizeEmbeddedImages([makeImg(sourceDataUri, 200, 100)], {
+      hiDPIFactor: 2,
+      authenticatedAnimatedFrames: [{
+        selector: "#image", requestedFrameIndex: 3, sourceEpochDigest: "a".repeat(64),
+        sourceSha256: "b".repeat(64), mimeType: "image/gif",
+        browser: { sourceRevision: "7d859f271cbda744098ac69f44978d4edfa62be3", productVersion: "151.0.7918.0",
+          userAgent: "headless", platform: "test", secureContext: true },
+        track: { selectedIndex: 0, frameCount: 4, animated: true, repetitionCount: "Infinity" },
+        observation: { complete: true, rgbaSha256: "c".repeat(64), pngSha256,
+          codedWidth: 1200, codedHeight: 800, displayWidth: 1200, displayHeight: 800,
+          visibleRect: { x: 0, y: 0, width: 1200, height: 800 }, timestamp: 0, duration: 1,
+          format: "RGBA", colorSpace: { primaries: null, transfer: null, matrix: null, fullRange: null } },
+        pngDataUrl: sourceDataUri, transactionDigest: "d".repeat(64),
+      }],
+    });
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({
+      sourceEpochDigest: "a".repeat(64), encodedSourceSha256: "b".repeat(64),
+      requestedFrameIndex: 3, frozenPngSha256: pngSha256,
+      target: { width: 400, height: 200 }, output: { width: 300, height: 200, resized: true },
+    });
+    expect(records[0].output.sha256).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("DM-2580 fails closed when frozen PNG bytes differ from authenticated provenance", async () => {
+    const sourceDataUri = await makePngDataUri(100, 100); _dataUriCache.set(sourceDataUri, sourceDataUri);
+    const frame = {
+      selector: "#image", requestedFrameIndex: 1, sourceEpochDigest: "a".repeat(64), sourceSha256: "b".repeat(64),
+      mimeType: "image/gif", browser: { sourceRevision: "7d859f271cbda744098ac69f44978d4edfa62be3" as const,
+        productVersion: "151.0.7918.0", userAgent: "headless", platform: "test", secureContext: true as const },
+      track: { selectedIndex: 0, frameCount: 2, animated: true, repetitionCount: "0" },
+      observation: { complete: true, rgbaSha256: "c".repeat(64), pngSha256: "0".repeat(64),
+        codedWidth: 100, codedHeight: 100, displayWidth: 100, displayHeight: 100,
+        visibleRect: { x: 0, y: 0, width: 100, height: 100 }, timestamp: 0, duration: 1,
+        format: "RGBA", colorSpace: { primaries: null, transfer: null, matrix: null, fullRange: null } },
+      pngDataUrl: sourceDataUri, transactionDigest: "d".repeat(64),
+    };
+    await expect(resizeEmbeddedImages([makeImg(sourceDataUri, 50, 50)], {
+      authenticatedAnimatedFrames: [frame],
+    })).rejects.toThrow("strict animated-image frozen PNG digest mismatch");
+  });
   it("DM-2242: lets nine-slice consumers bypass incompatible resized variants", async () => {
     const url = "https://example.com/border-nine-slice.png";
     const source = await makePngDataUri(90, 90);

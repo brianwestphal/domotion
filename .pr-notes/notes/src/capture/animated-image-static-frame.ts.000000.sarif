@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtawu09bgj1iznzk",
+          "message": {
+            "text": "DM-2579 strict transaction: authenticated immutable bytes enter two fresh preferAnimation ImageDecoder arms; the validation arm walks reverse order before repeating the requested frame. Exact complete-frame track, VideoFrame, RGBA and PNG facts plus owner/source nonce are required before PNG replacement. Production e2e covers pinned Chromium GIF/APNG/WebP nonzero frames, RangeError-equivalent out-of-range failure, and final SVG absence of the animated source.",
+            "markdown": "DM-2579 strict transaction: authenticated immutable bytes enter two fresh preferAnimation ImageDecoder arms; the validation arm walks reverse order before repeating the requested frame. Exact complete-frame track, VideoFrame, RGBA and PNG facts plus owner/source nonce are required before PNG replacement. Production e2e covers pinned Chromium GIF/APNG/WebP nonzero frames, RangeError-equivalent out-of-range failure, and final SVG absence of the animated source."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/animated-image-static-frame.ts"
+                },
+                "region": {
+                  "startLine": 80,
+                  "endLine": 185,
+                  "snippet": {
+                    "text": "    const sourceBytes = input.copyBytes();\n    try { verifyAuthenticatedAnimatedImageBytes(input.record, sourceBytes); }\n    catch (error) {\n      if (error instanceof AnimatedImageByteCollectorError) fail(\"source-record-drift\");\n      throw error;\n    }\n    const browserVersion = page.context().browser()?.version() ?? \"unknown\";\n    const output = await page.evaluate(async ({ selector, frameIndex, mimeType, base64, expected }) => {\n      type Track = { frameCount: number; animated: boolean; repetitionCount: number };\n      type DecodeResult = { image: VideoFrame; complete: boolean };\n      type Decoder = { tracks: { ready: Promise<unknown>; selectedIndex: number; selectedTrack: Track | null };\n        decode(value: { frameIndex: number; completeFramesOnly: boolean }): Promise<DecodeResult>; close(): void };\n      type Constructor = { new(value: { data: Uint8Array; type: string; colorSpaceConversion: \"default\"; preferAnimation: boolean }): Decoder;\n        isTypeSupported(type: string): Promise<boolean> };\n      const ImageDecoderCtor = (globalThis as unknown as { ImageDecoder?: Constructor }).ImageDecoder;\n      const hash = async (bytes: Uint8Array) => [...new Uint8Array(await crypto.subtle.digest(\n        \"SHA-256\", Uint8Array.from(bytes).buffer,\n      ))]\n        .map((byte) => byte.toString(16).padStart(2, \"0\")).join(\"\");\n      const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));\n      if (!isSecureContext) return { failure: \"insecure-decoder-context\" as const };\n      if (ImageDecoderCtor == null) return { failure: \"decoder-unavailable\" as const };\n      if (!await ImageDecoderCtor.isTypeSupported(mimeType)) return { failure: \"unsupported-type\" as const };\n      const observe = async (decoder: Decoder, index: number) => {\n        const result = await decoder.decode({ frameIndex: index, completeFramesOnly: true });\n        const frame = result.image;\n        try {\n          const canvas = document.createElement(\"canvas\"); canvas.width = frame.displayWidth; canvas.height = frame.displayHeight;\n          const context = canvas.getContext(\"2d\", { willReadFrequently: true }); if (context == null) throw new Error();\n          context.drawImage(frame, 0, 0);\n          const rgba = new Uint8Array(context.getImageData(0, 0, canvas.width, canvas.height).data);\n          const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, \"image/png\"));\n          if (blob == null) throw new Error();\n          const png = new Uint8Array(await blob.arrayBuffer());\n          const pngBase64 = await new Promise<string>((resolve, reject) => {\n            const reader = new FileReader(); reader.onerror = () => reject(new Error());\n            reader.onload = () => resolve(String(reader.result).split(\",\")[1] ?? \"\"); reader.readAsDataURL(blob);\n          });\n          const rect = frame.visibleRect;\n          return { pngBase64, observation: {\n            complete: result.complete, rgbaSha256: await hash(rgba), pngSha256: await hash(png),\n            codedWidth: frame.codedWidth, codedHeight: frame.codedHeight,\n            displayWidth: frame.displayWidth, displayHeight: frame.displayHeight,\n            visibleRect: rect == null ? null : { x: rect.x, y: rect.y, width: rect.width, height: rect.height },\n            timestamp: frame.timestamp, duration: frame.duration, format: frame.format,\n            colorSpace: { primaries: frame.colorSpace.primaries, transfer: frame.colorSpace.transfer,\n              matrix: frame.colorSpace.matrix, fullRange: frame.colorSpace.fullRange },\n          } };\n        } finally { frame.close(); }\n      };\n      const create = () => new ImageDecoderCtor({ data: bytes, type: mimeType, colorSpaceConversion: \"default\", preferAnimation: true });\n      const proposal = create(); await proposal.tracks.ready; const selected = proposal.tracks.selectedTrack;\n      if (selected == null) { proposal.close(); return { failure: \"unselected-animation-track\" as const }; }\n      const track = { selectedIndex: proposal.tracks.selectedIndex, frameCount: selected.frameCount,\n        animated: selected.animated, repetitionCount: Number.isFinite(selected.repetitionCount) ? String(selected.repetitionCount) : \"Infinity\" };\n      if (!track.animated) { proposal.close(); return { failure: \"static-image-track\" as const }; }\n      if (!Number.isInteger(track.frameCount) || track.frameCount < 2 || track.frameCount > 4096) {\n        proposal.close(); return { failure: \"unbounded-frame-count\" as const };\n      }\n      if (frameIndex < 0 || frameIndex >= track.frameCount) { proposal.close(); return { failure: \"frame-index-out-of-range\" as const }; }\n      const first = await observe(proposal, frameIndex); proposal.close();\n      const validation = create(); await validation.tracks.ready;\n      for (let index = track.frameCount - 1; index > frameIndex; index--) {\n        const control = await validation.decode({ frameIndex: index, completeFramesOnly: true }); control.image.close();\n      }\n      const second = await observe(validation, frameIndex); validation.close();\n      if (!first.observation.complete || !second.observation.complete) return { failure: \"partial-frame\" as const };\n      if (JSON.stringify(first.observation) !== JSON.stringify(second.observation) || first.pngBase64 !== second.pngBase64) {\n        return { failure: \"decoder-facts-mismatch\" as const };\n      }\n      const owner = document.querySelector(selector);\n      if (owner == null) return { failure: \"replacement-missing\" as const };\n      const current = owner instanceof HTMLImageElement ? owner.currentSrc || owner.src\n        : owner instanceof HTMLInputElement && owner.type === \"image\" ? owner.src : \"\";\n      const nonce = (globalThis as typeof globalThis & { __domotionAnimatedImageDocumentNonce?: string })\n        .__domotionAnimatedImageDocumentNonce ?? \"\";\n      if (current !== expected.selectedUrl || nonce !== expected.documentNonce) return { failure: \"source-record-drift\" as const };\n      const pngDataUrl = `data:image/png;base64,${first.pngBase64}`;\n      if (owner instanceof HTMLImageElement) {\n        owner.closest(\"picture\")?.querySelectorAll(\"source\").forEach((source) => source.removeAttribute(\"srcset\"));\n        owner.removeAttribute(\"srcset\"); owner.src = pngDataUrl;\n      } else if (owner instanceof HTMLInputElement && owner.type === \"image\") owner.src = pngDataUrl;\n      else return { failure: \"replacement-missing\" as const };\n      await new Promise<void>((resolve, reject) => {\n        const image = owner as HTMLImageElement; if (image.complete) resolve();\n        else { image.addEventListener(\"load\", () => resolve(), { once: true }); image.addEventListener(\"error\", () => reject(new Error()), { once: true }); }\n      });\n      return { track, observation: first.observation, pngDataUrl,\n        environment: { userAgent: navigator.userAgent, platform: navigator.platform, secureContext: isSecureContext } };\n    }, {\n      selector: input.record.selector, frameIndex: input.record.requestedFrameIndex,\n      mimeType: input.record.mimeType, base64: Buffer.from(sourceBytes).toString(\"base64\"),\n      expected: { selectedUrl: input.record.selectedUrl, documentNonce: input.record.documentNonce },\n    });\n    sourceBytes.fill(0);\n    if (\"failure\" in output && output.failure != null) fail(output.failure);\n    if (output.track == null || output.observation == null || output.pngDataUrl == null) {\n      fail(\"decoder-facts-mismatch\");\n    }\n    const track = output.track!;\n    const observation = output.observation!;\n    const pngDataUrl = output.pngDataUrl!;\n    const environment = output.environment!;\n    const logical = {\n      selector: input.record.selector, requestedFrameIndex: input.record.requestedFrameIndex,\n      sourceEpochDigest: input.record.epochDigest, sourceSha256: input.record.sha256,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "rank": 1,
+          "workItemUris": [
+            "DM-2579"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ecb517ad37b1590b0bea795c90ce73c1"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "73f982e4739b2e4df442f6c572f69e2bdf551909",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
