@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtazz4w95ipqpdit",
+          "message": {
+            "text": "The browser tests prove both newly admitted public joins return the exact selected URL and owner slot, while image-set fails with the stable body-free unsupported-owner code. The full focused e2e file passes 9/9.",
+            "markdown": "The browser tests prove both newly admitted public joins return the exact selected URL and owner slot, while image-set fails with the stable body-free unsupported-owner code. The full focused e2e file passes 9/9."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/authenticated-animated-image-bytes.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 73,
+                  "endLine": 107,
+                  "snippet": {
+                    "text": "  it(\"authenticates a public SVG href owner through a unique ledger join\", async () => {\n    const { page, collector } = await pageWith(`\n      <svg><image id=\"target\" href=\"${origin}/pixel.gif?svg\"></image></svg>`);\n    const [result] = await collector.collect([{ selector: \"#target\", frameIndex: 1 }]);\n    expect(result.record).toMatchObject({\n      ownerKind: \"svg-image\", ownerSlot: \"svg-href\", cssProperty: null,\n      cssIndex: null, selectedUrl: `${origin}/pixel.gif?svg`,\n    });\n    await collector.dispose(); await page.close();\n  });\n\n  it(\"authenticates one explicit ordinary CSS URL layer\", async () => {\n    const { page, collector } = await pageWith(`\n      <div id=\"target\" style=\"background-image: url('${origin}/pixel.gif?zero'), url('${origin}/pixel.gif?one')\"></div>`);\n    const [result] = await collector.collect([{\n      selector: \"#target\", frameIndex: 2,\n      cssSlot: { property: \"background-image\", index: 1 },\n    }]);\n    expect(result.record).toMatchObject({\n      ownerKind: \"css-image\", ownerSlot: \"css-property\",\n      cssProperty: \"background-image\", cssIndex: 1,\n      selectedUrl: `${origin}/pixel.gif?one`,\n    });\n    await collector.dispose(); await page.close();\n  });\n\n  it(\"rejects CSS image-set because public CSSOM does not expose its selected resource identity\", async () => {\n    const { page, collector } = await pageWith(`\n      <div id=\"target\" style=\"background-image: image-set(url('${origin}/pixel.gif?one') 1x, url('${origin}/pixel.gif?two') 2x)\"></div>`);\n    const error = await collector.collect([{\n      selector: \"#target\", frameIndex: 0,\n      cssSlot: { property: \"background-image\", index: 0 },\n    }]).catch((value: unknown) => value);\n    expect(error).toBeInstanceOf(AnimatedImageByteCollectorError);\n    expect((error as AnimatedImageByteCollectorError).code).toBe(\"unsupported-owner\");"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 85,
+          "workItemUris": [
+            "DM-2591"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "fb7a3712926d3a3b14ca5f80064b7aed"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "ca9301f41f8cf2d38a600109c7ab10c1e0d232d0",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

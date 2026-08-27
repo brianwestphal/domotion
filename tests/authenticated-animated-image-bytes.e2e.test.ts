@@ -70,6 +70,44 @@ describe("authenticated animated-image byte collector (DM-2585)", () => {
     await collector.dispose(); await page.close();
   });
 
+  it("authenticates a public SVG href owner through a unique ledger join", async () => {
+    const { page, collector } = await pageWith(`
+      <svg><image id="target" href="${origin}/pixel.gif?svg"></image></svg>`);
+    const [result] = await collector.collect([{ selector: "#target", frameIndex: 1 }]);
+    expect(result.record).toMatchObject({
+      ownerKind: "svg-image", ownerSlot: "svg-href", cssProperty: null,
+      cssIndex: null, selectedUrl: `${origin}/pixel.gif?svg`,
+    });
+    await collector.dispose(); await page.close();
+  });
+
+  it("authenticates one explicit ordinary CSS URL layer", async () => {
+    const { page, collector } = await pageWith(`
+      <div id="target" style="background-image: url('${origin}/pixel.gif?zero'), url('${origin}/pixel.gif?one')"></div>`);
+    const [result] = await collector.collect([{
+      selector: "#target", frameIndex: 2,
+      cssSlot: { property: "background-image", index: 1 },
+    }]);
+    expect(result.record).toMatchObject({
+      ownerKind: "css-image", ownerSlot: "css-property",
+      cssProperty: "background-image", cssIndex: 1,
+      selectedUrl: `${origin}/pixel.gif?one`,
+    });
+    await collector.dispose(); await page.close();
+  });
+
+  it("rejects CSS image-set because public CSSOM does not expose its selected resource identity", async () => {
+    const { page, collector } = await pageWith(`
+      <div id="target" style="background-image: image-set(url('${origin}/pixel.gif?one') 1x, url('${origin}/pixel.gif?two') 2x)"></div>`);
+    const error = await collector.collect([{
+      selector: "#target", frameIndex: 0,
+      cssSlot: { property: "background-image", index: 0 },
+    }]).catch((value: unknown) => value);
+    expect(error).toBeInstanceOf(AnimatedImageByteCollectorError);
+    expect((error as AnimatedImageByteCollectorError).code).toBe("unsupported-owner");
+    await collector.dispose(); await page.close();
+  });
+
   it("uses the separate data transport without a Network body join", async () => {
     const data = `data:image/gif;base64,${GIF.toString("base64")}`;
     const { page, collector } = await pageWith(`<img id="target" src="${data}">`);

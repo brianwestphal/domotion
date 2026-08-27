@@ -9,10 +9,13 @@ supplies a strict nonnegative frame request for an exact element selector.
 Omitting the option preserves legacy capture: no CDP session, Network domain,
 document nonce, byte record, warning, timing change, or new failure.
 
-The first production increment covers `<img>` (including a `<picture>`-selected
-`currentSrc`) and `<input type=image>`. SVG and CSS/pseudo/shadow image slots are
-owned by DM-2581. The macOS/Linux stock-CDP gate in DM-2584 further limits this
-increment to same-origin HTTP(S), settled same-origin redirects, ordinary
+The production subset covers `<img>` (including a `<picture>`-selected
+`currentSrc`), `<input type=image>`, SVG `<image href>`, and an explicitly
+requested ordinary computed CSS `url(...)` property/layer index. CSS
+`image-set()`, generated pseudos, and shadow-only owners remain unavailable
+because public CSSOM does not expose their selected Blink resource identity.
+The macOS/Linux stock-CDP gate further limits this subset to same-origin
+HTTP(S), settled same-origin redirects, ordinary
 `data:` URLs, and same-partition `blob:` URLs. CORS, cache/revalidation,
 service-worker/CacheStorage, repeated-URL ambiguity, multipart, and every
 unratified route fail closed.

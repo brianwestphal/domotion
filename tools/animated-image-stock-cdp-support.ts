@@ -44,8 +44,8 @@ export const ANIMATED_IMAGE_STOCK_CDP_SUPPORTED_SUBSET = Object.freeze({
   scope: ["macOS/arm64", "Linux/x64"],
   globalWindowsVerdict: "withheld",
   network: {
-    owners: ["img", "picture", "input[type=image]"],
-    slots: ["html-current", "input-src"],
+    owners: ["img", "picture", "input[type=image]", "svg image", "ordinary CSS url()"],
+    slots: ["html-current", "input-src", "svg-href", "css-property-index"],
     schemes: ["http:", "https:"],
     mimeTypes: ["image/gif", "image/png", "image/webp"],
     authorization: "same-origin-only",
@@ -82,8 +82,7 @@ export const ANIMATED_IMAGE_STOCK_CDP_SUPPORTED_SUBSET = Object.freeze({
     transport: "same-partition-owning-document-read-and-double-hash",
   },
   unsupportedOwners: [
-    "svg-image",
-    "css-image",
+    "css-image-set",
     "generated-pseudo",
     "closed-shadow-pseudo",
   ],
@@ -105,6 +104,10 @@ const ELIGIBLE_CASES = new Set([
   "data-url-mutation/stable-data",
   "blob-replacement-revocation/stable-blob",
   "navigation-stale-backend-node/stable-input",
+  "css-background-layer-reorder/layer-one",
+  "css-background-layer-reorder/border-image",
+  "css-mask-layer-reorder/mask-one",
+  "owner-adoption-detachment/stable-svg",
 ]);
 
 const UNSUPPORTED_AUTHORIZED_REASONS: Readonly<Record<string, AnimatedImageTruthDenialCode>> = {

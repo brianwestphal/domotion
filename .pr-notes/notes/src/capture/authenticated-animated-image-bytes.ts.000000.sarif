@@ -66,6 +66,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtazz4po3mrig51d",
+          "message": {
+            "text": "DM-2591 deliberately exposes only owner facts public APIs can revalidate: SVG href and ordered ordinary computed CSS url() layers. image-set(), pseudo, and shadow-only identities stay unsupported because public CSSOM cannot name the selected Blink StyleImage pointer; the existing unique URL/frame/loader ledger remains the body-join authority.",
+            "markdown": "DM-2591 deliberately exposes only owner facts public APIs can revalidate: SVG href and ordered ordinary computed CSS url() layers. image-set(), pseudo, and shadow-only identities stay unsupported because public CSSOM cannot name the selected Blink StyleImage pointer; the existing unique URL/frame/loader ledger remains the body-join authority."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/authenticated-animated-image-bytes.ts"
+                },
+                "region": {
+                  "startLine": 174,
+                  "endLine": 220,
+                  "snippet": {
+                    "text": "      ownerKind: \"html-image\" as const, ownerSlot: \"html-current\" as const,\n      cssProperty: null, cssIndex: null,\n      selectedUrl: node.currentSrc || node.src, currentSrc: node.currentSrc,\n      nonce, dpr: devicePixelRatio, viewport: { width: innerWidth, height: innerHeight },\n    };\n    if (node instanceof HTMLInputElement && node.type === \"image\" && cssSlot == null) return {\n      ownerKind: \"input-image\" as const, ownerSlot: \"input-src\" as const,\n      cssProperty: null, cssIndex: null,\n      selectedUrl: node.src, currentSrc: \"\", nonce, dpr: devicePixelRatio,\n      viewport: { width: innerWidth, height: innerHeight },\n    };\n    if (node instanceof SVGImageElement && cssSlot == null) {\n      const raw = node.href.baseVal;\n      return {\n        ownerKind: \"svg-image\" as const, ownerSlot: \"svg-href\" as const,\n        cssProperty: null, cssIndex: null,\n        selectedUrl: raw === \"\" ? \"\" : new URL(raw, document.baseURI).href,\n        currentSrc: \"\", nonce, dpr: devicePixelRatio,\n        viewport: { width: innerWidth, height: innerHeight },\n      };\n    }\n    if (node instanceof Element && cssSlot != null) {\n      if (!Number.isInteger(cssSlot.index) || cssSlot.index < 0) return null;\n      const serialized = getComputedStyle(node).getPropertyValue(cssSlot.property).trim();\n      const layers: string[] = [];\n      let start = 0; let depth = 0; let quote = \"\";\n      for (let index = 0; index <= serialized.length; index += 1) {\n        const char = serialized[index] ?? \",\";\n        if (quote !== \"\") {\n          if (char === quote && serialized[index - 1] !== \"\\\\\") quote = \"\";\n        } else if (char === \"\\\"\" || char === \"'\") quote = char;\n        else if (char === \"(\") depth += 1;\n        else if (char === \")\") depth -= 1;\n        else if (char === \",\" && depth === 0) { layers.push(serialized.slice(start, index).trim()); start = index + 1; }\n      }\n      const layer = layers[cssSlot.index];\n      const match = layer == null ? null : /^url\\((?:\"([^\"]*)\"|'([^']*)'|([^)]*))\\)$/i.exec(layer);\n      const raw = match?.[1] ?? match?.[2] ?? match?.[3]?.trim();\n      if (raw == null || raw === \"\") return null;\n      return {\n        ownerKind: \"css-image\" as const, ownerSlot: \"css-property\" as const,\n        cssProperty: cssSlot.property, cssIndex: cssSlot.index,\n        selectedUrl: new URL(raw, document.baseURI).href, currentSrc: \"\", nonce,\n        dpr: devicePixelRatio, viewport: { width: innerWidth, height: innerHeight },\n      };\n    }\n    return null;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2591"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4d23bdb3a471a27a7196e2826da3f1e1"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "ca9301f41f8cf2d38a600109c7ab10c1e0d232d0",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
