@@ -71,6 +71,32 @@ export const ANIMATED_IMAGE_STOCK_CDP_SUPPORTED_SUBSET = Object.freeze({
       "multipart",
     ],
   },
+  publicOwnerJoin: {
+    svgHref: {
+      owners: ["svg image"],
+      slot: "svg-href",
+      selectedUrlFact: "SVGImageElement.href.baseVal resolved against document.baseURI",
+      requiredFacts: [
+        "unique-selector-and-backend-node",
+        "connected-owner-in-stable-document",
+        "href-and-resolved-url-stable-before-and-after",
+        "exactly-one-selected-url-frame-loader-ledger-candidate",
+      ],
+    },
+    ordinaryCssUrl: {
+      owners: ["element computed style"],
+      slots: ["background-image", "border-image-source", "mask-image", "list-style-image"],
+      selectedUrlFact: "single ordinary url() at an explicit top-level computed-value index",
+      requiredFacts: [
+        "unique-selector-and-backend-node",
+        "property-index-and-serialized-computed-value-stable-before-and-after",
+        "url-token-resolved-against-document-base-url",
+        "dpr-viewport-frame-loader-document-nonce-stable",
+        "exactly-one-selected-url-frame-loader-ledger-candidate",
+      ],
+      rejectedSyntax: ["image-set()", "cross-fade()", "generated-content", "pseudo", "closed-shadow"],
+    },
+  },
   dataUrl: {
     owners: ["img"],
     slot: "html-current",
@@ -82,8 +108,7 @@ export const ANIMATED_IMAGE_STOCK_CDP_SUPPORTED_SUBSET = Object.freeze({
     transport: "same-partition-owning-document-read-and-double-hash",
   },
   unsupportedOwners: [
-    "svg-image",
-    "css-image",
+    "css-image-set-or-non-url-function",
     "generated-pseudo",
     "closed-shadow-pseudo",
   ],
@@ -105,6 +130,10 @@ const ELIGIBLE_CASES = new Set([
   "data-url-mutation/stable-data",
   "blob-replacement-revocation/stable-blob",
   "navigation-stale-backend-node/stable-input",
+  "css-background-layer-reorder/layer-one",
+  "css-background-layer-reorder/border-image",
+  "css-mask-layer-reorder/mask-one",
+  "owner-adoption-detachment/stable-svg",
 ]);
 
 const UNSUPPORTED_AUTHORIZED_REASONS: Readonly<Record<string, AnimatedImageTruthDenialCode>> = {

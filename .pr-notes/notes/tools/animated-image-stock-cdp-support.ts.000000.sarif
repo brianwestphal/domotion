@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtb02223rz777sfe",
+          "message": {
+            "text": "DM-2591 is evidence-only: this publicOwnerJoin contract records the exact DOM/CSSOM facts a later production ticket may consume, while the retained private four-arm corpus remains the Resource-pointer authority. It admits only SVG href and a single ordinary url() at an explicit computed-property index; image-set, pseudo, shadow, cache, service-worker, and non-unique ledger relations remain denied.",
+            "markdown": "DM-2591 is evidence-only: this publicOwnerJoin contract records the exact DOM/CSSOM facts a later production ticket may consume, while the retained private four-arm corpus remains the Resource-pointer authority. It admits only SVG href and a single ordinary url() at an explicit computed-property index; image-set, pseudo, shadow, cache, service-worker, and non-unique ledger relations remain denied."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/animated-image-stock-cdp-support.ts"
+                },
+                "region": {
+                  "startLine": 78,
+                  "endLine": 109,
+                  "snippet": {
+                    "text": "      selectedUrlFact: \"SVGImageElement.href.baseVal resolved against document.baseURI\",\n      requiredFacts: [\n        \"unique-selector-and-backend-node\",\n        \"connected-owner-in-stable-document\",\n        \"href-and-resolved-url-stable-before-and-after\",\n        \"exactly-one-selected-url-frame-loader-ledger-candidate\",\n      ],\n    },\n    ordinaryCssUrl: {\n      owners: [\"element computed style\"],\n      slots: [\"background-image\", \"border-image-source\", \"mask-image\", \"list-style-image\"],\n      selectedUrlFact: \"single ordinary url() at an explicit top-level computed-value index\",\n      requiredFacts: [\n        \"unique-selector-and-backend-node\",\n        \"property-index-and-serialized-computed-value-stable-before-and-after\",\n        \"url-token-resolved-against-document-base-url\",\n        \"dpr-viewport-frame-loader-document-nonce-stable\",\n        \"exactly-one-selected-url-frame-loader-ledger-candidate\",\n      ],\n      rejectedSyntax: [\"image-set()\", \"cross-fade()\", \"generated-content\", \"pseudo\", \"closed-shadow\"],\n    },\n  },\n  dataUrl: {\n    owners: [\"img\"],\n    slot: \"html-current\",\n    transport: \"parse-selected-url-once-and-hash-twice\",\n  },\n  blobUrl: {\n    owners: [\"img\"],\n    slot: \"html-current\",\n    transport: \"same-partition-owning-document-read-and-double-hash\",\n  },"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2591"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "92a9284a03a86f427d91342ad1668afd"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "94209299771eaf18e4eb88a61a627877864b8e20",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
