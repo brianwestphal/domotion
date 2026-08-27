@@ -25,78 +25,21 @@ import {
   REQUIRED_PAGED_COLLAPSED_TABLE_FACTS,
 } from "../src/capture/paged-collapsed-table-record.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
+import {
+  PAGED_TABLE_EVIDENCE_FIXTURES,
+  REQUIRED_PAGED_COLLAPSED_TABLE_MATRIX,
+  validatePagedTableEvidenceFixtures,
+  type PagedCollapsedTableMatrixCell,
+  type PagedTableEvidenceFixture,
+} from "./paged-table-evidence-fixtures.js";
+
+export {
+  REQUIRED_PAGED_COLLAPSED_TABLE_MATRIX,
+  type PagedCollapsedTableMatrixCell,
+} from "./paged-table-evidence-fixtures.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
-
-export const REQUIRED_PAGED_COLLAPSED_TABLE_MATRIX = [
-  "whole-row",
-  "continued-row",
-  "repeated-header-footer",
-  "caption",
-  "span-joint",
-  "vertical-lr-positive",
-  "vertical-rl-negative",
-  "empty-terminal-page",
-] as const;
-
-export type PagedCollapsedTableMatrixCell =
-  typeof REQUIRED_PAGED_COLLAPSED_TABLE_MATRIX[number];
-
-interface Fixture {
-  id: string;
-  matrix: PagedCollapsedTableMatrixCell[];
-  html: string;
-}
-
-const style = `
-  @page{size:300px 240px;margin:0}
-  html,body{margin:0;padding:0}
-  table{border-collapse:collapse;inline-size:280px}
-  th,td{box-sizing:border-box;border:6px solid #2563eb;padding:0;block-size:42px}
-  thead,tfoot{break-inside:avoid}
-`;
-
-const rows = (count: number, cell = "<td></td>"): string =>
-  Array.from({ length: count }, (_, index) => `<tr data-row="${index}">${cell}</tr>`).join("");
-
-const fixtures: Fixture[] = [
-  {
-    id: "whole-row-pages",
-    matrix: ["whole-row"],
-    html: `<!doctype html><style>${style}tr{break-inside:avoid}</style><table id="table"><tbody>${rows(15)}</tbody></table>`,
-  },
-  {
-    id: "continued-row-pages",
-    matrix: ["continued-row"],
-    html: `<!doctype html><style>${style}.continued{block-size:520px;break-inside:auto}</style><table id="table"><tbody><tr class="continued"><td></td></tr>${rows(2)}</tbody></table>`,
-  },
-  {
-    id: "repeated-sections",
-    matrix: ["repeated-header-footer"],
-    html: `<!doctype html><style>${style}thead th{border-block-start-width:10px}tfoot td{border-block-end-width:12px}</style><table id="table"><thead><tr><th></th></tr></thead><tbody>${rows(16)}</tbody><tfoot><tr><td></td></tr></tfoot></table>`,
-  },
-  {
-    id: "caption-and-span-joints",
-    matrix: ["caption", "span-joint"],
-    html: `<!doctype html><style>${style}caption{block-size:90px}col:first-child{inline-size:35%}col:last-child{inline-size:65%}</style><table id="table"><caption></caption><colgroup><col><col></colgroup><tbody><tr><td rowspan="3"></td><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td colspan="2"></td></tr>${rows(10, "<td></td><td></td>")}</tbody></table>`,
-  },
-  {
-    id: "vertical-lr-pages",
-    matrix: ["vertical-lr-positive"],
-    html: `<!doctype html><style>${style}body{writing-mode:vertical-lr}table{writing-mode:vertical-lr;block-size:280px}tr{break-inside:avoid}</style><table id="table"><tbody>${rows(15)}</tbody></table>`,
-  },
-  {
-    id: "vertical-rl-pages",
-    matrix: ["vertical-rl-negative"],
-    html: `<!doctype html><style>${style}body{writing-mode:vertical-rl}table{writing-mode:vertical-rl;block-size:280px}tr{break-inside:avoid}</style><table id="table"><tbody>${rows(15)}</tbody></table>`,
-  },
-  {
-    id: "empty-terminal-page",
-    matrix: ["empty-terminal-page"],
-    html: `<!doctype html><style>${style}.terminal{break-before:page;block-size:0}</style><table id="table"><tbody>${rows(6)}</tbody></table><div class="terminal"></div>`,
-  },
-];
 
 export interface PagedCollapsedTableCaseReport {
   id: string;
@@ -146,7 +89,10 @@ export interface PagedCollapsedTableOwnershipReport {
   pass: boolean;
 }
 
-async function runFixture(page: Page, fixture: Fixture): Promise<PagedCollapsedTableCaseReport> {
+async function runFixture(
+  page: Page,
+  fixture: PagedTableEvidenceFixture,
+): Promise<PagedCollapsedTableCaseReport> {
   await page.setContent(fixture.html, { waitUntil: "load" });
   return {
     id: fixture.id,
@@ -185,13 +131,7 @@ export function validatePagedCollapsedTableCorpus(): string[] {
   const errors: string[] = [];
   if (PAGED_COLLAPSED_TABLE_SOURCE_PINS.chromium
       !== "7d859f271cbda744098ac69f44978d4edfa62be3") errors.push("Chromium pin changed");
-  const covered = new Set(fixtures.flatMap((fixture) => fixture.matrix));
-  for (const cell of REQUIRED_PAGED_COLLAPSED_TABLE_MATRIX) {
-    if (!covered.has(cell)) errors.push(`missing paged table matrix cell ${cell}`);
-  }
-  if (new Set(fixtures.map((fixture) => fixture.id)).size !== fixtures.length) {
-    errors.push("duplicate paged table fixture id");
-  }
+  errors.push(...validatePagedTableEvidenceFixtures());
   return errors;
 }
 
@@ -206,7 +146,9 @@ export async function runPagedCollapsedTableOwnershipAudit(): Promise<PagedColla
       deviceScaleFactor: 1,
     });
     const cases: PagedCollapsedTableCaseReport[] = [];
-    for (const fixture of fixtures) cases.push(await runFixture(page, fixture));
+    for (const fixture of PAGED_TABLE_EVIDENCE_FIXTURES) {
+      cases.push(await runFixture(page, fixture));
+    }
     const localChromiumSourceRevision = execFileSync(
       "git",
       ["-C", resolve(ROOT, "external/chromium"), "rev-parse", "HEAD"],

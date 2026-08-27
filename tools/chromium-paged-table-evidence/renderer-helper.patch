@@ -1,0 +1,1571 @@
+diff --git a/chrome/browser/devtools/protocol/page_handler.cc b/chrome/browser/devtools/protocol/page_handler.cc
+index 2595b1783e..937799b469 100644
+--- a/chrome/browser/devtools/protocol/page_handler.cc
++++ b/chrome/browser/devtools/protocol/page_handler.cc
+@@ -6,6 +6,7 @@
+ 
+ #include <variant>
+ 
++#include "base/process/process_handle.h"
+ #include "base/strings/string_util.h"
+ #include "base/strings/utf_string_conversions.h"
+ #include "chrome/browser/custom_handlers/protocol_handler_registry_factory.h"
+@@ -238,6 +239,7 @@ void PageHandler::PrintToPDF(std::optional<bool> landscape,
+                              std::optional<protocol::String> transfer_mode,
+                              std::optional<bool> generate_tagged_pdf,
+                              std::optional<bool> generate_document_outline,
++                             std::optional<bool> domotion_paged_table_evidence,
+                              std::unique_ptr<PrintToPDFCallback> callback) {
+   DCHECK(callback);
+ 
+@@ -264,6 +266,11 @@ void PageHandler::PrintToPDF(std::optional<bool> landscape,
+   DCHECK(std::holds_alternative<printing::mojom::PrintPagesParamsPtr>(
+       print_pages_params));
+ 
++  const bool domotion_evidence_requested =
++      domotion_paged_table_evidence.value_or(false);
++  std::get<printing::mojom::PrintPagesParamsPtr>(print_pages_params)
++      ->params->domotion_paged_table_evidence = domotion_evidence_requested;
++
+   bool return_as_stream =
+       transfer_mode.value_or("") ==
+       protocol::Page::PrintToPDF::TransferModeEnum::ReturnAsStream;
+@@ -280,6 +287,7 @@ void PageHandler::PrintToPDF(std::optional<bool> landscape,
+             std::get<printing::mojom::PrintPagesParamsPtr>(print_pages_params)),
+         base::BindOnce(&PageHandler::OnPDFCreated,
+                        weak_ptr_factory_.GetWeakPtr(), return_as_stream,
++                       domotion_evidence_requested,
+                        std::move(callback)));
+     return;
+   }
+@@ -294,6 +302,7 @@ void PageHandler::PrintToPDF(std::optional<bool> landscape,
+             std::get<printing::mojom::PrintPagesParamsPtr>(print_pages_params)),
+         base::BindOnce(&PageHandler::OnPDFCreated,
+                        weak_ptr_factory_.GetWeakPtr(), return_as_stream,
++                       domotion_evidence_requested,
+                        std::move(callback)));
+     return;
+   }
+@@ -344,9 +353,13 @@ void PageHandler::OnDidGetManifest(std::unique_ptr<GetAppIdCallback> callback,
+ 
+ #if BUILDFLAG(ENABLE_PRINTING)
+ void PageHandler::OnPDFCreated(bool return_as_stream,
++                               bool domotion_paged_table_evidence_requested,
+                                std::unique_ptr<PrintToPDFCallback> callback,
+                                print_to_pdf::PdfPrintResult print_result,
+-                               scoped_refptr<base::RefCountedMemory> data) {
++                               scoped_refptr<base::RefCountedMemory> data,
++                               std::string domotion_paged_table_evidence,
++                               uint32_t domotion_renderer_process_id,
++                               bool domotion_source_restored_exactly) {
+   if (print_result != print_to_pdf::PdfPrintResult::kPrintSuccess) {
+     callback->sendFailure(protocol::Response::ServerError(
+         print_to_pdf::PdfPrintResultToString(print_result)));
+@@ -355,9 +368,37 @@ void PageHandler::OnPDFCreated(bool return_as_stream,
+ 
+   if (return_as_stream) {
+     std::string handle = agent_host_->CreateIOStreamFromData(data);
+-    callback->sendSuccess(protocol::Binary(), handle);
++    callback->sendSuccess(
++        protocol::Binary(), handle,
++        domotion_paged_table_evidence_requested
++            ? std::optional<protocol::String>(
++                  std::move(domotion_paged_table_evidence))
++            : std::nullopt,
++        domotion_paged_table_evidence_requested
++            ? std::optional<int>(static_cast<int>(domotion_renderer_process_id))
++            : std::nullopt,
++        domotion_paged_table_evidence_requested
++            ? std::optional<int>(static_cast<int>(base::GetCurrentProcId()))
++            : std::nullopt,
++        domotion_paged_table_evidence_requested
++            ? std::optional<bool>(domotion_source_restored_exactly)
++            : std::nullopt);
+   } else {
+-    callback->sendSuccess(protocol::Binary::fromRefCounted(data), std::nullopt);
++    callback->sendSuccess(
++        protocol::Binary::fromRefCounted(data), std::nullopt,
++        domotion_paged_table_evidence_requested
++            ? std::optional<protocol::String>(
++                  std::move(domotion_paged_table_evidence))
++            : std::nullopt,
++        domotion_paged_table_evidence_requested
++            ? std::optional<int>(static_cast<int>(domotion_renderer_process_id))
++            : std::nullopt,
++        domotion_paged_table_evidence_requested
++            ? std::optional<int>(static_cast<int>(base::GetCurrentProcId()))
++            : std::nullopt,
++        domotion_paged_table_evidence_requested
++            ? std::optional<bool>(domotion_source_restored_exactly)
++            : std::nullopt);
+   }
+ }
+ #endif  // BUILDFLAG(ENABLE_PRINTING)
+diff --git a/chrome/browser/devtools/protocol/page_handler.h b/chrome/browser/devtools/protocol/page_handler.h
+index 4c2c12fca1..86f53e5dd5 100644
+--- a/chrome/browser/devtools/protocol/page_handler.h
++++ b/chrome/browser/devtools/protocol/page_handler.h
+@@ -5,7 +5,9 @@
+ #ifndef CHROME_BROWSER_DEVTOOLS_PROTOCOL_PAGE_HANDLER_H_
+ #define CHROME_BROWSER_DEVTOOLS_PROTOCOL_PAGE_HANDLER_H_
+ 
++#include <cstdint>
+ #include <memory>
++#include <string>
+ 
+ #include "base/memory/weak_ptr.h"
+ #include "chrome/browser/devtools/protocol/page.h"
+@@ -73,6 +75,7 @@ class PageHandler : public protocol::Page::Backend {
+                   std::optional<protocol::String> transfer_mode,
+                   std::optional<bool> generate_tagged_pdf,
+                   std::optional<bool> generate_document_outline,
++                  std::optional<bool> domotion_paged_table_evidence,
+                   std::unique_ptr<PrintToPDFCallback> callback) override;
+ 
+   void GetAppId(std::unique_ptr<GetAppIdCallback> callback) override;
+@@ -91,9 +94,13 @@ class PageHandler : public protocol::Page::Backend {
+ 
+ #if BUILDFLAG(ENABLE_PRINTING)
+   void OnPDFCreated(bool return_as_stream,
++                    bool domotion_paged_table_evidence_requested,
+                     std::unique_ptr<PrintToPDFCallback> callback,
+                     print_to_pdf::PdfPrintResult print_result,
+-                    scoped_refptr<base::RefCountedMemory> data);
++                    scoped_refptr<base::RefCountedMemory> data,
++                    std::string domotion_paged_table_evidence,
++                    uint32_t domotion_renderer_process_id,
++                    bool domotion_source_restored_exactly);
+ #endif
+ 
+   scoped_refptr<content::DevToolsAgentHost> agent_host_;
+diff --git a/components/printing/browser/print_to_pdf/pdf_print_job.cc b/components/printing/browser/print_to_pdf/pdf_print_job.cc
+index 56129d4a4d..d9e1be684f 100644
+--- a/components/printing/browser/print_to_pdf/pdf_print_job.cc
++++ b/components/printing/browser/print_to_pdf/pdf_print_job.cc
+@@ -43,14 +43,16 @@ void PdfPrintJob::StartJob(
+   DCHECK(callback);
+ 
+   if (!rfh->IsRenderFrameLive()) {
+-    std::move(callback).Run(PdfPrintResult::kPrintFailure, nullptr);
++    std::move(callback).Run(PdfPrintResult::kPrintFailure, nullptr,
++                            std::string(), 0, false);
+     return;
+   }
+ 
+   std::variant<printing::PageRanges, PdfPrintResult> pages =
+       TextPageRangesToPageRanges(page_ranges);
+   if (std::holds_alternative<PdfPrintResult>(pages)) {
+-    std::move(callback).Run(std::get<PdfPrintResult>(pages), nullptr);
++    std::move(callback).Run(std::get<PdfPrintResult>(pages), nullptr,
++                            std::string(), 0, false);
+     return;
+   }
+ 
+@@ -81,6 +83,12 @@ void PdfPrintJob::OnDidPrintWithParams(
+ 
+   const printing::mojom::DidPrintDocumentParamsPtr& params =
+       result.value()->params;
++  domotion_paged_table_evidence_ =
++      std::move(result.value()->domotion_paged_table_evidence);
++  domotion_renderer_process_id_ =
++      result.value()->domotion_renderer_process_id;
++  domotion_source_restored_exactly_ =
++      result.value()->domotion_source_restored_exactly;
+   const auto& content = *params->content;
+   const auto& region = content.metafile_data_region;
+   if (!region.IsValid()) {
+@@ -136,7 +144,10 @@ void PdfPrintJob::ReportMemoryRegion(
+       std::string(static_cast<const char*>(mapping.memory()), mapping.size());
+   std::move(print_to_pdf_callback_)
+       .Run(PdfPrintResult::kPrintSuccess,
+-           base::MakeRefCounted<base::RefCountedString>(std::move(data)));
++           base::MakeRefCounted<base::RefCountedString>(std::move(data)),
++           std::move(domotion_paged_table_evidence_),
++           domotion_renderer_process_id_,
++           domotion_source_restored_exactly_);
+ 
+   delete this;
+ }
+@@ -145,7 +156,8 @@ void PdfPrintJob::FailJob(PdfPrintResult result) {
+   DCHECK_NE(result, PdfPrintResult::kPrintSuccess);
+   DCHECK(print_to_pdf_callback_);
+ 
+-  std::move(print_to_pdf_callback_).Run(result, nullptr);
++  std::move(print_to_pdf_callback_)
++      .Run(result, nullptr, std::string(), 0, false);
+ 
+   delete this;
+ }
+diff --git a/components/printing/browser/print_to_pdf/pdf_print_job.h b/components/printing/browser/print_to_pdf/pdf_print_job.h
+index 41b8931812..ae8a0419a0 100644
+--- a/components/printing/browser/print_to_pdf/pdf_print_job.h
++++ b/components/printing/browser/print_to_pdf/pdf_print_job.h
+@@ -5,6 +5,7 @@
+ #ifndef COMPONENTS_PRINTING_BROWSER_PRINT_TO_PDF_PDF_PRINT_JOB_H_
+ #define COMPONENTS_PRINTING_BROWSER_PRINT_TO_PDF_PDF_PRINT_JOB_H_
+ 
++#include <cstdint>
+ #include <string>
+ 
+ #include "base/memory/raw_ptr.h"
+@@ -29,7 +30,10 @@ class PdfPrintJob : public content::WebContentsObserver,
+  public:
+   using PrintToPdfCallback =
+       base::OnceCallback<void(PdfPrintResult,
+-                              scoped_refptr<base::RefCountedMemory>)>;
++                              scoped_refptr<base::RefCountedMemory>,
++                              std::string,
++                              uint32_t,
++                              bool)>;
+ 
+   PdfPrintJob(content::WebContents* contents,
+               content::RenderFrameHost* rfh,
+@@ -70,6 +74,9 @@ class PdfPrintJob : public content::WebContentsObserver,
+ 
+   const raw_ptr<content::RenderFrameHost> printing_rfh_;
+   PrintToPdfCallback print_to_pdf_callback_;
++  std::string domotion_paged_table_evidence_;
++  uint32_t domotion_renderer_process_id_ = 0;
++  bool domotion_source_restored_exactly_ = false;
+ 
+   base::WeakPtrFactory<PdfPrintJob> weak_ptr_factory_{this};
+ };
+diff --git a/components/printing/common/print.mojom b/components/printing/common/print.mojom
+index 299d2cb3a2..5e9f43a450 100644
+--- a/components/printing/common/print.mojom
++++ b/components/printing/common/print.mojom
+@@ -165,6 +165,8 @@ struct PrintParams {
+   bool? generate_tagged_pdf;
+   // Whether the document outline should be embedded in the PDF.
+   GenerateDocumentOutline generate_document_outline = kNone;
++  // DM-2573 private evidence helper. False for every ordinary print request.
++  bool domotion_paged_table_evidence = false;
+ };
+ 
+ // Parameters for a print setting that has parameters for a print request and an
+@@ -284,6 +286,10 @@ struct PrintWithParamsResultData {
+   DidPrintDocumentParams params;
+   ax.mojom.AXTreeUpdate accessibility_tree;
+   GenerateDocumentOutline generate_document_outline = kNone;
++  // Bounded JSON serialized synchronously while Blink print layout is alive.
++  string domotion_paged_table_evidence;
++  uint32 domotion_renderer_process_id = 0;
++  bool domotion_source_restored_exactly = false;
+ };
+ 
+ enum PrintFailureReason {
+diff --git a/components/printing/renderer/print_render_frame_helper.cc b/components/printing/renderer/print_render_frame_helper.cc
+index 9c405a2336..c3af9bf709 100644
+--- a/components/printing/renderer/print_render_frame_helper.cc
++++ b/components/printing/renderer/print_render_frame_helper.cc
+@@ -125,6 +125,7 @@ bool g_is_preview_enabled = false;
+ #endif
+ 
+ constexpr int kAllowedIpcDepthForPrint = 1;
++constexpr size_t kDomotionPagedTableEvidenceMaxBytes = 8 * 1024 * 1024;
+ 
+ struct PageSizeMarginsWithOrientation {
+   mojom::PageSizeMarginsPtr page_size_margins;
+@@ -828,6 +829,13 @@ class PrepareFrameAndViewForPrint : public blink::WebViewClient,
+ 
+   uint32_t GetPageCount() const { return page_count_; }
+ 
++  const std::string& DomotionPagedTableEvidence() const {
++    return domotion_paged_table_evidence_;
++  }
++  bool DomotionSourceRestoredExactly() const {
++    return domotion_source_restored_exactly_;
++  }
++
+   void FinishPrinting();
+ 
+   bool IsLoadingSelection() {
+@@ -872,6 +880,10 @@ class PrepareFrameAndViewForPrint : public blink::WebViewClient,
+   uint32_t page_count_ = 0;
+   base::OnceClosure on_ready_;
+   bool is_printing_started_ = false;
++  bool domotion_paged_table_evidence_requested_ = false;
++  bool domotion_source_restored_exactly_ = false;
++  std::string domotion_screen_state_before_;
++  std::string domotion_paged_table_evidence_;
+   const raw_ref<blink::scheduler::WebAgentGroupScheduler>
+       agent_group_scheduler_;
+ 
+@@ -896,12 +908,31 @@ void PrepareFrameAndViewForPrint::EnterPrintModeInternal(
+   bool is_pdf = IsPrintingPdfFrame(frame(), node_to_print_);
+   blink::WebPrintParams web_print_params =
+       ComputeWebKitPrintParamsInDesiredDpi(params, is_pdf, ignore_css_margins);
++  domotion_paged_table_evidence_requested_ =
++      params.domotion_paged_table_evidence;
++  domotion_source_restored_exactly_ = false;
++  domotion_paged_table_evidence_.clear();
++  domotion_screen_state_before_.clear();
++  if (domotion_paged_table_evidence_requested_) {
++    domotion_screen_state_before_ =
++        frame()->DomotionPrintScreenStateToken().Utf8();
++  }
+   blink::WebView* web_view = frame()->View();
+   web_view->GetSettings()->SetShouldPrintBackgrounds(
+       params.should_print_backgrounds);
+   RecordDebugEvent(DebugEvent::kPrintBegin2);
+   page_count_ = frame()->PrintBegin(web_print_params, node_to_print_);
+   is_printing_started_ = true;
++  if (domotion_paged_table_evidence_requested_) {
++    std::string evidence =
++        frame()->DomotionPagedTableEvidence(web_print_params).Utf8();
++    if (evidence.size() <= kDomotionPagedTableEvidenceMaxBytes) {
++      domotion_paged_table_evidence_ = std::move(evidence);
++    } else {
++      domotion_paged_table_evidence_ =
++          R"({"error":"sidecar-too-large","maximumBytes":8388608})";
++    }
++  }
+ }
+ 
+ void PrepareFrameAndViewForPrint::LeavePrintModeInternal() {
+@@ -911,6 +942,13 @@ void PrepareFrameAndViewForPrint::LeavePrintModeInternal() {
+   }
+   frame->PrintEnd();
+   is_printing_started_ = false;
++  if (domotion_paged_table_evidence_requested_) {
++    const std::string screen_state_after =
++        frame->DomotionPrintScreenStateToken().Utf8();
++    domotion_source_restored_exactly_ =
++        !domotion_screen_state_before_.empty() &&
++        domotion_screen_state_before_ == screen_state_after;
++  }
+ }
+ 
+ void PrepareFrameAndViewForPrint::BeginPrinting(
+@@ -2369,6 +2407,15 @@ bool PrintRenderFrameHelper::PrintPagesNative(
+   }
+ 
+   // blink::printEnd() for PDF should be called before metafile is closed.
++  std::string domotion_paged_table_evidence;
++  bool domotion_source_restored_exactly = false;
++  if (print_params.domotion_paged_table_evidence) {
++    domotion_paged_table_evidence =
++        prep_frame_view_->DomotionPagedTableEvidence();
++    prep_frame_view_->FinishPrinting();
++    domotion_source_restored_exactly =
++        prep_frame_view_->DomotionSourceRestoredExactly();
++  }
+   FinishFramePrinting();
+ 
+   metafile.FinishDocument();
+@@ -2388,6 +2435,14 @@ bool PrintRenderFrameHelper::PrintPagesNative(
+     result->params = std::move(page_params);
+     result->accessibility_tree = std::move(accessibility_tree);
+     result->generate_document_outline = print_params.generate_document_outline;
++    if (print_params.domotion_paged_table_evidence) {
++      result->domotion_paged_table_evidence =
++          std::move(domotion_paged_table_evidence);
++      result->domotion_renderer_process_id =
++          static_cast<uint32_t>(base::GetCurrentProcId());
++      result->domotion_source_restored_exactly =
++          domotion_source_restored_exactly;
++    }
+     std::move(print_with_params_callback_).Run(base::ok(std::move(result)));
+     Reset();
+     return true;
+diff --git a/headless/lib/browser/protocol/page_handler.cc b/headless/lib/browser/protocol/page_handler.cc
+index 62d989c2b4..7b0b5dc245 100644
+--- a/headless/lib/browser/protocol/page_handler.cc
++++ b/headless/lib/browser/protocol/page_handler.cc
+@@ -7,6 +7,7 @@
+ #include <variant>
+ 
+ #include "base/functional/bind.h"
++#include "base/process/process_handle.h"
+ #include "content/public/browser/web_contents.h"
+ 
+ #if BUILDFLAG(ENABLE_PRINTING)
+@@ -51,6 +52,7 @@ void PageHandler::PrintToPDF(std::optional<bool> landscape,
+                              std::optional<String> transfer_mode,
+                              std::optional<bool> generate_tagged_pdf,
+                              std::optional<bool> generate_document_outline,
++                             std::optional<bool> domotion_paged_table_evidence,
+                              std::unique_ptr<PrintToPDFCallback> callback) {
+   DCHECK(callback);
+ 
+@@ -76,6 +78,11 @@ void PageHandler::PrintToPDF(std::optional<bool> landscape,
+   DCHECK(std::holds_alternative<printing::mojom::PrintPagesParamsPtr>(
+       print_pages_params));
+ 
++  const bool domotion_evidence_requested =
++      domotion_paged_table_evidence.value_or(false);
++  std::get<printing::mojom::PrintPagesParamsPtr>(print_pages_params)
++      ->params->domotion_paged_table_evidence = domotion_evidence_requested;
++
+   bool return_as_stream = transfer_mode.value_or("") ==
+                           Page::PrintToPDF::TransferModeEnum::ReturnAsStream;
+   HeadlessPrintManager::FromWebContents(web_contents_.get())
+@@ -84,7 +91,8 @@ void PageHandler::PrintToPDF(std::optional<bool> landscape,
+           std::move(std::get<printing::mojom::PrintPagesParamsPtr>(
+               print_pages_params)),
+           base::BindOnce(&PageHandler::PDFCreated, weak_factory_.GetWeakPtr(),
+-                         return_as_stream, std::move(callback)));
++                         return_as_stream, domotion_evidence_requested,
++                         std::move(callback)));
+ #else
+   callback->sendFailure(Response::ServerError("Printing is not enabled"));
+   return;
+@@ -93,9 +101,13 @@ void PageHandler::PrintToPDF(std::optional<bool> landscape,
+ 
+ #if BUILDFLAG(ENABLE_PRINTING)
+ void PageHandler::PDFCreated(bool return_as_stream,
++                             bool domotion_paged_table_evidence_requested,
+                              std::unique_ptr<PrintToPDFCallback> callback,
+                              print_to_pdf::PdfPrintResult print_result,
+-                             scoped_refptr<base::RefCountedMemory> data) {
++                             scoped_refptr<base::RefCountedMemory> data,
++                             std::string domotion_paged_table_evidence,
++                             uint32_t domotion_renderer_process_id,
++                             bool domotion_source_restored_exactly) {
+   if (print_result != print_to_pdf::PdfPrintResult::kPrintSuccess) {
+     callback->sendFailure(Response::ServerError(
+         print_to_pdf::PdfPrintResultToString(print_result)));
+@@ -104,9 +116,35 @@ void PageHandler::PDFCreated(bool return_as_stream,
+ 
+   if (return_as_stream) {
+     std::string handle = agent_host_->CreateIOStreamFromData(data);
+-    callback->sendSuccess(protocol::Binary(), handle);
++    callback->sendSuccess(
++        protocol::Binary(), handle,
++        domotion_paged_table_evidence_requested
++            ? std::optional<String>(std::move(domotion_paged_table_evidence))
++            : std::nullopt,
++        domotion_paged_table_evidence_requested
++            ? std::optional<int>(static_cast<int>(domotion_renderer_process_id))
++            : std::nullopt,
++        domotion_paged_table_evidence_requested
++            ? std::optional<int>(static_cast<int>(base::GetCurrentProcId()))
++            : std::nullopt,
++        domotion_paged_table_evidence_requested
++            ? std::optional<bool>(domotion_source_restored_exactly)
++            : std::nullopt);
+   } else {
+-    callback->sendSuccess(protocol::Binary::fromRefCounted(data), std::nullopt);
++    callback->sendSuccess(
++        protocol::Binary::fromRefCounted(data), std::nullopt,
++        domotion_paged_table_evidence_requested
++            ? std::optional<String>(std::move(domotion_paged_table_evidence))
++            : std::nullopt,
++        domotion_paged_table_evidence_requested
++            ? std::optional<int>(static_cast<int>(domotion_renderer_process_id))
++            : std::nullopt,
++        domotion_paged_table_evidence_requested
++            ? std::optional<int>(static_cast<int>(base::GetCurrentProcId()))
++            : std::nullopt,
++        domotion_paged_table_evidence_requested
++            ? std::optional<bool>(domotion_source_restored_exactly)
++            : std::nullopt);
+   }
+ }
+ #endif  // BUILDFLAG(ENABLE_PRINTING)
+diff --git a/headless/lib/browser/protocol/page_handler.h b/headless/lib/browser/protocol/page_handler.h
+index 3b00c45d11..5d2108d205 100644
+--- a/headless/lib/browser/protocol/page_handler.h
++++ b/headless/lib/browser/protocol/page_handler.h
+@@ -5,6 +5,9 @@
+ #ifndef HEADLESS_LIB_BROWSER_PROTOCOL_PAGE_HANDLER_H_
+ #define HEADLESS_LIB_BROWSER_PROTOCOL_PAGE_HANDLER_H_
+ 
++#include <cstdint>
++#include <string>
++
+ #include "base/memory/weak_ptr.h"
+ #include "content/public/browser/devtools_agent_host.h"
+ #include "headless/lib/browser/protocol/domain_handler.h"
+@@ -56,14 +59,19 @@ class PageHandler : public DomainHandler, public Page::Backend {
+                   std::optional<String> transfer_mode,
+                   std::optional<bool> generate_tagged_pdf,
+                   std::optional<bool> generate_document_outline,
++                  std::optional<bool> domotion_paged_table_evidence,
+                   std::unique_ptr<PrintToPDFCallback> callback) override;
+ 
+  private:
+ #if BUILDFLAG(ENABLE_PRINTING)
+   void PDFCreated(bool return_as_stream,
++                  bool domotion_paged_table_evidence_requested,
+                   std::unique_ptr<PrintToPDFCallback> callback,
+                   print_to_pdf::PdfPrintResult print_result,
+-                  scoped_refptr<base::RefCountedMemory> data);
++                  scoped_refptr<base::RefCountedMemory> data,
++                  std::string domotion_paged_table_evidence,
++                  uint32_t domotion_renderer_process_id,
++                  bool domotion_source_restored_exactly);
+ #endif
+ 
+   scoped_refptr<content::DevToolsAgentHost> agent_host_;
+diff --git a/third_party/blink/public/devtools_protocol/domains/Page.pdl b/third_party/blink/public/devtools_protocol/domains/Page.pdl
+index 414867f559..069fc80941 100644
+--- a/third_party/blink/public/devtools_protocol/domains/Page.pdl
++++ b/third_party/blink/public/devtools_protocol/domains/Page.pdl
+@@ -973,11 +973,20 @@ domain Page
+       experimental optional boolean generateTaggedPDF
+       # Whether or not to embed the document outline into the PDF.
+       experimental optional boolean generateDocumentOutline
++      # Runtime-false DM-2573 helper. Requests a bounded Blink-private logical
++      # paged-table sidecar; PDF/vector/raster output is never its input.
++      experimental optional boolean domotionPagedTableEvidence
+     returns
+       # Base64-encoded pdf data. Empty if |returnAsStream| is specified.
+       binary data
+       # A handle of the stream that holds resulting PDF data.
+       experimental optional IO.StreamHandle stream
++      # Blink-private PhysicalBoxFragment record, present only when explicitly
++      # requested and capped at 8 MiB in the renderer.
++      experimental optional string domotionPagedTableEvidence
++      experimental optional integer domotionRendererProcessId
++      experimental optional integer domotionBrowserProcessId
++      experimental optional boolean domotionSourceRestoredExactly
+ 
+   # Reloads given page optionally ignoring the cache.
+   command reload
+diff --git a/third_party/blink/public/web/web_local_frame.h b/third_party/blink/public/web/web_local_frame.h
+index 88ab386a57..011fb2c9ed 100644
+--- a/third_party/blink/public/web/web_local_frame.h
++++ b/third_party/blink/public/web/web_local_frame.h
+@@ -834,6 +834,14 @@ class BLINK_EXPORT WebLocalFrame : public WebFrame {
+   virtual uint32_t PrintBegin(const WebPrintParams& print_params,
+                               const WebNode& constrain_to_node) = 0;
+ 
++  // DM-2573's patched, runtime-false evidence path. These methods are called
++  // only when the private printToPDF option is explicitly set. The first
++  // serializes Blink's paginated PhysicalBoxFragment facts while print layout
++  // is alive; the second binds exact screen state across PrintEnd.
++  virtual WebString DomotionPagedTableEvidence(
++      const WebPrintParams& print_params) const = 0;
++  virtual WebString DomotionPrintScreenStateToken() const = 0;
++
+   // Called when printing has been requested, but has not yet begun. This
+   // gives the document an opportunity to load any new resources needed for
+   // printing. It returns whether any resources will need to load.
+diff --git a/third_party/blink/renderer/core/frame/web_local_frame_impl.cc b/third_party/blink/renderer/core/frame/web_local_frame_impl.cc
+index d41094f7a0..0484dfa466 100644
+--- a/third_party/blink/renderer/core/frame/web_local_frame_impl.cc
++++ b/third_party/blink/renderer/core/frame/web_local_frame_impl.cc
+@@ -242,6 +242,7 @@
+ #include "third_party/blink/renderer/core/loader/history_item.h"
+ #include "third_party/blink/renderer/core/loader/web_associated_url_loader_impl.h"
+ #include "third_party/blink/renderer/core/page/context_menu_controller.h"
++#include "third_party/blink/renderer/core/page/domotion_paged_table_evidence.h"
+ #include "third_party/blink/renderer/core/page/focus_controller.h"
+ #include "third_party/blink/renderer/core/page/frame_tree.h"
+ #include "third_party/blink/renderer/core/page/page.h"
+@@ -1989,6 +1990,16 @@ uint32_t WebLocalFrameImpl::PrintBegin(const WebPrintParams& print_params,
+   return print_context_->PageCount();
+ }
+ 
++WebString WebLocalFrameImpl::DomotionPagedTableEvidence(
++    const WebPrintParams& print_params) const {
++  return WebString(SerializeDomotionPagedTableEvidence(*GetFrame(),
++                                                       print_params));
++}
++
++WebString WebLocalFrameImpl::DomotionPrintScreenStateToken() const {
++  return WebString(SerializeDomotionPrintScreenStateToken(*GetFrame()));
++}
++
+ void WebLocalFrameImpl::PrintPage(uint32_t page_index,
+                                   cc::PaintCanvas* canvas) {
+   DCHECK(print_context_);
+diff --git a/third_party/blink/renderer/core/frame/web_local_frame_impl.h b/third_party/blink/renderer/core/frame/web_local_frame_impl.h
+index 0066bfc96d..9909243ff5 100644
+--- a/third_party/blink/renderer/core/frame/web_local_frame_impl.h
++++ b/third_party/blink/renderer/core/frame/web_local_frame_impl.h
+@@ -331,6 +331,9 @@ class CORE_EXPORT WebLocalFrameImpl final
+   WebPlugin* GetPluginToPrint(const WebNode& constrain_to_node) override;
+   uint32_t PrintBegin(const WebPrintParams&,
+                       const WebNode& constrain_to_node) override;
++  WebString DomotionPagedTableEvidence(
++      const WebPrintParams& print_params) const override;
++  WebString DomotionPrintScreenStateToken() const override;
+   bool WillPrintSoon() override;
+   void PrintPage(uint32_t page_to_print, cc::PaintCanvas*) override;
+   void PrintEnd() override;
+diff --git a/third_party/blink/renderer/core/layout/table/table_borders.h b/third_party/blink/renderer/core/layout/table/table_borders.h
+index 836099be85..a2800d6de8 100644
+--- a/third_party/blink/renderer/core/layout/table/table_borders.h
++++ b/third_party/blink/renderer/core/layout/table/table_borders.h
+@@ -241,6 +241,14 @@ class TableBorders : public GarbageCollected<TableBorders> {
+     return edge_index < edges_.size() && edges_[edge_index].style;
+   }
+ 
++  // DM-2573 evidence-only access to the source-owned spanning-cell interior
++  // suppression marker. The patched helper serializes this exact marker; it
++  // does not infer suppressed edges from PDF paint output.
++  bool DomotionIsDoNotFill(wtf_size_t edge_index) const {
++    return edge_index < edges_.size() && !edges_[edge_index].style &&
++           edges_[edge_index].edge_side == EdgeSide::kDoNotFill;
++  }
++
+   // Is there and edge at edges[edge_index + index_offset]?
+   bool CanPaint(wtf_size_t edge_index, int index_offset) const {
+     return (index_offset >= 0 ||
+diff --git a/third_party/blink/renderer/core/page/build.gni b/third_party/blink/renderer/core/page/build.gni
+index 90343e74a3..b7ab865c9e 100644
+--- a/third_party/blink/renderer/core/page/build.gni
++++ b/third_party/blink/renderer/core/page/build.gni
+@@ -16,6 +16,8 @@ blink_core_sources_page = [
+   "context_menu_provider.h",
+   "create_window.cc",
+   "create_window.h",
++  "domotion_paged_table_evidence.cc",
++  "domotion_paged_table_evidence.h",
+   "drag_actions.h",
+   "drag_controller.cc",
+   "drag_controller.h",
+diff --git a/third_party/blink/renderer/core/page/domotion_paged_table_evidence.cc b/third_party/blink/renderer/core/page/domotion_paged_table_evidence.cc
+new file mode 100644
+index 0000000000..a907077880
+--- /dev/null
++++ b/third_party/blink/renderer/core/page/domotion_paged_table_evidence.cc
+@@ -0,0 +1,913 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "third_party/blink/renderer/core/page/domotion_paged_table_evidence.h"
++
++#include <algorithm>
++#include <climits>
++#include <cmath>
++#include <optional>
++#include <string>
++
++#include "base/check.h"
++#include "base/json/json_writer.h"
++#include "base/values.h"
++#include "third_party/blink/public/web/web_print_params.h"
++#include "third_party/blink/renderer/core/dom/document.h"
++#include "third_party/blink/renderer/core/dom/element.h"
++#include "third_party/blink/renderer/core/dom/node_traversal.h"
++#include "third_party/blink/renderer/core/frame/local_frame.h"
++#include "third_party/blink/renderer/core/frame/local_frame_view.h"
++#include "third_party/blink/renderer/core/html_names.h"
++#include "third_party/blink/renderer/core/layout/block_break_token.h"
++#include "third_party/blink/renderer/core/layout/fragmentation_utils.h"
++#include "third_party/blink/renderer/core/layout/layout_box.h"
++#include "third_party/blink/renderer/core/layout/layout_view.h"
++#include "third_party/blink/renderer/core/layout/pagination_utils.h"
++#include "third_party/blink/renderer/core/layout/physical_box_fragment.h"
++#include "third_party/blink/renderer/core/layout/table/layout_table_cell.h"
++#include "third_party/blink/renderer/core/layout/table/table_borders.h"
++#include "third_party/blink/renderer/core/style/computed_style.h"
++#include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
++#include "third_party/blink/renderer/platform/text/text_direction.h"
++#include "third_party/blink/renderer/platform/text/writing_mode.h"
++#include "third_party/blink/renderer/platform/wtf/hash_set.h"
++#include "third_party/blink/renderer/platform/wtf/vector.h"
++
++namespace blink {
++
++namespace {
++
++constexpr char kHelperAbi[] = "domotion-paged-table-physical-fragment-v1";
++constexpr char kChromiumRevision[] =
++    "7d859f271cbda744098ac69f44978d4edfa62be3";
++
++double Number(LayoutUnit value) {
++  return value.ToDouble();
++}
++
++std::string Utf8(const String& value) {
++  return value.Utf8();
++}
++
++std::string WritingModeName(WritingMode mode) {
++  switch (mode) {
++    case WritingMode::kHorizontalTb:
++      return "horizontal-tb";
++    case WritingMode::kVerticalRl:
++      return "vertical-rl";
++    case WritingMode::kVerticalLr:
++      return "vertical-lr";
++    case WritingMode::kSidewaysRl:
++      return "sideways-rl";
++    case WritingMode::kSidewaysLr:
++      return "sideways-lr";
++  }
++}
++
++base::ListValue JointPrecedence() {
++  base::ListValue result;
++  result.Append("after");
++  result.Append("under");
++  result.Append("before");
++  result.Append("over");
++  return result;
++}
++
++base::DictValue JointDecision(std::string winner) {
++  base::DictValue result;
++  result.Set("precedence", JointPrecedence());
++  result.Set("winner", std::move(winner));
++  return result;
++}
++
++enum class SourceKind { kTable, kSection, kCaption, kCell };
++
++bool IsSourceKind(const Element& element, SourceKind kind) {
++  switch (kind) {
++    case SourceKind::kTable:
++      return element.HasTagName(html_names::kTableTag);
++    case SourceKind::kSection:
++      return element.HasTagName(html_names::kTheadTag) ||
++             element.HasTagName(html_names::kTbodyTag) ||
++             element.HasTagName(html_names::kTfootTag);
++    case SourceKind::kCaption:
++      return element.HasTagName(html_names::kCaptionTag);
++    case SourceKind::kCell:
++      return element.HasTagName(html_names::kTdTag) ||
++             element.HasTagName(html_names::kThTag);
++  }
++  return false;
++}
++
++int SourceIndex(const Document& document,
++                SourceKind kind,
++                const LayoutObject* object) {
++  const Node* target = object ? object->GetNode() : nullptr;
++  if (!target)
++    return -1;
++  int source_index = 0;
++  for (Node& node : NodeTraversal::DescendantsOf(document)) {
++    const auto* element = DynamicTo<Element>(node);
++    if (!element || !IsSourceKind(*element, kind))
++      continue;
++    if (&node == target)
++      return source_index;
++    ++source_index;
++  }
++  return -1;
++}
++
++int FragmentOccurrenceIndex(const PhysicalBoxFragment& fragment) {
++  const auto* box = DynamicTo<LayoutBox>(fragment.GetLayoutObject());
++  if (!box)
++    return -1;
++  for (wtf_size_t index = 0; index < box->PhysicalFragmentCount(); ++index) {
++    if (box->GetPhysicalFragment(index) == &fragment)
++      return static_cast<int>(index);
++  }
++  return -1;
++}
++
++void FindTables(const PhysicalBoxFragment& fragment,
++                HeapVector<Member<const PhysicalBoxFragment>>& tables) {
++  if (fragment.IsTable())
++    tables.push_back(&fragment);
++  for (const PhysicalFragmentLink& child : fragment.Children()) {
++    if (const auto* box = DynamicTo<PhysicalBoxFragment>(child.get()))
++      FindTables(*box, tables);
++  }
++}
++
++const PhysicalBoxFragment* FirstSection(const PhysicalBoxFragment& table) {
++  for (const PhysicalFragmentLink& child : table.Children()) {
++    if (child->IsTableSection())
++      return To<PhysicalBoxFragment>(child.get());
++  }
++  return nullptr;
++}
++
++const PhysicalBoxFragment* LastSection(const PhysicalBoxFragment& table) {
++  const auto children = table.Children();
++  for (auto it = children.rbegin(); it != children.rend(); ++it) {
++    if ((*it)->IsTableSection())
++      return To<PhysicalBoxFragment>((*it).get());
++  }
++  return nullptr;
++}
++
++const PhysicalBoxFragment* FirstRow(const PhysicalBoxFragment& section) {
++  for (const PhysicalFragmentLink& child : section.Children()) {
++    if (child->IsTableRow())
++      return To<PhysicalBoxFragment>(child.get());
++  }
++  return nullptr;
++}
++
++const PhysicalBoxFragment* LastRow(const PhysicalBoxFragment& section) {
++  const auto children = section.Children();
++  for (auto it = children.rbegin(); it != children.rend(); ++it) {
++    if ((*it)->IsTableRow())
++      return To<PhysicalBoxFragment>((*it).get());
++  }
++  return nullptr;
++}
++
++bool StartRowFragmented(const PhysicalBoxFragment& section) {
++  const PhysicalBoxFragment* row = FirstRow(section);
++  return row && IsBreakInside(FindPreviousBreakToken(*row));
++}
++
++bool EndRowFragmented(const PhysicalBoxFragment& section) {
++  const PhysicalBoxFragment* row = LastRow(section);
++  if (!row)
++    return false;
++  const auto* token = row->GetBreakToken();
++  return IsBreakInside(token) && !token->IsAtBlockEnd();
++}
++
++class CollapsedEdge {
++  STACK_ALLOCATED();
++
++ public:
++  CollapsedEdge(const TableBorders& borders, wtf_size_t edge_index)
++      : borders_(borders),
++        edge_index_(edge_index < borders.EdgeCount() ? edge_index : UINT_MAX) {}
++  CollapsedEdge(const CollapsedEdge& source, int offset)
++      : borders_(source.borders_) {
++    if (offset < 0 && source.edge_index_ < static_cast<wtf_size_t>(-offset)) {
++      edge_index_ = UINT_MAX;
++    } else {
++      edge_index_ = source.edge_index_ + offset;
++      if (edge_index_ >= borders_.EdgeCount())
++        edge_index_ = UINT_MAX;
++    }
++  }
++
++  bool Exists() const { return edge_index_ != UINT_MAX; }
++  bool CanPaint() const { return Exists() && borders_.CanPaint(edge_index_); }
++  bool IsInlineAxis() const {
++    return Exists() && edge_index_ % borders_.EdgesPerRow() % 2 != 0;
++  }
++  wtf_size_t Index() const { return edge_index_; }
++  wtf_size_t Row() const { return edge_index_ / borders_.EdgesPerRow(); }
++  wtf_size_t Column() const {
++    return edge_index_ % borders_.EdgesPerRow() / 2;
++  }
++
++  static int CompareForPaint(const CollapsedEdge& left,
++                             const CollapsedEdge& right) {
++    if (left.edge_index_ == right.edge_index_)
++      return 0;
++    const bool left_paints = left.CanPaint();
++    const bool right_paints = right.CanPaint();
++    if (left_paints && right_paints) {
++      const LayoutUnit left_width = left.borders_.BorderWidth(left.edge_index_);
++      const LayoutUnit right_width = right.borders_.BorderWidth(right.edge_index_);
++      if (left_width > right_width)
++        return 1;
++      if (left_width < right_width)
++        return -1;
++      const EBorderStyle left_style =
++          left.borders_.BorderStyle(left.edge_index_);
++      const EBorderStyle right_style =
++          right.borders_.BorderStyle(right.edge_index_);
++      if (left_style == right_style) {
++        const wtf_size_t left_order =
++            left.borders_.BoxOrder(left.edge_index_);
++        const wtf_size_t right_order =
++            right.borders_.BoxOrder(right.edge_index_);
++        if (left_order < right_order)
++          return 1;
++        if (left_order > right_order)
++          return -1;
++        return 0;
++      }
++      if (right_style == EBorderStyle::kHidden)
++        return 1;
++      if (left_style == EBorderStyle::kHidden)
++        return -1;
++      return left_style > right_style ? 1 : -1;
++    }
++    if (!left_paints && !right_paints)
++      return 0;
++    return left_paints ? 1 : -1;
++  }
++
++  CollapsedEdge BeforeStart() const {
++    return CollapsedEdge(*this, IsInlineAxis() ? -2 : -1);
++  }
++  CollapsedEdge AfterStart() const {
++    return CollapsedEdge(*this, IsInlineAxis() ? 0 : 1);
++  }
++  CollapsedEdge OverStart() const {
++    return CollapsedEdge(*this, IsInlineAxis()
++                                    ? -(static_cast<int>(borders_.EdgesPerRow()) + 1)
++                                    : -static_cast<int>(borders_.EdgesPerRow()));
++  }
++  CollapsedEdge UnderStart() const {
++    return CollapsedEdge(*this, IsInlineAxis() ? -1 : 0);
++  }
++  CollapsedEdge BeforeEnd() const {
++    return CollapsedEdge(*this, IsInlineAxis()
++                                    ? 0
++                                    : static_cast<int>(borders_.EdgesPerRow()) - 1);
++  }
++  CollapsedEdge AfterEnd() const {
++    return CollapsedEdge(*this, IsInlineAxis()
++                                    ? 2
++                                    : static_cast<int>(borders_.EdgesPerRow()) + 1);
++  }
++  CollapsedEdge OverEnd() const {
++    return CollapsedEdge(*this, IsInlineAxis()
++                                    ? -(static_cast<int>(borders_.EdgesPerRow()) - 1)
++                                    : 0);
++  }
++  CollapsedEdge UnderEnd() const {
++    return CollapsedEdge(*this, IsInlineAxis()
++                                    ? 1
++                                    : static_cast<int>(borders_.EdgesPerRow()));
++  }
++  CollapsedEdge Empty() const { return CollapsedEdge(borders_, UINT_MAX); }
++
++ private:
++  const TableBorders& borders_;
++  wtf_size_t edge_index_;
++};
++
++struct JointWins {
++  bool start = false;
++  bool end = false;
++};
++
++JointWins ComputeJointWins(const CollapsedEdge& edge,
++                           bool over_fragmentation_boundary,
++                           bool under_fragmentation_boundary) {
++  JointWins result;
++  CollapsedEdge before = edge.BeforeStart();
++  CollapsedEdge after = edge.AfterStart();
++  CollapsedEdge over =
++      over_fragmentation_boundary ? edge.Empty() : edge.OverStart();
++  CollapsedEdge under =
++      under_fragmentation_boundary && edge.IsInlineAxis()
++          ? edge.Empty()
++          : edge.UnderStart();
++  int inline_compare = CollapsedEdge::CompareForPaint(before, after);
++  int block_compare = CollapsedEdge::CompareForPaint(over, under);
++  int inline_vs_block = CollapsedEdge::CompareForPaint(
++      inline_compare == 1 ? before : after,
++      block_compare == 1 ? over : under);
++  if (edge.IsInlineAxis()) {
++    result.start = inline_vs_block != -1 && inline_compare != 1;
++  } else {
++    result.start = inline_vs_block != 1 && block_compare != 1;
++  }
++
++  const CollapsedEdge before_end = edge.BeforeEnd();
++  const CollapsedEdge after_end = edge.AfterEnd();
++  const CollapsedEdge over_end =
++      over_fragmentation_boundary && edge.IsInlineAxis() ? edge.Empty()
++                                                         : edge.OverEnd();
++  const CollapsedEdge under_end =
++      under_fragmentation_boundary ? edge.Empty() : edge.UnderEnd();
++  inline_compare = CollapsedEdge::CompareForPaint(before_end, after_end);
++  block_compare = CollapsedEdge::CompareForPaint(over_end, under_end);
++  inline_vs_block = CollapsedEdge::CompareForPaint(
++      inline_compare == 1 ? before_end : after_end,
++      block_compare == 1 ? over_end : under_end);
++  if (edge.IsInlineAxis()) {
++    result.end = inline_vs_block != -1 && inline_compare != -1;
++  } else {
++    result.end = inline_vs_block != 1 && block_compare != -1;
++  }
++  return result;
++}
++
++struct SectionFacts {
++  const PhysicalBoxFragment* fragment = nullptr;
++  wtf_size_t start_row = 0;
++  wtf_size_t end_row = 0;
++  bool start_continued = false;
++  bool end_continued = false;
++};
++
++std::string SectionTag(const PhysicalBoxFragment& section) {
++  const auto* element = DynamicTo<Element>(section.GetLayoutObject()->GetNode());
++  if (element && element->HasTagName(html_names::kTheadTag))
++    return "thead";
++  if (element && element->HasTagName(html_names::kTfootTag))
++    return "tfoot";
++  return "tbody";
++}
++
++base::DictValue BreakState(std::string kind,
++                           std::optional<wtf_size_t> global_row) {
++  base::DictValue result;
++  result.Set("kind", std::move(kind));
++  if (global_row)
++    result.Set("globalRowIndex", static_cast<int>(*global_row));
++  else
++    result.Set("globalRowIndex", base::Value());
++  return result;
++}
++
++base::DictValue RepeatEligibilityFromRepeatToken(
++    const BlockBreakToken& incoming_repeat_token) {
++  // At this exact source pin Blink creates a repeated break token only after
++  // all seven gates in TableLayoutAlgorithm have passed. Serializing that
++  // source-owned token avoids re-running or approximating the eligibility
++  // decision after layout.
++  CHECK(incoming_repeat_token.IsRepeated());
++  base::DictValue result;
++  result.Set("knownFragmentainerBlockSize", true);
++  result.Set("atMostQuarterFragmentainer", true);
++  result.Set("applicableBreakInsideAvoid", true);
++  result.Set("noBreakInside", true);
++  result.Set("noLateStart", true);
++  result.Set("outsideNestedRepeatableContent", true);
++  result.Set("layoutSideEffectsEnabled", true);
++  return result;
++}
++
++base::ListValue BuildSpanningCells(
++    const Vector<SectionFacts>& section_facts,
++    const Document& document,
++    const TableBorders& borders,
++    wtf_size_t total_rows,
++    wtf_size_t total_columns,
++    HashSet<wtf_size_t>& span_interiors) {
++  base::ListValue result;
++  HashSet<int> seen_cell_sources;
++  const wtf_size_t edges_per_row = borders.EdgesPerRow();
++  for (const SectionFacts& facts : section_facts) {
++    const PhysicalBoxFragment& section = *facts.fragment;
++    const PhysicalBoxFragment* first_row = FirstRow(section);
++    if (!first_row)
++      continue;
++    const auto* first_cell = [&]() -> const PhysicalBoxFragment* {
++      for (const PhysicalFragmentLink& child : first_row->Children()) {
++        if (child->IsTableCell())
++          return To<PhysicalBoxFragment>(child.get());
++      }
++      return nullptr;
++    }();
++    const unsigned first_source_row =
++        first_cell
++            ? To<LayoutTableCell>(first_cell->GetLayoutObject())->RowIndex()
++            : 0;
++    for (const PhysicalFragmentLink& row_link : section.Children()) {
++      if (!row_link->IsTableRow())
++        continue;
++      const auto& row = *To<PhysicalBoxFragment>(row_link.get());
++      for (const PhysicalFragmentLink& cell_link : row.Children()) {
++        if (!cell_link->IsTableCell())
++          continue;
++        const auto& cell_fragment =
++            *To<PhysicalBoxFragment>(cell_link.get());
++        const auto* cell =
++            DynamicTo<LayoutTableCell>(cell_fragment.GetLayoutObject());
++        if (!cell)
++          continue;
++        const int cell_source =
++            SourceIndex(document, SourceKind::kCell, cell);
++        if (seen_cell_sources.Contains(cell_source))
++          continue;
++        seen_cell_sources.insert(cell_source);
++        wtf_size_t row_start =
++            facts.start_row + cell->RowIndex() - first_source_row;
++        wtf_size_t row_end =
++            std::min(total_rows, row_start + cell->ResolvedRowSpan());
++        wtf_size_t column_start = cell_fragment.TableCellColumnIndex();
++        wtf_size_t column_end =
++            std::min(total_columns, column_start + cell->ColSpan());
++        if (row_end <= row_start || column_end <= column_start ||
++            (row_end - row_start == 1 && column_end - column_start == 1)) {
++          continue;
++        }
++
++        base::ListValue interior_indices;
++        for (wtf_size_t row_index = row_start; row_index < row_end;
++             ++row_index) {
++          for (wtf_size_t column_index = column_start + 1;
++               column_index < column_end; ++column_index) {
++            const wtf_size_t edge_index =
++                row_index * edges_per_row + column_index * 2;
++            if (borders.DomotionIsDoNotFill(edge_index) &&
++                span_interiors.insert(edge_index).is_new_entry) {
++              interior_indices.Append(static_cast<int>(edge_index));
++            }
++          }
++        }
++        for (wtf_size_t row_index = row_start + 1; row_index < row_end;
++             ++row_index) {
++          for (wtf_size_t column_index = column_start;
++               column_index < column_end; ++column_index) {
++            const wtf_size_t edge_index =
++                row_index * edges_per_row + column_index * 2 + 1;
++            if (borders.DomotionIsDoNotFill(edge_index) &&
++                span_interiors.insert(edge_index).is_new_entry) {
++              interior_indices.Append(static_cast<int>(edge_index));
++            }
++          }
++        }
++
++        base::DictValue global_rows;
++        global_rows.Set("start", static_cast<int>(row_start));
++        global_rows.Set("endExclusive", static_cast<int>(row_end));
++        base::DictValue span;
++        span.Set("cellSourceIndex", cell_source);
++        span.Set("globalRows", std::move(global_rows));
++        span.Set("globalColumnStart", static_cast<int>(column_start));
++        span.Set("globalColumnEndExclusive", static_cast<int>(column_end));
++        span.Set("interiorCollapsedEdgeIndices",
++                 std::move(interior_indices));
++        result.Append(std::move(span));
++      }
++    }
++  }
++  return result;
++}
++
++base::ListValue BuildCollapsedEdges(
++    const PhysicalBoxFragment& table,
++    const Vector<SectionFacts>& section_facts,
++    const TableBorders& borders,
++    const HashSet<wtf_size_t>& span_interiors) {
++  base::ListValue result;
++  HashSet<wtf_size_t> observed_edges;
++  const wtf_size_t edges_per_row = borders.EdgesPerRow();
++  const wtf_size_t total_row_boundaries =
++      borders.EdgeCount() / edges_per_row;
++  const PhysicalBoxFragment* start_section = FirstSection(table);
++  const PhysicalBoxFragment* end_section = LastSection(table);
++  std::optional<wtf_size_t> previous_painted_row;
++  int paint_order = 0;
++
++  for (const SectionFacts& facts : section_facts) {
++    const PhysicalBoxFragment& section = *facts.fragment;
++    const Vector<LayoutUnit>* row_offsets = section.TableSectionRowOffsets();
++    if (!row_offsets || row_offsets->empty())
++      continue;
++    const bool has_previous_content =
++        start_section == &section && facts.start_row > 0;
++    const bool has_next_content =
++        end_section == &section &&
++        facts.start_row + row_offsets->size() < total_row_boundaries;
++    const wtf_size_t start_edge = facts.start_row * edges_per_row;
++    for (wtf_size_t edge_index = start_edge;
++         edge_index < borders.EdgeCount(); ++edge_index) {
++      CollapsedEdge edge(borders, edge_index);
++      const wtf_size_t table_row = edge.Row();
++      const wtf_size_t fragment_row = table_row - facts.start_row;
++      if (fragment_row >= row_offsets->size()) {
++        previous_painted_row =
++            facts.end_continued ? std::nullopt
++                                : std::optional<wtf_size_t>(table_row - 1);
++        break;
++      }
++      if (observed_edges.Contains(edge_index))
++        continue;
++
++      std::string disposition;
++      bool start_boundary = false;
++      bool end_boundary = false;
++      bool omitted = false;
++      if (span_interiors.Contains(edge_index)) {
++        disposition = "skip-span-interior";
++        omitted = true;
++      } else if (!edge.CanPaint()) {
++        continue;
++      } else if (edge.IsInlineAxis()) {
++        if (previous_painted_row && *previous_painted_row == table_row)
++          continue;
++        const bool is_start_row = fragment_row == 0;
++        const bool is_end_row = fragment_row == row_offsets->size() - 1;
++        start_boundary = is_start_row && has_previous_content;
++        end_boundary = is_end_row && has_next_content;
++        if (is_start_row && facts.start_continued) {
++          disposition = "omit-at-continued-row-start";
++          omitted = true;
++        } else if (is_end_row && facts.end_continued) {
++          disposition = "omit-at-continued-row-end";
++          omitted = true;
++        } else if (start_boundary) {
++          disposition = "paint-half-at-whole-row-start";
++        } else if (end_boundary) {
++          disposition = "paint-half-at-whole-row-end";
++        } else {
++          disposition = "paint-full";
++        }
++      } else {
++        if (fragment_row + 1 >= row_offsets->size())
++          continue;
++        const bool is_start_row = fragment_row == 0;
++        const bool is_end_row =
++            fragment_row + 1 == row_offsets->size() - 1;
++        start_boundary = is_start_row && has_previous_content;
++        end_boundary = is_end_row && has_next_content;
++        disposition = "paint-full";
++      }
++
++      observed_edges.insert(edge_index);
++      const JointWins wins =
++          ComputeJointWins(edge, start_boundary, end_boundary);
++      base::DictValue decision;
++      decision.Set("sourceEdgeIndex", static_cast<int>(edge_index));
++      decision.Set("decisionOrder", static_cast<int>(result.size()));
++      if (omitted) {
++        decision.Set("paintOrder", base::Value());
++      } else {
++        decision.Set("paintOrder", paint_order++);
++      }
++      decision.Set("axis", edge.IsInlineAxis() ? "inline" : "block");
++      decision.Set("globalRowBoundary", static_cast<int>(edge.Row()));
++      decision.Set("globalColumnBoundary", static_cast<int>(edge.Column()));
++      decision.Set("disposition", std::move(disposition));
++      decision.Set(
++          "startJoint",
++          JointDecision(start_boundary || facts.start_continued
++                            ? "absent-at-fragment-boundary"
++                            : (wins.start ? "self" : "neighbor")));
++      decision.Set(
++          "endJoint",
++          JointDecision(end_boundary || facts.end_continued
++                            ? "absent-at-fragment-boundary"
++                            : (wins.end ? "self" : "neighbor")));
++      result.Append(std::move(decision));
++    }
++  }
++
++  Vector<wtf_size_t> missing_interiors;
++  for (wtf_size_t edge_index : span_interiors) {
++    if (!observed_edges.Contains(edge_index))
++      missing_interiors.push_back(edge_index);
++  }
++  std::sort(missing_interiors.begin(), missing_interiors.end());
++  for (wtf_size_t edge_index : missing_interiors) {
++    CollapsedEdge edge(borders, edge_index);
++    base::DictValue decision;
++    decision.Set("sourceEdgeIndex", static_cast<int>(edge_index));
++    decision.Set("decisionOrder", static_cast<int>(result.size()));
++    decision.Set("paintOrder", base::Value());
++    decision.Set("axis", edge.IsInlineAxis() ? "inline" : "block");
++    decision.Set("globalRowBoundary", static_cast<int>(edge.Row()));
++    decision.Set("globalColumnBoundary", static_cast<int>(edge.Column()));
++    decision.Set("disposition", "skip-span-interior");
++    decision.Set("startJoint", JointDecision("neighbor"));
++    decision.Set("endJoint", JointDecision("neighbor"));
++    result.Append(std::move(decision));
++  }
++  return result;
++}
++
++base::DictValue BuildTable(
++    const PhysicalBoxFragment& table,
++    wtf_size_t page_index,
++    const Document& document) {
++  const TableBorders* borders = table.TableCollapsedBorders();
++  const CollapsedTableBordersGeometry* geometry =
++      table.TableCollapsedBordersGeometry();
++  base::DictValue result;
++  if (!borders || !geometry || borders->EdgesPerRow() < 4 ||
++      borders->EdgeCount() < borders->EdgesPerRow()) {
++    return result;
++  }
++  const int occurrence = FragmentOccurrenceIndex(table);
++  const int table_source =
++      SourceIndex(document, SourceKind::kTable, table.GetLayoutObject());
++  const auto* layout_box = DynamicTo<LayoutBox>(table.GetLayoutObject());
++  const wtf_size_t fragment_count =
++      layout_box ? layout_box->PhysicalFragmentCount() : 1;
++  const wtf_size_t total_rows =
++      borders->EdgeCount() / borders->EdgesPerRow() - 1;
++  const wtf_size_t total_columns = borders->EdgesPerRow() / 2 - 1;
++
++  result.Set("physicalTableFragmentId",
++             "table:" + std::to_string(table_source) + ":" +
++                 std::to_string(occurrence));
++  result.Set("tableSourceIndex", table_source);
++  result.Set("occurrenceIndex", occurrence);
++  result.Set("pageIndex", static_cast<int>(page_index));
++  result.Set("firstTableBox", occurrence == 0);
++  result.Set("lastTableBox",
++             occurrence >= 0 && static_cast<wtf_size_t>(occurrence + 1) ==
++                                      fragment_count);
++  const WritingMode writing_mode = table.Style().GetWritingMode();
++  result.Set("writingMode", WritingModeName(writing_mode));
++  result.Set("direction",
++             table.Style().Direction() == TextDirection::kRtl ? "rtl" : "ltr");
++  result.Set("fragmentationAxis",
++             writing_mode == WritingMode::kHorizontalTb ? "physical-y"
++                                                        : "physical-x");
++  result.Set("progression",
++             writing_mode == WritingMode::kVerticalRl ||
++                     writing_mode == WritingMode::kSidewaysRl
++                 ? "negative"
++                 : "positive");
++  result.Set("totalRows", static_cast<int>(total_rows));
++  result.Set("totalColumns", static_cast<int>(total_columns));
++  base::ListValue column_offsets;
++  for (LayoutUnit value : geometry->columns)
++    column_offsets.Append(Number(value));
++  result.Set("globalColumnOffsets", std::move(column_offsets));
++
++  base::ListValue sections;
++  base::ListValue captions;
++  Vector<SectionFacts> section_facts;
++  int section_paint_slot = 0;
++  int table_child_paint_slot = 0;
++  for (const PhysicalFragmentLink& child : table.Children()) {
++    const auto* child_box = DynamicTo<PhysicalBoxFragment>(child.get());
++    if (!child_box)
++      continue;
++    if (child_box->IsTableSection()) {
++      const auto start = child_box->TableSectionStartRowIndex();
++      const Vector<LayoutUnit>* offsets = child_box->TableSectionRowOffsets();
++      if (!start || !offsets || offsets->size() < 2)
++        continue;
++      SectionFacts facts;
++      facts.fragment = child_box;
++      facts.start_row = *start;
++      facts.end_row = std::min(total_rows, *start + offsets->size() - 1);
++      facts.start_continued = StartRowFragmented(*child_box);
++      facts.end_continued = EndRowFragmented(*child_box);
++      section_facts.push_back(facts);
++
++      const std::string tag = SectionTag(*child_box);
++      const int section_occurrence = FragmentOccurrenceIndex(*child_box);
++      const BlockBreakToken* previous = FindPreviousBreakToken(*child_box);
++      const bool repeated = previous && previous->IsRepeated();
++      std::string repeat_role = "body";
++      if (tag == "thead")
++        repeat_role = repeated ? "repeated-header" : "original-header";
++      else if (tag == "tfoot")
++        repeat_role = repeated ? "repeated-footer" : "original-footer";
++      const BlockBreakToken* outgoing = child_box->GetBreakToken();
++      const bool resumed_section =
++          previous && IsBreakInside(previous) && !previous->IsRepeated() &&
++          !repeated;
++      const bool continuing_section =
++          outgoing && IsBreakInside(outgoing) && !outgoing->IsRepeated() &&
++          !repeated;
++
++      base::DictValue global_rows;
++      global_rows.Set("start", static_cast<int>(facts.start_row));
++      global_rows.Set("endExclusive", static_cast<int>(facts.end_row));
++      base::ListValue row_offsets;
++      for (LayoutUnit value : *offsets)
++        row_offsets.Append(Number(value));
++      base::DictValue reserved;
++      reserved.Set("blockStart",
++                   repeated && tag == "thead"
++                       ? Number(borders->TableBorder().block_start)
++                       : 0.0);
++      reserved.Set("blockEnd",
++                   repeated && tag == "tfoot"
++                       ? Number(borders->TableBorder().block_end)
++                       : 0.0);
++      base::DictValue section;
++      const int section_source =
++          SourceIndex(document, SourceKind::kSection,
++                      child_box->GetLayoutObject());
++      section.Set("physicalSectionFragmentId",
++                  "section:" + std::to_string(table_source) + ":" +
++                      std::to_string(section_source) + ":" +
++                      std::to_string(section_occurrence));
++      section.Set("sectionSourceIndex", section_source);
++      section.Set("sectionTag", tag);
++      section.Set("occurrenceIndex", section_occurrence);
++      section.Set("repeatRole", repeat_role);
++      section.Set("sectionPaintSlot", section_paint_slot++);
++      section.Set("tableChildPaintSlot", table_child_paint_slot++);
++      section.Set("globalRows", std::move(global_rows));
++      section.Set("logicalRowOffsets", std::move(row_offsets));
++      if (facts.start_continued) {
++        section.Set("startBreak",
++                    BreakState("continued-row", facts.start_row));
++      } else if (resumed_section) {
++        section.Set("startBreak", BreakState("whole-row", facts.start_row));
++      } else {
++        section.Set("startBreak", BreakState("none", std::nullopt));
++      }
++      if (facts.end_continued) {
++        section.Set("endBreak",
++                    BreakState("continued-row", facts.end_row - 1));
++      } else if (continuing_section) {
++        section.Set("endBreak", BreakState("whole-row", facts.end_row));
++      } else {
++        section.Set("endBreak", BreakState("none", std::nullopt));
++      }
++      if (repeated && (tag == "thead" || tag == "tfoot")) {
++        section.Set("repeatEligibility",
++                    RepeatEligibilityFromRepeatToken(*previous));
++      } else {
++        section.Set("repeatEligibility", base::Value());
++      }
++      section.Set("reservedCollapsedEdgeSpace", std::move(reserved));
++      sections.Append(std::move(section));
++    } else if (child_box->GetLayoutObject()->IsTableCaption()) {
++      const int caption_occurrence = FragmentOccurrenceIndex(*child_box);
++      const int caption_source =
++          SourceIndex(document, SourceKind::kCaption,
++                      child_box->GetLayoutObject());
++      base::DictValue caption;
++      caption.Set("physicalCaptionFragmentId",
++                  "caption:" + std::to_string(table_source) + ":" +
++                      std::to_string(caption_source) + ":" +
++                      std::to_string(caption_occurrence));
++      caption.Set("captionSourceIndex", caption_source);
++      caption.Set("occurrenceIndex", caption_occurrence);
++      caption.Set("tableChildPaintSlot", table_child_paint_slot++);
++      caption.Set("side", child_box->Style().CaptionSide() == ECaptionSide::kTop
++                              ? "block-start"
++                              : "block-end");
++      captions.Append(std::move(caption));
++    }
++  }
++  result.Set("sectionOccurrences", std::move(sections));
++  result.Set("captionOccurrences", std::move(captions));
++  HashSet<wtf_size_t> span_interiors;
++  result.Set("spanningCells",
++             BuildSpanningCells(section_facts, document, *borders,
++                                total_rows, total_columns, span_interiors));
++  result.Set("collapsedEdges",
++             BuildCollapsedEdges(table, section_facts, *borders,
++                                 span_interiors));
++  return result;
++}
++
++base::DictValue PrintParameters(const WebPrintParams& params) {
++  base::DictValue printable_area;
++  printable_area.Set("x", params.printable_area_in_css_pixels.x());
++  printable_area.Set("y", params.printable_area_in_css_pixels.y());
++  printable_area.Set("width", params.printable_area_in_css_pixels.width());
++  printable_area.Set("height", params.printable_area_in_css_pixels.height());
++  const WebPrintPageDescription& page = params.default_page_description;
++  base::DictValue default_page;
++  default_page.Set("width", page.size.width());
++  default_page.Set("height", page.size.height());
++  default_page.Set("marginTop", page.margin_top);
++  default_page.Set("marginRight", page.margin_right);
++  default_page.Set("marginBottom", page.margin_bottom);
++  default_page.Set("marginLeft", page.margin_left);
++  default_page.Set("orientation", static_cast<int>(page.orientation));
++  default_page.Set("pageSizeType", static_cast<int>(page.page_size_type));
++  base::DictValue result;
++  result.Set("printableArea", std::move(printable_area));
++  result.Set("defaultPage", std::move(default_page));
++  result.Set("printerDpi", params.printer_dpi);
++  result.Set("scaleFactor", params.scale_factor);
++  result.Set("ignoreCssMargins", params.ignore_css_margins);
++  result.Set("ignorePageSize", params.ignore_page_size);
++  result.Set("rasterizePdf", params.rasterize_pdf);
++  result.Set("printScalingOption",
++             static_cast<int>(params.print_scaling_option));
++  result.Set("usePaginatedLayout", params.use_paginated_layout);
++  result.Set("printingInternalHeadersAndFooters",
++             params.printing_internal_headers_and_footers);
++  result.Set("pagesPerSheet", static_cast<int>(params.pages_per_sheet));
++  return result;
++}
++
++}  // namespace
++
++String SerializeDomotionPagedTableEvidence(
++    const LocalFrame& frame,
++    const WebPrintParams& print_params) {
++  const Document* document = frame.GetDocument();
++  const LayoutView* layout_view = document ? document->GetLayoutView() : nullptr;
++  if (!document || !layout_view || !document->Printing())
++    return String();
++  base::ListValue pages;
++  const wtf_size_t page_count = PageCount(*layout_view);
++  for (wtf_size_t page_index = 0; page_index < page_count; ++page_index) {
++    const PhysicalBoxFragment* page_area = GetPageArea(*layout_view, page_index);
++    if (!page_area)
++      continue;
++    HeapVector<Member<const PhysicalBoxFragment>> tables;
++    FindTables(*page_area, tables);
++    base::ListValue table_occurrences;
++    for (const PhysicalBoxFragment* table : tables) {
++      base::DictValue table_record =
++          BuildTable(*table, page_index, *document);
++      if (!table_record.empty())
++        table_occurrences.Append(std::move(table_record));
++    }
++    base::DictValue page;
++    page.Set("pageIndex", static_cast<int>(page_index));
++    const AtomicString page_name = page_area->PropagatedPageName();
++    if (page_name.IsNull() || page_name.empty())
++      page.Set("pageName", base::Value());
++    else
++      page.Set("pageName", Utf8(page_name.GetString()));
++    page.Set("emptyKind",
++             tables.empty() && page_index + 1 == page_count
++                 ? "terminal-empty"
++                 : "none");
++    page.Set("tableOccurrences", std::move(table_occurrences));
++    pages.Append(std::move(page));
++  }
++
++  base::DictValue root;
++  root.Set("helperAbi", kHelperAbi);
++  root.Set("sourceRevision", kChromiumRevision);
++  root.Set("capturePhase", "after-PrintBegin-before-PrintEnd");
++  root.Set("logicalFactsDerivedFromPdfVectorOrRaster", false);
++  root.Set("frameToken", frame.GetLocalFrameToken().ToString());
++  root.Set("documentToken", document->Token().ToString());
++  root.Set("documentUrl", Utf8(document->Url().GetString()));
++  root.Set("printParameters", PrintParameters(print_params));
++  root.Set("pages", std::move(pages));
++  std::string json;
++  if (!base::JSONWriter::Write(root, &json))
++    return String();
++  return String::FromUtf8(std::string_view(json));
++}
++
++String SerializeDomotionPrintScreenStateToken(const LocalFrame& frame) {
++  const Document* document = frame.GetDocument();
++  const LayoutView* layout_view = document ? document->GetLayoutView() : nullptr;
++  if (!document || !layout_view)
++    return String();
++  base::DictValue state;
++  state.Set("frameToken", frame.GetLocalFrameToken().ToString());
++  state.Set("documentToken", document->Token().ToString());
++  state.Set("documentUrl", Utf8(document->Url().GetString()));
++  state.Set("printing", document->Printing());
++  state.Set("physicalFragmentCount",
++            static_cast<int>(layout_view->PhysicalFragmentCount()));
++  state.Set("writingMode", WritingModeName(layout_view->StyleRef().GetWritingMode()));
++  state.Set("direction", layout_view->StyleRef().Direction() == TextDirection::kRtl
++                             ? "rtl"
++                             : "ltr");
++  const PhysicalSize size = layout_view->ViewRect().size;
++  state.Set("width", Number(size.width));
++  state.Set("height", Number(size.height));
++  std::string json;
++  if (!base::JSONWriter::Write(state, &json))
++    return String();
++  return String::FromUtf8(std::string_view(json));
++}
++
++}  // namespace blink
+diff --git a/third_party/blink/renderer/core/page/domotion_paged_table_evidence.h b/third_party/blink/renderer/core/page/domotion_paged_table_evidence.h
+new file mode 100644
+index 0000000000..bdecac4ff2
+--- /dev/null
++++ b/third_party/blink/renderer/core/page/domotion_paged_table_evidence.h
+@@ -0,0 +1,27 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef THIRD_PARTY_BLINK_RENDERER_CORE_PAGE_DOMOTION_PAGED_TABLE_EVIDENCE_H_
++#define THIRD_PARTY_BLINK_RENDERER_CORE_PAGE_DOMOTION_PAGED_TABLE_EVIDENCE_H_
++
++#include "third_party/blink/renderer/core/core_export.h"
++#include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
++
++namespace blink {
++
++class LocalFrame;
++struct WebPrintParams;
++
++// Evidence-only helpers in DM-2573's pinned Chromium patch. They are called
++// synchronously between PrintBegin and PrintEnd and never inspect PDF, vector,
++// raster, or pixel output.
++CORE_EXPORT String SerializeDomotionPagedTableEvidence(
++    const LocalFrame& frame,
++    const WebPrintParams& print_params);
++CORE_EXPORT String SerializeDomotionPrintScreenStateToken(
++    const LocalFrame& frame);
++
++}  // namespace blink
++
++#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_PAGE_DOMOTION_PAGED_TABLE_EVIDENCE_H_

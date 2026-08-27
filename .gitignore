@@ -32,6 +32,7 @@ test-results/
 data/
 *.tsbuildinfo
 .tmp/
+.chromium-build/
 tools/unicode-fixtures/
 tools/icu-helper/domotion-icu
 tools/icu-helper/domotion-icu.exe
