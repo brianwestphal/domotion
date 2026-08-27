@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtb8fwq5lwzgor55",
+          "message": {
+            "text": "This workflow is intentionally macOS/Linux-only: it closes the maximum non-Windows production checkpoint now, while the separate private-owner authority still withholds a global verdict until Windows lands. Each native leg retains fresh-decoder facts, machine-readable production tests, and runner fingerprints; the aggregate refuses either missing leg rather than treating one platform as representative.",
+            "markdown": "This workflow is intentionally macOS/Linux-only: it closes the maximum non-Windows production checkpoint now, while the separate private-owner authority still withholds a global verdict until Windows lands. Each native leg retains fresh-decoder facts, machine-readable production tests, and runner fingerprints; the aggregate refuses either missing leg rather than treating one platform as representative."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/animated-image-production-release.yml"
+                },
+                "region": {
+                  "startLine": 12,
+                  "endLine": 72,
+                  "snippet": {
+                    "text": "    strategy:\n      fail-fast: false\n      matrix:\n        include:\n          - runner: macos-latest\n            label: macOS\n          - runner: ubuntu-latest\n            label: Linux\n    runs-on: ${{ matrix.runner }}\n    timeout-minutes: 25\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with: { node-version: \"${{ env.NODE_VERSION }}\", cache: npm }\n      - run: npm ci\n      - name: Install explicitly headless Chromium\n        run: npx playwright install chromium\n      - name: Install Linux Chromium dependencies\n        if: runner.os == 'Linux'\n        run: npx playwright install-deps chromium\n      - name: Retain exact fresh-decoder proposal and validation evidence\n        run: npm run media:animated-image-frame-audit -- --json tests/output/animated-image-production/decoder.json\n      - name: Run authenticated production owner, slot, decoder, resize, and final-SVG matrix\n        run: npx vitest run --config vitest.e2e.config.ts tests/authenticated-animated-image-bytes.e2e.test.ts tests/animated-image-static-frame.e2e.test.ts --reporter=json --outputFile=tests/output/animated-image-production/production-tests.json\n      - name: Record native runner and dependency fingerprints\n        run: node scripts/run-env.mjs tests/output/animated-image-production/run-env.json\n      - uses: actions/upload-artifact@v4\n        if: always()\n        with:\n          name: animated-image-production-${{ runner.os }}\n          path: tests/output/animated-image-production/\n          if-no-files-found: error\n\n  adjudicate:\n    name: Require complete macOS Linux production matrix\n    if: always()\n    needs: collect\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with: { node-version: \"${{ env.NODE_VERSION }}\", cache: npm }\n      - run: npm ci\n      - uses: actions/download-artifact@v4\n        with:\n          pattern: animated-image-production-*\n          path: tests/output/animated-image-release\n      - name: Require both exact native artifacts\n        run: npm run media:animated-image-production-release -- --reports tests/output/animated-image-release --json tests/output/animated-image-release/aggregate.json\n      - uses: actions/upload-artifact@v4\n        if: always()\n        with:\n          name: animated-image-macos-linux-release-evidence\n          path: tests/output/animated-image-release/\n          if-no-files-found: error\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 94,
+          "workItemUris": [
+            "DM-2582"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "1811643f516b914f767a7b2a517f13a0"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "43f9ed2f6f25abffb658761e2f7d25b59b0435d8",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

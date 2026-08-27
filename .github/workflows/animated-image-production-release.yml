@@ -1,0 +1,66 @@
+name: Animated-image macOS Linux production release
+
+on:
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "22.21.0"
+
+jobs:
+  collect:
+    name: ${{ matrix.label }} exact production evidence
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest
+            label: macOS
+          - runner: ubuntu-latest
+            label: Linux
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: npm }
+      - run: npm ci
+      - name: Install explicitly headless Chromium
+        run: npx playwright install chromium
+      - name: Install Linux Chromium dependencies
+        if: runner.os == 'Linux'
+        run: npx playwright install-deps chromium
+      - name: Retain exact fresh-decoder proposal and validation evidence
+        run: npm run media:animated-image-frame-audit -- --json tests/output/animated-image-production/decoder.json
+      - name: Run authenticated production owner, slot, decoder, resize, and final-SVG matrix
+        run: npx vitest run --config vitest.e2e.config.ts tests/authenticated-animated-image-bytes.e2e.test.ts tests/animated-image-static-frame.e2e.test.ts --reporter=json --outputFile=tests/output/animated-image-production/production-tests.json
+      - name: Record native runner and dependency fingerprints
+        run: node scripts/run-env.mjs tests/output/animated-image-production/run-env.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: animated-image-production-${{ runner.os }}
+          path: tests/output/animated-image-production/
+          if-no-files-found: error
+
+  adjudicate:
+    name: Require complete macOS Linux production matrix
+    if: always()
+    needs: collect
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: npm }
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: animated-image-production-*
+          path: tests/output/animated-image-release
+      - name: Require both exact native artifacts
+        run: npm run media:animated-image-production-release -- --reports tests/output/animated-image-release --json tests/output/animated-image-release/aggregate.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: animated-image-macos-linux-release-evidence
+          path: tests/output/animated-image-release/
+          if-no-files-found: error

@@ -1,6 +1,6 @@
 # Strict static frames for SVG and CSS images
 
-Status: shipped macOS/Linux subset
+Status: shipped macOS/Linux subset; strict two-platform production workflow
 
 The opt-in `animatedImageFrames` request accepts a `slot` in addition to its
 unique `selector` and non-negative `frameIndex`. `svg-href` selects an SVG
@@ -33,3 +33,13 @@ macOS/Linux private owner/resource evidence and public-CDP adjudication in
 [doc 235](235-public-svg-css-animated-image-owner-joins.md). Windows/global
 ratification remains separate. Live playback is unsupported, no visual
 tolerance changes, and capture without the option remains unchanged.
+
+The optional `Animated-image macOS Linux production release` workflow retains
+one native artifact per platform: the exact fresh-decoder proposal/validation
+report, machine-readable results for the authenticated owner/slot/frozen-PNG/
+resize/final-SVG production tests, and the runner/dependency fingerprint. Its
+aggregate rejects either missing platform, any decoder drift, a non-headless
+browser, a mismatched platform identity, an incomplete production test set, or
+an empty runner record. This is the maximum non-Windows release checkpoint;
+the global three-platform verdict remains withheld until the Windows authority
+and production artifact exist.

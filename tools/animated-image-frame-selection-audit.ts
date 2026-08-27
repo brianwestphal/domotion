@@ -6,6 +6,8 @@
  * Every browser launch is explicitly headless.
  */
 import { createHash } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 import { createServer, type Server } from "node:http";
 import { chromium, type Page } from "@playwright/test";
 
@@ -477,6 +479,12 @@ export async function runAnimatedImageFrameSelectionAudit(): Promise<AnimatedIma
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const report = await runAnimatedImageFrameSelectionAudit();
-  process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+  const json = `${JSON.stringify(report, null, 2)}\n`;
+  const jsonIndex = process.argv.indexOf("--json");
+  if (jsonIndex >= 0) {
+    const output = process.argv[jsonIndex + 1];
+    if (output == null || output.startsWith("--")) throw new Error("--json requires an output path");
+    const path = resolve(output); await mkdir(dirname(path), { recursive: true }); await writeFile(path, json);
+  } else process.stdout.write(json);
   if (report.verdict !== "decoder-frame-exact") process.exitCode = 1;
 }

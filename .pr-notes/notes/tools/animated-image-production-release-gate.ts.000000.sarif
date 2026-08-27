@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtb8fwvyeqcf1hw1",
+          "message": {
+            "text": "The release verdict requires two independently fingerprinted native artifacts and reopens their semantic contents before hashing them into the aggregate. A green decoder alone is insufficient: every supported production owner/slot test must also pass explicitly, and platform identity/headless state are checked rather than inferred from artifact names.",
+            "markdown": "The release verdict requires two independently fingerprinted native artifacts and reopens their semantic contents before hashing them into the aggregate. A green decoder alone is insufficient: every supported production owner/slot test must also pass explicitly, and platform identity/headless state are checked rather than inferred from artifact names."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/animated-image-production-release-gate.ts"
+                },
+                "region": {
+                  "startLine": 31,
+                  "endLine": 58,
+                  "snippet": {
+                    "text": "      const tests = await readJson<{ numPassedTests?: number; numFailedTests?: number; success?: boolean }>(join(base, \"production-tests.json\"));\n      const environment = await readJson<Record<string, unknown>>(join(base, \"run-env.json\"));\n      if (decoder.value.verdict !== \"decoder-frame-exact\" || decoder.value.errors.length !== 0 || !decoder.value.browser.headless) {\n        failures.push(`${platform}: decoder evidence is not exact and explicitly headless`);\n      }\n      const reportedPlatform = decoder.value.browser.platform.toLowerCase();\n      if (platform === \"macOS\" ? !reportedPlatform.includes(\"mac\") : !reportedPlatform.includes(\"linux\")) {\n        failures.push(`${platform}: decoder platform identity drift`);\n      }\n      if (tests.value.success !== true || (tests.value.numFailedTests ?? 1) !== 0 || (tests.value.numPassedTests ?? 0) < 18) {\n        failures.push(`${platform}: focused production matrix did not pass completely`);\n      }\n      if (Object.keys(environment.value).length === 0) failures.push(`${platform}: runner environment is empty`);\n      artifacts.push({ platform, decoderSha256: sha256(decoder.bytes), runEnvironmentSha256: sha256(environment.bytes),\n        productionTestsSha256: sha256(tests.bytes), testsPassed: tests.value.numPassedTests ?? 0 });\n    } catch (error) { failures.push(`${platform}: ${error instanceof Error ? error.message : String(error)}`); }\n  }\n  return { schemaVersion: 1, requiredPlatforms: [\"macOS\", \"Linux\"], artifacts,\n    failures, verdict: failures.length === 0 && artifacts.length === 2 ? \"macos-linux-production-exact\" : \"blocked\" };\n}\n\nif (import.meta.url === `file://${process.argv[1]}`) {\n  const reportsIndex = process.argv.indexOf(\"--reports\"); const jsonIndex = process.argv.indexOf(\"--json\");\n  const root = resolve(reportsIndex >= 0 && process.argv[reportsIndex + 1] != null ? process.argv[reportsIndex + 1] : \"tests/output/animated-image-release\");\n  const report = await adjudicateAnimatedImageProductionRelease(root);\n  const json = `${JSON.stringify(report, null, 2)}\\n`;\n  if (jsonIndex >= 0 && process.argv[jsonIndex + 1] != null) {\n    const output = resolve(process.argv[jsonIndex + 1]); await mkdir(dirname(output), { recursive: true }); await writeFile(output, json);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2582"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "6e3725882c43f5be6471cb332d59a4af"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "43f9ed2f6f25abffb658761e2f7d25b59b0435d8",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
