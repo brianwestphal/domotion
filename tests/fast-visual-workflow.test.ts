@@ -41,6 +41,12 @@ describe("all-platform fast visual workflow", () => {
     expect(workflow).toContain("win32-glyph-extractor");
   });
 
+  it("caps every job so a runner defect cannot consume capacity indefinitely", () => {
+    for (const os of ["macos", "linux", "windows"]) {
+      expect(jobs[`test-${os}`]).toContain("timeout-minutes: 60");
+    }
+  });
+
   it("records provenance before rendering and uploads evidence even after failure", () => {
     for (const os of ["macos", "linux", "windows"]) {
       const block = jobs[`test-${os}`];

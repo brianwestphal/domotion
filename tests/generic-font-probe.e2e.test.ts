@@ -102,6 +102,49 @@ describe("the live session generic-family probe", () => {
       .toEqual([...clean!.byScript].map(([script, families]) => [script, [...families]]));
   });
 
+  it("does not hang when a reused page navigates to a srcdoc iframe", async () => {
+    const page = await context!.newPage();
+    try {
+      await page.setContent("<!doctype html><body>first document</body>");
+      expect(await probePageGenericFamilies(page)).not.toBeNull();
+      await page.setContent(`<!doctype html><body>
+        <iframe srcdoc="<!doctype html><body lang='th'>child</body>"></iframe>
+      </body>`);
+      const result = await Promise.race([
+        probePageGenericFamilies(page),
+        new Promise<never>((_resolve, reject) => setTimeout(
+          () => reject(new Error("generic-family probe hung on a srcdoc child frame")),
+          10_000,
+        )),
+      ]);
+      expect(result).not.toBeNull();
+      expect(result!.byScript.get("THAI")).toBeDefined();
+    } finally {
+      await page.close();
+    }
+  });
+
+  it("does not request a separate target session while capturing a local srcdoc frame", async () => {
+    const page = await context!.newPage();
+    try {
+      await page.setContent("<!doctype html><body>first document</body>");
+      await captureElementTree(page, "body", { x: 0, y: 0, width: 400, height: 120 });
+      await page.setContent(`<!doctype html><body>
+        <iframe srcdoc="<!doctype html><body lang='th'>child</body>"></iframe>
+      </body>`);
+      const tree = await Promise.race([
+        captureElementTree(page, "body", { x: 0, y: 0, width: 400, height: 120 }),
+        new Promise<never>((_resolve, reject) => setTimeout(
+          () => reject(new Error("capture hung while probing a local srcdoc target")),
+          10_000,
+        )),
+      ]);
+      expect(tree.length).toBeGreaterThan(0);
+    } finally {
+      await page.close();
+    }
+  });
+
   it("carries page-owned settings on the captured tree without mutating process-global render state", async () => {
     const page = await context!.newPage();
     await page.setContent("<!doctype html><body><span style='font:32px serif'>Regna</span></body>");

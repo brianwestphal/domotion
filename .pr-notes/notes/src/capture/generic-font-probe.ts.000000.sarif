@@ -397,6 +397,109 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "unknown-ai-tool",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtbkgm6s3d9af9db",
+          "message": {
+            "text": "DM-2593: use the flattened Chromium DOMSnapshot as the sole page-language authority. The prior redundant Playwright frame.evaluate walk can remain unresolved on a reused page with a freshly navigated srcdoc child, wedging every visual suite; DOMSnapshot already includes local documents and shadow trees.",
+            "markdown": "DM-2593: use the flattened Chromium DOMSnapshot as the sole page-language authority. The prior redundant Playwright frame.evaluate walk can remain unresolved on a reused page with a freshly navigated srcdoc child, wedging every visual suite; DOMSnapshot already includes local documents and shadow trees."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/generic-font-probe.ts"
+                },
+                "region": {
+                  "startLine": 156,
+                  "endLine": 170,
+                  "snippet": {
+                    "text": "async function pageLanguageFacts(cdp: CDPSession): Promise<string[]> {\n  // DM-2593: do not also walk `page.frames()` with Playwright evaluations.\n  // On a reused page, Chromium can leave evaluation of a freshly navigated\n  // `srcdoc` frame unresolved indefinitely. The flattened snapshot is already\n  // the stronger authority: it includes every local document plus open and\n  // closed shadow trees, while OOPIF Settings are authenticated separately by\n  // `assertGenericFamilyTargetConsistency` below.\n  return await cdp.send(\"DOMSnapshot.captureSnapshot\", {\n    computedStyles: [],\n    includeDOMRects: false,\n    includePaintOrder: false,\n  }).then(languagesFromDomSnapshot).catch(() => [] as string[]);\n}\n\nexport function genericFamilyProbeTargets(additionalLanguages: readonly string[] = []): ProbeTarget[] {"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "workItemUris": [
+            "DM-2593"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "7820cfd9bbbefb9c9ea8356ea63e3e9f"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtbkgmcsyowkrbcm",
+          "message": {
+            "text": "DM-2593: parent-readable child frames share the Page renderer Settings, so skip attempting a separate CDP target session for them. Only inaccessible/OOPIF children need the independent Settings consistency probe.",
+            "markdown": "DM-2593: parent-readable child frames share the Page renderer Settings, so skip attempting a separate CDP target session for them. Only inaccessible/OOPIF children need the independent Settings consistency probe."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/generic-font-probe.ts"
+                },
+                "region": {
+                  "startLine": 352,
+                  "endLine": 379,
+                  "snippet": {
+                    "text": "  if (main == null) return;\n  for (const frame of page.frames()) {\n    if (frame === page.mainFrame()) continue;\n    // Same-process children inherit this Page's Settings. Besides making a\n    // redundant probe, asking Playwright for a separate CDP session on a local\n    // `srcdoc` frame can remain pending forever after page reuse (DM-2593).\n    // Test the owner from the parent world first; only inaccessible children\n    // can be OOPIF targets with independent Settings worth authenticating.\n    const owner = await frame.frameElement().catch(() => null);\n    let parentReadable = false;\n    if (owner != null) {\n      try {\n        parentReadable = await owner.evaluate((element) =>\n          element instanceof HTMLIFrameElement && element.contentDocument != null).catch(() => false);\n      } finally {\n        await owner.dispose();\n      }\n    }\n    if (parentReadable) continue;\n    const child = await probeFrameGenericFamilies(frame);\n    if (child != null && !probeResultsEqual(main, child)) {\n      throw new Error(`Generic-family Settings diverge for frame target ${frame.url() || \"<uncommitted>\"}; capture requires one non-divergent Page authority.`);\n    }\n  }\n}\n\n/**\n * Ask THIS capture session which family each CSS generic keyword paints."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "workItemUris": [
+            "DM-2593"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "d85a9566b521e077b5a350763c1d3926"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "3551a54c6f07d81827d2bb518f899f6340a2b223",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

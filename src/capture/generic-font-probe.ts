@@ -153,35 +153,18 @@ export function languagesFromDomSnapshot(snapshot: DomSnapshotLanguageFacts): st
   return [...languages];
 }
 
-async function pageLanguageFacts(page: Page, cdp: CDPSession): Promise<string[]> {
-  const [snapshotLanguages, reachableLanguages] = await Promise.all([
-    cdp.send("DOMSnapshot.captureSnapshot", {
-      computedStyles: [],
-      includeDOMRects: false,
-      includePaintOrder: false,
-    }).then(languagesFromDomSnapshot).catch(() => [] as string[]),
-    Promise.all(page.frames().map(async (frame) => {
-      try {
-        return await frame.evaluate(() => {
-          const languages: string[] = [];
-          const visit = (root: Document | ShadowRoot): void => {
-            for (const element of root.querySelectorAll("*")) {
-              const html = element.getAttribute("lang");
-              const xml = element.getAttribute("xml:lang");
-              if (html != null && html !== "") languages.push(html);
-              if (xml != null && xml !== "") languages.push(xml);
-              if (element.shadowRoot != null) visit(element.shadowRoot);
-            }
-          };
-          visit(document);
-          return languages;
-        });
-      } catch {
-        return [] as string[];
-      }
-    })).then((values) => values.flat()),
-  ]);
-  return [...new Set([...snapshotLanguages, ...reachableLanguages])];
+async function pageLanguageFacts(cdp: CDPSession): Promise<string[]> {
+  // DM-2593: do not also walk `page.frames()` with Playwright evaluations.
+  // On a reused page, Chromium can leave evaluation of a freshly navigated
+  // `srcdoc` frame unresolved indefinitely. The flattened snapshot is already
+  // the stronger authority: it includes every local document plus open and
+  // closed shadow trees, while OOPIF Settings are authenticated separately by
+  // `assertGenericFamilyTargetConsistency` below.
+  return await cdp.send("DOMSnapshot.captureSnapshot", {
+    computedStyles: [],
+    includeDOMRects: false,
+    includePaintOrder: false,
+  }).then(languagesFromDomSnapshot).catch(() => [] as string[]);
 }
 
 export function genericFamilyProbeTargets(additionalLanguages: readonly string[] = []): ProbeTarget[] {
@@ -322,7 +305,7 @@ export async function probePageGenericFamilies(
     cdp = await page.context().newCDPSession(page);
     await cdp.send("DOM.enable");
     await cdp.send("CSS.enable");
-    const targets = genericFamilyProbeTargets(await pageLanguageFacts(page, cdp));
+    const targets = genericFamilyProbeTargets(await pageLanguageFacts(cdp));
     const first = await readPageGenericFamilies(page, cdp, targets);
     const second = await readPageGenericFamilies(page, cdp, targets);
     if (probeResultsEqual(first, second)) return second;
@@ -369,6 +352,22 @@ export async function assertGenericFamilyTargetConsistency(
   if (main == null) return;
   for (const frame of page.frames()) {
     if (frame === page.mainFrame()) continue;
+    // Same-process children inherit this Page's Settings. Besides making a
+    // redundant probe, asking Playwright for a separate CDP session on a local
+    // `srcdoc` frame can remain pending forever after page reuse (DM-2593).
+    // Test the owner from the parent world first; only inaccessible children
+    // can be OOPIF targets with independent Settings worth authenticating.
+    const owner = await frame.frameElement().catch(() => null);
+    let parentReadable = false;
+    if (owner != null) {
+      try {
+        parentReadable = await owner.evaluate((element) =>
+          element instanceof HTMLIFrameElement && element.contentDocument != null).catch(() => false);
+      } finally {
+        await owner.dispose();
+      }
+    }
+    if (parentReadable) continue;
     const child = await probeFrameGenericFamilies(frame);
     if (child != null && !probeResultsEqual(main, child)) {
       throw new Error(`Generic-family Settings diverge for frame target ${frame.url() || "<uncommitted>"}; capture requires one non-divergent Page authority.`);

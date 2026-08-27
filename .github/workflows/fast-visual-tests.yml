@@ -27,6 +27,7 @@ jobs:
   test-macos:
     if: inputs.os == 'all' || inputs.os == 'macos'
     runs-on: macos-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -62,6 +63,7 @@ jobs:
   test-linux:
     if: inputs.os == 'all' || inputs.os == 'linux'
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     container:
       image: mcr.microsoft.com/playwright:v1.59.1-noble
     steps:
@@ -98,6 +100,7 @@ jobs:
   test-windows:
     if: inputs.os == 'all' || inputs.os == 'windows'
     runs-on: windows-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

@@ -47,6 +47,12 @@ describe("visual-tests.yml provides the native glyph helper", () => {
     expect(Object.keys(jobs)).toEqual(expect.arrayContaining(["test-macos", "test-linux", "test-windows"]));
   });
 
+  it("caps every shard so a runner defect cannot consume capacity indefinitely", () => {
+    for (const name of ["test-macos", "test-linux", "test-windows"]) {
+      expect(jobs[name]).toContain("timeout-minutes: 45");
+    }
+  });
+
   // DM-2155: expressions may reference only direct `needs` dependencies.
   // `aggregate` used setup's totals in `--expect` but depended only on the
   // platform jobs, which themselves depended on setup. GitHub does not expose
