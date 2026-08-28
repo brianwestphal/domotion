@@ -48,6 +48,11 @@ jobs:
       - name: Run every fast visual suite
         id: suites
         continue-on-error: true
+        env:
+          # GitHub's 4-core runners otherwise resolve to the interactive-safe
+          # default of one worker. Two contexts fit the hosted runner and keep
+          # the 42-job real-world tail inside this workflow's CI budget.
+          DOMOTION_TEST_WORKERS: '2'
         run: npm run demos:test:ci-fast
       - name: Compare platform baselines and optionally write candidates
         if: always()
@@ -87,6 +92,11 @@ jobs:
       - name: Run every fast visual suite
         id: suites
         continue-on-error: true
+        env:
+          # GitHub's 4-core runners otherwise resolve to the interactive-safe
+          # default of one worker. Two contexts fit the hosted runner and keep
+          # the 42-job real-world tail inside this workflow's CI budget.
+          DOMOTION_TEST_WORKERS: '2'
         run: npm run demos:test:ci-fast
       - name: Compare platform baselines and optionally write candidates
         if: always()
