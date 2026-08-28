@@ -222,9 +222,19 @@ async function mutateFrames(frames: readonly PreparedFrame[], key: string, neutr
 }
 
 async function settleFrames(frames: readonly PreparedFrame[]): Promise<void> {
-  await Promise.all(frames.filter(({ hasTransformOwners }) => hasTransformOwners).map(({ frame }) => frame.evaluate(() => new Promise<void>((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-  })).catch(() => undefined)));
+  await Promise.all(frames.filter(({ hasTransformOwners }) => hasTransformOwners).map(async ({ frame }) => {
+    // A hidden/throttled renderer can stop delivering rAF callbacks without
+    // detaching the Frame, leaving Runtime.callFunctionOn pending forever.
+    // The mutation is synchronous; this wait is only a best-effort compositor
+    // settle, so cap it rather than wedging the entire fixture/worker.
+    const settle = frame.evaluate(() => new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    })).catch(() => undefined);
+    await Promise.race([
+      settle,
+      new Promise<void>((resolve) => setTimeout(resolve, 1_000)),
+    ]);
+  }));
 }
 
 async function defaultRuntimeContexts(session: CDPSession, key: string): Promise<Map<string, number>> {
