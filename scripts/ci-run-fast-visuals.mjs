@@ -28,9 +28,12 @@ for (const [suite, script] of suites) {
     cwd: process.cwd(),
     env: process.env,
     stdio: "inherit",
+    shell: process.platform === "win32",
   });
   const exitCode = run.status ?? 1;
-  results.push({ suite, script, startedAt, completedAt: new Date().toISOString(), exitCode });
+  const error = run.error?.message;
+  if (error != null) console.error(`FASTVISUAL ${suite} launch failed: ${error}`);
+  results.push({ suite, script, startedAt, completedAt: new Date().toISOString(), exitCode, ...(error != null ? { error } : {}) });
 }
 
 const manifest = {

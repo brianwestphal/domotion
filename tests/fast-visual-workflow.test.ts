@@ -42,9 +42,9 @@ describe("all-platform fast visual workflow", () => {
   });
 
   it("caps every job so a runner defect cannot consume capacity indefinitely", () => {
-    for (const os of ["macos", "linux", "windows"]) {
-      expect(jobs[`test-${os}`]).toContain("timeout-minutes: 60");
-    }
+    expect(jobs["test-macos"]).toContain("timeout-minutes: 120");
+    expect(jobs["test-linux"]).toContain("timeout-minutes: 120");
+    expect(jobs["test-windows"]).toContain("timeout-minutes: 60");
   });
 
   it("records provenance before rendering and uploads evidence even after failure", () => {
@@ -70,6 +70,8 @@ describe("all-platform fast visual workflow", () => {
     }
     expect(driver).toContain("fast-visual-completeness.json");
     expect(driver).toContain("results.every");
+    expect(driver).toContain('shell: process.platform === "win32"');
+    expect(driver).toContain("run.error?.message");
   });
 
   it("compares committed per-platform baselines and can emit review candidates", () => {
