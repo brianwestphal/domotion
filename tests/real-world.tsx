@@ -88,6 +88,7 @@ const SETTLE_MS = 3000;
 // providing meaningful protection against genuinely-stuck pages.
 const PLAYWRIGHT_TIMEOUT_MS = 90_000;
 const GOTO_TIMEOUT_MS = PLAYWRIGHT_TIMEOUT_MS;
+const CAPTURE_JOB_TIMEOUT_MS = 6 * 60_000;
 
 // Constant scroll speed for the scroll-through demo, in px/s. DM-669:
 // switched from a fixed `SCROLL_ANIM_MS = 12_000` total duration to constant
@@ -187,10 +188,7 @@ function buildJobs(): PageJob[] {
   return out;
 }
 
-interface RealWorldWorker {
-  comparePage: Page;
-  compareContext: BrowserContext;
-}
+interface RealWorldWorker {}
 
 async function main(): Promise<void> {
   // DM-459: yield CPU to interactive work — Chromium subprocesses inherit.
@@ -230,16 +228,19 @@ async function main(): Promise<void> {
   const newResults = await runJobsInPool<PageJob, RealWorldWorker, Result>({
     jobs,
     workers: workerCount,
-    setup: async () => {
+    setup: async () => ({}),
+    runJob: async (job) => {
       const compareContext = await browser.newContext({
         viewport: { width: 1280 * 2, height: 800 },
       });
       const comparePage = await compareContext.newPage();
-      await comparePage.goto("about:blank");
-      return { compareContext, comparePage };
+      try {
+        await comparePage.goto("about:blank");
+        return await runJob(browser, comparePage, job, { resize: enableResize, hiDPI: resizeHiDPI });
+      } finally {
+        await compareContext.close().catch(() => {});
+      }
     },
-    teardown: async (w) => { await w.compareContext.close(); },
-    runJob: async (job, w) => runJob(browser, w.comparePage, job, { resize: enableResize, hiDPI: resizeHiDPI }),
     onResult: (result, job) => {
       const status = result.skipped ? "- SKIP"
         : result.error != null    ? "✗ ERROR"
@@ -462,6 +463,12 @@ async function runJob(
   // here so the per-chunk diff loop after the canonical comparePngs can
   // walk the same anchors. Stays undefined for fold / entire-page.
   let segments: ScrollSegmentCapture[] | undefined;
+  let captureTimedOut = false;
+  const captureWatchdog = setTimeout(() => {
+    captureTimedOut = true;
+    void context.close().catch(() => {});
+  }, CAPTURE_JOB_TIMEOUT_MS);
+  captureWatchdog.unref();
 
   try {
     // `domcontentloaded` is more reliable than `load` on real-world pages
@@ -847,8 +854,10 @@ async function runJob(
     // reviewers/consumers care about.
     try { unlinkSync(wrapperPath); } catch { /* best-effort */ }
   } catch (e) {
-    captureError = e instanceof Error ? e.message : String(e);
+    const detail = e instanceof Error ? e.message : String(e);
+    captureError = captureTimedOut ? `capture exceeded ${CAPTURE_JOB_TIMEOUT_MS / 60_000}m: ${detail}` : detail;
   } finally {
+    clearTimeout(captureWatchdog);
     // Defensive: a failed page.screenshot can leave the underlying
     // Chromium target in a half-closed state (DM-460), so the implicit
     // session teardown throws "Target page, context or browser has been
