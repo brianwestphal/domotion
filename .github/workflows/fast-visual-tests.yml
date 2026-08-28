@@ -70,9 +70,10 @@ jobs:
   test-linux:
     if: inputs.os == 'all' || inputs.os == 'linux'
     runs-on: ubuntu-latest
-    # This job deliberately runs five suites serially. Current production
-    # captures exceed an hour while continuing to make fixture progress.
-    timeout-minutes: 120
+    # This job deliberately runs five suites serially. The pinned container's
+    # complete production sweep exceeds two hours even with two capture
+    # workers, so preserve enough time for evidence comparison and upload.
+    timeout-minutes: 180
     container:
       image: mcr.microsoft.com/playwright:v1.59.1-noble
     steps:
