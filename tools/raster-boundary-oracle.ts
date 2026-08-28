@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 import { writeFileSync } from "node:fs";
-import { chromium, type Page } from "playwright";
+import { chromium, type Browser } from "playwright";
 import { captureElementTree } from "../src/capture/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
@@ -28,10 +28,15 @@ function activated(tree: CapturedElement[], boundary: Boundary): boolean {
   return result;
 }
 
-async function capture(page: Page, html: string): Promise<CapturedElement[]> {
-  await page.setContent(`<style>html,body{margin:0}body{font:24px Arial,sans-serif}</style>${html}`);
-  await page.waitForTimeout(80);
-  return captureElementTree(page, "body", { x: 0, y: 0, width: 500, height: 320 });
+async function capture(browser: Browser, html: string): Promise<CapturedElement[]> {
+  const page = await browser.newPage({ viewport: { width: 500, height: 320 } });
+  try {
+    await page.setContent(`<style>html,body{margin:0}body{font:24px Arial,sans-serif}</style>${html}`);
+    await page.waitForTimeout(80);
+    return await captureElementTree(page, "body", { x: 0, y: 0, width: 500, height: 320 });
+  } finally {
+    await page.close();
+  }
 }
 
 export async function runRasterBoundaryOracle(): Promise<{ rows: Row[]; mutationMoved: boolean }> {
@@ -41,7 +46,6 @@ export async function runRasterBoundaryOracle(): Promise<{ rows: Row[]; mutation
     rows.push({ id, expected, actual, pass: JSON.stringify(actual) === JSON.stringify(expected), source });
   };
   try {
-    const page = await browser.newPage({ viewport: { width: 500, height: 320 } });
     const cases: Array<[string, Boundary, boolean, string, string]> = [
       ["replaced.canvas", "replaced", true, '<canvas width="80" height="40"></canvas>', "Blink canvas paint is a bitmap surface"],
       ["replaced.ordinary-div-vector", "replaced", false, '<div style="width:80px;height:40px;background:red"></div>', "ordinary CSS box has an SVG representation"],
@@ -64,10 +68,10 @@ export async function runRasterBoundaryOracle(): Promise<{ rows: Row[]; mutation
       ["glyph.ascii-vector", "glyph", false, '<div>Vector text</div>', "ordinary outline glyph stays on text/path pipeline"],
     ];
     for (const [id, boundary, expected, html, source] of cases) {
-      add(id, expected, activated(await capture(page, html), boundary), source);
+      add(id, expected, activated(await capture(browser, html), boundary), source);
     }
 
-    const pseudoFilterTree = await capture(page, `<style>
+    const pseudoFilterTree = await capture(browser, `<style>
       #pf{position:relative;width:100px;height:60px}
       #pf::before{content:"";position:absolute;inset:10px;background:rgba(255,0,0,.5);
         filter:blur(2px) saturate(1.4) drop-shadow(blue 3px 2px 1px)}
@@ -87,13 +91,18 @@ export async function runRasterBoundaryOracle(): Promise<{ rows: Row[]; mutation
     add("gradient.opaque-srgb-vector", false, needsChromiumGradientRaster("linear-gradient(red, blue)"), "opaque sRGB interpolation is native SVG");
     add("conic.active", true, parseConicGradient("conic-gradient(red, blue)") != null, "SVG has no conic paint server");
     add("conic.linear-negative", false, parseConicGradient("linear-gradient(red, blue)") != null, "linear gradient remains native SVG");
-    add("mask.element-dormant", false, await page.evaluate(() => CSS.supports("mask-image", "element(#source)")), "pinned Chromium parse-rejects CSS element() masks");
+    const supportPage = await browser.newPage();
+    try {
+      add("mask.element-dormant", false, await supportPage.evaluate(() => CSS.supports("mask-image", "element(#source)")), "pinned Chromium parse-rejects CSS element() masks");
+    } finally {
+      await supportPage.close();
+    }
 
     const previous = process.env.DOMOTION_DISABLE_HELPER;
     process.env.DOMOTION_DISABLE_HELPER = "1";
     try {
-      add("helper-disabled.ascii-stays-vector", false, activated(await capture(page, '<div>Helperless best effort</div>'), "glyph"), "helper absence degrades font precision, not the vector/raster contract");
-      add("helper-disabled.emoji-still-raster", true, activated(await capture(page, '<div>😀</div>'), "glyph"), "color bitmap boundary is independent of native outline helper availability");
+      add("helper-disabled.ascii-stays-vector", false, activated(await capture(browser, '<div>Helperless best effort</div>'), "glyph"), "helper absence degrades font precision, not the vector/raster contract");
+      add("helper-disabled.emoji-still-raster", true, activated(await capture(browser, '<div>😀</div>'), "glyph"), "color bitmap boundary is independent of native outline helper availability");
     } finally {
       if (previous == null) delete process.env.DOMOTION_DISABLE_HELPER;
       else process.env.DOMOTION_DISABLE_HELPER = previous;

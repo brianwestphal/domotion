@@ -7,6 +7,7 @@ const outIndex = process.argv.indexOf("--out");
 const out = resolve(outIndex >= 0 && process.argv[outIndex + 1] != null ? process.argv[outIndex + 1] : "stage-evidence");
 mkdirSync(out, { recursive: true });
 const tsx = resolve("node_modules/.bin", process.platform === "win32" ? "tsx.cmd" : "tsx");
+const oracleTimeoutMs = 180_000;
 const runs: Array<[string, string]> = [
   ["shaping-clusters-glyphs", "tools/unified-shaping-oracle.ts"],
   ["renderer-font-route", "tools/renderer-font-route-oracle.ts"],
@@ -23,8 +24,17 @@ const runs: Array<[string, string]> = [
 for (const [area, tool] of runs) {
   const target = resolve(out, `${area}.json`);
   console.log(`\n[stage evidence] ${area} ← ${tool}`);
-  const result = spawnSync(tsx, [tool, "--json", target], { stdio: "inherit", env: process.env, shell: process.platform === "win32" });
-  if (result.status !== 0) console.warn(`[stage evidence] ${area} exited ${result.status ?? "without a status"}; retaining any report it wrote`);
+  const result = spawnSync(tsx, [tool, "--json", target], {
+    stdio: "inherit",
+    env: process.env,
+    shell: process.platform === "win32",
+    timeout: oracleTimeoutMs,
+    killSignal: "SIGTERM",
+  });
+  const timedOut = result.error != null && "code" in result.error && result.error.code === "ETIMEDOUT";
+  if (timedOut) console.warn(`[stage evidence] ${area} exceeded ${oracleTimeoutMs / 1000}s; retaining any report it wrote`);
+  else if (result.error != null) console.warn(`[stage evidence] ${area} failed to run: ${result.error.message}`);
+  else if (result.status !== 0) console.warn(`[stage evidence] ${area} exited ${result.status ?? "without a status"}; retaining any report it wrote`);
   try {
     const report = JSON.parse(readFileSync(target, "utf8")) as Record<string, unknown>;
     writeFileSync(target, JSON.stringify({ ...report, evidenceOracle: tool, evidencePassed: result.status === 0 }, null, 2));
