@@ -1305,6 +1305,21 @@ interface HtmlTestWorker {
   seq: number;
 }
 
+async function resetWorkerPages(worker: HtmlTestWorker): Promise<void> {
+  await worker.page.close().catch(() => undefined);
+  worker.page = await worker.context.newPage();
+  worker.page.setDefaultTimeout(90_000);
+  worker.page.setDefaultNavigationTimeout(90_000);
+  if (worker.rasterContext == null) {
+    worker.rasterPage = worker.page;
+    return;
+  }
+  await worker.rasterPage.close().catch(() => undefined);
+  worker.rasterPage = await worker.rasterContext.newPage();
+  worker.rasterPage.setDefaultTimeout(90_000);
+  worker.rasterPage.setDefaultNavigationTimeout(90_000);
+}
+
 // DM-1006: one comparePage shared across all workers. The N-workers-each-
 // owning-their-own-comparePage approach burned ~80 MB of Chromium memory
 // per worker for a resource that's idle most of the time (each comparePngs
@@ -1919,7 +1934,15 @@ async function main(): Promise<void> {
       await w.context.close();
       if (w.rasterContext != null) await w.rasterContext.close();
     },
-    runJob: async (file, w) => runOneHtmlTest(file, w),
+    runJob: async (file, w) => {
+      // A Chromium target that has navigated across ordinary documents and
+      // then into an opaque srcdoc child can retain an unresolved Runtime call
+      // from the old document. A fresh Page per fixture is the isolation
+      // boundary Playwright itself guarantees; contexts remain pooled so font,
+      // cache, and browser setup costs stay amortized.
+      await resetWorkerPages(w);
+      return runOneHtmlTest(file, w);
+    },
     onResult: (result) => {
       const { name, pass, skipped, acceptedReason, error: err, warnings, verdict, regionCount, coveragePct } = result;
       const status = skipped
