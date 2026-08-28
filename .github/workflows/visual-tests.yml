@@ -31,7 +31,7 @@ on:
         options: [unicode, html]
         default: unicode
       shards:
-        description: 'Shards per OS ("auto" = per-OS concurrency caps: macOS 5 / Linux 16 / Windows 5)'
+        description: 'Shards per OS ("auto" = per-OS concurrency caps: macOS 5 / Linux 16 / Windows 10)'
         default: auto
       only:
         description: 'Optional fixture name filter (passed to --only)'
@@ -101,7 +101,7 @@ jobs:
           const fs = require("node:fs");
           const osInput = process.env.OS_INPUT;
           const shardsInput = (process.env.SHARDS_INPUT || "auto").trim();
-          const AUTO = { macos: 5, linux: 16, windows: 5 };
+          const AUTO = { macos: 5, linux: 16, windows: 10 };
           const out = [];
           for (const os of ["macos", "linux", "windows"]) {
             const on = osInput === os || osInput === "all";

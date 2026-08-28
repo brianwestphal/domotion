@@ -47,6 +47,10 @@ describe("visual-tests.yml provides the native glyph helper", () => {
     expect(Object.keys(jobs)).toEqual(expect.arrayContaining(["test-macos", "test-linux", "test-windows"]));
   });
 
+  it("gives Windows enough automatic shards for the Unicode production sweep", () => {
+    expect(yaml).toContain("const AUTO = { macos: 5, linux: 16, windows: 10 }");
+  });
+
   it("caps every shard so a runner defect cannot consume capacity indefinitely", () => {
     for (const name of ["test-macos", "test-linux", "test-windows"]) {
       expect(jobs[name]).toContain("timeout-minutes: 90");
