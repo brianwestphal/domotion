@@ -49,7 +49,7 @@ describe("visual-tests.yml provides the native glyph helper", () => {
 
   it("caps every shard so a runner defect cannot consume capacity indefinitely", () => {
     for (const name of ["test-macos", "test-linux", "test-windows"]) {
-      expect(jobs[name]).toContain("timeout-minutes: 45");
+      expect(jobs[name]).toContain("timeout-minutes: 90");
     }
   });
 

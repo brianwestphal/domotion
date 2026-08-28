@@ -330,7 +330,7 @@ jobs:
     needs: setup
     if: needs.setup.outputs.windows_on == 'true'
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.setup.outputs.windows_matrix) }}

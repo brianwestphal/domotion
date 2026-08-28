@@ -114,7 +114,7 @@ jobs:
   test-windows:
     if: inputs.os == 'all' || inputs.os == 'windows'
     runs-on: windows-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -133,6 +133,11 @@ jobs:
       - name: Run every fast visual suite
         id: suites
         continue-on-error: true
+        env:
+          # Match the hosted macOS/Linux sweeps: GitHub's 4-core runner would
+          # otherwise select one capture worker and serialize the real-world
+          # tail unnecessarily.
+          DOMOTION_TEST_WORKERS: '2'
         run: npm run demos:test:ci-fast
       - name: Compare platform baselines and optionally write candidates
         if: always()

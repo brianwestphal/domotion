@@ -44,7 +44,7 @@ describe("all-platform fast visual workflow", () => {
   it("caps every job so a runner defect cannot consume capacity indefinitely", () => {
     expect(jobs["test-macos"]).toContain("timeout-minutes: 120");
     expect(jobs["test-linux"]).toContain("timeout-minutes: 120");
-    expect(jobs["test-windows"]).toContain("timeout-minutes: 60");
+    expect(jobs["test-windows"]).toContain("timeout-minutes: 120");
   });
 
   it("records provenance before rendering and uploads evidence even after failure", () => {
