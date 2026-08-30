@@ -22,7 +22,7 @@ export const PAGED_TABLE_RENDERER_EVIDENCE_DEPOT_TOOLS_REVISION =
 export const PAGED_TABLE_RENDERER_EVIDENCE_SKIA_REVISION =
   "62efacd37737505732dbe3d8daa62abd679626a1" as const;
 export const PAGED_TABLE_RENDERER_EVIDENCE_PATCH_SHA256 =
-  "4068425916b306c7f0765f9e911caccd924f89e3512f5bc741e7f87503825642" as const;
+  "c842e3dbe44037722e4ea3fd26f026addd8cdec083af922d7ecd785f1bb42512" as const;
 
 export interface PagedTableRendererPrintParameters {
   printableArea: { x: number; y: number; width: number; height: number };

@@ -619,10 +619,10 @@ index 90343e74a3..b7ab865c9e 100644
    "drag_controller.h",
 diff --git a/third_party/blink/renderer/core/page/domotion_paged_table_evidence.cc b/third_party/blink/renderer/core/page/domotion_paged_table_evidence.cc
 new file mode 100644
-index 0000000000..a907077880
+index 0000000000..7471f5cdfd
 --- /dev/null
 +++ b/third_party/blink/renderer/core/page/domotion_paged_table_evidence.cc
-@@ -0,0 +1,913 @@
+@@ -0,0 +1,920 @@
 +// Copyright 2026 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -1021,9 +1021,10 @@ index 0000000000..a907077880
 +    const TableBorders& borders,
 +    wtf_size_t total_rows,
 +    wtf_size_t total_columns,
-+    HashSet<wtf_size_t>& span_interiors) {
++    HashSet<wtf_size_t, IntWithZeroKeyHashTraits<wtf_size_t>>&
++        span_interiors) {
 +  base::ListValue result;
-+  HashSet<int> seen_cell_sources;
++  HashSet<int, IntWithZeroKeyHashTraits<int>> seen_cell_sources;
 +  const wtf_size_t edges_per_row = borders.EdgesPerRow();
 +  for (const SectionFacts& facts : section_facts) {
 +    const PhysicalBoxFragment& section = *facts.fragment;
@@ -1118,9 +1119,10 @@ index 0000000000..a907077880
 +    const PhysicalBoxFragment& table,
 +    const Vector<SectionFacts>& section_facts,
 +    const TableBorders& borders,
-+    const HashSet<wtf_size_t>& span_interiors) {
++    const HashSet<wtf_size_t, IntWithZeroKeyHashTraits<wtf_size_t>>&
++        span_interiors) {
 +  base::ListValue result;
-+  HashSet<wtf_size_t> observed_edges;
++  HashSet<wtf_size_t, IntWithZeroKeyHashTraits<wtf_size_t>> observed_edges;
 +  const wtf_size_t edges_per_row = borders.EdgesPerRow();
 +  const wtf_size_t total_row_boundaries =
 +      borders.EdgeCount() / edges_per_row;
@@ -1206,7 +1208,11 @@ index 0000000000..a907077880
 +        decision.Set("paintOrder", paint_order++);
 +      }
 +      decision.Set("axis", edge.IsInlineAxis() ? "inline" : "block");
-+      decision.Set("globalRowBoundary", static_cast<int>(edge.Row()));
++      const wtf_size_t logical_row_boundary =
++          disposition == "omit-at-continued-row-end" ? facts.end_row - 1
++                                                      : edge.Row();
++      decision.Set("globalRowBoundary",
++                   static_cast<int>(logical_row_boundary));
 +      decision.Set("globalColumnBoundary", static_cast<int>(edge.Column()));
 +      decision.Set("disposition", std::move(disposition));
 +      decision.Set(
@@ -1391,7 +1397,8 @@ index 0000000000..a907077880
 +      }
 +      section.Set("reservedCollapsedEdgeSpace", std::move(reserved));
 +      sections.Append(std::move(section));
-+    } else if (child_box->GetLayoutObject()->IsTableCaption()) {
++    } else if (child_box->GetLayoutObject() &&
++               child_box->GetLayoutObject()->IsTableCaption()) {
 +      const int caption_occurrence = FragmentOccurrenceIndex(*child_box);
 +      const int caption_source =
 +          SourceIndex(document, SourceKind::kCaption,
@@ -1412,7 +1419,7 @@ index 0000000000..a907077880
 +  }
 +  result.Set("sectionOccurrences", std::move(sections));
 +  result.Set("captionOccurrences", std::move(captions));
-+  HashSet<wtf_size_t> span_interiors;
++  HashSet<wtf_size_t, IntWithZeroKeyHashTraits<wtf_size_t>> span_interiors;
 +  result.Set("spanningCells",
 +             BuildSpanningCells(section_facts, document, *borders,
 +                                total_rows, total_columns, span_interiors));

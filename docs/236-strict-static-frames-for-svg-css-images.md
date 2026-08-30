@@ -1,6 +1,6 @@
 # Strict static frames for SVG and CSS images
 
-Status: shipped macOS/Linux subset; strict two-platform production workflow
+Status: shipped three-platform subset; strict macOS/Linux/Windows production workflow
 
 The opt-in `animatedImageFrames` request accepts a `slot` in addition to its
 unique `selector` and non-negative `frameIndex`. `svg-href` selects an SVG
@@ -29,17 +29,18 @@ pipeline then serializes that static PNG, including the downstream resize and
 digest ownership rules in [doc 234](234-frozen-animated-image-downstream-ownership.md).
 
 The authority for this deliberately narrow production subset is the retained
-macOS/Linux private owner/resource evidence and public-CDP adjudication in
-[doc 235](235-public-svg-css-animated-image-owner-joins.md). Windows/global
-ratification remains separate. Live playback is unsupported, no visual
-tolerance changes, and capture without the option remains unchanged.
+macOS/Linux/Windows private owner/resource evidence and public-CDP adjudication
+in [doc 235](235-public-svg-css-animated-image-owner-joins.md), together with
+the three-platform production artifact below. Live playback is unsupported, no
+visual tolerance changes, and capture without the option remains unchanged.
 
-The optional `Animated-image macOS Linux production release` workflow retains
+The optional `Animated-image macOS Linux Windows production release` workflow retains
 one native artifact per platform: the exact fresh-decoder proposal/validation
 report, machine-readable results for the authenticated owner/slot/frozen-PNG/
 resize/final-SVG production tests, and the runner/dependency fingerprint. Its
-aggregate rejects either missing platform, any decoder drift, a non-headless
+aggregate rejects any missing platform, decoder drift, a non-headless
 browser, a mismatched platform identity, an incomplete production test set, or
-an empty runner record. This is the maximum non-Windows release checkpoint;
-the global three-platform verdict remains withheld until the Windows authority
-and production artifact exist.
+an empty runner record. DM-2582 retained the Windows decoder, 18-test production,
+and runner records and combined them with the retained macOS/Linux artifacts;
+the resulting verdict is `macos-linux-windows-production-exact` with zero
+failures. This ratifies only the deliberately narrow owner and slot subset above.

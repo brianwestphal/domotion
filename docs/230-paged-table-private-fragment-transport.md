@@ -135,3 +135,17 @@ DM-2573 authenticates the helper on the provisioned macOS builder. DM-2574
 remains responsible for independent proposal/validation collection and retained
 binary manifests on macOS, Linux, and Windows; this packaging assessment does
 not substitute for those three runs.
+
+The final DM-2573 macOS collection completed all seven source-owned fixtures,
+all seven hostile mutations, the runtime-default-off control, exact teardown,
+and live browser/renderer image authentication with verdict
+`pinned-renderer-helper-ready`. The retained artifact SHA-256 is
+`da3be96954dd0ee2334c98bc4dd124ebb408c6680b26e5c410fd80633932e68a`;
+the patched `headless_shell` SHA-256 is
+`081c32065ddaaeb6f725390804bb1b7b052123bbc2c03c24b0bf737cb1f54b95`;
+and the complete source patch SHA-256 is
+`c842e3dbe44037722e4ea3fd26f026addd8cdec083af922d7ecd785f1bb42512`.
+The bring-up also fixed zero-valued Blink edge IDs to use zero-safe hash traits,
+preserved continued-row seam identity, and retained the renderer executable
+fields used by the epoch fingerprint. These are exact logical corrections, not
+visual tolerances.

@@ -494,10 +494,18 @@ above, with distinct build, process, observation, and browser-context
 provenance. A fail-closed four-artifact macOS/Linux adjudication has zero
 failures and report self-hash
 `5be4a89902b2eeccd605226dce912be12c83db22e57567a09c63794852dddb38`.
-The global verdict remains withheld for exactly two absent artifacts: Windows
-proposal and validation, now owned by DM-2590. The four retained arms are a
-private logical evidence checkpoint, not authorization for the stock-CDP or
-production collectors and not a partial-platform global verdict.
+DM-2590 retains independent Windows proposal and validation arms with artifact
+SHA-256 identities
+`08f5b6e94451059f7c54092cb88b702d7953a2055ce28a22c6566f8664d9496a` and
+`bfcf819316b2c2813dec0bf7db0d7a7a8168fea303247772e17a5ce8669246ce`.
+Each contains the same 38 rows and normalized logical SHA-256 above, keeps all
+18 denied envelopes body-free, and has distinct build, process, observation,
+and browser-context provenance. The canonical fail-closed six-artifact
+macOS/Linux/Windows adjudication requires exactly those six inputs, reports
+zero failures and `proposal-validation-agreement`, and has report self-hash
+`2c54d2a41a0f50e21dc9ecc2075d5eaaa4d110e534a7f6a3e2de163ddd6892f0`.
+This is private logical evidence only; it does not authorize the stock-CDP or
+production collectors.
 
 ## Implemented stock-CDP support adjudication
 

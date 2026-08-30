@@ -406,6 +406,8 @@ async function collectCase(
         requestOrdinal: ordinal,
         browserProcessId,
         rendererProcessId,
+        rendererExecutablePath,
+        rendererExecutableSha256,
         frameId,
         loaderId,
         documentUrl,

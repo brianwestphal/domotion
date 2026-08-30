@@ -477,12 +477,12 @@ export async function runAnimatedImageFrameSelectionAudit(): Promise<AnimatedIma
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+export async function mainAnimatedImageFrameSelectionAudit(argv = process.argv): Promise<void> {
   const report = await runAnimatedImageFrameSelectionAudit();
   const json = `${JSON.stringify(report, null, 2)}\n`;
-  const jsonIndex = process.argv.indexOf("--json");
+  const jsonIndex = argv.indexOf("--json");
   if (jsonIndex >= 0) {
-    const output = process.argv[jsonIndex + 1];
+    const output = argv[jsonIndex + 1];
     if (output == null || output.startsWith("--")) throw new Error("--json requires an output path");
     const path = resolve(output); await mkdir(dirname(path), { recursive: true }); await writeFile(path, json);
   } else process.stdout.write(json);

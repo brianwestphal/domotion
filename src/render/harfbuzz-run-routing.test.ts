@@ -177,9 +177,16 @@ describeMac("RTL mirror domain — hb-shaped runs paint the same bracket applyBi
     const font = getFontInstance(key, 400, 16, 0)!;
     const gidOpen = font.glyphForCodePoint(0x28).id;
     const gidClose = font.glyphForCodePoint(0x29).id;
-    // Def identity ignores the command list, so an empty one resolves the id
-    // the emitter registered (or registers a fresh id no markup references).
-    return { open: ensureGlyphDef(key, 400, 16, 0, gidOpen, []), close: ensureGlyphDef(key, 400, 16, 0, gidClose, []), font };
+    // Def identity includes the outline digest. Reuse the exact base outlines
+    // that the production emitter registers so these lookups resolve its ids;
+    // empty commands would intentionally name fresh defs after the variable-
+    // axis cache fix made commands part of the identity.
+    const getGlyph = (font as unknown as Getter).getGlyph.bind(font);
+    return {
+      open: ensureGlyphDef(key, 400, 16, 0, gidOpen, getGlyph(gidOpen).path.commands),
+      close: ensureGlyphDef(key, 400, 16, 0, gidClose, getGlyph(gidClose).path.commands),
+      font,
+    };
   }
 
   it("paints the mirrored bracket — SAME glyph from both splitters", () => {

@@ -6,11 +6,11 @@ import type { AnimatedImageFrameSelectionReport } from "./animated-image-frame-s
 
 export interface AnimatedImageProductionReleaseReport {
   schemaVersion: 1;
-  requiredPlatforms: ["macOS", "Linux"];
-  artifacts: Array<{ platform: "macOS" | "Linux"; decoderSha256: string; runEnvironmentSha256: string;
+  requiredPlatforms: ["macOS", "Linux", "Windows"];
+  artifacts: Array<{ platform: "macOS" | "Linux" | "Windows"; decoderSha256: string; runEnvironmentSha256: string;
     productionTestsSha256: string; testsPassed: number }>;
   failures: string[];
-  verdict: "macos-linux-production-exact" | "blocked";
+  verdict: "macos-linux-windows-production-exact" | "blocked";
 }
 
 const sha256 = (value: Uint8Array | string) => createHash("sha256").update(value).digest("hex");
@@ -21,8 +21,8 @@ const readJson = async <T>(path: string): Promise<{ value: T; bytes: Uint8Array 
 export async function adjudicateAnimatedImageProductionRelease(root: string): Promise<AnimatedImageProductionReleaseReport> {
   const failures: string[] = []; const artifacts: AnimatedImageProductionReleaseReport["artifacts"] = [];
   const directories = await readdir(root, { withFileTypes: true }).catch(() => []);
-  for (const platform of ["macOS", "Linux"] as const) {
-    const token = platform === "macOS" ? "macOS" : "Linux";
+  for (const platform of ["macOS", "Linux", "Windows"] as const) {
+    const token = platform;
     const directory = directories.find((entry) => entry.isDirectory() && entry.name.includes(token))?.name;
     if (directory == null) { failures.push(`${platform}: native artifact missing`); continue; }
     try {
@@ -34,7 +34,8 @@ export async function adjudicateAnimatedImageProductionRelease(root: string): Pr
         failures.push(`${platform}: decoder evidence is not exact and explicitly headless`);
       }
       const reportedPlatform = decoder.value.browser.platform.toLowerCase();
-      if (platform === "macOS" ? !reportedPlatform.includes("mac") : !reportedPlatform.includes("linux")) {
+      const expectedPlatform = platform === "macOS" ? "mac" : platform === "Windows" ? "win32" : "linux";
+      if (!reportedPlatform.includes(expectedPlatform)) {
         failures.push(`${platform}: decoder platform identity drift`);
       }
       if (tests.value.success !== true || (tests.value.numFailedTests ?? 1) !== 0 || (tests.value.numPassedTests ?? 0) < 18) {
@@ -45,17 +46,17 @@ export async function adjudicateAnimatedImageProductionRelease(root: string): Pr
         productionTestsSha256: sha256(tests.bytes), testsPassed: tests.value.numPassedTests ?? 0 });
     } catch (error) { failures.push(`${platform}: ${error instanceof Error ? error.message : String(error)}`); }
   }
-  return { schemaVersion: 1, requiredPlatforms: ["macOS", "Linux"], artifacts,
-    failures, verdict: failures.length === 0 && artifacts.length === 2 ? "macos-linux-production-exact" : "blocked" };
+  return { schemaVersion: 1, requiredPlatforms: ["macOS", "Linux", "Windows"], artifacts,
+    failures, verdict: failures.length === 0 && artifacts.length === 3 ? "macos-linux-windows-production-exact" : "blocked" };
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const reportsIndex = process.argv.indexOf("--reports"); const jsonIndex = process.argv.indexOf("--json");
-  const root = resolve(reportsIndex >= 0 && process.argv[reportsIndex + 1] != null ? process.argv[reportsIndex + 1] : "tests/output/animated-image-release");
+export async function mainAnimatedImageProductionReleaseGate(argv = process.argv): Promise<void> {
+  const reportsIndex = argv.indexOf("--reports"); const jsonIndex = argv.indexOf("--json");
+  const root = resolve(reportsIndex >= 0 && argv[reportsIndex + 1] != null ? argv[reportsIndex + 1] : "tests/output/animated-image-release");
   const report = await adjudicateAnimatedImageProductionRelease(root);
   const json = `${JSON.stringify(report, null, 2)}\n`;
-  if (jsonIndex >= 0 && process.argv[jsonIndex + 1] != null) {
-    const output = resolve(process.argv[jsonIndex + 1]); await mkdir(dirname(output), { recursive: true }); await writeFile(output, json);
+  if (jsonIndex >= 0 && argv[jsonIndex + 1] != null) {
+    const output = resolve(argv[jsonIndex + 1]); await mkdir(dirname(output), { recursive: true }); await writeFile(output, json);
   } else process.stdout.write(json);
-  if (report.verdict !== "macos-linux-production-exact") process.exitCode = 1;
+  if (report.verdict !== "macos-linux-windows-production-exact") process.exitCode = 1;
 }
