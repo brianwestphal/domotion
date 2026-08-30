@@ -44,6 +44,8 @@ const overlay = enableRegionOverlays(card);
 const regionList = document.getElementById("region-list")!;
 const issueText = document.getElementById("issue-text") as HTMLTextAreaElement;
 const copyBtn = document.getElementById("copy-btn") as HTMLButtonElement;
+const copyStatus = document.getElementById("copy-status")!;
+const addRegionBtn = document.getElementById("add-region-btn") as HTMLButtonElement;
 const fileLink = document.getElementById("file-link") as HTMLAnchorElement;
 
 interface CaptionedRegion extends Rect { caption: string }
@@ -157,12 +159,22 @@ copyBtn.addEventListener("click", async () => {
   try {
     await navigator.clipboard.writeText(issueText.value);
     copyBtn.textContent = "Copied";
+    copyStatus.textContent = "Issue text copied.";
     setTimeout(() => { copyBtn.textContent = "Copy"; }, 1500);
   } catch {
     // Fallback: select the textarea so the user can Cmd/Ctrl+C manually.
     issueText.focus();
     issueText.select();
+    copyStatus.textContent = "Copy was unavailable. The issue text is selected; press Control+C or Command+C.";
   }
+});
+
+addRegionBtn.addEventListener("click", () => {
+  const img = card.querySelector<HTMLImageElement>(".imgs figure img");
+  const w = img?.naturalWidth ?? 0;
+  const h = img?.naturalHeight ?? 0;
+  if (w === 0 || h === 0) return;
+  overlay.addRegion({ x: w / 4, y: h / 4, w: w / 2, h: h / 2 });
 });
 
 rebuildIssueText();
@@ -170,9 +182,11 @@ rebuildIssueText();
 // ── Lightbox: click to enlarge, arrow keys cycle expected/actual/diff ──
 
 const lightbox = document.getElementById("lightbox")!;
+const lightboxClose = document.getElementById("lightbox-close") as HTMLButtonElement;
 const lbImg = document.getElementById("lb-img") as HTMLImageElement;
 const lbOverlay = document.getElementById("lb-overlay") as unknown as SVGSVGElement;
 let lbIndex = -1; // -1 == closed
+let lightboxReturnFocus: HTMLElement | null = null;
 const figureImgs = Array.from(card.querySelectorAll<HTMLImageElement>(".imgs figure img"));
 const figureSrcs = figureImgs.map((i) => i.dataset["src"] ?? i.src);
 
@@ -209,17 +223,21 @@ function applyLightboxAspect(): void {
 }
 
 function openLightboxAt(i: number): void {
+  if (lbIndex < 0) lightboxReturnFocus = document.activeElement as HTMLElement | null;
   lbIndex = i;
   lbImg.src = figureSrcs[i]!;
   lightbox.classList.add("open");
   applyLightboxAspect();
   attachLightboxOverlay();
+  lightboxClose.focus();
 }
 function closeLightbox(): void {
   lbIndex = -1;
   lightbox.classList.remove("open");
   lightbox.classList.remove("tall");
   detachLightboxOverlay();
+  lightboxReturnFocus?.focus();
+  lightboxReturnFocus = null;
 }
 
 // DM-951 / DM-976: the region overlay inserts an SVG layer over each image
@@ -240,6 +258,12 @@ for (let i = 0; i < figureEls.length; i++) {
     if (t.closest(".region-overlay") != null) return;
     openLightboxAt(i);
   });
+  fig.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      openLightboxAt(i);
+    }
+  });
 }
 
 document.addEventListener("keydown", (e) => {
@@ -255,8 +279,13 @@ document.addEventListener("keydown", (e) => {
   } else if (e.key === "Escape") {
     e.preventDefault();
     closeLightbox();
+  } else if (e.key === "Tab") {
+    e.preventDefault();
+    lightboxClose.focus();
   }
 });
+
+lightboxClose.addEventListener("click", closeLightbox);
 
 // Close on background click only — the overlay stops propagation on
 // pointer events, and the overlay's click-through path explicitly calls

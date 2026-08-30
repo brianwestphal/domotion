@@ -63,8 +63,9 @@ const MIME: Record<string, string> = {
 
 function renderShell(label: string): string {
   const safeLabel = escapeHtml(label);
-  return `<!doctype html><html><head>
+  return `<!doctype html><html lang="en"><head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>svg-review · ${safeLabel}</title>
 <style>
   body { font: 14px/1.4 system-ui, sans-serif; margin: 0; padding: 16px; background: #0d1117; color: #e6edf3; }
@@ -73,6 +74,7 @@ function renderShell(label: string): string {
   figure { margin: 0; position: relative; background: #161b22; border: 1px solid #30363d; padding: 8px; }
   figure img { display: block; width: 100%; height: auto; cursor: zoom-in; }
   figure figcaption { font-size: 12px; opacity: 0.7; margin-top: 6px; }
+  figure[role="button"]:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visible { outline: 3px solid #79c0ff; outline-offset: 3px; }
   #issue-panel { margin-top: 16px; }
   #issue-panel textarea { width: 100%; min-height: 120px; background: #0b0f14; color: #e6edf3; border: 1px solid #30363d; font: 12px/1.4 ui-monospace, monospace; padding: 8px; box-sizing: border-box; }
   #issue-panel button { background: #238636; color: white; border: 0; padding: 6px 12px; font: inherit; cursor: pointer; border-radius: 4px; }
@@ -85,6 +87,7 @@ function renderShell(label: string): string {
   /* Lightbox + region overlay (mirrored from tests/review.css). */
   #lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 1000; display: none; align-items: flex-start; justify-content: center; overflow: auto; padding: 24px; }
   #lightbox.open { display: flex; }
+  #lightbox-close { position: fixed; top: 16px; right: 16px; z-index: 2; min-width: 44px; min-height: 44px; border: 1px solid #8b949e; border-radius: 6px; background: #21262d; color: #fff; font: inherit; cursor: pointer; }
   #lightbox .region-stage { position: relative; display: inline-block; }
   #lightbox img { display: block; max-width: none; max-height: none; user-select: none; cursor: crosshair; }
   /* DM-976: when the lightbox image is taller than wide, scale it to the
@@ -100,19 +103,20 @@ function renderShell(label: string): string {
 </head>
 <body>
 <h1>${safeLabel}</h1>
-<p class="hint">Arrow keys cycle <kbd>expected</kbd> → <kbd>actual</kbd> → <kbd>diff</kbd> when an image is open. Drag on any image to mark a region; click inside a region to delete it. Press <kbd>Enter</kbd> in the caption to focus the issue text, then Cmd/Ctrl+C to copy.</p>
+<p class="hint">Compare the three previews. Mark a problem region by dragging, or add a centered region without a pointer. Describe it, then copy or file the generated issue.</p>
 <div class="card">
   <div class="imgs">
-    <figure data-src="/expected.png" data-role="expected"><img data-src="/expected.png" src="/expected.png"><figcaption>expected.png</figcaption></figure>
-    <figure data-src="/actual.png" data-role="actual"><img data-src="/actual.png" src="/actual.png"><figcaption>actual.svg (rasterised)</figcaption></figure>
-    <figure data-src="/diff.png" data-role="diff"><img data-src="/diff.png" src="/diff.png"><figcaption>diff.png</figcaption></figure>
+    <figure data-src="/expected.png" data-role="expected" role="button" tabindex="0" aria-label="Open expected Chromium rendering"><img data-src="/expected.png" src="/expected.png" alt="Expected Chromium rendering"><figcaption>expected.png</figcaption></figure>
+    <figure data-src="/actual.png" data-role="actual" role="button" tabindex="0" aria-label="Open actual Domotion rendering"><img data-src="/actual.png" src="/actual.png" alt="Actual Domotion rendering"><figcaption>actual.svg (rasterised)</figcaption></figure>
+    <figure data-src="/diff.png" data-role="diff" role="button" tabindex="0" aria-label="Open rendering difference image"><img data-src="/diff.png" src="/diff.png" alt="Difference between expected and actual renderings"><figcaption>diff.png</figcaption></figure>
   </div>
 </div>
-<div id="lightbox"><div id="lightbox-inner"><div class="region-stage"><img id="lb-img" alt=""><svg id="lb-overlay" class="region-overlay" preserveAspectRatio="none"></svg></div></div></div>
+<div id="lightbox" role="dialog" aria-modal="true" aria-labelledby="lightbox-title"><h2 id="lightbox-title" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">Rendering preview</h2><button id="lightbox-close" type="button">Close</button><div id="lightbox-inner"><div class="region-stage"><img id="lb-img" alt="Enlarged rendering preview"><svg id="lb-overlay" class="region-overlay" preserveAspectRatio="none"></svg></div></div></div>
 <div id="issue-panel">
   <h2 style="font-size: 14px; margin: 16px 0 6px;">Annotated regions</h2>
+  <button id="add-region-btn" type="button">Add centered region</button>
   <div class="region-list" id="region-list"><p class="hint">(none yet — drag on any image above)</p></div>
-  <h2 style="font-size: 14px; margin: 16px 0 6px;">GitHub issue text <button id="copy-btn">Copy</button> <a id="file-link" href="https://github.com/brianwestphal/domotion/issues/new" target="_blank" rel="noopener">File at github.com →</a></h2>
+  <h2 style="font-size: 14px; margin: 16px 0 6px;">GitHub issue text</h2><div><button id="copy-btn">Copy issue text</button> <a id="file-link" href="https://github.com/brianwestphal/domotion/issues/new" target="_blank" rel="noopener">Open a new GitHub issue →</a> <span id="copy-status" role="status" aria-live="polite"></span></div>
   <textarea id="issue-text" readonly></textarea>
   <p class="hint">After clicking <em>File at github.com</em>, paste the text above into the issue body and attach <code>expected.png</code> and <code>actual.svg</code>.</p>
 </div>

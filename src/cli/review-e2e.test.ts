@@ -141,18 +141,14 @@ describeE2E("svg-review CLI end-to-end (DM-948)", () => {
     try {
       const page = await browser.newPage({ viewport: { width: 1200, height: 900 } });
       await page.goto(url, { waitUntil: "networkidle" });
-      // Click anywhere on the expected figure that ISN'T over an
-      // existing region rect. The overlay's wireFigure dispatches a
-      // synthetic click on the parent <figure> when pointerup is a
-      // non-drag — our client listens on the figure (DM-951) so the
-      // lightbox opens.
-      const expectedImg = page.locator('figure[data-role="expected"] img');
-      await expectedImg.waitFor({ state: "visible" });
-      const box = await expectedImg.boundingBox();
-      if (box == null) throw new Error("expected img has no bounding box");
-      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-      const lb = page.locator("#lightbox.open");
+      // The full preview workflow is keyboard-operable: focus a semantic
+      // preview, open it, cycle images, close, and return focus.
+      const expectedFigure = page.getByRole("button", { name: "Open expected Chromium rendering" });
+      await expectedFigure.focus();
+      await page.keyboard.press("Enter");
+      const lb = page.getByRole("dialog", { name: "Rendering preview" });
       await lb.waitFor({ state: "visible", timeout: 3_000 });
+      expect(await page.getByRole("button", { name: "Close" }).evaluate((el) => el === document.activeElement)).toBe(true);
       // The lightbox img should show /expected.png first.
       const lbImg = page.locator("#lightbox-inner img");
       expect(await lbImg.getAttribute("src")).toMatch(/expected\.png$/);
@@ -168,6 +164,7 @@ describeE2E("svg-review CLI end-to-end (DM-948)", () => {
       // Escape closes the lightbox.
       await page.keyboard.press("Escape");
       await page.waitForFunction(() => !document.querySelector("#lightbox")?.classList.contains("open"), null, { timeout: 2_000 });
+      expect(await expectedFigure.evaluate((el) => el === document.activeElement)).toBe(true);
       await closeBrowserSafely(browser);
     } catch (e) {
       await closeBrowserSafely(browser);

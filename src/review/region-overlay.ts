@@ -44,6 +44,8 @@ export interface OverlayHandle {
    *  field would drift after delete (rects 3→2→1 inherit captions from
    *  the wrong source). No-op when no rect at that index. */
   setCaption(index: number, caption: string): void;
+  /** Add a rectangle supplied through a non-pointer UI. */
+  addRegion(rect: Omit<Rect, "index">): void;
   /** Drop every in-progress rectangle and repaint. */
   clear(): void;
   /** Attach a secondary viewing + editing surface that shares the same
@@ -123,7 +125,7 @@ function resizeCursor(h: ResizeHandles): string {
 export function enableRegionOverlays(card: HTMLElement): OverlayHandle {
   const figureEls = Array.from(card.querySelectorAll<HTMLElement>(".imgs figure[data-src]"));
   if (figureEls.length === 0) {
-    return { getRegions: () => [], setCaption: () => {}, clear: () => {}, addView: () => () => {} };
+    return { getRegions: () => [], setCaption: () => {}, addRegion: () => {}, clear: () => {}, addView: () => () => {} };
   }
 
   const rects: Rect[] = [];
@@ -391,6 +393,10 @@ export function enableRegionOverlays(card: HTMLElement): OverlayHandle {
       if (target == null) return;
       target.caption = caption;
     },
+    addRegion: (rect) => {
+      rects.push({ ...rect, index: rects.length });
+      repaintAll();
+    },
     clear: () => {
       rects.length = 0;
       repaintAll();
@@ -429,4 +435,3 @@ export function serializeRegions(rects: Rect[]): string {
   }
   return lines.join("\n");
 }
-

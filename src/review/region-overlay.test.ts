@@ -90,6 +90,14 @@ describe("region overlay — click vs drag (DM-585)", () => {
     expect(handle.getRegions()).toEqual([]);
   });
 
+  it("adds and paints a region supplied by a keyboard-capable control (DM-2598)", () => {
+    const { card, figures } = buildCard();
+    const handle = enableRegionOverlays(card);
+    handle.addRegion({ x: 25, y: 25, w: 50, h: 50 });
+    expect(handle.getRegions()).toEqual([{ index: 0, x: 25, y: 25, w: 50, h: 50 }]);
+    expect(overlaySvg(figures[0]!).querySelectorAll("rect.region-rect")).toHaveLength(1);
+  });
+
   it("still falls through to a click when the pointer moves below the drag threshold", () => {
     const { card, figures } = buildCard();
     const handle = enableRegionOverlays(card);
