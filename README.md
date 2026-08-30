@@ -42,37 +42,47 @@ Domotion runs on **macOS, Linux, and Windows**, and all three are calibrated. It
 
 Issues, fixes, and platform feedback are welcome on [GitHub](https://github.com/brianwestphal/domotion).
 
-## Install
+## Quick start
 
 ```bash
 npm install domotion-svg
+npx domotion capture https://example.com -o example.svg
 ```
 
-That's it — Domotion auto-installs Playwright's Chromium binary on first use
-(via `npx playwright install chromium`). On CI you may want to pre-install it
-yourself to keep the first job's runtime down.
+Open `example.svg` in a browser. You should see a self-contained, scalable
+capture of the page with no external fonts, images, or scripts.
 
-## Usage
+Domotion installs Playwright's Chromium binary on first use. CI jobs can run
+`npx playwright install chromium` ahead of time to keep capture runtime
+predictable. For a zero-install trial, run
+`npx -p domotion-svg domotion capture https://example.com -o example.svg`.
 
-The fastest way in is the `domotion` CLI — no TypeScript, no Playwright bring-up. Point it at a URL or HTML file:
+## Choose your task
+
+- **Capture one page:** use `domotion capture`; see the
+  [capture guide](https://brianwestphal.github.io/domotion/usage/capture/).
+- **Animate a product flow:** use `domotion animate`; follow the
+  [animation guide](https://brianwestphal.github.io/domotion/usage/animate/).
+- **Generate a polished asset from flags:** use `domotion template`; browse the
+  [template guide](https://brianwestphal.github.io/domotion/usage/templates/).
+
+The [Quick start](https://brianwestphal.github.io/domotion/start/quickstart/)
+walks through the first capture and animation end to end.
+
+## More capture inputs
+
+After the first capture works, the same CLI accepts local files, stdin, element
+selection, custom viewports, optimization, and scrolling pages:
 
 ```bash
-# Zero-install: run the published CLI straight from npm. The package name is
-# domotion-svg; -p installs it and `domotion` selects the bin (the package ships
-# several bins, so the bin must be named explicitly).
-npx -p domotion-svg domotion capture https://example.com -o example.svg
-
-# Capture a URL as SVG.
-domotion capture https://example.com -o example.svg
-
-# Capture a local HTML file at a specific viewport, only the .hero region, optimized.
+# Capture one element from a local file at a specific viewport.
 domotion capture ./demo.html \
   --width 1200 --height 600 \
   --selector ".hero" \
   --optimize \
   -o hero.svg
 
-# Capture HTML piped on stdin.
+# Capture HTML from stdin.
 cat demo.html | domotion capture - -o demo.svg
 
 # Capture a long page as one animated scrolling SVG (scrolls to the bottom over 8s).
@@ -87,13 +97,16 @@ never become idle.
 
 Same-origin `<iframe>` content is recursed into the capture as native, selectable SVG rather than flattened to a screenshot; opt into cross-origin frames you trust with `--cross-origin-frames "<hosts>"`.
 
-For a multi-frame animated SVG, write a small JSON config and run `domotion animate`:
+For a multi-frame animated SVG, write a JSON config and run:
 
 ```bash
 domotion animate ./demo.json
 ```
 
-The config describes each frame (input, duration, transition) plus a declarative surface for interaction demos: continuous-session frames that carry client-side state across steps (omit `input` / set `"continue": true`), DOM-mutation and interaction actions, richer readiness waits (`waitForText` / `waitForGone` / `waitForCount`), typing / tap / svg / blink / shine / interact overlays that can anchor to an element's box (typing supports per-keystroke reveal, `kern`, caret shapes, and a high-fidelity `typeResample` mode), real interaction-state capture (`forceState` / `hoverReveal` / `hoverDetect` / `jsReveal`), an on-screen `cursor` (explicit or `"auto"`), `vars` + `${}` interpolation, and a small `evaluate` escape hatch. See `domotion --help` for the full grammar and the [Quick start](https://brianwestphal.github.io/domotion/start/quickstart/) for a walkthrough.
+The config describes frames, timing, transitions, waits, overlays, and simulated
+interaction. See `domotion --help` for the full grammar and the
+[animation guide](https://brianwestphal.github.io/domotion/usage/animate/) for
+examples ranging from simple transitions to continuous interactive sessions.
 
 Transitions are not limited to fixed presets. Parameterized `push`, `reveal`,
 `zoom`, and `shine` forms control direction/angle, distance, origin, radius, and
