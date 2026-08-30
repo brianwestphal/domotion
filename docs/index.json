@@ -5462,7 +5462,8 @@
           "DM-2576",
           "DM-2586",
           "DM-2587",
-          "DM-2588"
+          "DM-2588",
+          "DM-2604"
         ],
         "code": [
           "tools/build-sfns-pinned-ots-sanitizer.mjs",
@@ -7596,7 +7597,8 @@
           "windows"
         ],
         "tickets": [
-          "DM-2596"
+          "DM-2596",
+          "DM-2604"
         ],
         "code": [
           ".github/workflows/",

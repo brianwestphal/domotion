@@ -5,7 +5,7 @@ kind: "evidence"
 status: "current"
 owners: ["paint-effects","platform-release"]
 platforms: ["macos"]
-tickets: ["DM-2452","DM-2567","DM-2568","DM-2575","DM-2576","DM-2586","DM-2587","DM-2588"]
+tickets: ["DM-2452","DM-2567","DM-2568","DM-2575","DM-2576","DM-2586","DM-2587","DM-2588","DM-2604"]
 code: ["tools/build-sfns-pinned-ots-sanitizer.mjs","tools/build-sfns-pinned-skia-collector.mjs","tools/chromium-sfns-validation/","tools/sfns-mask-baseline-oracle.ts","tools/sfns-mask-baseline.swift","tools/sfns-pinned-chromium-validation-collector.ts","tools/sfns-pinned-ots-sanitizer/","tools/sfns-pinned-skia-collector/sfns_post_conversion_collector.cpp","tools/sfns-pinned-skia-mask-schema.ts","tools/sfns-terminal-mask-adjudicator.ts","tools/sfns-terminal-mask-manifest.ts"]
 aliases: ["docs/168-sfns-mask-baseline-oracle.md","doc-168"]
 ---
@@ -35,6 +35,23 @@ diagnostic, while the CoreText design-command seam is already an exact logical
 proposal/validation gate. The focused macOS runner is
 `tools/sfns-mask-baseline-oracle.ts`; its native companion is
 `tools/sfns-mask-baseline.swift`.
+
+## Release requirement (DM-2604)
+
+The exact standalone-Skia versus instrumented-Chromium terminal-mask
+adjudication is retained as an optional macOS diagnostic, not a release gate or
+a prerequisite for claiming that Domotion functions on macOS, Linux, and
+Windows. The two collectors intentionally cross different ownership boundaries;
+their 498 literal differences remain useful leads when a visual regression
+points at SFNS, but zero cross-collector byte equality is no longer a product
+requirement.
+
+Three-platform functional tests and visual demo/Unicode sweeps remain the
+release-facing contract. A failing or suspicious visual fixture must be traced
+through the existing logical, placement, metric, outline, and raster evidence
+as needed; this change does not permit hiding an observed product defect or
+widening a visual threshold. The optional workflow and retained artifacts stay
+available for targeted investigation.
 
 ## Question and fixed inputs
 

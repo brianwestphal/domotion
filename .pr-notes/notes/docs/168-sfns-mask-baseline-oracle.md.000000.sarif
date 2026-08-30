@@ -111,6 +111,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtfusxwiitkcdsm5",
+          "message": {
+            "text": "Release readiness now follows the end-to-end product path, while the 498-difference standalone-Skia/Chromium comparison remains available as diagnostic evidence. This preserves exact logical and visual defect investigation without making equality between two intentionally different collector boundaries a prerequisite for macOS, Linux, or Windows functionality.",
+            "markdown": "Release readiness now follows the end-to-end product path, while the 498-difference standalone-Skia/Chromium comparison remains available as diagnostic evidence. This preserves exact logical and visual defect investigation without making equality between two intentionally different collector boundaries a prerequisite for macOS, Linux, or Windows functionality."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/168-sfns-mask-baseline-oracle.md"
+                },
+                "region": {
+                  "startLine": 39,
+                  "endLine": 55,
+                  "snippet": {
+                    "text": "## Release requirement (DM-2604)\n\nThe exact standalone-Skia versus instrumented-Chromium terminal-mask\nadjudication is retained as an optional macOS diagnostic, not a release gate or\na prerequisite for claiming that Domotion functions on macOS, Linux, and\nWindows. The two collectors intentionally cross different ownership boundaries;\ntheir 498 literal differences remain useful leads when a visual regression\npoints at SFNS, but zero cross-collector byte equality is no longer a product\nrequirement.\n\nThree-platform functional tests and visual demo/Unicode sweeps remain the\nrelease-facing contract. A failing or suspicious visual fixture must be traced\nthrough the existing logical, placement, metric, outline, and raster evidence\nas needed; this change does not permit hiding an observed product defect or\nwidening a visual threshold. The optional workflow and retained artifacts stay\navailable for targeted investigation.\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/handbook/platforms-testing-and-release.md"
+                },
+                "region": {
+                  "startLine": 20
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/parity-program.json"
+                },
+                "region": {
+                  "startLine": 83
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2604"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "54bc9fe2462e2f9e336a0da580efc6b9"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "b460aaab9aef150ea523653845888c44df203cda",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
