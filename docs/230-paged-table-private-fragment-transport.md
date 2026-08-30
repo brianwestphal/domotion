@@ -39,16 +39,18 @@ print parameters, frame/document/loader epoch, page order, and exact restoration
 after `PrintEnd`. The record must carry physical table and section occurrence
 identity, global row intervals and exact offsets, break tokens, repeat
 eligibility/roles, captions, spans/interior suppression, collapsed-edge
-decisions and paint slots, writing mode and direction. Proposal and validation
-builds/runs must be independent.
+decisions and paint slots, writing mode and direction. That private evidence is
+a focused implementation aid; it is not a cross-platform production-release
+prerequisite.
 
 ## Cost and next steps
 
 This is not a normal npm helper: it requires a patched Chromium renderer and
-matching browser/renderer binaries. CI therefore needs pinned Chromium builds
-for macOS, Linux, and Windows, with platform-specific signing/quarantine and
-artifact-size handling. DM-2573 owns the evidence-only helper and transport;
-DM-2574, blocked on it, owns the independent three-platform retained run.
+matching browser/renderer binaries. DM-2573 owns that evidence-only helper and
+its authenticated macOS proof. DM-2594 explicitly removes the earlier DM-2574
+requirement to rebuild this private helper twice on every operating system.
+Production portability is instead accepted through the normal native
+macOS/Linux/Windows test, demo, and release-artifact matrices.
 
 Until that transport exists, `collectPagedCollapsedTableEvidence` correctly
 returns structured unavailable evidence and the logical release gate must fail
@@ -131,10 +133,10 @@ failed teardown. No tolerance or production rendering behavior changes.
   The manifest records Authenticode state, Windows build and architecture,
   SHA-256 for every member, and browser/renderer PIDs from `SystemInfo`.
 
-DM-2573 authenticates the helper on the provisioned macOS builder. DM-2574
-remains responsible for independent proposal/validation collection and retained
-binary manifests on macOS, Linux, and Windows; this packaging assessment does
-not substitute for those three runs.
+DM-2573 authenticates the helper on the provisioned macOS builder. The platform
+packaging notes above remain useful if the private investigation is ever
+repeated elsewhere, but DM-2594 makes those additional builds optional rather
+than a Domotion release requirement.
 
 The final DM-2573 macOS collection completed all seven source-owned fixtures,
 all seven hostile mutations, the runtime-default-off control, exact teardown,

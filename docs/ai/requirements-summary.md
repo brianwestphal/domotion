@@ -2491,10 +2491,11 @@ pixel tolerance or fitted font-name table (DM-2550, doc 224).
   native ink is considered; all browser launches are headless.
 - Do not infer paged-table row breaks, repeated-section occurrences, or
   collapsed-edge decisions from `Page.printToPDF`, PDF objects, vector output,
-  or pixels. Public CDP returns only PDF bytes after `PrintEnd` destroys the
-  private print fragment tree. Until a pinned renderer helper serializes the
-  record between `PrintBegin` and `PrintEnd`, keep paged logical ownership
-  unavailable and fail closed (DM-2571/DM-2573/DM-2574, doc 230).
+  or pixels. DM-2573's pinned macOS renderer helper may supply those private
+  facts for focused investigation, but DM-2594 does not require rebuilding it
+  per operating system. Cross-platform release acceptance comes from normal
+  native macOS/Linux/Windows production tests, demos, and release artifacts;
+  no private fact may be fabricated when the helper is absent (doc 230).
 
 ### Pre-navigation rAF capture ownership
 

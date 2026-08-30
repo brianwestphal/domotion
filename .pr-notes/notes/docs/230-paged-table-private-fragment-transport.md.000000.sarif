@@ -66,6 +66,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtfg5yz6lznjpofx",
+          "message": {
+            "text": "Cross-platform release confidence comes from production tests and artifacts; rebuilding a private diagnostic Chromium helper six times adds cost without exercising Domotion's shipped path.",
+            "markdown": "Cross-platform release confidence comes from production tests and artifacts; rebuilding a private diagnostic Chromium helper six times adds cost without exercising Domotion's shipped path."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/230-paged-table-private-fragment-transport.md"
+                },
+                "region": {
+                  "startLine": 48,
+                  "endLine": 54,
+                  "snippet": {
+                    "text": "This is not a normal npm helper: it requires a patched Chromium renderer and\nmatching browser/renderer binaries. DM-2573 owns that evidence-only helper and\nits authenticated macOS proof. DM-2594 explicitly removes the earlier DM-2574\nrequirement to rebuild this private helper twice on every operating system.\nProduction portability is instead accepted through the normal native\nmacOS/Linux/Windows test, demo, and release-artifact matrices.\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2594"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "67320b45bde655ad2de98b24d2ebbc18"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "5e555589cdb7f67fc1747ea251b63580b326c1c7",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
