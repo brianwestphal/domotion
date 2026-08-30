@@ -7464,6 +7464,179 @@
           "doc-236"
         ]
       }
+    },
+    {
+      "file": "handbook/animation-and-interaction.md",
+      "metadata": {
+        "id": "handbook/animation-and-interaction",
+        "title": "Animation and interaction handbook",
+        "kind": "contract",
+        "status": "current",
+        "owners": [
+          "animation"
+        ],
+        "platforms": [
+          "macos",
+          "linux",
+          "windows"
+        ],
+        "tickets": [
+          "DM-2596"
+        ],
+        "code": [
+          "src/animation/",
+          "src/cli/animate.ts",
+          "src/composite/",
+          "tests/animate-examples.tsx"
+        ],
+        "aliases": [
+          "docs/handbook/animation-and-interaction.md"
+        ]
+      }
+    },
+    {
+      "file": "handbook/images-media-and-embedding.md",
+      "metadata": {
+        "id": "handbook/images-media-and-embedding",
+        "title": "Images, media, and embedding handbook",
+        "kind": "contract",
+        "status": "current",
+        "owners": [
+          "images-media"
+        ],
+        "platforms": [
+          "macos",
+          "linux",
+          "windows"
+        ],
+        "tickets": [
+          "DM-2596"
+        ],
+        "code": [
+          "src/capture/replaced-media-frame.ts",
+          "src/render/image.ts",
+          "src/post-processing/",
+          "tests/feature-coverage.ts"
+        ],
+        "aliases": [
+          "docs/handbook/images-media-and-embedding.md"
+        ]
+      }
+    },
+    {
+      "file": "handbook/layout-and-fragmentation.md",
+      "metadata": {
+        "id": "handbook/layout-and-fragmentation",
+        "title": "Layout and fragmentation handbook",
+        "kind": "contract",
+        "status": "current",
+        "owners": [
+          "layout"
+        ],
+        "platforms": [
+          "macos",
+          "linux",
+          "windows"
+        ],
+        "tickets": [
+          "DM-2596"
+        ],
+        "code": [
+          "src/capture/geometry.ts",
+          "src/render/tree.ts",
+          "src/scroll/",
+          "tests/feature-coverage.ts"
+        ],
+        "aliases": [
+          "docs/handbook/layout-and-fragmentation.md"
+        ]
+      }
+    },
+    {
+      "file": "handbook/paint-effects-and-native-controls.md",
+      "metadata": {
+        "id": "handbook/paint-effects-and-native-controls",
+        "title": "Paint, effects, and native controls handbook",
+        "kind": "contract",
+        "status": "current",
+        "owners": [
+          "paint-effects"
+        ],
+        "platforms": [
+          "macos",
+          "linux",
+          "windows"
+        ],
+        "tickets": [
+          "DM-2596"
+        ],
+        "code": [
+          "src/render/paint.ts",
+          "src/capture/native-control-raster.ts",
+          "tests/feature-coverage.ts"
+        ],
+        "aliases": [
+          "docs/handbook/paint-effects-and-native-controls.md"
+        ]
+      }
+    },
+    {
+      "file": "handbook/platforms-testing-and-release.md",
+      "metadata": {
+        "id": "handbook/platforms-testing-and-release",
+        "title": "Platforms, testing, and release handbook",
+        "kind": "contract",
+        "status": "current",
+        "owners": [
+          "platform-release"
+        ],
+        "platforms": [
+          "macos",
+          "linux",
+          "windows"
+        ],
+        "tickets": [
+          "DM-2596"
+        ],
+        "code": [
+          ".github/workflows/",
+          "tests/feature-coverage.ts",
+          "tools/parity-program.json",
+          "scripts/ci-run-fast-visuals.mjs"
+        ],
+        "aliases": [
+          "docs/handbook/platforms-testing-and-release.md"
+        ]
+      }
+    },
+    {
+      "file": "handbook/text-and-fonts.md",
+      "metadata": {
+        "id": "handbook/text-and-fonts",
+        "title": "Text and fonts handbook",
+        "kind": "contract",
+        "status": "current",
+        "owners": [
+          "text-fonts"
+        ],
+        "platforms": [
+          "macos",
+          "linux",
+          "windows"
+        ],
+        "tickets": [
+          "DM-2596"
+        ],
+        "code": [
+          "src/capture/font-selection.ts",
+          "src/render/font-resolution.ts",
+          "src/render/text.ts",
+          "tests/feature-coverage.ts"
+        ],
+        "aliases": [
+          "docs/handbook/text-and-fonts.md"
+        ]
+      }
     }
   ],
   "historicalNumbers": {

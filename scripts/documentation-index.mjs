@@ -21,8 +21,16 @@ const metadataFields = [
 ];
 
 function files() {
-  return readdirSync(docsRoot)
-    .filter((name) => numberedDocument.test(name))
+  const discovered = [];
+  const walk = (directory, prefix = "") => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const name = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) walk(resolve(directory, entry.name), name);
+      else if (entry.name.endsWith(".md") && (numberedDocument.test(entry.name) || prefix === "handbook")) discovered.push(name);
+    }
+  };
+  walk(docsRoot);
+  return discovered
     .sort((left, right) => left.localeCompare(right, "en", { numeric: true }));
 }
 
@@ -122,7 +130,7 @@ function parseDocument(filename, source) {
 function validateMetadata(filename, metadata) {
   const errors = [];
   for (const field of metadataFields) if (!(field in metadata)) errors.push(`${filename}: missing ${field}`);
-  if (!/^requirements\/[a-z0-9-]+$/.test(metadata.id ?? "")) errors.push(`${filename}: invalid stable id`);
+  if (!/^(?:requirements|handbook)\/[a-z0-9-]+$/.test(metadata.id ?? "")) errors.push(`${filename}: invalid stable id`);
   if (!["contract", "reference", "evidence", "investigation", "proposal", "archive"].includes(metadata.kind)) {
     errors.push(`${filename}: invalid kind`);
   }
@@ -151,7 +159,8 @@ function internalLinkErrors(filename, body) {
 function generatedArtifacts(entries) {
   const historicalNumbers = {};
   for (const entry of entries) {
-    const number = entry.file.match(numberedDocument)[1];
+    const number = entry.file.split("/").pop().match(numberedDocument)?.[1];
+    if (number == null) continue;
     (historicalNumbers[number] ??= []).push(entry.metadata.id);
   }
   const json = `${JSON.stringify({ schemaVersion: 1, entries, historicalNumbers }, null, 2)}\n`;

@@ -9,6 +9,18 @@ Use the [generated topic index](generated-index.md) for current owner/status
 navigation; the long table below remains the historical catalog during the
 staged migration.
 
+## Current domain handbooks
+
+- [Text and fonts](handbook/text-and-fonts.md)
+- [Layout and fragmentation](handbook/layout-and-fragmentation.md)
+- [Paint, effects, and native controls](handbook/paint-effects-and-native-controls.md)
+- [Images, media, and embedding](handbook/images-media-and-embedding.md)
+- [Animation and interaction](handbook/animation-and-interaction.md)
+- [Platforms, testing, and release](handbook/platforms-testing-and-release.md)
+
+Start with a handbook for normative behavior. Use the generated index and the
+numbered pages for algorithms, evidence, investigations, and historical detail.
+
 > **Cross-platform note**: macOS, Linux, and Windows are first-class supported capture platforms. The rendering and font-fallback pipelines are calibrated against Chromium's native platform path (CoreText, fontconfig, and DirectWrite respectively). macOS remains the primary development and testing platform, but that testing priority is not a separate support tier: platform-specific defects on Linux or Windows are supported defects, and changes that affect them require native validation.
 
 | Doc | Topic |
