@@ -27,6 +27,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: "${{ env.NODE_VERSION }}", cache: npm }
       - run: npm ci
+      - name: Build the capture script from the checked-out modular sources
+        run: npm run build:capture-script
       - name: Install explicitly headless Chromium and Linux dependencies
         run: npx playwright install chromium
       - name: Install Linux Chromium dependencies

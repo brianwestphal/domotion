@@ -56,6 +56,7 @@ describe("fragmented collapsed-table release gate", () => {
     expect(workflow).toContain("ubuntu-latest");
     expect(workflow).toContain("windows-latest");
     expect(workflow).toContain("headless");
+    expect(workflow).toContain("npm run build:capture-script");
     expect(workflow).toContain("borders:collapsed-fragmentation-audit");
     expect(workflow).toContain("borders:paged-collapsed-ownership-audit");
     expect(workflow).toContain("borders:phase-ratify");
