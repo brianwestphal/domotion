@@ -1,3 +1,15 @@
+---
+id: "requirements/affine-text-baseline-protocol"
+title: "Blink affine text baseline and fragment-origin protocol"
+kind: "contract"
+status: "current"
+owners: ["text-fonts"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2544","DM-2546","DM-2547"]
+code: [".github/workflows/text-transform-parity.yml","src/capture/text-fragment-geometry.test.ts","src/capture/text-fragment-spans.test.ts","src/capture/text-line-origin.test.ts","src/capture/text-line-origin.ts","src/capture/text-paint-geometry-cdp.ts","src/render/text-affine.test.ts","src/render/text-affine.ts","tests/text-affine-baseline-protocol-oracle.test.ts","tests/text-affine-line-origin-workflow.test.ts","tests/text-affine-render.e2e.test.ts","tests/text-fragment-span-oracle.test.ts","tests/text-fragment-span-workflow.test.ts","tests/text-paint-geometry.e2e.test.ts"]
+aliases: ["docs/215-affine-text-baseline-protocol.md","doc-215"]
+---
+
 # Blink affine text baseline and fragment-origin protocol
 
 DM-2544 decoded Blink's text-paint origin without using pixels. DM-2547 shipped

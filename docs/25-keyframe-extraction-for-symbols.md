@@ -1,3 +1,15 @@
+---
+id: "requirements/keyframe-extraction-for-symbols"
+title: "25 — Animated symbol contents: t=0 paint state"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: []
+tickets: ["DM-499","DM-508","DM-752"]
+code: ["src/capture/script/","src/capture/script/walker/inline-svg.ts","tests/features.ts"]
+aliases: ["docs/25-keyframe-extraction-for-symbols.md","doc-25"]
+---
+
 # 25 — Animated symbol contents: t=0 paint state
 
 ## Context

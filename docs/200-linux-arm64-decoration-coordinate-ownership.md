@@ -1,3 +1,15 @@
+---
+id: "requirements/linux-arm64-decoration-coordinate-ownership"
+title: "Linux arm64 decoration coordinate ownership"
+kind: "contract"
+status: "current"
+owners: ["text-fonts","platform-release"]
+platforms: ["linux","windows"]
+tickets: ["DM-2501"]
+code: ["tests/decoration-coordinate-ownership.e2e.test.ts","tests/decoration-oracle.test.ts","tools/decoration-oracle.ts"]
+aliases: ["docs/200-linux-arm64-decoration-coordinate-ownership.md","doc-200"]
+---
+
 # Linux arm64 decoration coordinate ownership
 
 DM-2501 closes the uniform `+1 CSS px` decoration result from Linux arm64

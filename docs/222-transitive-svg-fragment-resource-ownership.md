@@ -1,3 +1,15 @@
+---
+id: "requirements/transitive-svg-fragment-resource-ownership"
+title: "Transitive SVG fragment-resource ownership"
+kind: "contract"
+status: "current"
+owners: ["layout"]
+platforms: []
+tickets: []
+code: []
+aliases: ["docs/222-transitive-svg-fragment-resource-ownership.md","doc-222"]
+---
+
 # Transitive SVG fragment-resource ownership
 
 CSS `mask-image: url(#…)` and `clip-path: url(#…)` do not own only the first matching element. Chromium resolves a live dependency graph: `href` and `url()` edges may reach sibling gradients, patterns, filters, markers, symbols, masks, or clip paths, and each edge resolves in the referencing element's originating TreeScope.

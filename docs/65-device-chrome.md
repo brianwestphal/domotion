@@ -1,3 +1,15 @@
+---
+id: "requirements/device-chrome"
+title: "65 — Device chrome (--chrome <device>)"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-1206","DM-1211","DM-1212","DM-1308","DM-1323","DM-1559","DM-1577","DM-217"]
+code: ["examples/composite-desktop.ts","src/cli/capture.ts","src/render/device-chrome.ts"]
+aliases: ["docs/65-device-chrome.md","doc-65"]
+---
+
 # 65 — Device chrome (`--chrome <device>`)
 
 Status: **shipped** (DM-1206 phone; DM-1211 browser / window; DM-1212 light/dark theme).

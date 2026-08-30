@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtfh7iha8d5sndw2",
+          "message": {
+            "text": "Historical numbers intentionally map to arrays of stable IDs because five numbers were already duplicated; stable IDs are unique, while old doc-N references remain searchable without inventing a destructive renumbering.",
+            "markdown": "Historical numbers intentionally map to arrays of stable IDs because five numbers were already duplicated; stable IDs are unique, while old doc-N references remain searchable without inventing a destructive renumbering."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "scripts/documentation-index.mjs"
+                },
+                "region": {
+                  "startLine": 152,
+                  "endLine": 157,
+                  "snippet": {
+                    "text": "  const historicalNumbers = {};\n  for (const entry of entries) {\n    const number = entry.file.match(numberedDocument)[1];\n    (historicalNumbers[number] ??= []).push(entry.metadata.id);\n  }\n  const json = `${JSON.stringify({ schemaVersion: 1, entries, historicalNumbers }, null, 2)}\\n`;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2595"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "3c0937b39296a5372c0751efa7758287"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "7366fee08667fd35cb7f28a14b9fb3e5b228f01e",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

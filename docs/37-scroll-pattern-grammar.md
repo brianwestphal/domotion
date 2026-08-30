@@ -1,3 +1,15 @@
+---
+id: "requirements/scroll-pattern-grammar"
+title: "37. Scroll-pattern grammar"
+kind: "reference"
+status: "current"
+owners: ["layout"]
+platforms: []
+tickets: ["DM-1076"]
+code: ["src/cli/animate.ts","src/cli/capture.ts","src/scroll/composer.ts","src/scroll/executor.ts","src/scroll/pattern.ts"]
+aliases: ["docs/37-scroll-pattern-grammar.md","doc-37"]
+---
+
 # 37. Scroll-pattern grammar
 
 The scroll-pattern language drives Domotion's scroll-animated SVG output. A pattern is one or more scroll segments executed in order; comma-separated for sequencing, parenthesized for nesting + per-group `until` conditions. There is **no global axis parameter** — direction is determined per action (via explicit prefix or anchor type).

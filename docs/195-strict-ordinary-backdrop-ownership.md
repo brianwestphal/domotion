@@ -1,3 +1,15 @@
+---
+id: "requirements/strict-ordinary-backdrop-ownership"
+title: "195 — Strict ordinary backdrop ownership and raster-floor adjudication"
+kind: "contract"
+status: "current"
+owners: ["paint-effects"]
+platforms: ["macos","linux","windows"]
+tickets: []
+code: [".github/workflows/backdrop-source-surface-parity.yml","src/capture/backdrop-composite-raster.ts","tests/backdrop-source-surface-audit.test.ts"]
+aliases: ["docs/195-strict-ordinary-backdrop-ownership.md","doc-195"]
+---
+
 # 195 — Strict ordinary backdrop ownership and raster-floor adjudication
 
 **Status: shipped and gated.** The ordinary-element source-surface matrix now

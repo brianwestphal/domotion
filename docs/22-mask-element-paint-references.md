@@ -1,3 +1,15 @@
+---
+id: "requirements/mask-element-paint-references"
+title: "22 — mask-image: element(#id) paint references"
+kind: "reference"
+status: "current"
+owners: ["paint-effects"]
+platforms: []
+tickets: ["DM-1450","DM-494"]
+code: ["src/mask.test.ts","tests/features.ts","tests/iframe-inner-element-mask.e2e.test.ts"]
+aliases: ["docs/22-mask-element-paint-references.md","doc-22"]
+---
+
 # 22 — `mask-image: element(#id)` paint references
 
 > ⚠️ **Chromium does not support CSS `element()` (DM-1450).** This feature is

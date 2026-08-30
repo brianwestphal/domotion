@@ -1,3 +1,15 @@
+---
+id: "requirements/cli-npx-invocation"
+title: "Domotion: CLI invocation as an npm bin (npx -p domotion-svg domotion)"
+kind: "contract"
+status: "current"
+owners: ["product-tooling"]
+platforms: []
+tickets: ["DM-1362","DM-262","DM-877","DM-878"]
+code: [".github/workflows/release.yml","src/capture/index.ts","src/cli/index.ts"]
+aliases: ["docs/46-cli-npx-invocation.md","doc-46"]
+---
+
 # Domotion: CLI invocation as an npm bin (`npx -p domotion-svg domotion`)
 
 Requirements for running Domotion's command-line interface without a local

@@ -1,3 +1,15 @@
+---
+id: "requirements/svg-to-image"
+title: "78 — svg-to-image: still SVG → PNG / JPEG / PDF / WebP / AVIF / TIFF"
+kind: "contract"
+status: "current"
+owners: ["images-media"]
+platforms: []
+tickets: ["DM-1353"]
+code: ["src/cli/svg-to-image-core.ts","src/cli/svg-to-image.ts","src/cli/svg-to-video-core.ts"]
+aliases: ["docs/78-svg-to-image.md","doc-78"]
+---
+
 # 78 — `svg-to-image`: still SVG → PNG / JPEG / PDF / WebP / AVIF / TIFF
 
 Status: **shipped** (DM-1353). A fifth published bin (sibling to `domotion`,

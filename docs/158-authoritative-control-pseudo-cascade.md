@@ -1,3 +1,15 @@
+---
+id: "requirements/authoritative-control-pseudo-cascade"
+title: "Authoritative control-pseudo cascade capture"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: []
+tickets: []
+code: ["src/capture/pseudo-style-cdp.test.ts","src/capture/pseudo-style-cdp.ts","tests/pseudo-cascade.e2e.test.ts"]
+aliases: ["docs/158-authoritative-control-pseudo-cascade.md","doc-158"]
+---
+
 # Authoritative control-pseudo cascade capture
 
 Domotion captures author paint for Chromium's legacy WebKit control pseudos

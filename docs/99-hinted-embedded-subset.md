@@ -1,3 +1,15 @@
+---
+id: "requirements/hinted-embedded-subset"
+title: "99 — Hinting-preserving embedded-font subsets (hb-subset)"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: ["macos","linux","windows"]
+tickets: []
+code: [".github/workflows/visual-tests.yml","src/render/embedded-font-builder.test.ts","src/render/embedded-font-builder.ts","src/render/embedded-font-snapshot.test.ts","src/render/font-resolution.ts","src/render/hb-subset.test.ts","src/render/hb-subset.ts","src/render/synth-test-fonts.ts"]
+aliases: ["docs/99-hinted-embedded-subset.md","doc-99"]
+---
+
 # 99 — Hinting-preserving embedded-font subsets (hb-subset)
 
 Status: **Shipped** (embedded-font render mode; flag-controlled — see [Rollout](#rollout--flag) below).

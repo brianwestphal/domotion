@@ -1,3 +1,15 @@
+---
+id: "requirements/same-machine-text-parity-contract"
+title: "120 — Same-machine Chromium text parity contract"
+kind: "evidence"
+status: "current"
+owners: ["text-fonts","platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: []
+code: []
+aliases: ["docs/120-same-machine-text-parity-contract.md","doc-120"]
+---
+
 # 120 — Same-machine Chromium text parity contract
 
 ## Normative requirement

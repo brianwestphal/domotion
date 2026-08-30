@@ -1,3 +1,15 @@
+---
+id: "requirements/format-presets"
+title: "87 — Format presets (social aspect ratios)"
+kind: "contract"
+status: "current"
+owners: ["product-tooling"]
+platforms: []
+tickets: ["DM-1519","DM-1520","DM-1521","DM-1522","DM-1523","DM-1534","DM-1537","DM-1538","DM-1541","DM-1560"]
+code: ["examples/templates-demo.ts","src/templates/formats.ts"]
+aliases: ["docs/87-format-presets.md","doc-87"]
+---
+
 # 87 — Format presets (social aspect ratios)
 
 **Status: shipped (DM-1521 design → DM-1534 impl → DM-1537 safe-area reflow →

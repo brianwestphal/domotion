@@ -1,3 +1,15 @@
+---
+id: "requirements/platform-system-ui-preference-route"
+title: "Platform-owned system-ui preference route"
+kind: "reference"
+status: "current"
+owners: ["platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2351","DM-2504"]
+code: [".github/workflows/system-ui-preference-route.yml","src/render/glyph-helper.ts"]
+aliases: ["docs/211-platform-system-ui-preference-route.md","doc-211"]
+---
+
 # Platform-owned `system-ui` preference route
 
 **Status:** shipped logical oracle (DM-2504).

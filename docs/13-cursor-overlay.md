@@ -1,3 +1,15 @@
+---
+id: "requirements/cursor-overlay"
+title: "Domotion: cursor / click overlay"
+kind: "contract"
+status: "current"
+owners: ["animation"]
+platforms: ["macos","windows"]
+tickets: ["DM-1106","DM-1133","DM-1139","DM-1507","DM-1742","DM-1995","DM-272","DM-277"]
+code: ["src/animation/cursor-glyphs.ts","src/animation/cursor-overlay.ts","src/capture/script/utils.ts","src/cli/animate.ts","src/render/paint-order.ts","tools/cursor-catalog.mts"]
+aliases: ["docs/13-cursor-overlay.md","doc-13"]
+---
+
 # Domotion: cursor / click overlay
 
 Requirements for an opt-in animated cursor + click pulse layer that paints on top of a captured SVG. Origin: DM-277 (filed from DM-272). Automatic cursor-type matching added in DM-1106.

@@ -1,3 +1,15 @@
+---
+id: "requirements/mathml-helper-ink-evidence"
+title: "MathML native-helper ink evidence"
+kind: "evidence"
+status: "current"
+owners: ["text-fonts"]
+platforms: ["macos","windows"]
+tickets: []
+code: ["src/render/glyph-helper.ts"]
+aliases: ["docs/154-mathml-helper-ink-evidence.md","doc-154"]
+---
+
 # MathML native-helper ink evidence
 
 MathML token placement uses `measureInkMetrics` to divide the captured token box around the baseline by the ink ascent/descent of the glyphs that are actually emitted. The measurement follows the same fallback-run splitter as text rendering; it must not substitute the primary font's ascent when a token routes to a platform-native helper face.

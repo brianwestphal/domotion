@@ -1,3 +1,15 @@
+---
+id: "requirements/replaced-element-snapshots"
+title: "17 — Replaced-element static snapshots (<canvas> / <video> / <iframe> / <object> / <embed>)"
+kind: "contract"
+status: "current"
+owners: ["images-media"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2380","DM-457"]
+code: ["src/capture/index.ts","src/capture/replaced-media-frame.test.ts","src/capture/replaced-media-frame.ts","src/render/element-tree-to-svg.ts","tests/features.ts","tests/replaced-media-frame.e2e.test.ts","tests/replaced-snapshot-transform.e2e.test.ts"]
+aliases: ["docs/17-replaced-element-snapshots.md","doc-17"]
+---
+
 # 17 — Replaced-element static snapshots (`<canvas>` / `<video>` / `<iframe>` / `<object>` / `<embed>`)
 
 ## Context

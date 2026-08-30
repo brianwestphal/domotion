@@ -1,3 +1,15 @@
+---
+id: "requirements/corner-shape-superellipses"
+title: "CSS corner-shape superellipses"
+kind: "contract"
+status: "current"
+owners: ["text-fonts"]
+platforms: []
+tickets: ["DM-2314","DM-2315","DM-2316","DM-2317"]
+code: ["tests/fixtures/html-test/corner-shape-superellipses.html"]
+aliases: ["docs/135-corner-shape-superellipses.md","doc-135"]
+---
+
 # CSS corner-shape superellipses
 
 Status: shipped by DM-2315.

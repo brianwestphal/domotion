@@ -1,3 +1,15 @@
+---
+id: "requirements/source-owned-pseudo-fragment-capture"
+title: "176 — Source-owned generated-pseudo fragment capture"
+kind: "contract"
+status: "current"
+owners: ["layout"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2459","DM-2466","DM-2467","DM-2468"]
+code: ["src/capture/pseudo-fragment-cdp.ts","src/capture/pseudo-fragment-protocol.ts","src/capture/script/index.ts","src/render/pseudo-fragments.ts","tools/pseudo-fragment-protocol.ts"]
+aliases: ["docs/176-source-owned-pseudo-fragment-capture.md","doc-176"]
+---
+
 # 176 — Source-owned generated-pseudo fragment capture
 
 **Ticket:** DM-2467

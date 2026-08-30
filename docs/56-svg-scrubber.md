@@ -1,3 +1,15 @@
+---
+id: "requirements/svg-scrubber"
+title: "56 — svg-scrubber (video-style playback for animated SVGs)"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: []
+tickets: ["DM-1041","DM-1042","DM-1045"]
+code: ["scripts/build-scrubber-client.mjs","src/cli/scrubber.ts","src/scrubber/client.tsx","src/scrubber/server.e2e.test.ts","src/scrubber/server.ts","src/scrubber/trim.test.ts","src/scrubber/trim.ts"]
+aliases: ["docs/56-svg-scrubber.md","doc-56"]
+---
+
 # 56 — `svg-scrubber` (video-style playback for animated SVGs)
 
 A command-line app that launches a local web UI for inspecting animated SVGs

@@ -1,3 +1,15 @@
+---
+id: "requirements/linux-mathml-greek-italic-investigation"
+title: "Linux MathML Greek-italic residual investigation"
+kind: "investigation"
+status: "current"
+owners: ["text-fonts","platform-release"]
+platforms: ["linux"]
+tickets: ["DM-2512"]
+code: []
+aliases: ["docs/203-linux-mathml-greek-italic-investigation.md","doc-203"]
+---
+
 # Linux MathML Greek-italic residual investigation
 
 Status: **Logical oracle repaired; Linux raster supplement ratified**

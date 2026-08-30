@@ -1,3 +1,15 @@
+---
+id: "requirements/caret-selection-track"
+title: "101 — Caret + selection track (declarative, anchored to captured text)"
+kind: "contract"
+status: "current"
+owners: ["text-fonts"]
+platforms: ["macos"]
+tickets: ["DM-1756"]
+code: ["examples/animate/compressed-run/","src/animation/animator.ts","src/animation/caret-metrics.ts","src/animation/caret-track.test.ts","src/animation/caret-track.ts","src/animation/embed-timeline.ts","src/animation/text-address.test.ts","src/animation/text-address.ts","src/capture/script/walker/text-segments.ts","src/cli/animate.test.ts","src/cli/animate.ts","src/render/paint-order.ts","src/render/text.ts","tests/caret-bidi.e2e.test.ts","tests/caret-track.e2e.test.ts","tests/caret-vertical.e2e.test.ts","tests/compressed-run-config.e2e.test.ts"]
+aliases: ["docs/101-caret-selection-track.md","doc-101"]
+---
+
 # 101 — Caret + selection track (declarative, anchored to captured text)
 
 Status: **Shipped** (engine + programmatic wiring + declarative config surface

@@ -1,3 +1,15 @@
+---
+id: "requirements/public-svg-css-animated-image-owner-joins"
+title: "Public SVG and CSS animated-image owner joins"
+kind: "contract"
+status: "current"
+owners: ["images-media","animation"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2590","DM-2591"]
+code: ["tools/animated-image-stock-cdp-support.ts"]
+aliases: ["docs/235-public-svg-css-animated-image-owner-joins.md","doc-235"]
+---
+
 # Public SVG and CSS animated-image owner joins
 
 Status: evidence-only macOS/Linux subset (DM-2591)

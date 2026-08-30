@@ -1,3 +1,15 @@
+---
+id: "requirements/authoritative-scrollbar-capture"
+title: "Authoritative Blink scrollbar capture"
+kind: "contract"
+status: "current"
+owners: ["layout"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2481","DM-2482","DM-2483","DM-2484","DM-2537"]
+code: ["src/capture/pseudo-style-cdp.ts","src/capture/scrollbar-capture.ts","src/render/custom-scrollbar.ts","src/render/native-scrollbar-raster.ts"]
+aliases: ["docs/169-authoritative-scrollbar-capture.md","doc-169"]
+---
+
 # Authoritative Blink scrollbar capture
 
 **Tickets:** DM-2481, DM-2482, DM-2483

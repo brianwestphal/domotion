@@ -1,3 +1,15 @@
+---
+id: "requirements/exact-shaping-oracle"
+title: "Exact shaping oracle"
+kind: "evidence"
+status: "current"
+owners: ["text-fonts","platform-release","product-tooling"]
+platforms: ["macos","linux","windows"]
+tickets: []
+code: []
+aliases: ["docs/114-exact-shaping-oracle.md","doc-114"]
+---
+
 # Exact shaping oracle
 
 `npm run fonts:shaping:exact` is Domotion's glyph-level, pre-raster shaping gate. It exists because Chromium's CDP font domain reports the selected face and glyph count, but not glyph IDs, clusters, positions, or flags.

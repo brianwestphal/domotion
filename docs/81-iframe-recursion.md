@@ -1,3 +1,15 @@
+---
+id: "requirements/iframe-recursion"
+title: "81 — <iframe> recursion into native SVG"
+kind: "contract"
+status: "current"
+owners: ["layout"]
+platforms: []
+tickets: ["DM-1443","DM-1446","DM-1447","DM-1448","DM-2338","DM-2520"]
+code: ["examples/iframe-recursion.ts","examples/output/","src/capture/index.ts","src/capture/script/cross-origin.test.ts","src/capture/script/cross-origin.ts","src/capture/script/index.ts","src/capture/script/walker/replaced-elements.ts","src/cli/capture.ts","tests/cross-origin-iframe-recursion.e2e.test.ts","tests/features.ts","tests/iframe-inner-defs.e2e.test.ts","tests/iframe-inner-element-mask.e2e.test.ts","tests/iframe-inner-prepasses.e2e.test.ts","tests/multi-layer-fragment-mask.e2e.test.ts"]
+aliases: ["docs/81-iframe-recursion.md","doc-81"]
+---
+
 # 81 — `<iframe>` recursion into native SVG
 
 ## Summary

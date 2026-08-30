@@ -1,3 +1,15 @@
+---
+id: "requirements/windows-unicode-font-route-trace"
+title: "125 — Windows Unicode font-route trace"
+kind: "contract"
+status: "current"
+owners: ["text-fonts","platform-release"]
+platforms: ["windows"]
+tickets: []
+code: ["src/render/win-font-fallback.ts"]
+aliases: ["docs/125-windows-unicode-font-route-trace.md","doc-125"]
+---
+
 # 125 — Windows Unicode font-route trace
 
 Status: **Shipped diagnostic**.

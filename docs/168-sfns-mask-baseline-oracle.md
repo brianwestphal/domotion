@@ -1,3 +1,15 @@
+---
+id: "requirements/sfns-mask-baseline-oracle"
+title: "SFNS CoreText mask and baseline oracle"
+kind: "evidence"
+status: "current"
+owners: ["paint-effects","platform-release"]
+platforms: ["macos"]
+tickets: ["DM-2452","DM-2567","DM-2568","DM-2575","DM-2576","DM-2586","DM-2587","DM-2588"]
+code: ["tools/build-sfns-pinned-ots-sanitizer.mjs","tools/build-sfns-pinned-skia-collector.mjs","tools/chromium-sfns-validation/","tools/sfns-mask-baseline-oracle.ts","tools/sfns-mask-baseline.swift","tools/sfns-pinned-chromium-validation-collector.ts","tools/sfns-pinned-ots-sanitizer/","tools/sfns-pinned-skia-collector/sfns_post_conversion_collector.cpp","tools/sfns-pinned-skia-mask-schema.ts","tools/sfns-terminal-mask-adjudicator.ts","tools/sfns-terminal-mask-manifest.ts"]
+aliases: ["docs/168-sfns-mask-baseline-oracle.md","doc-168"]
+---
+
 # SFNS CoreText mask and baseline oracle
 
 DM-2452 is the diagnostic follow-up to the three font-size-space work. DM-2567

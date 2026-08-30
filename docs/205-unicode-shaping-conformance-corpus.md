@@ -1,3 +1,15 @@
+---
+id: "requirements/unicode-shaping-conformance-corpus"
+title: "Unicode shaping conformance corpus"
+kind: "evidence"
+status: "current"
+owners: ["text-fonts","platform-release","product-tooling"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2344","DM-2521"]
+code: ["tools/shaping-conformance.ts","tools/shaping-unicode-corpus.ts"]
+aliases: ["docs/205-unicode-shaping-conformance-corpus.md","doc-205"]
+---
+
 # Unicode shaping conformance corpus
 
 DM-2344 extends the logical shaping program from the small HTML corpus to the

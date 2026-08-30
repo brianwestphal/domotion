@@ -1,3 +1,15 @@
+---
+id: "requirements/svg-scrubber-review-mode"
+title: "82 — svg-scrubber review mode (--review)"
+kind: "contract"
+status: "current"
+owners: ["product-tooling"]
+platforms: []
+tickets: ["DM-1449"]
+code: ["src/cli/scrubber.ts","src/scrubber/client.tsx","src/scrubber/server.e2e.test.ts","src/scrubber/server.ts","src/scrubber/ticket.test.ts","tests/scrubber-frame-attach.e2e.test.ts"]
+aliases: ["docs/82-svg-scrubber-review-mode.md","doc-82"]
+---
+
 # 82 — svg-scrubber review mode (`--review`)
 
 ## Summary

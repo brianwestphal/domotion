@@ -1,3 +1,15 @@
+---
+id: "requirements/mixed-reference-color-space-ownership"
+title: "218 — Mixed reference-filter color-space ownership"
+kind: "reference"
+status: "current"
+owners: ["paint-effects"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2535","DM-2548","DM-2549"]
+code: ["tests/fixtures/html-test/38-mixed-reference-color-space-stage.html","tools/mixed-reference-color-space-oracle.ts"]
+aliases: ["docs/218-mixed-reference-color-space-ownership.md","doc-218"]
+---
+
 # 218 — Mixed reference-filter color-space ownership
 
 **Status:** Source-exact and promoted. DM-2548 landed the source-proven

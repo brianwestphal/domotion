@@ -1,3 +1,15 @@
+---
+id: "requirements/portable-exact-shaping-controls"
+title: "Portable exact-shaping applicability controls"
+kind: "contract"
+status: "current"
+owners: ["text-fonts","layout","product-tooling"]
+platforms: ["linux"]
+tickets: ["DM-2500"]
+code: ["tests/fixtures/variable-axis/variable-axis.html","tools/exact-shaping-control-fixtures.ts","tools/exact-shaping-oracle.ts"]
+aliases: ["docs/199-portable-exact-shaping-controls.md","doc-199"]
+---
+
 # Portable exact-shaping applicability controls
 
 DM-2500 closes an activation hole in the native Linux arm64 shaping gate. The

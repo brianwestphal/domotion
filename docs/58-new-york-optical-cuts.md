@@ -1,3 +1,15 @@
+---
+id: "requirements/new-york-optical-cuts"
+title: "58 — macOS New York optical-size cuts (DM-1108)"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: ["macos"]
+tickets: ["DM-1103","DM-1108"]
+code: ["src/render/font-resolution.ts","tests/new-york-optical-cut.e2e.test.ts"]
+aliases: ["docs/58-new-york-optical-cuts.md","doc-58"]
+---
+
 # 58 — macOS New York optical-size cuts (DM-1108)
 
 Status: implemented (macOS-calibrated; gated on the optional New York font package being installed).

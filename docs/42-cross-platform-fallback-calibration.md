@@ -1,3 +1,15 @@
+---
+id: "requirements/cross-platform-fallback-calibration"
+title: "Domotion: cross-platform fallback-chain calibration (Linux + Windows)"
+kind: "evidence"
+status: "current"
+owners: ["platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-1404","DM-1416","DM-1423","DM-1694","DM-1714","DM-1716","DM-1795","DM-1800","DM-2390","DM-2397","DM-241","DM-2442","DM-256","DM-257","DM-258","DM-259","DM-260","DM-261","DM-262","DM-835","DM-836","DM-838","DM-874","DM-876","DM-884","DM-983","DM-984","DM-987"]
+code: ["src/render/embolden-outline.ts","src/render/font-resolution.ts","src/render/text.ts","src/render/unicode-classification.ts","src/render/unicode-font-routing.noto-linux.generated.ts","src/render/unicode-font-routing.win32.generated.ts","src/render/win-font-fallback.test.ts","src/render/win-font-fallback.ts","tests/flipbook-parity.ts","tests/html-test-suite.tsx","tests/output/unicode-fonts.win32.json","tests/runner.tsx","tools/calibrate-linux-noto-profile.sh","tools/calibrate-win32-unicode-fonts.sh","tools/probe-983-genroutes-noto-linux.mjs","tools/probe-983-genroutes-win32.mjs","tools/probe-983-sweep.mjs","tools/probe-fallbacks-linux.mjs"]
+aliases: ["docs/42-cross-platform-fallback-calibration.md","doc-42"]
+---
+
 # Domotion: cross-platform fallback-chain calibration (Linux + Windows)
 
 Requirements for calibrating `fallbackFontChain` against Chromium-on-Linux

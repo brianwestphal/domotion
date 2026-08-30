@@ -1,3 +1,15 @@
+---
+id: "requirements/backdrop-source-surface-transitions"
+title: "187 — Backdrop-filter source-surface transitions"
+kind: "contract"
+status: "current"
+owners: ["paint-effects","animation"]
+platforms: []
+tickets: ["DM-2488","DM-2489","DM-2490"]
+code: ["tools/backdrop-source-surface-audit.ts"]
+aliases: ["docs/187-backdrop-source-surface-transitions.md","doc-187"]
+---
+
 # 187 — Backdrop-filter source-surface transitions
 
 **Status: source investigation and all ownership follow-ups shipped. Ordinary

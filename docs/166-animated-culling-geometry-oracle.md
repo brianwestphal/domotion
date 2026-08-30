@@ -1,3 +1,15 @@
+---
+id: "requirements/animated-culling-geometry-oracle"
+title: "Animated culling geometry oracle"
+kind: "evidence"
+status: "current"
+owners: ["layout","animation","platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: []
+code: [".github/workflows/animated-culling-geometry.yml"]
+aliases: ["docs/166-animated-culling-geometry-oracle.md","doc-166"]
+---
+
 # Animated culling geometry oracle
 
 `npm run culling:animated-geometry-oracle` is the independent live-Chromium

@@ -1,3 +1,15 @@
+---
+id: "requirements/paint-order-oracle"
+title: "132 — Compositing and paint-order transition oracle"
+kind: "evidence"
+status: "current"
+owners: ["paint-effects","platform-release"]
+platforms: []
+tickets: []
+code: []
+aliases: ["docs/132-paint-order-oracle.md","doc-132"]
+---
+
 # 132 — Compositing and paint-order transition oracle
 
 `npm run paint:order-oracle` gates the classification and containment decisions

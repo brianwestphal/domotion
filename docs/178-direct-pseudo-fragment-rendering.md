@@ -1,3 +1,15 @@
+---
+id: "requirements/direct-pseudo-fragment-rendering"
+title: "178 — Direct source-owned generated-pseudo rendering"
+kind: "contract"
+status: "current"
+owners: ["layout"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2459","DM-2468","DM-2488"]
+code: [".github/workflows/pseudo-fragment-render-parity.yml","src/render/pseudo-fragments.ts","tests/pseudo-fragment-render-oracle.e2e.test.ts","tools/pseudo-fragment-render-oracle.ts"]
+aliases: ["docs/178-direct-pseudo-fragment-rendering.md","doc-178"]
+---
+
 # 178 — Direct source-owned generated-pseudo rendering
 
 **Ticket:** DM-2468

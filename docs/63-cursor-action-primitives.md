@@ -1,3 +1,15 @@
+---
+id: "requirements/cursor-action-primitives"
+title: "63 — Cursor-target + action-runner public primitives"
+kind: "contract"
+status: "current"
+owners: ["animation"]
+platforms: []
+tickets: ["DM-1132","DM-1133","DM-1135","DM-1136"]
+code: ["src/cli/animate.ts","src/index.ts"]
+aliases: ["docs/63-cursor-action-primitives.md","doc-63"]
+---
+
 # 63 — Cursor-target + action-runner public primitives
 
 Status: **shipped** (DM-1135). `borderBox` + `resolveCursorTarget` and

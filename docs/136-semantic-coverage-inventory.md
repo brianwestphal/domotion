@@ -1,3 +1,15 @@
+---
+id: "requirements/semantic-coverage-inventory"
+title: "136 — CSS and SVG semantic coverage inventory"
+kind: "contract"
+status: "partial"
+owners: ["product-tooling"]
+platforms: []
+tickets: []
+code: ["tests/feature-coverage.ts","tools/parity-program.json","tools/semantic-coverage.json"]
+aliases: ["docs/136-semantic-coverage-inventory.md","doc-136"]
+---
+
 # 136 — CSS and SVG semantic coverage inventory
 
 ## Requirement

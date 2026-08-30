@@ -1,3 +1,15 @@
+---
+id: "requirements/background-clip-text-url-color-semantics"
+title: "181 — background-clip:text URL and color semantics"
+kind: "contract"
+status: "current"
+owners: ["text-fonts","paint-effects","product-tooling"]
+platforms: []
+tickets: ["DM-2366"]
+code: ["src/render/background-clip-text.test.ts","src/render/text-stroke-synthesis.test.ts","tests/features.ts","tools/background-clip-text-oracle.ts"]
+aliases: ["docs/181-background-clip-text-url-color-semantics.md","doc-181"]
+---
+
 # 181 — `background-clip:text` URL and color semantics
 
 DM-2366 closes the two remaining paint gaps in the vector text-clip route:

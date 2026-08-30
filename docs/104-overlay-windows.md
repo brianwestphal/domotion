@@ -1,3 +1,15 @@
+---
+id: "requirements/overlay-windows"
+title: "104 — Per-overlay windows (endAt) and per-state overlays inside a compressed run"
+kind: "contract"
+status: "current"
+owners: ["animation","platform-release"]
+platforms: ["windows"]
+tickets: ["DM-1767","DM-1796","DM-1799"]
+code: ["examples/animate/editor-session/","examples/animate/form-fill/","examples/animate/overlay-window/","src/animation/animator.test.ts","src/animation/animator.ts","src/animation/overlay-schema.ts","src/cli/animate.test.ts","src/cli/animate.ts","tests/overlay-window.e2e.test.ts"]
+aliases: ["docs/104-overlay-windows.md","doc-104"]
+---
+
 # 104 — Per-overlay windows (`endAt`) and per-state overlays inside a compressed run
 
 Status: **shipped** (DM-1767; the window's closing edge reworked in DM-1796 — §3.1). Two changes to the **overlay model**:

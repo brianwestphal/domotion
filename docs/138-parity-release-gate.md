@@ -1,3 +1,15 @@
+---
+id: "requirements/parity-release-gate"
+title: "138 — Near-complete Chromium parity release gate"
+kind: "evidence"
+status: "partial"
+owners: ["platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: []
+code: ["tools/parity-release-evidence.json"]
+aliases: ["docs/138-parity-release-gate.md","doc-138"]
+---
+
 # 138 — Near-complete Chromium parity release gate
 
 `npm run gate:parity-release` is the strict release decision. It does not emit a

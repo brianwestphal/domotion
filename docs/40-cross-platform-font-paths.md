@@ -1,3 +1,15 @@
+---
+id: "requirements/cross-platform-font-paths"
+title: "Domotion: Cross-platform font path discovery"
+kind: "contract"
+status: "current"
+owners: ["text-fonts","platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-258","DM-259","DM-260","DM-261","DM-262"]
+code: ["src/render/font-resolution.ts"]
+aliases: ["docs/40-cross-platform-font-paths.md","doc-40"]
+---
+
 # Domotion: Cross-platform font path discovery
 
 Requirements for resolving each logical font key to a real on-disk font file

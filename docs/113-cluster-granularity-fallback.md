@@ -1,3 +1,15 @@
+---
+id: "requirements/cluster-granularity-fallback"
+title: "113 — Font fallback at shaped-cluster granularity"
+kind: "contract"
+status: "current"
+owners: ["text-fonts"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2387","DM-2444","DM-2507"]
+code: ["src/render/cluster-fallback-bidi-boundary.test.ts","src/render/cluster-fallback.test.ts","src/render/cluster-fallback.ts","src/render/font-resolution.ts","src/render/glyph-path-run-split.test.ts","src/render/skia-last-resort-routing.test.ts","src/render/text-to-path.ts","tests/features.ts","tests/output/cluster-conformance/","tools/cluster-conformance.ts","tools/scratch/"]
+aliases: ["docs/113-cluster-granularity-fallback.md","doc-113"]
+---
+
 # 113 — Font fallback at shaped-cluster granularity
 
 Status: **SHIPPED, default-on** for BOTH run splitters — the embedded-font

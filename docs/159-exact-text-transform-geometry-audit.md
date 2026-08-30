@@ -1,3 +1,15 @@
+---
+id: "requirements/exact-text-transform-geometry-audit"
+title: "Exact text-transform geometry audit"
+kind: "evidence"
+status: "current"
+owners: ["text-fonts","layout","platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2469","DM-2470","DM-2471","DM-2547"]
+code: ["src/capture/script/index.ts","src/capture/text-fragment-geometry.ts","src/capture/text-line-origin.ts","src/capture/text-paint-geometry-cdp.ts","src/render/text-affine.ts","src/render/text.ts"]
+aliases: ["docs/159-exact-text-transform-geometry-audit.md","doc-159"]
+---
+
 # Exact text-transform geometry audit
 
 This investigation replaces one premise, not one constant: a CSS transform is

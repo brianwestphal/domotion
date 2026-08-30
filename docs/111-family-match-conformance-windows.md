@@ -1,3 +1,15 @@
+---
+id: "requirements/family-match-conformance-windows"
+title: "111 — Declared-family match conformance oracle (Windows)"
+kind: "evidence"
+status: "current"
+owners: ["platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: []
+code: [".github/workflows/windows-fidelity.yml","src/render/font-resolution.ts","src/render/win32-family-suffix.ts","tests/baselines/family-match-windows.json","tools/family-match-baseline.ts","tools/family-match-conformance-win32.ts"]
+aliases: ["docs/111-family-match-conformance-windows.md","doc-111"]
+---
+
 # 111 — Declared-family match conformance oracle (Windows)
 
 `tools/family-match-conformance-win32.ts` · `npm run fonts:family-match:win32`

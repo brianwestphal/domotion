@@ -1,3 +1,15 @@
+---
+id: "requirements/authenticated-profile-oopif-generic-preferences"
+title: "Authenticated profile and OOPIF generic preferences"
+kind: "reference"
+status: "current"
+owners: ["rendering"]
+platforms: ["macos","windows"]
+tickets: ["DM-2539"]
+code: [".github/workflows/generic-profile-target-parity.yml"]
+aliases: ["docs/219-authenticated-profile-oopif-generic-preferences.md","doc-219"]
+---
+
 # Authenticated profile and OOPIF generic preferences
 
 DM-2539 replaces the sampled Chrome-profile check with one exact logical

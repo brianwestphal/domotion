@@ -1,3 +1,15 @@
+---
+id: "requirements/scroll-composite-layer-chunking"
+title: "36. Scroll composer: per-chunk compositing layers"
+kind: "contract"
+status: "current"
+owners: ["layout"]
+platforms: []
+tickets: ["DM-642","DM-643","DM-645","DM-646"]
+code: ["src/render/element-tree-to-svg.ts","src/scroll/composer.test.ts","src/scroll/composer.ts"]
+aliases: ["docs/36-scroll-composite-layer-chunking.md","doc-36"]
+---
+
 # 36. Scroll composer: per-chunk compositing layers
 
 The DM-642 patch promotes the entire translating composite onto its own GPU layer (via `transform: translate3d(0, -Ypx, 0)` + `will-change: transform`) and gates each per-segment wrapper with a `visibility` keyframe so only the segments inside the viewport actually paint. On a 5–10 segment page that's enough to recover ~60 fps from the 10–12 fps the unoptimised composer produced.

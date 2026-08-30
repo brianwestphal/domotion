@@ -1,3 +1,15 @@
+---
+id: "requirements/production-harfbuzz-shaping"
+title: "Production HarfBuzz shaping"
+kind: "contract"
+status: "current"
+owners: ["text-fonts","product-tooling"]
+platforms: ["macos","linux","windows"]
+tickets: []
+code: []
+aliases: ["docs/115-production-harfbuzz-shaping.md","doc-115"]
+---
+
 # Production HarfBuzz shaping
 
 Domotion now has one production shaping decision-maker: the vendored HarfBuzz build configured like Chromium. Face selection remains platform-native because Chromium itself selects through CoreText, fontconfig, or DirectWrite/Skia. Once a concrete file/member/axis instance and fallback run are known, both `paths` and `embedded-font` modes wrap that face with `harfbuzzShapedRunOverride`; native/fontkit objects provide outlines and metrics only.

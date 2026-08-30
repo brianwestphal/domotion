@@ -1,3 +1,15 @@
+---
+id: "requirements/raster-fallback-content-gates"
+title: "139 — Raster fallback pixel-content gates"
+kind: "contract"
+status: "current"
+owners: ["images-media"]
+platforms: ["macos","linux","windows"]
+tickets: []
+code: ["src/capture/backdrop-isolation.e2e.test.ts","src/capture/backdrop-isolation.test.ts","src/capture/emoji.test.ts","src/render/conic-raster.test.ts","src/render/text.test.ts","src/stacking-context.test.ts","tests/conic-chromium-raster.e2e.test.ts","tests/cross-origin-iframe-recursion.e2e.test.ts","tests/native-control-source-frame.e2e.test.ts","tests/raster-fallback-content.e2e.test.ts","tests/replaced-used-size.e2e.test.ts","tests/snapshot-isolation.tsx","tools/paint-geometry-oracle.ts","tools/transform-geometry-oracle.ts"]
+aliases: ["docs/139-raster-fallback-content-gates.md","doc-139"]
+---
+
 # 139 — Raster fallback pixel-content gates
 
 Activation and content are separate claims. The raster-boundary oracle proves

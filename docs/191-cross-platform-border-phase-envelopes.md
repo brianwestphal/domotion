@@ -1,3 +1,15 @@
+---
+id: "requirements/cross-platform-border-phase-envelopes"
+title: "Cross-platform border phase envelopes"
+kind: "contract"
+status: "current"
+owners: ["paint-effects","platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2355"]
+code: [".github/workflows/border-phase-oracle.yml","tools/border-phase-oracle.ts","tools/border-phase-ratifier.ts"]
+aliases: ["docs/191-cross-platform-border-phase-envelopes.md","doc-191"]
+---
+
 # Cross-platform border phase envelopes
 
 DM-2355 turns the diagnostic border/outline phase matrix from docs 127 and 129

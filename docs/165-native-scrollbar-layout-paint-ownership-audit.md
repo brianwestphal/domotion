@@ -1,3 +1,15 @@
+---
+id: "requirements/native-scrollbar-layout-paint-ownership-audit"
+title: "Native scrollbar layout and paint ownership audit"
+kind: "evidence"
+status: "current"
+owners: ["paint-effects","layout","platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2368","DM-2481","DM-2482","DM-2483","DM-2484","SK-468"]
+code: ["src/capture/pseudo-style-cdp.ts","src/render/custom-scrollbar.ts"]
+aliases: ["docs/165-native-scrollbar-layout-paint-ownership-audit.md","doc-165"]
+---
+
 # Native scrollbar layout and paint ownership audit
 
 **Status:** source audit, DM-2481 capture, DM-2482 author-custom vector paint,

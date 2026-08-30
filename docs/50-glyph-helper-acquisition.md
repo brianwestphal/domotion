@@ -1,3 +1,15 @@
+---
+id: "requirements/glyph-helper-acquisition"
+title: "Domotion: on-demand native glyph-helper acquisition"
+kind: "contract"
+status: "current"
+owners: ["text-fonts"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2353","DM-393","DM-881","DM-886","DM-887","DM-890"]
+code: [".github/workflows/release-helpers.yml","src/render/glyph-helper.ts","src/render/helper-acquire.ts"]
+aliases: ["docs/50-glyph-helper-acquisition.md","doc-50"]
+---
+
 # Domotion: on-demand native glyph-helper acquisition
 
 Requirements for fetching the platform's native glyph-extractor binary (the

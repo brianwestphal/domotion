@@ -1,3 +1,15 @@
+---
+id: "requirements/coretext-glyph-extraction"
+title: "Domotion: native glyph-outline extraction (CoreText / Pango / DirectWrite)"
+kind: "contract"
+status: "current"
+owners: ["text-fonts"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-1026","DM-1028","DM-1109","DM-1111","DM-1804","DM-364","DM-369","DM-382","DM-384","DM-385","DM-387","DM-388","DM-389","DM-390","DM-391","DM-392","DM-393","DM-394","DM-881","DM-886","DM-888","DM-891"]
+code: ["scripts/probe-coretext-glyphs.mjs","src/render/","src/render/font-resolution.ts","src/render/glyph-helper.test.ts","src/render/glyph-helper.ts","src/render/helper-acquire.ts","src/render/text-to-path.ts","src/render/unicode-classification.ts","tools/macos-glyph-extractor/","tools/macos-glyph-extractor/build.sh"]
+aliases: ["docs/16-coretext-glyph-extraction.md","doc-16"]
+---
+
 # Domotion: native glyph-outline extraction (CoreText / Pango / DirectWrite)
 
 Requirements for extracting vector glyph outlines via the host platform's native font engine instead of fontkit, so Domotion can render any font Chromium can paint — including fonts whose outlines are stored in proprietary tables fontkit doesn't parse. Origin: DM-385 (macOS / CoreText), with cross-platform analogues to be filed for Linux (Pango/Cairo) and Windows (DirectWrite).

@@ -1,3 +1,15 @@
+---
+id: "requirements/windows-glyph-extraction"
+title: "Domotion: Windows native glyph-outline extraction (DirectWrite)"
+kind: "contract"
+status: "current"
+owners: ["text-fonts","platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-1035","DM-1721","DM-2056","DM-2403","DM-260","DM-389","DM-390","DM-391","DM-837"]
+code: ["src/render/glyph-helper.ts","tests/win32-glyph-extractor.test.ts","tools/win32-glyph-extractor/","tools/win32-glyph-extractor/build.ps1"]
+aliases: ["docs/41-windows-glyph-extraction.md","doc-41"]
+---
+
 # Domotion: Windows native glyph-outline extraction (DirectWrite)
 
 Requirements for the **Windows** native glyph-outline extractor — the

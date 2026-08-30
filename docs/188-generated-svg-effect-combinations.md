@@ -1,3 +1,15 @@
+---
+id: "requirements/generated-svg-effect-combinations"
+title: "188 — Generated SVG gradient, mask, and clip combinations"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2358","DM-2538"]
+code: [".github/workflows/svg-effect-combinations.yml","src/capture/script/walker/inline-svg.ts","tools/svg-effect-combination-corpus.ts"]
+aliases: ["docs/188-generated-svg-effect-combinations.md","doc-188"]
+---
+
 # 188 — Generated SVG gradient, mask, and clip combinations
 
 DM-2358 replaced the small hand-picked SVG effect cross-product with a

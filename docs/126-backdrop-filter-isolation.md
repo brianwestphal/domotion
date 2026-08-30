@@ -1,3 +1,15 @@
+---
+id: "requirements/backdrop-filter-isolation"
+title: "126 — Backdrop-filter isolation via Chromium snapshots"
+kind: "contract"
+status: "partial"
+owners: ["paint-effects"]
+platforms: []
+tickets: ["DM-2357","DM-2487","DM-2490"]
+code: []
+aliases: ["docs/126-backdrop-filter-isolation.md","doc-126"]
+---
+
 # 126 — Backdrop-filter isolation via Chromium snapshots
 
 **Status: shipped for direct target isolation; Backdrop Root/effect-space

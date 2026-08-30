@@ -1,3 +1,15 @@
+---
+id: "requirements/strict-static-frames-for-svg-css-images"
+title: "Strict static frames for SVG and CSS images"
+kind: "contract"
+status: "current"
+owners: ["images-media"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2582"]
+code: []
+aliases: ["docs/236-strict-static-frames-for-svg-css-images.md","doc-236"]
+---
+
 # Strict static frames for SVG and CSS images
 
 Status: shipped three-platform subset; strict macOS/Linux/Windows production workflow

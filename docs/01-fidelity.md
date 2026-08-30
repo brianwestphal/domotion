@@ -1,3 +1,15 @@
+---
+id: "requirements/fidelity"
+title: "Domotion: rendering fidelity and warnings"
+kind: "contract"
+status: "partial"
+owners: ["rendering"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-1022","DM-1028","DM-2161","DM-2192","DM-227","DM-228","DM-229","DM-2355","DM-2365","DM-2366","DM-2367","DM-2368","DM-237","DM-2380","DM-2419","DM-2453","DM-2455","DM-2465","DM-2477","DM-2478","DM-2479","DM-2480","DM-2488","DM-2491","DM-2520","DM-258","DM-259","DM-260","DM-262","DM-300","DM-457","DM-462","DM-984","DM-987","SK-1093","SK-1097","SK-1099","SK-1100","SK-1101","SK-1105","SK-1108","SK-1111","SK-1113","SK-1114","SK-1115","SK-466","SK-468"]
+code: ["src/animation/animator.ts","src/render/clip-path.ts","src/render/element-tree-to-svg.ts","tests/composed-parity-fixtures.ts","tests/features.ts","tests/html-test-suite.tsx","tests/output/html-test/index.html","tests/output/html-test/results.json","tests/textarea-line-baseline.e2e.test.ts"]
+aliases: ["docs/01-fidelity.md","doc-01"]
+---
+
 # Domotion: rendering fidelity and warnings
 
 Requirements and support matrix for Domotion — the engine that converts captured HTML/CSS into SVG for animated demos. This doc is the contract with consumers about **what CSS features round-trip**.
@@ -90,7 +102,7 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 - [~] backdrop-filter — active element boxes use an isolated Chromium raster because an img-rendered SVG cannot address the prior backdrop surface. Direct document-root, ordinary stacking/isolation, clip, nested, and overlapping cases retain the narrow boundary; ancestor opacity/filter/mask/blend/transform ownership remains the explicit ordinary-element gap from the 17-family DPR-1/2 audit. Generated `::before`, `::after`, and `::checkmark` pseudos now own a pseudo-local Chromium prior-device surface in their captured paint slot, emitted before retained direct box/text/image vectors and guarded by independent no-surface/final-composite mutations (DM-2488; [doc 193](193-generated-pseudo-backdrop-source-ownership.md)). A successful isolated raster is silent. Only a retained unisolated/partially-isolated crop (`status: "partial"`) or a vector/frosted box fallback (`status: "unavailable"`) emits a `backdrop-filter` warning, and its detail names that output. See [docs 126](126-backdrop-filter-isolation.md) and [187](187-backdrop-source-surface-transitions.md).
 - [x] clip-path: inset(), circle(), ellipse(), polygon()
 - [x] clip-path: path() — supported (emitted as an SVG `<path>` clip; `src/render/clip-path.ts`)
-- [x] mask (mask-image gradient/url() fragment/element() paint refs) — emitted as SVG `<mask>`. Same-document mask and clip URLs preserve Blink's originating TreeScope, so duplicate outer/iframe/shadow ids cannot alias; HTML object/user-space region/content maps use the border box, source viewport, and EffectiveZoom, and effective alpha/luminance is retained. The strict iframe row is 0.00% at its default threshold and the focused capture-to-SVG discriminator is exact at DPR 1/2. Multi-layer fragment-mask composition remains DM-2520. See docs [20](20-css-mask-emission.md), [21](21-mask-fragment-references.md), [22](22-mask-element-refs.md), [39](39-clip-path-fragment-references.md), and [208](208-iframe-fragment-reference-ownership.md).
+- [x] mask (mask-image gradient/url() fragment/element() paint refs) — emitted as SVG `<mask>`. Same-document mask and clip URLs preserve Blink's originating TreeScope, so duplicate outer/iframe/shadow ids cannot alias; HTML object/user-space region/content maps use the border box, source viewport, and EffectiveZoom, and effective alpha/luminance is retained. The strict iframe row is 0.00% at its default threshold and the focused capture-to-SVG discriminator is exact at DPR 1/2. Multi-layer fragment-mask composition remains DM-2520. See docs [20](20-css-mask-emission.md), [21](21-mask-fragment-references.md), [22](22-mask-element-paint-references.md), [39](39-clip-path-fragment-references.md), and [208](208-iframe-fragment-reference-ownership.md).
 
 ### Transforms
 

@@ -1,3 +1,15 @@
+---
+id: "requirements/editing-page-rig-cookbook"
+title: "102 — The editing-page rig cookbook: typed reveals + per-state editing pages"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: ["macos"]
+tickets: ["DM-1763"]
+code: ["examples/animate/compressed-run/","examples/animate/editor-session/","tests/editor-session.e2e.test.ts"]
+aliases: ["docs/102-editing-page-rig-cookbook.md","doc-102"]
+---
+
 # 102 — The editing-page rig cookbook: typed reveals + per-state editing pages
 
 Status: **Shipped** (written from the rebuilt flagship,

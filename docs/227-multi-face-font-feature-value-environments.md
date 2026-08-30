@@ -1,3 +1,15 @@
+---
+id: "requirements/multi-face-font-feature-value-environments"
+title: "Authenticated multi-face font-feature-value environments"
+kind: "contract"
+status: "current"
+owners: ["text-fonts"]
+platforms: []
+tickets: []
+code: ["tests/font-feature-value-environment.test.ts","tests/shaping-font-feature-environment.test.ts","tests/shaping-font-feature-values.e2e.test.ts","tools/font-feature-value-environment.ts","tools/shaping-conformance.ts","tools/shaping-font-feature-values.ts"]
+aliases: ["docs/227-multi-face-font-feature-value-environments.md","doc-227"]
+---
+
 # Authenticated multi-face font-feature-value environments
 
 **Status:** shipped

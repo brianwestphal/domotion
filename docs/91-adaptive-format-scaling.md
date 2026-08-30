@@ -1,3 +1,15 @@
+---
+id: "requirements/adaptive-format-scaling"
+title: "91 — Adaptive format scaling (per-ratio type)"
+kind: "contract"
+status: "current"
+owners: ["product-tooling"]
+platforms: []
+tickets: ["DM-1537","DM-1541","DM-1560","DM-1568"]
+code: ["src/templates/builtin/text-card-common.ts","src/templates/formats.ts"]
+aliases: ["docs/91-adaptive-format-scaling.md","doc-91"]
+---
+
 # 91 — Adaptive format scaling (per-ratio type)
 
 **Status: shipped for the creative-pack text + number cards (DM-1541).** A

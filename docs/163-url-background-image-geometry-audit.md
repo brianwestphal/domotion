@@ -1,3 +1,15 @@
+---
+id: "requirements/url-background-image-geometry-audit"
+title: "URL background image geometry audit"
+kind: "evidence"
+status: "current"
+owners: ["images-media","layout","platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2365","DM-2370","DM-2477","DM-2478","DM-2479","DM-2480"]
+code: [".github/workflows/url-background-geometry-parity.yml","src/capture/background-image-sizing.ts","src/capture/script/walker/background-attachment.ts","src/capture/script/walker/fragmentation.ts","src/render/background-attachment.ts","src/render/image-pattern.ts"]
+aliases: ["docs/163-url-background-image-geometry-audit.md","doc-163"]
+---
+
 # URL background image geometry audit
 
 **Status:** selected-image capture, exact tile/attachment/fragment geometry, and the hard all-platform release gate are implemented

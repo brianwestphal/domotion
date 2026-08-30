@@ -1,3 +1,15 @@
+---
+id: "requirements/animated-3d-frame-state-parity"
+title: "186 — Animated CSS 3D frame-state parity"
+kind: "evidence"
+status: "partial"
+owners: ["animation","platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2356","DM-2359","DM-2492","DM-2531","DM-2553","DM-2554"]
+code: [".github/workflows/animated-projective-frame-parity.yml","src/capture/animation-frame.ts"]
+aliases: ["docs/186-animated-3d-frame-state-parity.md","doc-186"]
+---
+
 # 186 — Animated CSS 3D frame-state parity
 
 **Status:** exact document-timeline CSS/WAAPI and SMIL frame synchronization,

@@ -1,3 +1,15 @@
+---
+id: "requirements/dark-mode"
+title: "29 — Dark-mode rendering"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2368","DM-2458","DM-258","DM-454","DM-455","DM-510","DM-552","DM-553","DM-554","DM-555","DM-556","SK-468"]
+code: ["src/animation/animator.ts","src/capture/index.ts","src/dark-mode-capture.test.ts","src/render/form-controls.ts","tests/real-world.tsx","tests/runner.tsx"]
+aliases: ["docs/29-dark-mode.md","doc-29"]
+---
+
 # 29 — Dark-mode rendering
 
 > **Current native-control boundary (DM-2458):** the palette calibration below

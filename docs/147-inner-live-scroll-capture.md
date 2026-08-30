@@ -1,3 +1,15 @@
+---
+id: "requirements/inner-live-scroll-capture"
+title: "147. Inner live-scroll capture"
+kind: "contract"
+status: "current"
+owners: ["layout"]
+platforms: []
+tickets: []
+code: []
+aliases: ["docs/147-inner-live-scroll-capture.md","doc-147"]
+---
+
 # 147. Inner live-scroll capture
 
 Domotion's scroll executor captures the live DOM at every scroll anchor. It

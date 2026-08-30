@@ -1,3 +1,15 @@
+---
+id: "requirements/template-authoring"
+title: "74 — Authoring & publishing a third-party template"
+kind: "contract"
+status: "current"
+owners: ["product-tooling"]
+platforms: []
+tickets: ["DM-1282","DM-1297"]
+code: ["examples/template-package/","src/templates/registry.ts"]
+aliases: ["docs/74-template-authoring.md","doc-74"]
+---
+
 # 74 — Authoring & publishing a third-party template
 
 Status: **shipped** (DM-1282). This is the hands-on guide for **third-party

@@ -1,3 +1,15 @@
+---
+id: "requirements/creative-template-pack"
+title: "86 — Creative template pack"
+kind: "contract"
+status: "current"
+owners: ["product-tooling"]
+platforms: []
+tickets: ["DM-1512","DM-1519","DM-1521","DM-1522","DM-1523","DM-1524","DM-1526","DM-1529","DM-1531","DM-1532","DM-1533","DM-1539","DM-1575"]
+code: ["examples/templates-demo.ts","src/capture/script/index.ts","src/templates/builtin/odometer.ts"]
+aliases: ["docs/86-creative-template-pack.md","doc-86"]
+---
+
 # 86 — Creative template pack
 
 **Status: all three batches shipped (DM-1523 design → DM-1531/DM-1532/DM-1533

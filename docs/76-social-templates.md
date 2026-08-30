@@ -1,3 +1,15 @@
+---
+id: "requirements/social-templates"
+title: "76 — The chat and subscribe built-in templates"
+kind: "contract"
+status: "current"
+owners: ["product-tooling"]
+platforms: []
+tickets: ["DM-1278","DM-1302","DM-1303"]
+code: ["examples/output/templates/","examples/templates-demo.ts","src/templates/builtin/chat.ts","src/templates/builtin/subscribe.ts","src/templates/registry.ts"]
+aliases: ["docs/76-social-templates.md","doc-76"]
+---
+
 # 76 — The `chat` and `subscribe` built-in templates
 
 Status: **shipped** (DM-1278). Two social-media generators built on the doc-70

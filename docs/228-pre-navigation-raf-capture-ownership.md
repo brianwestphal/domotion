@@ -1,3 +1,15 @@
+---
+id: "requirements/pre-navigation-raf-capture-ownership"
+title: "228 — Pre-navigation rAF capture ownership"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2553","DM-2554"]
+code: [".github/workflows/raf-clock-ownership.yml","tests/raf-clock.e2e.test.ts"]
+aliases: ["docs/228-pre-navigation-raf-capture-ownership.md","doc-228"]
+---
+
 # 228 — Pre-navigation rAF capture ownership
 
 **Ticket:** DM-2554

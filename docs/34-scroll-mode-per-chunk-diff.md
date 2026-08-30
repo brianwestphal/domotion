@@ -1,3 +1,15 @@
+---
+id: "requirements/scroll-mode-per-chunk-diff"
+title: "34. Scroll-mode per-chunk diff"
+kind: "contract"
+status: "current"
+owners: ["layout"]
+platforms: []
+tickets: []
+code: ["tests/output/real-world/results.json","tests/real-world.tsx"]
+aliases: ["docs/34-scroll-mode-per-chunk-diff.md","doc-34"]
+---
+
 # 34. Scroll-mode per-chunk diff
 
 `*-scroll` real-world fixtures (e.g. `apple-mobile-scroll`, `stripe-mobile-scroll`) drive Chromium through a smooth top-to-bottom scroll while Domotion captures the DOM at each viewport-height interval and composes the captures into a single animated SVG. The scroll executor and composer are the same machinery the `--scroll` CLI flag uses (see `src/scroll/{pattern,executor,composer}.ts`).

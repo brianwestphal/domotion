@@ -1,3 +1,15 @@
+---
+id: "requirements/affine-text-paint-consumption"
+title: "Exact affine text paint consumption"
+kind: "contract"
+status: "current"
+owners: ["text-fonts","paint-effects"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2467","DM-2468","DM-2469","DM-2470","DM-2546","DM-2547"]
+code: ["src/capture/text-line-origin.test.ts","src/render/text-affine.test.ts","src/render/text-affine.ts","tests/text-affine-render.e2e.test.ts","tools/text-affine-baseline-protocol-oracle.ts"]
+aliases: ["docs/177-affine-text-paint-consumption.md","doc-177"]
+---
+
 # Exact affine text paint consumption
 
 DM-2470 completes the renderer half of the transformed-text protocol introduced

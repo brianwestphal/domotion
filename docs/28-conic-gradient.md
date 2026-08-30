@@ -1,3 +1,15 @@
+---
+id: "requirements/conic-gradient"
+title: "28 — Conic-gradient backgrounds"
+kind: "contract"
+status: "current"
+owners: ["paint-effects"]
+platforms: []
+tickets: ["DM-2327","DM-526","DM-547","DM-549","DM-550"]
+code: ["src/render/conic-raster.ts","src/render/element-tree-to-svg.ts","src/render/gradients.ts"]
+aliases: ["docs/28-conic-gradient.md","doc-28"]
+---
+
 # 28 — Conic-gradient backgrounds
 
 ## Context

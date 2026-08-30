@@ -1,3 +1,15 @@
+---
+id: "requirements/paint-geometry-oracle"
+title: "130 — Gradient, mask, clip, and resizer geometry oracle"
+kind: "evidence"
+status: "superseded"
+owners: ["paint-effects","layout","platform-release"]
+platforms: []
+tickets: ["DM-2358","DM-2528"]
+code: []
+aliases: ["docs/130-paint-geometry-oracle.md","doc-130"]
+---
+
 # 130 — Gradient, mask, clip, and resizer geometry oracle
 
 `npm run paint:geometry-oracle` is the first decision-level gate for CSS paint

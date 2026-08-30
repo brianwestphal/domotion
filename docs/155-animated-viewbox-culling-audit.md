@@ -1,3 +1,15 @@
+---
+id: "requirements/animated-viewbox-culling-audit"
+title: "Animated viewBox culling geometry audit"
+kind: "evidence"
+status: "current"
+owners: ["layout","animation","platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2386","DM-2460","DM-2461"]
+code: ["src/render/culling-geometry.ts","src/tree-ops/swept-transform-bounds.ts","src/tree-ops/viewbox-culling.ts"]
+aliases: ["docs/155-animated-viewbox-culling-audit.md","doc-155"]
+---
+
 # Animated viewBox culling geometry audit
 
 DM-2386 audited the optimization in

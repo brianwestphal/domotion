@@ -1,3 +1,15 @@
+---
+id: "requirements/debug-mode-capture"
+title: "Debug-mode capture"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: []
+tickets: ["DM-946"]
+code: []
+aliases: ["docs/55-debug-mode-capture.md","doc-55"]
+---
+
 # Debug-mode capture
 
 `domotion capture --debug` writes a reproduction bundle alongside the

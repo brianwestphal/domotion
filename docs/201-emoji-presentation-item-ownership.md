@@ -1,3 +1,15 @@
+---
+id: "requirements/emoji-presentation-item-ownership"
+title: "Emoji presentation shaping-item ownership and closure"
+kind: "contract"
+status: "current"
+owners: ["text-fonts"]
+platforms: ["linux"]
+tickets: ["DM-2502","DM-2507"]
+code: [".github/workflows/emoji-presentation-ownership-audit.yml","tools/emoji-presentation-ownership-audit.ts"]
+aliases: ["docs/201-emoji-presentation-item-ownership.md","doc-201"]
+---
+
 # Emoji presentation shaping-item ownership and closure
 
 DM-2502 investigated the sole significant HTML residual in native Linux arm64

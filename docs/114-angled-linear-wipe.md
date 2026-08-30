@@ -1,3 +1,15 @@
+---
+id: "requirements/angled-linear-wipe"
+title: "114 — Angled linear wipe"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: []
+tickets: ["DM-2041"]
+code: []
+aliases: ["docs/114-angled-linear-wipe.md","doc-114"]
+---
+
 # 114 — Angled linear wipe
 
 **Status: shipped (DM-2041).** The linear `wipe` transition accepts an optional

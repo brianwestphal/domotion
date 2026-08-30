@@ -1,3 +1,15 @@
+---
+id: "requirements/scroll-button-rendering"
+title: "::scroll-button() paging-arrow rendering"
+kind: "contract"
+status: "current"
+owners: ["layout"]
+platforms: []
+tickets: ["DM-1234"]
+code: ["src/capture/script/index.ts"]
+aliases: ["docs/69-scroll-button-rendering.md","doc-69"]
+---
+
 # `::scroll-button()` paging-arrow rendering
 
 **Status: supported (DM-1234).** Domotion captures and renders the CSS

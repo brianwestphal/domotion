@@ -1,3 +1,15 @@
+---
+id: "requirements/glyph-font-compare"
+title: "98 — Glyph font-identity comparator (compare-glyphs)"
+kind: "contract"
+status: "current"
+owners: ["text-fonts"]
+platforms: ["macos"]
+tickets: ["DM-1686"]
+code: ["src/review/glyph-compare.e2e.test.ts","src/review/glyph-compare.test.ts","src/review/glyph-compare.ts","tests/output/glyph-compare-calibration/results.json","tools/glyph-compare-calibrate.ts"]
+aliases: ["docs/98-glyph-font-compare.md","doc-98"]
+---
+
 # 98 — Glyph font-identity comparator (`compare-glyphs`)
 
 Status: **Shipped** (library + CLI + calibration harness).

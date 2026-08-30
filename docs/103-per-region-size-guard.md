@@ -1,3 +1,15 @@
+---
+id: "requirements/per-region-size-guard"
+title: "Per-region size guard (frame-sequence compressor)"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: []
+tickets: ["DM-1764","DM-1771","DM-1772"]
+code: ["src/animation/compressed-run.ts","src/cli/animate.ts","src/render/embedded-font-snapshot.test.ts","tests/compress-size-guard.e2e.test.ts"]
+aliases: ["docs/103-per-region-size-guard.md","doc-103"]
+---
+
 # Per-region size guard (frame-sequence compressor)
 
 The frame-sequence compressor (`docs/100-rich-text-editing.md`) composes N

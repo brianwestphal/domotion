@@ -1,3 +1,15 @@
+---
+id: "requirements/shaped-origin-oracle"
+title: "Shaped-origin provenance oracle"
+kind: "evidence"
+status: "current"
+owners: ["text-fonts","platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2329","DM-2444","DM-2445"]
+code: []
+aliases: ["docs/151-shaped-origin-oracle.md","doc-151"]
+---
+
 # Shaped-origin provenance oracle
 
 DM-2445 adds `npm run fonts:shaped-origin`, a production-path logical oracle

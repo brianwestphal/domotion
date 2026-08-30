@@ -1,3 +1,15 @@
+---
+id: "requirements/vertical-orientation-ownership"
+title: "Blink-owned vertical orientation and text-combine ownership"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2525"]
+code: [".github/workflows/vertical-orientation-parity.yml","src/capture/script/vertical-orientation.generated.ts","src/vertical-orientation.ts","tests/vertical-orientation-capture.e2e.test.ts","tools/generate-vertical-orientation-ranges.mjs","tools/vertical-orientation-oracle.ts"]
+aliases: ["docs/216-vertical-orientation-ownership.md","doc-216"]
+---
+
 # Blink-owned vertical orientation and text-combine ownership
 
 Status: implemented for DM-2525.

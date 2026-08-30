@@ -1,3 +1,15 @@
+---
+id: "requirements/caret-shapes"
+title: "97 — Caret shapes (bar / block / underscore)"
+kind: "contract"
+status: "current"
+owners: ["text-fonts"]
+platforms: []
+tickets: ["DM-1590","DM-1591"]
+code: ["examples/animate/caret-shapes/","src/animation/animator.ts","src/animation/caret-metrics.test.ts","src/animation/caret-metrics.ts","src/animation/overlay-schema.ts","src/cli/animate.ts","src/cli/type-resample.test.ts","src/cli/type-resample.ts","src/terminal/incremental.ts","tests/animate-examples.tsx"]
+aliases: ["docs/97-caret-shapes.md","doc-97"]
+---
+
 # 97 — Caret shapes (bar / block / underscore)
 
 ## Summary

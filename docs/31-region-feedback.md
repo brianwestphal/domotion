@@ -1,3 +1,15 @@
+---
+id: "requirements/region-feedback"
+title: "Region-scoped feedback in the demos-review tool"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: []
+tickets: ["DM-570"]
+code: ["tests/review-server.tsx"]
+aliases: ["docs/31-region-feedback.md","doc-31"]
+---
+
 # Region-scoped feedback in the demos-review tool
 
 End-to-end contract for an extension of Domotion's local visual-regression review tool (`npm run demos:review` → `tests/review-server.tsx`) that lets the user point at specific rectangular regions of an `expected` / `actual` / `diff` PNG triplet, persist those regions as a comment on the originating Hot Sheet ticket, and have Domotion's AI iteration loop crop the source images to those regions before reasoning.

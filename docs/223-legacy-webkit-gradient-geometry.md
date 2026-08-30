@@ -1,3 +1,15 @@
+---
+id: "requirements/legacy-webkit-gradient-geometry"
+title: "223 — Legacy -webkit-gradient() geometry ownership"
+kind: "archive"
+status: "superseded"
+owners: ["paint-effects","layout"]
+platforms: []
+tickets: ["DM-2528"]
+code: ["src/capture/script/walker/borders-backgrounds.test.ts","src/capture/script/walker/borders-backgrounds.ts","src/render/gradients.test.ts","src/render/gradients.ts","tests/legacy-webkit-gradient.e2e.test.ts","tools/paint-geometry-oracle.ts"]
+aliases: ["docs/223-legacy-webkit-gradient-geometry.md","doc-223"]
+---
+
 # 223 — Legacy `-webkit-gradient()` geometry ownership
 
 DM-2528 closes the logical gap between Blink's deprecated gradient grammar and

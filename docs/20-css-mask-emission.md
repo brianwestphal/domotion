@@ -1,3 +1,15 @@
+---
+id: "requirements/css-mask-emission"
+title: "20 — CSS mask → SVG <mask> emission"
+kind: "contract"
+status: "current"
+owners: ["paint-effects"]
+platforms: []
+tickets: ["DM-2379","DM-2472","DM-2494","DM-2520","DM-470","DM-493","DM-494"]
+code: ["src/capture/script/walker/masks-clips.ts","src/mask.test.ts","src/render/element-tree-to-svg.ts","src/render/mask-origin-clip.test.ts","src/render/mask-position.test.ts","src/render/mask-position.ts","src/render/mask.ts","tests/mask-position-contain-cover.e2e.test.ts","tests/mask-url-repeat-geometry.e2e.test.ts"]
+aliases: ["docs/20-css-mask-emission.md","doc-20"]
+---
+
 # 20 — CSS mask → SVG `<mask>` emission
 
 ## Context

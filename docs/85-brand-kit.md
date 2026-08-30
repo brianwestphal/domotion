@@ -1,3 +1,15 @@
+---
+id: "requirements/brand-kit"
+title: "85 — Brand kit (design tokens applied across templates)"
+kind: "contract"
+status: "current"
+owners: ["product-tooling"]
+platforms: []
+tickets: ["DM-1519","DM-1520","DM-1521","DM-1522","DM-1523","DM-1530","DM-1539","DM-1540","DM-1543","DM-1544","DM-1545","DM-1575"]
+code: ["examples/animate/brand-mixed/","examples/brand-capture-demo.ts","examples/output/brand-capture.svg","examples/output/templates/brand-acme-cta.svg","examples/templates-demo.ts","src/templates/brand.ts"]
+aliases: ["docs/85-brand-kit.md","doc-85"]
+---
+
 # 85 — Brand kit (design tokens applied across templates)
 
 **Status: shipped v1 (DM-1522 design → DM-1530 impl); logo slot + capture/animate

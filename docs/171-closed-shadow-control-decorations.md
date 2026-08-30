@@ -1,3 +1,15 @@
+---
+id: "requirements/closed-shadow-control-decorations"
+title: "171 — Source-owned closed-shadow control decorations"
+kind: "contract"
+status: "current"
+owners: ["text-fonts","paint-effects"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2455"]
+code: ["src/capture/native-control-decoration.ts","tests/native-control-decoration.e2e.test.ts"]
+aliases: ["docs/171-closed-shadow-control-decorations.md","doc-171"]
+---
+
 # 171 — Source-owned closed-shadow control decorations
 
 DM-2455 splits a Chromium-owned control decoration from an otherwise

@@ -1,3 +1,15 @@
+---
+id: "requirements/chromium-roll-differential-audit"
+title: "160 — Chromium roll differential audit"
+kind: "evidence"
+status: "current"
+owners: ["platform-release"]
+platforms: []
+tickets: []
+code: []
+aliases: ["docs/160-chromium-roll-differential-audit.md","doc-160"]
+---
+
 # 160 — Chromium roll differential audit
 
 Every Chromium/Skia/HarfBuzz/ICU roll compares two independently collected stage-evidence manifests and representative visual digests on comparable environments:

@@ -1,3 +1,15 @@
+---
+id: "requirements/format-on-capture"
+title: "90 — --format on capture / animate (viewport sizing)"
+kind: "contract"
+status: "current"
+owners: ["product-tooling"]
+platforms: []
+tickets: ["DM-1538","DM-1559"]
+code: ["src/cli/animate.ts","src/cli/capture.ts","src/templates/formats.ts"]
+aliases: ["docs/90-format-on-capture.md","doc-90"]
+---
+
 # 90 — `--format` on `capture` / `animate` (viewport sizing)
 
 **Status: shipped (DM-1538).** `domotion capture` and `domotion animate` accept

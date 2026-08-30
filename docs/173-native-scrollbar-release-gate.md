@@ -1,3 +1,15 @@
+---
+id: "requirements/native-scrollbar-release-gate"
+title: "Native scrollbar release gate"
+kind: "contract"
+status: "partial"
+owners: ["layout","platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2481","DM-2484"]
+code: [".github/workflows/native-scrollbar-parity.yml","tools/check-native-scrollbar-release.ts","tools/native-scrollbar-release-gate.ts"]
+aliases: ["docs/173-native-scrollbar-release-gate.md","doc-173"]
+---
+
 # Native scrollbar release gate
 
 **Status:** strict adjudicator, source-owned custom/native paint, and the

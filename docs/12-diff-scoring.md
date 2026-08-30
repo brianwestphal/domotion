@@ -1,3 +1,15 @@
+---
+id: "requirements/diff-scoring"
+title: "Domotion: visual-diff scoring"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-1783","DM-1784","DM-262","DM-281","DM-379","DM-383","DM-715","DM-884"]
+code: ["src/review/compare-pngs.test.ts","src/review/compare-pngs.ts","tests/fixture-fonts.ts","tests/flipbook-parity.ts","tests/html-test-suite.tsx","tests/real-world.tsx","tests/runner.tsx"]
+aliases: ["docs/12-diff-scoring.md","doc-12"]
+---
+
 # Domotion: visual-diff scoring
 
 Requirements for the PNG-comparison metric shared by every visual-regression

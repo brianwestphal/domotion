@@ -1,3 +1,15 @@
+---
+id: "requirements/cross-origin-scroll-frame-capture"
+title: "164 — Cross-origin iframe recursion during scroll capture"
+kind: "contract"
+status: "current"
+owners: ["layout"]
+platforms: []
+tickets: []
+code: []
+aliases: ["docs/164-cross-origin-scroll-frame-capture.md","doc-164"]
+---
+
 # 164 — Cross-origin iframe recursion during scroll capture
 
 Scroll capture now passes `ScrollExecutorOptions.crossOriginFrames` into every segment's ordinary or self-contained `captureElementTree` call. The CLI supplies the same value used to build `crossOriginFramesLaunchArgs`, so the launch-time web-security opt-in and the per-host recursion gate cannot diverge between static and scroll modes.

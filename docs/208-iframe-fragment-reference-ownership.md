@@ -1,3 +1,15 @@
+---
+id: "requirements/iframe-fragment-reference-ownership"
+title: "208 — Iframe-local SVG fragment reference ownership"
+kind: "reference"
+status: "current"
+owners: ["layout"]
+platforms: []
+tickets: ["DM-2338","DM-2520"]
+code: ["src/mask.test.ts","tests/iframe-inner-defs.e2e.test.ts","tests/multi-layer-fragment-mask.e2e.test.ts"]
+aliases: ["docs/208-iframe-fragment-reference-ownership.md","doc-208"]
+---
+
 # 208 — Iframe-local SVG fragment reference ownership
 
 ## Outcome

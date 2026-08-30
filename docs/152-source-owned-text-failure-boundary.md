@@ -1,3 +1,15 @@
+---
+id: "requirements/source-owned-text-failure-boundary"
+title: "Source-owned text failure boundary"
+kind: "contract"
+status: "current"
+owners: ["text-fonts"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2399","DM-2511"]
+code: ["src/render/form-controls.ts","src/render/text-to-path.test.ts","src/render/text.ts"]
+aliases: ["docs/152-source-owned-text-failure-boundary.md","doc-152"]
+---
+
 # Source-owned text failure boundary
 
 Status: **Shipped (DM-2399)**

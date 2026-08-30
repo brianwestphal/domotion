@@ -1,3 +1,15 @@
+---
+id: "requirements/repeating-gradients"
+title: "Domotion: repeating-linear-gradient (and calc() stop offsets)"
+kind: "contract"
+status: "current"
+owners: ["paint-effects"]
+platforms: []
+tickets: ["DM-273","DM-275"]
+code: [".github/workflows/repeating-linear-px-stop-parity.yml","src/capture/pseudo-style-cdp.ts","src/render/gradients.test.ts","src/render/gradients.ts","tests/repeating-linear-legacy-consumers.e2e.test.ts","tests/repeating-linear-px-stops.e2e.test.ts"]
+aliases: ["docs/10-repeating-gradients.md","doc-10"]
+---
+
 # Domotion: `repeating-linear-gradient` (and `calc()` stop offsets)
 
 Requirements for honoring CSS `repeating-linear-gradient(...)` (and `repeating-radial-gradient(...)`) plus simple `calc()` expressions in stop positions. Origin: DM-275 (follow-up from DM-273; doc 29 left repeating gradients explicitly out of scope).

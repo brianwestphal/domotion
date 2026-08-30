@@ -1,3 +1,15 @@
+---
+id: "requirements/mathml-italic-token-oracle"
+title: "MathML italic-token logical oracle"
+kind: "evidence"
+status: "current"
+owners: ["text-fonts","platform-release"]
+platforms: ["linux"]
+tickets: ["DM-2441","DM-2511","DM-2512"]
+code: []
+aliases: ["docs/152-mathml-italic-token-oracle.md","doc-152"]
+---
+
 # MathML italic-token logical oracle
 
 Status: **Shipped (DM-2441), source-boundary repair shipped (DM-2511)**

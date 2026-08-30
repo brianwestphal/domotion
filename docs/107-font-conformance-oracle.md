@@ -1,3 +1,15 @@
+---
+id: "requirements/font-conformance-oracle"
+title: "107 — Font-resolution conformance oracle"
+kind: "evidence"
+status: "current"
+owners: ["text-fonts","platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-1858","DM-1905","DM-2350","DM-2422","DM-2507"]
+code: [".github/workflows/font-conformance-synthetic.yml",".github/workflows/font-conformance.yml","scripts/ci-font-conformance-shard.sh","scripts/diff-font-conformance-baseline.mjs","scripts/merge-font-conformance-shards.mjs","src/render/font-resolution-cache-reset.test.ts","src/render/font-resolution.ts","tests/baselines/README.md","tests/fixtures/variable-axis/variable-axis.html","tests/font-conformance-baseline.test.ts","tests/font-conformance-extraction.e2e.test.ts","tests/font-conformance-synthetic-stacks.test.ts","tests/font-conformance.test.ts","tests/harvested-corpus-identity.test.ts","tests/output/font-conformance","tests/variable-axis-fixture.test.ts","tests/variable-axis-oracle-pair.e2e.test.ts","tools/build-variable-axis-fixture.mjs","tools/chrome-font-agreement.ts","tools/compare-glyphs.ts","tools/font-conformance-allowlist.json","tools/font-conformance-rotation.mjs","tools/font-conformance-stacks.darwin.json","tools/font-conformance-stacks.synthetic.json","tools/font-conformance-synthetic-stacks.ts","tools/font-conformance.ts","tools/font-inventory.mjs","tools/probe-variation-selector-vs-property.mjs","tools/shaping-conformance-runs.json","tools/variable-axis-oracle-pair.ts"]
+aliases: ["docs/107-font-conformance-oracle.md","doc-107"]
+---
+
 # 107 — Font-resolution conformance oracle
 
 This is the face-selection stage of the normative [same-machine Chromium text

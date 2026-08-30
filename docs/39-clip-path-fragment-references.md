@@ -1,3 +1,15 @@
+---
+id: "requirements/clip-path-fragment-references"
+title: "39 — clip-path: url(\"#fragment\") reference ownership"
+kind: "reference"
+status: "current"
+owners: ["paint-effects","layout","product-tooling"]
+platforms: []
+tickets: ["DM-2338","DM-2362","DM-493","DM-826","DM-828","DM-829"]
+code: ["src/capture/index.ts","src/render/clip-path.test.ts","src/render/svg-inline.test.ts","tests/clip-path-url-reference-box.e2e.test.ts","tests/external-svg-refs.e2e.test.ts","tests/features.ts","tests/iframe-inner-defs.e2e.test.ts","tools/paint-geometry-browser-oracle.ts","tools/paint-geometry-oracle.ts"]
+aliases: ["docs/39-clip-path-fragment-references.md","doc-39"]
+---
+
 # 39 — `clip-path: url("#fragment")` reference ownership
 
 ## Context

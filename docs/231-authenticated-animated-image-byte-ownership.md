@@ -1,3 +1,15 @@
+---
+id: "requirements/authenticated-animated-image-byte-ownership"
+title: "Authenticated animated-image encoded-byte ownership"
+kind: "contract"
+status: "current"
+owners: ["images-media","animation"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2578","DM-2583","DM-2585","DM-2589","DM-2590"]
+code: ["tools/animated-image-owner-resource-truth-chromium.patch","tools/animated-image-owner-resource-truth-schema.ts","tools/animated-image-stock-cdp-support.ts"]
+aliases: ["docs/231-authenticated-animated-image-byte-ownership.md","doc-231"]
+---
+
 # Authenticated animated-image encoded-byte ownership
 
 DM-2578 is a source-first design investigation. It adds no production capture

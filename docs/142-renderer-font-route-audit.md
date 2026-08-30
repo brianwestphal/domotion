@@ -1,3 +1,15 @@
+---
+id: "requirements/renderer-font-route-audit"
+title: "Renderer font-route audit"
+kind: "evidence"
+status: "current"
+owners: ["text-fonts","platform-release"]
+platforms: []
+tickets: ["DM-2330","DM-2341","DM-2348","DM-2387","DM-2392","DM-2393","DM-2398","DM-2399"]
+code: []
+aliases: ["docs/142-renderer-font-route-audit.md","doc-142"]
+---
+
 # Renderer font-route audit
 
 Status: **Investigation complete (DM-2348); renderer ledger shipped in DM-2398**

@@ -1,3 +1,15 @@
+---
+id: "requirements/native-control-source-frame-rasters"
+title: "167 — Source-frame-coherent native-control rasters"
+kind: "contract"
+status: "current"
+owners: ["images-media"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2456","DM-2458"]
+code: ["src/capture/native-control-raster.test.ts","src/capture/native-control-raster.ts","tests/native-control-source-frame.e2e.test.ts","tests/raster-fallback-content.e2e.test.ts"]
+aliases: ["docs/167-native-control-source-frame-rasters.md","doc-167"]
+---
+
 # 167 — Source-frame-coherent native-control rasters
 
 DM-2456 makes `nativeControlRaster` a strict Chromium paint boundary. Native

@@ -1,3 +1,15 @@
+---
+id: "requirements/terminal-capture"
+title: "Terminal capture → animated SVG (domotion term, DM-1225)"
+kind: "contract"
+status: "current"
+owners: ["product-tooling"]
+platforms: ["macos"]
+tickets: ["DM-1225","DM-1226","DM-1246","DM-1249","DM-1319","DM-1321","DM-1325"]
+code: ["examples/progress-install.ts","examples/terminal-demo.ts","src/animation/embed-timeline.ts","src/cli/index.ts","src/terminal/","src/terminal/font-dedup.e2e.test.ts"]
+aliases: ["docs/67-terminal-capture.md","doc-67"]
+---
+
 # Terminal capture → animated SVG (`domotion term`, DM-1225)
 
 `domotion term` turns a recorded terminal session into a self-contained animated

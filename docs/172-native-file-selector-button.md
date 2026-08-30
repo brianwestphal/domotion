@@ -1,3 +1,15 @@
+---
+id: "requirements/native-file-selector-button"
+title: "172 — Native file-selector button ownership"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2454"]
+code: ["tests/native-control-decoration.e2e.test.ts"]
+aliases: ["docs/172-native-file-selector-button.md","doc-172"]
+---
+
 # 172 — Native file-selector button ownership
 
 DM-2454 treats `<input type=file>` as two closed-UA-shadow children with

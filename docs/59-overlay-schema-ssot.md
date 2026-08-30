@@ -1,3 +1,15 @@
+---
+id: "requirements/overlay-schema-ssot"
+title: "59 — Single source of truth for overlay / animation shapes"
+kind: "contract"
+status: "current"
+owners: ["animation","product-tooling"]
+platforms: []
+tickets: ["DM-1131","DM-1132","DM-1134"]
+code: ["scripts/generate-animate-schema.ts","src/animation/overlay-schema.ts","src/cli/animate-config-json-schema.test.ts","src/cli/animate.ts"]
+aliases: ["docs/59-overlay-schema-ssot.md","doc-59"]
+---
+
 # 59 — Single source of truth for overlay / animation shapes
 
 Status: **shipped** (DM-1131). The overlay and intra-frame-animation shapes are

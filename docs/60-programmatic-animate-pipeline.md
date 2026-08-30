@@ -1,3 +1,15 @@
+---
+id: "requirements/programmatic-animate-pipeline"
+title: "60 — Programmatic declarative-animate pipeline"
+kind: "contract"
+status: "current"
+owners: ["animation"]
+platforms: []
+tickets: ["DM-1130","DM-1132","DM-1137","DM-1138"]
+code: ["src/cli/animate.ts"]
+aliases: ["docs/60-programmatic-animate-pipeline.md","doc-60"]
+---
+
 # 60 — Programmatic declarative-animate pipeline
 
 Status: **shipped** (DM-1130). The JSON-config-driven animation pipeline that

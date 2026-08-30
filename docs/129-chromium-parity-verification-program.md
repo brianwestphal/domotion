@@ -1,3 +1,15 @@
+---
+id: "requirements/chromium-parity-verification-program"
+title: "129 — Chromium parity verification program"
+kind: "evidence"
+status: "current"
+owners: ["platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2315","DM-2316","DM-2317","DM-2355","DM-2557","DM-2558","DM-2568","DM-2575","DM-2586"]
+code: ["src/capture/table-geometry.e2e.test.ts","tools/parity-program.json","tools/semantic-coverage.json"]
+aliases: ["docs/129-chromium-parity-verification-program.md","doc-129"]
+---
+
 # 129 — Chromium parity verification program
 
 ## Goal

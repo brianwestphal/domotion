@@ -1,3 +1,15 @@
+---
+id: "requirements/fragmented-collapsed-table-ownership"
+title: "Fragmented collapsed-table physical ownership"
+kind: "contract"
+status: "current"
+owners: ["layout"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2526","DM-2557","DM-2558","DM-2559","DM-2560","DM-2571"]
+code: [".github/workflows/fragmented-collapsed-table-release.yml","src/capture/collapsed-border-fragment-cdp.e2e.test.ts","src/capture/collapsed-border-fragment-cdp.ts","src/capture/collapsed-border-fragment-record.ts","src/capture/paged-collapsed-table-cdp.ts","src/capture/paged-collapsed-table-record.ts","src/capture/script/walker/borders-backgrounds.ts","tests/border-collapse-conflict.e2e.test.ts","tools/collapsed-border-fragmentation-oracle.ts","tools/fragmented-collapsed-table-release-gate.ts","tools/paged-collapsed-table-ownership-audit.ts"]
+aliases: ["docs/225-fragmented-collapsed-table-ownership.md","doc-225"]
+---
+
 # Fragmented collapsed-table physical ownership
 
 **Tickets:** DM-2526, DM-2557, DM-2558, DM-2559, DM-2571

@@ -1,3 +1,15 @@
+---
+id: "requirements/paths-native-raster-floor"
+title: "Paths-mode native-raster floor matrix"
+kind: "contract"
+status: "partial"
+owners: ["images-media"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2352","DM-2499"]
+code: [".github/workflows/paths-native-raster-floor.yml","tools/paths-native-raster-collector.ts","tools/paths-native-raster-corpus.ts","tools/paths-native-raster-envelopes.json","tools/paths-native-raster-gate.ts","tools/paths-native-raster-producer.ts"]
+aliases: ["docs/197-paths-native-raster-floor.md","doc-197"]
+---
+
 # Paths-mode native-raster floor matrix
 
 DM-2352 separates logical text identity from the terminal raster difference

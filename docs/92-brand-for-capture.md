@@ -1,3 +1,15 @@
+---
+id: "requirements/brand-for-capture"
+title: "92 — Brand for capture / animate (CSS-variable injection)"
+kind: "contract"
+status: "current"
+owners: ["product-tooling"]
+platforms: []
+tickets: ["DM-1540","DM-1543","DM-1544"]
+code: ["examples/animate/brand-mixed/","examples/brand-capture-demo.ts","examples/output/brand-capture.svg","examples/templates/brand-page.html"]
+aliases: ["docs/92-brand-for-capture.md","doc-92"]
+---
+
 # 92 — Brand for `capture` / `animate` (CSS-variable injection)
 
 **Status: shipped (DM-1540).** `capture` and `animate` gain a `--brand <file>`

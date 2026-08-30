@@ -1,3 +1,15 @@
+---
+id: "requirements/parity-blind-spot-corpus"
+title: "161 — Parity blind-spot corpus"
+kind: "evidence"
+status: "current"
+owners: ["platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: []
+code: ["tools/html-test-parity-corpus.json"]
+aliases: ["docs/161-parity-blind-spot-corpus.md","doc-161"]
+---
+
 # 161 — Parity blind-spot corpus
 
 `35-parity-blind-spots.html` is a pinned fixture injected into every macOS, Linux, and Windows html-test clone. One deterministic page composes SVG effect boxes, CSS masks/clips, an opaque-origin scrollable iframe, fragmented backgrounds and tables, bidi/emoji overrides, MathML and font fallback, native controls, nested projective transforms, filters/blends, CSS zoom, and interacting fallback routes.

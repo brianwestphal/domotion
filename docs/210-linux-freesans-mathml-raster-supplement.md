@@ -1,3 +1,15 @@
+---
+id: "requirements/linux-freesans-mathml-raster-supplement"
+title: "Linux FreeSans MathML native-raster supplement"
+kind: "contract"
+status: "current"
+owners: ["text-fonts","images-media","platform-release"]
+platforms: ["linux"]
+tickets: []
+code: ["tools/linux-mathml-greek-raster-gate.ts","tools/paths-native-raster-envelopes.json"]
+aliases: ["docs/210-linux-freesans-mathml-raster-supplement.md","doc-210"]
+---
+
 # Linux FreeSans MathML native-raster supplement
 
 Status: **source/logical exact; independent Linux envelope ratified**

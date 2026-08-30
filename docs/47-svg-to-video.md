@@ -1,3 +1,15 @@
+---
+id: "requirements/svg-to-video"
+title: "Domotion: animated SVG → video export (svg-to-video)"
+kind: "contract"
+status: "current"
+owners: ["images-media"]
+platforms: ["macos","windows"]
+tickets: ["DM-1142","DM-1144","DM-1146","DM-873","DM-885"]
+code: ["src/cli/svg-to-video-core.test.ts","src/cli/svg-to-video-core.ts","src/cli/svg-to-video-e2e.test.ts","src/cli/svg-to-video.ts"]
+aliases: ["docs/47-svg-to-video.md","doc-47"]
+---
+
 # Domotion: animated SVG → video export (`svg-to-video`)
 
 The `svg-to-video` CLI renders an animated SVG to a video file (h264/mp4 by

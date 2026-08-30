@@ -1,3 +1,15 @@
+---
+id: "requirements/font-size-space-oracle"
+title: "Font-size space oracle"
+kind: "evidence"
+status: "current"
+owners: ["text-fonts","platform-release"]
+platforms: ["macos"]
+tickets: ["DM-2446","DM-2448"]
+code: ["src/render/axis-location.test.ts","tests/font-size-spaces.e2e.test.ts"]
+aliases: ["docs/150-font-size-space-oracle.md","doc-150"]
+---
+
 # Font-size space oracle
 
 DM-2448 protects the three font-size spaces introduced by DM-2446. The

@@ -1,3 +1,15 @@
+---
+id: "requirements/layout-stage-parity"
+title: "Text layout and SVG placement parity"
+kind: "evidence"
+status: "current"
+owners: ["layout","platform-release"]
+platforms: []
+tickets: ["DM-2498"]
+code: ["tools/layout-stage-matrix.ts"]
+aliases: ["docs/116-layout-stage-parity.md","doc-116"]
+---
+
 # Text layout and SVG placement parity
 
 Domotion treats Chromium-captured geometry as authoritative layout input. It does not re-run CSS inline layout: capture records per-character origins, line boxes, effective ascent/descent, fallback-sensitive text segments, writing mode, direction, zoom-derived transforms, and element boxes. After the HarfBuzz consolidation, both `paths` and `embedded-font` modes consume the same logical run stream and these same captured anchors; they differ only in how glyph outlines are serialized and rasterized.

@@ -1,3 +1,15 @@
+---
+id: "requirements/frosted-backdrop-fallback"
+title: "19 — Backdrop-filter raster fallback and diagnostics"
+kind: "contract"
+status: "current"
+owners: ["paint-effects"]
+platforms: []
+tickets: ["DM-2171","DM-2490","DM-463","DM-465","DM-466"]
+code: ["src/capture/backdrop-raster-diagnostics.test.ts","src/capture/script/walker/borders-backgrounds.ts","src/render/element-tree-to-svg.ts"]
+aliases: ["docs/19-frosted-backdrop-fallback.md","doc-19"]
+---
+
 # 19 — Backdrop-filter raster fallback and diagnostics
 
 > **Current contract (DM-2490).** DM-2171 preserves Chromium-composited

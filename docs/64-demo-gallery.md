@@ -1,3 +1,15 @@
+---
+id: "requirements/demo-gallery"
+title: "64 — Demo gallery"
+kind: "archive"
+status: "superseded"
+owners: ["product-tooling"]
+platforms: []
+tickets: ["DM-1308","DM-1384","DM-1414"]
+code: ["examples/animate/README.md","examples/animate/before-after-refactor/","examples/animate/form-fill/","examples/animate/scroll-feed/","examples/animate/scroll-landing/","examples/animate/tab-switcher/","examples/animate/typing-search/","examples/output/terminal-onboarding.svg","examples/terminal-onboarding.ts","site/scripts/build-demos.mjs","site/src/content/docs/","site/src/content/docs/showcase.mdx","tests/animate-examples.tsx"]
+aliases: ["docs/64-demo-gallery.md","doc-64"]
+---
+
 # 64 — Demo gallery
 
 Status: **rebuilt.** The demo gallery now lives on the Astro + Starlight site

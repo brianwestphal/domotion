@@ -1,3 +1,15 @@
+---
+id: "requirements/svg-optimization"
+title: "SVG optimization (svgo + svgz)"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: []
+tickets: ["DM-1454"]
+code: ["tests/features.ts","tests/real-world.tsx","tests/showcase.tsx"]
+aliases: ["docs/32-svg-optimization.md","doc-32"]
+---
+
 # SVG optimization (svgo + svgz)
 
 Domotion provides two opt-in size-reduction passes for the rendered SVG. They compose: svgo first, then svgz.

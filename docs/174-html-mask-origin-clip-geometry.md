@@ -1,3 +1,15 @@
+---
+id: "requirements/html-mask-origin-clip-geometry"
+title: "174 — HTML mask-origin / mask-clip geometry"
+kind: "contract"
+status: "current"
+owners: ["paint-effects","layout","product-tooling"]
+platforms: []
+tickets: ["DM-2379","DM-2472","DM-2494"]
+code: ["src/capture/script/index.ts","src/render/mask-origin-clip.test.ts","src/render/mask-origin-clip.ts","src/render/mask.ts","tests/mask-origin-clip.e2e.test.ts","tests/mask-url-repeat-geometry.e2e.test.ts"]
+aliases: ["docs/174-html-mask-origin-clip-geometry.md","doc-174"]
+---
+
 # 174 — HTML mask-origin / mask-clip geometry
 
 DM-2472 closes the HTML URL-mask box-model gap left by DM-2379. Capture now

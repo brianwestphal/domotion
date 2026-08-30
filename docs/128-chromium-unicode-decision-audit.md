@@ -1,3 +1,15 @@
+---
+id: "requirements/chromium-unicode-decision-audit"
+title: "128 — Chromium Unicode decision audit"
+kind: "evidence"
+status: "current"
+owners: ["text-fonts","platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2310"]
+code: []
+aliases: ["docs/128-chromium-unicode-decision-audit.md","doc-128"]
+---
+
 # 128 — Chromium Unicode decision audit
 
 Status: **supported-path migration complete; cross-platform logical validation complete**. This document is the source inventory for

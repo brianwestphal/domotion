@@ -1,3 +1,15 @@
+---
+id: "requirements/interaction-state-capture"
+title: "94 — Interaction-state capture (:hover / :active / :focus)"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: []
+tickets: ["DM-1516","DM-1562","DM-1563","DM-1564","DM-1565","DM-1566","DM-1580","DM-1582","DM-1585"]
+code: ["examples/animate/hover-detect/","examples/animate/hover-reveal/","examples/animate/hover-state/","examples/animate/js-reveal/","src/cli/animate.ts","src/cli/force-state.e2e.test.ts","src/cli/force-state.test.ts","src/cli/hover-detect.ts","src/cli/mutation-detect.e2e.test.ts","src/cli/mutation-detect.test.ts","src/cli/mutation-detect.ts","tests/animate-examples.tsx"]
+aliases: ["docs/94-interaction-state-capture.md","doc-94"]
+---
+
 # 94 — Interaction-state capture (`:hover` / `:active` / `:focus`)
 
 Status: **shipped** — explicit forced-pseudo-state capture (DM-1516), a

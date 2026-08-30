@@ -1,3 +1,15 @@
+---
+id: "requirements/per-corner-border-radius"
+title: "Per-corner border-radius"
+kind: "contract"
+status: "current"
+owners: ["paint-effects"]
+platforms: []
+tickets: ["DM-300"]
+code: []
+aliases: ["docs/14-per-corner-border-radius.md","doc-14"]
+---
+
 # Per-corner border-radius
 
 CSS lets each corner of a rounded rectangle have its own radius — and each radius can be elliptical (different horizontal vs vertical axis). The shorthand `border-radius: 10px 30px 50px 70px` maps to TL=10, TR=30, BR=50, BL=70 (clockwise from top-left), and `border-radius: 50px / 20px` makes every corner a 50×20 ellipse.

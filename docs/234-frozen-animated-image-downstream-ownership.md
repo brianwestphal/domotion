@@ -1,3 +1,15 @@
+---
+id: "requirements/frozen-animated-image-downstream-ownership"
+title: "Frozen animated-image downstream ownership"
+kind: "contract"
+status: "current"
+owners: ["images-media","animation"]
+platforms: []
+tickets: ["DM-2580","DM-2581"]
+code: []
+aliases: ["docs/234-frozen-animated-image-downstream-ownership.md","doc-234"]
+---
+
 # Frozen animated-image downstream ownership
 
 Status: implemented base-owner resize/serialization contract (DM-2580)

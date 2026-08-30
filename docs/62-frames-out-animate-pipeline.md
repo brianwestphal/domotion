@@ -1,3 +1,15 @@
+---
+id: "requirements/frames-out-animate-pipeline"
+title: "62 — Frames-out / per-frame hook for the declarative animate pipeline"
+kind: "contract"
+status: "current"
+owners: ["animation"]
+platforms: []
+tickets: ["DM-1128","DM-1130","DM-1135","DM-1136","DM-1137","DM-1138"]
+code: ["src/animation/animator.ts","src/cli/animate.ts"]
+aliases: ["docs/62-frames-out-animate-pipeline.md","doc-62"]
+---
+
 # 62 — Frames-out / per-frame hook for the declarative animate pipeline
 
 Status: **shipped** (DM-1136). Both sections are implemented: §1 (frames-out

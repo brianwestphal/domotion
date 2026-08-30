@@ -1,3 +1,15 @@
+---
+id: "requirements/macos-ideograph-fallback-cache-audit"
+title: "macOS ideograph fallback-cache audit"
+kind: "evidence"
+status: "current"
+owners: ["platform-release"]
+platforms: ["macos"]
+tickets: ["DM-1949","DM-2342","DM-2401"]
+code: []
+aliases: ["docs/146-macos-ideograph-fallback-cache-audit.md","doc-146"]
+---
+
 # macOS ideograph fallback-cache audit
 
 DM-2342 audited the existing DM-1949 model against Chromium revision

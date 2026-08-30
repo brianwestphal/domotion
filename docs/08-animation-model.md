@@ -1,3 +1,15 @@
+---
+id: "requirements/animation-model"
+title: "08 — Animation model: transitions, overlays, intra-frame motion"
+kind: "contract"
+status: "current"
+owners: ["animation"]
+platforms: ["windows"]
+tickets: ["DM-1297","DM-1414","DM-1511","DM-1512","DM-1517","DM-1524","DM-1526","DM-1542","DM-1548","DM-1767","DM-207","DM-208","DM-209","DM-210","DM-211","DM-2460","DM-599","DM-641","DM-854","DM-865","DM-898","DM-899","DM-900","DM-901"]
+code: ["examples/animate/","examples/animate/README.md","src/animation/animator.ts","src/animation/easing.ts","src/animation/motion-presets.ts","src/animation/transition-schema.ts","src/cli/animate.ts","src/utils/keyframe-pad.ts"]
+aliases: ["docs/08-animation-model.md","doc-08"]
+---
+
 # 08 — Animation model: transitions, overlays, intra-frame motion
 
 The animation pipeline composes multiple captured frames into a single SVG with CSS keyframe transitions between frames, optional per-frame overlays, and (with this doc's additions) intra-frame property animations and SVG overlays.

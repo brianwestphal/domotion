@@ -1,3 +1,15 @@
+---
+id: "requirements/specialized-path-activation-ledger"
+title: "137 — Specialized-path activation ledger"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: []
+tickets: []
+code: ["tools/activation-coverage.json"]
+aliases: ["docs/137-specialized-path-activation-ledger.md","doc-137"]
+---
+
 # 137 — Specialized-path activation ledger
 
 ## Requirement

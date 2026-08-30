@@ -1,3 +1,15 @@
+---
+id: "requirements/broken-image-fallback-ownership-audit"
+title: "156 — Chromium broken-image fallback ownership audit"
+kind: "evidence"
+status: "current"
+owners: ["images-media","platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2463","DM-2464","DM-2465"]
+code: ["src/capture/broken-image-fallback.ts","src/capture/broken-image-icon-raster.ts","src/render/broken-image-fallback.ts","tests/broken-image-fallback-parity-gate.test.ts","tools/broken-image-fallback-oracle.ts"]
+aliases: ["docs/156-broken-image-fallback-ownership-audit.md","doc-156"]
+---
+
 # 156 — Chromium broken-image fallback ownership audit
 
 Status: capture foundation, hybrid rendering, and the independent native

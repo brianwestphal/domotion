@@ -1,3 +1,15 @@
+---
+id: "requirements/font-feature-values-shaping-conformance"
+title: "Named font-feature values in the shaping conformance gate"
+kind: "evidence"
+status: "current"
+owners: ["text-fonts","platform-release","product-tooling"]
+platforms: []
+tickets: []
+code: ["src/capture/script/font-feature-values.ts","src/font-feature-values-cascade.ts","tests/fixtures/shaping/FontWithFancyFeatures.otf.base64","tests/font-feature-values.e2e.test.ts","tests/shaping-font-feature-values.e2e.test.ts","tests/shaping-font-feature-values.test.ts","tools/shaping-conformance.ts","tools/shaping-font-feature-values.ts"]
+aliases: ["docs/204-font-feature-values-shaping-conformance.md","doc-204"]
+---
+
 # Named font-feature values in the shaping conformance gate
 
 **Status:** shipped

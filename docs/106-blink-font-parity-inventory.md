@@ -1,3 +1,15 @@
+---
+id: "requirements/blink-font-parity-inventory"
+title: "106 — Blink font-resolution parity inventory"
+kind: "evidence"
+status: "current"
+owners: ["text-fonts","platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-1811","DM-1844","DM-1852","DM-1854","DM-1859","DM-1868"]
+code: ["src/render/harfbuzz-shaper.ts","src/render/text-to-path.ts"]
+aliases: ["docs/106-blink-font-parity-inventory.md","doc-106"]
+---
+
 # 106 — Blink font-resolution parity inventory
 
 Status: **in progress** (DM-1854 step 0). This is the reference the parity work hangs off: for each stage Blink runs, what we do, and whether it matches **by construction** or only **by measurement**.

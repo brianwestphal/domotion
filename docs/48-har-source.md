@@ -1,3 +1,15 @@
+---
+id: "requirements/har-source"
+title: "Domotion: HAR files as a capture source"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: []
+tickets: ["DM-883","DM-889"]
+code: ["src/cli/capture.ts","src/cli/common.ts","tests/real-world.tsx"]
+aliases: ["docs/48-har-source.md","doc-48"]
+---
+
 # Domotion: HAR files as a capture source
 
 Requirements for accepting an HTTP-Archive (`.har`) file as a `domotion capture`

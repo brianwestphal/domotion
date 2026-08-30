@@ -1,3 +1,15 @@
+---
+id: "requirements/css-transforms"
+title: "Domotion: CSS 2D transforms"
+kind: "contract"
+status: "current"
+owners: ["layout"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2473","DM-2475","SK-1091","SK-1127"]
+code: ["src/capture/script/index.ts","src/render/element-tree-to-svg.ts","src/render/stacking.ts","src/render/transforms.ts"]
+aliases: ["docs/06-css-transforms.md","doc-06"]
+---
+
 # Domotion: CSS 2D transforms
 
 > **2026 source audit:** text inside transformed HTML is not exactly represented

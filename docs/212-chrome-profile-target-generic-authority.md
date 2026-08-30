@@ -1,3 +1,15 @@
+---
+id: "requirements/chrome-profile-target-generic-authority"
+title: "Chrome profile and target generic-family authority"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2539","DM-2550","DM-2551"]
+code: []
+aliases: ["docs/212-chrome-profile-target-generic-authority.md","doc-212"]
+---
+
 # Chrome profile and target generic-family authority
 
 Domotion captures the live Blink `Settings` generic-family maps owned by the

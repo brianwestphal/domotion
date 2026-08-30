@@ -1,3 +1,15 @@
+---
+id: "requirements/color-emoji-rendering"
+title: "Domotion: Color emoji rendering"
+kind: "contract"
+status: "current"
+owners: ["text-fonts","paint-effects"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-1198","DM-2350","DM-2502","DM-2507","DM-2508","DM-2509","DM-2510","DM-2534","DM-278","DM-334","DM-335"]
+code: ["src/capture/emoji.ts","src/capture/script/emoji-detect.test.ts","src/capture/script/emoji-detect.ts","src/render/emoji-raster-kind.test.ts","src/render/text-to-path.test.ts","tests/win32-glyph-extractor.test.ts","tools/font-palette-ownership-audit.ts"]
+aliases: ["docs/15-color-emoji-rendering.md","doc-15"]
+---
+
 # Domotion: Color emoji rendering
 
 Requirements for color emoji glyphs (✨😀🚀⛔🎉 …) in Domotion's SVG output. Origin: DM-278 / DM-334 / DM-335.

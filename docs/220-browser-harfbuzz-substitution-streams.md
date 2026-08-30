@@ -1,3 +1,15 @@
+---
+id: "requirements/browser-harfbuzz-substitution-streams"
+title: "Browser HarfBuzz substitution-stream ownership"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2532","DM-2552"]
+code: [".github/workflows/browser-harfbuzz-substitution-streams.yml","tools/browser-harfbuzz-substitution-oracle.ts"]
+aliases: ["docs/220-browser-harfbuzz-substitution-streams.md","doc-220"]
+---
+
 # Browser HarfBuzz substitution-stream ownership
 
 DM-2532 closes the logical gap between the substitution-free native-raster

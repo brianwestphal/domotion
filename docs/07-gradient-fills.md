@@ -1,3 +1,15 @@
+---
+id: "requirements/gradient-fills"
+title: "Domotion: gradient fills via SVG <linearGradient>"
+kind: "contract"
+status: "current"
+owners: ["paint-effects"]
+platforms: []
+tickets: ["DM-1242","DM-1243","DM-2194","DM-2305","DM-2528","SK-1138","SK-1190","SK-1191","SK-1192","SK-1193","SK-1222","SK-1223","SK-1224","SK-1225","SK-1226"]
+code: ["src/capture/script/","src/render/form-controls.ts","src/render/gradient-defs.ts","src/render/gradients.ts"]
+aliases: ["docs/07-gradient-fills.md","doc-07"]
+---
+
 # Domotion: gradient fills via SVG `<linearGradient>`
 
 Requirements for honoring CSS gradient backgrounds on form-control pseudos in Domotion. Origin: SK-1190 (follow-up from SK-1138).

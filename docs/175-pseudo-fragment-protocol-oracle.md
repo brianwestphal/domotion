@@ -1,3 +1,15 @@
+---
+id: "requirements/pseudo-fragment-protocol-oracle"
+title: "175 — Chromium pseudo-fragment protocol oracle"
+kind: "proposal"
+status: "proposed"
+owners: ["layout","platform-release"]
+platforms: ["macos"]
+tickets: ["DM-2466","DM-2467","DM-2468"]
+code: ["src/capture/pseudo-fragment-protocol.ts","tools/pseudo-fragment-geometry-oracle.ts","tools/pseudo-fragment-protocol.ts"]
+aliases: ["docs/175-pseudo-fragment-protocol-oracle.md","doc-175"]
+---
+
 # 175 — Chromium pseudo-fragment protocol oracle
 
 **Ticket:** DM-2466

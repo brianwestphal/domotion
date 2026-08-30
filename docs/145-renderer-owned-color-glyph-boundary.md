@@ -1,3 +1,15 @@
+---
+id: "requirements/renderer-owned-color-glyph-boundary"
+title: "Renderer-owned color-glyph boundary"
+kind: "contract"
+status: "current"
+owners: ["text-fonts","paint-effects"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2350","DM-2392","DM-2507","DM-2508","DM-2509","DM-2510","DM-2534"]
+code: ["tools/unicode-font-route-trace.ts"]
+aliases: ["docs/145-renderer-owned-color-glyph-boundary.md","doc-145"]
+---
+
 # Renderer-owned color-glyph boundary
 
 DM-2392 removes Unicode block lists, named emoji exceptions, font-name checks,

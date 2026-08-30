@@ -1,3 +1,15 @@
+---
+id: "requirements/structured-font-family-stack"
+title: "Structured captured font-family stack"
+kind: "contract"
+status: "current"
+owners: ["text-fonts"]
+platforms: []
+tickets: ["DM-2518"]
+code: ["src/font-family-stack.test.ts","src/font-family-stack.ts","tests/font-family-stack-capture.e2e.test.ts"]
+aliases: ["docs/213-structured-font-family-stack.md","doc-213"]
+---
+
 # Structured captured font-family stack
 
 ## Contract

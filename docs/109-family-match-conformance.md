@@ -1,3 +1,15 @@
+---
+id: "requirements/family-match-conformance"
+title: "109 — Declared-family match conformance oracle (macOS)"
+kind: "evidence"
+status: "current"
+owners: ["platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: []
+code: ["src/render/text-to-path.test.ts","tools/family-match-conformance.ts"]
+aliases: ["docs/109-family-match-conformance.md","doc-109"]
+---
+
 # 109 — Declared-family match conformance oracle (macOS)
 
 `tools/family-match-conformance.ts` · `npm run fonts:family-match`

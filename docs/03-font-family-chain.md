@@ -1,3 +1,15 @@
+---
+id: "requirements/font-family-chain"
+title: "Domotion: CSS font-family chain resolution"
+kind: "contract"
+status: "current"
+owners: ["text-fonts"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-1083","DM-1103","DM-1108","DM-227","DM-228","DM-229","DM-2422","DM-2446","DM-2447","DM-258","DM-259","DM-260","DM-291","SK-1095","SK-1124"]
+code: ["src/render/darwin-named-family-identity.test.ts","src/render/font-resolution.ts","tests/darwin-named-family-identity.e2e.test.ts","tests/new-york-optical-cut.e2e.test.ts"]
+aliases: ["docs/03-font-family-chain.md","doc-03"]
+---
+
 # Domotion: CSS font-family chain resolution
 
 Requirements for honoring author-specified font-family chains in Domotion. Origin: SK-1124 (follow-up from SK-1095). Today `resolveFontKey` in `src/render/font-resolution.ts` only distinguishes mono from sans-serif, so a page declaring `font-family: "Helvetica Neue", "Times New Roman", monospace` always paints with SF Pro regardless of the requested family.

@@ -1,3 +1,15 @@
+---
+id: "requirements/inline-svg-3d-transform-audit"
+title: "Cloned inline-SVG 3D transform audit"
+kind: "evidence"
+status: "partial"
+owners: ["layout","platform-release"]
+platforms: ["macos","windows"]
+tickets: ["DM-2356","DM-2359","DM-2371","DM-2473","DM-2474","DM-2475"]
+code: [".github/workflows/inline-svg-3d-parity.yml","src/capture/index.ts","src/capture/projective-owner.ts","src/capture/script/walker/inline-svg.ts","src/capture/svg-affine-freeze.test.ts","src/capture/svg-affine-freeze.ts","src/render/transforms.ts","tests/inline-svg-3d-gate.test.ts","tests/inline-svg-3d-workflow.test.ts","tests/inline-svg-affine-freeze.e2e.test.ts","tests/inline-svg-projective-ownership.e2e.test.ts","tools/inline-svg-3d-audit.ts"]
+aliases: ["docs/162-inline-svg-3d-transform-audit.md","doc-162"]
+---
+
 # Cloned inline-SVG 3D transform audit
 
 **Status:** SVG-child affine freezing, opaque-clone projective promotion, and

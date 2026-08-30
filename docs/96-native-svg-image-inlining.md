@@ -1,3 +1,15 @@
+---
+id: "requirements/native-svg-image-inlining"
+title: "96 — Native inlining of <img src=\".svg\">"
+kind: "contract"
+status: "current"
+owners: ["images-media"]
+platforms: ["windows"]
+tickets: ["DM-1592","DM-1593","DM-1595"]
+code: ["src/capture/embed.ts","src/cli/animate.ts","src/render/element-tree-to-svg.ts","src/render/resolve-svg-source.test.ts","src/render/svg-inline.test.ts","src/render/svg-inline.ts","tests/inline-svg-textpath-oracle.e2e.test.ts","tests/replaced-used-size.e2e.test.ts"]
+aliases: ["docs/96-native-svg-image-inlining.md","doc-96"]
+---
+
 # 96 — Native inlining of `<img src="*.svg">`
 
 ## Summary

@@ -1,3 +1,15 @@
+---
+id: "requirements/overlay-resolution-primitive"
+title: "61 — Overlay resolution as a public primitive"
+kind: "contract"
+status: "current"
+owners: ["animation"]
+platforms: []
+tickets: ["DM-1132","DM-1133","DM-1793","DM-1799","DM-587"]
+code: ["src/animation/resolve-overlays.ts","src/index.ts","tests/cross-region-anchor.e2e.test.ts"]
+aliases: ["docs/61-overlay-resolution-primitive.md","doc-61"]
+---
+
 # 61 — Overlay resolution as a public primitive
 
 Status: **shipped** (DM-1132). `resolveOverlays(page, overlays)` lowers an

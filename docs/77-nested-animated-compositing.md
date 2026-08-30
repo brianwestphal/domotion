@@ -1,3 +1,15 @@
+---
+id: "requirements/nested-animated-compositing"
+title: "77 — Nested animated compositing (DM-1323)"
+kind: "contract"
+status: "current"
+owners: ["animation"]
+platforms: ["macos"]
+tickets: ["DM-1287","DM-1292","DM-1296","DM-1319","DM-1322","DM-1323","DM-1329","DM-1331"]
+code: ["examples/composite-desktop.ts","examples/composite/desktop-terminal.json","src/animation/composite.ts","src/animation/embed-namespace.ts","src/animation/embed-timeline.ts","src/cli/animate.ts","src/cli/composite-font-dedup.e2e.test.ts","src/cli/composite.ts","src/render/device-chrome.ts","src/templates/builtin/device-mockup.ts","tools/scratch/"]
+aliases: ["docs/77-nested-animated-compositing.md","doc-77"]
+---
+
 # 77 — Nested animated compositing (DM-1323)
 
 Status: **Shipped (core).** General animated-SVG compositing is implemented: a

@@ -1,3 +1,15 @@
+---
+id: "requirements/paged-table-private-fragment-transport"
+title: "Paged-table private fragment transport"
+kind: "contract"
+status: "current"
+owners: ["layout"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2571","DM-2573","DM-2574","DM-2575","DM-2594"]
+code: ["tools/chromium-paged-table-evidence/renderer-helper.patch","tools/paged-table-evidence-fixtures.ts"]
+aliases: ["docs/230-paged-table-private-fragment-transport.md","doc-230"]
+---
+
 # Paged-table private fragment transport
 
 DM-2571 investigated whether Domotion can authenticate collapsed-table page

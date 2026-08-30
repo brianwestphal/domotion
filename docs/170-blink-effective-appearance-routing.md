@@ -1,3 +1,15 @@
+---
+id: "requirements/blink-effective-appearance-routing"
+title: "Blink EffectiveAppearance ownership routing"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2453","DM-2455"]
+code: [".github/workflows/visual-tests.yml","src/capture/effective-appearance-cdp.ts","src/capture/effective-appearance.test.ts","src/capture/effective-appearance.ts","tests/effective-appearance.e2e.test.ts"]
+aliases: ["docs/170-blink-effective-appearance-routing.md","doc-170"]
+---
+
 # Blink EffectiveAppearance ownership routing
 
 DM-2453 replaces the old host-tag/CSSOM declaration scan with Blink's actual

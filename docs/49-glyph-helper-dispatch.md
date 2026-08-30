@@ -1,3 +1,15 @@
+---
+id: "requirements/glyph-helper-dispatch"
+title: "Domotion: platform-aware glyph-helper dispatch"
+kind: "contract"
+status: "current"
+owners: ["text-fonts"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-259","DM-260","DM-385","DM-393","DM-837","DM-872","DM-881","DM-886","DM-888"]
+code: ["src/render/","src/render/glyph-helper.test.ts","src/render/glyph-helper.ts","src/render/helper-acquire.ts","tools/linux-glyph-extractor/domotion-glyph-paths","tools/macos-glyph-extractor/domotion-glyph-paths","tools/win32-glyph-extractor/domotion-glyph-paths.exe"]
+aliases: ["docs/49-glyph-helper-dispatch.md","doc-49"]
+---
+
 # Domotion: platform-aware glyph-helper dispatch
 
 Requirements for making the renderer actually *invoke* the native glyph

@@ -1,3 +1,15 @@
+---
+id: "requirements/scrubber-crop"
+title: "57 — svg-scrubber crop (DM-1104)"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: []
+tickets: ["DM-1104","DM-1107"]
+code: ["src/scrubber/client.tsx","src/scrubber/crop.ts","src/scrubber/server.ts"]
+aliases: ["docs/57-scrubber-crop.md","doc-57"]
+---
+
 # 57 — `svg-scrubber` crop (DM-1104)
 
 Status: **shipped**. Adds an optional crop rectangle to the scrubber (doc 56) so

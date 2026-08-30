@@ -1,3 +1,15 @@
+---
+id: "requirements/ci-visual-tests"
+title: "Distributed visual-regression testing on GitHub Actions (DM-1216)"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-1216","DM-1217","DM-1660","DM-1661","DM-1665","DM-1790","DM-1844"]
+code: [".github/workflows/fast-visual-tests.yml",".github/workflows/visual-tests.yml","scripts/ci-baseline-aggregate.mjs","scripts/ci-run-fast-visuals.mjs","scripts/diff-against-baseline.mjs","scripts/diff-font-conformance-baseline.mjs","scripts/merge-shard-results.mjs","scripts/prune-passing-artifacts.mjs","scripts/run-env.mjs","scripts/write-baseline.mjs","src/review/side-digest.ts","tests/baselines/README.md","tests/html-test-suite.tsx","tests/output/","tests/runner.tsx","tests/shard-completeness.test.ts","tests/shard.ts","tests/visual-tests-workflow.test.ts","tests/worker-pool.ts","tools/ab-compare-results.mjs","tools/run-ci-visual-tests.mjs"]
+aliases: ["docs/66-ci-visual-tests.md","doc-66"]
+---
+
 # Distributed visual-regression testing on GitHub Actions (DM-1216)
 
 The `html-test` (~277 fixtures) and `html-test-unicode` (~819 fixtures) visual suites run locally as a *deliberately throttled background job* (`tests/worker-pool.ts`: `min(8, cores/4)` workers at macOS BACKGROUND QoS), so a full unicode sweep takes ~1h. The suites are embarrassingly parallel and the fixture repo (`github.com/brianwestphal/html-test`) is **public**, so GitHub-hosted runners are free here. `.github/workflows/visual-tests.yml` fans the suite out across many runners; a single dispatch turns ~1h into a few minutes, off your machine.

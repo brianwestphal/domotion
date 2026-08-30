@@ -1,3 +1,15 @@
+---
+id: "requirements/font-palette-selection-raster-boundary"
+title: "Font-palette selection and native paint gate"
+kind: "contract"
+status: "current"
+owners: ["text-fonts","images-media"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2350","DM-2403","DM-2507","DM-2509","DM-2510","DM-2534"]
+code: [".github/workflows/font-palette-ownership-audit.yml","src/capture/emoji.ts","src/capture/script/font-palette.ts","tests/fixtures/font-palette/COLR-palettes-test-font.ttf","tests/fixtures/font-palette/COLRv1-static-test-glyphs.ttf","tools/font-palette-dynamic-gate.ts","tools/font-palette-ownership-audit.ts","tools/font-palette-paint-gate.ts"]
+aliases: ["docs/202-font-palette-selection-raster-boundary.md","doc-202"]
+---
+
 # Font-palette selection and native paint gate
 
 DM-2350 traces the complete

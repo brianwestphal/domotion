@@ -1,3 +1,15 @@
+---
+id: "requirements/live-replaced-media-frame-ownership"
+title: "229 — Live replaced-media frame ownership"
+kind: "contract"
+status: "current"
+owners: ["images-media"]
+platforms: []
+tickets: ["DM-2542"]
+code: ["tools/animated-image-frame-selection-audit.ts"]
+aliases: ["docs/229-live-replaced-media-frame-ownership.md","doc-229"]
+---
+
 # 229 — Live replaced-media frame ownership
 
 DM-2542 defines the supported boundary as **one frozen Chromium-presented

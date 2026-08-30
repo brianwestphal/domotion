@@ -1,3 +1,15 @@
+---
+id: "requirements/kinetic-text-template"
+title: "72 — kinetic-text template"
+kind: "contract"
+status: "current"
+owners: ["text-fonts","product-tooling"]
+platforms: []
+tickets: ["DM-1277","DM-1286","DM-1296","DM-1297"]
+code: ["src/templates/builtin/kinetic-text.ts","src/templates/registry.ts"]
+aliases: ["docs/72-kinetic-text-template.md","doc-72"]
+---
+
 # 72 — `kinetic-text` template
 
 Status: **shipped** (DM-1277). A built-in **generator** template (doc 70

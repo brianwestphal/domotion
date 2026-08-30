@@ -1,3 +1,15 @@
+---
+id: "requirements/mask-fragment-references"
+title: "21 — mask-image: url(\"#fragment\") inline-SVG mask references"
+kind: "reference"
+status: "current"
+owners: ["paint-effects","layout"]
+platforms: []
+tickets: ["DM-2520","DM-470","DM-477","DM-493","DM-496","DM-829"]
+code: ["src/capture/index.ts","src/mask.test.ts","tests/external-svg-refs.e2e.test.ts","tests/features.ts","tests/iframe-inner-defs.e2e.test.ts","tests/multi-layer-fragment-mask.e2e.test.ts"]
+aliases: ["docs/21-mask-fragment-references.md","doc-21"]
+---
+
 # 21 — `mask-image: url("#fragment")` inline-SVG mask references
 
 ## Context

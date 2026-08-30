@@ -1,3 +1,15 @@
+---
+id: "requirements/css-sprite-icons"
+title: "23 — CSS sprite icons (off-screen text + sliced background-image)"
+kind: "contract"
+status: "current"
+owners: ["images-media"]
+platforms: []
+tickets: ["DM-2477","DM-2478","DM-499"]
+code: ["tests/features.ts"]
+aliases: ["docs/23-css-sprite-icons.md","doc-23"]
+---
+
 # 23 — CSS sprite icons (off-screen text + sliced background-image)
 
 ## Context

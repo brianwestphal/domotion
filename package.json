@@ -36,6 +36,8 @@
     "build:capture-script": "node scripts/build-capture-script.mjs",
     "build:review-client": "node scripts/build-review-client.mjs",
     "build:scrubber-client": "node scripts/build-scrubber-client.mjs",
+    "docs:index:generate": "node scripts/documentation-index.mjs --write",
+    "docs:index:check": "node scripts/documentation-index.mjs",
     "build:animate-schema": "tsx scripts/generate-animate-schema.ts",
     "build:composite-schema": "tsx scripts/generate-composite-schema.ts",
     "build:storyboard-schema": "tsx scripts/generate-storyboard-schema.ts",

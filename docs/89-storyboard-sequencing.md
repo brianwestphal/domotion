@@ -1,3 +1,15 @@
+---
+id: "requirements/storyboard-sequencing"
+title: "89 — Storyboard sequencing (DM-1527)"
+kind: "contract"
+status: "current"
+owners: ["animation"]
+platforms: ["macos"]
+tickets: ["DM-1319","DM-1329","DM-1331","DM-1524","DM-1527","DM-1552","DM-1553","DM-1554"]
+code: ["examples/output/storyboard-demo.svg","examples/storyboard-demo.ts","scripts/generate-storyboard-schema.ts","src/animation/animator.ts","src/animation/composite.ts","src/animation/embed-namespace.ts","src/cli/animate.ts","src/cli/storyboard-config-json-schema.ts","src/cli/storyboard.ts"]
+aliases: ["docs/89-storyboard-sequencing.md","doc-89"]
+---
+
 # 89 — Storyboard sequencing (DM-1527)
 
 Status: **Shipped (core).** A declarative **storyboard** runner sequences distinct

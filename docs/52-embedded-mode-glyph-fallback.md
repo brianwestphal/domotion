@@ -1,3 +1,15 @@
+---
+id: "requirements/embedded-mode-glyph-fallback"
+title: "Domotion: per-glyph helper fallback in embedded-font mode"
+kind: "contract"
+status: "current"
+owners: ["text-fonts"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-1666","DM-259","DM-260","DM-891","DM-892"]
+code: ["src/render/embedded-font-builder.ts","src/render/text-to-path.test.ts","src/render/text-to-path.ts"]
+aliases: ["docs/52-embedded-mode-glyph-fallback.md","doc-52"]
+---
+
 # Domotion: per-glyph helper fallback in embedded-font mode
 
 Requirements for extending the DM-891 per-glyph helper fallback (a font fontkit

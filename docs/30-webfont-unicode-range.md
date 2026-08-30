@@ -1,3 +1,15 @@
+---
+id: "requirements/webfont-unicode-range"
+title: "30 — Webfont unicode-range partitioning"
+kind: "contract"
+status: "current"
+owners: ["text-fonts"]
+platforms: []
+tickets: ["DM-294","DM-444","DM-517","DM-545","DM-557"]
+code: ["src/render/text-to-path.ts","src/webfont-unicode-range.test.ts"]
+aliases: ["docs/30-webfont-unicode-range.md","doc-30"]
+---
+
 # 30 — Webfont `unicode-range` partitioning
 
 ## Context

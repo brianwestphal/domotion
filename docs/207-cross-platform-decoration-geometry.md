@@ -1,3 +1,15 @@
+---
+id: "requirements/cross-platform-decoration-geometry"
+title: "Cross-platform text-decoration geometry (DM-2345)"
+kind: "contract"
+status: "current"
+owners: ["text-fonts","layout","platform-release"]
+platforms: ["linux","windows"]
+tickets: ["DM-2345","DM-2514"]
+code: [".github/workflows/windows-fidelity.yml","tools/vertical-decoration-oracle.ts"]
+aliases: ["docs/207-cross-platform-decoration-geometry.md","doc-207"]
+---
+
 # Cross-platform text-decoration geometry (DM-2345)
 
 ## Decision

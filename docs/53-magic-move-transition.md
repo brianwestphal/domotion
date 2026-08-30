@@ -1,3 +1,15 @@
+---
+id: "requirements/magic-move-transition"
+title: "Magic-move transition"
+kind: "contract"
+status: "current"
+owners: ["animation"]
+platforms: []
+tickets: ["DM-112","DM-898","DM-899","DM-900","DM-901","DM-903"]
+code: ["examples/animate/magic-move/","src/animation/animator.ts","src/animation/magic-move.ts","src/capture/script/walker/","src/cli/animate.ts","src/scroll/executor.ts","src/tree-ops/tree-diff.ts"]
+aliases: ["docs/53-magic-move-transition.md","doc-53"]
+---
+
 # Magic-move transition
 
 Requirements for a Keynote-style **magic move** transition between animation

@@ -1,3 +1,15 @@
+---
+id: "requirements/embedded-font-build-diagnostics"
+title: "124 — Embedded-font build diagnostics"
+kind: "contract"
+status: "current"
+owners: ["text-fonts"]
+platforms: ["macos","linux"]
+tickets: []
+code: ["src/review/linux-unicode-evidence.ts"]
+aliases: ["docs/124-embedded-font-build-diagnostics.md","doc-124"]
+---
+
 # 124 — Embedded-font build diagnostics
 
 Status: **Shipped**.

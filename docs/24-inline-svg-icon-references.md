@@ -1,3 +1,15 @@
+---
+id: "requirements/inline-svg-icon-references"
+title: "24 — Inline SVG icon references"
+kind: "reference"
+status: "current"
+owners: ["rendering"]
+platforms: []
+tickets: ["DM-258","DM-279","DM-499","DM-508"]
+code: ["tests/features.ts"]
+aliases: ["docs/24-inline-svg-icon-references.md","doc-24"]
+---
+
 # 24 — Inline SVG icon references
 
 ## Context

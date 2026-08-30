@@ -1,3 +1,15 @@
+---
+id: "requirements/production-text-run-provenance"
+title: "Production text-run provenance"
+kind: "contract"
+status: "current"
+owners: ["text-fonts"]
+platforms: ["macos"]
+tickets: ["DM-2387","DM-2398","DM-2399","DM-2410","DM-2423","DM-2428","DM-2567"]
+code: []
+aliases: ["docs/143-production-text-run-provenance.md","doc-143"]
+---
+
 # Production text-run provenance
 
 Status: **Shipped (DM-2398)**

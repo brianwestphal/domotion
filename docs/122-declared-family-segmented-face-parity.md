@@ -1,3 +1,15 @@
+---
+id: "requirements/declared-family-segmented-face-parity"
+title: "122 — Declared-family and segmented-face fallback parity"
+kind: "evidence"
+status: "current"
+owners: ["platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2090"]
+code: []
+aliases: ["docs/122-declared-family-segmented-face-parity.md","doc-122"]
+---
+
 # 122 — Declared-family and segmented-face fallback parity
 
 Status: **shipped** (DM-2090). Chromium references are pinned to `7d859f27`.

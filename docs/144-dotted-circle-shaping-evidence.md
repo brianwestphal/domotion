@@ -1,3 +1,15 @@
+---
+id: "requirements/dotted-circle-shaping-evidence"
+title: "Dotted-circle decisions from shaping evidence"
+kind: "evidence"
+status: "current"
+owners: ["text-fonts","product-tooling"]
+platforms: ["linux"]
+tickets: ["DM-2522"]
+code: []
+aliases: ["docs/144-dotted-circle-shaping-evidence.md","doc-144"]
+---
+
 # Dotted-circle decisions from shaping evidence
 
 Domotion no longer uses a Unicode block floor, an SMP-only letter gate, or a

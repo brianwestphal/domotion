@@ -1,3 +1,15 @@
+---
+id: "requirements/progress-meter-pseudos"
+title: "Domotion: progress / meter pseudo styling"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: ["macos"]
+tickets: ["DM-1156","SK-1092","SK-1125","SK-1126","SK-1138","SK-1191","SK-1192","SK-1193","SK-1222","SK-1224","SK-1225","SK-1226"]
+code: ["src/capture/types.ts","src/render/form-controls.ts"]
+aliases: ["docs/05-progress-meter-pseudos.md","doc-05"]
+---
+
 # Domotion: progress / meter pseudo styling
 
 Requirements for fully honoring author CSS on `<progress>` and `<meter>` shadow-DOM pseudos in Domotion. Origin: SK-1126 (follow-up from SK-1092). Today the capture layer pulls the `backgroundColor` for `::-webkit-progress-bar`, `::-webkit-progress-value`, `::-webkit-meter-bar`, and the meter optimal/suboptimal/even-less-good value pseudos. That covers solid-color recolors but misses the rest of the box model: borders, padding, custom heights, gradient backgrounds, box-shadows, border-radius applied to the inner value bar (not just the outer track).

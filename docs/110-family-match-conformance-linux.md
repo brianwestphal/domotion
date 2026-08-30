@@ -1,3 +1,15 @@
+---
+id: "requirements/family-match-conformance-linux"
+title: "110 — Declared-family match conformance oracle (Linux)"
+kind: "evidence"
+status: "current"
+owners: ["platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: []
+code: [".github/workflows/test-linux.yml","src/render/font-resolution.ts","src/render/linux-declared-family-cut.test.ts","tests/baselines/family-match-linux.json","tests/family-match-baseline.test.ts","tools/family-match-baseline.ts","tools/family-match-conformance-linux.ts","tools/font-conformance-stacks.linux.json","tools/linux-glyph-extractor/src/main.cpp"]
+aliases: ["docs/110-family-match-conformance-linux.md","doc-110"]
+---
+
 # 110 — Declared-family match conformance oracle (Linux)
 
 `tools/family-match-conformance-linux.ts` · `npm run fonts:family-match:linux`

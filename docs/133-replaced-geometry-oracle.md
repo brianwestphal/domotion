@@ -1,3 +1,15 @@
+---
+id: "requirements/replaced-geometry-oracle"
+title: "133 — Replaced elements, controls, and generated-content ownership gate"
+kind: "evidence"
+status: "current"
+owners: ["images-media","layout","platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2364","DM-2380"]
+code: [".github/workflows/replaced-ownership-transitions.yml","tools/replaced-ownership-transition-gate.ts"]
+aliases: ["docs/133-replaced-geometry-oracle.md","doc-133"]
+---
+
 # 133 — Replaced elements, controls, and generated-content ownership gate
 
 `npm run replaced:geometry-oracle` is the focused DPR-1 live-Chromium gate.

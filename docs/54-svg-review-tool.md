@@ -1,3 +1,15 @@
+---
+id: "requirements/svg-review-tool"
+title: "SVG Review Tool"
+kind: "contract"
+status: "current"
+owners: ["product-tooling"]
+platforms: []
+tickets: ["DM-585","DM-945","DM-946","DM-947","DM-948","DM-949"]
+code: ["src/cli/review.ts","src/review/","src/review/client.tsx","src/review/region-overlay.ts","src/review/server.ts","tests/review-server.tsx","tools/crop-regions.ts"]
+aliases: ["docs/54-svg-review-tool.md","doc-54"]
+---
+
 # SVG Review Tool
 
 `svg-review` is a consumer-facing CLI bundled in the published npm package that

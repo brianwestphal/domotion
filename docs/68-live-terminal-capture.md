@@ -1,3 +1,15 @@
+---
+id: "requirements/live-terminal-capture"
+title: "68 — Live terminal capture (domotion term -- <cmd …>)"
+kind: "contract"
+status: "current"
+owners: ["product-tooling"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-1225","DM-1226"]
+code: ["src/cli/term.ts","src/terminal/pty.e2e.test.ts","src/terminal/pty.ts"]
+aliases: ["docs/68-live-terminal-capture.md","doc-68"]
+---
+
 # 68 — Live terminal capture (`domotion term -- <cmd …>`)
 
 DM-1226. The **second front-end** onto the terminal-capture backend introduced in

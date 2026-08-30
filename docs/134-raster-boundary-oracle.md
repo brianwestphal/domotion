@@ -1,3 +1,15 @@
+---
+id: "requirements/raster-boundary-oracle"
+title: "134 — Raster-fallback activation and vector-boundary oracle"
+kind: "evidence"
+status: "superseded"
+owners: ["images-media","platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2463","DM-2465"]
+code: []
+aliases: ["docs/134-raster-boundary-oracle.md","doc-134"]
+---
+
 # 134 — Raster-fallback activation and vector-boundary oracle
 
 `npm run raster:boundary-oracle` proves that raster paint is activated only at

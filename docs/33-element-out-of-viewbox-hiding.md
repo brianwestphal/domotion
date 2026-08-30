@@ -1,3 +1,15 @@
+---
+id: "requirements/element-out-of-viewbox-hiding"
+title: "33 — Element-level out-of-viewBox hiding (DM-603 / DM-2460 / DM-2461)"
+kind: "contract"
+status: "current"
+owners: ["layout"]
+platforms: ["windows"]
+tickets: ["DM-2460","DM-2461","DM-2462","DM-599","DM-602","DM-603"]
+code: ["src/render/culling-geometry.ts","src/render/element-tree-to-svg.ts","src/tree-ops/swept-transform-bounds.ts","src/tree-ops/viewbox-culling.ts"]
+aliases: ["docs/33-element-out-of-viewbox-hiding.md","doc-33"]
+---
+
 # 33 — Element-level out-of-viewBox hiding (DM-603 / DM-2460 / DM-2461)
 
 Phase 2 of the animation-performance work. Phase 1 ([doc 8 §Out-of-frame paint suppression](08-animation-model.md)) drops entire frames from paint while they're outside their show window. Phase 2 drops individual *elements within a frame* whose bboxes don't intersect the viewBox at the relevant times.

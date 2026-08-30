@@ -1,3 +1,15 @@
+---
+id: "requirements/pseudo-generated-fragment-geometry-audit"
+title: "157 — Generated pseudo fragment and baseline geometry audit"
+kind: "proposal"
+status: "proposed"
+owners: ["layout","platform-release"]
+platforms: ["macos","linux"]
+tickets: ["DM-2382","DM-2383","DM-2466","DM-2467","DM-2468"]
+code: ["src/capture/script/index.ts","src/capture/script/walker/pseudo-content.ts","src/capture/script/walker/pseudo-inject.ts","tests/generated-pseudo-layout-probe.e2e.test.ts","tools/replaced-geometry-oracle.ts"]
+aliases: ["docs/157-pseudo-generated-fragment-geometry-audit.md","doc-157"]
+---
+
 # 157 — Generated pseudo fragment and baseline geometry audit
 
 **Ticket:** DM-2383  

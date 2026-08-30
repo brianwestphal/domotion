@@ -1,3 +1,15 @@
+---
+id: "requirements/template-frames"
+title: "73 — Template frames in the animate config"
+kind: "contract"
+status: "current"
+owners: ["product-tooling"]
+platforms: []
+tickets: ["DM-1287","DM-1292","DM-1293","DM-1294"]
+code: ["src/animation/embed-namespace.test.ts","src/animation/embed-namespace.ts","src/cli/animate.test.ts","src/cli/animate.ts","tests/compose-animate-frames.e2e.test.ts"]
+aliases: ["docs/73-template-frames.md","doc-73"]
+---
+
 # 73 — Template frames in the `animate` config
 
 Status: **shipped** (DM-1287). A frame in an `animate` config (doc 43 / doc 08)

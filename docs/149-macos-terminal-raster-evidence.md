@@ -1,3 +1,15 @@
+---
+id: "requirements/macos-terminal-raster-evidence"
+title: "149 — macOS terminal-raster evidence"
+kind: "evidence"
+status: "current"
+owners: ["images-media","platform-release","product-tooling"]
+platforms: ["macos"]
+tickets: ["DM-2440"]
+code: []
+aliases: ["docs/149-macos-terminal-raster-evidence.md","doc-149"]
+---
+
 # 149 — macOS terminal-raster evidence
 
 `npm run fonts:macos-terminal-raster` is a diagnostic-only classifier for seven

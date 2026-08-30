@@ -1,3 +1,15 @@
+---
+id: "requirements/template-system"
+title: "70 — Template system"
+kind: "contract"
+status: "current"
+owners: ["product-tooling"]
+platforms: []
+tickets: ["DM-1276","DM-1282","DM-1287","DM-1294","DM-1323"]
+code: ["examples/output/templates/","examples/template-package/","examples/templates/","site/src/content/docs/usage/templates.md","src/cli/animate-config-json-schema.ts","src/cli/template.ts","src/index.ts","src/render/device-chrome.ts","src/templates/builtin/","src/templates/json-schema.ts","src/templates/registry.ts","src/templates/render.ts","src/templates/types.ts"]
+aliases: ["docs/70-template-system.md","doc-70"]
+---
+
 # 70 — Template system
 
 Status: **shipped** (DM-1276 spike + the first-party library). The `Template`

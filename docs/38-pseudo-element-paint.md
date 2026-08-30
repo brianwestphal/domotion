@@ -1,3 +1,15 @@
+---
+id: "requirements/pseudo-element-paint"
+title: "Pseudo-element paint"
+kind: "contract"
+status: "current"
+owners: ["paint-effects"]
+platforms: []
+tickets: ["DM-1152","DM-1177","DM-1234","DM-2192","DM-770"]
+code: ["src/capture/script/index.ts","src/capture/script/walker/pseudo-content.ts","src/capture/script/walker/pseudo-inject.ts","src/capture/types.ts","src/render/element-tree-to-svg.ts","src/render/form-controls.ts","src/render/pseudo-filter.ts","src/render/text.ts"]
+aliases: ["docs/38-pseudo-element-paint.md","doc-38"]
+---
+
 # Pseudo-element paint
 
 `::before` and `::after` pseudo-elements are first-class paint surfaces in

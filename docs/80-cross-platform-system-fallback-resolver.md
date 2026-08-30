@@ -1,3 +1,15 @@
+---
+id: "requirements/cross-platform-system-fallback-resolver"
+title: "80 — Cross-platform live system-fallback resolver"
+kind: "contract"
+status: "current"
+owners: ["platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-1018","DM-1158","DM-1403","DM-1404","DM-1416","DM-1419","DM-1424","DM-1721","DM-1868","DM-1889","DM-2507","DM-987"]
+code: ["scripts/test-linux-docker.sh","src/render","src/render/font-resolution.ts","src/render/glyph-helper.ts","src/render/win-font-fallback.ts","src/render/win32-fallback-envelope.test.ts","tests/baselines/font-conformance-windows.json","tools/probe-1416-linux-fcmatch-vs-chromium.mjs","tools/probe-1424-refine.mts","tools/probe-1424-win32-mapchars-vs-chromium.mjs","tools/win32-glyph-extractor","tools/win32-glyph-extractor/build.ps1","tools/win32-glyph-extractor/src/main.cpp"]
+aliases: ["docs/80-cross-platform-system-fallback-resolver.md","doc-80"]
+---
+
 # 80 — Cross-platform live system-fallback resolver
 
 Status: **macOS shipped** (CoreText, DM-1018) · **Linux shipped, default-on** (fontconfig, DM-1403, calibrated + flipped on in DM-1416) · **Windows shipped, default-on** (DirectWrite `IDWriteFontFallback::MapCharacters`, DM-1403, calibrated + flipped on in DM-1424) — **and genuinely reaching DirectWrite only since DM-1889; see the correction immediately below.**

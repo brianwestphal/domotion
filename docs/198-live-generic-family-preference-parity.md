@@ -1,3 +1,15 @@
+---
+id: "requirements/live-generic-family-preference-parity"
+title: "Live generic-family preference parity"
+kind: "evidence"
+status: "current"
+owners: ["platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2351"]
+code: [".github/workflows/generic-family-preference-parity.yml"]
+aliases: ["docs/198-live-generic-family-preference-parity.md","doc-198"]
+---
+
 # Live generic-family preference parity
 
 DM-2351 establishes which component owns the concrete face behind CSS generic

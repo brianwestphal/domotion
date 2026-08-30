@@ -1,3 +1,15 @@
+---
+id: "requirements/probe-then-fallback-dispatch"
+title: "Domotion: probe-then-fallback glyph dispatch"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-259","DM-260","DM-385","DM-881","DM-886","DM-887","DM-889","DM-891","DM-892"]
+code: ["src/render/font-resolution.ts","src/render/text-to-path.test.ts","src/render/text-to-path.ts"]
+aliases: ["docs/51-probe-then-fallback-dispatch.md","doc-51"]
+---
+
 # Domotion: probe-then-fallback glyph dispatch
 
 Requirements for routing a glyph to the native helper (CoreText / FreeType /

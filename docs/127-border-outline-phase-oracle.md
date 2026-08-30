@@ -1,3 +1,15 @@
+---
+id: "requirements/border-outline-phase-oracle"
+title: "Border and outline device-pixel phase oracle"
+kind: "evidence"
+status: "current"
+owners: ["paint-effects","platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2184","DM-2323","DM-2355"]
+code: [".github/workflows/border-phase-oracle.yml"]
+aliases: ["docs/127-border-outline-phase-oracle.md","doc-127"]
+---
+
 # Border and outline device-pixel phase oracle
 
 DM-2184 adds `npm run borders:phase-oracle`, a focused paint oracle for the

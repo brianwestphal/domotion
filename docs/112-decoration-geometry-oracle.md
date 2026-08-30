@@ -1,3 +1,15 @@
+---
+id: "requirements/decoration-geometry-oracle"
+title: "Text-Decoration Geometry Oracle"
+kind: "evidence"
+status: "current"
+owners: ["text-fonts","layout","platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2501","DM-2514"]
+code: ["tests/decoration-coordinate-ownership.e2e.test.ts","tests/decoration-oracle.test.ts","tools/decoration-oracle.ts","tools/font-conformance.ts"]
+aliases: ["docs/112-decoration-geometry-oracle.md","doc-112"]
+---
+
 # Text-Decoration Geometry Oracle
 
 `tools/decoration-oracle.ts` (`npm run decorations:oracle`) grades text-decoration

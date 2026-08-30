@@ -1,3 +1,15 @@
+---
+id: "requirements/self-contained-svgs"
+title: "26 — Self-contained SVGs (remote image inlining)"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: ["macos"]
+tickets: ["DM-512","DM-528","DM-529"]
+code: ["examples/showcase-rendering.ts","src/embed-remote-images.test.ts","src/post-processing/hoist-image-payloads.test.ts","tests/animate-embed-images.e2e.test.ts","tests/hoist-image-payloads.e2e.test.ts"]
+aliases: ["docs/26-self-contained-svgs.md","doc-26"]
+---
+
 # 26 — Self-contained SVGs (remote image inlining)
 
 ## Context

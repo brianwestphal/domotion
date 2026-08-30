@@ -1,3 +1,15 @@
+---
+id: "requirements/generic-family-semantic-ownership"
+title: "Exact generic-family semantic ownership gate"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2515","DM-2516","DM-2517","DM-2518"]
+code: ["src/render/skia-last-resort-routing.test.ts","tools/generic-family-semantics-audit.ts"]
+aliases: ["docs/206-generic-family-semantic-ownership.md","doc-206"]
+---
+
 # Exact generic-family semantic ownership gate
 
 ## Verdict

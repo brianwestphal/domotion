@@ -1,3 +1,15 @@
+---
+id: "requirements/nested-projective-context-ownership"
+title: "189 — Nested projective-context raster ownership"
+kind: "contract"
+status: "current"
+owners: ["text-fonts"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2356","DM-2359","DM-2492","DM-2493"]
+code: []
+aliases: ["docs/189-nested-projective-context-ownership.md","doc-189"]
+---
+
 # 189 — Nested projective-context raster ownership
 
 **Status:** production selector and strict all-platform release gate shipped by DM-2492/DM-2493

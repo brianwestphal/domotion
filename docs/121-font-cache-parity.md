@@ -1,3 +1,15 @@
+---
+id: "requirements/font-cache-parity"
+title: "121 — Font cache identity and lifetime parity"
+kind: "evidence"
+status: "current"
+owners: ["text-fonts","platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: []
+code: []
+aliases: ["docs/121-font-cache-parity.md","doc-121"]
+---
+
 # 121 — Font cache identity and lifetime parity
 
 This is the cache inventory for the same-machine text contract in doc 120.

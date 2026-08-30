@@ -1,3 +1,15 @@
+---
+id: "requirements/writing-mode"
+title: "Domotion: CSS writing-mode support"
+kind: "contract"
+status: "current"
+owners: ["text-fonts"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-1184","DM-2193","DM-2514","SK-1090","SK-1104","SK-1123"]
+code: ["src/capture/script/walker/text-segments.ts","src/render/text-to-path.ts","src/render/vertical-text.test.ts","src/render/vertical-text.ts"]
+aliases: ["docs/02-writing-mode.md","doc-02"]
+---
+
 # Domotion: CSS writing-mode support
 
 Requirements for vertical writing-mode rendering in Domotion. Origin: SK-1123 (follow-up from SK-1104). Today the pipeline always emits glyphs left-to-right horizontal regardless of `writing-mode`, so any page that uses `vertical-rl`, `vertical-lr`, or `sideways-*` lays out wrong.

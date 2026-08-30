@@ -1,3 +1,15 @@
+---
+id: "requirements/shaping-conformance-oracle"
+title: "108 — Shaping conformance oracle"
+kind: "evidence"
+status: "current"
+owners: ["text-fonts","platform-release","product-tooling"]
+platforms: ["macos"]
+tickets: ["DM-1964","DM-2521"]
+code: ["tests/fixtures/shaping","tests/fixtures/shaping/letter-spacing-ligature-vetoes.html","tests/fixtures/variable-axis/variable-axis.html","tests/shaping-corpus-fontface-exclusion.e2e.test.ts","tests/variable-axis-oracle-pair.e2e.test.ts","tools/shaping-conformance-runs.json","tools/shaping-conformance.ts","tools/variable-axis-oracle-pair.ts"]
+aliases: ["docs/108-shaping-conformance-oracle.md","doc-108"]
+---
+
 # 108 — Shaping conformance oracle
 
 `tools/shaping-conformance.ts` · `npm run fonts:shaping`

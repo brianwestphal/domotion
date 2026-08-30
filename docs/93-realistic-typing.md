@@ -1,3 +1,15 @@
+---
+id: "requirements/realistic-typing"
+title: "93 — Realistic simulated typing"
+kind: "contract"
+status: "current"
+owners: ["animation"]
+platforms: ["macos","linux"]
+tickets: ["DM-1204","DM-1518","DM-1555","DM-1556","DM-1557","DM-1558","DM-1579","DM-1581","DM-1587","DM-1590","DM-1591","DM-1750","DM-1796"]
+code: ["examples/animate/type-resample/","src/animation/animator.ts","src/animation/caret-metrics.ts","src/animation/overlay-schema.ts","src/cli/animate.ts","src/cli/type-resample.e2e.test.ts","src/cli/type-resample.test.ts","src/cli/type-resample.ts","src/render/font-resolution.ts","tests/animate-examples.tsx","tests/typing-baseline-anchor.e2e.test.ts"]
+aliases: ["docs/93-realistic-typing.md","doc-93"]
+---
+
 # 93 — Realistic simulated typing
 
 Status: **v1 shipped** (DM-1518). Character-by-character reveal with the caret

@@ -1,3 +1,15 @@
+---
+id: "requirements/mixed-script-bidi-logical-geometry"
+title: "Mixed-script bidi logical geometry"
+kind: "contract"
+status: "current"
+owners: ["text-fonts","layout"]
+platforms: ["macos","windows"]
+tickets: ["DM-2524"]
+code: [".github/workflows/mixed-bidi-logical-conformance.yml","src/render/mixed-bidi-logical.test.ts","src/render/script-segmentation.ts"]
+aliases: ["docs/214-mixed-script-bidi-logical-geometry.md","doc-214"]
+---
+
 # Mixed-script bidi logical geometry
 
 DM-2524 closes a logical paragraph-itemization mismatch exposed by the

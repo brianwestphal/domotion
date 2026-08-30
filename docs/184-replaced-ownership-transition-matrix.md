@@ -1,3 +1,15 @@
+---
+id: "requirements/replaced-ownership-transition-matrix"
+title: "184 — Replaced and native ownership transition matrix"
+kind: "contract"
+status: "current"
+owners: ["images-media","animation"]
+platforms: []
+tickets: ["DM-2364"]
+code: []
+aliases: ["docs/184-replaced-ownership-transition-matrix.md","doc-184"]
+---
+
 # 184 — Replaced and native ownership transition matrix
 
 DM-2364 expands the decision-stage gate before any additional synthesis is

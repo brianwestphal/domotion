@@ -1,3 +1,15 @@
+---
+id: "requirements/feature-coverage"
+title: "83 — Feature/requirement coverage (behavior coverage, not just line coverage)"
+kind: "contract"
+status: "current"
+owners: ["product-tooling"]
+platforms: []
+tickets: ["DM-1058","DM-1338","DM-1350","DM-1459"]
+code: ["src/index.exports.test.ts","src/render/render-text-mode-guard.test.ts","tests/conventions.test.ts","tests/feature-coverage.ts","tools/check-feature-coverage.ts","tools/semantic-coverage.json"]
+aliases: ["docs/83-feature-coverage.md","doc-83"]
+---
+
 # 83 — Feature/requirement coverage (behavior coverage, not just line coverage)
 
 Status: **shipped** (DM-1459). Modeled on the apple-fm coverage-by-feature exercise.

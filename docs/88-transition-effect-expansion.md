@@ -1,3 +1,15 @@
+---
+id: "requirements/transition-effect-expansion"
+title: "88 — Transition & effect expansion (SVG-safe)"
+kind: "contract"
+status: "current"
+owners: ["animation"]
+platforms: []
+tickets: ["DM-1414","DM-1524","DM-1542","DM-1547","DM-1548","DM-1549","DM-1550","DM-1551","DM-1583","DM-1585","DM-1996"]
+code: ["examples/output/transition-mixed.svg","examples/showcase-transitions.ts","src/animation/animator.ts","src/animation/composite.ts","src/animation/easing.ts","src/animation/motion-presets.ts","src/animation/overlay-schema.ts","src/animation/shine.ts","src/cli/animate.ts"]
+aliases: ["docs/88-transition-effect-expansion.md","doc-88"]
+---
+
 # 88 — Transition & effect expansion (SVG-safe)
 
 **Status: shipped (DM-1524 + DM-1542).** This doc is the reference for the

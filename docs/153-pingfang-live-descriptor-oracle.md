@@ -1,3 +1,15 @@
+---
+id: "requirements/pingfang-live-descriptor-oracle"
+title: "PingFang live CoreText descriptor oracle"
+kind: "evidence"
+status: "current"
+owners: ["platform-release"]
+platforms: ["macos"]
+tickets: []
+code: [".github/workflows/pingfang-live-descriptor.yml","tools/pingfang-live-descriptor-schema.mjs"]
+aliases: ["docs/153-pingfang-live-descriptor-oracle.md","doc-153"]
+---
+
 # PingFang live CoreText descriptor oracle
 
 The diagnostic workflow `.github/workflows/pingfang-live-descriptor.yml` captures fallback state that cannot be reconstructed after a hosted macOS runner image expires. It is observational and does not change font routing.

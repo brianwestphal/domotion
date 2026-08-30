@@ -1,3 +1,15 @@
+---
+id: "requirements/scroll-sticky-hoisting"
+title: "35. Scroll composer: position:sticky hoisting"
+kind: "contract"
+status: "current"
+owners: ["layout"]
+platforms: ["windows"]
+tickets: ["DM-641","DM-643","DM-645"]
+code: ["src/scroll/executor.ts","src/scroll/hoist-fixed.ts","src/scroll/hoist-sticky.test.ts","src/scroll/hoist-sticky.ts"]
+aliases: ["docs/35-scroll-sticky-hoisting.md","doc-35"]
+---
+
 # 35. Scroll composer: position:sticky hoisting
 
 The `--scroll` capture flow (`src/scroll/{executor,composer}.ts`) renders the page at multiple scrollY positions and stacks the captures inside a translating composite. The composer hoists `position: fixed` subtrees onto a viewport-level overlay (doc 33-like fold; the actual code lives in `src/scroll/hoist-fixed.ts` per DM-643) so a site header captured at viewport-y = 0 in every segment renders once, on top, in viewport coordinates — instead of being smeared down the composite once per segment.

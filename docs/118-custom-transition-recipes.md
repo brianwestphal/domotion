@@ -1,3 +1,15 @@
+---
+id: "requirements/custom-transition-recipes"
+title: "118 — Declarative custom transition recipes"
+kind: "contract"
+status: "current"
+owners: ["animation"]
+platforms: []
+tickets: ["DM-2072"]
+code: []
+aliases: ["docs/118-custom-transition-recipes.md","doc-118"]
+---
+
 # 118 — Declarative custom transition recipes
 
 DM-2072 provides an open-ended transition escape hatch without accepting viewer code. A `custom` transition composes bounded primitives on the incoming and outgoing layers and lowers to the same normalized plan and one CSS scene clock as built-ins.

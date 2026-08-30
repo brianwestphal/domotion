@@ -1,3 +1,15 @@
+---
+id: "requirements/linux-arm64-release-parity"
+title: "Linux arm64 published-helper and parity gate"
+kind: "evidence"
+status: "current"
+owners: ["platform-release"]
+platforms: ["macos","linux"]
+tickets: ["DM-2353","DM-2501","DM-2507"]
+code: [".github/workflows/emoji-presentation-ownership-audit.yml",".github/workflows/linux-arm64-release-parity.yml"]
+aliases: ["docs/196-linux-arm64-release-parity.md","doc-196"]
+---
+
 # Linux arm64 published-helper and parity gate
 
 DM-2353 closes a release-validation blind spot: building an arm64 helper on an

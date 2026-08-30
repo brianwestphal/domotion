@@ -1,3 +1,15 @@
+---
+id: "requirements/parameterized-built-in-transitions"
+title: "117 — Parameterized built-in transitions"
+kind: "contract"
+status: "current"
+owners: ["animation"]
+platforms: []
+tickets: ["DM-2071"]
+code: []
+aliases: ["docs/117-parameterized-built-in-transitions.md","doc-117"]
+---
+
 # 117 — Parameterized built-in transitions
 
 DM-2071 adds canonical family forms alongside the byte-compatible legacy names. Values are statically bounded by the shared schema and normalize into the same viewer-safe opacity, translate, scale, clip, and gradient-overlay plan.

@@ -1,3 +1,15 @@
+---
+id: "requirements/transformed-text-all-platform-gate"
+title: "Transformed-text all-platform parity gate"
+kind: "contract"
+status: "current"
+owners: ["text-fonts","layout","platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2471"]
+code: [".github/workflows/text-transform-parity.yml","tools/text-transform-geometry-audit.ts"]
+aliases: ["docs/179-transformed-text-all-platform-gate.md","doc-179"]
+---
+
 # Transformed-text all-platform parity gate
 
 DM-2471 turns the transformed-text discriminator from doc 159 into a hard,

@@ -1,3 +1,15 @@
+---
+id: "requirements/parameterized-transition-design"
+title: "115 — Parameterized transition design"
+kind: "contract"
+status: "current"
+owners: ["animation"]
+platforms: []
+tickets: ["DM-2070","DM-2071","DM-2072"]
+code: []
+aliases: ["docs/115-parameterized-transition-design.md","doc-115"]
+---
+
 # 115 — Parameterized transition design
 
 **Status: fully shipped across DM-2070, DM-2071, and DM-2072.**

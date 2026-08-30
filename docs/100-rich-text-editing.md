@@ -1,3 +1,15 @@
+---
+id: "requirements/rich-text-editing"
+title: "100 — Rich-text typing & editing: captured states + compression + caret/selection tracks"
+kind: "contract"
+status: "current"
+owners: ["text-fonts"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-1757","DM-1761","DM-1763","DM-1764","DM-1767","DM-1768","DM-1770","DM-1771","DM-1772"]
+code: ["examples/animate/compressed-run/","examples/animate/editor-session/","examples/animate/region-timing/","src/animation/animator.ts","src/animation/caret-metrics.ts","src/animation/caret-track.ts","src/animation/compressed-run.ts","src/animation/glyph-align.ts","src/animation/magic-move.ts","src/animation/text-address.ts","src/cli/animate.ts","src/cli/type-resample.ts","src/terminal/incremental.ts","tests/auto-compress.e2e.test.ts","tests/compress-marker.e2e.test.ts","tests/compress-size-guard.e2e.test.ts","tests/compressed-run-config.e2e.test.ts","tests/compressed-run.e2e.test.ts","tests/editor-session.e2e.test.ts","tests/fixture-fonts.ts","tests/flipbook-parity.ts","tests/region-timing.e2e.test.ts","tests/two-pane-regions.e2e.test.ts"]
+aliases: ["docs/100-rich-text-editing.md","doc-100"]
+---
+
 # 100 — Rich-text typing & editing: captured states + compression + caret/selection tracks
 
 Status: **Shipped end to end — primitives, config surface, and the flagship

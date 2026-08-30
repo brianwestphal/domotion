@@ -1,3 +1,15 @@
+---
+id: "requirements/adaptive-scaling-clamp-investigation"
+title: "95 — Adaptive scaling: CSS clamp() / viewport-unit alternative (investigation)"
+kind: "investigation"
+status: "current"
+owners: ["rendering"]
+platforms: []
+tickets: ["DM-1538","DM-1541","DM-1561","DM-1568"]
+code: ["src/templates/formats.ts","tools/scratch/dm1561/"]
+aliases: ["docs/95-adaptive-scaling-clamp-investigation.md","doc-95"]
+---
+
 # 95 — Adaptive scaling: CSS `clamp()` / viewport-unit alternative (investigation)
 
 **Status: investigation only (DM-1561). No production change.** DM-1541 ships

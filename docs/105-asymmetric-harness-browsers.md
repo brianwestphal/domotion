@@ -1,3 +1,15 @@
+---
+id: "requirements/asymmetric-harness-browsers"
+title: "105 — Asymmetric capture-vs-raster browsers in the visual harnesses"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: ["macos","linux"]
+tickets: ["DM-1789","DM-1790","DM-1794","DM-1797"]
+code: ["tests/harness-browsers.test.ts","tests/harness-browsers.ts","tests/html-test-suite.tsx","tests/real-world.tsx","tests/runner.tsx"]
+aliases: ["docs/105-asymmetric-harness-browsers.md","doc-105"]
+---
+
 # 105 — Asymmetric capture-vs-raster browsers in the visual harnesses
 
 Status: **shipped** (DM-1790). An opt-in mode that lets `tests/runner.tsx` and `tests/html-test-suite.tsx` launch **two** Chromiums — one for the expected paint, one for rasterizing the candidate SVG — so a launch flag can be applied to a single side. Default behavior is unchanged: no flags set ⇒ one browser, exactly as before.

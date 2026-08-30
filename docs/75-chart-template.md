@@ -1,3 +1,15 @@
+---
+id: "requirements/chart-template"
+title: "75 — The chart built-in template"
+kind: "contract"
+status: "current"
+owners: ["product-tooling"]
+platforms: []
+tickets: ["DM-1279","DM-1297","DM-1300","DM-1301","DM-1537","DM-1560"]
+code: ["examples/output/templates/","examples/output/templates/format-square-chart.svg","examples/templates-demo.ts","src/templates/builtin/chart.ts","src/templates/registry.ts"]
+aliases: ["docs/75-chart-template.md","doc-75"]
+---
+
 # 75 — The `chart` built-in template
 
 Status: **shipped** (DM-1279). A data/infographics generator — turn a list of

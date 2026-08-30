@@ -1,3 +1,15 @@
+---
+id: "requirements/ordinary-backdrop-effect-space"
+title: "194 — Ordinary backdrop Backdrop Root/effect-space ownership"
+kind: "contract"
+status: "current"
+owners: ["paint-effects"]
+platforms: []
+tickets: ["DM-2487"]
+code: []
+aliases: ["docs/194-ordinary-backdrop-effect-space.md","doc-194"]
+---
+
 # 194 — Ordinary backdrop Backdrop Root/effect-space ownership
 
 **Status: source ownership shipped; final composite parity completed by the

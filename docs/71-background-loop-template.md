@@ -1,3 +1,15 @@
+---
+id: "requirements/background-loop-template"
+title: "71 — background-loop template"
+kind: "contract"
+status: "current"
+owners: ["product-tooling"]
+platforms: []
+tickets: ["DM-1276","DM-1280","DM-1285","DM-1295","DM-1298"]
+code: ["src/templates/builtin/background-loop.ts","src/templates/registry.ts"]
+aliases: ["docs/71-background-loop-template.md","doc-71"]
+---
+
 # 71 — `background-loop` template
 
 Status: **shipped** (DM-1280). The first of the deferred first-party templates

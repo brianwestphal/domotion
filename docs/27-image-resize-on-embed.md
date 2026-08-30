@@ -1,3 +1,15 @@
+---
+id: "requirements/image-resize-on-embed"
+title: "27 — Image resize-on-embed"
+kind: "contract"
+status: "current"
+owners: ["images-media"]
+platforms: ["linux"]
+tickets: ["DM-2477","DM-258","DM-260","DM-512","DM-526","DM-542"]
+code: ["src/capture/embed.ts","src/tree-ops/resize-embedded-images.test.ts","tests/real-world.tsx"]
+aliases: ["docs/27-image-resize-on-embed.md","doc-27"]
+---
+
 # 27 — Image resize-on-embed
 
 ## Context

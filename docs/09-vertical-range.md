@@ -1,3 +1,15 @@
+---
+id: "requirements/vertical-range"
+title: "Domotion: vertical <input type=range>"
+kind: "archive"
+status: "superseded"
+owners: ["rendering"]
+platforms: []
+tickets: ["DM-273","DM-276","SK-1123"]
+code: ["src/render/form-controls.ts"]
+aliases: ["docs/09-vertical-range.md","doc-09"]
+---
+
 # Domotion: vertical `<input type=range>`
 
 Requirements for vertical-axis range sliders in Domotion. Origin: DM-276 (follow-up from DM-273). Section 5 of `external/html-test/06-forms-style-range.html` declares a vertical slider via `writing-mode: vertical-lr; direction: rtl`; before this work the renderer always laid the track + thumb on the horizontal axis, so the captured 30×150 element painted as a misshapen horizontal slider stuffed into a tall narrow box.

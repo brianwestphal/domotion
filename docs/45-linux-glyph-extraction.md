@@ -1,3 +1,15 @@
+---
+id: "requirements/linux-glyph-extraction"
+title: "Domotion: Linux native glyph-outline extraction (FreeType)"
+kind: "contract"
+status: "current"
+owners: ["text-fonts","platform-release"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-1034","DM-2056","DM-2353","DM-258","DM-259","DM-262","DM-389","DM-390","DM-393","DM-837","DM-838","DM-872","DM-876","DM-881","DM-886"]
+code: [".github/workflows/release-helpers.yml","src/render/glyph-helper.test.ts","src/render/glyph-helper.ts","src/render/helper-acquire.ts","tests/linux-glyph-extractor.test.ts","tools/linux-glyph-extractor/","tools/linux-glyph-extractor/CMakeLists.txt"]
+aliases: ["docs/45-linux-glyph-extraction.md","doc-45"]
+---
+
 # Domotion: Linux native glyph-outline extraction (FreeType)
 
 Requirements for the **Linux** native glyph-outline extractor — the analogue of

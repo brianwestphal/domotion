@@ -1,3 +1,15 @@
+---
+id: "requirements/transition-schema-and-normalization"
+title: "116 — Transition schema and compatibility normalization"
+kind: "proposal"
+status: "proposed"
+owners: ["animation","product-tooling"]
+platforms: []
+tickets: ["DM-2070","DM-2071","DM-2072"]
+code: ["src/animation/transition-schema.ts"]
+aliases: ["docs/116-transition-schema-and-normalization.md","doc-116"]
+---
+
 # 116 — Transition schema and compatibility normalization
 
 DM-2070 ships the foundation proposed in doc 115: one transition contract and one compatibility normalizer shared by every authoring surface.

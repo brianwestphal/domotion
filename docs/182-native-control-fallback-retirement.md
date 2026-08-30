@@ -1,3 +1,15 @@
+---
+id: "requirements/native-control-fallback-retirement"
+title: "182 — Native-control sampled-fallback retirement"
+kind: "contract"
+status: "current"
+owners: ["rendering"]
+platforms: ["macos","linux","windows"]
+tickets: ["DM-2458"]
+code: [".github/workflows/native-control-fallback-parity.yml","src/render/form-controls.ts","tests/native-control-fallback-activation.e2e.test.ts","tests/native-control-fallback-gate.test.ts","tools/native-control-fallback-gate.ts"]
+aliases: ["docs/182-native-control-fallback-retirement.md","doc-182"]
+---
+
 # 182 — Native-control sampled-fallback retirement
 
 DM-2458 removes the last platform-calibrated SVG substitutes for native form
