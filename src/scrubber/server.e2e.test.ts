@@ -281,4 +281,32 @@ describe("svg-scrubber server (DM-1040)", () => {
       await closeSafely(() => s2.close(), b2, 6_000);
     }
   }, 60_000);
+
+  it("supports keyboard file entry, visible focus, and pointer-free region marking (DM-2599)", async () => {
+    if (!chromiumAvailable) return;
+    const b2 = await chromium.launch();
+    const s2 = await startScrubberServer({ launchBrowser: async () => b2, initialSvg: SVG, initialName: "anim.svg", review: true });
+    const ctx = await b2.newContext({ viewport: { width: 900, height: 600 } });
+    const page = await ctx.newPage();
+    try {
+      await page.goto(s2.url, { waitUntil: "load" });
+      await page.waitForSelector(".svg-host svg", { timeout: 10_000 });
+
+      const drop = page.getByRole("button", { name: /Drop an animated SVG here/ });
+      expect(await drop.count()).toBe(0); // hidden once the bootstrap SVG loads
+      const center = page.getByRole("button", { name: "Add centered region" });
+      await center.focus();
+      expect(await center.evaluate((el) => getComputedStyle(el).outlineStyle)).not.toBe("none");
+      await page.keyboard.press("Enter");
+      await expect.poll(() => page.locator(".region-box").count()).toBe(1);
+
+      const fileInput = page.locator('input[type="file"]');
+      expect(await fileInput.getAttribute("class")).toBe("file-input");
+      expect(await fileInput.getAttribute("aria-label")).toBe("Choose an animated SVG file");
+      expect(await fileInput.evaluate((el) => getComputedStyle(el).display)).not.toBe("none");
+    } finally {
+      await ctx.close().catch(() => {});
+      await closeSafely(() => s2.close(), b2, 6_000);
+    }
+  }, 60_000);
 });

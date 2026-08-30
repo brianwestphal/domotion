@@ -33,7 +33,7 @@ body{margin:0;font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-ser
 .svg-host svg{display:block;filter:drop-shadow(0 4px 24px rgba(0,0,0,.5))}
 .drop{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;
   gap:10px;color:#9aa0ad;border:2px dashed #2a2e38;margin:18px;border-radius:12px;text-align:center;padding:24px;
-  background:rgba(14,15,19,.7);cursor:pointer}
+  background:rgba(14,15,19,.7);cursor:pointer;width:calc(100% - 36px);font:inherit}
 .drop.over{border-color:#5b8cff;color:#cdd5ff;background:#161b2b}
 .bar{background:#15171c;border-top:1px solid #23262f;padding:10px 14px;display:flex;flex-direction:column;gap:8px}
 .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -41,6 +41,7 @@ body{margin:0;font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-ser
 .grp{display:flex;align-items:center;gap:8px}
 button{background:#262a35;color:#e7e9ee;border:1px solid #333845;border-radius:7px;padding:6px 11px;cursor:pointer;font:inherit}
 button:hover{background:#2f3543}button:disabled{opacity:.45;cursor:default}
+button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid #9bb4ff;outline-offset:2px}
 button.primary{background:#3a63d8;border-color:#3a63d8}button.primary:hover{background:#4a73e8}
 .play{display:inline-flex;align-items:center;justify-content:center;padding:6px 9px}
 .play svg{display:block}
@@ -55,9 +56,9 @@ input[type=range]{accent-color:#5b8cff}
 .range-tick{position:absolute;top:50%;transform:translate(-50%,-50%);width:14px;height:22px;z-index:3;
   cursor:ew-resize;display:flex;align-items:center;justify-content:center;touch-action:none}
 .range-tick::before{content:"";width:3px;height:18px;background:#9bb4ff;border-radius:2px;box-shadow:0 0 0 1px rgba(0,0,0,.35)}
-.range-tick span{position:absolute;top:-14px;font-size:9px;color:#9bb4ff;font-weight:600;pointer-events:none}
+.range-tick span{position:absolute;top:-17px;font-size:12px;color:#b7c8ff;font-weight:600;pointer-events:none}
 .time{font-variant-numeric:tabular-nums;color:#aab0bd;min-width:120px;text-align:right}
-.muted{color:#8a90a0;font-size:12px}
+.muted{color:#aab0bd;font-size:13px}
 .rng{display:flex;align-items:center;gap:8px}
 label{display:inline-flex;align-items:center;gap:5px;cursor:pointer}
 .tag{background:#23262f;border-radius:5px;padding:2px 7px;font-size:12px;color:#aab0bd}
@@ -90,6 +91,8 @@ a.dl{display:none}
 .region-layer{position:absolute;inset:0;z-index:7;display:none;touch-action:none;cursor:crosshair}
 .region-box{position:absolute;outline:2px solid #ff5b8a;background:rgba(255,91,138,.14);pointer-events:none}
 .region-box::after{content:"issue region";position:absolute;top:-18px;left:0;font-size:10px;color:#ff8fb0;font-weight:600;white-space:nowrap}
+.file-input{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media (pointer:coarse){button,select,input[type=number],label{min-height:44px}.iconbtn{min-width:44px}.range-tick{width:44px;height:44px}}
 `;
 
 const ZOOM_PRESETS = [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 4];
@@ -211,10 +214,10 @@ function render() {
         {/* DM-1445: review region overlay host — drag-to-draw a rectangle. */}
         <div class="region-layer" data-region-layer data-morph-skip style="display:none"></div>
         {(!svgLoaded.value || dragging.value) && (
-          <div class={dragging.value ? "drop over" : "drop"} data-drop>
+          <button type="button" class={dragging.value ? "drop over" : "drop"} data-drop aria-describedby="drop-help">
             Drop an animated SVG here
-            <span class="muted">or click to choose a file</span>
-          </div>
+            <span class="muted" id="drop-help">or press Enter to choose a file</span>
+          </button>
         )}
       </div>
       <div class="bar">
@@ -293,13 +296,14 @@ function render() {
               <button class={regionMode.value ? "iconbtn active" : "iconbtn"} data-action="rv-region" title="drag rectangles over the problem area(s); stays armed so you can add several" disabled={!svgLoaded.value}>
                 {regionMode.value ? "Drawing…" : regions.value.length > 0 ? `Regions ✓ (${regions.value.length})` : "Mark region"}
               </button>
+              <button data-action="rv-region-center" title="add a centered region without using a pointer" disabled={!svgLoaded.value}>Add centered region</button>
               <button data-action="rv-clear-region" disabled={!svgLoaded.value || regions.value.length === 0}>Clear</button>
               <label class="muted"><input type="checkbox" data-action="rv-attach" checked={attachFrame.value} disabled={!svgLoaded.value} />attach frame</label>
               <span class="muted">frame @ {frameLabel} · range {fmt(rangeStart.value)}–{fmt(hi)}</span>
               <button class="primary" data-action="rv-save" disabled={!svgLoaded.value || savingTicket.value}>{savingTicket.value ? "Saving…" : "Save issue"}</button>
             </div>
             <textarea class="rv-note" data-action="rv-note" placeholder="Describe the issue (becomes the ticket body)…" disabled={!svgLoaded.value}></textarea>
-            {ticketStatus.value.msg !== "" && <div class={`rv-status ${ticketStatus.value.kind}`}>{ticketStatus.value.msg}</div>}
+            {ticketStatus.value.msg !== "" && <div class={`rv-status ${ticketStatus.value.kind}`} role="status" aria-live="polite">{ticketStatus.value.msg}</div>}
           </div>
         )}
       </div>
@@ -762,6 +766,11 @@ const CLICK: Record<string, () => void> = {
   "export-video": () => { exportMenuOpen.value = false; void exportVideo(); },
   // DM-1445/DM-1449: review-mode controls.
   "rv-region": () => { regionMode.value = !regionMode.value; regionTick.value++; },
+  "rv-region-center": () => {
+    const n = svgNaturalSize();
+    regions.value = [...regions.value, { x: n.w / 4, y: n.h / 4, w: n.w / 2, h: n.h / 2 }];
+    regionTick.value++;
+  },
   "rv-clear-region": () => { regions.value = []; drawingRect.value = null; regionMode.value = false; regionTick.value++; },
   "rv-save": () => { void saveTicket(); },
 };
@@ -850,7 +859,8 @@ void delegate(app, "dragleave", "[data-stage]", (e) => { e.preventDefault(); dra
 void delegate(app, "drop", "[data-stage]", (e) => { e.preventDefault(); dragging.value = false; readFile((e as DragEvent).dataTransfer?.files?.[0]); });
 
 const fileInput = document.createElement("input");
-fileInput.type = "file"; fileInput.accept = ".svg,image/svg+xml"; fileInput.style.display = "none";
+fileInput.type = "file"; fileInput.accept = ".svg,image/svg+xml"; fileInput.className = "file-input";
+fileInput.setAttribute("aria-label", "Choose an animated SVG file");
 fileInput.addEventListener("change", () => readFile(fileInput.files?.[0] ?? undefined));
 app.append(fileInput);
 
