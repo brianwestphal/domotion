@@ -1,0 +1,4751 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "id": "requirements/fidelity",
+      "title": "Domotion: rendering fidelity and warnings",
+      "kind": "contract",
+      "status": "partial",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/animation/animator.ts",
+        "src/render/clip-path.ts",
+        "src/render/element-tree-to-svg.ts",
+        "tests/composed-parity-fixtures.ts",
+        "tests/features.ts",
+        "tests/html-test-suite.tsx",
+        "tests/output/html-test/index.html",
+        "tests/output/html-test/results.json",
+        "tests/textarea-line-baseline.e2e.test.ts"
+      ],
+      "file": "01-fidelity.md"
+    },
+    {
+      "id": "requirements/writing-mode",
+      "title": "Domotion: CSS writing-mode support",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/capture/script/walker/text-segments.ts",
+        "src/render/text-to-path.ts",
+        "src/render/vertical-text.test.ts",
+        "src/render/vertical-text.ts"
+      ],
+      "file": "02-writing-mode.md"
+    },
+    {
+      "id": "requirements/font-family-chain",
+      "title": "Domotion: CSS font-family chain resolution",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/render/darwin-named-family-identity.test.ts",
+        "src/render/font-resolution.ts",
+        "tests/darwin-named-family-identity.e2e.test.ts",
+        "tests/new-york-optical-cut.e2e.test.ts"
+      ],
+      "file": "03-font-family-chain.md"
+    },
+    {
+      "id": "requirements/input-pseudos",
+      "title": "Domotion: custom-styled input pseudos",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [],
+      "code": [
+        "src/capture/pseudo-style-cdp.ts",
+        "src/capture/script/",
+        "src/render/form-controls.ts"
+      ],
+      "file": "04-input-pseudos.md"
+    },
+    {
+      "id": "requirements/progress-meter-pseudos",
+      "title": "Domotion: progress / meter pseudo styling",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [
+        "macos"
+      ],
+      "code": [
+        "src/capture/types.ts",
+        "src/render/form-controls.ts"
+      ],
+      "file": "05-progress-meter-pseudos.md"
+    },
+    {
+      "id": "requirements/css-transforms",
+      "title": "Domotion: CSS 2D transforms",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "layout"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/capture/script/index.ts",
+        "src/render/element-tree-to-svg.ts",
+        "src/render/stacking.ts",
+        "src/render/transforms.ts"
+      ],
+      "file": "06-css-transforms.md"
+    },
+    {
+      "id": "requirements/gradient-fills",
+      "title": "Domotion: gradient fills via SVG <linearGradient>",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "paint-effects"
+      ],
+      "platforms": [],
+      "code": [
+        "src/capture/script/",
+        "src/render/form-controls.ts",
+        "src/render/gradient-defs.ts",
+        "src/render/gradients.ts"
+      ],
+      "file": "07-gradient-fills.md"
+    },
+    {
+      "id": "requirements/animation-model",
+      "title": "08 — Animation model: transitions, overlays, intra-frame motion",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "animation"
+      ],
+      "platforms": [
+        "windows"
+      ],
+      "code": [
+        "examples/animate/",
+        "examples/animate/README.md",
+        "src/animation/animator.ts",
+        "src/animation/easing.ts",
+        "src/animation/motion-presets.ts",
+        "src/animation/transition-schema.ts",
+        "src/cli/animate.ts",
+        "src/utils/keyframe-pad.ts"
+      ],
+      "file": "08-animation-model.md"
+    },
+    {
+      "id": "requirements/vertical-range",
+      "title": "Domotion: vertical <input type=range>",
+      "kind": "archive",
+      "status": "superseded",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [],
+      "code": [
+        "src/render/form-controls.ts"
+      ],
+      "file": "09-vertical-range.md"
+    },
+    {
+      "id": "requirements/repeating-gradients",
+      "title": "Domotion: repeating-linear-gradient (and calc() stop offsets)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "paint-effects"
+      ],
+      "platforms": [],
+      "code": [
+        ".github/workflows/repeating-linear-px-stop-parity.yml",
+        "src/capture/pseudo-style-cdp.ts",
+        "src/render/gradients.test.ts",
+        "src/render/gradients.ts",
+        "tests/repeating-linear-legacy-consumers.e2e.test.ts",
+        "tests/repeating-linear-px-stops.e2e.test.ts"
+      ],
+      "file": "10-repeating-gradients.md"
+    },
+    {
+      "id": "requirements/custom-checkbox-radio",
+      "title": "Domotion: appearance: none checkbox / radio / switch",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/capture/pseudo-fragment-cdp.ts",
+        "src/render/pseudo-fragments.ts",
+        "tests/checkable-pseudo-indicators.e2e.test.ts",
+        "tools/pseudo-fragment-render-oracle.ts"
+      ],
+      "file": "11-custom-checkbox-radio.md"
+    },
+    {
+      "id": "requirements/diff-scoring",
+      "title": "Domotion: visual-diff scoring",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/review/compare-pngs.test.ts",
+        "src/review/compare-pngs.ts",
+        "tests/fixture-fonts.ts",
+        "tests/flipbook-parity.ts",
+        "tests/html-test-suite.tsx",
+        "tests/real-world.tsx",
+        "tests/runner.tsx"
+      ],
+      "file": "12-diff-scoring.md"
+    },
+    {
+      "id": "requirements/cursor-overlay",
+      "title": "Domotion: cursor / click overlay",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "animation"
+      ],
+      "platforms": [
+        "macos",
+        "windows"
+      ],
+      "code": [
+        "src/animation/cursor-glyphs.ts",
+        "src/animation/cursor-overlay.ts",
+        "src/capture/script/utils.ts",
+        "src/cli/animate.ts",
+        "src/render/paint-order.ts",
+        "tools/cursor-catalog.mts"
+      ],
+      "file": "13-cursor-overlay.md"
+    },
+    {
+      "id": "requirements/per-corner-border-radius",
+      "title": "Per-corner border-radius",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "paint-effects"
+      ],
+      "platforms": [],
+      "code": [],
+      "file": "14-per-corner-border-radius.md"
+    },
+    {
+      "id": "requirements/color-emoji-rendering",
+      "title": "Domotion: Color emoji rendering",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "paint-effects"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/capture/emoji.ts",
+        "src/capture/script/emoji-detect.test.ts",
+        "src/capture/script/emoji-detect.ts",
+        "src/render/emoji-raster-kind.test.ts",
+        "src/render/text-to-path.test.ts",
+        "tests/win32-glyph-extractor.test.ts",
+        "tools/font-palette-ownership-audit.ts"
+      ],
+      "file": "15-color-emoji-rendering.md"
+    },
+    {
+      "id": "requirements/coretext-glyph-extraction",
+      "title": "Domotion: native glyph-outline extraction (CoreText / Pango / DirectWrite)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "scripts/probe-coretext-glyphs.mjs",
+        "src/render/",
+        "src/render/font-resolution.ts",
+        "src/render/glyph-helper.test.ts",
+        "src/render/glyph-helper.ts",
+        "src/render/helper-acquire.ts",
+        "src/render/text-to-path.ts",
+        "src/render/unicode-classification.ts",
+        "tools/macos-glyph-extractor/",
+        "tools/macos-glyph-extractor/build.sh"
+      ],
+      "file": "16-coretext-glyph-extraction.md"
+    },
+    {
+      "id": "requirements/replaced-element-snapshots",
+      "title": "17 — Replaced-element static snapshots (<canvas> / <video> / <iframe> / <object> / <embed>)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "images-media"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/capture/index.ts",
+        "src/capture/replaced-media-frame.test.ts",
+        "src/capture/replaced-media-frame.ts",
+        "src/render/element-tree-to-svg.ts",
+        "tests/features.ts",
+        "tests/replaced-media-frame.e2e.test.ts",
+        "tests/replaced-snapshot-transform.e2e.test.ts"
+      ],
+      "file": "17-replaced-element-snapshots.md"
+    },
+    {
+      "id": "requirements/background-clip-text",
+      "title": "18 — background-clip: text (vector-masked background stack)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "paint-effects",
+        "product-tooling"
+      ],
+      "platforms": [],
+      "code": [
+        "src/render/element-tree-to-svg.ts",
+        "tests/background-clip-text-oracle.e2e.test.ts",
+        "tests/features.ts"
+      ],
+      "file": "18-background-clip-text.md"
+    },
+    {
+      "id": "requirements/frosted-backdrop-fallback",
+      "title": "19 — Backdrop-filter raster fallback and diagnostics",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "paint-effects"
+      ],
+      "platforms": [],
+      "code": [
+        "src/capture/backdrop-raster-diagnostics.test.ts",
+        "src/capture/script/walker/borders-backgrounds.ts",
+        "src/render/element-tree-to-svg.ts"
+      ],
+      "file": "19-frosted-backdrop-fallback.md"
+    },
+    {
+      "id": "requirements/css-mask-emission",
+      "title": "20 — CSS mask → SVG <mask> emission",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "paint-effects"
+      ],
+      "platforms": [],
+      "code": [
+        "src/capture/script/walker/masks-clips.ts",
+        "src/mask.test.ts",
+        "src/render/element-tree-to-svg.ts",
+        "src/render/mask-origin-clip.test.ts",
+        "src/render/mask-position.test.ts",
+        "src/render/mask-position.ts",
+        "src/render/mask.ts",
+        "tests/mask-position-contain-cover.e2e.test.ts",
+        "tests/mask-url-repeat-geometry.e2e.test.ts"
+      ],
+      "file": "20-css-mask-emission.md"
+    },
+    {
+      "id": "requirements/mask-fragment-references",
+      "title": "21 — mask-image: url(\"#fragment\") inline-SVG mask references",
+      "kind": "reference",
+      "status": "current",
+      "owners": [
+        "paint-effects",
+        "layout"
+      ],
+      "platforms": [],
+      "code": [
+        "src/capture/index.ts",
+        "src/mask.test.ts",
+        "tests/external-svg-refs.e2e.test.ts",
+        "tests/features.ts",
+        "tests/iframe-inner-defs.e2e.test.ts",
+        "tests/multi-layer-fragment-mask.e2e.test.ts"
+      ],
+      "file": "21-mask-fragment-references.md"
+    },
+    {
+      "id": "requirements/mask-element-paint-references",
+      "title": "22 — mask-image: element(#id) paint references",
+      "kind": "reference",
+      "status": "current",
+      "owners": [
+        "paint-effects"
+      ],
+      "platforms": [],
+      "code": [
+        "src/mask.test.ts",
+        "tests/features.ts",
+        "tests/iframe-inner-element-mask.e2e.test.ts"
+      ],
+      "file": "22-mask-element-paint-references.md"
+    },
+    {
+      "id": "requirements/css-sprite-icons",
+      "title": "23 — CSS sprite icons (off-screen text + sliced background-image)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "images-media"
+      ],
+      "platforms": [],
+      "code": [
+        "tests/features.ts"
+      ],
+      "file": "23-css-sprite-icons.md"
+    },
+    {
+      "id": "requirements/inline-svg-icon-references",
+      "title": "24 — Inline SVG icon references",
+      "kind": "reference",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [],
+      "code": [
+        "tests/features.ts"
+      ],
+      "file": "24-inline-svg-icon-references.md"
+    },
+    {
+      "id": "requirements/keyframe-extraction-for-symbols",
+      "title": "25 — Animated symbol contents: t=0 paint state",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [],
+      "code": [
+        "src/capture/script/",
+        "src/capture/script/walker/inline-svg.ts",
+        "tests/features.ts"
+      ],
+      "file": "25-keyframe-extraction-for-symbols.md"
+    },
+    {
+      "id": "requirements/self-contained-svgs",
+      "title": "26 — Self-contained SVGs (remote image inlining)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [
+        "macos"
+      ],
+      "code": [
+        "examples/showcase-rendering.ts",
+        "src/embed-remote-images.test.ts",
+        "src/post-processing/hoist-image-payloads.test.ts",
+        "tests/animate-embed-images.e2e.test.ts",
+        "tests/hoist-image-payloads.e2e.test.ts"
+      ],
+      "file": "26-self-contained-svgs.md"
+    },
+    {
+      "id": "requirements/image-resize-on-embed",
+      "title": "27 — Image resize-on-embed",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "images-media"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "code": [
+        "src/capture/embed.ts",
+        "src/tree-ops/resize-embedded-images.test.ts",
+        "tests/real-world.tsx"
+      ],
+      "file": "27-image-resize-on-embed.md"
+    },
+    {
+      "id": "requirements/conic-gradient",
+      "title": "28 — Conic-gradient backgrounds",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "paint-effects"
+      ],
+      "platforms": [],
+      "code": [
+        "src/render/conic-raster.ts",
+        "src/render/element-tree-to-svg.ts",
+        "src/render/gradients.ts"
+      ],
+      "file": "28-conic-gradient.md"
+    },
+    {
+      "id": "requirements/dark-mode",
+      "title": "29 — Dark-mode rendering",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/animation/animator.ts",
+        "src/capture/index.ts",
+        "src/dark-mode-capture.test.ts",
+        "src/render/form-controls.ts",
+        "tests/real-world.tsx",
+        "tests/runner.tsx"
+      ],
+      "file": "29-dark-mode.md"
+    },
+    {
+      "id": "requirements/webfont-unicode-range",
+      "title": "30 — Webfont unicode-range partitioning",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts"
+      ],
+      "platforms": [],
+      "code": [
+        "src/render/text-to-path.ts",
+        "src/webfont-unicode-range.test.ts"
+      ],
+      "file": "30-webfont-unicode-range.md"
+    },
+    {
+      "id": "requirements/region-feedback",
+      "title": "Region-scoped feedback in the demos-review tool",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [],
+      "code": [
+        "tests/review-server.tsx"
+      ],
+      "file": "31-region-feedback.md"
+    },
+    {
+      "id": "requirements/svg-optimization",
+      "title": "SVG optimization (svgo + svgz)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [],
+      "code": [
+        "tests/features.ts",
+        "tests/real-world.tsx",
+        "tests/showcase.tsx"
+      ],
+      "file": "32-svg-optimization.md"
+    },
+    {
+      "id": "requirements/element-out-of-viewbox-hiding",
+      "title": "33 — Element-level out-of-viewBox hiding (DM-603 / DM-2460 / DM-2461)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "layout"
+      ],
+      "platforms": [
+        "windows"
+      ],
+      "code": [
+        "src/render/culling-geometry.ts",
+        "src/render/element-tree-to-svg.ts",
+        "src/tree-ops/swept-transform-bounds.ts",
+        "src/tree-ops/viewbox-culling.ts"
+      ],
+      "file": "33-element-out-of-viewbox-hiding.md"
+    },
+    {
+      "id": "requirements/scroll-mode-per-chunk-diff",
+      "title": "34. Scroll-mode per-chunk diff",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "layout"
+      ],
+      "platforms": [],
+      "code": [
+        "tests/output/real-world/results.json",
+        "tests/real-world.tsx"
+      ],
+      "file": "34-scroll-mode-per-chunk-diff.md"
+    },
+    {
+      "id": "requirements/scroll-sticky-hoisting",
+      "title": "35. Scroll composer: position:sticky hoisting",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "layout"
+      ],
+      "platforms": [
+        "windows"
+      ],
+      "code": [
+        "src/scroll/executor.ts",
+        "src/scroll/hoist-fixed.ts",
+        "src/scroll/hoist-sticky.test.ts",
+        "src/scroll/hoist-sticky.ts"
+      ],
+      "file": "35-scroll-sticky-hoisting.md"
+    },
+    {
+      "id": "requirements/scroll-composite-layer-chunking",
+      "title": "36. Scroll composer: per-chunk compositing layers",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "layout"
+      ],
+      "platforms": [],
+      "code": [
+        "src/render/element-tree-to-svg.ts",
+        "src/scroll/composer.test.ts",
+        "src/scroll/composer.ts"
+      ],
+      "file": "36-scroll-composite-layer-chunking.md"
+    },
+    {
+      "id": "requirements/scroll-pattern-grammar",
+      "title": "37. Scroll-pattern grammar",
+      "kind": "reference",
+      "status": "current",
+      "owners": [
+        "layout"
+      ],
+      "platforms": [],
+      "code": [
+        "src/cli/animate.ts",
+        "src/cli/capture.ts",
+        "src/scroll/composer.ts",
+        "src/scroll/executor.ts",
+        "src/scroll/pattern.ts"
+      ],
+      "file": "37-scroll-pattern-grammar.md"
+    },
+    {
+      "id": "requirements/pseudo-element-paint",
+      "title": "Pseudo-element paint",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "paint-effects"
+      ],
+      "platforms": [],
+      "code": [
+        "src/capture/script/index.ts",
+        "src/capture/script/walker/pseudo-content.ts",
+        "src/capture/script/walker/pseudo-inject.ts",
+        "src/capture/types.ts",
+        "src/render/element-tree-to-svg.ts",
+        "src/render/form-controls.ts",
+        "src/render/pseudo-filter.ts",
+        "src/render/text.ts"
+      ],
+      "file": "38-pseudo-element-paint.md"
+    },
+    {
+      "id": "requirements/clip-path-fragment-references",
+      "title": "39 — clip-path: url(\"#fragment\") reference ownership",
+      "kind": "reference",
+      "status": "current",
+      "owners": [
+        "paint-effects",
+        "layout",
+        "product-tooling"
+      ],
+      "platforms": [],
+      "code": [
+        "src/capture/index.ts",
+        "src/render/clip-path.test.ts",
+        "src/render/svg-inline.test.ts",
+        "tests/clip-path-url-reference-box.e2e.test.ts",
+        "tests/external-svg-refs.e2e.test.ts",
+        "tests/features.ts",
+        "tests/iframe-inner-defs.e2e.test.ts",
+        "tools/paint-geometry-browser-oracle.ts",
+        "tools/paint-geometry-oracle.ts"
+      ],
+      "file": "39-clip-path-fragment-references.md"
+    },
+    {
+      "id": "requirements/cross-platform-font-paths",
+      "title": "Domotion: Cross-platform font path discovery",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/render/font-resolution.ts"
+      ],
+      "file": "40-cross-platform-font-paths.md"
+    },
+    {
+      "id": "requirements/windows-glyph-extraction",
+      "title": "Domotion: Windows native glyph-outline extraction (DirectWrite)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/render/glyph-helper.ts",
+        "tests/win32-glyph-extractor.test.ts",
+        "tools/win32-glyph-extractor/",
+        "tools/win32-glyph-extractor/build.ps1"
+      ],
+      "file": "41-windows-glyph-extraction.md"
+    },
+    {
+      "id": "requirements/cross-platform-fallback-calibration",
+      "title": "Domotion: cross-platform fallback-chain calibration (Linux + Windows)",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/render/embolden-outline.ts",
+        "src/render/font-resolution.ts",
+        "src/render/text.ts",
+        "src/render/unicode-classification.ts",
+        "src/render/unicode-font-routing.noto-linux.generated.ts",
+        "src/render/unicode-font-routing.win32.generated.ts",
+        "src/render/win-font-fallback.test.ts",
+        "src/render/win-font-fallback.ts",
+        "tests/flipbook-parity.ts",
+        "tests/html-test-suite.tsx",
+        "tests/output/unicode-fonts.win32.json",
+        "tests/runner.tsx",
+        "tools/calibrate-linux-noto-profile.sh",
+        "tools/calibrate-win32-unicode-fonts.sh",
+        "tools/probe-983-genroutes-noto-linux.mjs",
+        "tools/probe-983-genroutes-win32.mjs",
+        "tools/probe-983-sweep.mjs",
+        "tools/probe-fallbacks-linux.mjs"
+      ],
+      "file": "42-cross-platform-fallback-calibration.md"
+    },
+    {
+      "id": "requirements/declarative-animate-config",
+      "title": "43 — Declarative animate config",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "animation"
+      ],
+      "platforms": [
+        "windows"
+      ],
+      "code": [
+        "examples/animate/",
+        "examples/animate/compressed-run/",
+        "examples/animate/editor-session/",
+        "examples/animate/form-fill/",
+        "examples/animate/hover-detect/",
+        "examples/animate/hover-reveal/",
+        "examples/animate/hover-state/",
+        "examples/animate/region-timing/",
+        "src/cli/animate.ts"
+      ],
+      "file": "43-declarative-animate-config.md"
+    },
+    {
+      "id": "requirements/repeating-animations",
+      "title": "44 — Repeating animations: blink, pulse, typing caret",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "animation"
+      ],
+      "platforms": [],
+      "code": [
+        "src/animation/animator.ts",
+        "src/cli/animate.ts"
+      ],
+      "file": "44-repeating-animations.md"
+    },
+    {
+      "id": "requirements/linux-glyph-extraction",
+      "title": "Domotion: Linux native glyph-outline extraction (FreeType)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/release-helpers.yml",
+        "src/render/glyph-helper.test.ts",
+        "src/render/glyph-helper.ts",
+        "src/render/helper-acquire.ts",
+        "tests/linux-glyph-extractor.test.ts",
+        "tools/linux-glyph-extractor/",
+        "tools/linux-glyph-extractor/CMakeLists.txt"
+      ],
+      "file": "45-linux-glyph-extraction.md"
+    },
+    {
+      "id": "requirements/cli-npx-invocation",
+      "title": "Domotion: CLI invocation as an npm bin (npx -p domotion-svg domotion)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "product-tooling"
+      ],
+      "platforms": [],
+      "code": [
+        ".github/workflows/release.yml",
+        "src/capture/index.ts",
+        "src/cli/index.ts"
+      ],
+      "file": "46-cli-npx-invocation.md"
+    },
+    {
+      "id": "requirements/svg-to-video",
+      "title": "Domotion: animated SVG → video export (svg-to-video)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "images-media"
+      ],
+      "platforms": [
+        "macos",
+        "windows"
+      ],
+      "code": [
+        "src/cli/svg-to-video-core.test.ts",
+        "src/cli/svg-to-video-core.ts",
+        "src/cli/svg-to-video-e2e.test.ts",
+        "src/cli/svg-to-video.ts"
+      ],
+      "file": "47-svg-to-video.md"
+    },
+    {
+      "id": "requirements/har-source",
+      "title": "Domotion: HAR files as a capture source",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [],
+      "code": [
+        "src/cli/capture.ts",
+        "src/cli/common.ts",
+        "tests/real-world.tsx"
+      ],
+      "file": "48-har-source.md"
+    },
+    {
+      "id": "requirements/glyph-helper-dispatch",
+      "title": "Domotion: platform-aware glyph-helper dispatch",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/render/",
+        "src/render/glyph-helper.test.ts",
+        "src/render/glyph-helper.ts",
+        "src/render/helper-acquire.ts",
+        "tools/linux-glyph-extractor/domotion-glyph-paths",
+        "tools/macos-glyph-extractor/domotion-glyph-paths",
+        "tools/win32-glyph-extractor/domotion-glyph-paths.exe"
+      ],
+      "file": "49-glyph-helper-dispatch.md"
+    },
+    {
+      "id": "requirements/glyph-helper-acquisition",
+      "title": "Domotion: on-demand native glyph-helper acquisition",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/release-helpers.yml",
+        "src/render/glyph-helper.ts",
+        "src/render/helper-acquire.ts"
+      ],
+      "file": "50-glyph-helper-acquisition.md"
+    },
+    {
+      "id": "requirements/probe-then-fallback-dispatch",
+      "title": "Domotion: probe-then-fallback glyph dispatch",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/render/font-resolution.ts",
+        "src/render/text-to-path.test.ts",
+        "src/render/text-to-path.ts"
+      ],
+      "file": "51-probe-then-fallback-dispatch.md"
+    },
+    {
+      "id": "requirements/embedded-mode-glyph-fallback",
+      "title": "Domotion: per-glyph helper fallback in embedded-font mode",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/render/embedded-font-builder.ts",
+        "src/render/text-to-path.test.ts",
+        "src/render/text-to-path.ts"
+      ],
+      "file": "52-embedded-mode-glyph-fallback.md"
+    },
+    {
+      "id": "requirements/magic-move-transition",
+      "title": "Magic-move transition",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "animation"
+      ],
+      "platforms": [],
+      "code": [
+        "examples/animate/magic-move/",
+        "src/animation/animator.ts",
+        "src/animation/magic-move.ts",
+        "src/capture/script/walker/",
+        "src/cli/animate.ts",
+        "src/scroll/executor.ts",
+        "src/tree-ops/tree-diff.ts"
+      ],
+      "file": "53-magic-move-transition.md"
+    },
+    {
+      "id": "requirements/svg-review-tool",
+      "title": "SVG Review Tool",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "product-tooling"
+      ],
+      "platforms": [],
+      "code": [
+        "src/cli/review.ts",
+        "src/review/",
+        "src/review/client.tsx",
+        "src/review/region-overlay.ts",
+        "src/review/server.ts",
+        "tests/review-server.tsx",
+        "tools/crop-regions.ts"
+      ],
+      "file": "54-svg-review-tool.md"
+    },
+    {
+      "id": "requirements/debug-mode-capture",
+      "title": "Debug-mode capture",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [],
+      "code": [],
+      "file": "55-debug-mode-capture.md"
+    },
+    {
+      "id": "requirements/svg-scrubber",
+      "title": "56 — svg-scrubber (video-style playback for animated SVGs)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [],
+      "code": [
+        "scripts/build-scrubber-client.mjs",
+        "src/cli/scrubber.ts",
+        "src/scrubber/client.tsx",
+        "src/scrubber/server.e2e.test.ts",
+        "src/scrubber/server.ts",
+        "src/scrubber/trim.test.ts",
+        "src/scrubber/trim.ts"
+      ],
+      "file": "56-svg-scrubber.md"
+    },
+    {
+      "id": "requirements/scrubber-crop",
+      "title": "57 — svg-scrubber crop (DM-1104)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [],
+      "code": [
+        "src/scrubber/client.tsx",
+        "src/scrubber/crop.ts",
+        "src/scrubber/server.ts"
+      ],
+      "file": "57-scrubber-crop.md"
+    },
+    {
+      "id": "requirements/new-york-optical-cuts",
+      "title": "58 — macOS New York optical-size cuts (DM-1108)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [
+        "macos"
+      ],
+      "code": [
+        "src/render/font-resolution.ts",
+        "tests/new-york-optical-cut.e2e.test.ts"
+      ],
+      "file": "58-new-york-optical-cuts.md"
+    },
+    {
+      "id": "requirements/overlay-schema-ssot",
+      "title": "59 — Single source of truth for overlay / animation shapes",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "animation",
+        "product-tooling"
+      ],
+      "platforms": [],
+      "code": [
+        "scripts/generate-animate-schema.ts",
+        "src/animation/overlay-schema.ts",
+        "src/cli/animate-config-json-schema.test.ts",
+        "src/cli/animate.ts"
+      ],
+      "file": "59-overlay-schema-ssot.md"
+    },
+    {
+      "id": "requirements/programmatic-animate-pipeline",
+      "title": "60 — Programmatic declarative-animate pipeline",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "animation"
+      ],
+      "platforms": [],
+      "code": [
+        "src/cli/animate.ts"
+      ],
+      "file": "60-programmatic-animate-pipeline.md"
+    },
+    {
+      "id": "requirements/overlay-resolution-primitive",
+      "title": "61 — Overlay resolution as a public primitive",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "animation"
+      ],
+      "platforms": [],
+      "code": [
+        "src/animation/resolve-overlays.ts",
+        "src/index.ts",
+        "tests/cross-region-anchor.e2e.test.ts"
+      ],
+      "file": "61-overlay-resolution-primitive.md"
+    },
+    {
+      "id": "requirements/frames-out-animate-pipeline",
+      "title": "62 — Frames-out / per-frame hook for the declarative animate pipeline",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "animation"
+      ],
+      "platforms": [],
+      "code": [
+        "src/animation/animator.ts",
+        "src/cli/animate.ts"
+      ],
+      "file": "62-frames-out-animate-pipeline.md"
+    },
+    {
+      "id": "requirements/cursor-action-primitives",
+      "title": "63 — Cursor-target + action-runner public primitives",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "animation"
+      ],
+      "platforms": [],
+      "code": [
+        "src/cli/animate.ts",
+        "src/index.ts"
+      ],
+      "file": "63-cursor-action-primitives.md"
+    },
+    {
+      "id": "requirements/demo-gallery",
+      "title": "64 — Demo gallery",
+      "kind": "archive",
+      "status": "superseded",
+      "owners": [
+        "product-tooling"
+      ],
+      "platforms": [],
+      "code": [
+        "examples/animate/README.md",
+        "examples/animate/before-after-refactor/",
+        "examples/animate/form-fill/",
+        "examples/animate/scroll-feed/",
+        "examples/animate/scroll-landing/",
+        "examples/animate/tab-switcher/",
+        "examples/animate/typing-search/",
+        "examples/output/terminal-onboarding.svg",
+        "examples/terminal-onboarding.ts",
+        "site/scripts/build-demos.mjs",
+        "site/src/content/docs/",
+        "site/src/content/docs/showcase.mdx",
+        "tests/animate-examples.tsx"
+      ],
+      "file": "64-demo-gallery.md"
+    },
+    {
+      "id": "requirements/device-chrome",
+      "title": "65 — Device chrome (--chrome <device>)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "examples/composite-desktop.ts",
+        "src/cli/capture.ts",
+        "src/render/device-chrome.ts"
+      ],
+      "file": "65-device-chrome.md"
+    },
+    {
+      "id": "requirements/ci-visual-tests",
+      "title": "Distributed visual-regression testing on GitHub Actions (DM-1216)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/fast-visual-tests.yml",
+        ".github/workflows/visual-tests.yml",
+        "scripts/ci-baseline-aggregate.mjs",
+        "scripts/ci-run-fast-visuals.mjs",
+        "scripts/diff-against-baseline.mjs",
+        "scripts/diff-font-conformance-baseline.mjs",
+        "scripts/merge-shard-results.mjs",
+        "scripts/prune-passing-artifacts.mjs",
+        "scripts/run-env.mjs",
+        "scripts/write-baseline.mjs",
+        "src/review/side-digest.ts",
+        "tests/baselines/README.md",
+        "tests/html-test-suite.tsx",
+        "tests/output/",
+        "tests/runner.tsx",
+        "tests/shard-completeness.test.ts",
+        "tests/shard.ts",
+        "tests/visual-tests-workflow.test.ts",
+        "tests/worker-pool.ts",
+        "tools/ab-compare-results.mjs",
+        "tools/run-ci-visual-tests.mjs"
+      ],
+      "file": "66-ci-visual-tests.md"
+    },
+    {
+      "id": "requirements/terminal-capture",
+      "title": "Terminal capture → animated SVG (domotion term, DM-1225)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "product-tooling"
+      ],
+      "platforms": [
+        "macos"
+      ],
+      "code": [
+        "examples/progress-install.ts",
+        "examples/terminal-demo.ts",
+        "src/animation/embed-timeline.ts",
+        "src/cli/index.ts",
+        "src/terminal/",
+        "src/terminal/font-dedup.e2e.test.ts"
+      ],
+      "file": "67-terminal-capture.md"
+    },
+    {
+      "id": "requirements/live-terminal-capture",
+      "title": "68 — Live terminal capture (domotion term -- <cmd …>)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "product-tooling"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/cli/term.ts",
+        "src/terminal/pty.e2e.test.ts",
+        "src/terminal/pty.ts"
+      ],
+      "file": "68-live-terminal-capture.md"
+    },
+    {
+      "id": "requirements/scroll-button-rendering",
+      "title": "::scroll-button() paging-arrow rendering",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "layout"
+      ],
+      "platforms": [],
+      "code": [
+        "src/capture/script/index.ts"
+      ],
+      "file": "69-scroll-button-rendering.md"
+    },
+    {
+      "id": "requirements/template-system",
+      "title": "70 — Template system",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "product-tooling"
+      ],
+      "platforms": [],
+      "code": [
+        "examples/output/templates/",
+        "examples/template-package/",
+        "examples/templates/",
+        "site/src/content/docs/usage/templates.md",
+        "src/cli/animate-config-json-schema.ts",
+        "src/cli/template.ts",
+        "src/index.ts",
+        "src/render/device-chrome.ts",
+        "src/templates/builtin/",
+        "src/templates/json-schema.ts",
+        "src/templates/registry.ts",
+        "src/templates/render.ts",
+        "src/templates/types.ts"
+      ],
+      "file": "70-template-system.md"
+    },
+    {
+      "id": "requirements/background-loop-template",
+      "title": "71 — background-loop template",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "product-tooling"
+      ],
+      "platforms": [],
+      "code": [
+        "src/templates/builtin/background-loop.ts",
+        "src/templates/registry.ts"
+      ],
+      "file": "71-background-loop-template.md"
+    },
+    {
+      "id": "requirements/kinetic-text-template",
+      "title": "72 — kinetic-text template",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "product-tooling"
+      ],
+      "platforms": [],
+      "code": [
+        "src/templates/builtin/kinetic-text.ts",
+        "src/templates/registry.ts"
+      ],
+      "file": "72-kinetic-text-template.md"
+    },
+    {
+      "id": "requirements/template-frames",
+      "title": "73 — Template frames in the animate config",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "product-tooling"
+      ],
+      "platforms": [],
+      "code": [
+        "src/animation/embed-namespace.test.ts",
+        "src/animation/embed-namespace.ts",
+        "src/cli/animate.test.ts",
+        "src/cli/animate.ts",
+        "tests/compose-animate-frames.e2e.test.ts"
+      ],
+      "file": "73-template-frames.md"
+    },
+    {
+      "id": "requirements/template-authoring",
+      "title": "74 — Authoring & publishing a third-party template",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "product-tooling"
+      ],
+      "platforms": [],
+      "code": [
+        "examples/template-package/",
+        "src/templates/registry.ts"
+      ],
+      "file": "74-template-authoring.md"
+    },
+    {
+      "id": "requirements/chart-template",
+      "title": "75 — The chart built-in template",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "product-tooling"
+      ],
+      "platforms": [],
+      "code": [
+        "examples/output/templates/",
+        "examples/output/templates/format-square-chart.svg",
+        "examples/templates-demo.ts",
+        "src/templates/builtin/chart.ts",
+        "src/templates/registry.ts"
+      ],
+      "file": "75-chart-template.md"
+    },
+    {
+      "id": "requirements/social-templates",
+      "title": "76 — The chat and subscribe built-in templates",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "product-tooling"
+      ],
+      "platforms": [],
+      "code": [
+        "examples/output/templates/",
+        "examples/templates-demo.ts",
+        "src/templates/builtin/chat.ts",
+        "src/templates/builtin/subscribe.ts",
+        "src/templates/registry.ts"
+      ],
+      "file": "76-social-templates.md"
+    },
+    {
+      "id": "requirements/nested-animated-compositing",
+      "title": "77 — Nested animated compositing (DM-1323)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "animation"
+      ],
+      "platforms": [
+        "macos"
+      ],
+      "code": [
+        "examples/composite-desktop.ts",
+        "examples/composite/desktop-terminal.json",
+        "src/animation/composite.ts",
+        "src/animation/embed-namespace.ts",
+        "src/animation/embed-timeline.ts",
+        "src/cli/animate.ts",
+        "src/cli/composite-font-dedup.e2e.test.ts",
+        "src/cli/composite.ts",
+        "src/render/device-chrome.ts",
+        "src/templates/builtin/device-mockup.ts",
+        "tools/scratch/"
+      ],
+      "file": "77-nested-animated-compositing.md"
+    },
+    {
+      "id": "requirements/svg-to-image",
+      "title": "78 — svg-to-image: still SVG → PNG / JPEG / PDF / WebP / AVIF / TIFF",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "images-media"
+      ],
+      "platforms": [],
+      "code": [
+        "src/cli/svg-to-image-core.ts",
+        "src/cli/svg-to-image.ts",
+        "src/cli/svg-to-video-core.ts"
+      ],
+      "file": "78-svg-to-image.md"
+    },
+    {
+      "id": "requirements/harfbuzz-use-reroute",
+      "title": "HarfBuzz routing for complex-script edge cases (DM-1197, DM-1215)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [
+        "macos"
+      ],
+      "code": [
+        "src/render/font-resolution.ts"
+      ],
+      "file": "79-harfbuzz-use-reroute.md"
+    },
+    {
+      "id": "requirements/cross-platform-system-fallback-resolver",
+      "title": "80 — Cross-platform live system-fallback resolver",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "scripts/test-linux-docker.sh",
+        "src/render",
+        "src/render/font-resolution.ts",
+        "src/render/glyph-helper.ts",
+        "src/render/win-font-fallback.ts",
+        "src/render/win32-fallback-envelope.test.ts",
+        "tests/baselines/font-conformance-windows.json",
+        "tools/probe-1416-linux-fcmatch-vs-chromium.mjs",
+        "tools/probe-1424-refine.mts",
+        "tools/probe-1424-win32-mapchars-vs-chromium.mjs",
+        "tools/win32-glyph-extractor",
+        "tools/win32-glyph-extractor/build.ps1",
+        "tools/win32-glyph-extractor/src/main.cpp"
+      ],
+      "file": "80-cross-platform-system-fallback-resolver.md"
+    },
+    {
+      "id": "requirements/iframe-recursion",
+      "title": "81 — <iframe> recursion into native SVG",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "layout"
+      ],
+      "platforms": [],
+      "code": [
+        "examples/iframe-recursion.ts",
+        "examples/output/",
+        "src/capture/index.ts",
+        "src/capture/script/cross-origin.test.ts",
+        "src/capture/script/cross-origin.ts",
+        "src/capture/script/index.ts",
+        "src/capture/script/walker/replaced-elements.ts",
+        "src/cli/capture.ts",
+        "tests/cross-origin-iframe-recursion.e2e.test.ts",
+        "tests/features.ts",
+        "tests/iframe-inner-defs.e2e.test.ts",
+        "tests/iframe-inner-element-mask.e2e.test.ts",
+        "tests/iframe-inner-prepasses.e2e.test.ts",
+        "tests/multi-layer-fragment-mask.e2e.test.ts"
+      ],
+      "file": "81-iframe-recursion.md"
+    },
+    {
+      "id": "requirements/svg-scrubber-review-mode",
+      "title": "82 — svg-scrubber review mode (--review)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "product-tooling"
+      ],
+      "platforms": [],
+      "code": [
+        "src/cli/scrubber.ts",
+        "src/scrubber/client.tsx",
+        "src/scrubber/server.e2e.test.ts",
+        "src/scrubber/server.ts",
+        "src/scrubber/ticket.test.ts",
+        "tests/scrubber-frame-attach.e2e.test.ts"
+      ],
+      "file": "82-svg-scrubber-review-mode.md"
+    },
+    {
+      "id": "requirements/feature-coverage",
+      "title": "83 — Feature/requirement coverage (behavior coverage, not just line coverage)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "product-tooling"
+      ],
+      "platforms": [],
+      "code": [
+        "src/index.exports.test.ts",
+        "src/render/render-text-mode-guard.test.ts",
+        "tests/conventions.test.ts",
+        "tests/feature-coverage.ts",
+        "tools/check-feature-coverage.ts",
+        "tools/semantic-coverage.json"
+      ],
+      "file": "83-feature-coverage.md"
+    },
+    {
+      "id": "requirements/viewer-browser-support",
+      "title": "84 — Viewer browser support (where the output SVGs play)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [
+        "macos"
+      ],
+      "code": [
+        "examples/output/stress-gallery.html",
+        "src/animation/composite.ts",
+        "src/post-processing/clip-transform-safety.ts"
+      ],
+      "file": "84-viewer-browser-support.md"
+    },
+    {
+      "id": "requirements/brand-kit",
+      "title": "85 — Brand kit (design tokens applied across templates)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "product-tooling"
+      ],
+      "platforms": [],
+      "code": [
+        "examples/animate/brand-mixed/",
+        "examples/brand-capture-demo.ts",
+        "examples/output/brand-capture.svg",
+        "examples/output/templates/brand-acme-cta.svg",
+        "examples/templates-demo.ts",
+        "src/templates/brand.ts"
+      ],
+      "file": "85-brand-kit.md"
+    },
+    {
+      "id": "requirements/creative-template-pack",
+      "title": "86 — Creative template pack",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "product-tooling"
+      ],
+      "platforms": [],
+      "code": [
+        "examples/templates-demo.ts",
+        "src/capture/script/index.ts",
+        "src/templates/builtin/odometer.ts"
+      ],
+      "file": "86-creative-template-pack.md"
+    },
+    {
+      "id": "requirements/format-presets",
+      "title": "87 — Format presets (social aspect ratios)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "product-tooling"
+      ],
+      "platforms": [],
+      "code": [
+        "examples/templates-demo.ts",
+        "src/templates/formats.ts"
+      ],
+      "file": "87-format-presets.md"
+    },
+    {
+      "id": "requirements/transition-effect-expansion",
+      "title": "88 — Transition & effect expansion (SVG-safe)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "animation"
+      ],
+      "platforms": [],
+      "code": [
+        "examples/output/transition-mixed.svg",
+        "examples/showcase-transitions.ts",
+        "src/animation/animator.ts",
+        "src/animation/composite.ts",
+        "src/animation/easing.ts",
+        "src/animation/motion-presets.ts",
+        "src/animation/overlay-schema.ts",
+        "src/animation/shine.ts",
+        "src/cli/animate.ts"
+      ],
+      "file": "88-transition-effect-expansion.md"
+    },
+    {
+      "id": "requirements/storyboard-sequencing",
+      "title": "89 — Storyboard sequencing (DM-1527)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "animation"
+      ],
+      "platforms": [
+        "macos"
+      ],
+      "code": [
+        "examples/output/storyboard-demo.svg",
+        "examples/storyboard-demo.ts",
+        "scripts/generate-storyboard-schema.ts",
+        "src/animation/animator.ts",
+        "src/animation/composite.ts",
+        "src/animation/embed-namespace.ts",
+        "src/cli/animate.ts",
+        "src/cli/storyboard-config-json-schema.ts",
+        "src/cli/storyboard.ts"
+      ],
+      "file": "89-storyboard-sequencing.md"
+    },
+    {
+      "id": "requirements/format-on-capture",
+      "title": "90 — --format on capture / animate (viewport sizing)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "product-tooling"
+      ],
+      "platforms": [],
+      "code": [
+        "src/cli/animate.ts",
+        "src/cli/capture.ts",
+        "src/templates/formats.ts"
+      ],
+      "file": "90-format-on-capture.md"
+    },
+    {
+      "id": "requirements/adaptive-format-scaling",
+      "title": "91 — Adaptive format scaling (per-ratio type)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "product-tooling"
+      ],
+      "platforms": [],
+      "code": [
+        "src/templates/builtin/text-card-common.ts",
+        "src/templates/formats.ts"
+      ],
+      "file": "91-adaptive-format-scaling.md"
+    },
+    {
+      "id": "requirements/brand-for-capture",
+      "title": "92 — Brand for capture / animate (CSS-variable injection)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "product-tooling"
+      ],
+      "platforms": [],
+      "code": [
+        "examples/animate/brand-mixed/",
+        "examples/brand-capture-demo.ts",
+        "examples/output/brand-capture.svg",
+        "examples/templates/brand-page.html"
+      ],
+      "file": "92-brand-for-capture.md"
+    },
+    {
+      "id": "requirements/realistic-typing",
+      "title": "93 — Realistic simulated typing",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "animation"
+      ],
+      "platforms": [
+        "macos",
+        "linux"
+      ],
+      "code": [
+        "examples/animate/type-resample/",
+        "src/animation/animator.ts",
+        "src/animation/caret-metrics.ts",
+        "src/animation/overlay-schema.ts",
+        "src/cli/animate.ts",
+        "src/cli/type-resample.e2e.test.ts",
+        "src/cli/type-resample.test.ts",
+        "src/cli/type-resample.ts",
+        "src/render/font-resolution.ts",
+        "tests/animate-examples.tsx",
+        "tests/typing-baseline-anchor.e2e.test.ts"
+      ],
+      "file": "93-realistic-typing.md"
+    },
+    {
+      "id": "requirements/interaction-state-capture",
+      "title": "94 — Interaction-state capture (:hover / :active / :focus)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [],
+      "code": [
+        "examples/animate/hover-detect/",
+        "examples/animate/hover-reveal/",
+        "examples/animate/hover-state/",
+        "examples/animate/js-reveal/",
+        "src/cli/animate.ts",
+        "src/cli/force-state.e2e.test.ts",
+        "src/cli/force-state.test.ts",
+        "src/cli/hover-detect.ts",
+        "src/cli/mutation-detect.e2e.test.ts",
+        "src/cli/mutation-detect.test.ts",
+        "src/cli/mutation-detect.ts",
+        "tests/animate-examples.tsx"
+      ],
+      "file": "94-interaction-state-capture.md"
+    },
+    {
+      "id": "requirements/adaptive-scaling-clamp-investigation",
+      "title": "95 — Adaptive scaling: CSS clamp() / viewport-unit alternative (investigation)",
+      "kind": "investigation",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [],
+      "code": [
+        "src/templates/formats.ts",
+        "tools/scratch/dm1561/"
+      ],
+      "file": "95-adaptive-scaling-clamp-investigation.md"
+    },
+    {
+      "id": "requirements/native-svg-image-inlining",
+      "title": "96 — Native inlining of <img src=\".svg\">",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "images-media"
+      ],
+      "platforms": [
+        "windows"
+      ],
+      "code": [
+        "src/capture/embed.ts",
+        "src/cli/animate.ts",
+        "src/render/element-tree-to-svg.ts",
+        "src/render/resolve-svg-source.test.ts",
+        "src/render/svg-inline.test.ts",
+        "src/render/svg-inline.ts",
+        "tests/inline-svg-textpath-oracle.e2e.test.ts",
+        "tests/replaced-used-size.e2e.test.ts"
+      ],
+      "file": "96-native-svg-image-inlining.md"
+    },
+    {
+      "id": "requirements/caret-shapes",
+      "title": "97 — Caret shapes (bar / block / underscore)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts"
+      ],
+      "platforms": [],
+      "code": [
+        "examples/animate/caret-shapes/",
+        "src/animation/animator.ts",
+        "src/animation/caret-metrics.test.ts",
+        "src/animation/caret-metrics.ts",
+        "src/animation/overlay-schema.ts",
+        "src/cli/animate.ts",
+        "src/cli/type-resample.test.ts",
+        "src/cli/type-resample.ts",
+        "src/terminal/incremental.ts",
+        "tests/animate-examples.tsx"
+      ],
+      "file": "97-caret-shapes.md"
+    },
+    {
+      "id": "requirements/glyph-font-compare",
+      "title": "98 — Glyph font-identity comparator (compare-glyphs)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts"
+      ],
+      "platforms": [
+        "macos"
+      ],
+      "code": [
+        "src/review/glyph-compare.e2e.test.ts",
+        "src/review/glyph-compare.test.ts",
+        "src/review/glyph-compare.ts",
+        "tests/output/glyph-compare-calibration/results.json",
+        "tools/glyph-compare-calibrate.ts"
+      ],
+      "file": "98-glyph-font-compare.md"
+    },
+    {
+      "id": "requirements/hinted-embedded-subset",
+      "title": "99 — Hinting-preserving embedded-font subsets (hb-subset)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/visual-tests.yml",
+        "src/render/embedded-font-builder.test.ts",
+        "src/render/embedded-font-builder.ts",
+        "src/render/embedded-font-snapshot.test.ts",
+        "src/render/font-resolution.ts",
+        "src/render/hb-subset.test.ts",
+        "src/render/hb-subset.ts",
+        "src/render/synth-test-fonts.ts"
+      ],
+      "file": "99-hinted-embedded-subset.md"
+    },
+    {
+      "id": "requirements/rich-text-editing",
+      "title": "100 — Rich-text typing & editing: captured states + compression + caret/selection tracks",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "examples/animate/compressed-run/",
+        "examples/animate/editor-session/",
+        "examples/animate/region-timing/",
+        "src/animation/animator.ts",
+        "src/animation/caret-metrics.ts",
+        "src/animation/caret-track.ts",
+        "src/animation/compressed-run.ts",
+        "src/animation/glyph-align.ts",
+        "src/animation/magic-move.ts",
+        "src/animation/text-address.ts",
+        "src/cli/animate.ts",
+        "src/cli/type-resample.ts",
+        "src/terminal/incremental.ts",
+        "tests/auto-compress.e2e.test.ts",
+        "tests/compress-marker.e2e.test.ts",
+        "tests/compress-size-guard.e2e.test.ts",
+        "tests/compressed-run-config.e2e.test.ts",
+        "tests/compressed-run.e2e.test.ts",
+        "tests/editor-session.e2e.test.ts",
+        "tests/fixture-fonts.ts",
+        "tests/flipbook-parity.ts",
+        "tests/region-timing.e2e.test.ts",
+        "tests/two-pane-regions.e2e.test.ts"
+      ],
+      "file": "100-rich-text-editing.md"
+    },
+    {
+      "id": "requirements/caret-selection-track",
+      "title": "101 — Caret + selection track (declarative, anchored to captured text)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts"
+      ],
+      "platforms": [
+        "macos"
+      ],
+      "code": [
+        "examples/animate/compressed-run/",
+        "src/animation/animator.ts",
+        "src/animation/caret-metrics.ts",
+        "src/animation/caret-track.test.ts",
+        "src/animation/caret-track.ts",
+        "src/animation/embed-timeline.ts",
+        "src/animation/text-address.test.ts",
+        "src/animation/text-address.ts",
+        "src/capture/script/walker/text-segments.ts",
+        "src/cli/animate.test.ts",
+        "src/cli/animate.ts",
+        "src/render/paint-order.ts",
+        "src/render/text.ts",
+        "tests/caret-bidi.e2e.test.ts",
+        "tests/caret-track.e2e.test.ts",
+        "tests/caret-vertical.e2e.test.ts",
+        "tests/compressed-run-config.e2e.test.ts"
+      ],
+      "file": "101-caret-selection-track.md"
+    },
+    {
+      "id": "requirements/editing-page-rig-cookbook",
+      "title": "102 — The editing-page rig cookbook: typed reveals + per-state editing pages",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [
+        "macos"
+      ],
+      "code": [
+        "examples/animate/compressed-run/",
+        "examples/animate/editor-session/",
+        "tests/editor-session.e2e.test.ts"
+      ],
+      "file": "102-editing-page-rig-cookbook.md"
+    },
+    {
+      "id": "requirements/per-region-size-guard",
+      "title": "Per-region size guard (frame-sequence compressor)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [],
+      "code": [
+        "src/animation/compressed-run.ts",
+        "src/cli/animate.ts",
+        "src/render/embedded-font-snapshot.test.ts",
+        "tests/compress-size-guard.e2e.test.ts"
+      ],
+      "file": "103-per-region-size-guard.md"
+    },
+    {
+      "id": "requirements/overlay-windows",
+      "title": "104 — Per-overlay windows (endAt) and per-state overlays inside a compressed run",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "animation",
+        "platform-release"
+      ],
+      "platforms": [
+        "windows"
+      ],
+      "code": [
+        "examples/animate/editor-session/",
+        "examples/animate/form-fill/",
+        "examples/animate/overlay-window/",
+        "src/animation/animator.test.ts",
+        "src/animation/animator.ts",
+        "src/animation/overlay-schema.ts",
+        "src/cli/animate.test.ts",
+        "src/cli/animate.ts",
+        "tests/overlay-window.e2e.test.ts"
+      ],
+      "file": "104-overlay-windows.md"
+    },
+    {
+      "id": "requirements/asymmetric-harness-browsers",
+      "title": "105 — Asymmetric capture-vs-raster browsers in the visual harnesses",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [
+        "macos",
+        "linux"
+      ],
+      "code": [
+        "tests/harness-browsers.test.ts",
+        "tests/harness-browsers.ts",
+        "tests/html-test-suite.tsx",
+        "tests/real-world.tsx",
+        "tests/runner.tsx"
+      ],
+      "file": "105-asymmetric-harness-browsers.md"
+    },
+    {
+      "id": "requirements/blink-font-parity-inventory",
+      "title": "106 — Blink font-resolution parity inventory",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/render/harfbuzz-shaper.ts",
+        "src/render/text-to-path.ts"
+      ],
+      "file": "106-blink-font-parity-inventory.md"
+    },
+    {
+      "id": "requirements/font-conformance-oracle",
+      "title": "107 — Font-resolution conformance oracle",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/font-conformance-synthetic.yml",
+        ".github/workflows/font-conformance.yml",
+        "scripts/ci-font-conformance-shard.sh",
+        "scripts/diff-font-conformance-baseline.mjs",
+        "scripts/merge-font-conformance-shards.mjs",
+        "src/render/font-resolution-cache-reset.test.ts",
+        "src/render/font-resolution.ts",
+        "tests/baselines/README.md",
+        "tests/fixtures/variable-axis/variable-axis.html",
+        "tests/font-conformance-baseline.test.ts",
+        "tests/font-conformance-extraction.e2e.test.ts",
+        "tests/font-conformance-synthetic-stacks.test.ts",
+        "tests/font-conformance.test.ts",
+        "tests/harvested-corpus-identity.test.ts",
+        "tests/output/font-conformance",
+        "tests/variable-axis-fixture.test.ts",
+        "tests/variable-axis-oracle-pair.e2e.test.ts",
+        "tools/build-variable-axis-fixture.mjs",
+        "tools/chrome-font-agreement.ts",
+        "tools/compare-glyphs.ts",
+        "tools/font-conformance-allowlist.json",
+        "tools/font-conformance-rotation.mjs",
+        "tools/font-conformance-stacks.darwin.json",
+        "tools/font-conformance-stacks.synthetic.json",
+        "tools/font-conformance-synthetic-stacks.ts",
+        "tools/font-conformance.ts",
+        "tools/font-inventory.mjs",
+        "tools/probe-variation-selector-vs-property.mjs",
+        "tools/shaping-conformance-runs.json",
+        "tools/variable-axis-oracle-pair.ts"
+      ],
+      "file": "107-font-conformance-oracle.md"
+    },
+    {
+      "id": "requirements/shaping-conformance-oracle",
+      "title": "108 — Shaping conformance oracle",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "platform-release",
+        "product-tooling"
+      ],
+      "platforms": [
+        "macos"
+      ],
+      "code": [
+        "tests/fixtures/shaping",
+        "tests/fixtures/shaping/letter-spacing-ligature-vetoes.html",
+        "tests/fixtures/variable-axis/variable-axis.html",
+        "tests/shaping-corpus-fontface-exclusion.e2e.test.ts",
+        "tests/variable-axis-oracle-pair.e2e.test.ts",
+        "tools/shaping-conformance-runs.json",
+        "tools/shaping-conformance.ts",
+        "tools/variable-axis-oracle-pair.ts"
+      ],
+      "file": "108-shaping-conformance-oracle.md"
+    },
+    {
+      "id": "requirements/family-match-conformance",
+      "title": "109 — Declared-family match conformance oracle (macOS)",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/render/text-to-path.test.ts",
+        "tools/family-match-conformance.ts"
+      ],
+      "file": "109-family-match-conformance.md"
+    },
+    {
+      "id": "requirements/family-match-conformance-linux",
+      "title": "110 — Declared-family match conformance oracle (Linux)",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/test-linux.yml",
+        "src/render/font-resolution.ts",
+        "src/render/linux-declared-family-cut.test.ts",
+        "tests/baselines/family-match-linux.json",
+        "tests/family-match-baseline.test.ts",
+        "tools/family-match-baseline.ts",
+        "tools/family-match-conformance-linux.ts",
+        "tools/font-conformance-stacks.linux.json",
+        "tools/linux-glyph-extractor/src/main.cpp"
+      ],
+      "file": "110-family-match-conformance-linux.md"
+    },
+    {
+      "id": "requirements/family-match-conformance-windows",
+      "title": "111 — Declared-family match conformance oracle (Windows)",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/windows-fidelity.yml",
+        "src/render/font-resolution.ts",
+        "src/render/win32-family-suffix.ts",
+        "tests/baselines/family-match-windows.json",
+        "tools/family-match-baseline.ts",
+        "tools/family-match-conformance-win32.ts"
+      ],
+      "file": "111-family-match-conformance-windows.md"
+    },
+    {
+      "id": "requirements/decoration-geometry-oracle",
+      "title": "Text-Decoration Geometry Oracle",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "layout",
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "tests/decoration-coordinate-ownership.e2e.test.ts",
+        "tests/decoration-oracle.test.ts",
+        "tools/decoration-oracle.ts",
+        "tools/font-conformance.ts"
+      ],
+      "file": "112-decoration-geometry-oracle.md"
+    },
+    {
+      "id": "requirements/cluster-granularity-fallback",
+      "title": "113 — Font fallback at shaped-cluster granularity",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/render/cluster-fallback-bidi-boundary.test.ts",
+        "src/render/cluster-fallback.test.ts",
+        "src/render/cluster-fallback.ts",
+        "src/render/font-resolution.ts",
+        "src/render/glyph-path-run-split.test.ts",
+        "src/render/skia-last-resort-routing.test.ts",
+        "src/render/text-to-path.ts",
+        "tests/features.ts",
+        "tests/output/cluster-conformance/",
+        "tools/cluster-conformance.ts",
+        "tools/scratch/"
+      ],
+      "file": "113-cluster-granularity-fallback.md"
+    },
+    {
+      "id": "requirements/angled-linear-wipe",
+      "title": "114 — Angled linear wipe",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [],
+      "code": [],
+      "file": "114-angled-linear-wipe.md"
+    },
+    {
+      "id": "requirements/exact-shaping-oracle",
+      "title": "Exact shaping oracle",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "platform-release",
+        "product-tooling"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [],
+      "file": "114-exact-shaping-oracle.md"
+    },
+    {
+      "id": "requirements/parameterized-transition-design",
+      "title": "115 — Parameterized transition design",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "animation"
+      ],
+      "platforms": [],
+      "code": [],
+      "file": "115-parameterized-transition-design.md"
+    },
+    {
+      "id": "requirements/production-harfbuzz-shaping",
+      "title": "Production HarfBuzz shaping",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "product-tooling"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [],
+      "file": "115-production-harfbuzz-shaping.md"
+    },
+    {
+      "id": "requirements/layout-stage-parity",
+      "title": "Text layout and SVG placement parity",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "layout",
+        "platform-release"
+      ],
+      "platforms": [],
+      "code": [
+        "tools/layout-stage-matrix.ts"
+      ],
+      "file": "116-layout-stage-parity.md"
+    },
+    {
+      "id": "requirements/transition-schema-and-normalization",
+      "title": "116 — Transition schema and compatibility normalization",
+      "kind": "proposal",
+      "status": "proposed",
+      "owners": [
+        "animation",
+        "product-tooling"
+      ],
+      "platforms": [],
+      "code": [
+        "src/animation/transition-schema.ts"
+      ],
+      "file": "116-transition-schema-and-normalization.md"
+    },
+    {
+      "id": "requirements/parameterized-built-in-transitions",
+      "title": "117 — Parameterized built-in transitions",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "animation"
+      ],
+      "platforms": [],
+      "code": [],
+      "file": "117-parameterized-built-in-transitions.md"
+    },
+    {
+      "id": "requirements/custom-transition-recipes",
+      "title": "118 — Declarative custom transition recipes",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "animation"
+      ],
+      "platforms": [],
+      "code": [],
+      "file": "118-custom-transition-recipes.md"
+    },
+    {
+      "id": "requirements/degraded-font-resolution",
+      "title": "Degraded font-resolution contract",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "tools/helper-availability-contract.ts"
+      ],
+      "file": "119-degraded-font-resolution.md"
+    },
+    {
+      "id": "requirements/same-machine-text-parity-contract",
+      "title": "120 — Same-machine Chromium text parity contract",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [],
+      "file": "120-same-machine-text-parity-contract.md"
+    },
+    {
+      "id": "requirements/font-cache-parity",
+      "title": "121 — Font cache identity and lifetime parity",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [],
+      "file": "121-font-cache-parity.md"
+    },
+    {
+      "id": "requirements/declared-family-segmented-face-parity",
+      "title": "122 — Declared-family and segmented-face fallback parity",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [],
+      "file": "122-declared-family-segmented-face-parity.md"
+    },
+    {
+      "id": "requirements/linux-system-ui-alternate-inventory",
+      "title": "Linux system-ui parity across font inventories",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "platform-release"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "code": [
+        "tests/fontconfig/alternate-system-ui.conf"
+      ],
+      "file": "123-linux-system-ui-alternate-inventory.md"
+    },
+    {
+      "id": "requirements/embedded-font-build-diagnostics",
+      "title": "124 — Embedded-font build diagnostics",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts"
+      ],
+      "platforms": [
+        "macos",
+        "linux"
+      ],
+      "code": [
+        "src/review/linux-unicode-evidence.ts"
+      ],
+      "file": "124-embedded-font-build-diagnostics.md"
+    },
+    {
+      "id": "requirements/windows-unicode-font-route-trace",
+      "title": "125 — Windows Unicode font-route trace",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "platform-release"
+      ],
+      "platforms": [
+        "windows"
+      ],
+      "code": [
+        "src/render/win-font-fallback.ts"
+      ],
+      "file": "125-windows-unicode-font-route-trace.md"
+    },
+    {
+      "id": "requirements/backdrop-filter-isolation",
+      "title": "126 — Backdrop-filter isolation via Chromium snapshots",
+      "kind": "contract",
+      "status": "partial",
+      "owners": [
+        "paint-effects"
+      ],
+      "platforms": [],
+      "code": [],
+      "file": "126-backdrop-filter-isolation.md"
+    },
+    {
+      "id": "requirements/border-outline-phase-oracle",
+      "title": "Border and outline device-pixel phase oracle",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "paint-effects",
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/border-phase-oracle.yml"
+      ],
+      "file": "127-border-outline-phase-oracle.md"
+    },
+    {
+      "id": "requirements/chromium-unicode-decision-audit",
+      "title": "128 — Chromium Unicode decision audit",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [],
+      "file": "128-chromium-unicode-decision-audit.md"
+    },
+    {
+      "id": "requirements/chromium-parity-verification-program",
+      "title": "129 — Chromium parity verification program",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/capture/table-geometry.e2e.test.ts",
+        "tools/parity-program.json",
+        "tools/semantic-coverage.json"
+      ],
+      "file": "129-chromium-parity-verification-program.md"
+    },
+    {
+      "id": "requirements/paint-geometry-oracle",
+      "title": "130 — Gradient, mask, clip, and resizer geometry oracle",
+      "kind": "evidence",
+      "status": "superseded",
+      "owners": [
+        "paint-effects",
+        "layout",
+        "platform-release"
+      ],
+      "platforms": [],
+      "code": [],
+      "file": "130-paint-geometry-oracle.md"
+    },
+    {
+      "id": "requirements/transform-geometry-oracle",
+      "title": "131 — Transform, projection, and reflection geometry oracle",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "layout",
+        "platform-release"
+      ],
+      "platforms": [],
+      "code": [],
+      "file": "131-transform-geometry-oracle.md"
+    },
+    {
+      "id": "requirements/paint-order-oracle",
+      "title": "132 — Compositing and paint-order transition oracle",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "paint-effects",
+        "platform-release"
+      ],
+      "platforms": [],
+      "code": [],
+      "file": "132-paint-order-oracle.md"
+    },
+    {
+      "id": "requirements/replaced-geometry-oracle",
+      "title": "133 — Replaced elements, controls, and generated-content ownership gate",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "images-media",
+        "layout",
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/replaced-ownership-transitions.yml",
+        "tools/replaced-ownership-transition-gate.ts"
+      ],
+      "file": "133-replaced-geometry-oracle.md"
+    },
+    {
+      "id": "requirements/raster-boundary-oracle",
+      "title": "134 — Raster-fallback activation and vector-boundary oracle",
+      "kind": "evidence",
+      "status": "superseded",
+      "owners": [
+        "images-media",
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [],
+      "file": "134-raster-boundary-oracle.md"
+    },
+    {
+      "id": "requirements/corner-shape-superellipses",
+      "title": "CSS corner-shape superellipses",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts"
+      ],
+      "platforms": [],
+      "code": [
+        "tests/fixtures/html-test/corner-shape-superellipses.html"
+      ],
+      "file": "135-corner-shape-superellipses.md"
+    },
+    {
+      "id": "requirements/semantic-coverage-inventory",
+      "title": "136 — CSS and SVG semantic coverage inventory",
+      "kind": "contract",
+      "status": "partial",
+      "owners": [
+        "product-tooling"
+      ],
+      "platforms": [],
+      "code": [
+        "tests/feature-coverage.ts",
+        "tools/parity-program.json",
+        "tools/semantic-coverage.json"
+      ],
+      "file": "136-semantic-coverage-inventory.md"
+    },
+    {
+      "id": "requirements/specialized-path-activation-ledger",
+      "title": "137 — Specialized-path activation ledger",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [],
+      "code": [
+        "tools/activation-coverage.json"
+      ],
+      "file": "137-specialized-path-activation-ledger.md"
+    },
+    {
+      "id": "requirements/parity-release-gate",
+      "title": "138 — Near-complete Chromium parity release gate",
+      "kind": "evidence",
+      "status": "partial",
+      "owners": [
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "tools/parity-release-evidence.json"
+      ],
+      "file": "138-parity-release-gate.md"
+    },
+    {
+      "id": "requirements/raster-fallback-content-gates",
+      "title": "139 — Raster fallback pixel-content gates",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "images-media"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/capture/backdrop-isolation.e2e.test.ts",
+        "src/capture/backdrop-isolation.test.ts",
+        "src/capture/emoji.test.ts",
+        "src/render/conic-raster.test.ts",
+        "src/render/text.test.ts",
+        "src/stacking-context.test.ts",
+        "tests/conic-chromium-raster.e2e.test.ts",
+        "tests/cross-origin-iframe-recursion.e2e.test.ts",
+        "tests/native-control-source-frame.e2e.test.ts",
+        "tests/raster-fallback-content.e2e.test.ts",
+        "tests/replaced-used-size.e2e.test.ts",
+        "tests/snapshot-isolation.tsx",
+        "tools/paint-geometry-oracle.ts",
+        "tools/transform-geometry-oracle.ts"
+      ],
+      "file": "139-raster-fallback-content-gates.md"
+    },
+    {
+      "id": "requirements/demo-review-stage-evidence",
+      "title": "Demo-review stage evidence",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "product-tooling"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "code": [
+        "src/review/linux-unicode-evidence.ts",
+        "tools/linux-unicode-mutation-matrix.ts",
+        "tools/semantic-coverage.json"
+      ],
+      "file": "140-demo-review-stage-evidence.md"
+    },
+    {
+      "id": "requirements/unified-shaping-evidence",
+      "title": "Unified shaping evidence",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "product-tooling"
+      ],
+      "platforms": [],
+      "code": [],
+      "file": "141-unified-shaping-evidence.md"
+    },
+    {
+      "id": "requirements/renderer-font-route-audit",
+      "title": "Renderer font-route audit",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "platform-release"
+      ],
+      "platforms": [],
+      "code": [],
+      "file": "142-renderer-font-route-audit.md"
+    },
+    {
+      "id": "requirements/production-text-run-provenance",
+      "title": "Production text-run provenance",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts"
+      ],
+      "platforms": [
+        "macos"
+      ],
+      "code": [],
+      "file": "143-production-text-run-provenance.md"
+    },
+    {
+      "id": "requirements/dotted-circle-shaping-evidence",
+      "title": "Dotted-circle decisions from shaping evidence",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "product-tooling"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "code": [],
+      "file": "144-dotted-circle-shaping-evidence.md"
+    },
+    {
+      "id": "requirements/renderer-owned-color-glyph-boundary",
+      "title": "Renderer-owned color-glyph boundary",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "paint-effects"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "tools/unicode-font-route-trace.ts"
+      ],
+      "file": "145-renderer-owned-color-glyph-boundary.md"
+    },
+    {
+      "id": "requirements/macos-ideograph-fallback-cache-audit",
+      "title": "macOS ideograph fallback-cache audit",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "platform-release"
+      ],
+      "platforms": [
+        "macos"
+      ],
+      "code": [],
+      "file": "146-macos-ideograph-fallback-cache-audit.md"
+    },
+    {
+      "id": "requirements/inner-live-scroll-capture",
+      "title": "147. Inner live-scroll capture",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "layout"
+      ],
+      "platforms": [],
+      "code": [],
+      "file": "147-inner-live-scroll-capture.md"
+    },
+    {
+      "id": "requirements/sourcegraphic-url-filter-surfaces",
+      "title": "148 — Blink SourceGraphic ownership for HTML URL-filter convolution",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "paint-effects"
+      ],
+      "platforms": [],
+      "code": [
+        "src/stacking-context.test.ts",
+        "tests/raster-fallback-content.e2e.test.ts"
+      ],
+      "file": "148-sourcegraphic-url-filter-surfaces.md"
+    },
+    {
+      "id": "requirements/macos-terminal-raster-evidence",
+      "title": "149 — macOS terminal-raster evidence",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "images-media",
+        "platform-release",
+        "product-tooling"
+      ],
+      "platforms": [
+        "macos"
+      ],
+      "code": [],
+      "file": "149-macos-terminal-raster-evidence.md"
+    },
+    {
+      "id": "requirements/font-size-space-oracle",
+      "title": "Font-size space oracle",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "platform-release"
+      ],
+      "platforms": [
+        "macos"
+      ],
+      "code": [
+        "src/render/axis-location.test.ts",
+        "tests/font-size-spaces.e2e.test.ts"
+      ],
+      "file": "150-font-size-space-oracle.md"
+    },
+    {
+      "id": "requirements/shaped-origin-oracle",
+      "title": "Shaped-origin provenance oracle",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [],
+      "file": "151-shaped-origin-oracle.md"
+    },
+    {
+      "id": "requirements/mathml-italic-token-oracle",
+      "title": "MathML italic-token logical oracle",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "platform-release"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "code": [],
+      "file": "152-mathml-italic-token-oracle.md"
+    },
+    {
+      "id": "requirements/source-owned-text-failure-boundary",
+      "title": "Source-owned text failure boundary",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/render/form-controls.ts",
+        "src/render/text-to-path.test.ts",
+        "src/render/text.ts"
+      ],
+      "file": "152-source-owned-text-failure-boundary.md"
+    },
+    {
+      "id": "requirements/pingfang-live-descriptor-oracle",
+      "title": "PingFang live CoreText descriptor oracle",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "platform-release"
+      ],
+      "platforms": [
+        "macos"
+      ],
+      "code": [
+        ".github/workflows/pingfang-live-descriptor.yml",
+        "tools/pingfang-live-descriptor-schema.mjs"
+      ],
+      "file": "153-pingfang-live-descriptor-oracle.md"
+    },
+    {
+      "id": "requirements/mathml-helper-ink-evidence",
+      "title": "MathML native-helper ink evidence",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "text-fonts"
+      ],
+      "platforms": [
+        "macos",
+        "windows"
+      ],
+      "code": [
+        "src/render/glyph-helper.ts"
+      ],
+      "file": "154-mathml-helper-ink-evidence.md"
+    },
+    {
+      "id": "requirements/animated-viewbox-culling-audit",
+      "title": "Animated viewBox culling geometry audit",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "layout",
+        "animation",
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/render/culling-geometry.ts",
+        "src/tree-ops/swept-transform-bounds.ts",
+        "src/tree-ops/viewbox-culling.ts"
+      ],
+      "file": "155-animated-viewbox-culling-audit.md"
+    },
+    {
+      "id": "requirements/broken-image-fallback-ownership-audit",
+      "title": "156 — Chromium broken-image fallback ownership audit",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "images-media",
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/capture/broken-image-fallback.ts",
+        "src/capture/broken-image-icon-raster.ts",
+        "src/render/broken-image-fallback.ts",
+        "tests/broken-image-fallback-parity-gate.test.ts",
+        "tools/broken-image-fallback-oracle.ts"
+      ],
+      "file": "156-broken-image-fallback-ownership-audit.md"
+    },
+    {
+      "id": "requirements/pseudo-generated-fragment-geometry-audit",
+      "title": "157 — Generated pseudo fragment and baseline geometry audit",
+      "kind": "proposal",
+      "status": "proposed",
+      "owners": [
+        "layout",
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux"
+      ],
+      "code": [
+        "src/capture/script/index.ts",
+        "src/capture/script/walker/pseudo-content.ts",
+        "src/capture/script/walker/pseudo-inject.ts",
+        "tests/generated-pseudo-layout-probe.e2e.test.ts",
+        "tools/replaced-geometry-oracle.ts"
+      ],
+      "file": "157-pseudo-generated-fragment-geometry-audit.md"
+    },
+    {
+      "id": "requirements/authoritative-control-pseudo-cascade",
+      "title": "Authoritative control-pseudo cascade capture",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [],
+      "code": [
+        "src/capture/pseudo-style-cdp.test.ts",
+        "src/capture/pseudo-style-cdp.ts",
+        "tests/pseudo-cascade.e2e.test.ts"
+      ],
+      "file": "158-authoritative-control-pseudo-cascade.md"
+    },
+    {
+      "id": "requirements/exact-text-transform-geometry-audit",
+      "title": "Exact text-transform geometry audit",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "layout",
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/capture/script/index.ts",
+        "src/capture/text-fragment-geometry.ts",
+        "src/capture/text-line-origin.ts",
+        "src/capture/text-paint-geometry-cdp.ts",
+        "src/render/text-affine.ts",
+        "src/render/text.ts"
+      ],
+      "file": "159-exact-text-transform-geometry-audit.md"
+    },
+    {
+      "id": "requirements/chromium-roll-differential-audit",
+      "title": "160 — Chromium roll differential audit",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "platform-release"
+      ],
+      "platforms": [],
+      "code": [],
+      "file": "160-chromium-roll-differential-audit.md"
+    },
+    {
+      "id": "requirements/parity-blind-spot-corpus",
+      "title": "161 — Parity blind-spot corpus",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "tools/html-test-parity-corpus.json"
+      ],
+      "file": "161-parity-blind-spot-corpus.md"
+    },
+    {
+      "id": "requirements/inline-svg-3d-transform-audit",
+      "title": "Cloned inline-SVG 3D transform audit",
+      "kind": "evidence",
+      "status": "partial",
+      "owners": [
+        "layout",
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/inline-svg-3d-parity.yml",
+        "src/capture/index.ts",
+        "src/capture/projective-owner.ts",
+        "src/capture/script/walker/inline-svg.ts",
+        "src/capture/svg-affine-freeze.test.ts",
+        "src/capture/svg-affine-freeze.ts",
+        "src/render/transforms.ts",
+        "tests/inline-svg-3d-gate.test.ts",
+        "tests/inline-svg-3d-workflow.test.ts",
+        "tests/inline-svg-affine-freeze.e2e.test.ts",
+        "tests/inline-svg-projective-ownership.e2e.test.ts",
+        "tools/inline-svg-3d-audit.ts"
+      ],
+      "file": "162-inline-svg-3d-transform-audit.md"
+    },
+    {
+      "id": "requirements/url-background-image-geometry-audit",
+      "title": "URL background image geometry audit",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "images-media",
+        "layout",
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/url-background-geometry-parity.yml",
+        "src/capture/background-image-sizing.ts",
+        "src/capture/script/walker/background-attachment.ts",
+        "src/capture/script/walker/fragmentation.ts",
+        "src/render/background-attachment.ts",
+        "src/render/image-pattern.ts"
+      ],
+      "file": "163-url-background-image-geometry-audit.md"
+    },
+    {
+      "id": "requirements/cross-origin-scroll-frame-capture",
+      "title": "164 — Cross-origin iframe recursion during scroll capture",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "layout"
+      ],
+      "platforms": [],
+      "code": [],
+      "file": "164-cross-origin-scroll-frame-capture.md"
+    },
+    {
+      "id": "requirements/native-scrollbar-layout-paint-ownership-audit",
+      "title": "Native scrollbar layout and paint ownership audit",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "paint-effects",
+        "layout",
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/capture/pseudo-style-cdp.ts",
+        "src/render/custom-scrollbar.ts"
+      ],
+      "file": "165-native-scrollbar-layout-paint-ownership-audit.md"
+    },
+    {
+      "id": "requirements/animated-culling-geometry-oracle",
+      "title": "Animated culling geometry oracle",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "layout",
+        "animation",
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/animated-culling-geometry.yml"
+      ],
+      "file": "166-animated-culling-geometry-oracle.md"
+    },
+    {
+      "id": "requirements/native-control-source-frame-rasters",
+      "title": "167 — Source-frame-coherent native-control rasters",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "images-media"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/capture/native-control-raster.test.ts",
+        "src/capture/native-control-raster.ts",
+        "tests/native-control-source-frame.e2e.test.ts",
+        "tests/raster-fallback-content.e2e.test.ts"
+      ],
+      "file": "167-native-control-source-frame-rasters.md"
+    },
+    {
+      "id": "requirements/sfns-mask-baseline-oracle",
+      "title": "SFNS CoreText mask and baseline oracle",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "paint-effects",
+        "platform-release"
+      ],
+      "platforms": [
+        "macos"
+      ],
+      "code": [
+        "tools/build-sfns-pinned-ots-sanitizer.mjs",
+        "tools/build-sfns-pinned-skia-collector.mjs",
+        "tools/chromium-sfns-validation/",
+        "tools/sfns-mask-baseline-oracle.ts",
+        "tools/sfns-mask-baseline.swift",
+        "tools/sfns-pinned-chromium-validation-collector.ts",
+        "tools/sfns-pinned-ots-sanitizer/",
+        "tools/sfns-pinned-skia-collector/sfns_post_conversion_collector.cpp",
+        "tools/sfns-pinned-skia-mask-schema.ts",
+        "tools/sfns-terminal-mask-adjudicator.ts",
+        "tools/sfns-terminal-mask-manifest.ts"
+      ],
+      "file": "168-sfns-mask-baseline-oracle.md"
+    },
+    {
+      "id": "requirements/authoritative-scrollbar-capture",
+      "title": "Authoritative Blink scrollbar capture",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "layout"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/capture/pseudo-style-cdp.ts",
+        "src/capture/scrollbar-capture.ts",
+        "src/render/custom-scrollbar.ts",
+        "src/render/native-scrollbar-raster.ts"
+      ],
+      "file": "169-authoritative-scrollbar-capture.md"
+    },
+    {
+      "id": "requirements/blink-effective-appearance-routing",
+      "title": "Blink EffectiveAppearance ownership routing",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/visual-tests.yml",
+        "src/capture/effective-appearance-cdp.ts",
+        "src/capture/effective-appearance.test.ts",
+        "src/capture/effective-appearance.ts",
+        "tests/effective-appearance.e2e.test.ts"
+      ],
+      "file": "170-blink-effective-appearance-routing.md"
+    },
+    {
+      "id": "requirements/closed-shadow-control-decorations",
+      "title": "171 — Source-owned closed-shadow control decorations",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "paint-effects"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/capture/native-control-decoration.ts",
+        "tests/native-control-decoration.e2e.test.ts"
+      ],
+      "file": "171-closed-shadow-control-decorations.md"
+    },
+    {
+      "id": "requirements/native-file-selector-button",
+      "title": "172 — Native file-selector button ownership",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "tests/native-control-decoration.e2e.test.ts"
+      ],
+      "file": "172-native-file-selector-button.md"
+    },
+    {
+      "id": "requirements/native-scrollbar-release-gate",
+      "title": "Native scrollbar release gate",
+      "kind": "contract",
+      "status": "partial",
+      "owners": [
+        "layout",
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/native-scrollbar-parity.yml",
+        "tools/check-native-scrollbar-release.ts",
+        "tools/native-scrollbar-release-gate.ts"
+      ],
+      "file": "173-native-scrollbar-release-gate.md"
+    },
+    {
+      "id": "requirements/html-mask-origin-clip-geometry",
+      "title": "174 — HTML mask-origin / mask-clip geometry",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "paint-effects",
+        "layout",
+        "product-tooling"
+      ],
+      "platforms": [],
+      "code": [
+        "src/capture/script/index.ts",
+        "src/render/mask-origin-clip.test.ts",
+        "src/render/mask-origin-clip.ts",
+        "src/render/mask.ts",
+        "tests/mask-origin-clip.e2e.test.ts",
+        "tests/mask-url-repeat-geometry.e2e.test.ts"
+      ],
+      "file": "174-html-mask-origin-clip-geometry.md"
+    },
+    {
+      "id": "requirements/pseudo-fragment-protocol-oracle",
+      "title": "175 — Chromium pseudo-fragment protocol oracle",
+      "kind": "proposal",
+      "status": "proposed",
+      "owners": [
+        "layout",
+        "platform-release"
+      ],
+      "platforms": [
+        "macos"
+      ],
+      "code": [
+        "src/capture/pseudo-fragment-protocol.ts",
+        "tools/pseudo-fragment-geometry-oracle.ts",
+        "tools/pseudo-fragment-protocol.ts"
+      ],
+      "file": "175-pseudo-fragment-protocol-oracle.md"
+    },
+    {
+      "id": "requirements/source-owned-pseudo-fragment-capture",
+      "title": "176 — Source-owned generated-pseudo fragment capture",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "layout"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/capture/pseudo-fragment-cdp.ts",
+        "src/capture/pseudo-fragment-protocol.ts",
+        "src/capture/script/index.ts",
+        "src/render/pseudo-fragments.ts",
+        "tools/pseudo-fragment-protocol.ts"
+      ],
+      "file": "176-source-owned-pseudo-fragment-capture.md"
+    },
+    {
+      "id": "requirements/affine-text-paint-consumption",
+      "title": "Exact affine text paint consumption",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "paint-effects"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/capture/text-line-origin.test.ts",
+        "src/render/text-affine.test.ts",
+        "src/render/text-affine.ts",
+        "tests/text-affine-render.e2e.test.ts",
+        "tools/text-affine-baseline-protocol-oracle.ts"
+      ],
+      "file": "177-affine-text-paint-consumption.md"
+    },
+    {
+      "id": "requirements/direct-pseudo-fragment-rendering",
+      "title": "178 — Direct source-owned generated-pseudo rendering",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "layout"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/pseudo-fragment-render-parity.yml",
+        "src/render/pseudo-fragments.ts",
+        "tests/pseudo-fragment-render-oracle.e2e.test.ts",
+        "tools/pseudo-fragment-render-oracle.ts"
+      ],
+      "file": "178-direct-pseudo-fragment-rendering.md"
+    },
+    {
+      "id": "requirements/transformed-text-all-platform-gate",
+      "title": "Transformed-text all-platform parity gate",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "layout",
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/text-transform-parity.yml",
+        "tools/text-transform-geometry-audit.ts"
+      ],
+      "file": "179-transformed-text-all-platform-gate.md"
+    },
+    {
+      "id": "requirements/source-owned-summary-disclosure-markers",
+      "title": "Source-owned summary disclosure markers",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/summary-disclosure-marker-parity.yml",
+        "src/capture/summary-marker-cdp.ts",
+        "src/render/element-tree-to-svg.ts",
+        "src/render/form-controls.ts",
+        "src/render/list-marker-geometry.ts"
+      ],
+      "file": "180-source-owned-summary-disclosure-markers.md"
+    },
+    {
+      "id": "requirements/background-clip-text-url-color-semantics",
+      "title": "181 — background-clip:text URL and color semantics",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "paint-effects",
+        "product-tooling"
+      ],
+      "platforms": [],
+      "code": [
+        "src/render/background-clip-text.test.ts",
+        "src/render/text-stroke-synthesis.test.ts",
+        "tests/features.ts",
+        "tools/background-clip-text-oracle.ts"
+      ],
+      "file": "181-background-clip-text-url-color-semantics.md"
+    },
+    {
+      "id": "requirements/native-control-fallback-retirement",
+      "title": "182 — Native-control sampled-fallback retirement",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/native-control-fallback-parity.yml",
+        "src/render/form-controls.ts",
+        "tests/native-control-fallback-activation.e2e.test.ts",
+        "tests/native-control-fallback-gate.test.ts",
+        "tools/native-control-fallback-gate.ts"
+      ],
+      "file": "182-native-control-fallback-retirement.md"
+    },
+    {
+      "id": "requirements/composed-metamorphic-parity-corpus",
+      "title": "183 — Composed real-world and metamorphic parity corpus",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/composed-parity-corpus.yml",
+        "scripts/run-composed-parity.mjs",
+        "tests/composed-parity-corpus.e2e.test.ts",
+        "tests/composed-parity-fixtures.ts",
+        "tests/fixtures/html-test/36-composed-metamorphic-parity.html",
+        "tests/output/composed-parity-results.json",
+        "tools/html-test-parity-corpus.json"
+      ],
+      "file": "183-composed-metamorphic-parity-corpus.md"
+    },
+    {
+      "id": "requirements/replaced-ownership-transition-matrix",
+      "title": "184 — Replaced and native ownership transition matrix",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "images-media",
+        "animation"
+      ],
+      "platforms": [],
+      "code": [],
+      "file": "184-replaced-ownership-transition-matrix.md"
+    },
+    {
+      "id": "requirements/blend-filter-pixel-stage-oracle",
+      "title": "185 — Blend-mode and filter-kernel pixel-stage oracle",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "paint-effects",
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/blend-filter-pixel-stage.yml",
+        "tools/blend-filter-pixel-stage-oracle.ts"
+      ],
+      "file": "185-blend-filter-pixel-stage-oracle.md"
+    },
+    {
+      "id": "requirements/animated-3d-frame-state-parity",
+      "title": "186 — Animated CSS 3D frame-state parity",
+      "kind": "evidence",
+      "status": "partial",
+      "owners": [
+        "animation",
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/animated-projective-frame-parity.yml",
+        "src/capture/animation-frame.ts"
+      ],
+      "file": "186-animated-3d-frame-state-parity.md"
+    },
+    {
+      "id": "requirements/backdrop-source-surface-transitions",
+      "title": "187 — Backdrop-filter source-surface transitions",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "paint-effects",
+        "animation"
+      ],
+      "platforms": [],
+      "code": [
+        "tools/backdrop-source-surface-audit.ts"
+      ],
+      "file": "187-backdrop-source-surface-transitions.md"
+    },
+    {
+      "id": "requirements/generated-svg-effect-combinations",
+      "title": "188 — Generated SVG gradient, mask, and clip combinations",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/svg-effect-combinations.yml",
+        "src/capture/script/walker/inline-svg.ts",
+        "tools/svg-effect-combination-corpus.ts"
+      ],
+      "file": "188-generated-svg-effect-combinations.md"
+    },
+    {
+      "id": "requirements/nested-projective-context-ownership",
+      "title": "189 — Nested projective-context raster ownership",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [],
+      "file": "189-nested-projective-context-ownership.md"
+    },
+    {
+      "id": "requirements/cross-platform-border-phase-envelopes",
+      "title": "Cross-platform border phase envelopes",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "paint-effects",
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/border-phase-oracle.yml",
+        "tools/border-phase-oracle.ts",
+        "tools/border-phase-ratifier.ts"
+      ],
+      "file": "191-cross-platform-border-phase-envelopes.md"
+    },
+    {
+      "id": "requirements/fixed-backdrop-paint-order",
+      "title": "Fixed backdrop paint order (DM-2489)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "paint-effects"
+      ],
+      "platforms": [],
+      "code": [
+        "tools/backdrop-source-surface-audit.ts"
+      ],
+      "file": "192-fixed-backdrop-paint-order.md"
+    },
+    {
+      "id": "requirements/generated-pseudo-backdrop-source-ownership",
+      "title": "Generated-pseudo backdrop source ownership",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "paint-effects"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "tools/pseudo-backdrop-source-oracle.ts"
+      ],
+      "file": "193-generated-pseudo-backdrop-source-ownership.md"
+    },
+    {
+      "id": "requirements/ordinary-backdrop-effect-space",
+      "title": "194 — Ordinary backdrop Backdrop Root/effect-space ownership",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "paint-effects"
+      ],
+      "platforms": [],
+      "code": [],
+      "file": "194-ordinary-backdrop-effect-space.md"
+    },
+    {
+      "id": "requirements/strict-ordinary-backdrop-ownership",
+      "title": "195 — Strict ordinary backdrop ownership and raster-floor adjudication",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "paint-effects"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/backdrop-source-surface-parity.yml",
+        "src/capture/backdrop-composite-raster.ts",
+        "tests/backdrop-source-surface-audit.test.ts"
+      ],
+      "file": "195-strict-ordinary-backdrop-ownership.md"
+    },
+    {
+      "id": "requirements/linux-arm64-release-parity",
+      "title": "Linux arm64 published-helper and parity gate",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux"
+      ],
+      "code": [
+        ".github/workflows/emoji-presentation-ownership-audit.yml",
+        ".github/workflows/linux-arm64-release-parity.yml"
+      ],
+      "file": "196-linux-arm64-release-parity.md"
+    },
+    {
+      "id": "requirements/paths-native-raster-floor",
+      "title": "Paths-mode native-raster floor matrix",
+      "kind": "contract",
+      "status": "partial",
+      "owners": [
+        "images-media"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/paths-native-raster-floor.yml",
+        "tools/paths-native-raster-collector.ts",
+        "tools/paths-native-raster-corpus.ts",
+        "tools/paths-native-raster-envelopes.json",
+        "tools/paths-native-raster-gate.ts",
+        "tools/paths-native-raster-producer.ts"
+      ],
+      "file": "197-paths-native-raster-floor.md"
+    },
+    {
+      "id": "requirements/live-generic-family-preference-parity",
+      "title": "Live generic-family preference parity",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/generic-family-preference-parity.yml"
+      ],
+      "file": "198-live-generic-family-preference-parity.md"
+    },
+    {
+      "id": "requirements/portable-exact-shaping-controls",
+      "title": "Portable exact-shaping applicability controls",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "layout",
+        "product-tooling"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "code": [
+        "tests/fixtures/variable-axis/variable-axis.html",
+        "tools/exact-shaping-control-fixtures.ts",
+        "tools/exact-shaping-oracle.ts"
+      ],
+      "file": "199-portable-exact-shaping-controls.md"
+    },
+    {
+      "id": "requirements/linux-arm64-decoration-coordinate-ownership",
+      "title": "Linux arm64 decoration coordinate ownership",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "platform-release"
+      ],
+      "platforms": [
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "tests/decoration-coordinate-ownership.e2e.test.ts",
+        "tests/decoration-oracle.test.ts",
+        "tools/decoration-oracle.ts"
+      ],
+      "file": "200-linux-arm64-decoration-coordinate-ownership.md"
+    },
+    {
+      "id": "requirements/emoji-presentation-item-ownership",
+      "title": "Emoji presentation shaping-item ownership and closure",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "code": [
+        ".github/workflows/emoji-presentation-ownership-audit.yml",
+        "tools/emoji-presentation-ownership-audit.ts"
+      ],
+      "file": "201-emoji-presentation-item-ownership.md"
+    },
+    {
+      "id": "requirements/font-palette-selection-raster-boundary",
+      "title": "Font-palette selection and native paint gate",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "images-media"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/font-palette-ownership-audit.yml",
+        "src/capture/emoji.ts",
+        "src/capture/script/font-palette.ts",
+        "tests/fixtures/font-palette/COLR-palettes-test-font.ttf",
+        "tests/fixtures/font-palette/COLRv1-static-test-glyphs.ttf",
+        "tools/font-palette-dynamic-gate.ts",
+        "tools/font-palette-ownership-audit.ts",
+        "tools/font-palette-paint-gate.ts"
+      ],
+      "file": "202-font-palette-selection-raster-boundary.md"
+    },
+    {
+      "id": "requirements/linux-mathml-greek-italic-investigation",
+      "title": "Linux MathML Greek-italic residual investigation",
+      "kind": "investigation",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "platform-release"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "code": [],
+      "file": "203-linux-mathml-greek-italic-investigation.md"
+    },
+    {
+      "id": "requirements/font-feature-values-shaping-conformance",
+      "title": "Named font-feature values in the shaping conformance gate",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "platform-release",
+        "product-tooling"
+      ],
+      "platforms": [],
+      "code": [
+        "src/capture/script/font-feature-values.ts",
+        "src/font-feature-values-cascade.ts",
+        "tests/fixtures/shaping/FontWithFancyFeatures.otf.base64",
+        "tests/font-feature-values.e2e.test.ts",
+        "tests/shaping-font-feature-values.e2e.test.ts",
+        "tests/shaping-font-feature-values.test.ts",
+        "tools/shaping-conformance.ts",
+        "tools/shaping-font-feature-values.ts"
+      ],
+      "file": "204-font-feature-values-shaping-conformance.md"
+    },
+    {
+      "id": "requirements/unicode-shaping-conformance-corpus",
+      "title": "Unicode shaping conformance corpus",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "platform-release",
+        "product-tooling"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "tools/shaping-conformance.ts",
+        "tools/shaping-unicode-corpus.ts"
+      ],
+      "file": "205-unicode-shaping-conformance-corpus.md"
+    },
+    {
+      "id": "requirements/generic-family-semantic-ownership",
+      "title": "Exact generic-family semantic ownership gate",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/render/skia-last-resort-routing.test.ts",
+        "tools/generic-family-semantics-audit.ts"
+      ],
+      "file": "206-generic-family-semantic-ownership.md"
+    },
+    {
+      "id": "requirements/cross-platform-decoration-geometry",
+      "title": "Cross-platform text-decoration geometry (DM-2345)",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "layout",
+        "platform-release"
+      ],
+      "platforms": [
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/windows-fidelity.yml",
+        "tools/vertical-decoration-oracle.ts"
+      ],
+      "file": "207-cross-platform-decoration-geometry.md"
+    },
+    {
+      "id": "requirements/iframe-fragment-reference-ownership",
+      "title": "208 — Iframe-local SVG fragment reference ownership",
+      "kind": "reference",
+      "status": "current",
+      "owners": [
+        "layout"
+      ],
+      "platforms": [],
+      "code": [
+        "src/mask.test.ts",
+        "tests/iframe-inner-defs.e2e.test.ts",
+        "tests/multi-layer-fragment-mask.e2e.test.ts"
+      ],
+      "file": "208-iframe-fragment-reference-ownership.md"
+    },
+    {
+      "id": "requirements/transformed-flex-descendant-investigation",
+      "title": "Transformed flex descendant investigation",
+      "kind": "investigation",
+      "status": "current",
+      "owners": [
+        "layout"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/render/format.ts",
+        "tests/transformed-flex-geometry.e2e.test.ts"
+      ],
+      "file": "209-transformed-flex-descendant-investigation.md"
+    },
+    {
+      "id": "requirements/linux-freesans-mathml-raster-supplement",
+      "title": "Linux FreeSans MathML native-raster supplement",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "images-media",
+        "platform-release"
+      ],
+      "platforms": [
+        "linux"
+      ],
+      "code": [
+        "tools/linux-mathml-greek-raster-gate.ts",
+        "tools/paths-native-raster-envelopes.json"
+      ],
+      "file": "210-linux-freesans-mathml-raster-supplement.md"
+    },
+    {
+      "id": "requirements/platform-system-ui-preference-route",
+      "title": "Platform-owned system-ui preference route",
+      "kind": "reference",
+      "status": "current",
+      "owners": [
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/system-ui-preference-route.yml",
+        "src/render/glyph-helper.ts"
+      ],
+      "file": "211-platform-system-ui-preference-route.md"
+    },
+    {
+      "id": "requirements/chrome-profile-target-generic-authority",
+      "title": "Chrome profile and target generic-family authority",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [],
+      "file": "212-chrome-profile-target-generic-authority.md"
+    },
+    {
+      "id": "requirements/structured-font-family-stack",
+      "title": "Structured captured font-family stack",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts"
+      ],
+      "platforms": [],
+      "code": [
+        "src/font-family-stack.test.ts",
+        "src/font-family-stack.ts",
+        "tests/font-family-stack-capture.e2e.test.ts"
+      ],
+      "file": "213-structured-font-family-stack.md"
+    },
+    {
+      "id": "requirements/mixed-script-bidi-logical-geometry",
+      "title": "Mixed-script bidi logical geometry",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "layout"
+      ],
+      "platforms": [
+        "macos",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/mixed-bidi-logical-conformance.yml",
+        "src/render/mixed-bidi-logical.test.ts",
+        "src/render/script-segmentation.ts"
+      ],
+      "file": "214-mixed-script-bidi-logical-geometry.md"
+    },
+    {
+      "id": "requirements/affine-text-baseline-protocol",
+      "title": "Blink affine text baseline and fragment-origin protocol",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/text-transform-parity.yml",
+        "src/capture/text-fragment-geometry.test.ts",
+        "src/capture/text-fragment-spans.test.ts",
+        "src/capture/text-line-origin.test.ts",
+        "src/capture/text-line-origin.ts",
+        "src/capture/text-paint-geometry-cdp.ts",
+        "src/render/text-affine.test.ts",
+        "src/render/text-affine.ts",
+        "tests/text-affine-baseline-protocol-oracle.test.ts",
+        "tests/text-affine-line-origin-workflow.test.ts",
+        "tests/text-affine-render.e2e.test.ts",
+        "tests/text-fragment-span-oracle.test.ts",
+        "tests/text-fragment-span-workflow.test.ts",
+        "tests/text-paint-geometry.e2e.test.ts"
+      ],
+      "file": "215-affine-text-baseline-protocol.md"
+    },
+    {
+      "id": "requirements/vertical-orientation-ownership",
+      "title": "Blink-owned vertical orientation and text-combine ownership",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/vertical-orientation-parity.yml",
+        "src/capture/script/vertical-orientation.generated.ts",
+        "src/vertical-orientation.ts",
+        "tests/vertical-orientation-capture.e2e.test.ts",
+        "tools/generate-vertical-orientation-ranges.mjs",
+        "tools/vertical-orientation-oracle.ts"
+      ],
+      "file": "216-vertical-orientation-ownership.md"
+    },
+    {
+      "id": "requirements/cross-origin-frame-scroll-ownership",
+      "title": "Cross-origin frame scroll ownership",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "layout"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/cross-origin-frame-scroll-ownership.yml",
+        "src/capture/frame-scroll-state.ts",
+        "src/scroll/frame-scroll-ownership.test.ts",
+        "tests/cross-origin-iframe-recursion.e2e.test.ts"
+      ],
+      "file": "217-cross-origin-frame-scroll-ownership.md"
+    },
+    {
+      "id": "requirements/mixed-reference-color-space-ownership",
+      "title": "218 — Mixed reference-filter color-space ownership",
+      "kind": "reference",
+      "status": "current",
+      "owners": [
+        "paint-effects"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "tests/fixtures/html-test/38-mixed-reference-color-space-stage.html",
+        "tools/mixed-reference-color-space-oracle.ts"
+      ],
+      "file": "218-mixed-reference-color-space-ownership.md"
+    },
+    {
+      "id": "requirements/authenticated-profile-oopif-generic-preferences",
+      "title": "Authenticated profile and OOPIF generic preferences",
+      "kind": "reference",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [
+        "macos",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/generic-profile-target-parity.yml"
+      ],
+      "file": "219-authenticated-profile-oopif-generic-preferences.md"
+    },
+    {
+      "id": "requirements/browser-harfbuzz-substitution-streams",
+      "title": "Browser HarfBuzz substitution-stream ownership",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/browser-harfbuzz-substitution-streams.yml",
+        "tools/browser-harfbuzz-substitution-oracle.ts"
+      ],
+      "file": "220-browser-harfbuzz-substitution-streams.md"
+    },
+    {
+      "id": "requirements/scroll-view-raf-timeline-ownership",
+      "title": "221 — Scroll/view/rAF timeline sampling ownership",
+      "kind": "contract",
+      "status": "partial",
+      "owners": [
+        "layout",
+        "animation"
+      ],
+      "platforms": [
+        "macos"
+      ],
+      "code": [
+        "src/capture/animation-frame.ts",
+        "tools/timeline-sampling-ownership-oracle.ts"
+      ],
+      "file": "221-scroll-view-raf-timeline-ownership.md"
+    },
+    {
+      "id": "requirements/transitive-svg-fragment-resource-ownership",
+      "title": "Transitive SVG fragment-resource ownership",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "layout"
+      ],
+      "platforms": [],
+      "code": [],
+      "file": "222-transitive-svg-fragment-resource-ownership.md"
+    },
+    {
+      "id": "requirements/legacy-webkit-gradient-geometry",
+      "title": "223 — Legacy -webkit-gradient() geometry ownership",
+      "kind": "archive",
+      "status": "superseded",
+      "owners": [
+        "paint-effects",
+        "layout"
+      ],
+      "platforms": [],
+      "code": [
+        "src/capture/script/walker/borders-backgrounds.test.ts",
+        "src/capture/script/walker/borders-backgrounds.ts",
+        "src/render/gradients.test.ts",
+        "src/render/gradients.ts",
+        "tests/legacy-webkit-gradient.e2e.test.ts",
+        "tools/paint-geometry-oracle.ts"
+      ],
+      "file": "223-legacy-webkit-gradient-geometry.md"
+    },
+    {
+      "id": "requirements/hidden-macos-hebrew-generic-face",
+      "title": "Hidden macOS Hebrew generic face ownership",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "platform-release"
+      ],
+      "platforms": [
+        "macos"
+      ],
+      "code": [
+        "src/render/generic-script-families.test.ts"
+      ],
+      "file": "224-hidden-macos-hebrew-generic-face.md"
+    },
+    {
+      "id": "requirements/fragmented-collapsed-table-ownership",
+      "title": "Fragmented collapsed-table physical ownership",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "layout"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/fragmented-collapsed-table-release.yml",
+        "src/capture/collapsed-border-fragment-cdp.e2e.test.ts",
+        "src/capture/collapsed-border-fragment-cdp.ts",
+        "src/capture/collapsed-border-fragment-record.ts",
+        "src/capture/paged-collapsed-table-cdp.ts",
+        "src/capture/paged-collapsed-table-record.ts",
+        "src/capture/script/walker/borders-backgrounds.ts",
+        "tests/border-collapse-conflict.e2e.test.ts",
+        "tools/collapsed-border-fragmentation-oracle.ts",
+        "tools/fragmented-collapsed-table-release-gate.ts",
+        "tools/paged-collapsed-table-ownership-audit.ts"
+      ],
+      "file": "225-fragmented-collapsed-table-ownership.md"
+    },
+    {
+      "id": "requirements/wrapped-decoration-fragment-ownership",
+      "title": "Wrapped text-decoration fragment ownership",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "layout"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "tools/wrapped-decoration-fragment-oracle.ts"
+      ],
+      "file": "226-wrapped-decoration-fragment-ownership.md"
+    },
+    {
+      "id": "requirements/multi-face-font-feature-value-environments",
+      "title": "Authenticated multi-face font-feature-value environments",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts"
+      ],
+      "platforms": [],
+      "code": [
+        "tests/font-feature-value-environment.test.ts",
+        "tests/shaping-font-feature-environment.test.ts",
+        "tests/shaping-font-feature-values.e2e.test.ts",
+        "tools/font-feature-value-environment.ts",
+        "tools/shaping-conformance.ts",
+        "tools/shaping-font-feature-values.ts"
+      ],
+      "file": "227-multi-face-font-feature-value-environments.md"
+    },
+    {
+      "id": "requirements/background-clip-text-native-parity",
+      "title": "228 — Native background-clip:text parity",
+      "kind": "evidence",
+      "status": "current",
+      "owners": [
+        "text-fonts",
+        "paint-effects",
+        "platform-release",
+        "product-tooling"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/background-clip-text-native-parity.yml"
+      ],
+      "file": "228-background-clip-text-native-parity.md"
+    },
+    {
+      "id": "requirements/pre-navigation-raf-capture-ownership",
+      "title": "228 — Pre-navigation rAF capture ownership",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/raf-clock-ownership.yml",
+        "tests/raf-clock.e2e.test.ts"
+      ],
+      "file": "228-pre-navigation-raf-capture-ownership.md"
+    },
+    {
+      "id": "requirements/live-replaced-media-frame-ownership",
+      "title": "229 — Live replaced-media frame ownership",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "images-media"
+      ],
+      "platforms": [],
+      "code": [
+        "tools/animated-image-frame-selection-audit.ts"
+      ],
+      "file": "229-live-replaced-media-frame-ownership.md"
+    },
+    {
+      "id": "requirements/paged-table-private-fragment-transport",
+      "title": "Paged-table private fragment transport",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "layout"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "tools/chromium-paged-table-evidence/renderer-helper.patch",
+        "tools/paged-table-evidence-fixtures.ts"
+      ],
+      "file": "230-paged-table-private-fragment-transport.md"
+    },
+    {
+      "id": "requirements/authenticated-animated-image-byte-ownership",
+      "title": "Authenticated animated-image encoded-byte ownership",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "images-media",
+        "animation"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "tools/animated-image-owner-resource-truth-chromium.patch",
+        "tools/animated-image-owner-resource-truth-schema.ts",
+        "tools/animated-image-stock-cdp-support.ts"
+      ],
+      "file": "231-authenticated-animated-image-byte-ownership.md"
+    },
+    {
+      "id": "requirements/opt-in-authenticated-animated-image-byte-collector",
+      "title": "Opt-in authenticated animated-image byte collector",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "images-media",
+        "animation"
+      ],
+      "platforms": [
+        "macos",
+        "linux"
+      ],
+      "code": [],
+      "file": "232-opt-in-authenticated-animated-image-byte-collector.md"
+    },
+    {
+      "id": "requirements/strict-animated-image-static-frame",
+      "title": "Strict animated-image static-frame capture",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "images-media",
+        "animation"
+      ],
+      "platforms": [],
+      "code": [],
+      "file": "233-strict-animated-image-static-frame.md"
+    },
+    {
+      "id": "requirements/frozen-animated-image-downstream-ownership",
+      "title": "Frozen animated-image downstream ownership",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "images-media",
+        "animation"
+      ],
+      "platforms": [],
+      "code": [],
+      "file": "234-frozen-animated-image-downstream-ownership.md"
+    },
+    {
+      "id": "requirements/public-svg-css-animated-image-owner-joins",
+      "title": "Public SVG and CSS animated-image owner joins",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "images-media",
+        "animation"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "tools/animated-image-stock-cdp-support.ts"
+      ],
+      "file": "235-public-svg-css-animated-image-owner-joins.md"
+    },
+    {
+      "id": "requirements/strict-static-frames-for-svg-css-images",
+      "title": "Strict static frames for SVG and CSS images",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "images-media"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [],
+      "file": "236-strict-static-frames-for-svg-css-images.md"
+    },
+    {
+      "id": "handbook/animation-and-interaction",
+      "title": "Animation and interaction handbook",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "animation"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/animation/",
+        "src/cli/animate.ts",
+        "src/composite/",
+        "tests/animate-examples.tsx"
+      ],
+      "file": "handbook/animation-and-interaction.md"
+    },
+    {
+      "id": "handbook/images-media-and-embedding",
+      "title": "Images, media, and embedding handbook",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "images-media"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/capture/replaced-media-frame.ts",
+        "src/render/image.ts",
+        "src/post-processing/",
+        "tests/feature-coverage.ts"
+      ],
+      "file": "handbook/images-media-and-embedding.md"
+    },
+    {
+      "id": "handbook/layout-and-fragmentation",
+      "title": "Layout and fragmentation handbook",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "layout"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/capture/geometry.ts",
+        "src/render/tree.ts",
+        "src/scroll/",
+        "tests/feature-coverage.ts"
+      ],
+      "file": "handbook/layout-and-fragmentation.md"
+    },
+    {
+      "id": "handbook/paint-effects-and-native-controls",
+      "title": "Paint, effects, and native controls handbook",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "paint-effects"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/render/paint.ts",
+        "src/capture/native-control-raster.ts",
+        "tests/feature-coverage.ts"
+      ],
+      "file": "handbook/paint-effects-and-native-controls.md"
+    },
+    {
+      "id": "handbook/platforms-testing-and-release",
+      "title": "Platforms, testing, and release handbook",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "platform-release"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        ".github/workflows/",
+        "tests/feature-coverage.ts",
+        "tools/parity-program.json",
+        "scripts/ci-run-fast-visuals.mjs"
+      ],
+      "file": "handbook/platforms-testing-and-release.md"
+    },
+    {
+      "id": "handbook/text-and-fonts",
+      "title": "Text and fonts handbook",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "text-fonts"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/capture/font-selection.ts",
+        "src/render/font-resolution.ts",
+        "src/render/text.ts",
+        "tests/feature-coverage.ts"
+      ],
+      "file": "handbook/text-and-fonts.md"
+    }
+  ]
+}

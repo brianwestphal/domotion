@@ -2,6 +2,7 @@
 
 import {
   existsSync,
+  mkdirSync,
   readFileSync,
   readdirSync,
   writeFileSync,
@@ -13,6 +14,9 @@ const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const docsRoot = resolve(projectRoot, "docs");
 const generatedJsonPath = resolve(docsRoot, "index.json");
 const generatedMarkdownPath = resolve(docsRoot, "generated-index.md");
+const generatedArchivePath = resolve(docsRoot, "archive", "index.md");
+const generatedManifestPath = resolve(docsRoot, "ai", "manifest.json");
+const generatedPacketsRoot = resolve(docsRoot, "ai", "packets");
 const write = process.argv.includes("--write");
 
 const numberedDocument = /^([0-9]+)-(.+)\.md$/;
@@ -158,6 +162,9 @@ function internalLinkErrors(filename, body) {
 
 function generatedArtifacts(entries) {
   const historicalNumbers = {};
+  const defaultEntries = entries.filter((entry) =>
+    !["archive", "proposal", "investigation"].includes(entry.metadata.kind)
+    && !["proposed", "superseded", "retired"].includes(entry.metadata.status));
   for (const entry of entries) {
     const number = entry.file.split("/").pop().match(numberedDocument)?.[1];
     if (number == null) continue;
@@ -165,7 +172,7 @@ function generatedArtifacts(entries) {
   }
   const json = `${JSON.stringify({ schemaVersion: 1, entries, historicalNumbers }, null, 2)}\n`;
   const groups = new Map();
-  for (const entry of entries) {
+  for (const entry of defaultEntries) {
     const owner = entry.metadata.owners[0];
     const rows = groups.get(owner) ?? [];
     rows.push(entry);
@@ -184,7 +191,31 @@ function generatedArtifacts(entries) {
     }
     markdown.push("");
   }
-  return { json, markdown: `${markdown.join("\n").trimEnd()}\n` };
+  const historical = entries.filter((entry) => !defaultEntries.includes(entry));
+  const archive = [
+    "# Documentation archive index", "",
+    "Generated from lifecycle metadata. Historical files remain at their alias paths so old links and ticket references continue to resolve.", "",
+    ...historical.map((entry) => `- [${entry.metadata.title}](../${entry.file}) — ${entry.metadata.kind}; ${entry.metadata.status}; \`${entry.metadata.id}\``),
+    "",
+  ].join("\n");
+  const manifest = `${JSON.stringify({
+    schemaVersion: 1,
+    entries: entries.map(({ file, metadata }) => ({
+      id: metadata.id, title: metadata.title, kind: metadata.kind, status: metadata.status,
+      owners: metadata.owners, platforms: metadata.platforms, code: metadata.code, file,
+    })),
+  }, null, 2)}\n`;
+  const packets = {};
+  for (const owner of [...groups.keys()].sort()) {
+    const rows = defaultEntries.filter((entry) => entry.metadata.owners.includes(owner));
+    packets[`${owner}.md`] = [
+      `# ${owner} documentation packet`, "",
+      "Generated from current and partial documentation metadata. Read the linked handbook first when present, then open only the records needed for the task.", "",
+      ...rows.map((entry) => `- [${entry.metadata.title}](../../${entry.file}) — ${entry.metadata.kind}; ${entry.metadata.status}; \`${entry.metadata.id}\`; code: ${entry.metadata.code.map((path) => `\`${path}\``).join(", ") || "unmapped"}`),
+      "",
+    ].join("\n");
+  }
+  return { json, markdown: `${markdown.join("\n").trimEnd()}\n`, archive, manifest, packets };
 }
 
 const errors = [];
@@ -210,13 +241,30 @@ for (const filename of files()) {
 }
 
 const generated = generatedArtifacts(entries);
+for (const page of ["README.md", "ai/code-summary.md", "ai/requirements-summary.md"]) {
+  const count = readFileSync(resolve(docsRoot, page), "utf8").split("\n").length;
+  if (count > 400) errors.push(`${page}: default-context budget exceeded (${count} > 400 lines)`);
+}
+for (const entry of entries.filter((entry) => entry.metadata.id.startsWith("handbook/"))) {
+  if (entry.metadata.code.length === 0) errors.push(`${entry.file}: handbook requires an owning code/test path`);
+  const count = readFileSync(resolve(docsRoot, entry.file), "utf8").split("\n").length;
+  if (count > 250) errors.push(`${entry.file}: handbook budget exceeded (${count} > 250 lines)`);
+}
 if (write) {
+  mkdirSync(dirname(generatedArchivePath), { recursive: true });
+  mkdirSync(generatedPacketsRoot, { recursive: true });
   writeFileSync(generatedJsonPath, generated.json);
   writeFileSync(generatedMarkdownPath, generated.markdown);
+  writeFileSync(generatedArchivePath, generated.archive);
+  writeFileSync(generatedManifestPath, generated.manifest);
+  for (const [name, content] of Object.entries(generated.packets)) writeFileSync(resolve(generatedPacketsRoot, name), content);
 } else {
   for (const [path, expected] of [
     [generatedJsonPath, generated.json],
     [generatedMarkdownPath, generated.markdown],
+    [generatedArchivePath, generated.archive],
+    [generatedManifestPath, generated.manifest],
+    ...Object.entries(generated.packets).map(([name, content]) => [resolve(generatedPacketsRoot, name), content]),
   ]) {
     if (!existsSync(path) || readFileSync(path, "utf8") !== expected) {
       errors.push(`${relative(projectRoot, path)} is stale; run npm run docs:index:generate`);
