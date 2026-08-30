@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtfh35x7tcrslw7m",
+          "message": {
+            "text": "The migration order is based on a repository-wide inventory: 243 Markdown files, 240 numbered documents, about 40,500 total lines, five duplicate numbers, and at least 51 pages with lifecycle language embedded only in prose.",
+            "markdown": "The migration order is based on a repository-wide inventory: 243 Markdown files, 240 numbered documents, about 40,500 total lines, five duplicate numbers, and at least 51 pages with lifecycle language embedded only in prose."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/documentation-architecture-review.md"
+                },
+                "region": {
+                  "startLine": 16,
+                  "endLine": 30,
+                  "snippet": {
+                    "text": "- 115: parameterized transition design / production HarfBuzz shaping\n- 116: layout-stage parity / transition schema and normalization\n- 152: MathML italic token oracle / source-owned text failure boundary\n- 228: background-clip text parity / pre-navigation rAF ownership\n\nThe number is therefore neither a unique identifier nor a useful reading\norder. `docs/README.md` correctly says it is historical authoring order, but its\nsingle 240-row table still makes that history the primary interface.\n\nThe largest navigation surfaces are also substantial documents in their own\nright:\n\n- `docs/ai/requirements-summary.md`: about 2,500 lines\n- `docs/ai/code-summary.md`: about 1,240 lines\n- `docs/font-resolution-diagram.md`: about 3,100 lines"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2556"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ec5f6fef54da018a84a342272b134867"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "857f88b6fe1453c4e4ac9695aa3c3d3fe2d8b1a5",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

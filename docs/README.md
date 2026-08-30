@@ -2,6 +2,10 @@
 
 Requirements / design docs for the rendering pipeline. Numbered to match the order they were authored; numbering does not imply dependency order.
 
+The [documentation architecture review](documentation-architecture-review.md)
+audits this historical corpus and proposes a stable-ID, domain-handbook,
+reference/evidence, and archive structure for a staged consolidation.
+
 > **Cross-platform note**: macOS, Linux, and Windows are first-class supported capture platforms. The rendering and font-fallback pipelines are calibrated against Chromium's native platform path (CoreText, fontconfig, and DirectWrite respectively). macOS remains the primary development and testing platform, but that testing priority is not a separate support tier: platform-specific defects on Linux or Windows are supported defects, and changes that affect them require native validation.
 
 | Doc | Topic |
