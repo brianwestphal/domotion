@@ -9,15 +9,26 @@ animated SVG instead. Here's why that's worth it.
 
 ## How it compares
 
-|                                    |  Domotion SVG  | Screen recording (MP4) |    GIF    |    Lottie    | Live iframe | Hand-built CSS |
-| ---------------------------------- | :------------: | :--------------------: | :-------: | :----------: | :---------: | :------------: |
-| Typical payload                    |    tens of KB    |           MB           |   large   | small–medium | page weight |     small      |
-| Crisp at any size                  |       ✓        |           ✗            |     ✗     |      ✓       |      ✓      |       ✓        |
-| Embeds as a plain `<img>`          |       ✓        |           ✗            |     ✓     |      ✗       |      ✗      |       ✗        |
-| Offline / CSP-safe, no runtime     |       ✓        |           ✓            |     ✓     |      ✗       |      ✗      |       ✓        |
-| Regenerate from source             |  one command   |       re-record        | re-record |      ~       |      ✓      |       ✓        |
-| Animation & simulated interaction  |       ✓        |           ✓            |     ✓     |      ✓       |      ✓      |    limited     |
-| Authoring effort                   |      low       |          low           |    low    |     high     |   medium    |      high      |
+The closest choices answer different needs. This focused table stays readable
+on a phone; less-direct alternatives follow below.
+
+| Need | Domotion SVG | Screen recording | Live iframe |
+| --- | --- | --- | --- |
+| Crisp when enlarged | Yes | No; fixed resolution | Yes |
+| Embeds as a plain `<img>` | Yes | No | No |
+| Works offline with no runtime | Yes | Yes | No |
+| Rebuild after a source change | Run the capture again | Re-record the flow | Updates live |
+| Simulated interaction | Yes | Recorded pixels | Real interaction |
+| Main trade-off | Not a live DOM | Larger, fixed-resolution media | Runtime, security, and availability dependencies |
+
+Other formats can still be the right fit:
+
+- **GIF** embeds widely, but is fixed-resolution and inefficient for many
+  colors or longer motion.
+- **Lottie** is scalable and compact for authored vector animation, but needs a
+  player and is not a capture of arbitrary HTML/CSS.
+- **Hand-built CSS** can be tiny and flexible, but recreating a product UI by
+  hand raises authoring and maintenance cost.
 
 Domotion's trade-off: it's raster-faithful to Chromium's paint rather than a
 live DOM, and animation plays wherever CSS runs (see below). In exchange you get
@@ -42,11 +53,12 @@ external dependencies.
 
 ## Tiny next to video
 
-A short screen-recording is often hundreds of KB to several MB of H.264. The
-same demo as a Domotion SVG is typically **tens of KB**, because it ships vectors
-and CSS keyframes, not pixels-per-frame. Smaller payloads mean faster pages — a
-real Core Web Vitals / LCP win versus a heavy autoplay video or GIF above the
-fold — and cheaper bandwidth, and it lazy-loads like any other image.
+Domotion ships vectors and CSS keyframes instead of pixels for every frame, so
+many UI demos are smaller than an equivalent video or GIF. The exact result
+depends on page complexity, embedded images, capture options, duration, and
+codec settings—measure the files you plan to ship. A smaller above-the-fold
+asset can reduce transfer and decode work, and it lazy-loads like any other
+image.
 
 ## Resolution-independent — render once, fits every device
 
