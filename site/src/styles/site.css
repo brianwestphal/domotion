@@ -101,5 +101,6 @@ figure:has(> img) figcaption {
   }
   .hero .actions .sl-link-button {
     justify-content: center;
+    min-height: 44px;
   }
 }
