@@ -50,7 +50,7 @@
     "linux": {
       "fingerprint": {
         "image": "ubuntu24-x64",
-        "imageVersion": "20260816.277.1",
+        "imageVersion": "20260823.283.1",
         "osRelease": "6.17.0-1022-azure",
         "chromium": "147.0.7727.15",
         "platform": "linux",
@@ -79,7 +79,7 @@
     "win32": {
       "fingerprint": {
         "image": "win25-vs2026-x64",
-        "imageVersion": "20260818.207.1",
+        "imageVersion": "20260824.214.3",
         "osRelease": "10.0.26100",
         "chromium": "147.0.7727.15",
         "platform": "win32",
