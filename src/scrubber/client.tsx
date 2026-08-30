@@ -39,6 +39,7 @@ body{margin:0;font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-ser
 .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .row2{justify-content:space-between}
 .grp{display:flex;align-items:center;gap:8px}
+.tool-panel{margin:0}.tool-panel summary{display:none;cursor:pointer;color:#c7d2fe;font-weight:600}.tool-panel>.grp{margin-top:0}
 button{background:#262a35;color:#e7e9ee;border:1px solid #333845;border-radius:7px;padding:6px 11px;cursor:pointer;font:inherit}
 button:hover{background:#2f3543}button:disabled{opacity:.45;cursor:default}
 button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid #9bb4ff;outline-offset:2px}
@@ -93,6 +94,11 @@ a.dl{display:none}
 .region-box::after{content:"issue region";position:absolute;top:-18px;left:0;font-size:10px;color:#ff8fb0;font-weight:600;white-space:nowrap}
 .file-input{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 @media (pointer:coarse){button,select,input[type=number],label{min-height:44px}.iconbtn{min-width:44px}.range-tick{width:44px;height:44px}}
+@media (max-width:640px){
+  .bar{padding:10px}.row:first-child{display:grid;grid-template-columns:auto auto 1fr}.row:first-child .scrub-wrap{grid-column:1/-1;grid-row:2}.row:first-child .time{grid-column:1/-1;min-width:0;text-align:left}
+  .row2{align-items:stretch}.tool-panel{width:100%;border-top:1px solid #2a2e38;padding-top:6px}.tool-panel summary{display:block;min-height:44px;line-height:44px}.tool-panel>.grp{flex-wrap:wrap;padding-bottom:6px}
+  .row2>.grp{min-height:44px}.export-wrap{margin-left:auto}.review-panel>.review{border:0;padding:6px 0 0}
+}
 `;
 
 const ZOOM_PRESETS = [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 4];
@@ -241,7 +247,9 @@ function render() {
           <div class="time">{frameLabel} / {fmt(dur)}</div>
         </div>
         <div class="row row2">
-          <div class="grp">
+          <details class="tool-panel" open={innerWidth > 640}>
+            <summary>Range</summary>
+            <div class="grp">
             <button data-action="setin" disabled={!svgLoaded.value}>In</button>
             <input type="number" data-action="inn" min="0" step="0.01" title="range start (s)" value={(rangeStart.value / 1000).toFixed(2)} disabled={!svgLoaded.value} />
             <span class="muted">-&gt;</span>
@@ -249,8 +257,11 @@ function render() {
             <button data-action="setout" disabled={!svgLoaded.value}>Out</button>
             <label><input type="checkbox" data-action="loop" checked={loop.value} disabled={!svgLoaded.value} />loop</label>
             <button data-action="resetrange" disabled={!svgLoaded.value}>Reset</button>
-          </div>
-          <div class="grp">
+            </div>
+          </details>
+          <details class="tool-panel" open={innerWidth > 640}>
+            <summary>Crop</summary>
+            <div class="grp">
             <button class="iconbtn" data-action="zoomout" title="zoom out" disabled={!svgLoaded.value}>-</button>
             <select data-action="zoompreset" title="zoom" disabled={!svgLoaded.value}>
               {ZOOM_PRESETS.map((z) => (
@@ -262,7 +273,8 @@ function render() {
             </select>
             <button class="iconbtn" data-action="zoomin" title="zoom in" disabled={!svgLoaded.value}>+</button>
             <button class="iconbtn" data-action="center" title="reset pan to center" aria-label="center" disabled={!svgLoaded.value}>{ICON_DOT}</button>
-          </div>
+            </div>
+          </details>
           <div class="grp">
             <button class={cropMode.value ? "iconbtn active" : "iconbtn"} data-action="croptoggle" title="crop" aria-label="crop" aria-pressed={cropMode.value ? "true" : "false"} disabled={!svgLoaded.value}>{ICON_CROP}</button>
             {/* DM-1107: aspect-ratio lock for the crop rect. Only meaningful while
@@ -287,7 +299,9 @@ function render() {
           </div>
         </div>
         {reviewMode && (
-          <div class="row review">
+          <details class="tool-panel review-panel" open={innerWidth > 640}>
+            <summary>Review issue</summary>
+            <div class="row review">
             <div class="grp" style="flex-wrap:wrap;width:100%">
               <input class="rv-title" data-action="rv-title" type="text" placeholder="Issue title" disabled={!svgLoaded.value} />
               <select data-action="rv-category" title="ticket category" disabled={!svgLoaded.value}>
@@ -304,7 +318,8 @@ function render() {
             </div>
             <textarea class="rv-note" data-action="rv-note" placeholder="Describe the issue (becomes the ticket body)…" disabled={!svgLoaded.value}></textarea>
             {ticketStatus.value.msg !== "" && <div class={`rv-status ${ticketStatus.value.kind}`} role="status" aria-live="polite">{ticketStatus.value.msg}</div>}
-          </div>
+            </div>
+          </details>
         )}
       </div>
     </div>
