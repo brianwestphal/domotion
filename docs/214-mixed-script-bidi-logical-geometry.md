@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts","layout"]
 platforms: ["macos","windows"]
-tickets: ["DM-2524"]
-code: [".github/workflows/mixed-bidi-logical-conformance.yml","src/render/mixed-bidi-logical.test.ts","src/render/script-segmentation.ts"]
+tickets: ["DM-2524","DM-2619"]
+code: [".github/workflows/mixed-bidi-logical-conformance.yml","src/render/mixed-bidi-logical.test.ts","src/render/script-segmentation.ts","src/render/text-to-path.ts","tests/multilingual-message-shaping.e2e.test.ts"]
 aliases: ["docs/214-mixed-script-bidi-logical-geometry.md","doc-214"]
 ---
 
@@ -45,10 +45,13 @@ The upstream walk separates four decisions:
    in `platform/fonts/shaping/shape_result.cc` adds the ordered HarfBuzz
    advances and per-glyph offsets from that one origin.
 
-Domotion already preserved the downstream owners: captured UTF-16 cluster
-origins feed `positionShapedClusters`, cursive Arabic retains native intra-run
-advances, and each shaped group uses the minimum captured physical x as its
-fragment origin. The earlier stage was wrong:
+Domotion preserves the downstream owners: captured UTF-16 cluster origins feed
+`positionShapedClusters` for non-cursive scripts, while connected cursive runs
+retain native intra-run advances and use the minimum captured physical x once
+as the fragment origin. DM-2619 made that rule common to paths and embedded-font
+emission; previously the embedded PUA stream re-anchored every Arabic cluster
+at a per-character `Range` rectangle and visibly broke the joins. The earlier
+DM-2524 stage was wrong:
 `src/render/script-segmentation.ts` always asked `bidi-js` for an LTR paragraph
 unless CSS selected an override. That preserved direction parity for many
 strong-script runs but lost exact levels and neutral ownership under an RTL

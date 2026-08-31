@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts","product-tooling"]
 platforms: ["macos","linux","windows"]
-tickets: []
-code: []
+tickets: ["DM-2619"]
+code: ["src/render/text-to-path.ts","tests/multilingual-message-shaping.e2e.test.ts"]
 aliases: ["docs/115-production-harfbuzz-shaping.md","doc-115"]
 ---
 
@@ -21,6 +21,18 @@ The ordering is intentional:
 3. Merge adjacent assignments into whole shaping runs.
 4. Shape every supported run with vendored HarfBuzz using explicit ptem, axes, direction, script/language, features, and the resolved TTC member.
 5. Use the resulting glyph IDs, clusters, advances, and offsets for paths, embedded subsets, measurement, decoration geometry, and placement.
+
+The placement clause is literal for connected cursive scripts. A captured
+per-character `Range` rectangle is selection geometry, not an independent glyph
+pen origin once Arabic or another cursive script has joined the characters.
+Both emitters therefore anchor a cursive visual run once at its captured
+physical-left edge and accumulate HarfBuzz advances and offsets within it.
+They use Blink's exact `Character::IsCursiveScript` set (Arabic, Hanifi
+Rohingya, Mandaic, Mongolian, N'Ko, Phags-pa, and Syriac); the implementation
+accepts both ICU long names and the ISO 15924 tags carried by resolved font runs.
+This prevents embedded PUA glyphs from being torn apart by source-character
+rectangle anchors while leaving captured post-spacing anchors intact for
+non-cursive scripts.
 
 `DOMOTION_CLUSTER_FALLBACK=0` remains a diagnostic A/B for fallback assignment, but no longer restores another shaper: the legacy assignment path is also wrapped with HarfBuzz before emission. Proxies are memoized by concrete face, axes, ptem, outline provider, and features so run identity is stable.
 

@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach, beforeAll, afterAll } from "vitest";
 import * as fontkit from "fontkit";
-import { glyphIdForCp, __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, cjkTrimShiftFontUnits, classifyEmptyGlyphOutline, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, getFontInstance, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, positionShapedClusters, registerWebfont, renderRadicalGlyph, renderSourceOwnedTextBoundary, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveGlyphCommands, shapedGlyphSourceSpans, sourceClusterSpan, resolveFontKeyChain, setRenderTextMode, subBoldWeightCutSuffix, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain, __setWin32FamilyKeyResolverForTest } from "./text-to-path.js";
+import { glyphIdForCp, __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, blinkSuppressesInterLetterSpacing, cjkTrimShiftFontUnits, classifyEmptyGlyphOutline, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, getFontInstance, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, positionShapedClusters, registerWebfont, renderRadicalGlyph, renderSourceOwnedTextBoundary, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveGlyphCommands, shapedGlyphSourceSpans, sourceClusterSpan, resolveFontKeyChain, setRenderTextMode, subBoldWeightCutSuffix, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain, __setWin32FamilyKeyResolverForTest } from "./text-to-path.js";
 import { haltInfoFor } from "./font-resolution.js";
 import { isRtlScriptCodepoint } from "./unicode-classification.js";
 import { blinkGenericFamilyFromDeclaredStack, clearFontResolutionCaches, getGlyphDefs, getSystemFallbackResolution, isNonCharacterCodepoint, isPrivateUseCodepoint, setSystemFallbackResolution, withSystemFallbackResolution, __resolveSystemFallbackKeyForCpForTest } from "./font-resolution.js";
@@ -3798,6 +3798,26 @@ describe("positionShapedClusters (DM-2444 post-spacing origins)", () => {
     const reversed = positionShapedClusters("abc", "cba", [glyph(), glyph(), glyph()],
       [pos(6), pos(6), pos(6)], [0, 1, 2], [0, 10, 20], 0, 1, 0, false, true);
     expect(reversed.map((p) => p.xFontUnits)).toEqual([20, 10, 0]);
+  });
+});
+
+describe("Blink cursive-script placement identifiers (DM-2619)", () => {
+  it.each([
+    ["Arabic", "Arab"],
+    ["Hanifi_Rohingya", "Rohg"],
+    ["Mandaic", "Mand"],
+    ["Mongolian", "Mong"],
+    ["Nko", "Nkoo"],
+    ["Phags_Pa", "Phag"],
+    ["Syriac", "Syrc"],
+  ])("recognizes ICU %s and ISO 15924 %s as the same cursive script", (icu, iso) => {
+    expect(blinkSuppressesInterLetterSpacing(icu)).toBe(true);
+    expect(blinkSuppressesInterLetterSpacing(iso)).toBe(true);
+  });
+
+  it("does not suppress captured cluster anchoring for a non-cursive script", () => {
+    expect(blinkSuppressesInterLetterSpacing("Latin")).toBe(false);
+    expect(blinkSuppressesInterLetterSpacing("Latn")).toBe(false);
   });
 });
 

@@ -1571,6 +1571,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mth9zzf8g8dv6rvn",
+          "message": {
+            "text": "Connected cursive Range rectangles are selection geometry, not independent glyph pen origins. The embedded-font emitter now mirrors the existing paths-mode Blink rule: it recognizes Character::IsCursiveScript through either ICU long names or ISO 15924 tags, anchors the visual run once at its captured left edge, and retains HarfBuzz advances and offsets within the run. This fixes the visibly separated Geeza Pro Arabic joins without changing non-cursive captured cluster positioning; the focused visual residual is reduced to joined, functional text plus the platform raster/metrics floor.",
+            "markdown": "Connected cursive Range rectangles are selection geometry, not independent glyph pen origins. The embedded-font emitter now mirrors the existing paths-mode Blink rule: it recognizes Character::IsCursiveScript through either ICU long names or ISO 15924 tags, anchors the visual run once at its captured left edge, and retains HarfBuzz advances and offsets within the run. This fixes the visibly separated Geeza Pro Arabic joins without changing non-cursive captured cluster positioning; the focused visual residual is reduced to joined, functional text plus the platform raster/metrics floor."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 2504,
+                  "endLine": 2527,
+                  "snippet": {
+                    "text": "\n    // A per-character Range rect is not a glyph pen oracle for a connected\n    // cursive word. In Arabic, for example, each rect is the ink/bounds of a\n    // source character after joining; anchoring every HarfBuzz cluster to those\n    // left edges tears the joining forms apart. Blink keeps the shaper's native\n    // intra-run advances for these scripts (the same UScriptCode set used by\n    // Character::IsCursiveScript), so anchor the visual run once at its captured\n    // left edge and retain the shaped advances below. The fallback splitter\n    // carries ISO 15924 tags (Arab), while direct runs are inferred through the\n    // ICU-name segmenter (Arabic); blinkSuppressesInterLetterSpacing accepts\n    // both representations.\n    const inferredRunSegments = run.shapingScript == null ? segmentForShaping(run.text) : [];\n    const placementScript = run.shapingScript\n      ?? (inferredRunSegments.length === 1 ? inferredRunSegments[0].script : undefined);\n    const useNativeCursivePlacement = placementScript != null\n      && blinkSuppressesInterLetterSpacing(placementScript);\n    let nativeCursiveOriginCss = cssX;\n    if (useNativeCursivePlacement && xOffsets != null) {\n      let minX = Infinity;\n      for (let sourceIndex = run.startIdx; sourceIndex < run.endIdx; sourceIndex++) {\n        const capturedX = xOffsets[sourceIndex];\n        if (capturedX != null && capturedX < minX) minX = capturedX;\n      }\n      if (Number.isFinite(minX)) nativeCursiveOriginCss = minX;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2619"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "8997e701d7738ea30bf35509bff10f67"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "3e6d86369fbecfb4d3ed998d1ff87123aa17472a",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

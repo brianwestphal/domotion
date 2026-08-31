@@ -44,8 +44,12 @@ import { SCRIPT_NAME_TO_ISO15924 } from "./script-iso15924.generated.js";
 
 const BLINK_CURSIVE_SPACING_SCRIPTS = new Set([
   "Arabic", "Hanifi_Rohingya", "Mandaic", "Mongolian", "Nko", "Phags_Pa", "Syriac",
+  // The font-run splitter carries HarfBuzz's ISO 15924 tag, while the local
+  // script segmenter carries ICU's long name. They describe the same Blink
+  // UScriptCode and must make the same placement decision.
+  "Arab", "Rohg", "Mand", "Mong", "Nkoo", "Phag", "Syrc",
 ]);
-function blinkSuppressesInterLetterSpacing(script: string): boolean {
+export function blinkSuppressesInterLetterSpacing(script: string): boolean {
   return BLINK_CURSIVE_SPACING_SCRIPTS.has(script);
 }
 import { clusterFallbackEnabled, splitTextIntoFontRunsShaped } from "./cluster-fallback.js";
@@ -2498,6 +2502,31 @@ function renderEmbeddedGlyphRuns(
       return { markup: null, decline: { reason: "layout-failed" } };
     }
 
+    // A per-character Range rect is not a glyph pen oracle for a connected
+    // cursive word. In Arabic, for example, each rect is the ink/bounds of a
+    // source character after joining; anchoring every HarfBuzz cluster to those
+    // left edges tears the joining forms apart. Blink keeps the shaper's native
+    // intra-run advances for these scripts (the same UScriptCode set used by
+    // Character::IsCursiveScript), so anchor the visual run once at its captured
+    // left edge and retain the shaped advances below. The fallback splitter
+    // carries ISO 15924 tags (Arab), while direct runs are inferred through the
+    // ICU-name segmenter (Arabic); blinkSuppressesInterLetterSpacing accepts
+    // both representations.
+    const inferredRunSegments = run.shapingScript == null ? segmentForShaping(run.text) : [];
+    const placementScript = run.shapingScript
+      ?? (inferredRunSegments.length === 1 ? inferredRunSegments[0].script : undefined);
+    const useNativeCursivePlacement = placementScript != null
+      && blinkSuppressesInterLetterSpacing(placementScript);
+    let nativeCursiveOriginCss = cssX;
+    if (useNativeCursivePlacement && xOffsets != null) {
+      let minX = Infinity;
+      for (let sourceIndex = run.startIdx; sourceIndex < run.endIdx; sourceIndex++) {
+        const capturedX = xOffsets[sourceIndex];
+        if (capturedX != null && capturedX < minX) minX = capturedX;
+      }
+      if (Number.isFinite(minX)) nativeCursiveOriginCss = minX;
+    }
+
     // Per-instance key: a stable identifier for (resolved font, axes). Two
     // text runs that resolve to the same font at the same axis values share
     // one custom TTF; runs at a different `wght`/`opsz` get their own TTF
@@ -2711,7 +2740,10 @@ function renderEmbeddedGlyphRuns(
         ? null
         : resolveGlyphCommands(glyph, run.fontKey, weight, fontSize, slant, undefined, run.font);
 
-      let xCss: number;
+      // Seed with the run origin so TypeScript's definite-assignment analysis
+      // and any malformed cluster stream both have a conservative anchor; all
+      // normal cluster/non-cluster branches below replace it.
+      let xCss = nativeCursiveOriginCss;
       let yCss = 0;
       let glyphScale: number;
       // DM-1867: this glyph's index into the WHOLE captured text. Both branches
@@ -2726,7 +2758,10 @@ function renderEmbeddedGlyphRuns(
         const srcIdx = clusters[i];
         const wholeTextIdx = run.startIdx + srcIdx;
         glyphSrcIdx = wholeTextIdx;
-        if (srcIdx !== prevCluster) {
+        if (useNativeCursivePlacement) {
+          xCss = nativeCursiveOriginCss + (runCursorFontUnits + pos.xOffset) * runScale;
+          yCss = -pos.yOffset * runScale;
+        } else if (srcIdx !== prevCluster) {
           if (xOffsets != null && xOffsets[wholeTextIdx] != null) {
             clusterAnchorCss = xOffsets[wholeTextIdx];
           } else {
@@ -2738,26 +2773,28 @@ function renderEmbeddedGlyphRuns(
           clusterCursorFU = 0;
           prevCluster = srcIdx;
         }
-        // pos.xOffset / yOffset are the GPOS adjustment from the glyph's pen
-        // origin (font units, y-up); flip y for SVG's y-down axis.
-        // DM-1184: nudge trimmed fullwidth-punctuation ink (see
-        // cjkTrimShiftFontUnits). Only at a cluster's first glyph, gated on the
-        // captured advance to the next char being trimmed (~half em).
-        let trimShiftFU = 0;
-        // DM-1849: source first. `wholeTextIdx` is this cluster's first source
-        // char, which is exactly what the trim logic wants, and it cannot be
-        // aliased by a shared Glyph the way `codePoints` can.
-        const cpCl = text.codePointAt(wholeTextIdx) ?? glyph.codePoints?.[0];
-        if (cpCl != null && xOffsets != null) {
-          const nextCharIdx = wholeTextIdx + (cpCl > 0xFFFF ? 2 : 1);
-          if (xOffsets[wholeTextIdx] != null && xOffsets[nextCharIdx] != null) {
-            trimShiftFU = cjkTrimShiftFontUnits(run.font, run.fontKey, glyph, cpCl,
-              xOffsets[nextCharIdx] - xOffsets[wholeTextIdx], fontSize, runScale);
+        if (!useNativeCursivePlacement) {
+          // pos.xOffset / yOffset are the GPOS adjustment from the glyph's pen
+          // origin (font units, y-up); flip y for SVG's y-down axis.
+          // DM-1184: nudge trimmed fullwidth-punctuation ink (see
+          // cjkTrimShiftFontUnits). Only at a cluster's first glyph, gated on the
+          // captured advance to the next char being trimmed (~half em).
+          let trimShiftFU = 0;
+          // DM-1849: source first. `wholeTextIdx` is this cluster's first source
+          // char, which is exactly what the trim logic wants, and it cannot be
+          // aliased by a shared Glyph the way `codePoints` can.
+          const cpCl = text.codePointAt(wholeTextIdx) ?? glyph.codePoints?.[0];
+          if (cpCl != null && xOffsets != null) {
+            const nextCharIdx = wholeTextIdx + (cpCl > 0xFFFF ? 2 : 1);
+            if (xOffsets[wholeTextIdx] != null && xOffsets[nextCharIdx] != null) {
+              trimShiftFU = cjkTrimShiftFontUnits(run.font, run.fontKey, glyph, cpCl,
+                xOffsets[nextCharIdx] - xOffsets[wholeTextIdx], fontSize, runScale);
+            }
           }
+          xCss = clusterAnchorCss + (clusterCursorFU + pos.xOffset + trimShiftFU) * runScale;
+          yCss = -pos.yOffset * runScale;
+          clusterCursorFU += pos.xAdvance;
         }
-        xCss = clusterAnchorCss + (clusterCursorFU + pos.xOffset + trimShiftFU) * runScale;
-        yCss = -pos.yOffset * runScale;
-        clusterCursorFU += pos.xAdvance;
         glyphScale = perCharScale[srcIdx] ?? 1;
       } else {
         // fontkit-shaped run: per-char xOffset anchoring (unchanged).
@@ -2776,7 +2813,10 @@ function renderEmbeddedGlyphRuns(
         if (runIsRtl) textIdx -= span;
         const wholeTextIdx = run.startIdx + textIdx;
         glyphSrcIdx = wholeTextIdx;
-        if (xOffsets != null && xOffsets[wholeTextIdx] != null) {
+        if (useNativeCursivePlacement) {
+          xCss = nativeCursiveOriginCss + (runCursorFontUnits + pos.xOffset) * runScale;
+          yCss = -pos.yOffset * runScale;
+        } else if (xOffsets != null && xOffsets[wholeTextIdx] != null) {
           xCss = xOffsets[wholeTextIdx];
           // DM-1184: nudge trimmed fullwidth-punctuation ink (see
           // cjkTrimShiftFontUnits) in the fontkit-shaped embedded path too.
