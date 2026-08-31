@@ -105,6 +105,7 @@ describe("Chromium-owned partial control decorations", () => {
     const selectSvg = renderFormControl(select, "");
     expect(selectSvg).toContain("Structural value");
     expect(selectSvg).not.toContain("polyline");
+    expect(selectSvg).not.toContain('<path d="M');
 
     const date = {
       tag: "input", x: 10, y: 60, width: 180, height: 34, children: [],
@@ -119,6 +120,23 @@ describe("Chromium-owned partial control decorations", () => {
     } as unknown as CapturedElement;
     const dateSvg = renderFormControl(date, "");
     expect(dateSvg).toBe("");
+  });
+
+  it("paints the base-select picker icon at the inline end from captured styles", () => {
+    const select = {
+      tag: "select", x: 10, y: 20, width: 150, height: 32, children: [],
+      fontAscent: 12, fontDescent: 3,
+      styles: {
+        effectiveAppearance: "base-select",
+        selectDisplayText: "Structural value", selectChevron: true,
+        selectChevronColor: "rgb(71, 85, 105)",
+        fontFamily: "Arial", fontSize: "14px", color: "rgb(1,2,3)",
+        paddingLeft: "6px", paddingRight: "10px", paddingTop: "2px", paddingBottom: "2px",
+        borderLeftWidth: "1px", borderRightWidth: "1px", borderTopWidth: "1px", borderBottomWidth: "1px",
+      },
+    } as unknown as CapturedElement;
+    const svg = renderFormControl(select, "");
+    expect(svg).toContain('<path d="M 141 34 L 149 34 L 145 38.5 Z" fill="rgb(71, 85, 105)" />');
   });
 
   it("never reopens sampled search/spin paint for empty or failed reservations", () => {

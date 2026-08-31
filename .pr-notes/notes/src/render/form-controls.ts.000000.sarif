@@ -309,6 +309,70 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtgpss531ket6uid",
+          "message": {
+            "text": "Blink's html.css generates select::picker-icon as a disclosure counter and moves it to the inline end with margin-inline-start:auto; select_type.cc confirms appearance:base-select remains structurally rendered through InnerElement. Domotion already captured selectChevron but discarded it in renderSelectContent. The renderer now emits the structural disclosure path only when no native decoration raster owns the glyph, positions it from captured border/padding/direction, and uses the captured ::picker-icon computed color. Native menulist paint remains on the platform raster path. The fixture's closed Chromium rendering contains labels plus picker arrows; option images are not painted in the closed button, so this change deliberately does not invent them.",
+            "markdown": "Blink's html.css generates select::picker-icon as a disclosure counter and moves it to the inline end with margin-inline-start:auto; select_type.cc confirms appearance:base-select remains structurally rendered through InnerElement. Domotion already captured selectChevron but discarded it in renderSelectContent. The renderer now emits the structural disclosure path only when no native decoration raster owns the glyph, positions it from captured border/padding/direction, and uses the captured ::picker-icon computed color. Native menulist paint remains on the platform raster path. The fixture's closed Chromium rendering contains labels plus picker arrows; option images are not painted in the closed button, so this change deliberately does not invent them."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/form-controls.ts"
+                },
+                "region": {
+                  "startLine": 811,
+                  "endLine": 834,
+                  "snippet": {
+                    "text": "    const contentH = Math.max(0, el.height - bwT - bwB - padT - padB);\n    const ty = el.y + bwT + padT + Math.max(0, (contentH - ascent - descent) / 2) + ascent;\n    const escaped = display.replace(/[&<>]/g, (c) => ({ \"&\": \"&amp;\", \"<\": \"&lt;\", \">\": \"&gt;\" }[c]!));\n    parts.push(`${indent}<text x=\"${r(tx)}\" y=\"${r(ty)}\" font-size=\"${r(fontSize)}\" font-family=\"${fontFamily.replace(/\"/g, \"&quot;\")}\" font-weight=\"${el.styles.fontWeight ?? \"400\"}\" fill=\"${color}\">${escaped}</text>`);\n  }\n  // Chromium's base-select UA style generates ::picker-icon as a disclosure\n  // counter and pushes it to the inline end with margin-inline-start:auto.\n  // It is structural paint, unlike the platform-owned menulist arrow sampled\n  // by nativeControlDecorationRaster. Use the select's resolved currentColor,\n  // which is also what the pseudo inherits unless the author overrides it.\n  if (el.styles.selectChevron === true && el.nativeControlDecorationRaster == null) {\n    const color = el.styles.selectChevronColor ?? el.styles.color;\n    if (color != null) {\n      const bwL = parseFloat(el.styles.borderLeftWidth ?? \"0\") || 0;\n      const bwR = parseFloat(el.styles.borderRightWidth ?? \"0\") || 0;\n      const padL = parseFloat(el.styles.paddingLeft ?? \"0\") || 0;\n      const padR = parseFloat(el.styles.paddingRight ?? \"0\") || 0;\n      const cx = el.styles.direction === \"rtl\"\n        ? el.x + bwL + padL + 4\n        : el.x + el.width - bwR - padR - 4;\n      const cy = el.y + el.height / 2;\n      parts.push(`${indent}<path d=\"M ${r(cx - 4)} ${r(cy - 2)} L ${r(cx + 4)} ${r(cy - 2)} L ${r(cx)} ${r(cy + 2.5)} Z\" fill=\"${color}\" />`);\n    }\n  }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "workItemUris": [
+            "DM-2615"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "70eb0a98a9b5a9fb9e99c84951809498"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "0985077940adcf133098c6a482ed89a9b5c78788",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -131,6 +131,10 @@ export const createFormControlsHandler = ({ normColor, resolvePseudo, fontFamily
       // we should not stack our default chevron on top. DM-308.
       selectChevron: tag === 'select' && el.size <= 1 && !el.multiple
         && cs.appearance !== 'none' && cs.webkitAppearance !== 'none',
+      selectChevronColor: tag === 'select' && el.size <= 1 && !el.multiple
+        && cs.appearance !== 'none' && cs.webkitAppearance !== 'none'
+        ? normColor(window.getComputedStyle(el, '::picker-icon').color, cs.color)
+        : undefined,
       selectDisplayText: tag === 'select' && el.size <= 1 && !el.multiple
         ? (el.selectedOptions && el.selectedOptions.length > 0
             ? (el.selectedOptions[0].textContent || '').trim()

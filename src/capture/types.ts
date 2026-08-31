@@ -1087,6 +1087,8 @@ export interface CapturedStyles {
     borderBottomWidth: number;
   };
   selectChevron?: boolean;
+  /** Resolved `::picker-icon` currentColor for structural base-select paint. */
+  selectChevronColor?: string;
   /** Text of the currently-selected option, rendered inside the `<select>`
    *  content rect for closed dropdowns (DM-246). For listbox-mode selects
    *  (`size > 1` or `multiple`) this is undefined and per-option rendering

@@ -813,5 +813,24 @@ function renderSelectContent(el: CapturedElement, indent: string): string {
     const escaped = display.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]!));
     parts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="${r(fontSize)}" font-family="${fontFamily.replace(/"/g, "&quot;")}" font-weight="${el.styles.fontWeight ?? "400"}" fill="${color}">${escaped}</text>`);
   }
+  // Chromium's base-select UA style generates ::picker-icon as a disclosure
+  // counter and pushes it to the inline end with margin-inline-start:auto.
+  // It is structural paint, unlike the platform-owned menulist arrow sampled
+  // by nativeControlDecorationRaster. Use the select's resolved currentColor,
+  // which is also what the pseudo inherits unless the author overrides it.
+  if (el.styles.selectChevron === true && el.nativeControlDecorationRaster == null) {
+    const color = el.styles.selectChevronColor ?? el.styles.color;
+    if (color != null) {
+      const bwL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
+      const bwR = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
+      const padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
+      const padR = parseFloat(el.styles.paddingRight ?? "0") || 0;
+      const cx = el.styles.direction === "rtl"
+        ? el.x + bwL + padL + 4
+        : el.x + el.width - bwR - padR - 4;
+      const cy = el.y + el.height / 2;
+      parts.push(`${indent}<path d="M ${r(cx - 4)} ${r(cy - 2)} L ${r(cx + 4)} ${r(cy - 2)} L ${r(cx)} ${r(cy + 2.5)} Z" fill="${color}" />`);
+    }
+  }
   return parts.join("\n");
 }
