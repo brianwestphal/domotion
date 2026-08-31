@@ -1,0 +1,2586 @@
+{
+  "ticket": "DM-2610",
+  "sourceRun": 33314760277,
+  "comparisonRun": 33345443071,
+  "excludedWideImageTicket": "DM-2605",
+  "sourceAuthorities": [
+    "external/chromium/third_party/blink/renderer/core/layout",
+    "external/chromium/third_party/blink/renderer/core/paint",
+    "external/chromium/third_party/blink/renderer/platform/fonts"
+  ],
+  "policy": "Functional correctness is required on all three platforms; coincident geometry/content with native raster differences is not an implementation defect.",
+  "counts": {
+    "total": 43,
+    "functionalDefects": 2,
+    "functionallyCleanRasterResiduals": 41
+  },
+  "rows": [
+    {
+      "name": "02-text-ruby",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.027211507161458332,
+          "chromeFaces": [
+            "Helvetica-Bold:16",
+            "Helvetica:172",
+            "HiraginoSans-W3:19",
+            "PingFangSC-Regular:14"
+          ],
+          "embeddedFaces": [
+            "Helvetica-Bold",
+            "Helvetica",
+            "PingFangSC-Regular",
+            "HiraginoSans-W3"
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.03980000813802083,
+          "chromeFaces": [
+            "LiberationSans-Bold:16",
+            "LiberationSans:172",
+            "WenQuanYiZenHei:33"
+          ],
+          "embeddedFaces": [
+            "LiberationSans-Bold",
+            "LiberationSans",
+            "WenQuanYi Zen Hei"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.03369649251302083,
+          "chromeFaces": [
+            "Arial-BoldMT:16",
+            "ArialMT:172",
+            "MicrosoftYaHei:14",
+            "YuGothic-Regular:19"
+          ],
+          "embeddedFaces": [
+            "Arial-BoldMT",
+            "ArialMT",
+            "MicrosoftYaHei",
+            "YuGothic-Regular"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04-deep-border-conflict",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "minor",
+          "regionCount": 3,
+          "coveragePct": 0.011157989501953125,
+          "chromeFaces": [
+            "Courier-Bold:76",
+            "Courier:130",
+            "Helvetica-Bold:219",
+            "Helvetica:652"
+          ],
+          "embeddedFaces": [
+            "Helvetica-Bold",
+            "Helvetica",
+            "Courier",
+            "Courier-Bold"
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "minor",
+          "regionCount": 4,
+          "coveragePct": 0.0133514404296875,
+          "chromeFaces": [
+            "LiberationSans-Bold:220",
+            "LiberationSans:652",
+            "WenQuanYiZenHeiMono:206"
+          ],
+          "embeddedFaces": [
+            "LiberationSans-Bold",
+            "LiberationSans",
+            "WenQuanYiZenHeiMono"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "minor",
+          "regionCount": 3,
+          "coveragePct": 0.011157989501953125,
+          "chromeFaces": [
+            "Arial-BoldMT:220",
+            "ArialMT:652",
+            "Consolas-Bold:76",
+            "Consolas:130"
+          ],
+          "embeddedFaces": [
+            "Arial-BoldMT",
+            "ArialMT",
+            "Consolas",
+            "Consolas-Bold"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06-forms-meter-progress",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "minor",
+          "regionCount": 2,
+          "coveragePct": 0.07731119791666666,
+          "chromeFaces": [
+            "Helvetica-Bold:78",
+            "Helvetica:144"
+          ],
+          "embeddedFaces": [
+            "Helvetica-Bold",
+            "Helvetica"
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "minor",
+          "regionCount": 2,
+          "coveragePct": 0.07731119791666666,
+          "chromeFaces": [
+            "LiberationSans-Bold:78",
+            "LiberationSans:144"
+          ],
+          "embeddedFaces": [
+            "LiberationSans-Bold",
+            "LiberationSans"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "minor",
+          "regionCount": 2,
+          "coveragePct": 0.077056884765625,
+          "chromeFaces": [
+            "Arial-BoldMT:78",
+            "ArialMT:144"
+          ],
+          "embeddedFaces": [
+            "Arial-BoldMT",
+            "ArialMT"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06-forms-style-checkbox-radio",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.005594889322916666,
+          "chromeFaces": [
+            ".SFNS-Bold:280",
+            ".SFNS-Regular:210",
+            "Courier:56"
+          ],
+          "embeddedFaces": [
+            null,
+            null,
+            "Courier",
+            null,
+            null
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.005594889322916666,
+          "chromeFaces": [
+            "WenQuanYiZenHei:490",
+            "WenQuanYiZenHeiMono:56"
+          ],
+          "embeddedFaces": [
+            "WenQuanYiZenHei",
+            "WenQuanYiZenHeiMono"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.005594889322916666,
+          "chromeFaces": [
+            "Consolas:56",
+            "SegoeUI-Bold:248",
+            "SegoeUI-Semibold:32",
+            "SegoeUI:210"
+          ],
+          "embeddedFaces": [
+            "SegoeUI-Bold",
+            "SegoeUI",
+            "Consolas",
+            "SegoeUI-Semibold"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06-forms-style-fieldset",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.010770909926470588,
+          "chromeFaces": [
+            ".SFNS-Bold:394",
+            ".SFNS-Regular:194",
+            "ArialMT:4"
+          ],
+          "embeddedFaces": [
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "minor",
+          "regionCount": 3,
+          "coveragePct": 0.02686743642769608,
+          "chromeFaces": [
+            "LiberationSans:4",
+            "WenQuanYiZenHei:588"
+          ],
+          "embeddedFaces": [
+            "WenQuanYiZenHei",
+            "LiberationSans"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.011848000919117647,
+          "chromeFaces": [
+            "ArialMT:4",
+            "SegoeUI-Bold:292",
+            "SegoeUI-Semibold:102",
+            "SegoeUI:194"
+          ],
+          "embeddedFaces": [
+            "SegoeUI-Bold",
+            "SegoeUI",
+            "SegoeUI-Semibold"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06-forms-style-file",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.0392913818359375,
+          "chromeFaces": [
+            ".SFNS-Bold:195",
+            ".SFNS-Regular:161",
+            "AppleColorEmoji:1",
+            "Courier:78"
+          ],
+          "embeddedFaces": [
+            null,
+            null,
+            "Courier",
+            null,
+            "ArialMT",
+            "Arial-BoldMT",
+            null
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.0392913818359375,
+          "chromeFaces": [
+            "NotoColorEmoji:1",
+            "WenQuanYiZenHei:356",
+            "WenQuanYiZenHeiMono:78"
+          ],
+          "embeddedFaces": [
+            "WenQuanYiZenHei",
+            "WenQuanYiZenHeiMono",
+            "LiberationSans",
+            "LiberationSans-Bold"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.0392913818359375,
+          "chromeFaces": [
+            "Consolas:78",
+            "SegoeUI-Bold:178",
+            "SegoeUI-Semibold:17",
+            "SegoeUI:161",
+            "SegoeUIEmoji:1"
+          ],
+          "embeddedFaces": [
+            "SegoeUI-Bold",
+            "SegoeUI",
+            "Consolas",
+            "ArialMT",
+            "Arial-BoldMT",
+            "SegoeUI-Semibold"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06-forms-style-input-groups",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "trivial",
+          "regionCount": 2,
+          "coveragePct": 0.01656058784965035,
+          "chromeFaces": [
+            ".SFNS-Bold:200",
+            ".SFNS-Regular:295"
+          ],
+          "embeddedFaces": [
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "moderate",
+          "regionCount": 7,
+          "coveragePct": 0.1759349049388112,
+          "chromeFaces": [
+            "LiberationSans-Bold:1",
+            "WenQuanYiZenHei:494"
+          ],
+          "embeddedFaces": [
+            "WenQuanYiZenHei",
+            "LiberationSans",
+            "LiberationSans-Bold"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "trivial",
+          "regionCount": 2,
+          "coveragePct": 0.013743580638111888,
+          "chromeFaces": [
+            "SegoeUI-Bold:184",
+            "SegoeUI-Semibold:16",
+            "SegoeUI:295"
+          ],
+          "embeddedFaces": [
+            "SegoeUI-Bold",
+            "SegoeUI",
+            "SegoeUI-Semibold"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06-forms-style-layouts",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "trivial",
+          "regionCount": 2,
+          "coveragePct": 0.027691436648832685,
+          "chromeFaces": [
+            ".SFNS-Bold:416",
+            ".SFNS-Regular:182",
+            "Courier-Bold:36"
+          ],
+          "embeddedFaces": [
+            null,
+            null,
+            null,
+            null,
+            "Courier-Bold"
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "moderate",
+          "regionCount": 11,
+          "coveragePct": 0.15227915248054474,
+          "chromeFaces": [
+            "WenQuanYiZenHei:598",
+            "WenQuanYiZenHeiMono:36"
+          ],
+          "embeddedFaces": [
+            "WenQuanYiZenHei",
+            "WenQuanYiZenHeiMono",
+            "LiberationSans"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "trivial",
+          "regionCount": 2,
+          "coveragePct": 0.026266491366731516,
+          "chromeFaces": [
+            "Consolas-Bold:36",
+            "SegoeUI-Bold:269",
+            "SegoeUI-Semibold:147",
+            "SegoeUI:182"
+          ],
+          "embeddedFaces": [
+            "SegoeUI-Bold",
+            "SegoeUI",
+            "SegoeUI-Semibold",
+            "Consolas-Bold"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06-forms-style-progress-meter",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "minor",
+          "regionCount": 2,
+          "coveragePct": 0.07436765846631205,
+          "chromeFaces": [
+            ".SFNS-Bold:262",
+            ".SFNS-Regular:292",
+            "Courier:28"
+          ],
+          "embeddedFaces": [
+            null,
+            null,
+            "Courier",
+            null
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "minor",
+          "regionCount": 2,
+          "coveragePct": 0.07436765846631205,
+          "chromeFaces": [
+            "WenQuanYiZenHei:554",
+            "WenQuanYiZenHeiMono:28"
+          ],
+          "embeddedFaces": [
+            "WenQuanYiZenHei",
+            "WenQuanYiZenHeiMono"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "trivial",
+          "regionCount": 2,
+          "coveragePct": 0.012466755319148936,
+          "chromeFaces": [
+            "Consolas:28",
+            "SegoeUI-Bold:262",
+            "SegoeUI:292"
+          ],
+          "embeddedFaces": [
+            "SegoeUI-Bold",
+            "SegoeUI",
+            "Consolas"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06-forms-style-select",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "moderate",
+          "regionCount": 8,
+          "coveragePct": 0.15807220901268115,
+          "chromeFaces": [
+            ".SFNS-Bold:101",
+            ".SFNS-Regular:298",
+            "Courier:28"
+          ],
+          "embeddedFaces": [
+            null,
+            null,
+            "Courier",
+            null
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "moderate",
+          "regionCount": 8,
+          "coveragePct": 0.11649753736413043,
+          "chromeFaces": [
+            "WenQuanYiZenHei:399",
+            "WenQuanYiZenHeiMono:28"
+          ],
+          "embeddedFaces": [
+            "WenQuanYiZenHei",
+            "WenQuanYiZenHeiMono"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "moderate",
+          "regionCount": 8,
+          "coveragePct": 0.17452516417572464,
+          "chromeFaces": [
+            "Consolas:28",
+            "SegoeUI-Bold:101",
+            "SegoeUI:298"
+          ],
+          "embeddedFaces": [
+            "SegoeUI-Bold",
+            "SegoeUI",
+            "Consolas"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "10-deep-has-complex",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.0014796401515151515,
+          "chromeFaces": [
+            "Courier-Bold:316",
+            "Helvetica-Bold:320",
+            "Helvetica:235"
+          ],
+          "embeddedFaces": [
+            "Helvetica-Bold",
+            "Courier-Bold",
+            "Helvetica"
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "minor",
+          "regionCount": 3,
+          "coveragePct": 0.022828733766233764,
+          "chromeFaces": [
+            "LiberationSans-Bold:321",
+            "LiberationSans:237",
+            "WenQuanYiZenHeiMono:316"
+          ],
+          "embeddedFaces": [
+            "LiberationSans-Bold",
+            "WenQuanYiZenHeiMono",
+            "LiberationSans"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "minor",
+          "regionCount": 3,
+          "coveragePct": 0.00470314191017316,
+          "chromeFaces": [
+            "Arial-BoldMT:321",
+            "ArialMT:237",
+            "Consolas-Bold:316"
+          ],
+          "embeddedFaces": [
+            "Arial-BoldMT",
+            "Consolas-Bold",
+            "ArialMT"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "10-sel-pseudo-logical",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.0023978097098214285,
+          "chromeFaces": [
+            "Helvetica-Bold:210",
+            "Helvetica-Oblique:102",
+            "Helvetica:72"
+          ],
+          "embeddedFaces": [
+            "Helvetica-Bold",
+            "Helvetica",
+            "Helvetica-Oblique"
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.0023978097098214285,
+          "chromeFaces": [
+            "LiberationSans-Bold:211",
+            "LiberationSans-Italic:102",
+            "LiberationSans:72"
+          ],
+          "embeddedFaces": [
+            "LiberationSans-Bold",
+            "LiberationSans",
+            "LiberationSans-Italic"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.0023978097098214285,
+          "chromeFaces": [
+            "Arial-BoldMT:211",
+            "Arial-ItalicMT:102",
+            "ArialMT:72"
+          ],
+          "embeddedFaces": [
+            "Arial-BoldMT",
+            "ArialMT",
+            "Arial-ItalicMT"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "10-sel-pseudo-structural",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "minor",
+          "regionCount": 2,
+          "coveragePct": 0.13744647686298078,
+          "chromeFaces": [
+            "Helvetica-Bold:275",
+            "Helvetica:169",
+            "LucidaGrande:1"
+          ],
+          "embeddedFaces": [
+            "Helvetica-Bold",
+            "Helvetica",
+            "LucidaGrande"
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.028639573317307692,
+          "chromeFaces": [
+            "LiberationSans-Bold:278",
+            "LiberationSans:171"
+          ],
+          "embeddedFaces": [
+            "LiberationSans-Bold",
+            "LiberationSans"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "minor",
+          "regionCount": 2,
+          "coveragePct": 0.12829120342548078,
+          "chromeFaces": [
+            "Arial-BoldMT:278",
+            "ArialMT:171"
+          ],
+          "embeddedFaces": [
+            "Arial-BoldMT",
+            "ArialMT"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "11-box-basic",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "trivial",
+          "regionCount": 2,
+          "coveragePct": 0.006103515625,
+          "chromeFaces": [
+            "Courier:25",
+            "Helvetica-Bold:44",
+            "Helvetica:257"
+          ],
+          "embeddedFaces": [
+            "Helvetica-Bold",
+            "Helvetica",
+            "Courier"
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "trivial",
+          "regionCount": 2,
+          "coveragePct": 0.01678466796875,
+          "chromeFaces": [
+            "LiberationSans-Bold:44",
+            "LiberationSans:257",
+            "WenQuanYiZenHeiMono:25"
+          ],
+          "embeddedFaces": [
+            "LiberationSans-Bold",
+            "LiberationSans",
+            "WenQuanYiZenHeiMono"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "trivial",
+          "regionCount": 2,
+          "coveragePct": 0.006103515625,
+          "chromeFaces": [
+            "Arial-BoldMT:44",
+            "ArialMT:257",
+            "Consolas:25"
+          ],
+          "embeddedFaces": [
+            "Arial-BoldMT",
+            "ArialMT",
+            "Consolas"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "11-deep-margin-collapse-edges",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "moderate",
+          "regionCount": 7,
+          "coveragePct": 0.022365622324486304,
+          "chromeFaces": [
+            "Courier:28",
+            "Helvetica-Bold:586",
+            "Helvetica:844"
+          ],
+          "embeddedFaces": [
+            "Helvetica",
+            "Helvetica-Bold",
+            "Courier"
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "moderate",
+          "regionCount": 7,
+          "coveragePct": 0.022365622324486304,
+          "chromeFaces": [
+            "LiberationSans-Bold:593",
+            "LiberationSans:847",
+            "WenQuanYiZenHeiMono:28"
+          ],
+          "embeddedFaces": [
+            "LiberationSans",
+            "LiberationSans-Bold",
+            "WenQuanYiZenHeiMono"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "moderate",
+          "regionCount": 7,
+          "coveragePct": 0.022365622324486304,
+          "chromeFaces": [
+            "Arial-BoldMT:593",
+            "ArialMT:847",
+            "Consolas:28"
+          ],
+          "embeddedFaces": [
+            "ArialMT",
+            "Arial-BoldMT",
+            "Consolas"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "13-deep-anchor-positioning",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.0017224645322085888,
+          "chromeFaces": [
+            ".SFNS-Bold:155",
+            ".SFNS-Regular:488",
+            "Courier-Bold:52",
+            "Courier:98"
+          ],
+          "embeddedFaces": [
+            null,
+            null,
+            "Courier",
+            null,
+            "Courier-Bold"
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.0013480157208588957,
+          "chromeFaces": [
+            "WenQuanYiZenHei:643",
+            "WenQuanYiZenHeiMono:150"
+          ],
+          "embeddedFaces": [
+            "WenQuanYiZenHei",
+            "WenQuanYiZenHeiMono"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.0020969133435582822,
+          "chromeFaces": [
+            "Consolas-Bold:52",
+            "Consolas:98",
+            "SegoeUI-Bold:155",
+            "SegoeUI:488"
+          ],
+          "embeddedFaces": [
+            "SegoeUI-Bold",
+            "SegoeUI",
+            "Consolas",
+            "Consolas-Bold"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "13-deep-cross-sc-z-index",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "minor",
+          "regionCount": 3,
+          "coveragePct": 0.07525433550824176,
+          "chromeFaces": [
+            "Helvetica-Bold:351",
+            "Helvetica:629"
+          ],
+          "embeddedFaces": [
+            "Helvetica-Bold",
+            "Helvetica"
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "minor",
+          "regionCount": 3,
+          "coveragePct": 0.0660655262706044,
+          "chromeFaces": [
+            "LiberationSans-Bold:352",
+            "LiberationSans:634"
+          ],
+          "embeddedFaces": [
+            "LiberationSans-Bold",
+            "LiberationSans"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "minor",
+          "regionCount": 3,
+          "coveragePct": 0.07391290350274725,
+          "chromeFaces": [
+            "Arial-BoldMT:352",
+            "ArialMT:634"
+          ],
+          "embeddedFaces": [
+            "Arial-BoldMT",
+            "ArialMT"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "13-deep-fixed-in-transform",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "minor",
+          "regionCount": 2,
+          "coveragePct": 0.08306440138658941,
+          "chromeFaces": [
+            "Courier:124",
+            "Helvetica-Bold:312",
+            "Helvetica:582",
+            "LucidaGrande-Bold:7"
+          ],
+          "embeddedFaces": [
+            "Helvetica-Bold",
+            "Helvetica",
+            "Courier",
+            "LucidaGrande-Bold"
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "minor",
+          "regionCount": 4,
+          "coveragePct": 0.06806834644039735,
+          "chromeFaces": [
+            "LiberationSans-Bold:328",
+            "LiberationSans:585",
+            "WenQuanYiZenHeiMono:122"
+          ],
+          "embeddedFaces": [
+            "LiberationSans-Bold",
+            "LiberationSans",
+            "WenQuanYiZenHeiMono"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "minor",
+          "regionCount": 2,
+          "coveragePct": 0.06980643367135761,
+          "chromeFaces": [
+            "Arial-BoldMT:328",
+            "ArialMT:585",
+            "Consolas:124"
+          ],
+          "embeddedFaces": [
+            "Arial-BoldMT",
+            "ArialMT",
+            "Consolas"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "13-deep-stacking-context-creators",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.03231272977941176,
+          "chromeFaces": [
+            "Helvetica-Bold:642",
+            "Helvetica:269"
+          ],
+          "embeddedFaces": [
+            "Helvetica-Bold",
+            "Helvetica"
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.03354369091386555,
+          "chromeFaces": [
+            "LiberationSans-Bold:646",
+            "LiberationSans:269"
+          ],
+          "embeddedFaces": [
+            "LiberationSans-Bold",
+            "LiberationSans"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.030671448266806723,
+          "chromeFaces": [
+            "Arial-BoldMT:646",
+            "ArialMT:269"
+          ],
+          "embeddedFaces": [
+            "Arial-BoldMT",
+            "ArialMT"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "13-deep-z-index-negative",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "moderate",
+          "regionCount": 11,
+          "coveragePct": 0.09962815504807691,
+          "chromeFaces": [
+            "Helvetica-Bold:490",
+            "Helvetica:459",
+            "LucidaGrande:1"
+          ],
+          "embeddedFaces": [
+            "Helvetica-Bold",
+            "Helvetica",
+            "LucidaGrande"
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "moderate",
+          "regionCount": 14,
+          "coveragePct": 0.10807917668269232,
+          "chromeFaces": [
+            "LiberationSans-Bold:492",
+            "LiberationSans:461"
+          ],
+          "embeddedFaces": [
+            "LiberationSans-Bold",
+            "LiberationSans"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "moderate",
+          "regionCount": 11,
+          "coveragePct": 0.09962815504807691,
+          "chromeFaces": [
+            "Arial-BoldMT:492",
+            "ArialMT:461"
+          ],
+          "embeddedFaces": [
+            "Arial-BoldMT",
+            "ArialMT"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "14-deep-float-bfc",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "major",
+          "regionCount": 16,
+          "coveragePct": 0.14293323863636365,
+          "chromeFaces": [
+            "Courier-Bold:140",
+            "Courier:30",
+            "Helvetica-Bold:307",
+            "Helvetica:404",
+            "LucidaGrande-Bold:1",
+            "LucidaGrande:1"
+          ],
+          "embeddedFaces": [
+            "Helvetica",
+            "Helvetica-Bold",
+            "LucidaGrande",
+            "LucidaGrande-Bold",
+            "Courier-Bold",
+            "Courier"
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "major",
+          "regionCount": 16,
+          "coveragePct": 0.17067649147727273,
+          "chromeFaces": [
+            "LiberationSans-Bold:311",
+            "LiberationSans:410",
+            "WenQuanYiZenHeiMono:170"
+          ],
+          "embeddedFaces": [
+            "LiberationSans",
+            "LiberationSans-Bold",
+            "WenQuanYiZenHeiMono"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "major",
+          "regionCount": 16,
+          "coveragePct": 0.1403438683712121,
+          "chromeFaces": [
+            "Arial-BoldMT:311",
+            "ArialMT:410",
+            "Consolas-Bold:140",
+            "Consolas:30"
+          ],
+          "embeddedFaces": [
+            "ArialMT",
+            "Arial-BoldMT",
+            "Consolas-Bold",
+            "Consolas"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "17-bg-multiple",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "minor",
+          "regionCount": 1,
+          "coveragePct": 0.33416748046875,
+          "chromeFaces": [
+            "Helvetica-Bold:119",
+            "Helvetica:129"
+          ],
+          "embeddedFaces": [
+            "Helvetica-Bold",
+            "Helvetica"
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "minor",
+          "regionCount": 2,
+          "coveragePct": 0.3833770751953125,
+          "chromeFaces": [
+            "LiberationSans-Bold:119",
+            "LiberationSans:129"
+          ],
+          "embeddedFaces": [
+            "LiberationSans-Bold",
+            "LiberationSans"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "minor",
+          "regionCount": 1,
+          "coveragePct": 0.33696492513020837,
+          "chromeFaces": [
+            "Arial-BoldMT:119",
+            "ArialMT:129"
+          ],
+          "embeddedFaces": [
+            "Arial-BoldMT",
+            "ArialMT"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "18-border-styles",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "minor",
+          "regionCount": 3,
+          "coveragePct": 0.20306905110677084,
+          "chromeFaces": [
+            "Helvetica-Bold:174"
+          ],
+          "embeddedFaces": [
+            "Helvetica-Bold"
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "minor",
+          "regionCount": 4,
+          "coveragePct": 0.25227864583333337,
+          "chromeFaces": [
+            "LiberationSans-Bold:174"
+          ],
+          "embeddedFaces": [
+            "LiberationSans-Bold"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "minor",
+          "regionCount": 3,
+          "coveragePct": 0.199127197265625,
+          "chromeFaces": [
+            "Arial-BoldMT:174"
+          ],
+          "embeddedFaces": [
+            "Arial-BoldMT"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "18-deep-borders-mixed-sides",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "minor",
+          "regionCount": 5,
+          "coveragePct": 0.3280819163602941,
+          "chromeFaces": [
+            ".SFNS-Bold:227",
+            ".SFNS-Regular:856",
+            "Courier:38"
+          ],
+          "embeddedFaces": [
+            null,
+            null,
+            "Courier",
+            null
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "moderate",
+          "regionCount": 6,
+          "coveragePct": 0.3188907398897059,
+          "chromeFaces": [
+            "WenQuanYiZenHei:1084",
+            "WenQuanYiZenHeiMono:38"
+          ],
+          "embeddedFaces": [
+            "WenQuanYiZenHei",
+            "WenQuanYiZenHeiMono"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "moderate",
+          "regionCount": 6,
+          "coveragePct": 0.31975241268382354,
+          "chromeFaces": [
+            "Consolas:38",
+            "SegoeUI-Bold:227",
+            "SegoeUI:856"
+          ],
+          "embeddedFaces": [
+            "SegoeUI-Bold",
+            "SegoeUI",
+            "Consolas"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "18-outline",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "trivial",
+          "regionCount": 2,
+          "coveragePct": 0.0339508056640625,
+          "chromeFaces": [
+            "Helvetica-Bold:128"
+          ],
+          "embeddedFaces": [
+            "Helvetica-Bold"
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "minor",
+          "regionCount": 4,
+          "coveragePct": 0.03980000813802083,
+          "chromeFaces": [
+            "LiberationSans-Bold:128"
+          ],
+          "embeddedFaces": [
+            "LiberationSans-Bold"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "trivial",
+          "regionCount": 2,
+          "coveragePct": 0.0339508056640625,
+          "chromeFaces": [
+            "Arial-BoldMT:128"
+          ],
+          "embeddedFaces": [
+            "Arial-BoldMT"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "20-deep-first-letter-line",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.047925866168478264,
+          "chromeFaces": [
+            ".SFNS-Bold:495",
+            "Courier-Bold:52",
+            "Courier:52",
+            "Georgia-Bold:117",
+            "Georgia-Italic:2",
+            "Georgia:2354"
+          ],
+          "embeddedFaces": [
+            null,
+            "Courier-Bold",
+            "Georgia",
+            "Courier",
+            null,
+            "Georgia-Italic",
+            "Georgia-Bold"
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "minor",
+          "regionCount": 5,
+          "coveragePct": 0.07295028023097826,
+          "chromeFaces": [
+            "LiberationSerif-Bold:122",
+            "LiberationSerif-Italic:2",
+            "LiberationSerif:2351",
+            "WenQuanYiZenHei:495",
+            "WenQuanYiZenHeiMono:104"
+          ],
+          "embeddedFaces": [
+            "WenQuanYiZenHei",
+            "WenQuanYiZenHeiMono",
+            "LiberationSerif",
+            "LiberationSerif-Italic",
+            "LiberationSerif-Bold"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "minor",
+          "regionCount": 5,
+          "coveragePct": 0.13053562330163043,
+          "chromeFaces": [
+            "Consolas-Bold:52",
+            "Consolas:52",
+            "Georgia-Bold:98",
+            "Georgia-Italic:2",
+            "Georgia:2372",
+            "SegoeUI-Bold:495"
+          ],
+          "embeddedFaces": [
+            "SegoeUI-Bold",
+            "Consolas-Bold",
+            "Georgia",
+            "Consolas",
+            "Georgia-Italic",
+            "Georgia-Bold"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "20-deep-hanging-punctuation",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "minor",
+          "regionCount": 4,
+          "coveragePct": 0.008303620094476744,
+          "chromeFaces": [
+            ".PingFangUITextSC-Regular:3",
+            ".SFNS-Bold:145",
+            ".SFNS-Regular:465",
+            "Courier-Bold:303",
+            "Courier:407",
+            "Georgia-Bold:71",
+            "Georgia-Italic:413",
+            "Georgia:748",
+            "HiraginoSans-W4:148"
+          ],
+          "embeddedFaces": [
+            null,
+            "Georgia",
+            "Courier",
+            null,
+            "Courier-Bold",
+            "Georgia-Italic",
+            null,
+            ".PingFangUITextSC-Regular",
+            "HiraginoSans-W4",
+            "Georgia-Bold"
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "minor",
+          "regionCount": 3,
+          "coveragePct": 0.010610181231831396,
+          "chromeFaces": [
+            "LiberationSerif-Bold:71",
+            "LiberationSerif-Italic:415",
+            "LiberationSerif:748",
+            "WenQuanYiZenHei:761",
+            "WenQuanYiZenHeiMono:710"
+          ],
+          "embeddedFaces": [
+            "WenQuanYiZenHei",
+            "LiberationSerif",
+            "WenQuanYiZenHeiMono",
+            "LiberationSerif-Italic",
+            "LiberationSerif-Bold"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "minor",
+          "regionCount": 4,
+          "coveragePct": 0.0068487123001453485,
+          "chromeFaces": [
+            "Consolas-Bold:303",
+            "Consolas:407",
+            "Georgia-Bold:71",
+            "Georgia-Italic:413",
+            "Georgia:748",
+            "MicrosoftYaHei:3",
+            "SegoeUI-Bold:145",
+            "SegoeUI:465",
+            "YuGothic-Regular:148"
+          ],
+          "embeddedFaces": [
+            "SegoeUI-Bold",
+            "Georgia",
+            "Consolas",
+            "Consolas-Bold",
+            "Georgia-Italic",
+            "SegoeUI",
+            "MicrosoftYaHei",
+            "YuGothic-Regular",
+            "Georgia-Bold"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "20-deep-text-emphasis",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "moderate",
+          "regionCount": 8,
+          "coveragePct": 0.04188808692893401,
+          "chromeFaces": [
+            "Courier-Bold:26",
+            "Helvetica-Bold:135",
+            "Helvetica:539",
+            "HiraginoSans-W3:14",
+            "PingFangSC-Regular:19"
+          ],
+          "embeddedFaces": [
+            "Helvetica-Bold",
+            "Courier-Bold",
+            "Helvetica",
+            "PingFangSC-Regular",
+            "HiraginoSans-W3"
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.0009914340101522842,
+          "chromeFaces": [
+            "LiberationSans-Bold:135",
+            "LiberationSans:541",
+            "WenQuanYiZenHei:33",
+            "WenQuanYiZenHeiMono:26"
+          ],
+          "embeddedFaces": [
+            "LiberationSans-Bold",
+            "WenQuanYiZenHeiMono",
+            "LiberationSans"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "trivial",
+          "regionCount": 2,
+          "coveragePct": 0.0037178775380710665,
+          "chromeFaces": [
+            "Arial-BoldMT:135",
+            "ArialMT:541",
+            "Consolas-Bold:26",
+            "MicrosoftYaHei:19",
+            "YuGothic-Regular:14"
+          ],
+          "embeddedFaces": [
+            "Arial-BoldMT",
+            "Consolas-Bold",
+            "ArialMT",
+            "MicrosoftYaHei",
+            "YuGothic-Regular"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "21-deep-anisotropic-scale",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.002582256610576923,
+          "chromeFaces": [
+            ".SFNS-Bold:330",
+            ".SFNS-Regular:546"
+          ],
+          "embeddedFaces": [
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.002582256610576923,
+          "chromeFaces": [
+            "FreeSans:1",
+            "WenQuanYiZenHei:876"
+          ],
+          "embeddedFaces": [
+            "WenQuanYiZenHei",
+            "FreeSans"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.002582256610576923,
+          "chromeFaces": [
+            "CambriaMath:1",
+            "SegoeUI-Bold:332",
+            "SegoeUI:544"
+          ],
+          "embeddedFaces": [
+            "SegoeUI-Bold",
+            "SegoeUI",
+            "CambriaMath"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "24-deep-pseudo-shapes",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "minor",
+          "regionCount": 4,
+          "coveragePct": 0.043228569380733946,
+          "chromeFaces": [
+            "Courier:30",
+            "Helvetica-Bold:328",
+            "Helvetica:477"
+          ],
+          "embeddedFaces": [
+            "Helvetica-Bold",
+            "Helvetica",
+            "Courier"
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "minor",
+          "regionCount": 4,
+          "coveragePct": 0.043228569380733946,
+          "chromeFaces": [
+            "LiberationSans-Bold:329",
+            "LiberationSans:477",
+            "WenQuanYiZenHeiMono:30"
+          ],
+          "embeddedFaces": [
+            "LiberationSans-Bold",
+            "LiberationSans",
+            "WenQuanYiZenHeiMono"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "minor",
+          "regionCount": 4,
+          "coveragePct": 0.043228569380733946,
+          "chromeFaces": [
+            "Arial-BoldMT:329",
+            "ArialMT:477",
+            "Consolas:30"
+          ],
+          "embeddedFaces": [
+            "Arial-BoldMT",
+            "ArialMT",
+            "Consolas"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "24-generated-content",
+      "disposition": "functional-defect",
+      "implementationTicket": "DM-2616",
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "moderate",
+          "regionCount": 5,
+          "coveragePct": 1.553217569986979,
+          "chromeFaces": [
+            "Helvetica-Bold:50",
+            "Helvetica:263",
+            "HiraginoSans-W3:2",
+            "LucidaGrande:2",
+            "Menlo-Regular:1"
+          ],
+          "embeddedFaces": [
+            "Helvetica-Bold",
+            "Menlo-Regular",
+            "Helvetica",
+            "LucidaGrande",
+            "HiraginoSans-W3"
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "moderate",
+          "regionCount": 4,
+          "coveragePct": 1.6834259033203125,
+          "chromeFaces": [
+            "FreeSerif:1",
+            "IPAGothic:1",
+            "LiberationSans-Bold:50",
+            "LiberationSans:267",
+            "WenQuanYiZenHei:2"
+          ],
+          "embeddedFaces": [
+            "LiberationSans-Bold",
+            "FreeSerif",
+            "LiberationSans",
+            "IPAGothic",
+            "WenQuanYi Zen Hei"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "moderate",
+          "regionCount": 5,
+          "coveragePct": 1.5558878580729165,
+          "chromeFaces": [
+            "Arial-BoldMT:50",
+            "ArialMT:267",
+            "SegoeUISymbol:4"
+          ],
+          "embeddedFaces": [
+            "Arial-BoldMT",
+            "SegoeUISymbol",
+            "ArialMT"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "28-deep-nesting-complex",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.012642996651785716,
+          "chromeFaces": [
+            "Arial-BoldMT:14",
+            "ArialMT:13",
+            "Courier-Bold:32",
+            "Helvetica-Bold:231",
+            "Helvetica:178",
+            "HiraginoSans-W3:2"
+          ],
+          "embeddedFaces": [
+            "Helvetica-Bold",
+            "Courier-Bold",
+            "Helvetica",
+            "ArialMT",
+            "Arial-BoldMT",
+            "HiraginoSans-W3"
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.012642996651785716,
+          "chromeFaces": [
+            "LiberationSans-Bold:245",
+            "LiberationSans:192",
+            "WenQuanYiZenHei:2",
+            "WenQuanYiZenHeiMono:32"
+          ],
+          "embeddedFaces": [
+            "LiberationSans-Bold",
+            "WenQuanYiZenHeiMono",
+            "LiberationSans",
+            "WenQuanYi Zen Hei"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.012642996651785716,
+          "chromeFaces": [
+            "Arial-BoldMT:245",
+            "ArialMT:192",
+            "Consolas-Bold:32",
+            "SegoeUISymbol:2"
+          ],
+          "embeddedFaces": [
+            "Arial-BoldMT",
+            "Consolas-Bold",
+            "ArialMT",
+            "ArialMT",
+            "Arial-BoldMT",
+            "SegoeUISymbol"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "32-real-world-admin-dashboard",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "minor",
+          "regionCount": 3,
+          "coveragePct": 0.106048583984375,
+          "chromeFaces": [
+            ".LucidaGrandeUI-Bold:1",
+            ".PingFangUITextSC-Bold:1",
+            ".SFNS-Bold:159",
+            ".SFNS-Regular:474",
+            "Menlo-Regular:1"
+          ],
+          "embeddedFaces": [
+            null,
+            null,
+            "Menlo-Regular",
+            null,
+            null,
+            ".AppleSDGothicNeoI-Regular",
+            ".CJKSymbolsFallbackSC-Regular",
+            ".PingFangUITextSC-Bold",
+            ".LucidaGrandeUI-Bold"
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "minor",
+          "regionCount": 1,
+          "coveragePct": 0.09256998697916666,
+          "chromeFaces": [
+            "FreeSans:2",
+            "FreeSerif:1",
+            "IPAGothic:1",
+            "WenQuanYiZenHei:587"
+          ],
+          "embeddedFaces": [
+            "WenQuanYiZenHei",
+            "FreeSerif",
+            "FreeSans",
+            "LiberationSans",
+            "IPAGothic"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "minor",
+          "regionCount": 1,
+          "coveragePct": 0.09256998697916666,
+          "chromeFaces": [
+            "CambriaMath:2",
+            "MicrosoftYaHei-Bold:1",
+            "SegoeUI-Bold:147",
+            "SegoeUI:452",
+            "SegoeUIBlack:11",
+            "SegoeUISymbol:3"
+          ],
+          "embeddedFaces": [
+            "SegoeUI-Bold",
+            "SegoeUI",
+            "CambriaMath",
+            "SegoeUISymbol",
+            "SegoeUIBlack",
+            "ArialMT",
+            "MicrosoftYaHei-Bold"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "32-real-world-checkout-form",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "minor",
+          "regionCount": 2,
+          "coveragePct": 0.06739298502604166,
+          "chromeFaces": [
+            ".AppleSDGothicNeoI-Regular:1",
+            ".SFNS-Bold:274",
+            ".SFNS-Regular:426",
+            "Arial-BoldMT:16"
+          ],
+          "embeddedFaces": [
+            null,
+            ".AppleSDGothicNeoI-Regular",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "Arial-BoldMT",
+            null
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "minor",
+          "regionCount": 2,
+          "coveragePct": 0.0644683837890625,
+          "chromeFaces": [
+            "IPAGothic:1",
+            "LiberationSans-Bold:16",
+            "WenQuanYiZenHei:700"
+          ],
+          "embeddedFaces": [
+            "WenQuanYiZenHei",
+            "LiberationSans-Bold"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "minor",
+          "regionCount": 1,
+          "coveragePct": 0.07998148600260416,
+          "chromeFaces": [
+            "Arial-BoldMT:16",
+            "CambriaMath:1",
+            "SegoeUI-Bold:248",
+            "SegoeUI-Semibold:172",
+            "SegoeUI:253",
+            "SegoeUIBlack:26",
+            "SegoeUISymbol:1"
+          ],
+          "embeddedFaces": [
+            "SegoeUIBlack",
+            "CambriaMath",
+            "SegoeUI",
+            "SegoeUI-Bold",
+            "SegoeUI-Semibold",
+            "Arial-BoldMT"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "32-real-world-multilingual-messages",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "trivial",
+          "regionCount": 2,
+          "coveragePct": 0.028737386067708332,
+          "chromeFaces": [
+            ".PingFangUIDisplaySC-Heavy:1",
+            ".PingFangUITextSC-Bold:2",
+            ".PingFangUITextSC-Regular:8",
+            ".SFArabic-Regular:111",
+            ".SFDevanagari-Regular_opsz110000_wght:4",
+            ".SFNS-Bold:73",
+            ".SFNS-Regular:419",
+            "AppleColorEmoji:3",
+            "ArialMT:3",
+            "HiraKakuProN-W3:35",
+            "Menlo-Regular:20",
+            "PingFangSC-Regular:2",
+            "ZapfDingbatsITC:1"
+          ],
+          "embeddedFaces": [
+            null,
+            "PingFangSC-Regular",
+            "Menlo-Regular",
+            null,
+            null,
+            null,
+            ".PingFangUIDisplaySC-Heavy",
+            ".PingFangUITextSC-Bold",
+            ".PingFangUITextSC-Regular",
+            "ArialMT",
+            "HiraKakuProN-W3",
+            "Menlo-Regular",
+            "GeezaPro",
+            null,
+            "ZapfDingbatsITC"
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "clean",
+          "regionCount": 0,
+          "coveragePct": 0,
+          "chromeFaces": [
+            "FreeSans:6",
+            "FreeSerif:90",
+            "IPAGothic:8",
+            "LiberationSans:3",
+            "NotoColorEmoji:3",
+            "WenQuanYiZenHei:532",
+            "WenQuanYiZenHeiMono:18"
+          ],
+          "embeddedFaces": [
+            "WenQuanYiZenHei",
+            "WenQuanYi Zen Hei",
+            "FreeSerif",
+            "LiberationSans",
+            "WenQuanYiZenHeiMono",
+            "IPAGothic",
+            "FreeSans"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.0255584716796875,
+          "chromeFaces": [
+            "ArialMT:3",
+            "CambriaMath:2",
+            "MicrosoftYaHei-Bold:3",
+            "MicrosoftYaHei:10",
+            "MS-Gothic:18",
+            "NirmalaUI:4",
+            "SegoeUI-Bold:73",
+            "SegoeUI:504",
+            "SegoeUIEmoji:3",
+            "SegoeUISymbol:9",
+            "YuGothic-Regular:35"
+          ],
+          "embeddedFaces": [
+            "SegoeUI-Bold",
+            "MicrosoftYaHei",
+            "CambriaMath",
+            "SegoeUI",
+            "MicrosoftYaHei-Bold",
+            "ArialMT",
+            "YuGothic-Regular",
+            "MS-Gothic",
+            "SegoeUISymbol",
+            "SegoeUIBlack",
+            "NirmalaUI"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "32-real-world-pricing-table",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "minor",
+          "regionCount": 5,
+          "coveragePct": 0.010803924209770116,
+          "chromeFaces": [
+            ".SFNS-Bold:166",
+            ".SFNS-Regular_wdth_opsz300000_GRAD_wght3200000:11",
+            ".SFNS-Regular_wdth_opsz380000_GRAD_wght3200000:28",
+            ".SFNS-Regular:635",
+            "Georgia-Bold:42"
+          ],
+          "embeddedFaces": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "Georgia-Bold",
+            null,
+            null
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "moderate",
+          "regionCount": 7,
+          "coveragePct": 0.032411772629310345,
+          "chromeFaces": [
+            "LiberationSerif-Bold:42",
+            "WenQuanYiZenHei:842"
+          ],
+          "embeddedFaces": [
+            "WenQuanYiZenHei",
+            "LiberationSerif-Bold"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "minor",
+          "regionCount": 3,
+          "coveragePct": 0.005542272808908046,
+          "chromeFaces": [
+            "Georgia-Bold:42",
+            "SegoeUI-Bold:96",
+            "SegoeUI-Semibold:70",
+            "SegoeUI:635",
+            "SegoeUIBlack:39"
+          ],
+          "embeddedFaces": [
+            "SegoeUIBlack",
+            "SegoeUI",
+            "SegoeUI-Semibold",
+            "SegoeUI-Bold",
+            "Georgia-Bold"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "34-mathml-basic",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "minor",
+          "regionCount": 4,
+          "coveragePct": 0.01773577634529148,
+          "chromeFaces": [
+            ".SFNS-Bold:359",
+            ".SFNS-Regular:260",
+            "AppleSymbols:1",
+            "Courier-Bold:118",
+            "Courier:243",
+            "Menlo-Regular:1",
+            "STIXTwoMath-Regular:44",
+            "Times-Roman:67",
+            "TimesNewRomanPSMT:3"
+          ],
+          "embeddedFaces": [
+            null,
+            null,
+            null,
+            "Courier-Bold",
+            "Courier",
+            "Times-Roman",
+            ".SFNS-Regular",
+            "TimesNewRomanPSMT",
+            "Menlo-Regular",
+            "AppleSymbols"
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "moderate",
+          "regionCount": 6,
+          "coveragePct": 0.04253301919843049,
+          "chromeFaces": [
+            "FreeSans:46",
+            "LiberationSerif:73",
+            "WenQuanYiZenHei:619",
+            "WenQuanYiZenHeiMono:358"
+          ],
+          "embeddedFaces": [
+            "WenQuanYiZenHei",
+            "WenQuanYiZenHeiMono",
+            "LiberationSerif",
+            "FreeSans",
+            "WenQuanYi Zen Hei"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "minor",
+          "regionCount": 3,
+          "coveragePct": 0.0224434206838565,
+          "chromeFaces": [
+            "CambriaMath:46",
+            "Consolas-Bold:118",
+            "Consolas:243",
+            "SegoeUI-Bold:359",
+            "SegoeUI:259",
+            "TimesNewRomanPSMT:71"
+          ],
+          "embeddedFaces": [
+            "SegoeUI-Bold",
+            "SegoeUI",
+            "Consolas-Bold",
+            "Consolas",
+            "TimesNewRomanPSMT",
+            "CambriaMath"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "niche-anchor-position-try",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.0010631930443548386,
+          "chromeFaces": [
+            ".SFNS-Bold:182",
+            ".SFNS-Regular:728",
+            "Courier-Bold:160",
+            "Courier:212"
+          ],
+          "embeddedFaces": [
+            null,
+            "Courier-Bold",
+            null,
+            "Courier",
+            null
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "trivial",
+          "regionCount": 2,
+          "coveragePct": 0.0018901209677419355,
+          "chromeFaces": [
+            "WenQuanYiZenHei:912",
+            "WenQuanYiZenHeiMono:372"
+          ],
+          "embeddedFaces": [
+            "WenQuanYiZenHei",
+            "WenQuanYiZenHeiMono"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.0009450604838709678,
+          "chromeFaces": [
+            "Consolas-Bold:160",
+            "Consolas:212",
+            "SegoeUI-Bold:182",
+            "SegoeUI:728"
+          ],
+          "embeddedFaces": [
+            "SegoeUI-Bold",
+            "Consolas-Bold",
+            "SegoeUI",
+            "Consolas"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "niche-cross-fade-images",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "moderate",
+          "regionCount": 12,
+          "coveragePct": 0.11717169801779936,
+          "chromeFaces": [
+            ".SFNS-Bold:163",
+            ".SFNS-Regular:209",
+            "Courier-Bold:24",
+            "Courier:161"
+          ],
+          "embeddedFaces": [
+            null,
+            "Courier-Bold",
+            null,
+            null,
+            "Courier"
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "clean",
+          "regionCount": 0,
+          "coveragePct": 0,
+          "chromeFaces": [
+            "WenQuanYiZenHei:372",
+            "WenQuanYiZenHeiMono:185"
+          ],
+          "embeddedFaces": [
+            "WenQuanYiZenHei",
+            "WenQuanYiZenHeiMono"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "moderate",
+          "regionCount": 12,
+          "coveragePct": 0.11717169801779936,
+          "chromeFaces": [
+            "Consolas-Bold:24",
+            "Consolas:161",
+            "SegoeUI-Bold:163",
+            "SegoeUI:210"
+          ],
+          "embeddedFaces": [
+            "SegoeUI-Bold",
+            "Consolas-Bold",
+            "SegoeUI",
+            "Consolas"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "niche-scroll-markers",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "minor",
+          "regionCount": 3,
+          "coveragePct": 0.00821200284090909,
+          "chromeFaces": [
+            ".SFNS-Bold:212",
+            ".SFNS-Regular:407",
+            "Courier-Bold:98",
+            "Courier:220"
+          ],
+          "embeddedFaces": [
+            null,
+            "Courier-Bold",
+            null,
+            "Courier",
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "minor",
+          "regionCount": 3,
+          "coveragePct": 0.014703924005681818,
+          "chromeFaces": [
+            "WenQuanYiZenHei:620",
+            "WenQuanYiZenHeiMono:318"
+          ],
+          "embeddedFaces": [
+            "WenQuanYiZenHei",
+            "WenQuanYiZenHeiMono",
+            "LiberationSans-Bold"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "trivial",
+          "regionCount": 2,
+          "coveragePct": 0.00887784090909091,
+          "chromeFaces": [
+            "Consolas-Bold:98",
+            "Consolas:220",
+            "SegoeUI-Bold:212",
+            "SegoeUI:408"
+          ],
+          "embeddedFaces": [
+            "SegoeUI-Bold",
+            "Consolas-Bold",
+            "SegoeUI",
+            "Consolas",
+            "SegoeUI-Semibold"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "niche-select-customizable",
+      "disposition": "functional-defect",
+      "implementationTicket": "DM-2615",
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "moderate",
+          "regionCount": 8,
+          "coveragePct": 0.24269028465346534,
+          "chromeFaces": [
+            ".SFNS-Bold:216",
+            ".SFNS-Regular:270",
+            "Courier-Bold:16",
+            "Courier:160"
+          ],
+          "embeddedFaces": [
+            null,
+            "Courier-Bold",
+            null,
+            "Courier",
+            null
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "moderate",
+          "regionCount": 9,
+          "coveragePct": 0.1544612469059406,
+          "chromeFaces": [
+            "WenQuanYiZenHei:486",
+            "WenQuanYiZenHeiMono:176"
+          ],
+          "embeddedFaces": [
+            "WenQuanYiZenHei",
+            "WenQuanYiZenHeiMono"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "moderate",
+          "regionCount": 8,
+          "coveragePct": 0.2505462948638614,
+          "chromeFaces": [
+            "Consolas-Bold:16",
+            "Consolas:160",
+            "SegoeUI-Bold:216",
+            "SegoeUI:270"
+          ],
+          "embeddedFaces": [
+            "SegoeUI-Bold",
+            "Consolas-Bold",
+            "SegoeUI",
+            "Consolas"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "niche-style-queries",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.006211542450221239,
+          "chromeFaces": [
+            ".SFNS-Bold:391",
+            ".SFNS-Regular:688",
+            "AppleColorEmoji:2",
+            "Courier-Bold:172",
+            "Courier:112"
+          ],
+          "embeddedFaces": [
+            null,
+            "Courier-Bold",
+            null,
+            "Courier",
+            null,
+            null
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "trivial",
+          "regionCount": 2,
+          "coveragePct": 0.008480105779867256,
+          "chromeFaces": [
+            "NotoColorEmoji:2",
+            "WenQuanYiZenHei:1079",
+            "WenQuanYiZenHeiMono:284"
+          ],
+          "embeddedFaces": [
+            "WenQuanYiZenHei",
+            "WenQuanYiZenHeiMono"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.0044290998340707965,
+          "chromeFaces": [
+            "Consolas-Bold:172",
+            "Consolas:112",
+            "SegoeUI-Bold:360",
+            "SegoeUI-Semibold:31",
+            "SegoeUI:688",
+            "SegoeUIEmoji:2"
+          ],
+          "embeddedFaces": [
+            "SegoeUI-Bold",
+            "Consolas-Bold",
+            "SegoeUI",
+            "Consolas",
+            "SegoeUI-Semibold"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "niche-zoom-text-rendering",
+      "disposition": "functionally-clean-raster-residual",
+      "implementationTicket": null,
+      "platformEvidence": [
+        {
+          "platform": "macos",
+          "verdict": "trivial",
+          "regionCount": 1,
+          "coveragePct": 0.0006935813210227273,
+          "chromeFaces": [
+            ".SFNS-Bold:196",
+            ".SFNS-Regular_wdth_opsz110000_GRAD_wght:51",
+            ".SFNS-Regular_wdth_opsz12B84B_GRAD_wght2BC0000:28",
+            ".SFNS-Regular:814",
+            "Courier-Bold:90",
+            "Courier:647",
+            "Georgia:193",
+            "Menlo-Regular:1"
+          ],
+          "embeddedFaces": [
+            null,
+            null,
+            "Courier",
+            null,
+            "Courier-Bold",
+            null,
+            "Georgia",
+            "Menlo-Regular",
+            null
+          ]
+        },
+        {
+          "platform": "linux",
+          "verdict": "minor",
+          "regionCount": 1,
+          "coveragePct": 0.05030776515151515,
+          "chromeFaces": [
+            "LiberationSerif:193",
+            "WenQuanYiZenHei:1088",
+            "WenQuanYiZenHeiMono:738"
+          ],
+          "embeddedFaces": [
+            "WenQuanYiZenHei",
+            "WenQuanYiZenHeiMono",
+            "WenQuanYiZenHei",
+            "LiberationSerif"
+          ]
+        },
+        {
+          "platform": "windows",
+          "verdict": "trivial",
+          "regionCount": 2,
+          "coveragePct": 0.00152587890625,
+          "chromeFaces": [
+            "Consolas-Bold:90",
+            "Consolas:648",
+            "Georgia:193",
+            "SegoeUI-Bold:224",
+            "SegoeUI:864"
+          ],
+          "embeddedFaces": [
+            "SegoeUI-Bold",
+            "SegoeUI",
+            "Consolas",
+            "Consolas-Bold",
+            "SegoeUI",
+            "Georgia"
+          ]
+        }
+      ]
+    }
+  ]
+}
