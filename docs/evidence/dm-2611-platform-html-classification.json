@@ -1,0 +1,3642 @@
+{
+  "ticket": "DM-2611",
+  "sourceRun": 33314760277,
+  "comparisonRun": 33345443071,
+  "generatedFrom": [
+    "/tmp/dm2611-current-map.json",
+    "/tmp/dm2611-face-audit.json"
+  ],
+  "sourceAuthorities": [
+    "external/chromium/third_party/blink/renderer/platform/fonts/font_cache.cc",
+    "external/chromium/third_party/blink/renderer/platform/fonts/linux/font_cache_linux.cc",
+    "external/chromium/third_party/blink/renderer/platform/fonts/mac/font_cache_mac.mm",
+    "external/chromium/third_party/blink/renderer/platform/fonts/win/font_cache_skia_win.cc"
+  ],
+  "policy": "Functional correctness is required on macOS, Linux, and Windows; visually coincident native-versus-embedded rasterization is reviewed evidence, not a renderer defect.",
+  "classificationRules": {
+    "resolved": "The formerly failing row is clean in the comparison run.",
+    "functionally-clean-authenticated-face-raster-residual": "Chromium and Domotion report the same used face identities; expected and actual geometry is coincident and only strict raster pixels remain.",
+    "functionally-clean-face-inventory-raster-residual": "The manifest inventories differ because Chromium reports additional fallback/native faces not emitted as used subsets; direct expected/actual review shows coincident geometry with only strict raster pixels remaining."
+  },
+  "counts": {
+    "functionally-clean-face-inventory-raster-residual": 18,
+    "functionally-clean-authenticated-face-raster-residual": 85,
+    "resolved": 3
+  },
+  "rows": [
+    {
+      "name": "02-deep-icon-font-pua",
+      "originalFailedPlatforms": [
+        "linux",
+        "windows"
+      ],
+      "currentFailedPlatforms": [
+        "linux",
+        "windows"
+      ],
+      "disposition": "functionally-clean-face-inventory-raster-residual",
+      "maxCoveragePct": 0.146484375,
+      "platformEvidence": [
+        {
+          "name": "02-deep-icon-font-pua",
+          "platform": "linux",
+          "facesMatch": false,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans",
+            "liberationserif",
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono",
+            "wenquanyizenhei"
+          ],
+          "verdict": "minor",
+          "coveragePct": 0.0171661376953125,
+          "regions": 3
+        },
+        {
+          "name": "02-deep-icon-font-pua",
+          "platform": "windows",
+          "facesMatch": false,
+          "chrome": [
+            "arialboldmt",
+            "arialmt",
+            "consolasbold",
+            "consolas",
+            "segoeui",
+            "timesnewromanpsmt"
+          ],
+          "embedded": [
+            "arialboldmt",
+            "arialmt",
+            "consolasbold",
+            "consolas"
+          ],
+          "verdict": "moderate",
+          "coveragePct": 0.146484375,
+          "regions": 12
+        }
+      ]
+    },
+    {
+      "name": "02-deep-line-breaking",
+      "originalFailedPlatforms": [
+        "macos",
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "macos",
+        "linux"
+      ],
+      "disposition": "functionally-clean-face-inventory-raster-residual",
+      "maxCoveragePct": 0.8292520852913534,
+      "platformEvidence": [
+        {
+          "name": "02-deep-line-breaking",
+          "platform": "macos",
+          "facesMatch": true,
+          "chrome": [
+            "applesdgothicneoregular",
+            "courierbold",
+            "helveticabold",
+            "helvetica",
+            "hirakakupronw3"
+          ],
+          "embedded": [
+            "helveticabold",
+            "courierbold",
+            "helvetica",
+            "applesdgothicneoregular",
+            "hirakakupronw3"
+          ],
+          "verdict": "minor",
+          "coveragePct": 0.008260397086466165,
+          "regions": 4
+        },
+        {
+          "name": "02-deep-line-breaking",
+          "platform": "linux",
+          "facesMatch": false,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "wenquanyizenheimono",
+            "liberationsans"
+          ],
+          "verdict": "moderate",
+          "coveragePct": 0.8292520852913534,
+          "regions": 13
+        }
+      ]
+    },
+    {
+      "name": "02-text-bidi",
+      "originalFailedPlatforms": [
+        "linux",
+        "windows"
+      ],
+      "currentFailedPlatforms": [
+        "linux",
+        "windows"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.0385284423828125,
+      "platformEvidence": [
+        {
+          "name": "02-text-bidi",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "freeserif",
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans",
+            "freeserif",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.022379557291666664,
+          "regions": 1
+        },
+        {
+          "name": "02-text-bidi",
+          "platform": "windows",
+          "facesMatch": true,
+          "chrome": [
+            "arialboldmt",
+            "arialmt",
+            "consolas",
+            "segoeui"
+          ],
+          "embedded": [
+            "arialboldmt",
+            "arialmt",
+            "consolas",
+            "segoeui"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.0385284423828125,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "02-text-emphasis",
+      "originalFailedPlatforms": [
+        "macos"
+      ],
+      "currentFailedPlatforms": [
+        "macos"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.006866455078125,
+      "platformEvidence": [
+        {
+          "name": "02-text-emphasis",
+          "platform": "macos",
+          "facesMatch": true,
+          "chrome": [
+            "helveticabold",
+            "helveticaboldoblique",
+            "helveticaoblique",
+            "helvetica"
+          ],
+          "embedded": [
+            "helveticabold",
+            "helvetica",
+            "helveticaoblique",
+            "helveticaboldoblique"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.006866455078125,
+          "regions": 2
+        }
+      ]
+    },
+    {
+      "name": "02-text-entities",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-face-inventory-raster-residual",
+      "maxCoveragePct": 0.008059010922330098,
+      "platformEvidence": [
+        {
+          "name": "02-text-entities",
+          "platform": "linux",
+          "facesMatch": false,
+          "chrome": [
+            "freeserif",
+            "liberationsansbold",
+            "liberationsans",
+            "notocoloremoji",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "wenquanyizenheimono",
+            "liberationsans",
+            "freeserif"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.008059010922330098,
+          "regions": 2
+        }
+      ]
+    },
+    {
+      "name": "02-text-headings",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.0148773193359375,
+      "platformEvidence": [
+        {
+          "name": "02-text-headings",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "minor",
+          "coveragePct": 0.0148773193359375,
+          "regions": 4
+        }
+      ]
+    },
+    {
+      "name": "02-text-phrasing",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.006230672200520833,
+      "platformEvidence": [
+        {
+          "name": "02-text-phrasing",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsansitalic",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono",
+            "liberationsansitalic"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.006230672200520833,
+          "regions": 2
+        }
+      ]
+    },
+    {
+      "name": "02-text-sub-sup",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.0518798828125,
+      "platformEvidence": [
+        {
+          "name": "02-text-sub-sup",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "moderate",
+          "coveragePct": 0.0518798828125,
+          "regions": 7
+        }
+      ]
+    },
+    {
+      "name": "02-text-symbols",
+      "originalFailedPlatforms": [
+        "macos",
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "macos",
+        "linux"
+      ],
+      "disposition": "functionally-clean-face-inventory-raster-residual",
+      "maxCoveragePct": 0.2909063748573059,
+      "platformEvidence": [
+        {
+          "name": "02-text-symbols",
+          "platform": "macos",
+          "facesMatch": false,
+          "chrome": [
+            "applesdgothicneoregular",
+            "applesymbols",
+            "courier",
+            "helveticabold",
+            "helvetica",
+            "hiraginosansw3",
+            "lucidagrande",
+            "menloregular",
+            "stixtwomathregular",
+            "stsongtiscregular",
+            "timesroman",
+            "timesnewromanpsmt",
+            "zapfdingbatsitc"
+          ],
+          "embedded": [
+            "helveticabold",
+            "helvetica",
+            "courier",
+            "hiraginosansw3",
+            "lucidagrande",
+            "applesdgothicneoregular",
+            "zapfdingbatsitc",
+            "applesymbols",
+            "menloregular",
+            "timesnewromanpsmt",
+            "stsongtiscregular",
+            "timesroman"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.004403449628995433,
+          "regions": 2
+        },
+        {
+          "name": "02-text-symbols",
+          "platform": "linux",
+          "facesMatch": false,
+          "chrome": [
+            "freesans",
+            "freeserif",
+            "ipagothic",
+            "liberationsansbold",
+            "liberationsans",
+            "liberationserif",
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono",
+            "ipagothic",
+            "freesans",
+            "liberationserif"
+          ],
+          "verdict": "major",
+          "coveragePct": 0.2909063748573059,
+          "regions": 26
+        }
+      ]
+    },
+    {
+      "name": "03-lists-marker",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-face-inventory-raster-residual",
+      "maxCoveragePct": 0.002924601236979167,
+      "platformEvidence": [
+        {
+          "name": "03-lists-marker",
+          "platform": "linux",
+          "facesMatch": false,
+          "chrome": [
+            "freesans",
+            "liberationsansbold",
+            "liberationsans",
+            "notocoloremoji",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.002924601236979167,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "03-lists-style-image-position",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.004795619419642857,
+      "platformEvidence": [
+        {
+          "name": "03-lists-style-image-position",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.004795619419642857,
+          "regions": 2
+        }
+      ]
+    },
+    {
+      "name": "03-lists-ul-ol",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.0036227318548387095,
+      "platformEvidence": [
+        {
+          "name": "03-lists-ul-ol",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.0036227318548387095,
+          "regions": 2
+        }
+      ]
+    },
+    {
+      "name": "04-table-borders",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.005467732747395834,
+      "platformEvidence": [
+        {
+          "name": "04-table-borders",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.005467732747395834,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "04-table-caption-empty",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.017547607421875,
+      "platformEvidence": [
+        {
+          "name": "04-table-caption-empty",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsansitalic",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsansitalic",
+            "liberationsans"
+          ],
+          "verdict": "minor",
+          "coveragePct": 0.017547607421875,
+          "regions": 4
+        }
+      ]
+    },
+    {
+      "name": "04-table-spans",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.002924601236979167,
+      "platformEvidence": [
+        {
+          "name": "04-table-spans",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.002924601236979167,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "05-links-states",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.00762939453125,
+      "platformEvidence": [
+        {
+          "name": "05-links-states",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.00762939453125,
+          "regions": 2
+        }
+      ]
+    },
+    {
+      "name": "06-deep-field-sizing",
+      "originalFailedPlatforms": [
+        "macos",
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "macos",
+        "linux"
+      ],
+      "disposition": "functionally-clean-face-inventory-raster-residual",
+      "maxCoveragePct": 0.2753624549278846,
+      "platformEvidence": [
+        {
+          "name": "06-deep-field-sizing",
+          "platform": "macos",
+          "facesMatch": false,
+          "chrome": [
+            "sfnsbold",
+            "sfnsregular",
+            "courierbold",
+            "courier"
+          ],
+          "embedded": [
+            "courierbold",
+            "courier"
+          ],
+          "verdict": "minor",
+          "coveragePct": 0.05375788762019231,
+          "regions": 1
+        },
+        {
+          "name": "06-deep-field-sizing",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "moderate",
+          "coveragePct": 0.2753624549278846,
+          "regions": 10
+        }
+      ]
+    },
+    {
+      "name": "06-deep-input-baseline",
+      "originalFailedPlatforms": [
+        "macos",
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "macos",
+        "linux"
+      ],
+      "disposition": "functionally-clean-face-inventory-raster-residual",
+      "maxCoveragePct": 0.12935809235074627,
+      "platformEvidence": [
+        {
+          "name": "06-deep-input-baseline",
+          "platform": "macos",
+          "facesMatch": false,
+          "chrome": [
+            "sfnsbold",
+            "sfnsregular",
+            "arialmt"
+          ],
+          "embedded": [
+            "arialmt"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.0067411963619402986,
+          "regions": 2
+        },
+        {
+          "name": "06-deep-input-baseline",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsans",
+            "wenquanyizenhei"
+          ],
+          "embedded": [
+            "wenquanyizenhei",
+            "liberationsans"
+          ],
+          "verdict": "minor",
+          "coveragePct": 0.12935809235074627,
+          "regions": 2
+        }
+      ]
+    },
+    {
+      "name": "06-forms-output",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.002924601236979167,
+      "platformEvidence": [
+        {
+          "name": "06-forms-output",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.002924601236979167,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "06-forms-placeholder-readonly",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.0125885009765625,
+      "platformEvidence": [
+        {
+          "name": "06-forms-placeholder-readonly",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans",
+            "liberationsansitalic"
+          ],
+          "verdict": "minor",
+          "coveragePct": 0.0125885009765625,
+          "regions": 4
+        }
+      ]
+    },
+    {
+      "name": "07-deep-svg-presentation-attrs",
+      "originalFailedPlatforms": [
+        "macos",
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "macos",
+        "linux"
+      ],
+      "disposition": "functionally-clean-face-inventory-raster-residual",
+      "maxCoveragePct": 0.031062534877232144,
+      "platformEvidence": [
+        {
+          "name": "07-deep-svg-presentation-attrs",
+          "platform": "macos",
+          "facesMatch": false,
+          "chrome": [
+            "sfnsbold",
+            "sfnsregular",
+            "courierbold",
+            "courier"
+          ],
+          "embedded": [
+            "courier",
+            "courierbold"
+          ],
+          "verdict": "minor",
+          "coveragePct": 0.004468645368303571,
+          "regions": 4
+        },
+        {
+          "name": "07-deep-svg-presentation-attrs",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "minor",
+          "coveragePct": 0.031062534877232144,
+          "regions": 3
+        }
+      ]
+    },
+    {
+      "name": "08-deep-details-accordion",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.0006357828776041667,
+      "platformEvidence": [
+        {
+          "name": "08-deep-details-accordion",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono",
+            "liberationsansbold"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.0006357828776041667,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "08-details-summary",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [],
+      "disposition": "resolved",
+      "maxCoveragePct": 0,
+      "platformEvidence": [
+        {
+          "name": "08-details-summary",
+          "platform": "linux",
+          "facesMatch": false,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.03751118977864583,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "10-sel-combinators",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.005437677556818182,
+      "platformEvidence": [
+        {
+          "name": "10-sel-combinators",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.005437677556818182,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "10-sel-pseudo-elements",
+      "originalFailedPlatforms": [
+        "linux",
+        "windows"
+      ],
+      "currentFailedPlatforms": [
+        "linux",
+        "windows"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.319671630859375,
+      "platformEvidence": [
+        {
+          "name": "10-sel-pseudo-elements",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "freeserif",
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "freeserif",
+            "liberationsans",
+            "ipagothic"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.003814697265625,
+          "regions": 1
+        },
+        {
+          "name": "10-sel-pseudo-elements",
+          "platform": "windows",
+          "facesMatch": true,
+          "chrome": [
+            "arialboldmt",
+            "arialmt",
+            "segoeuisymbol"
+          ],
+          "embedded": [
+            "arialboldmt",
+            "segoeuisymbol",
+            "arialmt"
+          ],
+          "verdict": "moderate",
+          "coveragePct": 0.319671630859375,
+          "regions": 11
+        }
+      ]
+    },
+    {
+      "name": "10-sel-pseudo-lang-dir",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-face-inventory-raster-residual",
+      "maxCoveragePct": 0.30339558919270837,
+      "platformEvidence": [
+        {
+          "name": "10-sel-pseudo-lang-dir",
+          "platform": "linux",
+          "facesMatch": false,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenhei"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "minor",
+          "coveragePct": 0.30339558919270837,
+          "regions": 2
+        }
+      ]
+    },
+    {
+      "name": "10-sel-type-class-id",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.002924601236979167,
+      "platformEvidence": [
+        {
+          "name": "10-sel-type-class-id",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.002924601236979167,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "11-box-margin-collapse",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.004323323567708334,
+      "platformEvidence": [
+        {
+          "name": "11-box-margin-collapse",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.004323323567708334,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "11-box-min-max",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.015385945638020834,
+      "platformEvidence": [
+        {
+          "name": "11-box-min-max",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "minor",
+          "coveragePct": 0.015385945638020834,
+          "regions": 4
+        }
+      ]
+    },
+    {
+      "name": "11-box-sizing",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.012461344401041666,
+      "platformEvidence": [
+        {
+          "name": "11-box-sizing",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.012461344401041666,
+          "regions": 2
+        }
+      ]
+    },
+    {
+      "name": "11-deep-box-sizing-mix",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.004838152629573171,
+      "platformEvidence": [
+        {
+          "name": "11-deep-box-sizing-mix",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.004838152629573171,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "11-deep-content-visibility",
+      "originalFailedPlatforms": [
+        "macos",
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "macos",
+        "linux"
+      ],
+      "disposition": "functionally-clean-face-inventory-raster-residual",
+      "maxCoveragePct": 0.040700484295280615,
+      "platformEvidence": [
+        {
+          "name": "11-deep-content-visibility",
+          "platform": "macos",
+          "facesMatch": false,
+          "chrome": [
+            "sfnsbold",
+            "sfnsregularwdthopsz12b84bgradwght2bc0000",
+            "sfnsregular",
+            "courierbold",
+            "courier",
+            "menloregular"
+          ],
+          "embedded": [
+            "courierbold",
+            "courier",
+            "menloregular"
+          ],
+          "verdict": "minor",
+          "coveragePct": 0.003487723214285714,
+          "regions": 4
+        },
+        {
+          "name": "11-deep-content-visibility",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "minor",
+          "coveragePct": 0.040700484295280615,
+          "regions": 4
+        }
+      ]
+    },
+    {
+      "name": "11-deep-intrinsic-sizing",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.0019307039221938777,
+      "platformEvidence": [
+        {
+          "name": "11-deep-intrinsic-sizing",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.0019307039221938777,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "11-deep-math-functions",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.0043062704992711375,
+      "platformEvidence": [
+        {
+          "name": "11-deep-math-functions",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.0043062704992711375,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "12-display-block-inline",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.002924601236979167,
+      "platformEvidence": [
+        {
+          "name": "12-display-block-inline",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsans",
+            "liberationsansbold"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.002924601236979167,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "12-display-table",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.002415974934895833,
+      "platformEvidence": [
+        {
+          "name": "12-display-table",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsansitalic",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsansitalic",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.002415974934895833,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "13-deep-containing-block",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.005863800509818731,
+      "platformEvidence": [
+        {
+          "name": "13-deep-containing-block",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsansitalic",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans",
+            "liberationsansitalic",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.005863800509818731,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "13-deep-sticky-edges",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.0017742777979651164,
+      "platformEvidence": [
+        {
+          "name": "13-deep-sticky-edges",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.0017742777979651164,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "13-deep-z-index-flex-grid",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.014856619428294573,
+      "platformEvidence": [
+        {
+          "name": "13-deep-z-index-flex-grid",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.014856619428294573,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "13-pos-absolute",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.009028116861979168,
+      "platformEvidence": [
+        {
+          "name": "13-pos-absolute",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.009028116861979168,
+          "regions": 2
+        }
+      ]
+    },
+    {
+      "name": "13-pos-fixed",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.001549115640862944,
+      "platformEvidence": [
+        {
+          "name": "13-pos-fixed",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.001549115640862944,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "13-pos-static-relative",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.009028116861979168,
+      "platformEvidence": [
+        {
+          "name": "13-pos-static-relative",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.009028116861979168,
+          "regions": 2
+        }
+      ]
+    },
+    {
+      "name": "13-pos-sticky",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.0014947385204081632,
+      "platformEvidence": [
+        {
+          "name": "13-pos-sticky",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsans",
+            "liberationsansbold"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.0014947385204081632,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "14-deep-float-interactions",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.009765625,
+      "platformEvidence": [
+        {
+          "name": "14-deep-float-interactions",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.009765625,
+          "regions": 2
+        }
+      ]
+    },
+    {
+      "name": "15-deep-flex-min-auto",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.012925091911764707,
+      "platformEvidence": [
+        {
+          "name": "15-deep-flex-min-auto",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsansitalic",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "wenquanyizenheimono",
+            "liberationsans",
+            "liberationsansitalic"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.012925091911764707,
+          "regions": 2
+        }
+      ]
+    },
+    {
+      "name": "16-deep-grid-min-max-content",
+      "originalFailedPlatforms": [
+        "macos",
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "macos",
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.0020077354029605266,
+      "platformEvidence": [
+        {
+          "name": "16-deep-grid-min-max-content",
+          "platform": "macos",
+          "facesMatch": true,
+          "chrome": [
+            "courierbold",
+            "helveticabold",
+            "helvetica"
+          ],
+          "embedded": [
+            "helveticabold",
+            "courierbold",
+            "helvetica"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.0020077354029605266,
+          "regions": 1
+        },
+        {
+          "name": "16-deep-grid-min-max-content",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "wenquanyizenheimono",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.0020077354029605266,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "16-deep-subgrid-lines",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.0023396809895833335,
+      "platformEvidence": [
+        {
+          "name": "16-deep-subgrid-lines",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "wenquanyizenheimono",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.0023396809895833335,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "16-grid-alignment",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.001309566570881226,
+      "platformEvidence": [
+        {
+          "name": "16-grid-alignment",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.001309566570881226,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "16-grid-areas",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.002924601236979167,
+      "platformEvidence": [
+        {
+          "name": "16-grid-areas",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold"
+          ],
+          "embedded": [
+            "liberationsansbold"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.002924601236979167,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "16-grid-lines",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.005849202473958334,
+      "platformEvidence": [
+        {
+          "name": "16-grid-lines",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.005849202473958334,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "16-grid-subgrid",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.002924601236979167,
+      "platformEvidence": [
+        {
+          "name": "16-grid-subgrid",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.002924601236979167,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "16-grid-template",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.0029628716626213594,
+      "platformEvidence": [
+        {
+          "name": "16-grid-template",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.0029628716626213594,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "17-deep-sprite-icons",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.002673921130952381,
+      "platformEvidence": [
+        {
+          "name": "17-deep-sprite-icons",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.002673921130952381,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "17-gradient-repeating",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.002924601236979167,
+      "platformEvidence": [
+        {
+          "name": "17-gradient-repeating",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold"
+          ],
+          "embedded": [
+            "liberationsansbold"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.002924601236979167,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "18-border-image",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.002924601236979167,
+      "platformEvidence": [
+        {
+          "name": "18-border-image",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.002924601236979167,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "18-border-radius",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.002924601236979167,
+      "platformEvidence": [
+        {
+          "name": "18-border-radius",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold"
+          ],
+          "embedded": [
+            "liberationsansbold"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.002924601236979167,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "18-deep-decoration-clone",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.0019554952973300974,
+      "platformEvidence": [
+        {
+          "name": "18-deep-decoration-clone",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.0019554952973300974,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "18-deep-radius-overflow",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.001551169716850829,
+      "platformEvidence": [
+        {
+          "name": "18-deep-radius-overflow",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.001551169716850829,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "19-deep-color-spaces",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.0038510277157738095,
+      "platformEvidence": [
+        {
+          "name": "19-deep-color-spaces",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "wenquanyizenheimono",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.0038510277157738095,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "19-deep-relative-color",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.003311985222868217,
+      "platformEvidence": [
+        {
+          "name": "19-deep-relative-color",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationserif",
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono",
+            "liberationserif"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.003311985222868217,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "20-deep-decoration-detail",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.007042518028846153,
+      "platformEvidence": [
+        {
+          "name": "20-deep-decoration-detail",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.007042518028846153,
+          "regions": 2
+        }
+      ]
+    },
+    {
+      "name": "20-deep-font-feature-values",
+      "originalFailedPlatforms": [
+        "linux",
+        "windows"
+      ],
+      "currentFailedPlatforms": [
+        "linux",
+        "windows"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.32178174268018017,
+      "platformEvidence": [
+        {
+          "name": "20-deep-font-feature-values",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "freesans",
+            "liberationserif",
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "wenquanyizenhei",
+            "liberationserif",
+            "wenquanyizenheimono",
+            "freesans"
+          ],
+          "verdict": "moderate",
+          "coveragePct": 0.16323696743618618,
+          "regions": 9
+        },
+        {
+          "name": "20-deep-font-feature-values",
+          "platform": "windows",
+          "facesMatch": true,
+          "chrome": [
+            "consolasbold",
+            "consolas",
+            "georgia",
+            "microsoftyahei",
+            "segoeuibold",
+            "segoeuisymbol",
+            "timesnewromanpsmt"
+          ],
+          "embedded": [
+            "segoeuibold",
+            "georgia",
+            "consolas",
+            "consolasbold",
+            "timesnewromanpsmt",
+            "segoeuisymbol",
+            "microsoftyahei",
+            "simsun"
+          ],
+          "verdict": "major",
+          "coveragePct": 0.32178174268018017,
+          "regions": 29
+        }
+      ]
+    },
+    {
+      "name": "20-deep-font-features",
+      "originalFailedPlatforms": [
+        "linux",
+        "windows"
+      ],
+      "currentFailedPlatforms": [
+        "linux",
+        "windows"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.25929418103448276,
+      "platformEvidence": [
+        {
+          "name": "20-deep-font-features",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans",
+            "liberationserif",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans",
+            "liberationserif",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.0012627963362068966,
+          "regions": 1
+        },
+        {
+          "name": "20-deep-font-features",
+          "platform": "windows",
+          "facesMatch": true,
+          "chrome": [
+            "arialboldmt",
+            "arialmt",
+            "consolas",
+            "georgia"
+          ],
+          "embedded": [
+            "arialboldmt",
+            "arialmt",
+            "georgia",
+            "consolas"
+          ],
+          "verdict": "moderate",
+          "coveragePct": 0.25929418103448276,
+          "regions": 13
+        }
+      ]
+    },
+    {
+      "name": "20-deep-font-palette",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-face-inventory-raster-residual",
+      "maxCoveragePct": 0.006051790916313559,
+      "platformEvidence": [
+        {
+          "name": "20-deep-font-palette",
+          "platform": "linux",
+          "facesMatch": false,
+          "chrome": [
+            "liberationserifbold",
+            "liberationserifitalic",
+            "liberationserif",
+            "notocoloremoji",
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono",
+            "liberationserif",
+            "liberationserifbold",
+            "liberationserifitalic"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.006051790916313559,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "20-deep-line-box-baselines",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.1569841291520979,
+      "platformEvidence": [
+        {
+          "name": "20-deep-line-box-baselines",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "moderate",
+          "coveragePct": 0.1569841291520979,
+          "regions": 11
+        }
+      ]
+    },
+    {
+      "name": "20-deep-selection-highlight",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.0017301304133858267,
+      "platformEvidence": [
+        {
+          "name": "20-deep-selection-highlight",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.0017301304133858267,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "20-deep-tab-size",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.010642027243589744,
+      "platformEvidence": [
+        {
+          "name": "20-deep-tab-size",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "minor",
+          "coveragePct": 0.010642027243589744,
+          "regions": 3
+        }
+      ]
+    },
+    {
+      "name": "20-deep-text-stroke",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.004397156418010753,
+      "platformEvidence": [
+        {
+          "name": "20-deep-text-stroke",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "minor",
+          "coveragePct": 0.004397156418010753,
+          "regions": 4
+        }
+      ]
+    },
+    {
+      "name": "20-deep-text-underline-position",
+      "originalFailedPlatforms": [
+        "linux",
+        "windows"
+      ],
+      "currentFailedPlatforms": [
+        "linux",
+        "windows"
+      ],
+      "disposition": "functionally-clean-face-inventory-raster-residual",
+      "maxCoveragePct": 0.1780482700892857,
+      "platformEvidence": [
+        {
+          "name": "20-deep-text-underline-position",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationserif",
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono",
+            "liberationserif"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.0010463169642857143,
+          "regions": 1
+        },
+        {
+          "name": "20-deep-text-underline-position",
+          "platform": "windows",
+          "facesMatch": false,
+          "chrome": [
+            "consolasbold",
+            "consolas",
+            "georgia",
+            "microsoftyahei",
+            "segoeuibold",
+            "segoeuiitalic",
+            "yugothicregular"
+          ],
+          "embedded": [
+            "segoeuibold",
+            "consolasbold",
+            "georgia",
+            "consolas",
+            "segoeuiitalic",
+            "simsun"
+          ],
+          "verdict": "minor",
+          "coveragePct": 0.1780482700892857,
+          "regions": 3
+        }
+      ]
+    },
+    {
+      "name": "20-font-style-variant",
+      "originalFailedPlatforms": [
+        "linux",
+        "windows"
+      ],
+      "currentFailedPlatforms": [
+        "linux",
+        "windows"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.20192464192708334,
+      "platformEvidence": [
+        {
+          "name": "20-font-style-variant",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationserifbold",
+            "liberationserifitalic",
+            "liberationserif"
+          ],
+          "embedded": [
+            "liberationserifbold",
+            "liberationserif",
+            "liberationserifitalic"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.04208882649739583,
+          "regions": 1
+        },
+        {
+          "name": "20-font-style-variant",
+          "platform": "windows",
+          "facesMatch": true,
+          "chrome": [
+            "timesnewromanpsboldmt",
+            "timesnewromanpsitalicmt",
+            "timesnewromanpsmt"
+          ],
+          "embedded": [
+            "timesnewromanpsboldmt",
+            "timesnewromanpsmt",
+            "timesnewromanpsitalicmt"
+          ],
+          "verdict": "moderate",
+          "coveragePct": 0.20192464192708334,
+          "regions": 6
+        }
+      ]
+    },
+    {
+      "name": "20-logical-properties",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.011952718098958332,
+      "platformEvidence": [
+        {
+          "name": "20-logical-properties",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsans",
+            "liberationsansbold",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "minor",
+          "coveragePct": 0.011952718098958332,
+          "regions": 3
+        }
+      ]
+    },
+    {
+      "name": "20-text-decoration",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.0057220458984375,
+      "platformEvidence": [
+        {
+          "name": "20-text-decoration",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.0057220458984375,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "20-text-transform",
+      "originalFailedPlatforms": [
+        "macos",
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "macos",
+        "linux"
+      ],
+      "disposition": "functionally-clean-face-inventory-raster-residual",
+      "maxCoveragePct": 0.11927286783854167,
+      "platformEvidence": [
+        {
+          "name": "20-text-transform",
+          "platform": "macos",
+          "facesMatch": true,
+          "chrome": [
+            "courier",
+            "helveticabold",
+            "helvetica",
+            "hiraginosansw3",
+            "lucidagrande"
+          ],
+          "embedded": [
+            "helveticabold",
+            "courier",
+            "helvetica",
+            "lucidagrande",
+            "hiraginosansw3"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.0026702880859375,
+          "regions": 1
+        },
+        {
+          "name": "20-text-transform",
+          "platform": "linux",
+          "facesMatch": false,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "wenquanyizenheimono",
+            "liberationsans"
+          ],
+          "verdict": "minor",
+          "coveragePct": 0.11927286783854167,
+          "regions": 2
+        }
+      ]
+    },
+    {
+      "name": "20-writing-mode",
+      "originalFailedPlatforms": [
+        "macos",
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "macos",
+        "linux"
+      ],
+      "disposition": "functionally-clean-face-inventory-raster-residual",
+      "maxCoveragePct": 0.049947102864583336,
+      "platformEvidence": [
+        {
+          "name": "20-writing-mode",
+          "platform": "macos",
+          "facesMatch": true,
+          "chrome": [
+            "helveticabold",
+            "helvetica",
+            "pingfangscregular"
+          ],
+          "embedded": [
+            "helveticabold",
+            "helvetica",
+            "pingfangscregular"
+          ],
+          "verdict": "minor",
+          "coveragePct": 0.03153483072916667,
+          "regions": 4
+        },
+        {
+          "name": "20-writing-mode",
+          "platform": "linux",
+          "facesMatch": false,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenhei"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "minor",
+          "coveragePct": 0.049947102864583336,
+          "regions": 4
+        }
+      ]
+    },
+    {
+      "name": "21-deep-transform-box",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.0014619199101796407,
+      "platformEvidence": [
+        {
+          "name": "21-deep-transform-box",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.0014619199101796407,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "21-deep-transform-origin",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.0018356437969924812,
+      "platformEvidence": [
+        {
+          "name": "21-deep-transform-origin",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "wenquanyizenheimono",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.0018356437969924812,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "22-deep-isolation",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.0017538838002873563,
+      "platformEvidence": [
+        {
+          "name": "22-deep-isolation",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "wenquanyizenheimono",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.0017538838002873563,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "23-deep-clip-path-shapes",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.0035978618421052626,
+      "platformEvidence": [
+        {
+          "name": "23-deep-clip-path-shapes",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "wenquanyizenheimono",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.0035978618421052626,
+          "regions": 2
+        }
+      ]
+    },
+    {
+      "name": "24-deep-initial-letter",
+      "originalFailedPlatforms": [
+        "linux",
+        "windows"
+      ],
+      "currentFailedPlatforms": [
+        "linux",
+        "windows"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.054115662600267386,
+      "platformEvidence": [
+        {
+          "name": "24-deep-initial-letter",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationserifbold",
+            "liberationserif",
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono",
+            "liberationserif",
+            "liberationserifbold"
+          ],
+          "verdict": "moderate",
+          "coveragePct": 0.02617657503342246,
+          "regions": 7
+        },
+        {
+          "name": "24-deep-initial-letter",
+          "platform": "windows",
+          "facesMatch": true,
+          "chrome": [
+            "consolasbold",
+            "consolas",
+            "georgiabold",
+            "georgia",
+            "segoeuibold",
+            "segoeui"
+          ],
+          "embedded": [
+            "segoeuibold",
+            "consolasbold",
+            "georgia",
+            "georgiabold",
+            "consolas",
+            "segoeui"
+          ],
+          "verdict": "minor",
+          "coveragePct": 0.054115662600267386,
+          "regions": 3
+        }
+      ]
+    },
+    {
+      "name": "25-deep-line-clamp",
+      "originalFailedPlatforms": [
+        "macos"
+      ],
+      "currentFailedPlatforms": [
+        "macos"
+      ],
+      "disposition": "functionally-clean-face-inventory-raster-residual",
+      "maxCoveragePct": 0.026059954353932584,
+      "platformEvidence": [
+        {
+          "name": "25-deep-line-clamp",
+          "platform": "macos",
+          "facesMatch": false,
+          "chrome": [
+            "sfnsbold",
+            "sfnsregular"
+          ],
+          "embedded": [],
+          "verdict": "minor",
+          "coveragePct": 0.026059954353932584,
+          "regions": 4
+        }
+      ]
+    },
+    {
+      "name": "25-deep-overflow-clip",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.018000198622881356,
+      "platformEvidence": [
+        {
+          "name": "25-deep-overflow-clip",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsans",
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono",
+            "liberationsans"
+          ],
+          "verdict": "minor",
+          "coveragePct": 0.018000198622881356,
+          "regions": 3
+        }
+      ]
+    },
+    {
+      "name": "26-deep-forced-colors",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-face-inventory-raster-residual",
+      "maxCoveragePct": 0.0024303591628959276,
+      "platformEvidence": [
+        {
+          "name": "26-deep-forced-colors",
+          "platform": "linux",
+          "facesMatch": false,
+          "chrome": [
+            "liberationsans",
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.0024303591628959276,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "26-mq-features",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.0031789143880208335,
+      "platformEvidence": [
+        {
+          "name": "26-mq-features",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.0031789143880208335,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "26-mq-range-syntax",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.006103515625,
+      "platformEvidence": [
+        {
+          "name": "26-mq-range-syntax",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.006103515625,
+          "regions": 2
+        }
+      ]
+    },
+    {
+      "name": "26-mq-width-orientation",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.0031789143880208335,
+      "platformEvidence": [
+        {
+          "name": "26-mq-width-orientation",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.0031789143880208335,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "27-deep-page-margin-boxes",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.009380139802631578,
+      "platformEvidence": [
+        {
+          "name": "27-deep-page-margin-boxes",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.009380139802631578,
+          "regions": 2
+        }
+      ]
+    },
+    {
+      "name": "28-container",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.017293294270833336,
+      "platformEvidence": [
+        {
+          "name": "28-container",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.017293294270833336,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "28-deep-container-types",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.0018970386402027027,
+      "platformEvidence": [
+        {
+          "name": "28-deep-container-types",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.0018970386402027027,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "28-deep-layer-import",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.010222148119918699,
+      "platformEvidence": [
+        {
+          "name": "28-deep-layer-import",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.010222148119918699,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "28-import",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.013097127278645834,
+      "platformEvidence": [
+        {
+          "name": "28-import",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono",
+            "wenquanyizenhei"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.013097127278645834,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "28-nesting",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.04475911458333333,
+      "platformEvidence": [
+        {
+          "name": "28-nesting",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsansitalic",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans",
+            "liberationsansitalic",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.04475911458333333,
+          "regions": 2
+        }
+      ]
+    },
+    {
+      "name": "29-cascade-specificity",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.0370025634765625,
+      "platformEvidence": [
+        {
+          "name": "29-cascade-specificity",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "minor",
+          "coveragePct": 0.0370025634765625,
+          "regions": 3
+        }
+      ]
+    },
+    {
+      "name": "29-deep-layer-priority",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.010021821952160493,
+      "platformEvidence": [
+        {
+          "name": "29-deep-layer-priority",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsansitalic",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans",
+            "liberationsansitalic",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.010021821952160493,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "29-deep-where-is-specificity",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-face-inventory-raster-residual",
+      "maxCoveragePct": 0.012864332932692308,
+      "platformEvidence": [
+        {
+          "name": "29-deep-where-is-specificity",
+          "platform": "linux",
+          "facesMatch": false,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenhei"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.012864332932692308,
+          "regions": 2
+        }
+      ]
+    },
+    {
+      "name": "30-caret-accent",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.002924601236979167,
+      "platformEvidence": [
+        {
+          "name": "30-caret-accent",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.002924601236979167,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "30-cursor",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.002924601236979167,
+      "platformEvidence": [
+        {
+          "name": "30-cursor",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.002924601236979167,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "30-resize",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.005671953914141414,
+      "platformEvidence": [
+        {
+          "name": "30-resize",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsansitalic",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsansitalic",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.005671953914141414,
+          "regions": 2
+        }
+      ]
+    },
+    {
+      "name": "31-aria-data",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.008519490559895832,
+      "platformEvidence": [
+        {
+          "name": "31-aria-data",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.008519490559895832,
+          "regions": 2
+        }
+      ]
+    },
+    {
+      "name": "31-deep-inert-hidden",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.048273259943181816,
+      "platformEvidence": [
+        {
+          "name": "31-deep-inert-hidden",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.048273259943181816,
+          "regions": 2
+        }
+      ]
+    },
+    {
+      "name": "31-global-attrs",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [],
+      "disposition": "resolved",
+      "maxCoveragePct": 0,
+      "platformEvidence": [
+        {
+          "name": "31-global-attrs",
+          "platform": "linux",
+          "facesMatch": false,
+          "chrome": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "minor",
+          "coveragePct": 0.09815449617346939,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "33-columns-basic",
+      "originalFailedPlatforms": [
+        "macos"
+      ],
+      "currentFailedPlatforms": [
+        "macos"
+      ],
+      "disposition": "functionally-clean-face-inventory-raster-residual",
+      "maxCoveragePct": 0.019911024305555556,
+      "platformEvidence": [
+        {
+          "name": "33-columns-basic",
+          "platform": "macos",
+          "facesMatch": false,
+          "chrome": [
+            "sfnsbold",
+            "sfnsregular",
+            "courierbold",
+            "courier",
+            "georgia"
+          ],
+          "embedded": [
+            "georgia"
+          ],
+          "verdict": "moderate",
+          "coveragePct": 0.019911024305555556,
+          "regions": 8
+        }
+      ]
+    },
+    {
+      "name": "34-mathml-layout",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.05894081265318627,
+      "platformEvidence": [
+        {
+          "name": "34-mathml-layout",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "freesans",
+            "liberationserif",
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono",
+            "liberationserif",
+            "freesans"
+          ],
+          "verdict": "moderate",
+          "coveragePct": 0.05894081265318627,
+          "regions": 6
+        }
+      ]
+    },
+    {
+      "name": "36-composed-metamorphic-parity",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [],
+      "disposition": "resolved",
+      "maxCoveragePct": 0,
+      "platformEvidence": [
+        {
+          "name": "36-composed-metamorphic-parity",
+          "platform": "linux",
+          "facesMatch": false,
+          "chrome": [
+            "freesans",
+            "freeserif",
+            "liberationsansbold",
+            "liberationsans",
+            "notocoloremoji",
+            "wenquanyizenhei"
+          ],
+          "embedded": [
+            "liberationsansbold",
+            "liberationsans",
+            "freeserif"
+          ],
+          "verdict": "minor",
+          "coveragePct": 0.0728607177734375,
+          "regions": 2
+        }
+      ]
+    },
+    {
+      "name": "niche-if-function",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.0030730987762237765,
+      "platformEvidence": [
+        {
+          "name": "niche-if-function",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.0030730987762237765,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "niche-shadow-dom-declarative",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.03312226313694267,
+      "platformEvidence": [
+        {
+          "name": "niche-shadow-dom-declarative",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "verdict": "trivial",
+          "coveragePct": 0.03312226313694267,
+          "regions": 1
+        }
+      ]
+    },
+    {
+      "name": "niche-text-box-trim",
+      "originalFailedPlatforms": [
+        "linux"
+      ],
+      "currentFailedPlatforms": [
+        "linux"
+      ],
+      "disposition": "functionally-clean-authenticated-face-raster-residual",
+      "maxCoveragePct": 0.010928199404761906,
+      "platformEvidence": [
+        {
+          "name": "niche-text-box-trim",
+          "platform": "linux",
+          "facesMatch": true,
+          "chrome": [
+            "liberationsans",
+            "liberationserif",
+            "wenquanyizenhei",
+            "wenquanyizenheimono"
+          ],
+          "embedded": [
+            "wenquanyizenhei",
+            "wenquanyizenheimono",
+            "liberationserif",
+            "liberationsans"
+          ],
+          "verdict": "moderate",
+          "coveragePct": 0.010928199404761906,
+          "regions": 7
+        }
+      ]
+    }
+  ]
+}
