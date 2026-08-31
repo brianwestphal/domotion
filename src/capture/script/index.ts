@@ -537,6 +537,37 @@ const captureDocumentTree =
       : 'none';
     const _nativeDecorationRefs = typeof args.ndk === 'string' && args.ndk !== ''
       && Array.isArray(el[args.ndk]) ? el[args.ndk] : [];
+    // A closed select's displayed option is not a source-DOM text node. Blink
+    // paints it through `-internal-select-inner-element` in the UA shadow
+    // tree (MenuListSelectType::UpdateTextStyleAndContent). Its line box can
+    // have UA-controlled line-height and alignment, so host padding/font-box
+    // arithmetic cannot reconstruct its baseline faithfully. The CDP prepass
+    // has retained that exact node for every select; read its Range geometry
+    // while the source page is still live and let the renderer reuse it.
+    let _selectDisplayTextGeometry;
+    if (tag === 'select' && el.size <= 1 && !el.multiple) {
+      for (let _sdi = 0; _sdi < _nativeDecorationRefs.length; _sdi++) {
+        const _entry = _nativeDecorationRefs[_sdi];
+        const _inner = _entry != null && _entry.kind === 'select-inner' ? _entry.node : null;
+        if (!(_inner instanceof Element) || !_inner.isConnected) continue;
+        try {
+          const _range = document.createRange();
+          _range.selectNodeContents(_inner);
+          const _textRect = _range.getBoundingClientRect();
+          if (_textRect.width > 0 && _textRect.height > 0) {
+            const _innerMetrics = _measureFontMetrics(window.getComputedStyle(_inner));
+            if (isFinite(_innerMetrics.ascent) && _innerMetrics.ascent > 0) {
+              _selectDisplayTextGeometry = {
+                x: _textRect.left - vp.x,
+                y: _textRect.top - vp.y,
+                fontAscent: _innerMetrics.ascent,
+              };
+              break;
+            }
+          }
+        } catch (_e) { /* Missing/empty UA shadow text falls back below. */ }
+      }
+    }
     let _fileSelectorButtonAppearance;
     for (let _fri = 0; _fri < _nativeDecorationRefs.length; _fri++) {
       const _fileRef = _nativeDecorationRefs[_fri];
@@ -1234,6 +1265,7 @@ const captureDocumentTree =
         // input border tinting deliberately stay inline (entangled with
         // text-shaping and border-color emission respectively).
         ...captureFormControls(el, cs, tag),
+        selectDisplayTextGeometry: _selectDisplayTextGeometry,
         ..._fileSelectorCapture,
         // ComputedStyle::EffectiveAppearance after Blink's author-style
         // adjustment. This is distinct from the computed `appearance`

@@ -1094,6 +1094,19 @@ export interface CapturedStyles {
    *  (`size > 1` or `multiple`) this is undefined and per-option rendering
    *  flows through the listbox path instead. */
   selectDisplayText?: string;
+  /**
+   * Blink's measured glyph-cell origin for the closed select's displayed
+   * option. The text itself belongs to `-internal-select-inner-element` in
+   * the closed UA shadow tree, whose line-box placement is not recoverable
+   * from the host's padding and font metrics alone. Coordinates are in the
+   * captured viewport's paint space; `y + fontAscent` is the text baseline.
+   */
+  selectDisplayTextGeometry?: {
+    x: number;
+    y: number;
+    /** Canvas-measured ascent of the UA-shadow text style. */
+    fontAscent: number;
+  };
   /** Captured option list for listbox-mode `<select>` (size > 1 or
    *  multiple). Each entry is one row the renderer paints inside the
    *  select's content rect. DM-282. */

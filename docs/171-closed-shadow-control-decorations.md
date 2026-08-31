@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts","paint-effects"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-2455"]
-code: ["src/capture/native-control-decoration.ts","tests/native-control-decoration.e2e.test.ts"]
+tickets: ["DM-2455", "DM-2624"]
+code: ["src/capture/native-control-decoration.ts","src/capture/script/index.ts","src/render/form-controls.ts","tests/native-control-decoration.e2e.test.ts","tests/select-display-geometry.e2e.test.ts"]
 aliases: ["docs/171-closed-shadow-control-decorations.md","doc-171"]
 ---
 
@@ -65,8 +65,12 @@ chevron/calendar/clock/cancel/spin fallback and capture emits a named
 `pseudo-style-cdp.ts` asks CDP for a pierced document and retains the actual
 calendar-picker, search-cancel, inner-spin, and select-inner JavaScript nodes on
 their correlated host. The synchronous capture records the candidate's used
-rect, visibility, opacity, and identity. Missing, hidden, detached, rebuilt, or
-zero-area nodes are never replaced with metrics inferred from the host.
+rect, visibility, opacity, and identity. For every closed select, it also reads
+the `Range` glyph-cell origin from the retained `select-inner` node. That is the
+authoritative selected-text baseline input: Blink's UA line-height can differ
+from the host's font bounding box for native, `base-select`, and
+`appearance:none` routes. Missing, hidden, detached, rebuilt, or zero-area nodes
+are never replaced with metrics inferred from the host.
 
 `native-control-decoration-raster.ts` creates one page-wide transparent
 isolation frame for all non-overlapping candidates:
@@ -110,6 +114,9 @@ Focused evidence:
   horizontal/vertical/sideways writing, focus/hover/active, zoom, fractional
   origins, and DPR 1/2;
 - byte-identical full-page screenshots before capture and after restoration;
+- `tests/select-display-geometry.e2e.test.ts`: native, `base-select`, and
+  `appearance:none` closed selects retain the live UA-shadow glyph-cell origin
+  and font ascent rather than deriving a baseline from host padding;
 - forced screenshot failure proving a warning plus no sampled fallback;
 - the focused browser spec runs in the macOS, Linux, and Windows visual-test
   jobs. `niche-select-customizable` remains on the structural `base-select`

@@ -1113,6 +1113,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mth4g7x50shcvmrx",
+          "message": {
+            "text": "Closed select values must use the retained Blink UA-shadow text range because host padding and font bounds do not encode the inner element’s used line-height. The capture fails back to the legacy geometry when that live range or its measured ascent is unavailable.",
+            "markdown": "Closed select values must use the retained Blink UA-shadow text range because host padding and font bounds do not encode the inner element’s used line-height. The capture fails back to the legacy geometry when that live range or its measured ascent is unavailable."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/index.ts"
+                },
+                "region": {
+                  "startLine": 540,
+                  "endLine": 568,
+                  "snippet": {
+                    "text": "    // A closed select's displayed option is not a source-DOM text node. Blink\n    // paints it through `-internal-select-inner-element` in the UA shadow\n    // tree (MenuListSelectType::UpdateTextStyleAndContent). Its line box can\n    // have UA-controlled line-height and alignment, so host padding/font-box\n    // arithmetic cannot reconstruct its baseline faithfully. The CDP prepass\n    // has retained that exact node for every select; read its Range geometry\n    // while the source page is still live and let the renderer reuse it.\n    let _selectDisplayTextGeometry;\n    if (tag === 'select' && el.size <= 1 && !el.multiple) {\n      for (let _sdi = 0; _sdi < _nativeDecorationRefs.length; _sdi++) {\n        const _entry = _nativeDecorationRefs[_sdi];\n        const _inner = _entry != null && _entry.kind === 'select-inner' ? _entry.node : null;\n        if (!(_inner instanceof Element) || !_inner.isConnected) continue;\n        try {\n          const _range = document.createRange();\n          _range.selectNodeContents(_inner);\n          const _textRect = _range.getBoundingClientRect();\n          if (_textRect.width > 0 && _textRect.height > 0) {\n            const _innerMetrics = _measureFontMetrics(window.getComputedStyle(_inner));\n            if (isFinite(_innerMetrics.ascent) && _innerMetrics.ascent > 0) {\n              _selectDisplayTextGeometry = {\n                x: _textRect.left - vp.x,\n                y: _textRect.top - vp.y,\n                fontAscent: _innerMetrics.ascent,\n              };\n              break;\n            }\n          }\n        } catch (_e) { /* Missing/empty UA shadow text falls back below. */ }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/form-controls.ts"
+                },
+                "region": {
+                  "startLine": 810
+                }
+              }
+            }
+          ],
+          "rank": 85,
+          "workItemUris": [
+            "DM-2624"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ae0b3f3dd7965bbc5733037f998f7c7b"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "3c90e025f21249e9c60e787a834dd42e6fae9db7",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

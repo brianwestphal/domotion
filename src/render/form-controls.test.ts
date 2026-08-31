@@ -139,6 +139,25 @@ describe("Chromium-owned partial control decorations", () => {
     expect(svg).toContain('<path d="M 141 34 L 149 34 L 145 38.5 Z" fill="rgb(71, 85, 105)" />');
   });
 
+  it("uses Blink's closed-UA-shadow select text geometry when available", () => {
+    const select = {
+      tag: "select", x: 10, y: 20, width: 150, height: 44, children: [],
+      fontAscent: 12, fontDescent: 3,
+      styles: {
+        effectiveAppearance: "base-select",
+        selectDisplayText: "Structural value",
+        // A 24px used line-height puts the glyph cell at y=30, whereas
+        // centering font bounds in the content box would produce y=34.5.
+        selectDisplayTextGeometry: { x: 22, y: 30, fontAscent: 12 },
+        fontFamily: "Arial", fontSize: "14px", color: "rgb(1,2,3)",
+        paddingLeft: "6px", paddingTop: "2px", paddingBottom: "2px",
+        borderLeftWidth: "1px", borderTopWidth: "1px", borderBottomWidth: "1px",
+      },
+    } as unknown as CapturedElement;
+    const svg = renderFormControl(select, "");
+    expect(svg).toContain('<text x="22" y="42"');
+  });
+
   it("never reopens sampled search/spin paint for empty or failed reservations", () => {
     for (const inputType of ["search", "number"]) {
       const el = {

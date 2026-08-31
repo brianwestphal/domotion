@@ -5567,11 +5567,15 @@
           "windows"
         ],
         "tickets": [
-          "DM-2455"
+          "DM-2455",
+          "DM-2624"
         ],
         "code": [
           "src/capture/native-control-decoration.ts",
-          "tests/native-control-decoration.e2e.test.ts"
+          "src/capture/script/index.ts",
+          "src/render/form-controls.ts",
+          "tests/native-control-decoration.e2e.test.ts",
+          "tests/select-display-geometry.e2e.test.ts"
         ],
         "aliases": [
           "docs/171-closed-shadow-control-decorations.md",

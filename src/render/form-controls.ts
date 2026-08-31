@@ -807,9 +807,18 @@ function renderSelectContent(el: CapturedElement, indent: string): string {
     const bwL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
     const bwT = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
     const bwB = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
-    const tx = el.x + bwL + padL;
+    const measured = el.styles.selectDisplayTextGeometry;
+    const tx = measured?.x ?? el.x + bwL + padL;
     const contentH = Math.max(0, el.height - bwT - bwB - padT - padB);
-    const ty = el.y + bwT + padT + Math.max(0, (contentH - ascent - descent) / 2) + ascent;
+    // `-internal-select-inner-element` owns the shown option's line box in
+    // Blink, including the UA's used line-height. Its Range top plus the
+    // UA-shadow node's captured ascent is therefore the browser's baseline. Rebuilding
+    // it by centering the font bounding box loses half-leading (and differs
+    // across the native/base/appearance:none select routes). Keep that
+    // arithmetic for old captures that predate the UA-shadow geometry field.
+    const ty = measured?.y != null
+      ? measured.y + measured.fontAscent
+      : el.y + bwT + padT + Math.max(0, (contentH - ascent - descent) / 2) + ascent;
     const escaped = display.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]!));
     parts.push(`${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="${r(fontSize)}" font-family="${fontFamily.replace(/"/g, "&quot;")}" font-weight="${el.styles.fontWeight ?? "400"}" fill="${color}">${escaped}</text>`);
   }
