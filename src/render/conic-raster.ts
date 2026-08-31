@@ -91,6 +91,28 @@ export async function rasterizeConicGradients(
       // their conic layers in dedicated captured fields, not `backgroundImage`,
       // and paint at consumer-specific rects — collect + rasterize those too.
       for (const t of collectFormControlConicTiles(el)) consider(t.layer, t.w, t.h);
+      // Generated pseudo boxes carry their own Blink-owned paint and geometry;
+      // they do not appear in the host element's `backgroundImage`. Collect
+      // each exact box-fragment tuple at the same local-border size consumed by
+      // `renderPseudoFragmentRecord`, so its conic layer cannot miss the cache.
+      for (const record of el.pseudoFragments ?? []) {
+        if (record.status !== "exact") continue;
+        const bgImage = record.paint.backgroundImage;
+        if (bgImage == null || bgImage === "" || bgImage === "none" || !/conic-gradient/i.test(bgImage)) continue;
+        const layers = splitTopLevelCommas(bgImage);
+        const sizes = splitTopLevelCommas(record.paint.backgroundSize || "auto");
+        for (const box of record.boxFragments) {
+          const rect = box.localBorderRect;
+          if (rect == null || !(rect.width > 0) || !(rect.height > 0)) continue;
+          for (let li = 0; li < layers.length; li++) {
+            const layer = layers[li].trim();
+            if (!/^(?:repeating-)?conic-gradient\(/i.test(layer)) continue;
+            const sizeCss = (sizes[li] ?? sizes[0] ?? "auto").trim();
+            const tile = computeTileSize(sizeCss, rect.width, rect.height);
+            consider(layer, tile.w, tile.h);
+          }
+        }
+      }
       if (el.children.length > 0) walk(el.children);
     }
   };

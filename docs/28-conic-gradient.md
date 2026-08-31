@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["paint-effects"]
 platforms: []
-tickets: ["DM-2327","DM-526","DM-547","DM-549","DM-550"]
+tickets: ["DM-2620","DM-2327","DM-526","DM-547","DM-549","DM-550"]
 code: ["src/render/conic-raster.ts","src/render/element-tree-to-svg.ts","src/render/gradients.ts"]
 aliases: ["docs/28-conic-gradient.md","doc-28"]
 ---
@@ -63,7 +63,10 @@ backgrounds, deduplicates `(layerText, tileWidth, tileHeight)` tuples, and asks
 the live page to paint every conic/repeating-conic tuple. Results enter
 `_conicTileCache`; two consumers with the same layer and size share one PNG.
 `rasterizeConicGradients` subsequently fills cache misses only, preserving the
-Chromium-owned result.
+Chromium-owned result. Its recursive fallback walk includes exact generated
+`::before`/`::after` fragment records: those boxes own paint independently of
+the host element, so their conic layers are keyed using each fragment's
+Blink-captured local border size (DM-2620).
 
 ### Render-rect inference
 
@@ -150,6 +153,11 @@ Existing callers (`parseGradient` consumers in form-controls + dom-to-svg) becom
 - **Repeating conic** with a stop list shorter than `360deg`: spec says clone the list across the full sweep. The rasterizer mods the angle by the period (last stop's angle - first stop's angle) before stop-blending.
 - **`currentColor`**: resolved at capture time via the host's computed `color`, identical to linear/radial — already done by Chromium's `getComputedStyle` serializer.
 - **Multi-layer with conic + linear + url()**: each layer rasterizes / emits independently in the existing layer loop. No special composition: SVG's own painter's algorithm stacks the `<rect fill="url(#bgN)"/>` layers in source order.
+- **Generated pseudo boxes**: an exact source-owned `::before`/`::after`
+  fragment may carry a conic background while its host has
+  `background-image: none`. The pre-pass collects the pseudo paint and its
+  fragment-local border geometry so the renderer emits the same pattern-backed
+  box instead of an empty pseudo group (DM-2620).
 - **`background-attachment: fixed` on a conic layer**: rare but valid. Tile sizing basis is the viewport, identical to the existing fixed-image path. The rasterizer doesn't need to know — `buildBackgroundLayerDef` already passes the viewport-anchored `(elX, elY, w, h)` for fixed layers.
 - **`background-size: cover / contain` on a conic**: extremely uncommon (conic + cover usually means "fill the element"), but supported by sizing the rasterized tile to the element rect, just like `cover` on a `url()` image.
 - **Animated SVGs (`generateAnimatedSvg`)**: the conic raster is per-frame deterministic. If two frames have different conic stops, they produce two different `<pattern>` defs and the cross-fade swap pipeline handles them like any other per-frame def.

@@ -178,6 +178,28 @@ describe("rasterizeConicGradients pre-pass + buildConicGradientDef end-to-end (D
     expect(sizeCache?.has("100x100")).toBe(true);
   });
 
+  it("collects a generated pseudo box conic at its Blink-owned fragment size", async () => {
+    const { rasterizeConicGradients } = await import("./conic-raster.js");
+    const { _conicTileCache } = await import("./element-tree-to-svg.js");
+    _conicTileCache.clear();
+
+    const layer = "conic-gradient(from 45deg, rgb(56, 189, 248), rgb(129, 140, 248), rgb(244, 114, 182), rgb(56, 189, 248))";
+    const tree: any = [{
+      tagName: "div", x: 0, y: 0, width: 120, height: 40,
+      styles: { backgroundImage: "none" },
+      pseudoFragments: [{
+        status: "exact",
+        paint: { backgroundImage: layer, backgroundSize: "auto" },
+        boxFragments: [{ localBorderRect: { x: 0, y: 0, width: 28, height: 28 } }],
+      }],
+      children: [],
+    }];
+
+    await rasterizeConicGradients(tree, { hiDPIFactor: 2 });
+
+    expect(_conicTileCache.get(layer)?.has("28x28")).toBe(true);
+  });
+
   it("skips trees with no conic content (no cache pollution)", async () => {
     const { rasterizeConicGradients } = await import("./conic-raster.js");
     const { _conicTileCache } = await import("./element-tree-to-svg.js");

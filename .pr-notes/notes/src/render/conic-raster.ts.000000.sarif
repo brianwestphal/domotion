@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mth85j3heffn11xy",
+          "message": {
+            "text": "DM-2620: exact generated pseudo fragments own background paint separately from their host. Conic fallback collection must use record.paint.backgroundImage and each boxFragments[].localBorderRect, matching renderPseudoFragmentRecord's cache-key geometry; walking only element.styles leaves an empty pseudo group.",
+            "markdown": "DM-2620: exact generated pseudo fragments own background paint separately from their host. Conic fallback collection must use record.paint.backgroundImage and each boxFragments[].localBorderRect, matching renderPseudoFragmentRecord's cache-key geometry; walking only element.styles leaves an empty pseudo group."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/conic-raster.ts"
+                },
+                "region": {
+                  "startLine": 94,
+                  "endLine": 115,
+                  "snippet": {
+                    "text": "      // Generated pseudo boxes carry their own Blink-owned paint and geometry;\n      // they do not appear in the host element's `backgroundImage`. Collect\n      // each exact box-fragment tuple at the same local-border size consumed by\n      // `renderPseudoFragmentRecord`, so its conic layer cannot miss the cache.\n      for (const record of el.pseudoFragments ?? []) {\n        if (record.status !== \"exact\") continue;\n        const bgImage = record.paint.backgroundImage;\n        if (bgImage == null || bgImage === \"\" || bgImage === \"none\" || !/conic-gradient/i.test(bgImage)) continue;\n        const layers = splitTopLevelCommas(bgImage);\n        const sizes = splitTopLevelCommas(record.paint.backgroundSize || \"auto\");\n        for (const box of record.boxFragments) {\n          const rect = box.localBorderRect;\n          if (rect == null || !(rect.width > 0) || !(rect.height > 0)) continue;\n          for (let li = 0; li < layers.length; li++) {\n            const layer = layers[li].trim();\n            if (!/^(?:repeating-)?conic-gradient\\(/i.test(layer)) continue;\n            const sizeCss = (sizes[li] ?? sizes[0] ?? \"auto\").trim();\n            const tile = computeTileSize(sizeCss, rect.width, rect.height);\n            consider(layer, tile.w, tile.h);\n          }\n        }\n      }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/conic-chromium-raster.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 50
+                }
+              }
+            }
+          ],
+          "workItemUris": [
+            "DM-2620"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "139afe33376260d7667430423c828c57"
+          },
+          "attachments": [
+            {
+              "artifactLocation": {
+                "uri": "src/render/conic-raster.test.ts",
+                "properties": {
+                  "ext-sha256": "277cc79b5a4d37c75bc3001bedd76318377d57181acca6c2f0d9b2094d954836"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "faf461949e501774d24603c0fcab4c9f2c52749b",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
