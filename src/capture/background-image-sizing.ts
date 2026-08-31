@@ -16,6 +16,8 @@
  */
 
 import type { Frame, Page } from "@playwright/test";
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 
 import type { CapturedBackgroundImage } from "./types.js";
 
@@ -51,6 +53,9 @@ export interface SelectedBackgroundCandidate {
   selectedCandidateIndex: number | null;
   selectedResolution: number;
   selectedType: string | null;
+  /** Exact byte-sniffed kind for a locally readable source. Page-side fetch
+   * cannot read file:// resources, but capture Node can. */
+  locallyObservedKind?: "bitmap" | "svg";
   warning?: string;
 }
 
@@ -64,6 +69,33 @@ interface CollectedBackgroundTarget {
 
 interface PreparedBackgroundTarget extends CollectedBackgroundTarget {
   selections: Array<SelectedBackgroundCandidate | null>;
+}
+
+/** Identify local bytes, never a filename suffix. This is the capture-side
+ * analogue of Blink asking its decoded Image object whether it is bitmap/SVG. */
+export function sniffLocalImageKind(bytes: Uint8Array): "bitmap" | "svg" | null {
+  const ascii = (start: number, end: number): string => Buffer.from(bytes.subarray(start, end)).toString("latin1");
+  if (bytes.length >= 8 && bytes[0] === 0x89 && ascii(1, 4) === "PNG") return "bitmap";
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "bitmap";
+  if (bytes.length >= 6 && (ascii(0, 6) === "GIF87a" || ascii(0, 6) === "GIF89a")) return "bitmap";
+  if (bytes.length >= 12 && ascii(0, 4) === "RIFF" && ascii(8, 12) === "WEBP") return "bitmap";
+  if (bytes.length >= 2 && ascii(0, 2) === "BM") return "bitmap";
+  if (bytes.length >= 4 && bytes[0] === 0 && bytes[1] === 0 && (bytes[2] === 1 || bytes[2] === 2) && bytes[3] === 0) return "bitmap";
+  if (bytes.length >= 12 && ascii(4, 8) === "ftyp") return "bitmap";
+  const text = Buffer.from(bytes.subarray(0, Math.min(bytes.length, 4096))).toString("utf8")
+    .replace(/^\uFEFF/, "").replace(/^\s*<\?xml[^>]*>\s*/i, "").replace(/^\s*<!--[^]*?-->\s*/i, "");
+  return /^\s*<svg(?:\s|>)/i.test(text) ? "svg" : null;
+}
+
+async function locallyObservedImageKind(url: string | null): Promise<"bitmap" | "svg" | null> {
+  if (url == null || !url.startsWith("file:")) return null;
+  try {
+    const kind = sniffLocalImageKind(await readFile(fileURLToPath(url)));
+    // Bitmap dimensions come from the decoded HTMLImageElement. Local SVGs
+    // additionally need their source text, so leave those on the existing
+    // unavailable path until that separate payload is carried explicitly.
+    return kind === "bitmap" ? kind : null;
+  } catch { return null; }
 }
 
 /**
@@ -408,8 +440,8 @@ async function hydrateBackgroundTargets(
       return { kind: "unknown", text: null };
     };
     const cache = new Map<string, Promise<RawSizing>>();
-    const load = (url: string, orientation: "from-image" | "none"): Promise<RawSizing> => {
-      const cacheKey = `${orientation}\n${url}`;
+    const load = (url: string, orientation: "from-image" | "none", localKind?: "bitmap" | "svg"): Promise<RawSizing> => {
+      const cacheKey = `${orientation}\n${localKind ?? ""}\n${url}`;
       const hit = cache.get(cacheKey);
       if (hit != null) return hit;
       const pending = (async (): Promise<RawSizing> => {
@@ -447,9 +479,13 @@ async function hydrateBackgroundTargets(
           };
         }
 
-        const source = await fetchSvg(url);
+        const source = localKind == null ? await fetchSvg(url) : { kind: localKind, text: null };
         if (source.kind === "svg") {
-          const sizing = source.text == null ? null : svgSizing(source.text);
+          let svgText = source.text;
+          if (svgText == null && url.startsWith("file:")) {
+            try { svgText = await (await fetch(url)).text(); } catch {}
+          }
+          const sizing = svgText == null ? null : svgSizing(svgText);
           if (sizing == null) {
             return {
               loadState: "loaded", naturalSizingState: "unavailable", kind: "svg",
@@ -517,7 +553,7 @@ async function hydrateBackgroundTargets(
             naturalSizingState: "unavailable",
           };
         }
-        const raw = await load(selection.selectedUrl, target.imageOrientation);
+        const raw = await load(selection.selectedUrl, target.imageOrientation, selection.locallyObservedKind);
         // StyleFetchedImage applies image-set resolution only to bitmap
         // candidates. SVG candidate resolution affects selection, not its
         // NaturalSizingInfo multiplier.
@@ -562,11 +598,16 @@ export async function primeBackgroundImageSizing(
   await Promise.all(frames.map(async (frame) => {
     try {
       const collected = await collectBackgroundTargets(frame);
-      const prepared: PreparedBackgroundTarget[] = collected.map((target) => ({
+      const prepared: PreparedBackgroundTarget[] = await Promise.all(collected.map(async (target) => ({
         ...target,
-        selections: splitBackgroundLayers(target.backgroundImage)
-          .map((layer) => selectBackgroundCandidate(layer, target.dpr)),
-      }));
+        selections: await Promise.all(splitBackgroundLayers(target.backgroundImage)
+          .map(async (layer) => {
+            const selected = selectBackgroundCandidate(layer, target.dpr);
+            if (selected?.selectedUrl == null) return selected;
+            const locallyObservedKind = await locallyObservedImageKind(selected.selectedUrl);
+            return locallyObservedKind == null ? selected : { ...selected, locallyObservedKind };
+          })),
+      })));
       await hydrateBackgroundTargets(frame, prepared, timeoutMs);
     } catch {
       // Detached and cross-origin frames remain owned by their existing raster

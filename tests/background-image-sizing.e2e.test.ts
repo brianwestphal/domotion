@@ -1,5 +1,9 @@
 import { afterAll, describe, expect, it } from "vitest";
 import sharp from "sharp";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 import {
   captureElementTreeWithWarnings,
@@ -57,6 +61,31 @@ afterAll(async () => closeBrowserSafely(env?.browser), 15_000);
 const describeBrowser = env == null ? describe.skip : describe;
 
 describeBrowser("authoritative URL background image sizing capture", () => {
+  it("preserves natural sizing for 8-bit and 16-bit file URL bitmaps", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "domotion-bg-file-"));
+    const htmlPath = path.join(dir, "fixture.html");
+    const png8Path = path.join(dir, "wide-8.png");
+    const png16Path = path.join(dir, "wide-16.png");
+    const source = sharp({ create: { width: 384, height: 128, channels: 3, background: { r: 8, g: 145, b: 178 } } });
+    await Promise.all([
+      source.clone().png({ bitdepth: 8 }).toFile(png8Path),
+      source.clone().png({ bitdepth: 16 }).toFile(png16Path),
+    ]);
+    await writeFile(htmlPath, `<div id="target" style="width:200px;height:200px;background-image:url(wide-8.png),url(wide-16.png);background-size:cover"></div>`);
+    const page = await env!.browser.newPage({ viewport: { width: 240, height: 240 } });
+    try {
+      await page.goto(pathToFileURL(htmlPath).href);
+      const result = await captureElementTreeWithWarnings(page, "#target", { x: 0, y: 0, width: 240, height: 240 });
+      expect(result.tree[0].styles.backgroundImages).toMatchObject([
+        { decodedImageKind: "bitmap", naturalSizingState: "resolved", decodedNaturalWidth: 384, decodedNaturalHeight: 128, naturalAspectRatio: { width: 384, height: 128 } },
+        { decodedImageKind: "bitmap", naturalSizingState: "resolved", decodedNaturalWidth: 384, decodedNaturalHeight: 128, naturalAspectRatio: { width: 384, height: 128 } },
+      ]);
+    } finally {
+      await page.close();
+      await rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   for (const row of [
     { dpr: 1, selectedUrl: PNG_1X, decodedWidth: 20, naturalWidth: 25, resolution: 1 },
     { dpr: 2, selectedUrl: PNG_2X, decodedWidth: 80, naturalWidth: 50, resolution: 2 },

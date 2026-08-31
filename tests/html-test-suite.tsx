@@ -126,8 +126,9 @@ function _hashFileOrEmpty(path: string): string {
 const CAPTURE_SCRIPT_HASH = _hashFileOrEmpty(resolve(PACKAGE_ROOT, "src/capture/script.generated.ts"));
 // DM-1198: also fold the Node-side post-CAPTURE_SCRIPT tree mutators into the
 // key. `captureElementTreeWithWarnings` rasterizes bitmap glyphs (`emoji.ts`)
-// and replaced / mask-source elements (`index.ts`) INTO the tree before it's
-// cached, so a change to those — e.g. the emoji advance-square sizing fix —
+// replaced / mask-source elements (`index.ts`), and decoded background natural
+// sizing (`background-image-sizing.ts`) INTO the tree before it's cached, so a
+// change to those — e.g. the emoji advance-square or file-URL sizing fix —
 // must invalidate the cached tree too. The CAPTURE_SCRIPT bundle hash alone
 // doesn't cover them (they run in Node, not in-page), which silently masked
 // the emoji-size fix behind stale cached 16×16 rects until the cache was
@@ -135,6 +136,7 @@ const CAPTURE_SCRIPT_HASH = _hashFileOrEmpty(resolve(PACKAGE_ROOT, "src/capture/
 const CAPTURE_NODE_HASH = createHash("sha256")
   .update(_hashFileOrEmpty(resolve(PACKAGE_ROOT, "src/capture/emoji.ts")))
   .update(_hashFileOrEmpty(resolve(PACKAGE_ROOT, "src/capture/index.ts")))
+  .update(_hashFileOrEmpty(resolve(PACKAGE_ROOT, "src/capture/background-image-sizing.ts")))
   .digest("hex");
 // DM-1790: and fold the CAPTURE browser's Chromium flags in too. The cached
 // artifact is a screenshot taken by that browser, so a capture-side flag
