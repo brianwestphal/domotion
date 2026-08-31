@@ -1584,6 +1584,94 @@ export async function captureElementTreeEnvelope(
 }
 
 /**
+ * Await Chromium's decoder for generated `content: url(...)` images before the
+ * synchronous capture walk. Blink creates an anonymous LayoutImage for the
+ * content item: the pseudo's CSS width/height own inline layout advance, while
+ * the child image paints at its natural size. A fresh synchronous Image probe
+ * can still report zero even after the generated content has painted.
+ */
+async function primePseudoImageIntrinsics(page: Page): Promise<{
+  propertyKey: string;
+  dispose(): Promise<void>;
+}> {
+  const frames = page.frames();
+  const propertyKey = `__domotionPseudoImageIntrinsic_${Math.random().toString(36).slice(2)}`;
+  await Promise.all(frames.map(async (frame) => {
+    try {
+      await frame.evaluate(async (key) => {
+        type PseudoImageIntrinsic = { url: string; width: number; height: number };
+        type PseudoImageRecords = Partial<Record<"::before" | "::after", PseudoImageIntrinsic>>;
+        const host = globalThis as unknown as { __domotionPseudoImageIntrinsicTargets?: Element[] };
+        for (const prior of host.__domotionPseudoImageIntrinsicTargets ?? []) {
+          try { delete (prior as unknown as Record<string, unknown>)[key]; } catch {}
+        }
+        const targets: Element[] = [];
+        host.__domotionPseudoImageIntrinsicTargets = targets;
+        const cssUrl = (content: string): string | null => {
+          const match = /url\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^\s)]+))\s*\)/i.exec(content);
+          const raw = match?.[1] ?? match?.[2] ?? match?.[3];
+          if (raw == null) return null;
+          try { return new URL(raw.replace(/\\(.)/g, "$1"), document.baseURI).href; } catch { return null; }
+        };
+        const cache = new Map<string, Promise<PseudoImageIntrinsic | null>>();
+        const dimensions = (url: string): Promise<PseudoImageIntrinsic | null> => {
+          const hit = cache.get(url);
+          if (hit != null) return hit;
+          const pending = (async () => {
+            const image = new Image();
+            image.src = url;
+            if (!(image.complete && image.naturalWidth > 0 && image.naturalHeight > 0)) {
+              await Promise.race([
+                image.decode().catch(() => undefined),
+                new Promise<void>((resolve) => setTimeout(resolve, 3000)),
+              ]);
+            }
+            return image.naturalWidth > 0 && image.naturalHeight > 0
+              ? { url, width: image.naturalWidth, height: image.naturalHeight }
+              : null;
+          })();
+          cache.set(url, pending);
+          return pending;
+        };
+        const elements = [document.documentElement, ...Array.from(document.getElementsByTagName("*"))];
+        await Promise.all(elements.map(async (element) => {
+          const records: PseudoImageRecords = {};
+          await Promise.all((["::before", "::after"] as const).map(async (pseudo) => {
+            const content = getComputedStyle(element, pseudo).content;
+            if (content == null || content === "none" || content === "normal") return;
+            const url = cssUrl(content);
+            if (url == null) return;
+            const intrinsic = await dimensions(url);
+            if (intrinsic != null) records[pseudo] = intrinsic;
+          }));
+          if (records["::before"] == null && records["::after"] == null) return;
+          Object.defineProperty(element, key, { configurable: true, value: records });
+          targets.push(element);
+        }));
+      }, propertyKey);
+    } catch {
+      // Detached/cross-origin frames are already handled as raster boundaries.
+    }
+  }));
+  return {
+    propertyKey,
+    async dispose(): Promise<void> {
+      await Promise.all(frames.map(async (frame) => {
+        try {
+          await frame.evaluate((key) => {
+            const host = globalThis as unknown as { __domotionPseudoImageIntrinsicTargets?: Element[] };
+            for (const target of host.__domotionPseudoImageIntrinsicTargets ?? []) {
+              try { delete (target as unknown as Record<string, unknown>)[key]; } catch {}
+            }
+            delete host.__domotionPseudoImageIntrinsicTargets;
+          }, propertyKey);
+        } catch {}
+      }));
+    },
+  };
+}
+
+/**
  * DM-2379: await Chromium's image decoder for every URL-backed mask layer and
  * leave the natural dimensions on the live element for CAPTURE_SCRIPT's
  * synchronous walk. `new Image().naturalWidth` immediately after assigning
@@ -1829,14 +1917,16 @@ export async function captureElementTreeWithWarnings(
   await assertGenericFamilyTargetConsistency(page, sessionGenericFamilies);
   await reverifyAnimationFrame();
 
-  const [maskIntrinsicPrime, backgroundImagePrime] = await Promise.all([
+  const [maskIntrinsicPrime, backgroundImagePrime, pseudoImagePrime] = await Promise.all([
     primeMaskImageIntrinsics(page),
     primeBackgroundImageSizing(page),
+    primePseudoImageIntrinsics(page),
   ]);
   const frameScrollCapture = await prepareFrameScrollCapture(page, opts?.crossOriginFrames).catch(async (error) => {
     await Promise.all([
       maskIntrinsicPrime.dispose().catch(() => undefined),
       backgroundImagePrime.dispose().catch(() => undefined),
+      pseudoImagePrime.dispose().catch(() => undefined),
     ]);
     throw error;
   });
@@ -1891,6 +1981,7 @@ export async function captureElementTreeWithWarnings(
       pqa: animationFrameState?.animationCount,
       cbfk: collapsedBorderFragmentProbe.key,
       pgk: pseudoFragmentProbe.key,
+      pik: pseudoImagePrime.propertyKey,
     };
     textPaintProbe = await prepareTextPaintGeometry(
       page,
@@ -1916,6 +2007,7 @@ export async function captureElementTreeWithWarnings(
     await effectiveAppearance?.dispose();
     await maskIntrinsicPrime.dispose();
     await backgroundImagePrime.dispose();
+    await pseudoImagePrime.dispose();
     if (result == null) {
       await pseudoStyles?.dispose();
       await projectiveProbe?.dispose();

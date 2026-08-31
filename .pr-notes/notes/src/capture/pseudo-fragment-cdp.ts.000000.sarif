@@ -328,6 +328,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mth6nfv7xd1oupdb",
+          "message": {
+            "text": "The isolated pseudo surface preserves Blink's two-owner model for generated URL content. Chromium's DOMSnapshot exposes the pseudo layout-slot quad but not a separately addressable anonymous LayoutImage overflow quad; scaling the image row into the slot loses the intrinsic 128x128 paint, so the smallest exact source-owned boundary is Chromium's isolated pseudo surface.",
+            "markdown": "The isolated pseudo surface preserves Blink's two-owner model for generated URL content. Chromium's DOMSnapshot exposes the pseudo layout-slot quad but not a separately addressable anonymous LayoutImage overflow quad; scaling the image row into the slot loses the intrinsic 128x128 paint, so the smallest exact source-owned boundary is Chromium's isolated pseudo surface."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/pseudo-fragment-cdp.ts"
+                },
+                "region": {
+                  "startLine": 1108,
+                  "endLine": 1121,
+                  "snippet": {
+                    "text": "      if (record.status === \"exact\" && generatedImageNeedsIntrinsicSurface(candidate)) {\n        const reason = \"generated URL image intrinsic paint exceeds its pseudo layout slot\";\n        const terminalRaster = await isolatePseudoSurface(page, prepared, candidate, key, viewport).catch(() => ({\n          rect: { x: 0, y: 0, width: 0, height: 0 }, isolated: true as const,\n        }));\n        record = {\n          ...record,\n          status: \"terminal-raster\",\n          reason,\n          contentItems: [],\n          boxFragments: [],\n          fragments: [],\n          terminalRaster,\n        };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/style/content_data.cc"
+                },
+                "region": {
+                  "startLine": 100
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2617"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "3298a383b8ec112a364b24acab8b0380"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "b2333e640ff86a4a557bd0e36650cb0338ed2675",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

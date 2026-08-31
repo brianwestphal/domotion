@@ -18,6 +18,7 @@ import {
 } from "./pseudo-backdrop-isolation.js";
 import {
   decodePseudoFragmentProtocol,
+  generatedImageIntrinsicPaintExceedsSlot,
   type PhysicalEdges,
   type PseudoProtocolStyle,
   type Quad,
@@ -45,6 +46,9 @@ interface CandidateStyle {
   paint: CapturedPseudoPaintStyle;
   content: string;
   contentUrls: string[];
+  contentImageNaturalSizes: Array<{ width: number; height: number } | null>;
+  contentBoxWidth: number | null;
+  contentBoxHeight: number | null;
 }
 
 interface Candidate {
@@ -169,7 +173,7 @@ async function setupFrame(
   top: boolean,
 ): Promise<PreparedFrame | null> {
   try {
-    const raw = await frame.evaluate(({ selector, key, token, top }) => {
+    const raw = await frame.evaluate(async ({ selector, key, token, top }) => {
       const root = top ? document.querySelector(selector) : document.documentElement;
       if (root == null) return [];
       const elements = [root, ...Array.from(root.querySelectorAll("*"))];
@@ -199,6 +203,26 @@ async function setupFrame(
           try { output.push(new URL(value, document.baseURI).href); } catch { output.push(value); }
         }
         return output;
+      }
+      const imageSizeCache = new Map<string, Promise<{ width: number; height: number } | null>>();
+      function imageNaturalSize(url: string): Promise<{ width: number; height: number } | null> {
+        const hit = imageSizeCache.get(url);
+        if (hit != null) return hit;
+        const pending = (async () => {
+          const image = new Image();
+          image.src = url;
+          if (!(image.complete && image.naturalWidth > 0 && image.naturalHeight > 0)) {
+            await Promise.race([
+              image.decode().catch(() => undefined),
+              new Promise<void>((resolve) => setTimeout(resolve, 3000)),
+            ]);
+          }
+          return image.naturalWidth > 0 && image.naturalHeight > 0
+            ? { width: image.naturalWidth, height: image.naturalHeight }
+            : null;
+        })();
+        imageSizeCache.set(url, pending);
+        return pending;
       }
       function shortSelector(element: Element): string {
         if (element.id !== "") return `#${CSS.escape(element.id)}`;
@@ -303,10 +327,22 @@ async function setupFrame(
               },
               content: style.content,
               contentUrls: cssUrls(style.content),
+              contentImageNaturalSizes: [],
+              contentBoxWidth: style.width === "auto" ? null : number(style.width) * zoom,
+              contentBoxHeight: style.height === "auto" ? null : number(style.height) * zoom,
             },
           });
         }
       }
+      await Promise.all(rows.map(async (row) => {
+        const zoom = row.style.typography.effectiveZoom > 0
+          ? row.style.typography.effectiveZoom
+          : 1;
+        row.style.contentImageNaturalSizes = await Promise.all(row.style.contentUrls.map(async (url) => {
+          const size = await imageNaturalSize(url);
+          return size == null ? null : { width: size.width * zoom, height: size.height * zoom };
+        }));
+      }));
       (globalThis as typeof globalThis & Record<string, unknown>)[key] = {
         token,
         elements,
@@ -826,6 +862,20 @@ function exactRecord(
   };
 }
 
+/** Generated URL content is an anonymous LayoutImage child. The pseudo's
+ * explicit content-box size does not resize that child; when they differ, the
+ * protocol exposes the slot quad but not a separately addressable paint quad
+ * for the overflowing image, so one isolated Chromium surface is the exact
+ * ownership boundary. */
+function generatedImageNeedsIntrinsicSurface(candidate: Candidate): boolean {
+  const { contentBoxWidth, contentBoxHeight, contentImageNaturalSizes } = candidate.style;
+  return generatedImageIntrinsicPaintExceedsSlot({
+    contentBoxWidth,
+    contentBoxHeight,
+    naturalSizes: contentImageNaturalSizes,
+  });
+}
+
 async function cropTransparentSurface(
   png: Buffer,
   viewport: { width: number; height: number },
@@ -1054,6 +1104,21 @@ export async function preparePseudoFragmentGeometry(
           feature: FEATURE,
           detail: `authoritative Chromium pseudo geometry unavailable (${reason}); retained one isolated Chromium-painted pseudo surface`,
         });
+      }
+      if (record.status === "exact" && generatedImageNeedsIntrinsicSurface(candidate)) {
+        const reason = "generated URL image intrinsic paint exceeds its pseudo layout slot";
+        const terminalRaster = await isolatePseudoSurface(page, prepared, candidate, key, viewport).catch(() => ({
+          rect: { x: 0, y: 0, width: 0, height: 0 }, isolated: true as const,
+        }));
+        record = {
+          ...record,
+          status: "terminal-raster",
+          reason,
+          contentItems: [],
+          boxFragments: [],
+          fragments: [],
+          terminalRaster,
+        };
       }
       if (activeBackdropFilter(candidate) && pseudoOwnsVisiblePaint(record)) {
         try {

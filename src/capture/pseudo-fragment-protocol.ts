@@ -27,6 +27,27 @@ export interface Rect {
   height: number;
 }
 
+export interface GeneratedImageIntrinsicPaintInput {
+  contentBoxWidth: number | null;
+  contentBoxHeight: number | null;
+  naturalSizes: ReadonlyArray<{ width: number; height: number } | null>;
+}
+
+/**
+ * Blink lays out generated `content: url(...)` as an anonymous LayoutImage.
+ * An explicit pseudo content-box size owns inline layout advance, but it does
+ * not resize that anonymous child's intrinsic paint surface.
+ */
+export function generatedImageIntrinsicPaintExceedsSlot({
+  contentBoxWidth,
+  contentBoxHeight,
+  naturalSizes,
+}: GeneratedImageIntrinsicPaintInput): boolean {
+  return naturalSizes.some((size) => size != null
+    && ((contentBoxWidth != null && Math.abs(contentBoxWidth - size.width) > 0.5)
+      || (contentBoxHeight != null && Math.abs(contentBoxHeight - size.height) > 0.5)));
+}
+
 export type Quad = [Point, Point, Point, Point];
 
 export interface PhysicalEdges {

@@ -1,10 +1,49 @@
 import { chromium } from "@playwright/test";
 import { describe, expect, it } from "vitest";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { preparePseudoFragmentGeometry } from "./pseudo-fragment-cdp.js";
 import type { CapturedPseudoFragmentSet } from "./types.js";
 
 describe("DM-2467 source-owned pseudo fragment capture", () => {
+  it("keeps generated URL image paint at intrinsic size when the pseudo layout slot is smaller", async () => {
+    const browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage({ viewport: { width: 360, height: 240 } });
+    const dir = await mkdtemp(path.join(tmpdir(), "domotion-pseudo-image-"));
+    try {
+      await Promise.all([
+        writeFile(path.join(dir, "asset.svg"), '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><rect width="128" height="128" fill="orange"/></svg>'),
+        writeFile(path.join(dir, "fixture.html"), '<style>body{margin:0}#host{font:16px/24px Arial}#host::before{content:url("asset.svg");display:inline-block;width:24px;height:24px;vertical-align:middle}</style><p id="host">text</p>'),
+      ]);
+      await page.goto(pathToFileURL(path.join(dir, "fixture.html")).href);
+      const probe = await preparePseudoFragmentGeometry(page, "body", { x: 0, y: 0, width: 360, height: 240 });
+      try {
+        const record = await page.evaluate((key) => {
+          const registry = (globalThis as typeof globalThis & Record<string, unknown>)[key] as {
+            factsByElement: Record<string, CapturedPseudoFragmentSet[]>;
+          };
+          return Object.values(registry.factsByElement).flat().find((entry) =>
+            entry.pseudo === "::before");
+        }, probe.key);
+        expect(record).toMatchObject({
+          status: "terminal-raster",
+          reason: "generated URL image intrinsic paint exceeds its pseudo layout slot",
+        });
+        expect(record?.terminalRaster?.dataUri).toMatch(/^data:image\/png;base64,/);
+        expect(record?.terminalRaster?.rect.width).toBeCloseTo(128, 0);
+        expect(record?.terminalRaster?.rect.height).toBeCloseTo(128, 0);
+      } finally {
+        await probe.dispose();
+      }
+    } finally {
+      await browser.close();
+      await rm(dir, { recursive: true, force: true });
+    }
+  }, 30_000);
+
   it("retains ordered Blink records across generated-content controls", async () => {
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({ viewport: { width: 760, height: 640 } });

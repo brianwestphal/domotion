@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["images-media"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-2596","DM-2618"]
-code: ["src/capture/replaced-media-frame.ts","src/capture/background-image-sizing.ts","src/render/image.ts","src/render/image-pattern.ts","src/post-processing/","tests/feature-coverage.ts"]
+tickets: ["DM-2596","DM-2617","DM-2618"]
+code: ["src/capture/replaced-media-frame.ts","src/capture/background-image-sizing.ts","src/capture/pseudo-fragment-cdp.ts","src/render/image.ts","src/render/image-pattern.ts","src/post-processing/","tests/feature-coverage.ts"]
 aliases: ["docs/handbook/images-media-and-embedding.md"]
 ---
 
@@ -31,6 +31,11 @@ aliases: ["docs/handbook/images-media-and-embedding.md"]
    because a page-side `fetch()` cannot be used as evidence for those resources;
    the resulting width, height, and ratio drive exact no-repeat and repeat tile
    geometry in the renderer.
+6. Generated `content: url(...)` images retain Blink's anonymous replaced-child
+   ownership. The pseudo element's explicit content-box controls layout advance,
+   while a differently sized image keeps its intrinsic paint surface; because
+   CDP exposes the slot quad but not that separate overflowing child paint quad,
+   capture preserves one isolated Chromium-painted pseudo surface.
 
 ## Verified implementation map
 
@@ -38,6 +43,7 @@ aliases: ["docs/handbook/images-media-and-embedding.md"]
 | --- | --- | --- |
 | Self containment | [Remote inlining](../26-self-contained-svgs.md), [native SVG images](../96-native-svg-image-inlining.md), [viewer support](../84-viewer-browser-support.md) | image capture/render modules and self-containment E2E tests |
 | CSS background images | Blink `NaturalSizingInfo`, tile size, phase, and repeat semantics | `src/capture/background-image-sizing.ts`, `src/render/image-pattern.ts`, and background image sizing/pattern tests |
+| Generated URL content | Blink anonymous `LayoutImage` intrinsic paint versus pseudo layout-slot ownership | `src/capture/pseudo-fragment-cdp.ts`, protocol unit tests, and generated-image browser E2E tests |
 | Replaced owners | [Static snapshots](../17-replaced-element-snapshots.md), [ownership matrix](../184-replaced-ownership-transition-matrix.md), [live frames](../229-live-replaced-media-frame-ownership.md) | `src/capture/replaced-media-frame.ts` and replaced-media tests |
 | Animated images | [Authenticated bytes](../231-authenticated-animated-image-byte-ownership.md), [static frame](../233-strict-animated-image-static-frame.md), [downstream ownership](../234-frozen-animated-image-downstream-ownership.md), [CSS/SVG owners](../236-strict-static-frames-for-svg-css-images.md) | authenticated collector/decoder/renderer modules and three-platform production gates |
 | Export | [Video](../47-svg-to-video.md), [still image](../78-svg-to-image.md) | post-processing exporters and scrubber endpoint tests |

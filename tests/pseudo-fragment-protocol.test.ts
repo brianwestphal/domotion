@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   blinkTextPaintBaseline,
   decodePseudoFragmentProtocol,
+  generatedImageIntrinsicPaintExceedsSlot,
   protocolRecordErrors,
   type PseudoProtocolInput,
   type Quad,
@@ -59,6 +60,24 @@ function mixedInput(): PseudoProtocolInput {
 }
 
 describe("DM-2466 pseudo protocol decoder", () => {
+  it("distinguishes generated-image intrinsic paint from its pseudo layout slot", () => {
+    expect(generatedImageIntrinsicPaintExceedsSlot({
+      contentBoxWidth: 24,
+      contentBoxHeight: 24,
+      naturalSizes: [{ width: 128, height: 128 }],
+    })).toBe(true);
+    expect(generatedImageIntrinsicPaintExceedsSlot({
+      contentBoxWidth: 24,
+      contentBoxHeight: 24,
+      naturalSizes: [{ width: 24, height: 24 }],
+    })).toBe(false);
+    expect(generatedImageIntrinsicPaintExceedsSlot({
+      contentBoxWidth: null,
+      contentBoxHeight: null,
+      naturalSizes: [{ width: 128, height: 128 }, null],
+    })).toBe(false);
+  });
+
   it("retains content-item boundaries, UTF-16 slices, visual order, image rows, and fragmentainer translations", () => {
     const input = mixedInput();
     const record = decodePseudoFragmentProtocol(input);

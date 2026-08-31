@@ -73,6 +73,7 @@ const buildPseudoContentHandler = ({
   physicalComputedCssPixelTerms = (value) => value,
   physicalComputedGradientImage = (value) => value,
   fontFamilyStackFor,
+  pseudoImageSizingKey,
 }) => {
   // CSSOM serializes filter lengths before effective zoom, while every box
   // captured below is already in physical viewport coordinates. Scale only
@@ -643,8 +644,12 @@ const buildPseudoContentHandler = ({
         // Playwright waits for load before capture, so naturalWidth /
         // Height resolve synchronously from cache.
         const imageZoom = effectiveZoomFor(el);
-        const intrinsicW = (probeImg.naturalWidth || 0) * imageZoom;
-        const intrinsicH = (probeImg.naturalHeight || 0) * imageZoom;
+        const primed = typeof pseudoImageSizingKey === 'string' && pseudoImageSizingKey !== ''
+          ? el[pseudoImageSizingKey]?.[pseudo]
+          : undefined;
+        const primedMatches = primed != null && primed.url === imageUrl;
+        const intrinsicW = ((primedMatches ? primed.width : probeImg.naturalWidth) || 0) * imageZoom;
+        const intrinsicH = ((primedMatches ? primed.height : probeImg.naturalHeight) || 0) * imageZoom;
         let layoutW = (parseFloat(pcs.width) || 0) * imageZoom;
         let layoutH = (parseFloat(pcs.height) || 0) * imageZoom;
         if (layoutW <= 0) layoutW = intrinsicW || 24;

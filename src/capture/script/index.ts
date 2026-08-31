@@ -252,6 +252,7 @@ const captureDocumentTree =
     physicalComputedCssPixelTerms,
     physicalComputedGradientImage,
     fontFamilyStackFor: _fontFamilyStackFor,
+    pseudoImageSizingKey: args.pik,
   });
   const { captureInputValue } = createInputValueHandler({
     vp,

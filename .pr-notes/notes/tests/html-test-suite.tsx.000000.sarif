@@ -229,6 +229,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mth6ng7agz3wg68k",
+          "message": {
+            "text": "Expected-tree cache invalidation must include Node-side pseudo protocol ownership. Without this hash input, visual tests reuse captured trees from before DM-2617 even though fresh rendering code is under test, hiding the restored intrinsic image surface.",
+            "markdown": "Expected-tree cache invalidation must include Node-side pseudo protocol ownership. Without this hash input, visual tests reuse captured trees from before DM-2617 even though fresh rendering code is under test, hiding the restored intrinsic image surface."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/html-test-suite.tsx"
+                },
+                "region": {
+                  "startLine": 137,
+                  "endLine": 144,
+                  "snippet": {
+                    "text": "const CAPTURE_NODE_HASH = createHash(\"sha256\")\n  .update(_hashFileOrEmpty(resolve(PACKAGE_ROOT, \"src/capture/emoji.ts\")))\n  .update(_hashFileOrEmpty(resolve(PACKAGE_ROOT, \"src/capture/index.ts\")))\n  .update(_hashFileOrEmpty(resolve(PACKAGE_ROOT, \"src/capture/background-image-sizing.ts\")))\n  .update(_hashFileOrEmpty(resolve(PACKAGE_ROOT, \"src/capture/pseudo-fragment-cdp.ts\")))\n  .digest(\"hex\");\n// DM-1790: and fold the CAPTURE browser's Chromium flags in too. The cached\n// artifact is a screenshot taken by that browser, so a capture-side flag"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/pseudo-fragment-cdp.ts"
+                },
+                "region": {
+                  "startLine": 1108
+                }
+              }
+            }
+          ],
+          "rank": 85,
+          "workItemUris": [
+            "DM-2617"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "2611a0433cb728556a2a17c36f7297c7"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "b2333e640ff86a4a557bd0e36650cb0338ed2675",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
