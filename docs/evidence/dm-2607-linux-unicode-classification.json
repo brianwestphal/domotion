@@ -1,0 +1,2872 @@
+{
+  "ticket": "DM-2607",
+  "platform": "linux",
+  "originalSourceRun": 33314760708,
+  "reviewedComparisonRun": 33345443048,
+  "excludedDominantSet": "3400-4DBF, 4E00-9FFF, AC00-D7AF, and F900-FAFF tiles owned by the WenQuanYi CJK/Hangul mechanism",
+  "sourceAuthorities": [
+    "external/chromium/third_party/blink/renderer/platform/fonts/linux/font_cache_linux.cc",
+    "external/harfbuzz/src"
+  ],
+  "counts": {
+    "total": 46,
+    "resolved": 28,
+    "functionallyCleanRasterResiduals": 18
+  },
+  "rows": [
+    {
+      "name": "0000-007F-basic-latin",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "trivial",
+      "regionCount": 1,
+      "coveragePct": 0.0033060709635416665,
+      "chromeFaces": [
+        "LiberationSans:94",
+        "WenQuanYiZenHei:146",
+        "WenQuanYiZenHeiMono:564"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 40,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "LiberationSans",
+          "sourcePath": "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+          "faceIndex": 0,
+          "glyphCount": 94,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        }
+      ]
+    },
+    {
+      "name": "0080-00FF-latin-1-supplement",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "trivial",
+      "regionCount": 2,
+      "coveragePct": 0.0087738037109375,
+      "chromeFaces": [
+        "LiberationSans:94",
+        "WenQuanYiZenHei:178",
+        "WenQuanYiZenHeiMono:564"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 42,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "LiberationSans",
+          "sourcePath": "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+          "faceIndex": 0,
+          "glyphCount": 94,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        }
+      ]
+    },
+    {
+      "name": "0100-017F-latin-extended-a",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "minor",
+      "regionCount": 3,
+      "coveragePct": 0.006793478260869565,
+      "chromeFaces": [
+        "LiberationSans:128",
+        "WenQuanYiZenHei:212",
+        "WenQuanYiZenHeiMono:768"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 46,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "LiberationSans",
+          "sourcePath": "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+          "faceIndex": 0,
+          "glyphCount": 128,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        }
+      ]
+    },
+    {
+      "name": "0180-024F-latin-extended-b",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "moderate",
+      "regionCount": 11,
+      "coveragePct": 0.035007520653735635,
+      "chromeFaces": [
+        "LiberationSans:198",
+        "WenQuanYiZenHei:217",
+        "WenQuanYiZenHeiMono:1182"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 46,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "LiberationSans",
+          "sourcePath": "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+          "faceIndex": 0,
+          "glyphCount": 208,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02B0-02FF-spacing-modifier-letters",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "trivial",
+      "regionCount": 1,
+      "coveragePct": 0.002034505208333333,
+      "chromeFaces": [
+        "LiberationSans:80",
+        "WenQuanYiZenHei:252",
+        "WenQuanYiZenHeiMono:480"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 50,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "LiberationSans",
+          "sourcePath": "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+          "faceIndex": 0,
+          "glyphCount": 80,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        }
+      ]
+    },
+    {
+      "name": "0400-04FF-cyrillic",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "minor",
+      "regionCount": 3,
+      "coveragePct": 0.004642110475352112,
+      "chromeFaces": [
+        "LiberationSans:198",
+        "WenQuanYiZenHei:234",
+        "WenQuanYiZenHeiMono:1182"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 49,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "LiberationSans",
+          "sourcePath": "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+          "faceIndex": 0,
+          "glyphCount": 249,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        }
+      ]
+    },
+    {
+      "name": "0D00-0D7F-malayalam",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "major",
+      "regionCount": 16,
+      "coveragePct": 0.052331012228260865,
+      "chromeFaces": [
+        "FreeSans:144",
+        "Unifont:1",
+        "WenQuanYiZenHei:196",
+        "WenQuanYiZenHeiMono:708"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 44,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 8,
+          "selectedBuilder": "svg2ttf",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": "FreeSans",
+          "sourcePath": "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+          "faceIndex": 0,
+          "glyphCount": 115,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "Unifont",
+          "sourcePath": "/usr/share/fonts/opentype/unifont/unifont.otf",
+          "faceIndex": 0,
+          "glyphCount": 1,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        }
+      ]
+    },
+    {
+      "name": "1100-11FF-hangul-jamo",
+      "disposition": "resolved",
+      "verdict": "clean",
+      "regionCount": 0,
+      "coveragePct": 0,
+      "chromeFaces": [
+        "Unifont:95",
+        "WenQuanYiZenHei:326",
+        "WenQuanYiZenHeiMono:1182"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 52,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "Unifont",
+          "sourcePath": "/usr/share/fonts/opentype/unifont/unifont.otf",
+          "faceIndex": 0,
+          "glyphCount": 110,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYi Zen Hei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 145,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1D00-1D7F-phonetic-extensions",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "major",
+      "regionCount": 26,
+      "coveragePct": 0.08162788722826086,
+      "chromeFaces": [
+        "LiberationSans:126",
+        "LiberationSerif:2",
+        "WenQuanYiZenHei:272",
+        "WenQuanYiZenHeiMono:768"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 51,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "LiberationSans",
+          "sourcePath": "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+          "faceIndex": 0,
+          "glyphCount": 126,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "LiberationSerif",
+          "sourcePath": "/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf",
+          "faceIndex": 0,
+          "glyphCount": 2,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1D80-1DBF-phonetic-extensions-supplement",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "minor",
+      "regionCount": 5,
+      "coveragePct": 0.022761027018229164,
+      "chromeFaces": [
+        "LiberationSans:64",
+        "WenQuanYiZenHei:261",
+        "WenQuanYiZenHeiMono:384"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 47,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "LiberationSans",
+          "sourcePath": "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+          "faceIndex": 0,
+          "glyphCount": 64,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1E00-1EFF-latin-extended-additional",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "major",
+      "regionCount": 19,
+      "coveragePct": 0.04579069468896714,
+      "chromeFaces": [
+        "FreeSans:3",
+        "LiberationSans:195",
+        "WenQuanYiZenHei:291",
+        "WenQuanYiZenHeiMono:1182"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 54,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "LiberationSans",
+          "sourcePath": "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+          "faceIndex": 0,
+          "glyphCount": 247,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "FreeSans",
+          "sourcePath": "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+          "faceIndex": 0,
+          "glyphCount": 7,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "FreeSerif",
+          "sourcePath": "/usr/share/fonts/truetype/freefont/FreeSerif.ttf",
+          "faceIndex": 0,
+          "glyphCount": 2,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1F00-1FFF-greek-extended",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "moderate",
+      "regionCount": 7,
+      "coveragePct": 0.014989981379533678,
+      "chromeFaces": [
+        "LiberationSans:198",
+        "WenQuanYiZenHei:230",
+        "WenQuanYiZenHeiMono:1182"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 45,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "LiberationSans",
+          "sourcePath": "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+          "faceIndex": 0,
+          "glyphCount": 233,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2000-206F-general-punctuation",
+      "disposition": "resolved",
+      "verdict": "clean",
+      "regionCount": 0,
+      "coveragePct": 0,
+      "chromeFaces": [
+        "FreeSans:31",
+        "IPAGothic:6",
+        "LiberationSans:30",
+        "WenQuanYiZenHei:232",
+        "WenQuanYiZenHeiMono:426"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 46,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "LiberationSans",
+          "sourcePath": "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+          "faceIndex": 0,
+          "glyphCount": 29,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "FreeSans",
+          "sourcePath": "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+          "faceIndex": 0,
+          "glyphCount": 31,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYi Zen Hei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 4,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "IPAGothic",
+          "sourcePath": "/usr/share/fonts/truetype/fonts-japanese-gothic.ttf",
+          "faceIndex": 0,
+          "glyphCount": 6,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2070-209F-superscripts-and-subscripts",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "minor",
+      "regionCount": 3,
+      "coveragePct": 0.00762939453125,
+      "chromeFaces": [
+        "FreeSans:20",
+        "LiberationSans:22",
+        "WenQuanYiZenHei:223",
+        "WenQuanYiZenHeiMono:252"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 46,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "FreeSans",
+          "sourcePath": "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+          "faceIndex": 0,
+          "glyphCount": 20,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "LiberationSans",
+          "sourcePath": "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+          "faceIndex": 0,
+          "glyphCount": 22,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "20A0-20CF-currency-symbols",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "trivial",
+      "regionCount": 1,
+      "coveragePct": 0.004704793294270834,
+      "chromeFaces": [
+        "FreeSans:6",
+        "FreeSerif:3",
+        "LiberationSans:23",
+        "Unifont:1",
+        "WenQuanYiZenHei:300",
+        "WenQuanYiZenHeiMono:198"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 50,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "LiberationSans",
+          "sourcePath": "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+          "faceIndex": 0,
+          "glyphCount": 23,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "FreeSerif",
+          "sourcePath": "/usr/share/fonts/truetype/freefont/FreeSerif.ttf",
+          "faceIndex": 0,
+          "glyphCount": 3,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "FreeSans",
+          "sourcePath": "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+          "faceIndex": 0,
+          "glyphCount": 6,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "Unifont",
+          "sourcePath": "/usr/share/fonts/opentype/unifont/unifont.otf",
+          "faceIndex": 0,
+          "glyphCount": 1,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        }
+      ]
+    },
+    {
+      "name": "2100-214F-letterlike-symbols",
+      "disposition": "resolved",
+      "verdict": "clean",
+      "regionCount": 0,
+      "coveragePct": 0,
+      "chromeFaces": [
+        "FreeSans:53",
+        "FreeSerif:10",
+        "IPAGothic:3",
+        "LiberationSans:11",
+        "WenQuanYiZenHei:289",
+        "WenQuanYiZenHeiMono:480"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 54,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "FreeSans",
+          "sourcePath": "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+          "faceIndex": 0,
+          "glyphCount": 53,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYi Zen Hei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 3,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "LiberationSans",
+          "sourcePath": "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+          "faceIndex": 0,
+          "glyphCount": 11,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "FreeSerif",
+          "sourcePath": "/usr/share/fonts/truetype/freefont/FreeSerif.ttf",
+          "faceIndex": 0,
+          "glyphCount": 10,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "IPAGothic",
+          "sourcePath": "/usr/share/fonts/truetype/fonts-japanese-gothic.ttf",
+          "faceIndex": 0,
+          "glyphCount": 3,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2150-218F-number-forms",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "trivial",
+      "regionCount": 2,
+      "coveragePct": 0.0202178955078125,
+      "chromeFaces": [
+        "FreeSans:20",
+        "FreeSerif:8",
+        "IPAGothic:1",
+        "LiberationSans:7",
+        "WenQuanYiZenHei:276",
+        "WenQuanYiZenHeiMono:360"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 49,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 7,
+          "selectedBuilder": "svg2ttf",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": "FreeSans",
+          "sourcePath": "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+          "faceIndex": 0,
+          "glyphCount": 20,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "LiberationSans",
+          "sourcePath": "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+          "faceIndex": 0,
+          "glyphCount": 7,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "IPAGothic",
+          "sourcePath": "/usr/share/fonts/truetype/fonts-japanese-gothic.ttf",
+          "faceIndex": 0,
+          "glyphCount": 1,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYi Zen Hei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 24,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "FreeSerif",
+          "sourcePath": "/usr/share/fonts/truetype/freefont/FreeSerif.ttf",
+          "faceIndex": 0,
+          "glyphCount": 8,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2190-21FF-arrows",
+      "disposition": "resolved",
+      "verdict": "clean",
+      "regionCount": 0,
+      "coveragePct": 0,
+      "chromeFaces": [
+        "FreeSans:58",
+        "FreeSerif:32",
+        "IPAGothic:5",
+        "LiberationSans:16",
+        "WenQuanYiZenHei:217",
+        "WenQuanYiZenHeiMono:672"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 45,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "LiberationSans",
+          "sourcePath": "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+          "faceIndex": 0,
+          "glyphCount": 9,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYi Zen Hei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 5,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "FreeSerif",
+          "sourcePath": "/usr/share/fonts/truetype/freefont/FreeSerif.ttf",
+          "faceIndex": 0,
+          "glyphCount": 32,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "FreeSans",
+          "sourcePath": "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+          "faceIndex": 0,
+          "glyphCount": 58,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "IPAGothic",
+          "sourcePath": "/usr/share/fonts/truetype/fonts-japanese-gothic.ttf",
+          "faceIndex": 0,
+          "glyphCount": 5,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2200-22FF-mathematical-operators",
+      "disposition": "resolved",
+      "verdict": "clean",
+      "regionCount": 0,
+      "coveragePct": 0,
+      "chromeFaces": [
+        "FreeSans:111",
+        "FreeSerif:15",
+        "IPAGothic:14",
+        "LiberationSans:28",
+        "WenQuanYiZenHei:274",
+        "WenQuanYiZenHeiMono:1182"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 48,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYi Zen Hei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 35,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "FreeSans",
+          "sourcePath": "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+          "faceIndex": 0,
+          "glyphCount": 147,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "LiberationSans",
+          "sourcePath": "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+          "faceIndex": 0,
+          "glyphCount": 21,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "IPAGothic",
+          "sourcePath": "/usr/share/fonts/truetype/fonts-japanese-gothic.ttf",
+          "faceIndex": 0,
+          "glyphCount": 16,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "FreeSerif",
+          "sourcePath": "/usr/share/fonts/truetype/freefont/FreeSerif.ttf",
+          "faceIndex": 0,
+          "glyphCount": 35,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2300-23FF-miscellaneous-technical",
+      "disposition": "resolved",
+      "verdict": "clean",
+      "regionCount": 0,
+      "coveragePct": 0,
+      "chromeFaces": [
+        "FreeSans:49",
+        "FreeSerif:131",
+        "IPAGothic:11",
+        "LiberationSans:4",
+        "NotoColorEmoji:2",
+        "WenQuanYiZenHei:259",
+        "WenQuanYiZenHeiMono:1182"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 48,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "FreeSans",
+          "sourcePath": "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+          "faceIndex": 0,
+          "glyphCount": 73,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "FreeSerif",
+          "sourcePath": "/usr/share/fonts/truetype/freefont/FreeSerif.ttf",
+          "faceIndex": 0,
+          "glyphCount": 151,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "LiberationSans",
+          "sourcePath": "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+          "faceIndex": 0,
+          "glyphCount": 4,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "IPAGothic",
+          "sourcePath": "/usr/share/fonts/truetype/fonts-japanese-gothic.ttf",
+          "faceIndex": 0,
+          "glyphCount": 19,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYi Zen Hei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 1,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2400-243F-control-pictures",
+      "disposition": "resolved",
+      "verdict": "clean",
+      "regionCount": 0,
+      "coveragePct": 0,
+      "chromeFaces": [
+        "FreeSans:38",
+        "Unifont:3",
+        "WenQuanYiZenHei:270",
+        "WenQuanYiZenHeiMono:252"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 47,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 7,
+          "selectedBuilder": "svg2ttf",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": "FreeSans",
+          "sourcePath": "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+          "faceIndex": 0,
+          "glyphCount": 38,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYi Zen Hei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 1,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "Unifont",
+          "sourcePath": "/usr/share/fonts/opentype/unifont/unifont.otf",
+          "faceIndex": 0,
+          "glyphCount": 3,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        }
+      ]
+    },
+    {
+      "name": "2460-24FF-enclosed-alphanumerics",
+      "disposition": "resolved",
+      "verdict": "clean",
+      "regionCount": 0,
+      "coveragePct": 0,
+      "chromeFaces": [
+        "FreeSans:1",
+        "IPAGothic:20",
+        "WenQuanYiZenHei:369",
+        "WenQuanYiZenHeiMono:960"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 50,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYi Zen Hei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 139,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "IPAGothic",
+          "sourcePath": "/usr/share/fonts/truetype/fonts-japanese-gothic.ttf",
+          "faceIndex": 0,
+          "glyphCount": 20,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "FreeSans",
+          "sourcePath": "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+          "faceIndex": 0,
+          "glyphCount": 1,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2500-257F-box-drawing",
+      "disposition": "resolved",
+      "verdict": "clean",
+      "regionCount": 0,
+      "coveragePct": 0,
+      "chromeFaces": [
+        "FreeSans:11",
+        "LiberationSans:40",
+        "WenQuanYiZenHei:319",
+        "WenQuanYiZenHeiMono:768"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 52,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "LiberationSans",
+          "sourcePath": "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+          "faceIndex": 0,
+          "glyphCount": 40,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYi Zen Hei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 77,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "FreeSans",
+          "sourcePath": "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+          "faceIndex": 0,
+          "glyphCount": 11,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2580-259F-block-elements",
+      "disposition": "resolved",
+      "verdict": "clean",
+      "regionCount": 0,
+      "coveragePct": 0,
+      "chromeFaces": [
+        "FreeSans:10",
+        "LiberationSans:8",
+        "WenQuanYiZenHei:221",
+        "WenQuanYiZenHeiMono:192"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 53,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "LiberationSans",
+          "sourcePath": "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+          "faceIndex": 0,
+          "glyphCount": 8,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYi Zen Hei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 14,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "FreeSans",
+          "sourcePath": "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+          "faceIndex": 0,
+          "glyphCount": 10,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "25A0-25FF-geometric-shapes",
+      "disposition": "resolved",
+      "verdict": "clean",
+      "regionCount": 0,
+      "coveragePct": 0,
+      "chromeFaces": [
+        "FreeSans:46",
+        "IPAGothic:3",
+        "LiberationSans:24",
+        "NotoColorEmoji:2",
+        "WenQuanYiZenHei:244",
+        "WenQuanYiZenHeiMono:576"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 48,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "LiberationSans",
+          "sourcePath": "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+          "faceIndex": 0,
+          "glyphCount": 24,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "FreeSans",
+          "sourcePath": "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+          "faceIndex": 0,
+          "glyphCount": 46,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYi Zen Hei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 21,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "IPAGothic",
+          "sourcePath": "/usr/share/fonts/truetype/fonts-japanese-gothic.ttf",
+          "faceIndex": 0,
+          "glyphCount": 3,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2C60-2C7F-latin-extended-c",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "trivial",
+      "regionCount": 1,
+      "coveragePct": 0.01068115234375,
+      "chromeFaces": [
+        "FreeSans:7",
+        "FreeSerif:4",
+        "LiberationSans:21",
+        "WenQuanYiZenHei:201",
+        "WenQuanYiZenHeiMono:192"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 50,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "LiberationSans",
+          "sourcePath": "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+          "faceIndex": 0,
+          "glyphCount": 21,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "FreeSerif",
+          "sourcePath": "/usr/share/fonts/truetype/freefont/FreeSerif.ttf",
+          "faceIndex": 0,
+          "glyphCount": 4,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "FreeSans",
+          "sourcePath": "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+          "faceIndex": 0,
+          "glyphCount": 7,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2D30-2D7F-tifinagh",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "trivial",
+      "regionCount": 2,
+      "coveragePct": 0.009663899739583332,
+      "chromeFaces": [
+        "FreeSans:60",
+        "WenQuanYiZenHei:193",
+        "WenQuanYiZenHeiMono:354"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 46,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "FreeSans",
+          "sourcePath": "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+          "faceIndex": 0,
+          "glyphCount": 60,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2E80-2EFF-cjk-radicals-supplement",
+      "disposition": "resolved",
+      "verdict": "clean",
+      "regionCount": 0,
+      "coveragePct": 0,
+      "chromeFaces": [
+        "WenQuanYiZenHei:329",
+        "WenQuanYiZenHeiMono:690"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 45,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYi Zen Hei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 115,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2F00-2FDF-kangxi-radicals",
+      "disposition": "resolved",
+      "verdict": "clean",
+      "regionCount": 0,
+      "coveragePct": 0,
+      "chromeFaces": [
+        "WenQuanYiZenHei:440",
+        "WenQuanYiZenHeiMono:1182"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 45,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYi Zen Hei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 214,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3000-303F-cjk-symbols-and-punctuation",
+      "disposition": "resolved",
+      "verdict": "clean",
+      "regionCount": 0,
+      "coveragePct": 0,
+      "chromeFaces": [
+        "IPAGothic:6",
+        "Unifont:12",
+        "WenQuanYiZenHei:403",
+        "WenQuanYiZenHeiMono:378"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 54,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYi Zen Hei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 45,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "Unifont",
+          "sourcePath": "/usr/share/fonts/opentype/unifont/unifont.otf",
+          "faceIndex": 0,
+          "glyphCount": 8,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": "IPAGothic",
+          "sourcePath": "/usr/share/fonts/truetype/fonts-japanese-gothic.ttf",
+          "faceIndex": 0,
+          "glyphCount": 6,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3040-309F-hiragana",
+      "disposition": "resolved",
+      "verdict": "clean",
+      "regionCount": 0,
+      "coveragePct": 0,
+      "chromeFaces": [
+        "WenQuanYiZenHei:301",
+        "WenQuanYiZenHeiMono:558"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 46,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYi Zen Hei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 86,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        }
+      ]
+    },
+    {
+      "name": "30A0-30FF-katakana",
+      "disposition": "resolved",
+      "verdict": "clean",
+      "regionCount": 0,
+      "coveragePct": 0,
+      "chromeFaces": [
+        "IPAGothic:1",
+        "WenQuanYiZenHei:286",
+        "WenQuanYiZenHeiMono:576"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 48,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYi Zen Hei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 94,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "IPAGothic",
+          "sourcePath": "/usr/share/fonts/truetype/fonts-japanese-gothic.ttf",
+          "faceIndex": 0,
+          "glyphCount": 1,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3100-312F-bopomofo",
+      "disposition": "resolved",
+      "verdict": "clean",
+      "regionCount": 0,
+      "coveragePct": 0,
+      "chromeFaces": [
+        "Unifont:2",
+        "WenQuanYiZenHei:244",
+        "WenQuanYiZenHeiMono:258"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 49,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYi Zen Hei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 41,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "Unifont",
+          "sourcePath": "/usr/share/fonts/opentype/unifont/unifont.otf",
+          "faceIndex": 0,
+          "glyphCount": 2,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        }
+      ]
+    },
+    {
+      "name": "3130-318F-hangul-compatibility-jamo",
+      "disposition": "resolved",
+      "verdict": "clean",
+      "regionCount": 0,
+      "coveragePct": 0,
+      "chromeFaces": [
+        "WenQuanYiZenHei:261",
+        "WenQuanYiZenHeiMono:564"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 50,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYi Zen Hei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 93,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3190-319F-kanbun",
+      "disposition": "resolved",
+      "verdict": "clean",
+      "regionCount": 0,
+      "coveragePct": 0,
+      "chromeFaces": [
+        "Unifont:2",
+        "WenQuanYiZenHei:215",
+        "WenQuanYiZenHeiMono:96"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 46,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "Unifont",
+          "sourcePath": "/usr/share/fonts/opentype/unifont/unifont.otf",
+          "faceIndex": 0,
+          "glyphCount": 2,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYi Zen Hei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 14,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        }
+      ]
+    },
+    {
+      "name": "31A0-31BF-bopomofo-extended",
+      "disposition": "resolved",
+      "verdict": "clean",
+      "regionCount": 0,
+      "coveragePct": 0,
+      "chromeFaces": [
+        "Unifont:28",
+        "WenQuanYiZenHei:208",
+        "WenQuanYiZenHeiMono:192"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 50,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 7,
+          "selectedBuilder": "svg2ttf",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": "Unifont",
+          "sourcePath": "/usr/share/fonts/opentype/unifont/unifont.otf",
+          "faceIndex": 0,
+          "glyphCount": 28,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYi Zen Hei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 4,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        }
+      ]
+    },
+    {
+      "name": "31C0-31EF-cjk-strokes",
+      "disposition": "resolved",
+      "verdict": "clean",
+      "regionCount": 0,
+      "coveragePct": 0,
+      "chromeFaces": [
+        "Unifont:3",
+        "WenQuanYiZenHei:282",
+        "WenQuanYiZenHeiMono:234"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 47,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 7,
+          "selectedBuilder": "svg2ttf",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": "WenQuanYi Zen Hei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 36,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "Unifont",
+          "sourcePath": "/usr/share/fonts/opentype/unifont/unifont.otf",
+          "faceIndex": 0,
+          "glyphCount": 3,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        }
+      ]
+    },
+    {
+      "name": "3200-32FF-enclosed-cjk-letters-and-months",
+      "disposition": "resolved",
+      "verdict": "clean",
+      "regionCount": 0,
+      "coveragePct": 0,
+      "chromeFaces": [
+        "IPAGothic:30",
+        "Unifont:14",
+        "WenQuanYiZenHei:524",
+        "WenQuanYiZenHeiMono:1182"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 59,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYi Zen Hei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 206,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "Unifont",
+          "sourcePath": "/usr/share/fonts/opentype/unifont/unifont.otf",
+          "faceIndex": 0,
+          "glyphCount": 19,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": "IPAGothic",
+          "sourcePath": "/usr/share/fonts/truetype/fonts-japanese-gothic.ttf",
+          "faceIndex": 0,
+          "glyphCount": 30,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3300-33FF-cjk-compatibility",
+      "disposition": "resolved",
+      "verdict": "clean",
+      "regionCount": 0,
+      "coveragePct": 0,
+      "chromeFaces": [
+        "IPAGothic:16",
+        "Unifont:83",
+        "WenQuanYiZenHei:421",
+        "WenQuanYiZenHeiMono:1182"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 54,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "Unifont",
+          "sourcePath": "/usr/share/fonts/opentype/unifont/unifont.otf",
+          "faceIndex": 0,
+          "glyphCount": 86,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "IPAGothic",
+          "sourcePath": "/usr/share/fonts/truetype/fonts-japanese-gothic.ttf",
+          "faceIndex": 0,
+          "glyphCount": 16,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYi Zen Hei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 154,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4DC0-4DFF-yijing-hexagram-symbols",
+      "disposition": "resolved",
+      "verdict": "clean",
+      "regionCount": 0,
+      "coveragePct": 0,
+      "chromeFaces": [
+        "WenQuanYiZenHei:357",
+        "WenQuanYiZenHeiMono:384"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 51,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYi Zen Hei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 64,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        }
+      ]
+    },
+    {
+      "name": "A720-A7FF-latin-extended-d",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "trivial",
+      "regionCount": 1,
+      "coveragePct": 0.0017538838002873563,
+      "chromeFaces": [
+        "FreeSans:25",
+        "FreeSerif:113",
+        "LiberationSans:7",
+        "Unifont:52",
+        "WenQuanYiZenHei:268",
+        "WenQuanYiZenHeiMono:1182"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 54,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 7,
+          "selectedBuilder": "svg2ttf",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "FreeSerif",
+          "sourcePath": "/usr/share/fonts/truetype/freefont/FreeSerif.ttf",
+          "faceIndex": 0,
+          "glyphCount": 115,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "FreeSans",
+          "sourcePath": "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+          "faceIndex": 0,
+          "glyphCount": 25,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "Unifont",
+          "sourcePath": "/usr/share/fonts/opentype/unifont/unifont.otf",
+          "faceIndex": 0,
+          "glyphCount": 52,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": "LiberationSans",
+          "sourcePath": "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+          "faceIndex": 0,
+          "glyphCount": 5,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FB50-FDFF-arabic-presentation-forms-a.2",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "major",
+      "regionCount": 16,
+      "coveragePct": 0.057314918154761904,
+      "chromeFaces": [
+        "FreeSerif:2",
+        "Unifont:109",
+        "WenQuanYiZenHei:304",
+        "WenQuanYiZenHeiMono:666"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 48,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 7,
+          "selectedBuilder": "svg2ttf",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": "Unifont",
+          "sourcePath": "/usr/share/fonts/opentype/unifont/unifont.otf",
+          "faceIndex": 0,
+          "glyphCount": 109,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "FreeSerif",
+          "sourcePath": "/usr/share/fonts/truetype/freefont/FreeSerif.ttf",
+          "faceIndex": 0,
+          "glyphCount": 2,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FE10-FE1F-vertical-forms",
+      "disposition": "resolved",
+      "verdict": "clean",
+      "regionCount": 0,
+      "coveragePct": 0,
+      "chromeFaces": [
+        "Unifont:8",
+        "WenQuanYiZenHei:233",
+        "WenQuanYiZenHeiMono:60"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 49,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "Unifont",
+          "sourcePath": "/usr/share/fonts/opentype/unifont/unifont.otf",
+          "faceIndex": 0,
+          "glyphCount": 8,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 14,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYi Zen Hei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 2,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FE30-FE4F-cjk-compatibility-forms",
+      "disposition": "resolved",
+      "verdict": "clean",
+      "regionCount": 0,
+      "coveragePct": 0,
+      "chromeFaces": [
+        "WenQuanYiZenHei:295",
+        "WenQuanYiZenHeiMono:192"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 53,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYi Zen Hei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 32,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FE50-FE6F-small-form-variants",
+      "disposition": "resolved",
+      "verdict": "clean",
+      "regionCount": 0,
+      "coveragePct": 0,
+      "chromeFaces": [
+        "Unifont:1",
+        "WenQuanYiZenHei:252",
+        "WenQuanYiZenHeiMono:156"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 43,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYi Zen Hei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 25,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "Unifont",
+          "sourcePath": "/usr/share/fonts/opentype/unifont/unifont.otf",
+          "faceIndex": 0,
+          "glyphCount": 1,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        }
+      ]
+    },
+    {
+      "name": "FF00-FFEF-halfwidth-and-fullwidth-forms",
+      "disposition": "resolved",
+      "verdict": "clean",
+      "regionCount": 0,
+      "coveragePct": 0,
+      "chromeFaces": [
+        "IPAGothic:65",
+        "Unifont:39",
+        "WenQuanYiZenHei:367",
+        "WenQuanYiZenHeiMono:1182"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "WenQuanYiZenHei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 49,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYi Zen Hei",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 0,
+          "glyphCount": 101,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "WenQuanYiZenHeiMono",
+          "sourcePath": "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          "faceIndex": 1,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt "
+          ]
+        },
+        {
+          "postscriptName": "IPAGothic",
+          "sourcePath": "/usr/share/fonts/truetype/fonts-japanese-gothic.ttf",
+          "faceIndex": 0,
+          "glyphCount": 65,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "Unifont",
+          "sourcePath": "/usr/share/fonts/opentype/unifont/unifont.otf",
+          "faceIndex": 0,
+          "glyphCount": 58,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        }
+      ]
+    }
+  ]
+}
