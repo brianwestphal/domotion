@@ -93,6 +93,28 @@ describe("source-owned affine text paint", () => {
     expect(wrapAffineTextPaint(prepared.residualMatrix, "<path/>")).toContain("matrix(");
   });
 
+  it("retains affine projective records in the emitted text CTM", () => {
+    const root = base();
+    root.projectiveTransform = [1.25, 0, 8, 0, 1.25, 12, 0, 0, 1];
+    const child = base();
+    root.children = [child];
+    const map = buildEmittedTextCtmMap([root]);
+
+    expect(map.get(root)).toEqual([1.25, 0, 0, 1.25, 8, 12]);
+    expect(map.get(child)).toEqual([1.25, 0, 0, 1.25, 8, 12]);
+  });
+
+  it("still fails closed for a genuinely projective text plane", () => {
+    const root = base();
+    root.projectiveTransform = [1, 0, 0, 0, 1, 0, 0.002, 0, 1];
+    const child = base();
+    root.children = [child];
+    const map = buildEmittedTextCtmMap([root]);
+
+    expect(map.get(root)).toBeNull();
+    expect(map.get(child)).toBeNull();
+  });
+
   it("fails closed for a singular emitted plane and never scalarizes rotation", () => {
     const el = base();
     el.styles.transform = "matrix(0, 1, -1, 0, 0, 0)";

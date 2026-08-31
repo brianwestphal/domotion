@@ -142,6 +142,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtgkmq2ytwfyh5ns",
+          "message": {
+            "text": "Affine projective records must remain invertible text ancestors. Chromium separately branches on Matrix().Is2dTransform() in paintpropertytree_builder.cc:1526 and PaintLayer::ComputeZOffset; likewise, a captured homography with zero perspective terms is an ordinary 2D matrix even when it came through the projective capture channel. Keeping it in the emitted CTM restores descendant text while genuine perspective rows still fail closed.",
+            "markdown": "Affine projective records must remain invertible text ancestors. Chromium separately branches on Matrix().Is2dTransform() in paint_property_tree_builder.cc:1526 and PaintLayer::ComputeZOffset; likewise, a captured homography with zero perspective terms is an ordinary 2D matrix even when it came through the projective capture channel. Keeping it in the emitted CTM restores descendant text while genuine perspective rows still fail closed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-affine.ts"
+                },
+                "region": {
+                  "startLine": 75,
+                  "endLine": 94,
+                  "snippet": {
+                    "text": "  if (el.projectiveTransform != null) {\n    const projective = el.projectiveTransform;\n    // A captured projective plane is not necessarily non-affine. Perspective\n    // roots themselves and planes affected only by translateZ commonly arrive\n    // as a homography whose projective row is [0, 0, w]. The renderer emits\n    // those first six normalized coefficients as an SVG matrix, so text must\n    // include the same matrix in its already-emitted CTM.\n    const w = projective[8];\n    if (!Number.isFinite(w) || Math.abs(w) <= TEXT_PAINT_MATRIX_EPSILON\n      || Math.abs(projective[6]) > TEXT_PAINT_MATRIX_EPSILON\n      || Math.abs(projective[7]) > TEXT_PAINT_MATRIX_EPSILON) return null;\n    const affine: CapturedTextPaintAffine = [\n      projective[0] / w,\n      projective[3] / w,\n      projective[1] / w,\n      projective[4] / w,\n      projective[2] / w,\n      projective[5] / w,\n    ];\n    return affine.every(Number.isFinite) ? affine : null;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2612"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "745ebcf29bfc6a0ee83f4fe55c62b198"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a1ad16ccbc136a82b4102f822cab1e2375219ce5",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

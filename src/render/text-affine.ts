@@ -72,7 +72,27 @@ function parseComputedAffine(transform: string | undefined): CapturedTextPaintAf
 
 /** Exact matrix emitted by the renderer's static CSS-transform wrapper. */
 export function emittedElementTextAffine(el: CapturedElement): CapturedTextPaintAffine | null {
-  if (el.projectiveTransform != null) return null;
+  if (el.projectiveTransform != null) {
+    const projective = el.projectiveTransform;
+    // A captured projective plane is not necessarily non-affine. Perspective
+    // roots themselves and planes affected only by translateZ commonly arrive
+    // as a homography whose projective row is [0, 0, w]. The renderer emits
+    // those first six normalized coefficients as an SVG matrix, so text must
+    // include the same matrix in its already-emitted CTM.
+    const w = projective[8];
+    if (!Number.isFinite(w) || Math.abs(w) <= TEXT_PAINT_MATRIX_EPSILON
+      || Math.abs(projective[6]) > TEXT_PAINT_MATRIX_EPSILON
+      || Math.abs(projective[7]) > TEXT_PAINT_MATRIX_EPSILON) return null;
+    const affine: CapturedTextPaintAffine = [
+      projective[0] / w,
+      projective[3] / w,
+      projective[1] / w,
+      projective[4] / w,
+      projective[2] / w,
+      projective[5] / w,
+    ];
+    return affine.every(Number.isFinite) ? affine : null;
+  }
   const matrix = parseComputedAffine(el.styles.transform);
   if (matrix == null) return null;
   if (textAffineEquals(matrix, IDENTITY_TEXT_AFFINE)) return IDENTITY_TEXT_AFFINE;
