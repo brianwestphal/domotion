@@ -47,8 +47,12 @@ const output = {
   sourceAuthorities: [
     "external/chromium/third_party/blink/renderer/platform/fonts",
     "external/harfbuzz/src",
-    "src/render/unicode-font-routing.win32.generated.ts",
-    "tools/win32-glyph-extractor",
+    ...(platform === "windows"
+      ? [
+          "src/render/unicode-font-routing.win32.generated.ts",
+          "tools/win32-glyph-extractor",
+        ]
+      : []),
   ],
   counts: {
     total: rows.length,

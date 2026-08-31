@@ -1,0 +1,300 @@
+{
+  "ticket": "DM-2609",
+  "platform": "macos",
+  "originalSourceRun": 33314760708,
+  "reviewedComparisonRun": 33345443048,
+  "policy": "A row is functionally clean only when direct expected/actual review confirms the same glyph or tofu inventory, advances, cluster placement, and content; native-versus-embedded raster pixels remain recorded but are not a platform-functionality defect.",
+  "sourceAuthorities": [
+    "external/chromium/third_party/blink/renderer/platform/fonts",
+    "external/harfbuzz/src"
+  ],
+  "counts": {
+    "total": 4,
+    "functionallyCleanRasterResiduals": 4
+  },
+  "rows": [
+    {
+      "name": "0D00-0D7F-malayalam",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "minor",
+      "regionCount": 3,
+      "coveragePct": 0.006687330163043478,
+      "chromeFaces": [
+        ".SFMalayalam-Regular:21",
+        ".SFNS-Bold:9",
+        ".SFNS-Regular:163",
+        ".SFNS-RegularItalic:24",
+        "MalayalamMN:2",
+        "MalayalamSangamMN:98",
+        "Menlo-Regular:708"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": null,
+          "sourcePath": "/System/Library/Fonts/SFNS.ttf",
+          "faceIndex": 0,
+          "glyphCount": 5,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": null,
+          "sourcePath": "/System/Library/Fonts/SFNS.ttf",
+          "faceIndex": 0,
+          "glyphCount": 44,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": null,
+          "sourcePath": "/System/Library/Fonts/SFNSItalic.ttf",
+          "faceIndex": 0,
+          "glyphCount": 8,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": ".SFMalayalam-Regular",
+          "sourcePath": "/System/Library/Fonts/SFIndia.ttc",
+          "faceIndex": 5,
+          "glyphCount": 19,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": "Menlo-Regular",
+          "sourcePath": "/System/Library/Fonts/Menlo.ttc",
+          "faceIndex": 0,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "MalayalamSangamMN",
+          "sourcePath": "/System/Library/Fonts/Supplemental/Malayalam Sangam MN.ttc",
+          "faceIndex": 0,
+          "glyphCount": 98,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": "MalayalamMN",
+          "sourcePath": "/System/Library/Fonts/Supplemental/Malayalam MN.ttc",
+          "faceIndex": 0,
+          "glyphCount": 1,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        }
+      ]
+    },
+    {
+      "name": "0D80-0DFF-sinhala",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "trivial",
+      "regionCount": 2,
+      "coveragePct": 0.011444091796875,
+      "chromeFaces": [
+        ".SFNS-Bold:7",
+        ".SFNS-Regular:140",
+        ".SFNS-RegularItalic:24",
+        "Menlo-Regular:546",
+        "SinhalaSangamMN:91"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": null,
+          "sourcePath": "/System/Library/Fonts/SFNS.ttf",
+          "faceIndex": 0,
+          "glyphCount": 6,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": null,
+          "sourcePath": "/System/Library/Fonts/SFNS.ttf",
+          "faceIndex": 0,
+          "glyphCount": 42,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": null,
+          "sourcePath": "/System/Library/Fonts/SFNSItalic.ttf",
+          "faceIndex": 0,
+          "glyphCount": 7,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": "Menlo-Regular",
+          "sourcePath": "/System/Library/Fonts/Menlo.ttc",
+          "faceIndex": 0,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SinhalaSangamMN",
+          "sourcePath": "/System/Library/Fonts/Supplemental/Sinhala Sangam MN.ttc",
+          "faceIndex": 0,
+          "glyphCount": 80,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        }
+      ]
+    },
+    {
+      "name": "1000-109F-myanmar",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "trivial",
+      "regionCount": 1,
+      "coveragePct": 0.0021192762586805555,
+      "chromeFaces": [
+        ".SFNS-Bold:7",
+        ".SFNS-Regular:167",
+        "Menlo-Regular:960",
+        "MyanmarSangamMN:81",
+        "NotoSansMyanmar-Regular:120"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": null,
+          "sourcePath": "/System/Library/Fonts/SFNS.ttf",
+          "faceIndex": 0,
+          "glyphCount": 6,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": null,
+          "sourcePath": "/System/Library/Fonts/SFNS.ttf",
+          "faceIndex": 0,
+          "glyphCount": 44,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": "MyanmarSangamMN",
+          "sourcePath": "/System/Library/Fonts/Supplemental/Myanmar Sangam MN.ttc",
+          "faceIndex": 0,
+          "glyphCount": 81,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": "Menlo-Regular",
+          "sourcePath": "/System/Library/Fonts/Menlo.ttc",
+          "faceIndex": 0,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "NotoSansMyanmar-Regular",
+          "sourcePath": "/System/Library/Fonts/NotoSansMyanmar.ttc",
+          "faceIndex": 6,
+          "glyphCount": 80,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        }
+      ]
+    },
+    {
+      "name": "2300-23FF-miscellaneous-technical",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "trivial",
+      "regionCount": 1,
+      "coveragePct": 0.0022924002347417837,
+      "chromeFaces": [
+        ".SFNS-Bold:23",
+        ".SFNS-Regular:235",
+        "AppleSymbols:186",
+        "ArialMT:4",
+        "ArialUnicodeMS:8",
+        "Menlo-Regular:1182"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": null,
+          "sourcePath": "/System/Library/Fonts/SFNS.ttf",
+          "faceIndex": 0,
+          "glyphCount": 12,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": null,
+          "sourcePath": "/System/Library/Fonts/SFNS.ttf",
+          "faceIndex": 0,
+          "glyphCount": 48,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": "ArialUnicodeMS",
+          "sourcePath": "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+          "faceIndex": 0,
+          "glyphCount": 8,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "Menlo-Regular",
+          "sourcePath": "/System/Library/Fonts/Menlo.ttc",
+          "faceIndex": 0,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "AppleSymbols",
+          "sourcePath": "/System/Library/Fonts/Apple Symbols.ttf",
+          "faceIndex": 0,
+          "glyphCount": 220,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": "ArialMT",
+          "sourcePath": "/System/Library/Fonts/Supplemental/Arial.ttf",
+          "faceIndex": 0,
+          "glyphCount": 4,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "STIXTwoMath-Regular",
+          "sourcePath": "/System/Library/Fonts/Supplemental/STIXTwoMath.otf",
+          "faceIndex": 0,
+          "glyphCount": 24,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        }
+      ]
+    }
+  ]
+}
