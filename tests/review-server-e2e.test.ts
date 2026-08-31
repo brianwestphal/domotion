@@ -15,6 +15,39 @@ import { fileURLToPath } from "node:url";
 const SERVER = resolve(fileURLToPath(import.meta.url), "..", "review-server.tsx");
 const PORT = 4396;
 const BASE = `http://localhost:${PORT}`;
+const LINUX_CJK_FIXTURE = "4E00-9FFF-cjk-unified-ideographs.30";
+
+function linuxCjkResult(diffPct = 0.595): Record<string, unknown> {
+  return {
+    name: LINUX_CJK_FIXTURE, pass: false, skipped: false, diffPct,
+    textRunEvidence: {
+      schemaVersion: 1, fixture: LINUX_CJK_FIXTURE,
+      sourceAuthority: {
+        chromium: "7d859f271cbda744098ac69f44978d4edfa62be3",
+        harfbuzz: "4de187dd0a915d13c976fa8bd474c084229f3aab", skia: "62efacd3",
+      },
+      transitions: [],
+      runs: [{
+        fixture: LINUX_CJK_FIXTURE, row: 0, emitter: "embedded-font", sourceText: "U+6C94",
+        sourceSpan: [0, 6], sourceCodepointSpan: [0, 6], emittedText: "U+6C94", mechanism: "system-resolver",
+        request: { fontFamily: "monospace", fontWeight: 400, fontStretch: 100, fontSizePx: 12, direction: "ltr" },
+        selected: {
+          fontKey: "sysfb:WenQuanYiZenHeiMono", postscriptName: "WenQuanYiZenHeiMono", instantiatedPostscriptName: null,
+          sourcePath: "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc", faceIndex: 1, variationAxes: null, shapesWithHarfbuzz: true,
+        },
+        glyphs: [{ id: 44634, cluster: 0, sourceSpan: [0, 1], sourceCodepointSpan: [0, 1], xAdvance: 512, yAdvance: 0, xOffset: 0, yOffset: 0, sourceOutline: { sha256: "outline", commandCount: 17 } }],
+        emittedIdentity: "embedded-font:mono:44634", finalRepresentation: "embedded-font",
+      }],
+    },
+    embeddedFontBuilds: [{
+      instanceKey: "mono#1", cssFamily: "dmf0", sourcePath: "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+      faceIndex: 1, variationAxes: null, selectedBuilder: "hb-subset", hintedSourceDisqualifiedReasons: [],
+      retainedTableTags: ["glyf", "cvt "], retainedHintTableTags: ["cvt "],
+      finalRepresentation: { kind: "embedded-sfnt", mime: "font/ttf", byteLength: 100, sha256: "hinted" },
+      affectedGlyphCount: 1, affectedGlyphOccurrenceCount: 1, affectedRunCount: 1,
+    }],
+  };
+}
 
 async function waitForServer(timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs;
@@ -36,6 +69,18 @@ describe("review-server async loading (DM-1665)", () => {
     mkdirSync(join(ciBase, "ci-macos", "html-test-unicode"), { recursive: true });
     const localOut = join(tmp, "local");
     mkdirSync(localOut, { recursive: true });
+    const unicodeOut = join(localOut, "html-test-unicode");
+    mkdirSync(unicodeOut, { recursive: true });
+    writeFileSync(join(unicodeOut, "results.json"), JSON.stringify([linuxCjkResult()]));
+    writeFileSync(join(unicodeOut, "stage-evidence.json"), JSON.stringify({
+      schemaVersion: 1, generatedAt: "2026-08-31T00:00:00Z", sourceRevision: "abc", platform: "linux",
+      environmentFingerprint: { image: "noble" },
+      reports: [
+        { area: "text.font-selection", oracle: "font-selection", status: "failed", passedRows: 0, totalRows: 686 },
+        { area: "text.shaping", oracle: "shaping", status: "failed", passedRows: 0, totalRows: 686 },
+      ],
+      rules: [{ suites: ["html-test-unicode"], transitionIds: ["text.selection", "text.shape"], areas: ["text.font-selection", "text.shaping"] }],
+    }));
     // Fake `gh`: sleeps 5s then fails. If `/` blocked on it, the request would be ≥5s.
     const ghDir = join(tmp, "bin");
     mkdirSync(ghDir);
@@ -78,6 +123,16 @@ describe("review-server async loading (DM-1665)", () => {
     const html = await res.text();
     expect(res.status).toBe(200);
     expect(html).toContain('"sourceFetchNeeded":false');
+  });
+
+  it("integrates exact Linux face-index-1 evidence under the 1% floor ahead of global failures", async () => {
+    const res = await fetch(`${BASE}/?source=local-macos`);
+    const html = await res.text();
+    expect(res.status).toBe(200);
+    expect(html).toContain(`"name":"${LINUX_CJK_FIXTURE}"`);
+    expect(html).toContain('"scope":"fixture"');
+    expect(html).toContain('"area":"text.fixture-logical","oracle":"linux-unicode-fixture-provenance+mutation-matrix","status":"passed"');
+    expect(html).toContain('"supersededReports":[{"area":"text.font-selection"');
   });
 
   it("exposes /api/refresh-source and degrades gracefully when gh fails", async () => {

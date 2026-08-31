@@ -177,6 +177,69 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mthasr2wna1nbpi6",
+          "message": {
+            "text": "Fixture-scoped Linux Unicode evidence may supersede suite-global stage failures only for the closed 24-row mutation-validated corpus, with current exact provenance, active hinted hb-subset output, retained hint tables, and a residual at or below the validated 1% raster floor. Fixture .30 additionally pins WenQuanYiZenHeiMono to wqy-zenhei.ttc face index 1.",
+            "markdown": "Fixture-scoped Linux Unicode evidence may supersede suite-global stage failures only for the closed 24-row mutation-validated corpus, with current exact provenance, active hinted hb-subset output, retained hint tables, and a residual at or below the validated 1% raster floor. Fixture .30 additionally pins WenQuanYiZenHeiMono to wqy-zenhei.ttc face index 1."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/review/linux-unicode-evidence.ts"
+                },
+                "region": {
+                  "startLine": 203,
+                  "endLine": 246,
+                  "snippet": {
+                    "text": "/**\n * Turn the closed, mutation-validated Linux Unicode corpus into evidence the\n * review tool can apply to one current fixture. The corpus membership records\n * that both helper-off and hint-off arms moved; the current artifact must still\n * prove exact logical provenance, active hinted subset construction, and the\n * bounded Linux raster floor before it may supersede suite-global reports.\n */\nexport function classifyLinuxUnicodeFixtureEvidence(args: {\n  platform: string;\n  suite: string;\n  fixture: string;\n  diffPct: number;\n  textRunEvidence?: FixtureTextRunProvenance;\n  embeddedFontBuilds?: EmbeddedFontBuildDiagnostic[];\n}): FixtureScopedStageEvidence | undefined {\n  if (args.platform !== \"linux\" || args.suite !== \"html-test-unicode\") return undefined;\n  if (!isLinuxUnicodeRasterFloorFixture(args.fixture) || args.diffPct > 1) return undefined;\n  if (args.textRunEvidence == null || validateFixtureTextEvidence(args.fixture, args.textRunEvidence).length > 0) return undefined;\n  const builds = args.embeddedFontBuilds ?? [];\n  const hintedBuilds = builds.filter((build) =>\n    build.selectedBuilder === \"hb-subset\" && build.retainedHintTableTags.length > 0);\n  if (hintedBuilds.length === 0) return undefined;\n\n  if (args.fixture === CJK_30_FIXTURE) {\n    const monoRuns = args.textRunEvidence.runs.filter((run) => run.selected.fontKey === CJK_30_MONO_FONT_KEY);\n    if (monoRuns.length === 0 || monoRuns.some((run) =>\n      run.selected.postscriptName !== \"WenQuanYiZenHeiMono\"\n      || run.selected.sourcePath !== \"/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc\"\n      || run.selected.faceIndex !== 1)) return undefined;\n    if (!hintedBuilds.some((build) =>\n      build.sourcePath === \"/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc\" && build.faceIndex === 1)) return undefined;\n  }\n\n  return {\n    reports: [{\n      area: \"text.fixture-logical\",\n      oracle: \"linux-unicode-fixture-provenance+mutation-matrix\",\n      status: \"passed\",\n      passedRows: args.textRunEvidence.runs.length,\n      totalRows: args.textRunEvidence.runs.length,\n      note: `Exact face/glyph/cluster/span/metric/outline provenance; prior helper-off and hint-off mutations active; hinted subset retained; ${args.diffPct.toFixed(3)}% Linux raster floor.`,\n    }],\n  };\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ]
+          },
+          "workItemUris": [
+            "DM-2625"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "2d02c17160a672c1f57469d46a3c523a"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "65d46e318aec6e2ced87e1a25573ae9e6b40e9f3",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

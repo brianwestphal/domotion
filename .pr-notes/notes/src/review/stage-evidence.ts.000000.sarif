@@ -79,6 +79,69 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mthasr8k6eefn5tb",
+          "message": {
+            "text": "Evidence precedence follows specificity: exact fixture rules and validated fixture reports remain authoritative; matching suite-global reports are preserved separately as superseded audit context so they cannot be mistaken for a fixture diagnosis.",
+            "markdown": "Evidence precedence follows specificity: exact fixture rules and validated fixture reports remain authoritative; matching suite-global reports are preserved separately as superseded audit context so they cannot be mistaken for a fixture diagnosis."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/review/stage-evidence.ts"
+                },
+                "region": {
+                  "startLine": 29,
+                  "endLine": 94,
+                  "snippet": {
+                    "text": "export interface RelevantStageEvidence {\n  transitionIds: string[];\n  reports: StageEvidenceReport[];\n  /** Fixture proof is narrower and therefore authoritative over reports that\n   * only describe the suite as a whole. */\n  scope: \"suite-global\" | \"fixture\";\n  /** Suite-global reports retained for auditability after fixture proof wins. */\n  supersededReports?: StageEvidenceReport[];\n}\n\nexport interface FixtureScopedStageEvidence {\n  transitionIds?: string[];\n  reports: StageEvidenceReport[];\n}\n\n/**\n * Resolve evidence by the semantic inventory's explicit fixture links. Pixel\n * scores are intentionally absent from this API: a larger diff must never be\n * allowed to manufacture a more confident logical-stage diagnosis.\n */\nexport function relevantStageEvidence(\n  manifest: StageEvidenceManifest | undefined,\n  suite: string,\n  fixture: string,\n  fixtureEvidence?: FixtureScopedStageEvidence,\n): RelevantStageEvidence | undefined {\n  if (manifest == null) {\n    return fixtureEvidence == null ? undefined : {\n      transitionIds: [...new Set(fixtureEvidence.transitionIds ?? [])].sort(),\n      reports: fixtureEvidence.reports,\n      scope: \"fixture\",\n    };\n  }\n  const rules = manifest.rules.filter((rule) =>\n    rule.suites.includes(suite) && (rule.fixture == null || rule.fixture === fixture));\n  if (rules.length === 0 && fixtureEvidence == null) return undefined;\n  const transitionIds = [...new Set([\n    ...rules.flatMap((rule) => rule.transitionIds),\n    ...(fixtureEvidence?.transitionIds ?? []),\n  ])].sort();\n  const fixtureRules = rules.filter((rule) => rule.fixture === fixture);\n  const globalRules = rules.filter((rule) => rule.fixture == null);\n  const areas = new Set(rules.flatMap((rule) => rule.areas));\n  const reports = manifest.reports.filter((report) => areas.has(report.area));\n  if (fixtureEvidence != null) {\n    const fixtureAreas = new Set(fixtureRules.flatMap((rule) => rule.areas));\n    const exactReports = reports.filter((report) => fixtureAreas.has(report.area));\n    const globalAreas = new Set(globalRules.flatMap((rule) => rule.areas));\n    const supersededReports = reports.filter((report) => globalAreas.has(report.area) && !fixtureAreas.has(report.area));\n    return {\n      transitionIds,\n      reports: [...exactReports, ...fixtureEvidence.reports],\n      scope: \"fixture\",\n      ...(supersededReports.length > 0 ? { supersededReports } : {}),\n    };\n  }\n  return {\n    transitionIds,\n    reports,\n    scope: fixtureRules.length > 0 ? \"fixture\" : \"suite-global\",\n  };\n}\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ]
+          },
+          "workItemUris": [
+            "DM-2625"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "520e68e5da73e1ba6512ae31397ee89f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "65d46e318aec6e2ced87e1a25573ae9e6b40e9f3",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

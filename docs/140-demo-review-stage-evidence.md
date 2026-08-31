@@ -5,8 +5,8 @@ kind: "evidence"
 status: "current"
 owners: ["product-tooling"]
 platforms: ["linux"]
-tickets: []
-code: ["src/review/linux-unicode-evidence.ts","tools/linux-unicode-mutation-matrix.ts","tools/semantic-coverage.json"]
+tickets: [2625]
+code: ["src/review/stage-evidence.ts","src/review/linux-unicode-evidence.ts","tests/review-server.tsx","tools/linux-unicode-mutation-matrix.ts","tools/semantic-coverage.json"]
 aliases: ["docs/140-demo-review-stage-evidence.md","doc-140"]
 ---
 
@@ -28,8 +28,12 @@ painted-face evidence plus concrete helper/HarfBuzz records for the
 font-selection stage while the broader
 font-conformance program remains independently owned by that parity area.
 
-The review UI displays the applicable semantic transitions and report status on
-each fixture card. These apply to every selected region on that card. Filing a
+The review UI displays the applicable semantic transitions, evidence scope,
+and report status on each fixture card. Suite-global reports apply to every
+selected region unless narrower validated fixture evidence is available. In
+that case the fixture evidence is authoritative and the broad reports remain
+visible as superseded audit context rather than being misrepresented as a
+fixture diagnosis. Filing a
 ticket still requires a human logical-stage classification; a supporting
 comment remains optional. The classification survives page reloads until filing, then the ticket
 permanently records it together with the evidence summary, source revision,
@@ -43,8 +47,13 @@ say that evidence and environment fingerprints are unavailable.
 Linux Unicode raster-floor rows do not inherit a generic shaping report. The
 24 non-Vedic acceptance fixtures persist their own production run evidence in
 `results.json`; `src/review/linux-unicode-evidence.ts` validates its required
-spans/identities and refuses raster-only classification if the controlled
-hinting mutation changes face, glyph, cluster, advance, offset, or outline.
+spans/identities, requires the current hinted subset path to retain hint tables,
+and refuses raster-only classification if the controlled hinting mutation
+changes face, glyph, cluster, advance, offset, or outline. The closed corpus
+records prior active helper-off and hint-off arms; a current artifact is
+eligible for the precedence rule only while its residual remains within the
+validated one-percent Linux raster floor. Fixture `.30` additionally pins the
+WenQuanYi Zen Hei TTC mono member at face index 1.
 The structural Vedic Extensions row uses the same fixture-scoped transport but
 is never admitted to that raster-floor set: its dedicated validator requires
 the exact 14 selected-face HarfBuzz streams, Chromium's FreeSans/FreeSerif

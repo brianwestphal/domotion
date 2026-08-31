@@ -51,6 +51,9 @@ import {
   parseLogicalClassification,
 } from "../src/review/logical-classification.js";
 import { relevantStageEvidence, type RelevantStageEvidence, type StageEvidenceManifest } from "../src/review/stage-evidence.js";
+import { classifyLinuxUnicodeFixtureEvidence } from "../src/review/linux-unicode-evidence.js";
+import type { EmbeddedFontBuildDiagnostic } from "../src/render/embedded-font-builder.js";
+import type { FixtureTextRunProvenance } from "../src/render/text-run-provenance.js";
 import * as esbuild from "esbuild";
 
 // ── Paths ──
@@ -322,6 +325,19 @@ function loadManifest(activeSourceId: string): ReviewManifest {
         warningCount: Array.isArray(r["warnings"]) ? r["warnings"].length : undefined,
         category: typeof r["category"] === "string" ? r["category"] : undefined,
         chunks: chunks != null && chunks.length > 0 ? chunks : undefined,
+        stageEvidence: relevantStageEvidence(
+          stageEvidenceManifest,
+          m.suite,
+          name,
+          classifyLinuxUnicodeFixtureEvidence({
+            platform: stageEvidenceManifest?.platform ?? "",
+            suite: m.suite,
+            fixture: name,
+            diffPct: typeof r["diffPct"] === "number" ? r["diffPct"] : 0,
+            textRunEvidence: r["textRunEvidence"] as FixtureTextRunProvenance | undefined,
+            embeddedFontBuilds: r["embeddedFontBuilds"] as EmbeddedFontBuildDiagnostic[] | undefined,
+          }),
+        ),
       });
     }
   }
@@ -336,9 +352,6 @@ function loadManifest(activeSourceId: string): ReviewManifest {
   const platformMismatch = !activeSourceId.startsWith("ci-") && manifestPlatform != null && manifestPlatform !== process.platform
     ? { manifest: manifestPlatform, host: process.platform }
     : undefined;
-  if (stageEvidenceManifest != null) {
-    for (const test of tests) test.stageEvidence = relevantStageEvidence(stageEvidenceManifest, test.suite, test.name);
-  }
   const stageEvidence = stageEvidenceManifest == null ? undefined : {
     generatedAt: stageEvidenceManifest.generatedAt,
     sourceRevision: stageEvidenceManifest.sourceRevision,
@@ -1107,8 +1120,13 @@ async function main(): Promise<void> {
           : null;
         const evidenceLines = match.stageEvidence == null ? ["Stage evidence: unavailable for this artifact"] : [
           `Semantic transitions: ${match.stageEvidence.transitionIds.map((id) => `\`${id}\``).join(", ")}`,
-          "Stage reports:",
+          `Stage scope: **${match.stageEvidence.scope}**${match.stageEvidence.scope === "fixture" ? " (authoritative over suite-global reports)" : ""}`,
+          "Authoritative stage reports:",
           ...match.stageEvidence.reports.map((report) => `- ${report.area}: **${report.status}**${report.totalRows != null ? ` (${report.passedRows ?? 0}/${report.totalRows})` : ""} — \`${report.oracle}\``),
+          ...(match.stageEvidence.supersededReports == null ? [] : [
+            "Superseded suite-global reports:",
+            ...match.stageEvidence.supersededReports.map((report) => `- ${report.area}: ${report.status} — \`${report.oracle}\``),
+          ]),
         ];
         const environmentLine = manifest.stageEvidence == null
           ? "Environment fingerprint: unavailable for this artifact"

@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts"]
 platforms: ["macos","linux"]
-tickets: []
-code: ["src/review/linux-unicode-evidence.ts"]
+tickets: [2625]
+code: ["src/review/linux-unicode-evidence.ts","src/review/stage-evidence.ts","tests/review-server.tsx"]
 aliases: ["docs/124-embedded-font-build-diagnostics.md","doc-124"]
 ---
 

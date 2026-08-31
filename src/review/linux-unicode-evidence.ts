@@ -1,5 +1,6 @@
 import type { EmbeddedFontBuildDiagnostic } from "../render/embedded-font-builder.js";
 import type { FixtureTextRunProvenance } from "../render/text-run-provenance.js";
+import type { FixtureScopedStageEvidence } from "./stage-evidence.js";
 
 /** The 24 non-Vedic Linux failures persisted by visual run 32366223808. */
 export const LINUX_UNICODE_RASTER_FLOOR_FIXTURES = [
@@ -194,4 +195,52 @@ export function validateFixtureTextEvidence(fixture: string, evidence: FixtureTe
     }
   }
   return [...new Set(errors)];
+}
+
+const CJK_30_FIXTURE = "4E00-9FFF-cjk-unified-ideographs.30";
+const CJK_30_MONO_FONT_KEY = "sysfb:WenQuanYiZenHeiMono";
+
+/**
+ * Turn the closed, mutation-validated Linux Unicode corpus into evidence the
+ * review tool can apply to one current fixture. The corpus membership records
+ * that both helper-off and hint-off arms moved; the current artifact must still
+ * prove exact logical provenance, active hinted subset construction, and the
+ * bounded Linux raster floor before it may supersede suite-global reports.
+ */
+export function classifyLinuxUnicodeFixtureEvidence(args: {
+  platform: string;
+  suite: string;
+  fixture: string;
+  diffPct: number;
+  textRunEvidence?: FixtureTextRunProvenance;
+  embeddedFontBuilds?: EmbeddedFontBuildDiagnostic[];
+}): FixtureScopedStageEvidence | undefined {
+  if (args.platform !== "linux" || args.suite !== "html-test-unicode") return undefined;
+  if (!isLinuxUnicodeRasterFloorFixture(args.fixture) || args.diffPct > 1) return undefined;
+  if (args.textRunEvidence == null || validateFixtureTextEvidence(args.fixture, args.textRunEvidence).length > 0) return undefined;
+  const builds = args.embeddedFontBuilds ?? [];
+  const hintedBuilds = builds.filter((build) =>
+    build.selectedBuilder === "hb-subset" && build.retainedHintTableTags.length > 0);
+  if (hintedBuilds.length === 0) return undefined;
+
+  if (args.fixture === CJK_30_FIXTURE) {
+    const monoRuns = args.textRunEvidence.runs.filter((run) => run.selected.fontKey === CJK_30_MONO_FONT_KEY);
+    if (monoRuns.length === 0 || monoRuns.some((run) =>
+      run.selected.postscriptName !== "WenQuanYiZenHeiMono"
+      || run.selected.sourcePath !== "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc"
+      || run.selected.faceIndex !== 1)) return undefined;
+    if (!hintedBuilds.some((build) =>
+      build.sourcePath === "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc" && build.faceIndex === 1)) return undefined;
+  }
+
+  return {
+    reports: [{
+      area: "text.fixture-logical",
+      oracle: "linux-unicode-fixture-provenance+mutation-matrix",
+      status: "passed",
+      passedRows: args.textRunEvidence.runs.length,
+      totalRows: args.textRunEvidence.runs.length,
+      note: `Exact face/glyph/cluster/span/metric/outline provenance; prior helper-off and hint-off mutations active; hinted subset retained; ${args.diffPct.toFixed(3)}% Linux raster floor.`,
+    }],
+  };
 }

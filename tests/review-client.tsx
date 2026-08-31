@@ -424,7 +424,9 @@ function Card({ r }: { r: ReviewTest }) {
       {r.stageEvidence != null && (
         <details className="stage-evidence">
           <summary>Stage evidence · {r.stageEvidence.reports.filter((report) => report.status === "passed").length}/{r.stageEvidence.reports.length} reports passing</summary>
-          <div>Applies to every selected region on this fixture.</div>
+          <div>{r.stageEvidence.scope === "fixture"
+            ? "Fixture-scoped evidence is authoritative for every selected region on this fixture."
+            : "Suite-global evidence applies to every selected region on this fixture."}</div>
           <div>Semantic transitions: {r.stageEvidence.transitionIds.join(", ")}</div>
           <ul>
             {r.stageEvidence.reports.map((report) => (
@@ -433,6 +435,16 @@ function Card({ r }: { r: ReviewTest }) {
               </li>
             ))}
           </ul>
+          {r.stageEvidence.supersededReports != null && r.stageEvidence.supersededReports.length > 0 && (
+            <>
+              <div>Superseded suite-global context:</div>
+              <ul>
+                {r.stageEvidence.supersededReports.map((report) => (
+                  <li>{report.area}: {report.status} · {report.oracle}</li>
+                ))}
+              </ul>
+            </>
+          )}
         </details>
       )}
       <label className="classification-label">
