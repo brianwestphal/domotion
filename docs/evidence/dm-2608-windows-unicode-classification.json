@@ -1,0 +1,1679 @@
+{
+  "ticket": "DM-2608",
+  "platform": "windows",
+  "originalSourceRun": 33314760708,
+  "reviewedComparisonRun": 33345443048,
+  "policy": "A row is functionally clean only when direct expected/actual review confirms the same glyph or tofu inventory, advances, cluster placement, and content; native-versus-embedded raster pixels remain recorded but are not a platform-functionality defect.",
+  "sourceAuthorities": [
+    "external/chromium/third_party/blink/renderer/platform/fonts",
+    "external/harfbuzz/src",
+    "src/render/unicode-font-routing.win32.generated.ts",
+    "tools/win32-glyph-extractor"
+  ],
+  "counts": {
+    "total": 22,
+    "functionallyCleanRasterResiduals": 22
+  },
+  "rows": [
+    {
+      "name": "0860-086F-syriac-supplement",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "moderate",
+      "regionCount": 11,
+      "coveragePct": 0.1007080078125,
+      "chromeFaces": [
+        "ArialMT:11",
+        "Consolas:66",
+        "SegoeUI-Bold:17",
+        "SegoeUI-Italic:24",
+        "SegoeUI:144"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "SegoeUI-Bold",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUIB.TTF",
+          "faceIndex": 0,
+          "glyphCount": 13,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUI.TTF",
+          "faceIndex": 0,
+          "glyphCount": 37,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI-Italic",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUII.TTF",
+          "faceIndex": 0,
+          "glyphCount": 7,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "Consolas",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\CONSOLA.TTF",
+          "faceIndex": 0,
+          "glyphCount": 13,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "0870-089F-arabic-extended-b",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "major",
+      "regionCount": 40,
+      "coveragePct": 0.3662109375,
+      "chromeFaces": [
+        "ArialMT:40",
+        "Consolas:240",
+        "SegoeUI-Bold:17",
+        "SegoeUI-Italic:24",
+        "SegoeUI:164"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "SegoeUI-Bold",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUIB.TTF",
+          "faceIndex": 0,
+          "glyphCount": 14,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUI.TTF",
+          "faceIndex": 0,
+          "glyphCount": 42,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI-Italic",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUII.TTF",
+          "faceIndex": 0,
+          "glyphCount": 8,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "Consolas",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\CONSOLA.TTF",
+          "faceIndex": 0,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "08A0-08FF-arabic-extended-a",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "major",
+      "regionCount": 23,
+      "coveragePct": 0.2105712890625,
+      "chromeFaces": [
+        "ArialMT:95",
+        "Consolas:570",
+        "SegoeUI-Bold:17",
+        "SegoeUI-Italic:24",
+        "SegoeUI:184"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "SegoeUI-Bold",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUIB.TTF",
+          "faceIndex": 0,
+          "glyphCount": 13,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUI.TTF",
+          "faceIndex": 0,
+          "glyphCount": 46,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI-Italic",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUII.TTF",
+          "faceIndex": 0,
+          "glyphCount": 8,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "ArialMT",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\ARIAL.TTF",
+          "faceIndex": 0,
+          "glyphCount": 29,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "Consolas",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\CONSOLA.TTF",
+          "faceIndex": 0,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "0C80-0CFF-kannada",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "trivial",
+      "regionCount": 1,
+      "coveragePct": 0.0091552734375,
+      "chromeFaces": [
+        "ArialMT:1",
+        "Consolas:546",
+        "NirmalaUI:118",
+        "SegoeUI-Bold:7",
+        "SegoeUI:175"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "SegoeUI-Bold",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUIB.TTF",
+          "faceIndex": 0,
+          "glyphCount": 4,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUI.TTF",
+          "faceIndex": 0,
+          "glyphCount": 44,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "NirmalaUI",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\NIRMALA.TTC",
+          "faceIndex": 0,
+          "glyphCount": 86,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "Consolas",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\CONSOLA.TTF",
+          "faceIndex": 0,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "0E80-0EFF-lao",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "major",
+      "regionCount": 16,
+      "coveragePct": 0.146484375,
+      "chromeFaces": [
+        "ArialMT:16",
+        "Consolas:498",
+        "LeelawadeeUI:68",
+        "SegoeUI-Bold:3",
+        "SegoeUI-Italic:24",
+        "SegoeUI:132"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "SegoeUI-Bold",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUIB.TTF",
+          "faceIndex": 0,
+          "glyphCount": 3,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUI.TTF",
+          "faceIndex": 0,
+          "glyphCount": 43,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI-Italic",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUII.TTF",
+          "faceIndex": 0,
+          "glyphCount": 8,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "LeelawadeeUI",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\LEELAWUI.TTF",
+          "faceIndex": 0,
+          "glyphCount": 52,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "Consolas",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\CONSOLA.TTF",
+          "faceIndex": 0,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "0F00-0FFF-tibetan",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "minor",
+      "regionCount": 4,
+      "coveragePct": 0.019211065573770492,
+      "chromeFaces": [
+        "Consolas:1182",
+        "Microsoft Himalaya:284",
+        "SegoeUI-Bold:7",
+        "SegoeUI:168"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "SegoeUI-Bold",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUIB.TTF",
+          "faceIndex": 0,
+          "glyphCount": 7,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUI.TTF",
+          "faceIndex": 0,
+          "glyphCount": 46,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "Microsoft Himalaya",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\HIMALAYA.TTF",
+          "faceIndex": 0,
+          "glyphCount": 198,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "Consolas",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\CONSOLA.TTF",
+          "faceIndex": 0,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1800-18AF-mongolian",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "trivial",
+      "regionCount": 2,
+      "coveragePct": 0.01220703125,
+      "chromeFaces": [
+        "ArialMT:5",
+        "Consolas:942",
+        "MongolianBaiti:155",
+        "SegoeUI-Bold:9",
+        "SegoeUI:232"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "SegoeUI-Bold",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUIB.TTF",
+          "faceIndex": 0,
+          "glyphCount": 7,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUI.TTF",
+          "faceIndex": 0,
+          "glyphCount": 49,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "MongolianBaiti",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\MONBAITI.TTF",
+          "faceIndex": 0,
+          "glyphCount": 150,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "Consolas",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\CONSOLA.TTF",
+          "faceIndex": 0,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "MongolianBaiti",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\MONBAITI.TTF",
+          "faceIndex": 0,
+          "glyphCount": 3,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1AB0-1AFF-combining-diacritical-marks-extended",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "minor",
+      "regionCount": 5,
+      "coveragePct": 0.0457763671875,
+      "chromeFaces": [
+        "ArialMT:5",
+        "Consolas:186",
+        "SansSerifCollection:26",
+        "SegoeUI-Bold:36",
+        "SegoeUI-Italic:22",
+        "SegoeUI:138"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "SegoeUI-Bold",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUIB.TTF",
+          "faceIndex": 0,
+          "glyphCount": 20,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUI.TTF",
+          "faceIndex": 0,
+          "glyphCount": 41,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI-Italic",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUII.TTF",
+          "faceIndex": 0,
+          "glyphCount": 7,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "Consolas",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\CONSOLA.TTF",
+          "faceIndex": 0,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1B00-1B7F-balinese",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "minor",
+      "regionCount": 3,
+      "coveragePct": 0.022927989130434784,
+      "chromeFaces": [
+        "ArialMT:3",
+        "Consolas:762",
+        "SansSerifCollection:162",
+        "SegoeUI-Bold:8",
+        "SegoeUI-Italic:22",
+        "SegoeUI:208"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "SegoeUI-Bold",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUIB.TTF",
+          "faceIndex": 0,
+          "glyphCount": 7,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUI.TTF",
+          "faceIndex": 0,
+          "glyphCount": 44,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI-Italic",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUII.TTF",
+          "faceIndex": 0,
+          "glyphCount": 7,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SansSerifCollection",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SANSSERIFCOLLECTION.TTF",
+          "faceIndex": 0,
+          "glyphCount": 120,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": "Consolas",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\CONSOLA.TTF",
+          "faceIndex": 0,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1C80-1C8F-cyrillic-extended-c",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "trivial",
+      "regionCount": 2,
+      "coveragePct": 0.018310546875,
+      "chromeFaces": [
+        "ArialMT:2",
+        "Consolas:66",
+        "SansSerifCollection:9",
+        "SegoeUI-Bold:19",
+        "SegoeUI-Italic:22",
+        "SegoeUI:155"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "SegoeUI-Bold",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUIB.TTF",
+          "faceIndex": 0,
+          "glyphCount": 13,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUI.TTF",
+          "faceIndex": 0,
+          "glyphCount": 43,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI-Italic",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUII.TTF",
+          "faceIndex": 0,
+          "glyphCount": 7,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SansSerifCollection",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SANSSERIFCOLLECTION.TTF",
+          "faceIndex": 0,
+          "glyphCount": 9,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": "Consolas",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\CONSOLA.TTF",
+          "faceIndex": 0,
+          "glyphCount": 14,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1DC0-1DFF-combining-diacritical-marks-supplement",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "trivial",
+      "regionCount": 1,
+      "coveragePct": 0.0091552734375,
+      "chromeFaces": [
+        "ArialMT:14",
+        "Consolas:384",
+        "Ebrima:1",
+        "SansSerifCollection:49",
+        "SegoeUI-Bold:38",
+        "SegoeUI-Italic:22",
+        "SegoeUI:247"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "SegoeUI-Bold",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUIB.TTF",
+          "faceIndex": 0,
+          "glyphCount": 20,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUI.TTF",
+          "faceIndex": 0,
+          "glyphCount": 48,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI-Italic",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUII.TTF",
+          "faceIndex": 0,
+          "glyphCount": 7,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "Consolas",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\CONSOLA.TTF",
+          "faceIndex": 0,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2300-23FF-miscellaneous-technical",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "trivial",
+      "regionCount": 2,
+      "coveragePct": 0.013582471390845072,
+      "chromeFaces": [
+        "ArialMT:4",
+        "CambriaMath:186",
+        "Consolas:1182",
+        "SegoeUI-Bold:23",
+        "SegoeUI:235",
+        "SegoeUIEmoji:2",
+        "SegoeUISymbol:6"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "SegoeUI-Bold",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUIB.TTF",
+          "faceIndex": 0,
+          "glyphCount": 12,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUI.TTF",
+          "faceIndex": 0,
+          "glyphCount": 48,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "CambriaMath",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\CAMBRIA.TTC",
+          "faceIndex": 1,
+          "glyphCount": 200,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "Consolas",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\CONSOLA.TTF",
+          "faceIndex": 0,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "ArialMT",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\ARIAL.TTF",
+          "faceIndex": 0,
+          "glyphCount": 4,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUISymbol",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGUISYM.TTF",
+          "faceIndex": 0,
+          "glyphCount": 10,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUISymbol",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGUISYM.TTF",
+          "faceIndex": 0,
+          "glyphCount": 31,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "PMingLiU",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\MINGLIU.TTC",
+          "faceIndex": 1,
+          "glyphCount": 2,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2400-243F-control-pictures",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "minor",
+      "regionCount": 3,
+      "coveragePct": 0.0274658203125,
+      "chromeFaces": [
+        "ArialMT:3",
+        "Consolas:252",
+        "LucidaSansUnicode:37",
+        "SegoeUI-Bold:16",
+        "SegoeUI-Italic:22",
+        "SegoeUI:231",
+        "SegoeUISymbol:2"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "SegoeUI-Bold",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUIB.TTF",
+          "faceIndex": 0,
+          "glyphCount": 12,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUI.TTF",
+          "faceIndex": 0,
+          "glyphCount": 47,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI-Italic",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUII.TTF",
+          "faceIndex": 0,
+          "glyphCount": 7,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "LucidaSansUnicode",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\L_10646.TTF",
+          "faceIndex": 0,
+          "glyphCount": 37,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "Consolas",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\CONSOLA.TTF",
+          "faceIndex": 0,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUISymbol",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGUISYM.TTF",
+          "faceIndex": 0,
+          "glyphCount": 2,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3100-312F-bopomofo",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "trivial",
+      "regionCount": 2,
+      "coveragePct": 0.018310546875,
+      "chromeFaces": [
+        "ArialMT:2",
+        "Consolas:258",
+        "MicrosoftJhengHeiRegular:41",
+        "SegoeUI-Bold:8",
+        "SegoeUI:195"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "SegoeUI-Bold",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUIB.TTF",
+          "faceIndex": 0,
+          "glyphCount": 5,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUI.TTF",
+          "faceIndex": 0,
+          "glyphCount": 48,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "MicrosoftJhengHeiRegular",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\MSJH.TTC",
+          "faceIndex": 0,
+          "glyphCount": 41,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "Consolas",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\CONSOLA.TTF",
+          "faceIndex": 0,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3190-319F-kanbun",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "moderate",
+      "regionCount": 14,
+      "coveragePct": 0.23282368977864584,
+      "chromeFaces": [
+        "Consolas:96",
+        "PMingLiU:14",
+        "SegoeUI-Bold:6",
+        "SegoeUI:195",
+        "YuGothicUI-Regular:2"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "SegoeUI-Bold",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUIB.TTF",
+          "faceIndex": 0,
+          "glyphCount": 5,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUI.TTF",
+          "faceIndex": 0,
+          "glyphCount": 45,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "YuGothicUI-Regular",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\YUGOTHM.TTC",
+          "faceIndex": 1,
+          "glyphCount": 2,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "Consolas",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\CONSOLA.TTF",
+          "faceIndex": 0,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "PMingLiU",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\MINGLIU.TTC",
+          "faceIndex": 1,
+          "glyphCount": 14,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "31A0-31BF-bopomofo-extended",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "moderate",
+      "regionCount": 8,
+      "coveragePct": 0.0732421875,
+      "chromeFaces": [
+        "ArialMT:8",
+        "Consolas:192",
+        "MicrosoftJhengHeiRegular:24",
+        "SegoeUI-Bold:17",
+        "SegoeUI-Italic:22",
+        "SegoeUI:165"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "SegoeUI-Bold",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUIB.TTF",
+          "faceIndex": 0,
+          "glyphCount": 11,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUI.TTF",
+          "faceIndex": 0,
+          "glyphCount": 47,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI-Italic",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUII.TTF",
+          "faceIndex": 0,
+          "glyphCount": 7,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "MicrosoftJhengHeiRegular",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\MSJH.TTC",
+          "faceIndex": 0,
+          "glyphCount": 24,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "Consolas",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\CONSOLA.TTF",
+          "faceIndex": 0,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "A720-A7FF-latin-extended-d",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "moderate",
+      "regionCount": 6,
+      "coveragePct": 0.030307112068965518,
+      "chromeFaces": [
+        "ArialMT:197",
+        "Consolas:1182",
+        "SegoeUI-Bold:16",
+        "SegoeUI-Italic:22",
+        "SegoeUI:230"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "SegoeUI-Bold",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUIB.TTF",
+          "faceIndex": 0,
+          "glyphCount": 11,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUI.TTF",
+          "faceIndex": 0,
+          "glyphCount": 51,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI-Italic",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUII.TTF",
+          "faceIndex": 0,
+          "glyphCount": 7,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "Consolas",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\CONSOLA.TTF",
+          "faceIndex": 0,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "ArialMT",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\ARIAL.TTF",
+          "faceIndex": 0,
+          "glyphCount": 191,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "A900-A92F-kayah-li",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "trivial",
+      "regionCount": 1,
+      "coveragePct": 0.007120768229166667,
+      "chromeFaces": [
+        "Consolas:288",
+        "SansSerifCollection:56",
+        "SegoeUI-Bold:8",
+        "SegoeUI:178"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "SegoeUI-Bold",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUIB.TTF",
+          "faceIndex": 0,
+          "glyphCount": 6,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUI.TTF",
+          "faceIndex": 0,
+          "glyphCount": 50,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SansSerifCollection",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SANSSERIFCOLLECTION.TTF",
+          "faceIndex": 0,
+          "glyphCount": 49,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": []
+        },
+        {
+          "postscriptName": "Consolas",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\CONSOLA.TTF",
+          "faceIndex": 0,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "F900-FAFF-cjk-compatibility-ideographs.1",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "major",
+      "regionCount": 108,
+      "coveragePct": 0.5186987704918032,
+      "chromeFaces": [
+        "ArialMT:93",
+        "Consolas:1182",
+        "Gulim:8",
+        "MicrosoftYaHei:16",
+        "MS-PGothic:80",
+        "SegoeUI-Bold:42",
+        "SegoeUI-Italic:26",
+        "SegoeUI:321"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "SegoeUI-Bold",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUIB.TTF",
+          "faceIndex": 0,
+          "glyphCount": 23,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUI.TTF",
+          "faceIndex": 0,
+          "glyphCount": 53,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI-Italic",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUII.TTF",
+          "faceIndex": 0,
+          "glyphCount": 9,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "Gulim",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\GULIM.TTC",
+          "faceIndex": 0,
+          "glyphCount": 8,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "Consolas",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\CONSOLA.TTF",
+          "faceIndex": 0,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "MicrosoftYaHei",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\MSYH.TTC",
+          "faceIndex": 0,
+          "glyphCount": 16,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "MS-PGothic",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\MSGOTHIC.TTC",
+          "faceIndex": 2,
+          "glyphCount": 80,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FB50-FDFF-arabic-presentation-forms-a.0",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "major",
+      "regionCount": 95,
+      "coveragePct": 0.3920004401408451,
+      "chromeFaces": [
+        "ArialMT:197",
+        "Consolas:1182",
+        "SegoeUI-Bold:41",
+        "SegoeUI-Italic:22",
+        "SegoeUI:302"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "SegoeUI-Bold",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUIB.TTF",
+          "faceIndex": 0,
+          "glyphCount": 21,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUI.TTF",
+          "faceIndex": 0,
+          "glyphCount": 50,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI-Italic",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUII.TTF",
+          "faceIndex": 0,
+          "glyphCount": 7,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "ArialMT",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\ARIAL.TTF",
+          "faceIndex": 0,
+          "glyphCount": 155,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "Consolas",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\CONSOLA.TTF",
+          "faceIndex": 0,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FB50-FDFF-arabic-presentation-forms-a.1",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "major",
+      "regionCount": 253,
+      "coveragePct": 1.0439590669014085,
+      "chromeFaces": [
+        "ArialMT:197",
+        "Consolas:1182",
+        "SegoeUI-Bold:41",
+        "SegoeUI-Italic:24",
+        "SegoeUI:290"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "SegoeUI-Bold",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUIB.TTF",
+          "faceIndex": 0,
+          "glyphCount": 21,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUI.TTF",
+          "faceIndex": 0,
+          "glyphCount": 48,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI-Italic",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUII.TTF",
+          "faceIndex": 0,
+          "glyphCount": 8,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "Consolas",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\CONSOLA.TTF",
+          "faceIndex": 0,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "ArialMT",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\ARIAL.TTF",
+          "faceIndex": 0,
+          "glyphCount": 5,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "ArialMT",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\ARIAL.TTF",
+          "faceIndex": 0,
+          "glyphCount": 2,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FB50-FDFF-arabic-presentation-forms-a.2",
+      "disposition": "functionally-clean-raster-residual",
+      "verdict": "major",
+      "regionCount": 105,
+      "coveragePct": 0.87890625,
+      "chromeFaces": [
+        "ArialMT:115",
+        "Consolas:666",
+        "SegoeUI-Bold:41",
+        "SegoeUI-Italic:22",
+        "SegoeUI:241"
+      ],
+      "embeddedFaces": [
+        {
+          "postscriptName": "SegoeUI-Bold",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUIB.TTF",
+          "faceIndex": 0,
+          "glyphCount": 20,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUI.TTF",
+          "faceIndex": 0,
+          "glyphCount": 48,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "SegoeUI-Italic",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\SEGOEUII.TTF",
+          "faceIndex": 0,
+          "glyphCount": 7,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "Consolas",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\CONSOLA.TTF",
+          "faceIndex": 0,
+          "glyphCount": 18,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        },
+        {
+          "postscriptName": "ArialMT",
+          "sourcePath": "C:\\WINDOWS\\FONTS\\ARIAL.TTF",
+          "faceIndex": 0,
+          "glyphCount": 10,
+          "selectedBuilder": "hb-subset",
+          "retainedHintTableTags": [
+            "cvt ",
+            "fpgm",
+            "prep"
+          ]
+        }
+      ]
+    }
+  ]
+}
