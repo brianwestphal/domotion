@@ -79,6 +79,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mth5f53sj7unkq7f",
+          "message": {
+            "text": "The regression is covered at the real file: capture boundary with a byte-sniffed local SVG used in two background layers. The test proves decoded SVG natural dimensions survive capture and that the renderer emits both repeat-y explicit-size and repeat-x contain patterns; the three affected html-test fixtures additionally pass with zero visual regions.",
+            "markdown": "The regression is covered at the real file: capture boundary with a byte-sniffed local SVG used in two background layers. The test proves decoded SVG natural dimensions survive capture and that the renderer emits both repeat-y explicit-size and repeat-x contain patterns; the three affected html-test fixtures additionally pass with zero visual regions."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/background-image-sizing.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 91,
+                  "endLine": 130,
+                  "snippet": {
+                    "text": "    const htmlPath = path.join(dir, \"fixture.html\");\n    const svgPath = path.join(dir, \"wide.svg\");\n    await Promise.all([\n      writeFile(svgPath, '<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"96\" height=\"32\" viewBox=\"0 0 3 1\"><rect width=\"3\" height=\"1\" fill=\"orange\"/></svg>'),\n      writeFile(htmlPath, `<div id=\"target\" style=\"width:240px;height:160px;background-image:url(wide.svg),url(wide.svg);background-size:48px auto,contain;background-repeat:repeat-y,repeat-x\"></div>`),\n    ]);\n    const page = await env!.browser.newPage({ viewport: { width: 280, height: 200 } });\n    try {\n      await page.goto(pathToFileURL(htmlPath).href);\n      const result = await captureElementTreeWithWarnings(page, \"#target\", { x: 0, y: 0, width: 280, height: 200 });\n      expect(result.tree[0].styles.backgroundImages).toMatchObject([\n        {\n          decodedImageKind: \"svg\",\n          naturalSizingState: \"resolved\",\n          decodedNaturalWidth: 96,\n          decodedNaturalHeight: 32,\n          naturalAspectRatio: { width: 96, height: 32 },\n        },\n        {\n          decodedImageKind: \"svg\",\n          naturalSizingState: \"resolved\",\n          decodedNaturalWidth: 96,\n          decodedNaturalHeight: 32,\n          naturalAspectRatio: { width: 96, height: 32 },\n        },\n      ]);\n      const svg = elementTreeToSvg(result.tree, 280, 200);\n      expect((svg.match(/<pattern\\b/g) ?? [])).toHaveLength(2);\n      expect(svg).toContain('width=\"48\" height=\"16\"');\n      expect(svg).toContain('width=\"240\" height=\"80\"');\n      expect(result.warnings.filter((warning) => warning.feature === \"background-image\")).toEqual([]);\n    } finally {\n      await page.close();\n      await rm(dir, { recursive: true, force: true });\n    }\n  }, 60_000);\n\n  for (const row of [\n    { dpr: 1, selectedUrl: PNG_1X, decodedWidth: 20, naturalWidth: 25, resolution: 1 },\n    { dpr: 2, selectedUrl: PNG_2X, decodedWidth: 80, naturalWidth: 50, resolution: 2 },"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/background-image-sizing.ts"
+                },
+                "region": {
+                  "startLine": 93
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/image-pattern.test.ts"
+                },
+                "region": {
+                  "startLine": 221
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2618"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b8e50dd922101753ac4664b7ddab954c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "18245ea4bc579b39c7fb92015b165ec924bb677e",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

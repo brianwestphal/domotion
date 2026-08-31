@@ -56,6 +56,9 @@ export interface SelectedBackgroundCandidate {
   /** Exact byte-sniffed kind for a locally readable source. Page-side fetch
    * cannot read file:// resources, but capture Node can. */
   locallyObservedKind?: "bitmap" | "svg";
+  /** Source bytes for a byte-sniffed local SVG. Kept only in the Node-to-page
+   * sizing prepass so file: captures do not depend on page-side fetch(). */
+  locallyObservedSvgText?: string;
   warning?: string;
 }
 
@@ -87,14 +90,15 @@ export function sniffLocalImageKind(bytes: Uint8Array): "bitmap" | "svg" | null 
   return /^\s*<svg(?:\s|>)/i.test(text) ? "svg" : null;
 }
 
-async function locallyObservedImageKind(url: string | null): Promise<"bitmap" | "svg" | null> {
+async function locallyObservedImage(
+  url: string | null,
+): Promise<{ kind: "bitmap" | "svg"; svgText?: string } | null> {
   if (url == null || !url.startsWith("file:")) return null;
   try {
-    const kind = sniffLocalImageKind(await readFile(fileURLToPath(url)));
-    // Bitmap dimensions come from the decoded HTMLImageElement. Local SVGs
-    // additionally need their source text, so leave those on the existing
-    // unavailable path until that separate payload is carried explicitly.
-    return kind === "bitmap" ? kind : null;
+    const bytes = await readFile(fileURLToPath(url));
+    const kind = sniffLocalImageKind(bytes);
+    if (kind === "svg") return { kind, svgText: bytes.toString("utf8") };
+    return kind === "bitmap" ? { kind } : null;
   } catch { return null; }
 }
 
@@ -440,7 +444,12 @@ async function hydrateBackgroundTargets(
       return { kind: "unknown", text: null };
     };
     const cache = new Map<string, Promise<RawSizing>>();
-    const load = (url: string, orientation: "from-image" | "none", localKind?: "bitmap" | "svg"): Promise<RawSizing> => {
+    const load = (
+      url: string,
+      orientation: "from-image" | "none",
+      localKind?: "bitmap" | "svg",
+      localSvgText?: string,
+    ): Promise<RawSizing> => {
       const cacheKey = `${orientation}\n${localKind ?? ""}\n${url}`;
       const hit = cache.get(cacheKey);
       if (hit != null) return hit;
@@ -479,7 +488,9 @@ async function hydrateBackgroundTargets(
           };
         }
 
-        const source = localKind == null ? await fetchSvg(url) : { kind: localKind, text: null };
+        const source = localKind == null
+          ? await fetchSvg(url)
+          : { kind: localKind, text: localSvgText ?? null };
         if (source.kind === "svg") {
           let svgText = source.text;
           if (svgText == null && url.startsWith("file:")) {
@@ -535,10 +546,15 @@ async function hydrateBackgroundTargets(
         layerIndex,
       ): Promise<CapturedBackgroundImage | null> => {
         if (selection == null) return null;
+        const {
+          locallyObservedKind: _locallyObservedKind,
+          locallyObservedSvgText: _locallyObservedSvgText,
+          ...capturedSelection
+        } = selection;
         if (selection.selectedUrl == null) {
           return {
             layerIndex,
-            ...selection,
+            ...capturedSelection,
             decodedImageKind: "unknown",
             decodedNaturalWidth: null,
             decodedNaturalHeight: null,
@@ -553,7 +569,12 @@ async function hydrateBackgroundTargets(
             naturalSizingState: "unavailable",
           };
         }
-        const raw = await load(selection.selectedUrl, target.imageOrientation, selection.locallyObservedKind);
+        const raw = await load(
+          selection.selectedUrl,
+          target.imageOrientation,
+          selection.locallyObservedKind,
+          selection.locallyObservedSvgText,
+        );
         // StyleFetchedImage applies image-set resolution only to bitmap
         // candidates. SVG candidate resolution affects selection, not its
         // NaturalSizingInfo multiplier.
@@ -561,7 +582,7 @@ async function hydrateBackgroundTargets(
         const scale = target.effectiveZoom / Math.max(Number.EPSILON, density);
         return {
           layerIndex,
-          ...selection,
+          ...capturedSelection,
           decodedImageKind: raw.kind,
           decodedNaturalWidth: raw.hasWidth === true ? raw.width : null,
           decodedNaturalHeight: raw.hasHeight === true ? raw.height : null,
@@ -604,8 +625,12 @@ export async function primeBackgroundImageSizing(
           .map(async (layer) => {
             const selected = selectBackgroundCandidate(layer, target.dpr);
             if (selected?.selectedUrl == null) return selected;
-            const locallyObservedKind = await locallyObservedImageKind(selected.selectedUrl);
-            return locallyObservedKind == null ? selected : { ...selected, locallyObservedKind };
+            const local = await locallyObservedImage(selected.selectedUrl);
+            return local == null ? selected : {
+              ...selected,
+              locallyObservedKind: local.kind,
+              ...(local.svgText == null ? {} : { locallyObservedSvgText: local.svgText }),
+            };
           })),
       })));
       await hydrateBackgroundTargets(frame, prepared, timeoutMs);

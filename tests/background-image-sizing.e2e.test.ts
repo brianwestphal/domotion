@@ -86,6 +86,45 @@ describeBrowser("authoritative URL background image sizing capture", () => {
     }
   }, 60_000);
 
+  it("preserves local SVG natural sizing for repeated and layered backgrounds", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "domotion-bg-svg-file-"));
+    const htmlPath = path.join(dir, "fixture.html");
+    const svgPath = path.join(dir, "wide.svg");
+    await Promise.all([
+      writeFile(svgPath, '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="32" viewBox="0 0 3 1"><rect width="3" height="1" fill="orange"/></svg>'),
+      writeFile(htmlPath, `<div id="target" style="width:240px;height:160px;background-image:url(wide.svg),url(wide.svg);background-size:48px auto,contain;background-repeat:repeat-y,repeat-x"></div>`),
+    ]);
+    const page = await env!.browser.newPage({ viewport: { width: 280, height: 200 } });
+    try {
+      await page.goto(pathToFileURL(htmlPath).href);
+      const result = await captureElementTreeWithWarnings(page, "#target", { x: 0, y: 0, width: 280, height: 200 });
+      expect(result.tree[0].styles.backgroundImages).toMatchObject([
+        {
+          decodedImageKind: "svg",
+          naturalSizingState: "resolved",
+          decodedNaturalWidth: 96,
+          decodedNaturalHeight: 32,
+          naturalAspectRatio: { width: 96, height: 32 },
+        },
+        {
+          decodedImageKind: "svg",
+          naturalSizingState: "resolved",
+          decodedNaturalWidth: 96,
+          decodedNaturalHeight: 32,
+          naturalAspectRatio: { width: 96, height: 32 },
+        },
+      ]);
+      const svg = elementTreeToSvg(result.tree, 280, 200);
+      expect((svg.match(/<pattern\b/g) ?? [])).toHaveLength(2);
+      expect(svg).toContain('width="48" height="16"');
+      expect(svg).toContain('width="240" height="80"');
+      expect(result.warnings.filter((warning) => warning.feature === "background-image")).toEqual([]);
+    } finally {
+      await page.close();
+      await rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   for (const row of [
     { dpr: 1, selectedUrl: PNG_1X, decodedWidth: 20, naturalWidth: 25, resolution: 1 },
     { dpr: 2, selectedUrl: PNG_2X, decodedWidth: 80, naturalWidth: 50, resolution: 2 },

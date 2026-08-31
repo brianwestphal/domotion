@@ -217,4 +217,52 @@ describe("Blink BackgroundImageGeometry transcription", () => {
     expect(def).toContain('<image href="data:image/png;base64,AA==" x="25" y="22" width="32" height="20" preserveAspectRatio="none"');
     expect(def).not.toContain('width="280"');
   });
+
+  it("emits SVG tiles for no-repeat, repeat-x, repeat-y, contain, and explicit sizing", () => {
+    const href = "data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%203%201%22/%3E";
+    const selected = {
+      layerIndex: 0,
+      source: "url" as const,
+      selectedUrl: href,
+      selectedCandidateIndex: null,
+      selectedResolution: 1,
+      selectedType: null,
+      decodedImageKind: "svg" as const,
+      decodedNaturalWidth: 96,
+      decodedNaturalHeight: 32,
+      naturalWidth: 96,
+      naturalHeight: 32,
+      hasNaturalWidth: true,
+      hasNaturalHeight: true,
+      naturalAspectRatio: { width: 96, height: 32 },
+      imageOrientation: "from-image" as const,
+      effectiveZoom: 1,
+      loadState: "loaded" as const,
+      naturalSizingState: "resolved" as const,
+    };
+    const build = (size: string, repeat: string) => buildImagePatternDef(
+      "svg-bg", href, 20, 20, 240, 160, size, "0% 0%", repeat,
+      null, "scroll", null, selected,
+    );
+
+    expect(build("auto", "no-repeat"))
+      .toContain('<pattern id="svg-bg" patternUnits="userSpaceOnUse" x="20" y="20" width="240" height="160"><image href=');
+    expect(build("auto", "repeat-x"))
+      .toContain('x="20" y="20" width="96" height="160"><image href=');
+    expect(build("auto", "repeat-y"))
+      .toContain('x="20" y="20" width="240" height="32"><image href=');
+    expect(build("contain", "repeat-x"))
+      .toMatch(/x="20" y="20" width="240" height="160"><image href=.* width="240" height="80"/);
+    expect(build("48px auto", "repeat-y"))
+      .toContain('x="20" y="20" width="240" height="16"><image href=');
+    for (const def of [
+      build("auto", "no-repeat"),
+      build("auto", "repeat-x"),
+      build("auto", "repeat-y"),
+      build("contain", "repeat-x"),
+      build("48px auto", "repeat-y"),
+    ]) {
+      expect(def).not.toContain('preserveAspectRatio="none"');
+    }
+  });
 });

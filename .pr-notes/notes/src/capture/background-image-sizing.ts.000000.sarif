@@ -218,6 +218,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mth5ewmnlm57ydbz",
+          "message": {
+            "text": "Local SVG sizing crosses the Node/page boundary because file: documents cannot reliably fetch their own SVG source through page JavaScript. Byte-sniffing avoids extension guesses, and carrying the verified source text lets the existing DOMParser path reconstruct Blink NaturalSizingInfo without treating SVG as a fixed bitmap.",
+            "markdown": "Local SVG sizing crosses the Node/page boundary because file: documents cannot reliably fetch their own SVG source through page JavaScript. Byte-sniffing avoids extension guesses, and carrying the verified source text lets the existing DOMParser path reconstruct Blink NaturalSizingInfo without treating SVG as a fixed bitmap."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/background-image-sizing.ts"
+                },
+                "region": {
+                  "startLine": 93,
+                  "endLine": 102,
+                  "snippet": {
+                    "text": "async function locallyObservedImage(\n  url: string | null,\n): Promise<{ kind: \"bitmap\" | \"svg\"; svgText?: string } | null> {\n  if (url == null || !url.startsWith(\"file:\")) return null;\n  try {\n    const bytes = await readFile(fileURLToPath(url));\n    const kind = sniffLocalImageKind(bytes);\n    if (kind === \"svg\") return { kind, svgText: bytes.toString(\"utf8\") };\n    return kind === \"bitmap\" ? { kind } : null;\n  } catch { return null; }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/style/style_fetched_image.cc"
+                },
+                "region": {
+                  "startLine": 163
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/layout/svg/layout_svg_root.cc"
+                },
+                "region": {
+                  "startLine": 74
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2618"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "a012a2105d77e9e187b9a9a9a120a4f2"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "18245ea4bc579b39c7fb92015b165ec924bb677e",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
