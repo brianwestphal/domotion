@@ -1545,6 +1545,9 @@ export const ITALIC_SLNT = -9.99;
 interface FontPath {
   path: string;
   postscriptName?: string;
+  /** Authoritative physical collection member supplied by the platform font
+   * matcher (Linux fontconfig's FC_FILE + FC_INDEX identity). */
+  faceIndex?: number;
   extractor?: "fontkit" | "native";
   /** DM-1721: axis location the platform font matcher resolved a VARIABLE face
    *  to (win32 DirectWrite reports this for live-resolver `sysfb:` picks — e.g.
@@ -2394,11 +2397,12 @@ function registerDynamicSystemFont(
    *  `FontPath.linuxFallbackIsBold` / `linuxFallbackIsItalic`. */
   linuxFallbackIsBold?: boolean,
   linuxFallbackIsItalic?: boolean,
+  faceIndex?: number,
 ): void {
   if (dynamicSystemFontPaths.has(key)) return;
   dynamicSystemFontPaths.set(key, {
     path, postscriptName, extractor, resolvedAxes, ctAxes,
-    linuxFallbackIsBold, linuxFallbackIsItalic,
+    linuxFallbackIsBold, linuxFallbackIsItalic, faceIndex,
   });
   resolvedSpecCache.delete(key); // in case a prior null was cached
 }
@@ -3851,7 +3855,7 @@ function resolveLinuxSystemFallbackKeyForCp(
     // `FontInstance.linuxFallbackIsBold` for the full rationale.
     registerDynamicSystemFont(
       key, viaHelper.path, name, "fontkit", undefined, undefined,
-      viaHelper.isBold, viaHelper.isItalic,
+      viaHelper.isBold, viaHelper.isItalic, viaHelper.index,
     );
     return key;
   }
@@ -6693,7 +6697,9 @@ function instantiateResolvedFont(
   if (opened != null) {
     font = opened;
     if (opened.fonts != null && Array.isArray(opened.fonts)) {
-      font = (spec.postscriptName != null && opened.getFont != null)
+      font = spec.faceIndex != null && spec.faceIndex >= 0 && spec.faceIndex < opened.fonts.length
+        ? opened.fonts[spec.faceIndex]
+        : (spec.postscriptName != null && opened.getFont != null)
         ? (opened.getFont(spec.postscriptName) ?? opened.fonts[0])
         : opened.fonts[0];
       // DM-1714/DM-1716: the collection member index (for hb-subset's
@@ -6705,7 +6711,7 @@ function instantiateResolvedFont(
       const psName = font?.postscriptName;
       const idx = psName != null ? opened.fonts.findIndex((m: any) => m?.postscriptName === psName) : -1;
       faceIndex = idx >= 0 ? idx : 0;
-      if (spec.postscriptName != null && psName !== spec.postscriptName) nameMatched = false;
+      if (spec.faceIndex == null && spec.postscriptName != null && psName !== spec.postscriptName) nameMatched = false;
     } else if (spec.postscriptName != null && opened.postscriptName != null
                && opened.postscriptName !== spec.postscriptName) {
       nameMatched = false;
@@ -7312,60 +7318,71 @@ function deriveClusters(text: string, glyphs: any[], direction?: string): number
 }
 
 const fileFaceInfoCache = new Map<string, FileFaceInfo>();
-function resolveFaceInfoForFile(path: string, postscriptName?: string): FileFaceInfo {
-  const cacheKey = `${path}#${postscriptName ?? ""}`;
+function resolveFaceInfoForFile(path: string, postscriptName?: string, preferredFaceIndex?: number): FileFaceInfo {
+  const cacheKey = `${path}#${postscriptName ?? ""}#${preferredFaceIndex ?? ""}`;
   const cached = fileFaceInfoCache.get(cacheKey);
   if (cached != null) return cached;
   let result: FileFaceInfo = { faceIndex: 0, nameMatched: true, fileAxes: null };
   try {
     const opened: any = fontkit.openSync(path);
     if (opened?.fonts != null && Array.isArray(opened.fonts)) {
-      // Match by postscriptName — getFont() returns a NEW object, so indexOf()
-      // is always -1 (see the same fix in getFontInstance).
-      const idx = postscriptName != null
-        ? opened.fonts.findIndex((m: any) => m?.postscriptName === postscriptName)
-        : -1;
-      if (idx >= 0) {
-        const axes = opened.fonts[idx]?.variationAxes;
+      if (preferredFaceIndex != null && preferredFaceIndex >= 0 && preferredFaceIndex < opened.fonts.length) {
+        const member = opened.fonts[preferredFaceIndex];
+        const axes = member?.variationAxes;
         result = {
-          faceIndex: idx, nameMatched: true,
+          faceIndex: preferredFaceIndex, nameMatched: true,
           fileAxes: axes != null && Object.keys(axes).length > 0 ? axes : null,
-          namedInstances: enumerateNamedInstances(opened.fonts[idx]),
-          memberPostscriptName: opened.fonts[idx]?.postscriptName ?? null,
-        };
-      } else if (postscriptName == null) {
-        // No name to match: member zero IS the request, so index 0 is honest.
-        const axes = opened.fonts[0]?.variationAxes;
-        result = {
-          faceIndex: 0, nameMatched: true,
-          fileAxes: axes != null && Object.keys(axes).length > 0 ? axes : null,
-          namedInstances: enumerateNamedInstances(opened.fonts[0]),
-          memberPostscriptName: opened.fonts[0]?.postscriptName ?? null,
+          namedInstances: enumerateNamedInstances(member),
+          memberPostscriptName: member?.postscriptName ?? null,
         };
       } else {
-        // Not a physical member. Before giving up, check whether it is an fvar
-        // NAMED INSTANCE of one — the usual shape for a CoreText-resolved face,
-        // and resolvable to a real member index plus exact axis coordinates.
-        let found: FileFaceInfo | null = null;
-        for (let i = 0; i < opened.fonts.length; i++) {
-          const instanceAxes = findNamedInstanceAxes(opened.fonts[i], postscriptName);
-          if (instanceAxes == null) continue;
-          const axes = opened.fonts[i]?.variationAxes;
-          found = {
-            faceIndex: i, nameMatched: true,
+        // Match by postscriptName — getFont() returns a NEW object, so indexOf()
+        // is always -1 (see the same fix in getFontInstance).
+        const idx = postscriptName != null
+          ? opened.fonts.findIndex((m: any) => m?.postscriptName === postscriptName)
+          : -1;
+        if (idx >= 0) {
+          const axes = opened.fonts[idx]?.variationAxes;
+          result = {
+            faceIndex: idx, nameMatched: true,
             fileAxes: axes != null && Object.keys(axes).length > 0 ? axes : null,
-            instanceAxes,
-            namedInstances: enumerateNamedInstances(opened.fonts[i]),
-            memberPostscriptName: opened.fonts[i]?.postscriptName ?? null,
+            namedInstances: enumerateNamedInstances(opened.fonts[idx]),
+            memberPostscriptName: opened.fonts[idx]?.postscriptName ?? null,
           };
-          break;
+        } else if (postscriptName == null) {
+          // No name to match: member zero IS the request, so index 0 is honest.
+          const axes = opened.fonts[0]?.variationAxes;
+          result = {
+            faceIndex: 0, nameMatched: true,
+            fileAxes: axes != null && Object.keys(axes).length > 0 ? axes : null,
+            namedInstances: enumerateNamedInstances(opened.fonts[0]),
+            memberPostscriptName: opened.fonts[0]?.postscriptName ?? null,
+          };
+        } else {
+          // Not a physical member. Before giving up, check whether it is an fvar
+          // NAMED INSTANCE of one — the usual shape for a CoreText-resolved face,
+          // and resolvable to a real member index plus exact axis coordinates.
+          let found: FileFaceInfo | null = null;
+          for (let i = 0; i < opened.fonts.length; i++) {
+            const instanceAxes = findNamedInstanceAxes(opened.fonts[i], postscriptName);
+            if (instanceAxes == null) continue;
+            const axes = opened.fonts[i]?.variationAxes;
+            found = {
+              faceIndex: i, nameMatched: true,
+              fileAxes: axes != null && Object.keys(axes).length > 0 ? axes : null,
+              instanceAxes,
+              namedInstances: enumerateNamedInstances(opened.fonts[i]),
+              memberPostscriptName: opened.fonts[i]?.postscriptName ?? null,
+            };
+            break;
+          }
+          // Neither a member nor a named instance of one. Member zero is a
+          // DIFFERENT face, so neither its index nor its variation axes describe
+          // what the caller asked for — say "unknown" rather than reporting member
+          // zero's as though they were the requested face's. A caller needing an
+          // index then fails loudly instead of silently subsetting member zero.
+          result = found ?? { faceIndex: null, nameMatched: false, fileAxes: null };
         }
-        // Neither a member nor a named instance of one. Member zero is a
-        // DIFFERENT face, so neither its index nor its variation axes describe
-        // what the caller asked for — say "unknown" rather than reporting member
-        // zero's as though they were the requested face's. A caller needing an
-        // index then fails loudly instead of silently subsetting member zero.
-        result = found ?? { faceIndex: null, nameMatched: false, fileAxes: null };
       }
     } else {
       // Not a collection: index 0 is the file's only face. It may still not be
@@ -7400,8 +7417,8 @@ function resolveFaceInfoForFile(path: string, postscriptName?: string): FileFace
 /** Test-only view of the member-index resolver (not part of the package's public
  *  barrel), so the honest-reporting contract can be pinned against synthetic
  *  collections instead of whichever fonts a given host happens to ship. */
-export function __resolveFaceInfoForFileForTest(path: string, postscriptName?: string): FileFaceInfo {
-  return resolveFaceInfoForFile(path, postscriptName);
+export function __resolveFaceInfoForFileForTest(path: string, postscriptName?: string, preferredFaceIndex?: number): FileFaceInfo {
+  return resolveFaceInfoForFile(path, postscriptName, preferredFaceIndex);
 }
 
 /** Test-only dynamic-font registration (not part of the package's public
@@ -7455,7 +7472,7 @@ export function shapingFaceFor(
   const spec = resolveFontSpec(fontKey);
   const path = spec?.path;
   if (path == null || path === "") return null;
-  const info = resolveFaceInfoForFile(path, spec?.postscriptName);
+  const info = resolveFaceInfoForFile(path, spec?.postscriptName, spec?.faceIndex);
   // The SAME derivation the native outline path uses (see `getFontInstance`'s
   // `variationAxes`), deliberately not a second one: the shaper and the outlines
   // have to agree about which master they are on, and two parallel derivations

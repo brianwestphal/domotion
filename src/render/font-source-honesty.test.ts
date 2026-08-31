@@ -67,6 +67,14 @@ describe("member-index resolution reports honestly", () => {
     expect(gamma.nameMatched).toBe(true);
   });
 
+  it("honors a platform-supplied collection index even when its family label is not a PostScript name", () => {
+    const beta = faceInfo(ttcPath, "Human Readable Family", 1);
+    expect(beta.faceIndex).toBe(1);
+    expect(beta.nameMatched).toBe(true);
+    expect(beta.memberPostscriptName).toBe("SynthBeta");
+    expect(Object.keys(beta.fileAxes ?? {})).toContain("wght");
+  });
+
   it("reports the matched member's OWN axes, not member zero's", () => {
     // SynthBeta is the only variable member. Reading axes off member zero would
     // report null here, and reading member zero's axes for a request that
