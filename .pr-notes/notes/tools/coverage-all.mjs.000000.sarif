@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtilktmltq0lb0rr",
+          "message": {
+            "text": "The canonical merge now includes the ordinary browser E2Es without opening system Chrome. A real run collected 5,050 unit tests and 535 E2Es; merged statements were 61.29% overall, with capture at 44.76% and CLI at 51.48%. The review and scrubber client sources are reported separately because their generated IIFEs execute in Chromium and NODEV8COVERAGE only records Node isolates; counting those zeroes as untested product code would be an instrumentation error.",
+            "markdown": "The canonical merge now includes the ordinary browser E2Es without opening system Chrome. A real run collected 5,050 unit tests and 535 E2Es; merged statements were 61.29% overall, with capture at 44.76% and CLI at 51.48%. The review and scrubber client sources are reported separately because their generated IIFEs execute in Chromium and NODE_V8_COVERAGE only records Node isolates; counting those zeroes as untested product code would be an instrumentation error."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/coverage-all.mjs"
+                },
+                "region": {
+                  "startLine": 41,
+                  "endLine": 64,
+                  "snippet": {
+                    "text": "const BROWSER_INSTRUMENTATION_OMISSIONS = {\n  // These sources are bundled into generated IIFEs and execute in Chromium,\n  // outside NODE_V8_COVERAGE's Node-isolate boundary. Their E2Es are included,\n  // but browser JS coverage needs a separate CDP-to-Istanbul bridge.\n  \"src/review/client.tsx\": \"runs inside Chromium as client.bundle.generated.ts\",\n  \"src/scrubber/client.tsx\": \"runs inside Chromium as client.bundle.generated.ts\",\n};\n\n// Fast suites — always run. Each runs under NODE_V8_COVERAGE=TMP, accumulating\n// raw V8 profiles that c8 merges at the end.\nconst RUNS = [\n  { label: \"unit (vitest, forks)\", cmd: \"npx\", args: [\"vitest\", \"run\", \"--pool=forks\"] },\n  {\n    label: \"browser E2E (vitest, forks, headless)\",\n    cmd: \"npx\",\n    args: [\n      \"vitest\", \"run\", \"--config\", \"vitest.e2e.config.ts\",\n      // This dedicated preference/profile oracle intentionally launches the\n      // installed Chrome channel both headed and headless. Its own workflow and\n      // npm script remain authoritative; a coverage run must not open a user's\n      // real browser.\n      \"--exclude\", \"tests/generic-profile-target-oracle.e2e.test.ts\",\n    ],\n    env: { DOMOTION_HELPER_NO_SERVE: \"1\", REVIEW_NO_OPEN: \"1\" },"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/coverage-summary.mjs"
+                },
+                "region": {
+                  "startLine": 55
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2646"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "6985e1d2accb39ade7f4177f8c1648b7"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "000add21d176aea9e756965d53d5bec4294c26aa",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

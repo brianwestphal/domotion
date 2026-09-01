@@ -2,13 +2,14 @@
 /**
  * Merged coverage (DM-1343). `npm run test:coverage` reflects only the vitest
  * unit suite, so the big render modules read as under-covered even though the
- * bespoke VISUAL suites (standalone tsx harnesses, NOT vitest) exercise them
- * hard. This script runs the unit suite AND the visual suites under one shared
+ * browser E2Es and bespoke VISUAL suites exercise them hard. This script runs
+ * the unit suite, browser E2Es, AND visual suites under one shared
  * `NODE_V8_COVERAGE` dir, then merges them into a single report with `c8` — the
  * one true number per CLAUDE.md's "merge all coverage" convention.
  *
- *   node tools/coverage-all.mjs            # FAST: unit + features + showcase +
- *                                          #   snapshot-isolation + animate-examples
+ *   node tools/coverage-all.mjs            # FAST: unit + browser E2E + features +
+ *                                          #   showcase + snapshot-isolation +
+ *                                          #   animate-examples
  *   node tools/coverage-all.mjs --full     # FULL: also the broad html-test +
  *                                          #   unicode + real-world sweeps
  *
@@ -28,19 +29,40 @@
  * shares one isolate and wouldn't dump per-file coverage).
  */
 import { spawnSync } from "node:child_process";
-import { rmSync, mkdirSync, existsSync } from "node:fs";
+import { rmSync, mkdirSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { summarizeCoverage, formatCoverageSummary } from "./coverage-summary.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const TMP = resolve(ROOT, "coverage/.v8-all");
 const REPORTS = resolve(ROOT, "coverage/all");
 const FULL = process.argv.includes("--full");
+const BROWSER_INSTRUMENTATION_OMISSIONS = {
+  // These sources are bundled into generated IIFEs and execute in Chromium,
+  // outside NODE_V8_COVERAGE's Node-isolate boundary. Their E2Es are included,
+  // but browser JS coverage needs a separate CDP-to-Istanbul bridge.
+  "src/review/client.tsx": "runs inside Chromium as client.bundle.generated.ts",
+  "src/scrubber/client.tsx": "runs inside Chromium as client.bundle.generated.ts",
+};
 
 // Fast suites — always run. Each runs under NODE_V8_COVERAGE=TMP, accumulating
 // raw V8 profiles that c8 merges at the end.
 const RUNS = [
   { label: "unit (vitest, forks)", cmd: "npx", args: ["vitest", "run", "--pool=forks"] },
+  {
+    label: "browser E2E (vitest, forks, headless)",
+    cmd: "npx",
+    args: [
+      "vitest", "run", "--config", "vitest.e2e.config.ts",
+      // This dedicated preference/profile oracle intentionally launches the
+      // installed Chrome channel both headed and headless. Its own workflow and
+      // npm script remain authoritative; a coverage run must not open a user's
+      // real browser.
+      "--exclude", "tests/generic-profile-target-oracle.e2e.test.ts",
+    ],
+    env: { DOMOTION_HELPER_NO_SERVE: "1", REVIEW_NO_OPEN: "1" },
+  },
   { label: "visual: features", cmd: "npx", args: ["tsx", "tests/features.ts"] },
   { label: "visual: showcase", cmd: "npx", args: ["tsx", "tests/showcase.tsx"] },
   { label: "visual: snapshot-isolation", cmd: "npx", args: ["tsx", "tests/snapshot-isolation.tsx"] },
@@ -77,6 +99,7 @@ const REPORT_ARGS = [
   "--exclude=src/test-support/**",
   "--exclude=**/*.d.ts",
   "--reporter=text-summary",
+  "--reporter=json",
   "--reporter=html",
 ];
 
@@ -103,10 +126,22 @@ rmSync(TMP, { recursive: true, force: true });
 mkdirSync(TMP, { recursive: true });
 const baseEnv = { ...process.env, NODE_V8_COVERAGE: TMP };
 
-for (const r of runs) run(r.label, r.cmd, r.args, r.env != null ? { ...baseEnv, ...r.env } : baseEnv);
+for (const r of runs) {
+  run(r.label, r.cmd, r.args, r.env != null ? { ...baseEnv, ...r.env } : baseEnv);
+}
 
 process.stdout.write(`\n▶ merging coverage → ${REPORTS}\n`);
 // Report without NODE_V8_COVERAGE in env (don't instrument the reporter itself).
 const status = run("c8 report", "npx", REPORT_ARGS, process.env);
+const coverageJson = resolve(REPORTS, "coverage-final.json");
+if (status === 0 && existsSync(coverageJson)) {
+  const summary = summarizeCoverage(
+    JSON.parse(readFileSync(coverageJson, "utf8")),
+    ROOT,
+    BROWSER_INSTRUMENTATION_OMISSIONS,
+  );
+  writeFileSync(resolve(REPORTS, "directory-summary.json"), `${JSON.stringify(summary, null, 2)}\n`);
+  process.stdout.write(`${formatCoverageSummary(summary)}\n`);
+}
 process.stdout.write(`\nHTML report: ${REPORTS}/index.html\n`);
 process.exit(status ?? 0);
