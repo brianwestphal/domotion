@@ -451,6 +451,7 @@ When the user gives you work directly (not via the Hot Sheet channel or events),
 <!-- hotsheet:begin section=testing-philosophy v=2 -->
 ## Testing Philosophy
 
+- **Keep automated browser work headless**: tests, probes, visual validation, and agent review loops must use headless Playwright Chromium. Set `DOMOTION_NO_OPEN=1` (or pass `--no-open`) when a command can start SVG Scrubber, SVG Demo Test Review, or another local review server. Do not launch the user's desktop browser unless the user explicitly asks for a headed/interactive run.
 - **Double coverage**: every feature covered by both unit tests AND E2E tests. Unit = logic in isolation; E2E = real user flows through the running app with minimal mocking.
 - **Unit tests**: Mock external deps (filesystem, network), test real logic.
 - **E2E tests**: As much as possible, use test automation tools to run realistic, user-facing flows. Minimize mocks.
