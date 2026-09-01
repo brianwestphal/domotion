@@ -15,7 +15,12 @@ loading the historical documentation corpus.
   importable/testable phases back into one self-contained `page.evaluate`
   function, so no module boundary leaks into the captured page (DM-2639).
 - `src/render/` turns captured facts into SVG. It must preserve Chromium's
-  decisions; it does not independently lay out the page.
+  decisions; it does not independently lay out the page. Native font work keeps
+  `glyph-helper.ts` as the public fallback/cache facade while transport,
+  protocol, outline conversion, font-adapter construction, and Linux target
+  strikes live in `glyph-helper-transport.ts`, `glyph-helper-protocol.ts`,
+  `glyph-helper-outline.ts`, `glyph-helper-font.ts`, and
+  `linux-target-strike.ts`, respectively.
 - `src/animation/`, `src/tree-ops/`, and `src/scroll/` compose and transform
   static captures into timed frames, nested scenes, and scrolling outputs.
   Declarative layer composition itself enters through `src/cli/composite.ts`.

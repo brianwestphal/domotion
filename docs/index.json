@@ -3407,7 +3407,8 @@
           "DM-2623",
           "DM-2626",
           "DM-2627",
-          "DM-2632"
+          "DM-2632",
+          "DM-2643"
         ],
         "code": [
           ".github/workflows/visual-tests.yml",
@@ -3416,9 +3417,15 @@
           "src/render/embedded-font-snapshot.test.ts",
           "src/render/font-resolution-cache-reset.test.ts",
           "src/render/font-resolution.ts",
+          "src/render/glyph-helper-boundaries.test.ts",
+          "src/render/glyph-helper-font.ts",
+          "src/render/glyph-helper-outline.ts",
+          "src/render/glyph-helper-protocol.ts",
+          "src/render/glyph-helper-transport.ts",
           "src/render/glyph-helper.ts",
           "src/render/hb-subset.test.ts",
           "src/render/hb-subset.ts",
+          "src/render/linux-target-strike.ts",
           "src/render/synth-test-fonts.ts",
           "src/render/text-to-path.test.ts",
           "src/render/text-to-path.ts",
@@ -7751,13 +7758,19 @@
           "windows"
         ],
         "tickets": [
-          "DM-2596"
+          "DM-2596",
+          "DM-2643"
         ],
         "code": [
           "src/capture/script/index.ts",
           "src/capture/script/walker/text-segments.ts",
           "src/render/font-resolution.ts",
+          "src/render/glyph-helper-font.ts",
+          "src/render/glyph-helper-outline.ts",
+          "src/render/glyph-helper-protocol.ts",
+          "src/render/glyph-helper-transport.ts",
           "src/render/glyph-helper.ts",
+          "src/render/linux-target-strike.ts",
           "src/render/text-to-path.ts",
           "src/render/text.ts",
           "tests/feature-coverage.ts"

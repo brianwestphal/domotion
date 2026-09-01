@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-2596"]
-code: ["src/capture/script/index.ts","src/capture/script/walker/text-segments.ts","src/render/font-resolution.ts","src/render/glyph-helper.ts","src/render/text-to-path.ts","src/render/text.ts","tests/feature-coverage.ts"]
+tickets: ["DM-2596","DM-2643"]
+code: ["src/capture/script/index.ts","src/capture/script/walker/text-segments.ts","src/render/font-resolution.ts","src/render/glyph-helper-font.ts","src/render/glyph-helper-outline.ts","src/render/glyph-helper-protocol.ts","src/render/glyph-helper-transport.ts","src/render/glyph-helper.ts","src/render/linux-target-strike.ts","src/render/text-to-path.ts","src/render/text.ts","tests/feature-coverage.ts"]
 aliases: ["docs/handbook/text-and-fonts.md"]
 ---
 
@@ -45,7 +45,7 @@ upstream source traces, corpora, and retained runs remain in the linked records.
 | Family and generic selection | [Font family chain](../03-font-family-chain.md), [system resolver](../80-cross-platform-system-fallback-resolver.md), [generic semantics](../206-generic-family-semantic-ownership.md) | `src/render/font-resolution.ts`, `src/capture/script/index.ts`, `tests/font-family-stack-capture.e2e.test.ts` |
 | Shaping and clusters | [Production shaping](../115-production-harfbuzz-shaping.md), [browser substitution streams](../220-browser-harfbuzz-substitution-streams.md) | `src/render/text.ts`, `tools/unified-shaping-oracle.ts`, `tools/browser-harfbuzz-substitution-oracle.ts` |
 | Layout and bidi | [Layout parity](../116-layout-stage-parity.md), [bidi ownership](../214-mixed-script-bidi-logical-geometry.md) | `src/capture/script/walker/text-segments.ts`, `tools/layout-stage-oracle.ts`, `tools/mixed-bidi-logical-oracle.ts` |
-| Native outlines | [Glyph extraction](../16-coretext-glyph-extraction.md), [Linux](../45-linux-glyph-extraction.md), [Windows](../41-windows-glyph-extraction.md) | `src/render/glyph-helper.ts`, native helpers, `src/render/glyph-helper.test.ts` |
+| Native outlines | [Glyph extraction](../16-coretext-glyph-extraction.md), [Linux](../45-linux-glyph-extraction.md), [Windows](../41-windows-glyph-extraction.md) | `src/render/glyph-helper-{transport,protocol,outline,font}.ts`, `src/render/linux-target-strike.ts`, native helpers, `src/render/glyph-helper.test.ts` |
 | Paint and decoration | [Text decoration](../207-cross-platform-decoration-geometry.md), [background clip](../18-background-clip-text.md) | `src/render/text.ts`, `src/render/text-to-path.ts`, `src/render/decoration-fragment-ownership.ts`, decoration oracle tests |
 | Fallback and evidence | [Same-machine contract](../120-same-machine-text-parity-contract.md), [renderer provenance](../143-production-text-run-provenance.md) | `src/render/text-run-provenance.ts`, `tools/renderer-font-route-oracle.ts`, native platform workflows |
 

@@ -472,6 +472,126 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtiwqclopw1v1ge4",
+          "message": {
+            "text": "DM-2643 keeps glyph-helper.ts as the stable public facade while moving child-process discovery and carrier lifetime, wire types, pure outline conversion, font-adapter caches, and Linux target strikes behind separate ownership boundaries. clearGlyphHelperCache delegates transport reset, resolver memos remain facade-owned, per-font caches die with adapter instances, and the Linux strike memo intentionally survives because its key contains immutable source identity.",
+            "markdown": "DM-2643 keeps glyph-helper.ts as the stable public facade while moving child-process discovery and carrier lifetime, wire types, pure outline conversion, font-adapter caches, and Linux target strikes behind separate ownership boundaries. clearGlyphHelperCache delegates transport reset, resolver memos remain facade-owned, per-font caches die with adapter instances, and the Linux strike memo intentionally survives because its key contains immutable source identity."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/glyph-helper.ts"
+                },
+                "region": {
+                  "startLine": 1,
+                  "endLine": 47,
+                  "snippet": {
+                    "text": "/**\n * Public native-helper facade and platform fallback/cache ownership.\n *\n * Process transport lives in `glyph-helper-transport.ts`; typed wire envelopes\n * in `glyph-helper-protocol.ts`; pure path/metric conversion in\n * `glyph-helper-outline.ts`; fontkit-compatible adapter construction in\n * `glyph-helper-font.ts`; and Linux target-size strikes in\n * `linux-target-strike.ts`. Existing callers import this facade so the split is\n * internal and does not create a second public routing surface.\n */\n\nimport { hostPlatform } from \"./host-platform.js\";\nimport type { MetaResponse } from \"./glyph-helper-outline.js\";\nimport type {\n  FamilyResponse,\n  HelperRequest,\n  HelperResponse,\n} from \"./glyph-helper-protocol.js\";\nimport {\n  callGlyphHelper as callHelper,\n  clearGlyphHelperTransport,\n  isGlyphHelperAvailable,\n} from \"./glyph-helper-transport.js\";\n\nexport {\n  OFFSET_PROBE_GLYPHS,\n  measureOutlineOffsetY,\n} from \"./glyph-helper-outline.js\";\nexport type { GlyphRasterRepresentation } from \"./glyph-helper-outline.js\";\nexport {\n  __helperBinaryForPlatform,\n  isGlyphHelperAvailable,\n  resolvedGlyphHelperPathForEvidence,\n} from \"./glyph-helper-transport.js\";\nexport {\n  buildGlyphHelperFontProbeEnvelope,\n  createGlyphHelperFont,\n} from \"./glyph-helper-font.js\";\nexport type {\n  GlyphHelperFontInstance,\n  ShapedRunFallback,\n} from \"./glyph-helper-font.js\";\nexport { linuxTargetStrikeGlyphs } from \"./linux-target-strike.js\";\nexport type { LinuxTargetStrikeGlyph } from \"./linux-target-strike.js\";\n\n/** Resolved system fallback font for a codepoint Chrome would substitute via\n *  CoreText's `CTFontCreateForString` cascade. `null` when CoreText falls"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ]
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/glyph-helper-transport.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/glyph-helper-protocol.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "id": 2,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/glyph-helper-outline.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "id": 3,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/glyph-helper-font.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "id": 4,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/linux-target-strike.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "workItemUris": [
+            "DM-2643"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "84b8027c2f89b8ab64fe83135b149f61"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "42c32164f17fd47cf380ff58bf94cef0d55cf1ca",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -234,9 +234,17 @@ describe("resolveFontKey: explicit-name resolution", () => {
     // cour.ttf / Liberation Mono metric class) — the Courier alias is strictly
     // a lookup-failure retry (`font_platform_data_cache.cc:74-105`, rev 7d859f27).
     expect(resolveFontKey("Courier New")).toBe("courier-new");
+    const sfMono = resolveInstalledFont("SF Mono");
     const key = resolveFontKey("SF Mono");
-    expect(key).toBe("sysfb:SFMono-Regular");
-    expect(getFontInstance(key, 400, 16, 0)?.postscriptName).toBe("SFMono-Regular");
+    if (sfMono?.postscriptName === "SFMono-Regular") {
+      expect(key).toBe("sysfb:SFMono-Regular");
+      expect(getFontInstance(key, 400, 16, 0)?.postscriptName).toBe("SFMono-Regular");
+    } else {
+      // SF Mono is bundled inside some Apple applications but is not always
+      // registered as a CoreText family. An unavailable literal family walks
+      // to Blink's standard-family terminal, just like any other missing name.
+      expect(key).toBe("times");
+    }
     // The literal family does not change the generic-keyword route.
     expect(resolveFontKey("monospace")).toBe("courier");
   });
@@ -301,7 +309,10 @@ describe("resolveFontKey: explicit-name resolution", () => {
     // Family-name lookups are case-insensitive (CoreText/DirectWrite/
     // fontconfig all fold case), so any spelling of a real family matches.
     expect(resolveFontKey('"Helvetica Neue"')).toBe("helvetica-neue"); // DM-1189: own face
-    expect(resolveFontKey("'SF Mono'")).toBe("sysfb:SFMono-Regular");
+    const sfMono = resolveInstalledFont("SF Mono");
+    expect(resolveFontKey("'SF Mono'")).toBe(
+      sfMono?.postscriptName === "SFMono-Regular" ? "sysfb:SFMono-Regular" : "times",
+    );
     expect(resolveFontKey("MENLO")).toBe("menlo");
     // But the generic-KEYWORD classification is case-SENSITIVE
     // (`FontFamily::InferredTypeFor`, font_family.cc:63-74, rev 7d859f27 —

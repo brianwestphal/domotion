@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-2623","DM-2626","DM-2627","DM-2632"]
-code: [".github/workflows/visual-tests.yml","src/render/embedded-font-builder.test.ts","src/render/embedded-font-builder.ts","src/render/embedded-font-snapshot.test.ts","src/render/font-resolution-cache-reset.test.ts","src/render/font-resolution.ts","src/render/glyph-helper.ts","src/render/hb-subset.test.ts","src/render/hb-subset.ts","src/render/synth-test-fonts.ts","src/render/text-to-path.test.ts","src/render/text-to-path.ts","tools/linux-glyph-extractor/src/main.cpp","tools/linux-terminal-mask-oracle.ts"]
+tickets: ["DM-2623","DM-2626","DM-2627","DM-2632","DM-2643"]
+code: [".github/workflows/visual-tests.yml","src/render/embedded-font-builder.test.ts","src/render/embedded-font-builder.ts","src/render/embedded-font-snapshot.test.ts","src/render/font-resolution-cache-reset.test.ts","src/render/font-resolution.ts","src/render/glyph-helper-boundaries.test.ts","src/render/glyph-helper-font.ts","src/render/glyph-helper-outline.ts","src/render/glyph-helper-protocol.ts","src/render/glyph-helper-transport.ts","src/render/glyph-helper.ts","src/render/hb-subset.test.ts","src/render/hb-subset.ts","src/render/linux-target-strike.ts","src/render/synth-test-fonts.ts","src/render/text-to-path.test.ts","src/render/text-to-path.ts","tools/linux-glyph-extractor/src/main.cpp","tools/linux-terminal-mask-oracle.ts"]
 aliases: ["docs/99-hinted-embedded-subset.md","doc-99"]
 ---
 

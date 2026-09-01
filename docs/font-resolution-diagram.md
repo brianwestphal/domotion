@@ -13,8 +13,12 @@ route, and explicitly degraded per-codepoint route.
 > matching diagram + prose here in the same commit**. The authoritative source is
 > `src/render/font-resolution.ts` (routing tables + resolvers),
 > `src/render/win-font-fallback.ts` (Blink's hardcoded Windows stage, transcribed),
-> `src/render/glyph-helper.ts`
-> (native CoreText / FreeType / DirectWrite backends), `src/render/text-to-path.ts`
+> `src/render/glyph-helper.ts` (fallback/cache facade),
+> `src/render/glyph-helper-transport.ts` (binary discovery and carrier),
+> `src/render/glyph-helper-protocol.ts` (typed JSON envelope),
+> `src/render/glyph-helper-outline.ts` (path/metric conversion),
+> `src/render/glyph-helper-font.ts` (font adapter), and
+> `src/render/linux-target-strike.ts` (exact Linux strikes), `src/render/text-to-path.ts`
 > (the shaping / run-splitting callers), `src/render/embedded-font-builder.ts`
 > (embedded-mode subset builder), and `src/capture/index.ts`
 > (`discoverAndRegisterWebfonts`). When code and diagram disagree, the code wins —
@@ -612,7 +616,7 @@ flowchart TD
 
 **Probe-then-fallback dispatch (doc [51](51-probe-then-fallback-dispatch.md)):**
 fontkit is primary; the **native glyph helper** (macOS CoreText / Linux FreeType /
-Windows DirectWrite, dispatched by `process.platform` in `src/render/glyph-helper.ts`)
+Windows DirectWrite, dispatched by `process.platform` in `src/render/glyph-helper-transport.ts`)
 is the fallback for a *helper-eligible* font (`extractor: "native"`) that fontkit
 can't open OR opens with no outline table (PingFang's outlines live in Apple's
 private `hvgl` table). A finer **per-glyph** tier (`commandsFor` → `helperGlyphOutline`,
@@ -632,8 +636,9 @@ command SHA, so warm axis mutations cannot alias.
 
 **Outline offset — where CoreText says the glyph goes vs where it draws it.**
 `createGlyphHelperFont` measures one per-face vertical correction on macOS and
-applies it to every outline it returns (`measureOutlineOffsetY` →
-`glyphCommands`, `src/render/glyph-helper.ts`). CoreText exposes two answers for
+applies it to every outline it returns (`measureOutlineOffsetY` in
+`src/render/glyph-helper-outline.ts` → `glyphCommands` in
+`src/render/glyph-helper-font.ts`). CoreText exposes two answers for
 the same glyph: `CTFontCreatePathForGlyph` (the outline) and
 `CTFontGetBoundingRectsForGlyphs` (the box it occupies). Chrome paints at the
 bounding rect, so where the two disagree the raw outline lands in the wrong
@@ -879,8 +884,9 @@ the angle.
 `linuxPrimaryCutKey` / `fontHasOutlineTable` / `commandsFor` in
 `src/render/font-resolution.ts`; `win32FamilySuffixAdjustment` in
 `src/render/win32-family-suffix.ts`; `resolveFamilyStyleMatch` /
-`resolveLinuxFamilyMatch` / `resolveInstalledFont` in
-`src/render/glyph-helper.ts`.
+`resolveLinuxFamilyMatch` / `resolveInstalledFont` in the
+`src/render/glyph-helper.ts` facade; native adapter construction in
+`src/render/glyph-helper-font.ts`.
 
 ---
 
@@ -1876,7 +1882,10 @@ mixed bitmap/vector font inventory — the roadmapped Noto desktop calibration.
 
 ### 8·0. How the question reaches the OS: the helper transport
 
-Every branch above is a round-trip to a native helper binary, and the *carrier*
+Every branch above is a round-trip to a native helper binary. Binary discovery,
+serve/one-shot selection, synchronous I/O, and reset lifecycle are owned by
+`src/render/glyph-helper-transport.ts`; typed request/response shapes are owned
+by `src/render/glyph-helper-protocol.ts`. The *carrier*
 differs per platform in a way that has twice turned out to be load-bearing rather
 than incidental.
 
@@ -2239,8 +2248,10 @@ native helpers via a `HasCharacter` guard reporting `found:false`; Linux via
 `resolveLinuxSystemFallbackKeyForCp` / `fontFileCoversCodepoint` /
 `registerDynamicSystemFont` / `withSystemFallbackResolution` in
 `src/render/font-resolution.ts`; `resolveSystemFallbackFonts` /
-`resolveInstalledFont` / `createGlyphHelperFont` / `isGlyphHelperAvailable` in
-`src/render/glyph-helper.ts`. Doc [80](80-cross-platform-system-fallback-resolver.md).
+`resolveInstalledFont` in the `src/render/glyph-helper.ts` facade,
+`createGlyphHelperFont` in `src/render/glyph-helper-font.ts`, and
+`isGlyphHelperAvailable` in `src/render/glyph-helper-transport.ts`. Doc
+[80](80-cross-platform-system-fallback-resolver.md).
 
 ### 8b. macOS: the ideograph document cache (order-dependent, by design)
 
@@ -2709,7 +2720,7 @@ alignment behavior.
 
 **This was invisible for exactly as long as the shaper ignored what it was
 told.** The macOS helper's shape query takes no direction argument at all
-(`shapeText(text)` in `glyph-helper.ts`), so it inferred RTL from the content
+(`shapeText(text)` in `glyph-helper-font.ts`), so it inferred RTL from the content
 and a mis-scored run came out right for the wrong reason. HarfBuzz obeys — per
 `hb_ensure_native_direction` above — so the moment an RTL script was routed to
 it, the mis-scored run got its characters reversed before shaping and painted a
@@ -2882,7 +2893,7 @@ genuinely different rules rather than one rule with a special case:
 
   The macOS branch reads `FontInstance.faceIsItalicTrait` — the mirror of
   `faceIsBoldTrait`, wired from the native helper's `traitItalic` meta field
-  (`glyph-helper.ts`'s `MetaResponse.traitItalic`, always present since the
+  (`glyph-helper-outline.ts`'s `MetaResponse.traitItalic`, always present since the
   Swift helper's `main.swift` reports it alongside `traitBold`, but dropped on
   the floor by `createGlyphHelperFont`'s returned object until this fix) and,
   for a plain fontkit-opened face, from OS/2 `fsSelection` bit 0 (ITALIC,
@@ -3019,14 +3030,14 @@ see the two-mode table above.
 | `helperFontCache`; `helperOutlineCache` | process, source face/glyph | `clearFontResolutionCaches` † | yes |
 | `coverageBitsets` (font file + physical face → 136 KB cmap bitset); `_sysfbCoverage` (sysfb key + cp → covered?) | process | `clearFontResolutionCaches` † | yes |
 | `_systemFallbackCache` (macOS/Windows); `_fcFallbackCache` (Linux) — helper-owned per-codepoint memos one layer below `systemFallbackKeyCache` | process | `clearFontResolutionCaches` † via `clearGlyphHelperCodepointMemos` | yes via `clearGlyphHelperCache` |
-| helper availability/path/transport; `_installedFontCache`; `_familyStyleMatchCache`; `_linuxFamilyMatchCache`; `_traitBoldCache`; `_traitItalicCache`; Windows `_systemUiFamily` preference | process, host environment | no | `clearGlyphHelperCache` |
+| helper availability/path/transport (`glyph-helper-transport.ts`); `_installedFontCache`; `_familyStyleMatchCache`; `_linuxFamilyMatchCache`; `_traitBoldCache`; `_traitItalicCache`; Windows `_systemUiFamily` preference (`glyph-helper.ts`) | process, host environment | no | `clearGlyphHelperCache` delegates transport reset and clears resolver memos |
 | HarfBuzz `hbFontCache`; `trakStatCache` | process, source face | no | `_clearHbFontCache` / `_clearTrakStatCache` |
 | shaped-cluster `verdictCache` | process, bounded LRU | no | registered higher-layer invalidator |
 | `dynamicSystemFontPaths` (dynamic key → FontPath); `declaredFamilyForKey`; `win32SuffixDeclaredForKey`; Darwin system-UI warm state | process, derived registry | deliberately preserved | cleared/reset directly |
 | ideograph document/renderer cache (base+weight+style+size → first sysfb answer, § 8b) | **document / renderer session** | no | scope/session lifetime — modeled Blink state, not a memo |
 | `webfontRegistry` | capture session, caller supplied | preserved | preserved; `clearWebfonts` owns it |
 | `localFontAliasRegistry` | capture session, installed-face derived | preserved | cleared directly (also by `clearWebfonts`) |
-| `linuxTargetStrikeCache`; embedded-builder `hintedOutlineGuardMemo` | process, exact source path/face/strike | no | no; source-identity memo, test seam/process exit only |
+| `linuxTargetStrikeCache` (`linux-target-strike.ts`); embedded-builder `hintedOutlineGuardMemo` | process, exact source path/face/strike | no | no; source-identity memo, test seam/process exit only |
 | `glyphDefs` (paths mode) | generation | n/a | n/a; `clearGlyphDefs` / `resetGeneration` |
 | `embeddedFonts` + subset builder | generation | n/a | n/a; `clearEmbeddedFonts` / `resetGeneration` |
 
@@ -3051,7 +3062,7 @@ installed-face-backed `local()` aliases do not.
 
 **Both per-codepoint layers have to be dropped together, and for a while only
 one was.** `systemFallbackKeyCache` memoizes the *decision*; the platform
-*answer* it is derived from lives in `glyph-helper.ts`'s own map, keyed on
+*answer* it is derived from lives in the `glyph-helper.ts` fallback facade's own map, keyed on
 `(base face, codepoint, weight, style, size, locale, …)`. That one had no caller
 outside the unit tests, so it retained an entry per codepoint per base for the
 life of the process — invisible in a render, invisible at the conformance
