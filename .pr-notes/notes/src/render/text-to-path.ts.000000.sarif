@@ -1740,6 +1740,69 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mti9c1p9g64urd3p",
+          "message": {
+            "text": "DM-2627's ticket crop uses WenQuanYiZenHeiMono at 26px/700 and WenQuanYiZenHei at 32px/700; Chromium reports those same selected faces, so this is terminal strike rasterization rather than fallback. On pinned amd64 Linux, disabling geometricPrecision worsened the crop (AE 4117→4226, RMSE 0.0661→0.0826). Adding only these two slight-hinted y strikes removed the header's remaining major region, made the 26px mono segment pixel-exact, and reduced the fixture from 2 major regions to 1 unrelated region.",
+            "markdown": "DM-2627's ticket crop uses WenQuanYiZenHeiMono at 26px/700 and WenQuanYiZenHei at 32px/700; Chromium reports those same selected faces, so this is terminal strike rasterization rather than fallback. On pinned amd64 Linux, disabling geometricPrecision worsened the crop (AE 4117→4226, RMSE 0.0661→0.0826). Adding only these two slight-hinted y strikes removed the header's remaining major region, made the 26px mono segment pixel-exact, and reduced the fixture from 2 major regions to 1 unrelated region."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 2271,
+                  "endLine": 2299,
+                  "snippet": {
+                    "text": "const LINUX_TARGET_STRIKES = new Set([\n  \"WenQuanYiZenHeiMono|17|400\",\n  \"WenQuanYiZenHeiMono|26|700\",\n  \"WenQuanYiZenHei|32|700\",\n]);\n\n/**\n * Each production target-strike route is an exact face/size/weight surface\n * proven by the phase oracle or its owning fixture. Other WQY faces/sizes do\n * not all improve under the same outline transformation, so widening this\n * predicate requires a new per-strike result rather than family extrapolation.\n */\nexport function embeddedLinuxTargetStrikeEnabled(\n  capturePlatform: NodeJS.Platform,\n  sourcePostscriptName: string | undefined,\n  fontSizePx: number,\n  weight: number,\n  slant: number,\n  stretch: number,\n  authoredTextRendering = \"auto\",\n  enabled = process.env.DOMOTION_LINUX_TARGET_STRIKE !== \"0\",\n): boolean {\n  return enabled\n    && capturePlatform === \"linux\"\n    && sourcePostscriptName != null\n    && LINUX_TARGET_STRIKES.has(`${sourcePostscriptName}|${fontSizePx}|${weight}`)\n    && slant === 0\n    && stretch === 100\n    && authoredTextRendering.toLowerCase() === \"auto\";"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ]
+          },
+          "workItemUris": [
+            "DM-2627"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e5a81f6a2bdb0586f05c0499c710a12d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "80858bce230323f2d7d419e6c3b32eda193f5e39",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -2268,13 +2268,17 @@ const LINUX_GEOMETRIC_PRECISION_FACES = new Set([
   "WenQuanYi Zen Hei",
   "WenQuanYiZenHeiMono",
 ]);
-const LINUX_TARGET_STRIKE_POSTSCRIPT = "WenQuanYiZenHeiMono";
+const LINUX_TARGET_STRIKES = new Set([
+  "WenQuanYiZenHeiMono|17|400",
+  "WenQuanYiZenHeiMono|26|700",
+  "WenQuanYiZenHei|32|700",
+]);
 
 /**
- * The first production target-strike route is intentionally the exact DM-2623
- * surface proven by the phase oracle. Other WQY faces/sizes did not all improve
- * under the same outline transformation, so widening this predicate requires a
- * new per-strike oracle result rather than family-name extrapolation.
+ * Each production target-strike route is an exact face/size/weight surface
+ * proven by the phase oracle or its owning fixture. Other WQY faces/sizes do
+ * not all improve under the same outline transformation, so widening this
+ * predicate requires a new per-strike result rather than family extrapolation.
  */
 export function embeddedLinuxTargetStrikeEnabled(
   capturePlatform: NodeJS.Platform,
@@ -2288,9 +2292,8 @@ export function embeddedLinuxTargetStrikeEnabled(
 ): boolean {
   return enabled
     && capturePlatform === "linux"
-    && sourcePostscriptName === LINUX_TARGET_STRIKE_POSTSCRIPT
-    && fontSizePx === 17
-    && weight === 400
+    && sourcePostscriptName != null
+    && LINUX_TARGET_STRIKES.has(`${sourcePostscriptName}|${fontSizePx}|${weight}`)
     && slant === 0
     && stretch === 100
     && authoredTextRendering.toLowerCase() === "auto";
