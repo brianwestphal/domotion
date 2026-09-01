@@ -118,8 +118,15 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev libfontconfig-dev
       - run: npm ci
-      - name: Build the Linux glyph helper (fontconfig declared-family matcher)
+      - name: Build the Linux glyph helper
+        # The terminal-mask gate now includes a target-size outline arm, so the
+        # helper is required before that gate as well as by the routing probe.
         run: bash tools/linux-glyph-extractor/build.sh
+      - name: Gate embedded-font terminal masks against native Linux text (DM-2623)
+        # Native text is reference-only. Every scored candidate is a data-URL
+        # font. The gate requires the measured WQY surfaces to improve while
+        # exact fallback-stack controls stay unchanged; no host passthrough.
+        run: npm run fonts:linux-terminal-mask -- --gate
       - name: Assert the helper is actually in the loop
         # A built binary is not a reached one. This is the disable-and-require-
         # movement check whose absence let the Windows resolver ship inert for

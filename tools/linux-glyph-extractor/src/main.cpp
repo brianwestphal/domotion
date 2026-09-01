@@ -1134,6 +1134,76 @@ static std::string runGlyphsQuery(const JsonValue& query, std::map<std::string, 
   return out.str();
 }
 
+// Target-strike outline query (DM-2623). Unlike the normal
+// cross-platform `glyphs` contract above, this deliberately asks FreeType to
+// execute the face's hint program at one concrete CSS pixel size. Coordinates
+// are returned in FreeType's 26.6 pixel space, y-up. The caller must treat the
+// result as size-specific; it is not a replacement for design-unit outlines.
+static std::string runHintedGlyphsQuery(const JsonValue& query,
+                                        std::map<std::string, FontEntry>& fonts) {
+  std::ostringstream out;
+  std::string ref = query.at("fontRef").asString();
+  auto it = fonts.find(ref);
+  if (it == fonts.end()) {
+    return "{\"type\":\"hintedGlyphs\",\"error\":\"fontRef missing or unknown\",\"glyphs\":[]}";
+  }
+  FT_Face face = it->second.face;
+  const double fontSizePx = query.at("fontSizePx").asNumber(0);
+  if (!(fontSizePx > 0) ||
+      FT_Set_Char_Size(face, 0, static_cast<FT_F26Dot6>(std::llround(fontSizePx * 64.0)), 72, 72) != 0) {
+    return "{\"type\":\"hintedGlyphs\",\"error\":\"invalid fontSizePx\",\"glyphs\":[]}";
+  }
+
+  const std::string hintStyle = query.at("hintStyle").asString("slight");
+  FT_Int32 loadFlags = FT_LOAD_TARGET_LIGHT;
+  if (hintStyle == "none") loadFlags = FT_LOAD_NO_HINTING;
+  else if (hintStyle == "normal") loadFlags = FT_LOAD_TARGET_NORMAL;
+  else if (hintStyle == "full") loadFlags = FT_LOAD_TARGET_NORMAL;
+  if (query.at("forceAutoHint").type == JsonValue::Type::Bool &&
+      query.at("forceAutoHint").boolean) {
+    loadFlags |= FT_LOAD_FORCE_AUTOHINT;
+  }
+  const bool useBitmaps = query.at("useBitmaps").type != JsonValue::Type::Bool ||
+                          query.at("useBitmaps").boolean;
+  if (!useBitmaps) loadFlags |= FT_LOAD_NO_BITMAP;
+  loadFlags |= FT_LOAD_IGNORE_GLOBAL_ADVANCE_WIDTH;
+  out << "{\"type\":\"hintedGlyphs\",\"fontSizePx\":"
+      << formatNumber(fontSizePx) << ",\"coordinateScale\":64,\"glyphs\":[";
+  const JsonArray& inputs = query.at("glyphs").asArray();
+  for (size_t i = 0; i < inputs.size(); i++) {
+    const JsonValue& g = inputs[i];
+    FT_UInt glyphIndex = 0;
+    if (g.has("id")) {
+      glyphIndex = static_cast<FT_UInt>(g.at("id").asNumber());
+    } else if (g.has("cp")) {
+      glyphIndex = FT_Get_Char_Index(face, static_cast<FT_ULong>(g.at("cp").asNumber()));
+    }
+
+    std::string d;
+    double advance = 0;
+    FT_BBox bbox = {0, 0, 0, 0};
+    if (glyphIndex != 0 && FT_Load_Glyph(face, glyphIndex, loadFlags) == 0) {
+      FT_GlyphSlot slot = face->glyph;
+      advance = static_cast<double>(slot->advance.x);
+      if (slot->format == FT_GLYPH_FORMAT_OUTLINE) {
+        FT_Outline_Get_CBox(&slot->outline, &bbox);
+        d = decomposeOutline(&slot->outline);
+      }
+    }
+
+    if (i > 0) out << ",";
+    out << "{\"id\":" << glyphIndex
+        << ",\"advance\":" << formatNumber(advance)
+        << ",\"bbox\":{\"x\":" << formatNumber(bbox.xMin)
+        << ",\"y\":" << formatNumber(bbox.yMin)
+        << ",\"w\":" << formatNumber(bbox.xMax - bbox.xMin)
+        << ",\"h\":" << formatNumber(bbox.yMax - bbox.yMin)
+        << "},\"d\":\"" << d << "\"}";
+  }
+  out << "]}";
+  return out.str();
+}
+
 static std::string runMetaQuery(const JsonValue& query, std::map<std::string, FontEntry>& fonts) {
   std::string ref = query.at("fontRef").asString();
   auto it = fonts.find(ref);
@@ -1250,6 +1320,8 @@ static std::string handleEnvelope(FT_Library lib, const JsonValue& envelope,
     const std::string type = queries[i].at("type").asString();
     if (type == "glyphs") {
       response << runGlyphsQuery(queries[i], fonts);
+    } else if (type == "hintedGlyphs") {
+      response << runHintedGlyphsQuery(queries[i], fonts);
     } else if (type == "meta") {
       response << runMetaQuery(queries[i], fonts);
     } else if (type == "fcfallback") {
@@ -1288,8 +1360,8 @@ int main(int argc, char** argv) {
   for (int i = 1; i < argc; i++) {
     std::string a = argv[i];
     if (a == "--version") {
-      // 0.3.0: added the diagnostics-only `fcdiagnostic` query (DM-2086).
-      std::cout << "domotion-glyph-paths (linux/freetype) 0.3.0\n";
+      // 0.4.0: added the target-strike `hintedGlyphs` oracle query (DM-2623).
+      std::cout << "domotion-glyph-paths (linux/freetype) 0.4.0\n";
       return 0;
     }
     if (a == "--fontconfig-mode") {

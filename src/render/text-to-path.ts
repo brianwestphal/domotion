@@ -19,7 +19,7 @@ import { existsSync } from "node:fs";
 import * as nodePath from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
-import { createGlyphHelperFont, isGlyphHelperAvailable, resolveSystemFallbackFonts, resolveInstalledFont, type GlyphRasterRepresentation } from "./glyph-helper.js";
+import { createGlyphHelperFont, isGlyphHelperAvailable, linuxTargetStrikeGlyphs, resolveSystemFallbackFonts, resolveInstalledFont, type GlyphRasterRepresentation } from "./glyph-helper.js";
 export type { GlyphRasterRepresentation } from "./glyph-helper.js";
 // The SHARED attribute escaper. Two local copies used to live in this file and
 // escaped only the five XML metacharacters, so a codepoint the XML `Char`
@@ -2263,6 +2263,92 @@ export interface EmbeddedTextAttempt {
   };
 }
 
+const LINUX_GEOMETRIC_PRECISION_FACES = new Set([
+  "WenQuanYiZenHei",
+  "WenQuanYi Zen Hei",
+  "WenQuanYiZenHeiMono",
+]);
+const LINUX_TARGET_STRIKE_POSTSCRIPT = "WenQuanYiZenHeiMono";
+
+/**
+ * The first production target-strike route is intentionally the exact DM-2623
+ * surface proven by the phase oracle. Other WQY faces/sizes did not all improve
+ * under the same outline transformation, so widening this predicate requires a
+ * new per-strike oracle result rather than family-name extrapolation.
+ */
+export function embeddedLinuxTargetStrikeEnabled(
+  capturePlatform: NodeJS.Platform,
+  sourcePostscriptName: string | undefined,
+  fontSizePx: number,
+  weight: number,
+  slant: number,
+  stretch: number,
+  authoredTextRendering = "auto",
+  enabled = process.env.DOMOTION_LINUX_TARGET_STRIKE !== "0",
+): boolean {
+  return enabled
+    && capturePlatform === "linux"
+    && sourcePostscriptName === LINUX_TARGET_STRIKE_POSTSCRIPT
+    && fontSizePx === 17
+    && weight === 400
+    && slant === 0
+    && stretch === 100
+    && authoredTextRendering.toLowerCase() === "auto";
+}
+
+/** Preserve the already-correct linear x geometry while substituting the y
+ * coordinates FreeType produced for the concrete target strike. */
+export function targetStrikeVerticalCommands(
+  designCommands: PathCommand[],
+  hintedCommands: Array<{ command: string; args: number[] }>,
+  xScale: number,
+): PathCommand[] | null {
+  if (designCommands.length !== hintedCommands.length) return null;
+  const out: PathCommand[] = [];
+  for (let commandIndex = 0; commandIndex < designCommands.length; commandIndex++) {
+    const design = designCommands[commandIndex];
+    const hinted = hintedCommands[commandIndex];
+    if (design.command !== hinted.command || design.args.length !== hinted.args.length) return null;
+    out.push({
+      command: design.command,
+      args: design.args.map((value, argIndex) => argIndex % 2 === 0 ? value * xScale : hinted.args[argIndex]),
+    });
+  }
+  return out;
+}
+
+/**
+ * Linux native system faces receive family-specific Fontconfig strike params,
+ * while Blink's custom-font path uses family-less webfont defaults. The only
+ * author-controlled switch in the pinned Blink path that narrows the measured
+ * terminal-mask gap is geometricPrecision (no hinting + subpixel positioning).
+ * Scope it to the measured WenQuanYi system-font bytes captured on Linux:
+ * authored webfonts already use Blink's custom-font path on both sides, other
+ * Linux faces can prefer the default path, and other capture platforms have
+ * their own native raster contracts.
+ */
+export function embeddedSystemFontTextRendering(
+  capturePlatform: NodeJS.Platform,
+  hasSystemFontSource: boolean,
+  enabled = process.env.DOMOTION_LINUX_GEOMETRIC_PRECISION !== "0",
+  sourcePostscriptName?: string,
+  allowlist = process.env.DOMOTION_LINUX_GEOMETRIC_PRECISION_FONTS,
+  authoredTextRendering = "auto",
+): "geometricPrecision" | null {
+  if (!enabled || capturePlatform !== "linux" || !hasSystemFontSource) return null;
+  if (authoredTextRendering.toLowerCase() !== "auto") return null;
+  // The mode is not universally better: the 24-row Unicode corpus exposed a
+  // large FreeSans/Unifont regression. Keep the production route closed over
+  // the exact WQY faces for which both the phase oracle and fixture corpus show
+  // improvement. The env seam can replace this set for future A/B evidence;
+  // it never changes face selection or permits host-font passthrough.
+  const allowed = allowlist == null
+    ? LINUX_GEOMETRIC_PRECISION_FACES
+    : new Set(allowlist.split(",").map((name) => name.trim()).filter(Boolean));
+  if (sourcePostscriptName == null || !allowed.has(sourcePostscriptName)) return null;
+  return "geometricPrecision";
+}
+
 /**
  * DM-655: emit text as `<text>` elements backed by custom-built TTFs that
  * contain just the shaped glyphs the run uses. Mirrors textToPathMarkup's
@@ -2322,6 +2408,7 @@ function renderEmbeddedGlyphRuns(
   /** CSS paragraph bidi context applied before Blink's script/run segmentation. */
   bidiOverride?: BidiParagraphContext,
   fallbackRequest?: { rawSlope: number; orientation: number },
+  authoredTextRendering?: string,
 ): EmbeddedTextAttempt {
   const { weight, slant, stretch } = textFontRequest(fontWeight, fontStyle, fontStretch);
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang);
@@ -2382,6 +2469,7 @@ function renderEmbeddedGlyphRuns(
     weightAttr: string;
     italicAttr: string;
     fvsAttr: string;
+    textRenderingAttr: string;
     paintPasses: FakeBoldSvgPaintPass[];
   }
   const pending: PendingSeg[] = [];
@@ -2586,6 +2674,46 @@ function renderEmbeddedGlyphRuns(
     const shearFactor = faceNeedsSyntheticOblique(run.font, blinkRequestedSlopeDegrees(fontStyle), fontSynthesis)
       ? OBLIQUE_SHEAR : 0;
 
+    const targetStrikeRequested = srcInfo?.faceIndex != null
+      && perCharScale.every((scale) => scale === 1)
+      && shearFactor === 0
+      && (textStrokeWidth == null || textStrokeWidth === 0)
+      && embeddedLinuxTargetStrikeEnabled(
+        process.platform, srcInfo.postscriptName, fontSize, weight, slant, stretch,
+        authoredTextRendering,
+      );
+    const targetUnitsPerEm = Math.round(fontSize * 64);
+    let targetStrikeCommandsByGlyphId: Map<number, PathCommand[]> | null = null;
+    if (targetStrikeRequested) {
+      const hintedGlyphs = linuxTargetStrikeGlyphs({
+        postscriptName: srcInfo!.postscriptName,
+        fontPath: srcInfo!.path,
+        faceIndex: srcInfo!.faceIndex!,
+        variations: srcInfo!.variationAxes,
+      }, fontSize, layout.glyphs.map((glyph) => glyph.id));
+      if (hintedGlyphs != null) {
+        const xScale = targetUnitsPerEm / run.font.unitsPerEm;
+        const merged = new Map<number, PathCommand[]>();
+        let topologyMatches = true;
+        for (const glyph of layout.glyphs) {
+          const hinted = hintedGlyphs.get(glyph.id);
+          const designCommands = hinted?.designCommands ?? [];
+          // Spaces and other genuinely inkless glyphs never enter the subset.
+          if (designCommands.length === 0) continue;
+          const commands = hinted == null
+            ? null
+            : targetStrikeVerticalCommands(designCommands, hinted.commands, xScale);
+          if (commands == null || commands.length === 0) {
+            topologyMatches = false;
+            break;
+          }
+          merged.set(glyph.id, commands);
+        }
+        if (topologyMatches && merged.size > 0) targetStrikeCommandsByGlyphId = merged;
+      }
+    }
+    const targetStrikeActive = targetStrikeCommandsByGlyphId != null;
+
     // DM-1722 / DM-2390: for a STATIC-weight source on the hinted path (no
     // wght axis), the glyph outlines are identical at every requested
     // CSS weight — the file is what it is. Requested weight then only matters
@@ -2615,7 +2743,8 @@ function renderEmbeddedGlyphRuns(
     // identity. Bold now changes paint records, not outlines; oblique still
     // shears the outline and therefore remains keyed.
     const synthPart = `|sh=${shearFactor}`;
-    const instanceKey = `${run.fontKey}|${weightPart}|s=${slant}${fvsTuple}${cutTuple}${axesTuple}${synthPart}`;
+    const instanceKey = `${run.fontKey}|${weightPart}|s=${slant}${fvsTuple}${cutTuple}${axesTuple}${synthPart}`
+      + (targetStrikeActive ? `|strike-y=${fontSize}` : "");
 
 
     // DM-1714/DM-1716: tag the run with the sfnt file it resolved to, so the
@@ -2627,6 +2756,15 @@ function renderEmbeddedGlyphRuns(
     // match what this run shaped with (and hinting survives instancing).
     // Webfont instances return null here (no backing file) and keep svg2ttf.
     const hintedSource = srcInfo;
+    const textRendering = embeddedSystemFontTextRendering(
+      process.platform,
+      hintedSource != null,
+      undefined,
+      hintedSource?.postscriptName,
+      undefined,
+      authoredTextRendering,
+    );
+    const textRenderingAttr = textRendering == null ? "" : ` text-rendering="${textRendering}"`;
 
     // Resolve cssFamily + PUA codepoints for every shaped glyph in this
     // run. We also need each glyph's anchor x in CSS pixels so we can
@@ -2896,12 +3034,24 @@ function renderEmbeddedGlyphRuns(
           },
         };
       } else {
+        const targetCommands = targetStrikeActive
+          ? targetStrikeCommandsByGlyphId!.get(glyph.id)
+          : null;
+        // Activation is all-or-nothing for a run. Mixing target-strike and
+        // design-unit contours in one TTF would assign two coordinate systems
+        // to one units-per-em value, so decline if an alternate outline backend
+        // discovered ink the preflight could not pair with a hinted contour.
+        if (targetStrikeActive && targetCommands == null) {
+          return { markup: null, decline: { reason: "glyph-outline-unavailable" } };
+        }
+        const trackedUnitsPerEm = targetStrikeActive ? targetUnitsPerEm : run.font.unitsPerEm;
+        const metricScale = trackedUnitsPerEm / run.font.unitsPerEm;
         placement = trackGlyphInEmbedFont(
-          instanceKey, run.font.unitsPerEm, runAscent, runDescent,
-          glyph.id, commandResolution.commands, glyph.advanceWidth,
+          instanceKey, trackedUnitsPerEm, runAscent * metricScale, runDescent * metricScale,
+          glyph.id, targetCommands ?? commandResolution.commands, glyph.advanceWidth * metricScale,
           // The descriptor exactly matches the already-resolved/baked face;
           // the consumer browser performs neither face selection nor shaping.
-          { italic: slant !== 0, weight, shearFactor, hintedSource, runToken: run },
+          { italic: slant !== 0, weight, shearFactor, hintedSource, targetStrike: targetStrikeActive, runToken: run },
         );
         if (placement == null) {
           return { markup: null, decline: { reason: "pua-exhausted" } };
@@ -2959,7 +3109,7 @@ function renderEmbeddedGlyphRuns(
       ? ` style="font-variation-settings: ${Object.entries(variationSettings).map(([k, v]) => `'${k}' ${v}`).join(", ")}"` : "";
 
     pending.push({
-      perGlyph, runCssFamily, weightAttr, italicAttr, fvsAttr,
+      perGlyph, runCssFamily, weightAttr, italicAttr, fvsAttr, textRenderingAttr,
       paintPasses: fakeBoldPaint.svgPasses,
     });
     cssX += runCursorFontUnits * runScale;
@@ -3017,7 +3167,7 @@ function renderEmbeddedGlyphRuns(
       const yAttr = anyY
         ? `y="${slice.map((g) => r2(baselineY + g.yCss)).join(" ")}"`
         : `y="${r2(baselineY)}"`;
-      const base = `<text x="${xList}" ${yAttr} font-family="${p.runCssFamily}" font-size="${emitFontSize}"${p.weightAttr}${p.italicAttr}${p.fvsAttr}`;
+      const base = `<text x="${xList}" ${yAttr} font-family="${p.runCssFamily}" font-size="${emitFontSize}"${p.weightAttr}${p.italicAttr}${p.fvsAttr}${p.textRenderingAttr}`;
       const paint = {
         fill,
         strokeWidthPx: textStrokeWidth ?? 0,
@@ -3065,12 +3215,13 @@ function renderTextAsEmbedded(
   fontSynthesis?: FontSynthesisAllowance,
   bidiOverride?: BidiParagraphContext,
   fallbackRequest?: { rawSlope: number; orientation: number },
+  authoredTextRendering?: string,
 ): EmbeddedTextAttempt {
   return renderEmbeddedGlyphRuns(
     text, x, y, fontSize, fontFamily, fontWeight, fill, xOffsets, fontStyle,
     ascentOverride, features, lang, variationSettings, textStrokeWidth,
     textStrokeColor, paintOrder, targetWidth, fontStretch, fontVariantEmoji,
-    fontSynthesis, bidiOverride, fallbackRequest,
+    fontSynthesis, bidiOverride, fallbackRequest, authoredTextRendering,
   );
 }
 
@@ -3306,6 +3457,8 @@ export interface RenderTextOptions extends TextFontOptions {
    * left-to-right.
    */
   bidiOverride?: BidiParagraphContext;
+  /** Captured CSS `text-rendering`; the Linux terminal correction owns only `auto`. */
+  textRendering?: string;
 }
 
 export type SourceOwnedTextBoundaryReason =
@@ -3351,7 +3504,7 @@ export function renderTextAsPath(
   const { fontSize, fontFamily, fill, targetWidth, fontStyle, ascentOverride,
     features, lang, variationSettings, textStrokeWidth, textStrokeColor,
     paintOrder, dottedCircleMarks, bidiOverride, fontStretch, fontVariantEmoji,
-    fontSynthesis, fontOrientation = 0 } = options;
+    fontSynthesis, fontOrientation = 0, textRendering } = options;
   const fontWeight = String(options.fontWeight);
   let { xOffsets } = options;
   const weight = cssWeightOf(options.fontWeight);
@@ -3397,7 +3550,7 @@ export function renderTextAsPath(
     const embedded = renderTextAsEmbedded(text, x, y, fontSize, fontFamily, fontWeight, fill,
       xOffsets, fontStyle, ascentOverride, features, lang, variationSettings,
       textStrokeWidth, textStrokeColor, paintOrder, targetWidth, fontStretch, fontVariantEmoji,
-      fontSynthesis, bidiOverride, fallbackRequest);
+      fontSynthesis, bidiOverride, fallbackRequest, textRendering);
     if (embedded.markup != null) {
       recordTextEmitterTransition({ kind: "embedded-succeeded", sourceText: text });
       return embedded.markup;

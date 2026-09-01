@@ -244,6 +244,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mti24qsnaqkb5lcx",
+          "message": {
+            "text": "Carry captured CSS text-rendering into the shared text renderer so DM-2623's WQY terminal correction owns only the measured auto state. Explicit author values retain the pre-existing shaping/rendering route instead of being silently overwritten by the Linux raster fix; the same field is passed at every ordinary, segmented, multiline, and input call site.",
+            "markdown": "Carry captured CSS text-rendering into the shared text renderer so DM-2623's WQY terminal correction owns only the measured auto state. Explicit author values retain the pre-existing shaping/rendering route instead of being silently overwritten by the Linux raster fix; the same field is passed at every ordinary, segmented, multiline, and input call site."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text.ts"
+                },
+                "region": {
+                  "startLine": 1644,
+                  "endLine": 1651,
+                  "snippet": {
+                    "text": "  const result = renderTextAsPath(pathText, tl, renderY, {\n    fontSize: segFontSize, fontFamily: segFontFamily, fontWeight: segFontWeight, fill: segColor,\n    targetWidth: el.textWidth, xOffsets: xOffsetsRel, fontStyle: segFontStyle,\n    ascentOverride: renderAscent, features, lang: el.styles.lang, variationSettings,\n    textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,\n    dottedCircleMarks: singleSeg?.dottedCircleMarks, bidiOverride: bidiContextFor(el),\n    fontStretch: el.styles.fontStretch, fontVariantEmoji: fontVariantEmojiOf(el.styles),\n    fontSynthesis: fontSynthesisOf(el.styles), textRendering: el.styles.textRendering,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 85,
+          "workItemUris": [
+            "DM-2623"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "68c2129f382f29a85fabecd7d40fce68"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "779e285e5fa67bafeb0bdcd31e233831377def9d",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

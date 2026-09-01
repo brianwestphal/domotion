@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mti22knmh7i82qyl",
+          "message": {
+            "text": "DM-2623's gate is causal and policy-aware, not a screenshot threshold: every candidate embeds bytes, cmap and non-geometric controls stay inert, the closed WQY production arm improves aggregates without a phase regression, exact FreeSans/Unifont fallback controls stay at zero, and the blanket arm retains a phase-level negative witness.",
+            "markdown": "DM-2623's gate is causal and policy-aware, not a screenshot threshold: every candidate embeds bytes, cmap and non-geometric controls stay inert, the closed WQY production arm improves aggregates without a phase regression, exact FreeSans/Unifont fallback controls stay at zero, and the blanket arm retains a phase-level negative witness."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/linux-terminal-mask-oracle.ts"
+                },
+                "region": {
+                  "startLine": 262,
+                  "endLine": 341,
+                  "snippet": {
+                    "text": "/**\n * Turn the diagnostic matrix into a portable regression contract. Exact\n * percentages vary with runner architecture, so the gate asserts only the\n * causal relationships the experiment established: cmap addressing and the\n * non-geometric CSS modes are raster-inert, while the production face policy\n * improves its enabled surfaces and leaves excluded faces byte-identical to\n * the control. The all-geometric arm must also retain a negative witness.\n */\nexport function validateLinuxTerminalMaskResults(results: readonly LinuxTerminalMaskScoreRow[]): string[] {\n  const errors: string[] = [];\n  const byId = new Map(results.map((row) => [row.id, row]));\n  const required = LINUX_TERMINAL_MASK_VARIANTS.map((variant) => variant.id);\n  for (const id of required) {\n    if (!byId.has(id)) errors.push(`missing result: ${id}`);\n  }\n  for (const row of results.filter((candidate) => candidate.id !== \"native-reference\")) {\n    if (!row.embedded) errors.push(`${row.id}: candidate is not embedded`);\n  }\n  const control = byId.get(\"pua-only\");\n  const geometric = byId.get(\"pua-geometric-precision\");\n  const production = byId.get(\"pua-production-policy\");\n  if (control?.global == null || geometric?.global == null || production?.global == null) {\n    errors.push(\"control, production-policy, or geometricPrecision score is missing\");\n    return errors;\n  }\n  for (const inertId of [\n    \"source-cmap-webfont\",\n    \"pua-with-source-cmap\",\n    \"pua-optimize-legibility\",\n    \"pua-optimize-speed\",\n  ]) {\n    const inert = byId.get(inertId);\n    if (inert != null && inert.sha256 !== control.sha256) {\n      errors.push(`${inertId}: expected raster-inert control differs from pua-only`);\n    }\n  }\n  if (production.global.diffPct >= control.global.diffPct * 0.85) {\n    errors.push(`production-policy aggregate improvement is below 15% (${control.global.diffPct} -> ${production.global.diffPct})`);\n  }\n  const geometricCases = new Map((geometric.cases ?? []).map((testCase) => [testCase.id, testCase]));\n  const productionCases = new Map((production.cases ?? []).map((testCase) => [testCase.id, testCase]));\n  const policyByCase = new Map(LINUX_TERMINAL_MASK_CASES.map((testCase) => [testCase.id, testCase.geometricPrecisionPolicy]));\n  let negativeWitnesses = 0;\n  for (const controlCase of control.cases ?? []) {\n    const geometricCase = geometricCases.get(controlCase.id);\n    const productionCase = productionCases.get(controlCase.id);\n    if (geometricCase == null) errors.push(`geometricPrecision case is missing: ${controlCase.id}`);\n    if (productionCase == null) {\n      errors.push(`production-policy case is missing: ${controlCase.id}`);\n      continue;\n    }\n    if (policyByCase.get(controlCase.id) === \"enabled\") {\n      if (productionCase.totalChannelDelta >= controlCase.totalChannelDelta) {\n        errors.push(`${controlCase.id}: production policy did not reduce terminal-mask delta`);\n      }\n      const controlPhases = new Map((controlCase.phases ?? []).map((phase) => [`${phase.phaseX},${phase.phaseY}`, phase]));\n      for (const productionPhase of productionCase.phases ?? []) {\n        const controlPhase = controlPhases.get(`${productionPhase.phaseX},${productionPhase.phaseY}`);\n        if (controlPhase != null && productionPhase.totalChannelDelta > controlPhase.totalChannelDelta) {\n          errors.push(`${controlCase.id}: production phase ${productionPhase.phaseX},${productionPhase.phaseY} regressed terminal-mask delta`);\n        }\n      }\n    } else {\n      if (controlCase.totalChannelDelta !== 0) {\n        errors.push(`${controlCase.id}: excluded fallback-stack control is not exact`);\n      }\n      if (productionCase.totalChannelDelta !== controlCase.totalChannelDelta) {\n        errors.push(`${controlCase.id}: excluded production face moved`);\n      }\n      const controlPhases = new Map((controlCase.phases ?? []).map((phase) => [`${phase.phaseX},${phase.phaseY}`, phase]));\n      for (const geometricPhase of geometricCase?.phases ?? []) {\n        const controlPhase = controlPhases.get(`${geometricPhase.phaseX},${geometricPhase.phaseY}`);\n        if (controlPhase != null && geometricPhase.totalChannelDelta > controlPhase.totalChannelDelta) negativeWitnesses++;\n      }\n    }\n  }\n  if (negativeWitnesses === 0) errors.push(\"blanket geometricPrecision has no negative face witness\");\n  return errors;\n}\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2623"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ab0c1339c57526b4d66ae534279f10bf"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mti4t3aj7r92ekfd",
+          "message": {
+            "text": "Linux production evidence closes both the isolated strike and real-fixture claims. In the pinned Playwright Linux container, the scoped y-target arm changed the WQY Mono 17 px label from 512 changed pixels / channel delta 54580 / centroid dy -0.5233566 to zero in all 16 quarter-pixel phases; broader WQY 13/20/32 rows remain on the prior policy. The full 4E00-9FFF-cjk-unified-ideographs.30 run passed with zero reported regions, and the ticket crop x=165,y=318,w=62,h=22 was byte-identical (same mass 43694, centroid 30.9200577/8.6160342, bbox 5,3,56,14). The repository suite passed 449 files / 5,045 tests; build, lint, typecheck, documentation-index check, helper tests, and the Linux oracle gate also passed.",
+            "markdown": "Linux production evidence closes both the isolated strike and real-fixture claims. In the pinned Playwright Linux container, the scoped y-target arm changed the WQY Mono 17 px label from 512 changed pixels / channel delta 54580 / centroid dy -0.5233566 to zero in all 16 quarter-pixel phases; broader WQY 13/20/32 rows remain on the prior policy. The full 4E00-9FFF-cjk-unified-ideographs.30 run passed with zero reported regions, and the ticket crop x=165,y=318,w=62,h=22 was byte-identical (same mass 43694, centroid 30.9200577/8.6160342, bbox 5,3,56,14). The repository suite passed 449 files / 5,045 tests; build, lint, typecheck, documentation-index check, helper tests, and the Linux oracle gate also passed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/linux-terminal-mask-oracle.ts"
+                },
+                "region": {
+                  "startLine": 319,
+                  "endLine": 350,
+                  "snippet": {
+                    "text": "      // current geometricPrecision policy as negative breadth witnesses.\n      const usesTarget = testCase.id === \"mono-label-17\" && target != null;\n      const bytes = usesTarget\n        ? (targetKind === \"target-hinted-full\" ? target.full : target.yOnly)\n        : faces[testCase.face].puaOnly;\n      css += `@font-face{font-family:\"dm-oracle-target-${testCase.id}\";font-style:normal;font-weight:400;src:url(\"data:font/ttf;base64,${bytes.toString(\"base64\")}\")}`;\n    }\n  } else if (variant.embedded && variant.bytes != null) {\n    for (const faceId of Object.keys(faces) as LinuxTerminalMaskFaceId[]) {\n      const bytes = embeddedBytes(faces[faceId], variant.bytes as SourceByteKind);\n      css += `@font-face{font-family:\"dm-oracle-${faceId}\";font-style:normal;font-weight:400;src:url(\"data:font/ttf;base64,${bytes.toString(\"base64\")}\")}`;\n    }\n  }\n  const texts = matrix.map((cell, index) => {\n    const row = Math.floor(index / 16);\n    const column = index % 16;\n    const x = column * CELL + 32 + cell.phaseX;\n    const y = row * CELL + 64 + cell.phaseY;\n    const face = faces[cell.face];\n    const codepoint = variant.addressing === \"source\"\n      ? cell.sourceCodepoint\n      : face.puaForSourceCodepoint.get(cell.sourceCodepoint)!;\n    const family = targetKind != null\n      ? `dm-oracle-target-${cell.id}`\n      : (variant.embedded ? `dm-oracle-${cell.face}` : cell.nativeFamily);\n    const textRendering = variant.textRendering === \"productionPolicy\"\n      ? (cell.geometricPrecisionPolicy === \"enabled\" ? \"geometricPrecision\" : \"auto\")\n      : variant.textRendering;\n    return `<text data-cell=\"${index}\" x=\"${x}\" y=\"${y}\" font-family=\"${family}\" font-size=\"${cell.fontSizePx}\" font-weight=\"400\" text-rendering=\"${textRendering}\" fill=\"#000\">${String.fromCodePoint(codepoint)}</text>`;\n  }).join(\"\");\n  return `<!doctype html><html><head><meta charset=\"utf-8\"><style>${css}</style></head><body><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"${width}\" height=\"${height}\" viewBox=\"0 0 ${width} ${height}\"><rect width=\"100%\" height=\"100%\" fill=\"#fff\"/>${texts}</svg></body></html>`;\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "workItemUris": [
+            "DM-2623"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "2dc913cc96b685100a7dac2991317ef0"
+          },
+          "attachments": [
+            {
+              "artifactLocation": {
+                "uri": "tests/output-linux/dm2623-target-oracle/report.json",
+                "properties": {
+                  "ext-sha256": "f078421e71d300e06b741b3829e5c2f60ebcf2defd1e19e76f817936981d2374"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "779e285e5fa67bafeb0bdcd31e233831377def9d",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

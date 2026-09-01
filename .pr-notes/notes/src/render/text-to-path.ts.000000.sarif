@@ -1636,6 +1636,110 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mti2af82a6tz37gs",
+          "message": {
+            "text": "Blink gives native Linux families strike-specific Fontconfig settings but embedded fonts family-less webfont defaults. The DM-2623 quarter-phase oracle and 34-fixture corpus show geometricPrecision is a strong auto-state WenQuanYi correction, while a blanket switch regresses exact FreeSans/Unifont fallback-stack rows. This closed measured-face policy preserves embedded bytes, explicit author text-rendering values, and never invokes host-font fallback; the env seam is diagnostic only.",
+            "markdown": "Blink gives native Linux families strike-specific Fontconfig settings but embedded fonts family-less webfont defaults. The DM-2623 quarter-phase oracle and 34-fixture corpus show geometricPrecision is a strong auto-state WenQuanYi correction, while a blanket switch regresses exact FreeSans/Unifont fallback-stack rows. This closed measured-face policy preserves embedded bytes, explicit author text-rendering values, and never invokes host-font fallback; the env seam is diagnostic only."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 2266,
+                  "endLine": 2302,
+                  "snippet": {
+                    "text": "const LINUX_GEOMETRIC_PRECISION_FACES = new Set([\n  \"WenQuanYiZenHei\",\n  \"WenQuanYi Zen Hei\",\n  \"WenQuanYiZenHeiMono\",\n]);\n\n/**\n * Linux native system faces receive family-specific Fontconfig strike params,\n * while Blink's custom-font path uses family-less webfont defaults. The only\n * author-controlled switch in the pinned Blink path that narrows the measured\n * terminal-mask gap is geometricPrecision (no hinting + subpixel positioning).\n * Scope it to the measured WenQuanYi system-font bytes captured on Linux:\n * authored webfonts already use Blink's custom-font path on both sides, other\n * Linux faces can prefer the default path, and other capture platforms have\n * their own native raster contracts.\n */\nexport function embeddedSystemFontTextRendering(\n  capturePlatform: NodeJS.Platform,\n  hasSystemFontSource: boolean,\n  enabled = process.env.DOMOTION_LINUX_GEOMETRIC_PRECISION !== \"0\",\n  sourcePostscriptName?: string,\n  allowlist = process.env.DOMOTION_LINUX_GEOMETRIC_PRECISION_FONTS,\n  authoredTextRendering = \"auto\",\n): \"geometricPrecision\" | null {\n  if (!enabled || capturePlatform !== \"linux\" || !hasSystemFontSource) return null;\n  if (authoredTextRendering.toLowerCase() !== \"auto\") return null;\n  // The mode is not universally better: the 24-row Unicode corpus exposed a\n  // large FreeSans/Unifont regression. Keep the production route closed over\n  // the exact WQY faces for which both the phase oracle and fixture corpus show\n  // improvement. The env seam can replace this set for future A/B evidence;\n  // it never changes face selection or permits host-font passthrough.\n  const allowed = allowlist == null\n    ? LINUX_GEOMETRIC_PRECISION_FACES\n    : new Set(allowlist.split(\",\").map((name) => name.trim()).filter(Boolean));\n  if (sourcePostscriptName == null || !allowed.has(sourcePostscriptName)) return null;\n  return \"geometricPrecision\";\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 96,
+          "workItemUris": [
+            "DM-2623"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "593299e3689ed7f6ad54e51d50fd59a4"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mti4sxv97vm2nwlh",
+          "message": {
+            "text": "Promote target-size FreeType geometry only for Linux WenQuanYiZenHeiMono at 17 CSS px, weight 400, upright, normal stretch, authored text-rendering:auto, no author stroke or small-caps scaling. The pinned phase oracle makes this strike exact while the same transformation is mixed/worse at WQY 13/20/32; broad family activation is therefore unsupported. Playback remains an embedded data-font and never resolves a host font.",
+            "markdown": "Promote target-size FreeType geometry only for Linux WenQuanYiZenHeiMono at 17 CSS px, weight 400, upright, normal stretch, authored text-rendering:auto, no author stroke or small-caps scaling. The pinned phase oracle makes this strike exact while the same transformation is mixed/worse at WQY 13/20/32; broad family activation is therefore unsupported. Playback remains an embedded data-font and never resolves a host font."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 2279,
+                  "endLine": 2300,
+                  "snippet": {
+                    "text": "export function embeddedLinuxTargetStrikeEnabled(\n  capturePlatform: NodeJS.Platform,\n  sourcePostscriptName: string | undefined,\n  fontSizePx: number,\n  weight: number,\n  slant: number,\n  stretch: number,\n  authoredTextRendering = \"auto\",\n  enabled = process.env.DOMOTION_LINUX_TARGET_STRIKE !== \"0\",\n): boolean {\n  return enabled\n    && capturePlatform === \"linux\"\n    && sourcePostscriptName === LINUX_TARGET_STRIKE_POSTSCRIPT\n    && fontSizePx === 17\n    && weight === 400\n    && slant === 0\n    && stretch === 100\n    && authoredTextRendering.toLowerCase() === \"auto\";\n}\n\n/** Preserve the already-correct linear x geometry while substituting the y\n * coordinates FreeType produced for the concrete target strike. */"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "workItemUris": [
+            "DM-2623"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "071f9088a1d13d6da171ff4cde31ca46"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "779e285e5fa67bafeb0bdcd31e233831377def9d",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts","platform-release"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-1034","DM-2056","DM-2353","DM-258","DM-259","DM-262","DM-389","DM-390","DM-393","DM-837","DM-838","DM-872","DM-876","DM-881","DM-886"]
-code: [".github/workflows/release-helpers.yml","src/render/glyph-helper.test.ts","src/render/glyph-helper.ts","src/render/helper-acquire.ts","tests/linux-glyph-extractor.test.ts","tools/linux-glyph-extractor/","tools/linux-glyph-extractor/CMakeLists.txt"]
+tickets: ["DM-1034","DM-2056","DM-2353","DM-258","DM-259","DM-262","DM-2623","DM-389","DM-390","DM-393","DM-837","DM-838","DM-872","DM-876","DM-881","DM-886"]
+code: [".github/workflows/release-helpers.yml","src/render/glyph-helper.test.ts","src/render/glyph-helper.ts","src/render/helper-acquire.ts","src/render/text-to-path.ts","tests/linux-glyph-extractor.test.ts","tools/linux-glyph-extractor/","tools/linux-glyph-extractor/CMakeLists.txt","tools/linux-terminal-mask-oracle.ts"]
 aliases: ["docs/45-linux-glyph-extraction.md","doc-45"]
 ---
 
@@ -77,9 +77,10 @@ but the lean FreeType path is the design baseline.
 ## Reuse from doc 16 (unchanged on Linux)
 
 - **IPC envelope** — identical JSON request/response (`fonts[]` with a `ref`,
-  `queries[]` of `meta` / `glyphs`, response `d` as an SVG path-data string in
-  CSS-pixel space, SVG y-down). The `text-to-path.ts` dispatch layer is
-  engine-agnostic; only the asset filename differs.
+  `queries[]` of `meta` / `glyphs`; Linux also exposes the narrow
+  `hintedGlyphs` query below). Normal `glyphs` responses return `d` in design
+  units, y-up. The `text-to-path.ts` dispatch layer is engine-agnostic; only the
+  asset filename differs.
 - **Probe-then-fallback** — fontkit first; the helper is invoked only when
   fontkit yields a null/empty path for a codepoint the font *does* contain (a
   CJK / CFF outline fontkit's walk can't reproduce — not the DM-838 case, where
@@ -154,7 +155,32 @@ Mirrors doc 16 §"Internal pipeline" with FreeType calls:
   `typeface->isItalic()` signal and falls back to the historical outline
   heuristic when an older helper omits the optional field (DM-2056).
 
-8. **`familyMatch` query.** Which cut of a declared family Chrome-on-Linux
+8. **`hintedGlyphs` query (DM-2623).** This is a separate, explicitly sized
+   outline query; it does not change the normal design-unit `glyphs` contract.
+   The helper applies `FT_Set_Char_Size(fontSizePx * 64, 72 dpi)`, then loads
+   glyphs with the requested FreeType hint target. The production caller asks
+   for `hintStyle: "slight"`, `forceAutoHint: false`, and `useBitmaps: true`,
+   matching Chromium's configuration for the affected WenQuanYi face. Returned
+   coordinates are y-up 26.6 values with `coordinateScale: 64`.
+
+   The renderer uses this only for the self-contained DM-2623 exception:
+   regular `WenQuanYi Zen Hei Mono` at exactly 17 CSS px. It requests normal and
+   hinted outlines from the same helper call, retains the normal outline's x
+   coordinates and the target-strike outline's y coordinates, and packages the
+   result in an embedded SVG font at 1088 units/em (`17 * 64`). Chromium still
+   paints that embedded artifact; there is no system-font passthrough or native
+   fallback. A topology mismatch, unavailable/older helper, unsupported style,
+   or any request failure disables the exception and returns to the existing
+   self-contained path.
+
+   This y-only merge is deliberately not a generic small-text policy. The
+   Linux terminal-mask oracle shows that applying the same transformation to
+   other WenQuanYi faces/sizes can regress them. It is phase-independent for
+   the affected mono label and avoids the double-hinting seen when a hinted
+   outline is embedded without `text-rendering="geometricPrecision"`. Protocol
+   version 0.4.0 introduced this query.
+
+9. **`familyMatch` query.** Which cut of a declared family Chrome-on-Linux
    opens at a given weight/width/slant — a transcription of
    `SkFontConfigInterfaceDirect::matchFamilyName` at the Skia revision the
    pinned Chrome build ships (`fd139e79`, via chromium tag 147.0.7727.15's
@@ -167,7 +193,7 @@ Mirrors doc 16 §"Internal pipeline" with FreeType calls:
    `linuxPrimaryCutKey`, and scored end to end against Chrome by
    `npm run fonts:family-match:linux` (doc 110).
 
-9. **`fcdiagnostic` query (diagnostics only).** Serializes the effective
+10. **`fcdiagnostic` query (diagnostics only).** Serializes the effective
    fallback pattern before and after `FcConfigSubstitute` plus
    `FcDefaultSubstitute`, fingerprints the active config-file and sorted-font
    inventory, and reports valid sorted-set entries whose `FC_CHARSET` covers
@@ -306,6 +332,13 @@ defines the native arm64 clean-cache consumer gate over the published bytes.
   a real glyph (corrected DM-876; the earlier "empty path" claim was the
   `FreeSansOblique` face, which lacks the block). This is positive coverage, not
   an empty-regression guard.
+- **DM-2623 target-strike parity** *(implemented)*: the Linux helper test
+  confirms that a 17 px WenQuanYi Mono `hintedGlyphs` response uses 26.6 target
+  coordinates while the normal design-outline response remains unchanged. The
+  terminal-mask oracle compares all 16 quarter-pixel phases and gates on no
+  per-case regression plus at least 95% removal of the affected mono label's
+  production residual. The full `4E00-9FFF-cjk-unified-ideographs.30` fixture is
+  the end-to-end visual check.
 - **CI**: a Linux job (the `test-linux.yml` from DM-262, or the Docker harness
   `npm run test:linux-docker`) builds the helper from a clean checkout and runs
   `npm run demos:test:html`, exercising the FreeSans / Noto fallback ranges
@@ -318,10 +351,10 @@ defines the native arm64 clean-cache consumer gate over the published bytes.
    is guaranteed present alongside Chromium (see Build § / CMakeLists rationale),
    so a static link buys nothing. Revisit only if a need arises to run the helper
    on a glibc older than 2.35 or without Chromium present.
-2. **fontconfig dependency** — *RESOLVED (DM-872): dropped.* The helper requires
-   a concrete `fontPath` and does not link fontconfig — the capture side already
-   resolves families to files via the platform font-path map (DM-258). A
-   family-name-only request fails loudly rather than guessing.
+2. **fontconfig dependency** — *RESOLVED: required.* Concrete `fontPath`
+   requests remain the common outline path, while `familyMatch` and diagnostic
+   fallback queries require fontconfig. Release and Docker builds therefore
+   link `libfontconfig` alongside FreeType.
 3. **arm64** — *RESOLVED for distribution; live consumer gate added in
    DM-2353.* `release-helpers.yml` builds `domotion-glyph-paths-linux-arm64` on
    `ubuntu-22.04-arm`; v0.24.0 carries the binary and sidecar. Doc 196's
@@ -359,12 +392,17 @@ defines the native arm64 clean-cache consumer gate over the published bytes.
   channel is enabled for `linux` (was darwin-only). Byte-identical to one-shot,
   guarded by a Linux serve test in `src/render/glyph-helper.test.ts`. See
   "Persistent `--serve` mode" above.
+- ✅ **Scoped target-strike route** (DM-2623): Linux WenQuanYi Mono at exactly
+  17 px can consume the helper's slight-hinted target outline and embed its
+  y geometry in a self-contained font. The ticket crop matches the Linux
+  reference across all 16 quarter-pixel phases without native font fallback;
+  other faces, sizes, styles, and failed helper probes retain the established
+  route.
 - ⏳ **Remaining — the probe-then-fallback *trigger* (separate follow-up).** The
-  renderer can now *invoke* the Linux helper, but nothing routes through it on
-  Linux yet: the helper is reached only via the static `extractor: "native"`
-  flag, set on no Linux `FONT_PATHS` entry. The doc-16 "fontkit-empty path →
-  consult the helper for any font" trigger is unbuilt; it pairs with the Linux
-  fallback-chain calibration (DM-259) that decides which fonts route through it.
+  renderer can invoke the Linux helper through the DM-2623 target-strike route,
+  but the general fontkit-empty-path trigger remains unbuilt. That follow-up
+  pairs with the Linux fallback-chain calibration (DM-259) that decides which
+  additional fonts should route through it.
 - ✅ **On-demand acquisition** for published consumers (download release asset →
   user cache → SHA-verify → chmod → reuse) — the missing DM-393 layer, landed in
   DM-886 (`src/render/helper-acquire.ts`; lazy first-render fetch, see docs/50).

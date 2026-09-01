@@ -179,6 +179,7 @@ export interface BuilderEntry {
 
 export type HintedSourceDisqualificationReason =
   | "synthetic"
+  | "target-strike"
   | "null-source"
   | "null-face-index"
   | "source-axis-disagreement"
@@ -363,7 +364,7 @@ export function trackGlyphInEmbedFont(
   glyphId: number,
   pathCommands: PathCommand[],
   advanceWidth: number,
-  variant: { italic: boolean; weight: number; shearFactor?: number; hintedSource?: HintedSource | null; runToken?: object } = { italic: false, weight: 400 },
+  variant: { italic: boolean; weight: number; shearFactor?: number; hintedSource?: HintedSource | null; targetStrike?: boolean; runToken?: object } = { italic: false, weight: 400 },
 ): { cssFamily: string; puaCodepoint: number } | null {
   let entry = builderRegistry.get(instanceKey);
   if (entry == null) {
@@ -406,6 +407,7 @@ export function trackGlyphInEmbedFont(
   // silently take member zero, a face nobody asked for. Disqualify instead; the
   // svg2ttf path renders the outlines the helper actually extracted.
   if (isSynthetic) entry.hintedSourceDisqualificationReasons.add("synthetic");
+  if (variant.targetStrike) entry.hintedSourceDisqualificationReasons.add("target-strike");
   if (glyphSource == null || entry.hintedSource == null) entry.hintedSourceDisqualificationReasons.add("null-source");
   if ((glyphSource != null && glyphSource.faceIndex == null)
       || (entry.hintedSource != null && entry.hintedSource.faceIndex == null)) {

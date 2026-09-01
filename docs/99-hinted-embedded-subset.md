@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: ["macos","linux","windows"]
-tickets: []
-code: [".github/workflows/visual-tests.yml","src/render/embedded-font-builder.test.ts","src/render/embedded-font-builder.ts","src/render/embedded-font-snapshot.test.ts","src/render/font-resolution.ts","src/render/hb-subset.test.ts","src/render/hb-subset.ts","src/render/synth-test-fonts.ts"]
+tickets: ["DM-2623"]
+code: [".github/workflows/visual-tests.yml","src/render/embedded-font-builder.test.ts","src/render/embedded-font-builder.ts","src/render/embedded-font-snapshot.test.ts","src/render/font-resolution.ts","src/render/glyph-helper.ts","src/render/hb-subset.test.ts","src/render/hb-subset.ts","src/render/synth-test-fonts.ts","src/render/text-to-path.ts","tools/linux-glyph-extractor/src/main.cpp","tools/linux-terminal-mask-oracle.ts"]
 aliases: ["docs/99-hinted-embedded-subset.md","doc-99"]
 ---
 
@@ -156,6 +156,40 @@ render.
 outlines (glyphs fontkit couldn't decode), CFF/CFF2 faces, native-only
 no-`glyf` fonts (PingFang `hvgl`), webfont buffers (no on-disk file is recorded
 for them).
+
+### Linux target-strike exception (DM-2623)
+
+Retaining source hint bytecode does not guarantee that an embedded webfont gets
+the same strike as a native Linux font. Native Blink asks Fontconfig for
+family-and-size-specific render parameters; its custom-font path has no native
+family to query. On the pinned noble profile, native `WenQuanYiZenHeiMono` at
+17 CSS px receives slight hinting (`FT_LOAD_TARGET_LIGHT`, autohint off), while
+the portable embedded face does not reproduce that vertical grid fit.
+
+For the exact DM-2623 label strike, capture therefore asks the Linux helper for
+both the unscaled design outline and the FreeType-hinted outline at 17 px. A
+separate svg2ttf entry uses `units-per-em = 17 × 64 = 1088`: x coordinates come
+from the helper design outline scaled into that space, y coordinates come from
+the hinted 26.6 outline unchanged, and hmtx advances remain the scaled linear
+design advances. The emitted `<text>` keeps its captured per-glyph x list and
+`text-rendering="geometricPrecision"`, so the consumer neither reflows nor
+grid-fits the already-adjusted outline. The generated document remains fully
+self-contained; no host font is consulted during playback.
+
+This route is deliberately narrower than the general hb-subset path. It is on
+only for Linux `WenQuanYiZenHeiMono`, 17 px, weight 400, upright, normal stretch,
+authored `text-rendering:auto`, no author stroke, no small-caps size scaling,
+and matching helper outline topology. Its builder key includes the target
+strike, and the entry is marked `target-strike` so it cannot fall back into
+hb-subset and be hinted a second time. An unavailable/older helper or any
+failed guard preserves the ordinary hinted-subset + geometricPrecision result.
+
+Why it is not family-wide: the pinned quarter-phase oracle makes the mono 17 px
+case exact in all 16 cells (current production: 512 changed pixels and vertical
+centroid −0.523 px; target strike: zero), but the same construction is mixed or
+worse for WQY UI at 13/20/32 px. Every additional face/size needs its own strike
+evidence. This is target-size vector geometry, not a bitmap/mask fallback and
+not native font fallback.
 
 ## Speculative composition: snapshot / restore
 

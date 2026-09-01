@@ -2309,7 +2309,9 @@ flowchart TD
   E5 -->|"embedded-font"| E7["trackGlyphInEmbedFont() → subset glyf TTF at PUA cp<br/>· &lt;text font-family=dmfN&gt; · getBuiltEmbeddedFontFaceCss()"]
   E7 -->|"decline: layout / outline / PUA exhaustion"| E6
   E11 --> E12["source-owned partial/boundary group<br/>reason + degraded spans; no visible &lt;text&gt;"]
-  E7 --> E8{"entry pure?<br/>(one sfnt · one NAMED member index ·<br/>one axis location ·<br/>no synthetic bake · has glyf)"}
+  E7 --> ET{"Linux DM-2623 target strike?<br/>WQY Mono · 17px · 400 upright ·<br/>normal stretch · auto rendering · no stroke/scale"}
+  ET -->|"yes + helper topology match"| E13["helper design x + FT LIGHT hinted y<br/>1088-upem svg2ttf · strike-keyed<br/>geometricPrecision prevents second hint"]
+  ET -->|"no / helper unavailable"| E8{"entry pure?<br/>(one sfnt · one NAMED member index ·<br/>one axis location ·<br/>no synthetic bake · has glyf)"}
   E8 -->|"yes"| E9["hinted hb-subset of ORIGINAL file<br/>RETAIN_GIDS + pin axes + PUA cmap<br/>(keeps cvt/fpgm/prep + glyph bytecode)"]
   E8 -->|"no / failure"| E10["svg2ttf rebuild from outlines (unhinted)"]
 ```
@@ -2329,7 +2331,7 @@ opentype.js-built CFF subset with even-odd fill, which holes any glyph whose
 source outline draws overlapping contours (SF Pro's bold "A" = leg + crossbar +
 leg). `glyf` fills nonzero, so the overlaps union correctly.
 
-**Two glyf builders (DM-1714/DM-1716, doc [99](99-hinted-embedded-subset.md)):**
+**Three glyf builders (DM-1714/DM-1716/DM-2623, doc [99](99-hinted-embedded-subset.md)):**
 `buildGlyfFontForEntry` picks per entry:
 
 The hinted builder is the production default (`DOMOTION_HINTED_SUBSET` absent
@@ -2405,7 +2407,16 @@ still fall back to svg2ttf when the source cannot be subset safely.
    `resolveFaceInfoForFile` supplies `namedInstances` and
    `memberPostscriptName`, and the HarfBuzz shaping proxy forwards the stamp
    (`carryFontInstanceMetadata`) so a shaped-script override does not strip it.
-2. **svg2ttf rebuild** (fallback): an SVG-font description of the tracked
+2. **Linux target-strike svg2ttf** (narrow exception): for the oracle-proven
+   WQY Mono 17 px regular/upright/normal-stretch strike, the Linux helper
+   returns the same gid's design and `FT_LOAD_TARGET_LIGHT` outlines. The
+   builder scales design x into a 1088-upem font and copies hinted 26.6 y,
+   retains linear advances and the explicit captured x list, then emits with
+   `geometricPrecision` so Chromium does not hint twice. The entry key carries
+   the strike and is disqualified from hb-subset. Playback reads only the
+   embedded data font—never a host family. Older helpers, topology mismatch,
+   strokes/small-caps, or any unproven face/size fall through unchanged.
+3. **svg2ttf rebuild** (fallback): an SVG-font description of the tracked
    outlines (cubic → quadratic via cubic2quad), unhinted. Used for synthetic
    faux-oblique bakes, per-glyph helper outlines, CFF/CFF2 faces (the
    bundled wasm silently drops `CFF ` — an outline-less subset fails Chrome's

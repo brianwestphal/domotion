@@ -875,9 +875,11 @@
         "src/render/glyph-helper.test.ts",
         "src/render/glyph-helper.ts",
         "src/render/helper-acquire.ts",
+        "src/render/text-to-path.ts",
         "tests/linux-glyph-extractor.test.ts",
         "tools/linux-glyph-extractor/",
-        "tools/linux-glyph-extractor/CMakeLists.txt"
+        "tools/linux-glyph-extractor/CMakeLists.txt",
+        "tools/linux-terminal-mask-oracle.ts"
       ],
       "file": "45-linux-glyph-extraction.md"
     },
@@ -1932,9 +1934,13 @@
         "src/render/embedded-font-builder.ts",
         "src/render/embedded-font-snapshot.test.ts",
         "src/render/font-resolution.ts",
+        "src/render/glyph-helper.ts",
         "src/render/hb-subset.test.ts",
         "src/render/hb-subset.ts",
-        "src/render/synth-test-fonts.ts"
+        "src/render/synth-test-fonts.ts",
+        "src/render/text-to-path.ts",
+        "tools/linux-glyph-extractor/src/main.cpp",
+        "tools/linux-terminal-mask-oracle.ts"
       ],
       "file": "99-hinted-embedded-subset.md"
     },
@@ -2359,7 +2365,10 @@
         "linux",
         "windows"
       ],
-      "code": [],
+      "code": [
+        "src/render/text-to-path.ts",
+        "tests/multilingual-message-shaping.e2e.test.ts"
+      ],
       "file": "115-production-harfbuzz-shaping.md"
     },
     {
@@ -2513,7 +2522,9 @@
         "linux"
       ],
       "code": [
-        "src/review/linux-unicode-evidence.ts"
+        "src/review/linux-unicode-evidence.ts",
+        "src/review/stage-evidence.ts",
+        "tests/review-server.tsx"
       ],
       "file": "124-embedded-font-build-diagnostics.md"
     },
@@ -2785,7 +2796,9 @@
         "linux"
       ],
       "code": [
+        "src/review/stage-evidence.ts",
         "src/review/linux-unicode-evidence.ts",
+        "tests/review-server.tsx",
         "tools/linux-unicode-mutation-matrix.ts",
         "tools/semantic-coverage.json"
       ],
@@ -4188,7 +4201,9 @@
       "code": [
         ".github/workflows/mixed-bidi-logical-conformance.yml",
         "src/render/mixed-bidi-logical.test.ts",
-        "src/render/script-segmentation.ts"
+        "src/render/script-segmentation.ts",
+        "src/render/text-to-path.ts",
+        "tests/multilingual-message-shaping.e2e.test.ts"
       ],
       "file": "214-mixed-script-bidi-logical-geometry.md"
     },
@@ -4661,7 +4676,10 @@
       ],
       "code": [
         "src/capture/replaced-media-frame.ts",
+        "src/capture/background-image-sizing.ts",
+        "src/capture/pseudo-fragment-cdp.ts",
         "src/render/image.ts",
+        "src/render/image-pattern.ts",
         "src/post-processing/",
         "tests/feature-coverage.ts"
       ],

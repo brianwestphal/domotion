@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mti1ttcj1d8nce4v",
+          "message": {
+            "text": "Run the DM-2623 terminal-mask gate inside the same pinned Noble/Chromium image as Linux fidelity. Native text remains reference-only; the gate requires the measured WQY surfaces to improve, exact FreeSans/Unifont fallback-stack controls to remain unchanged, and no candidate may use host-font passthrough.",
+            "markdown": "Run the DM-2623 terminal-mask gate inside the same pinned Noble/Chromium image as Linux fidelity. Native text remains reference-only; the gate requires the measured WQY surfaces to improve, exact FreeSans/Unifont fallback-stack controls to remain unchanged, and no candidate may use host-font passthrough."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/test-linux.yml"
+                },
+                "region": {
+                  "startLine": 121,
+                  "endLine": 125,
+                  "snippet": {
+                    "text": "      - name: Gate embedded-font terminal masks against native Linux text (DM-2623)\n        # Native text is reference-only. Every scored candidate is a data-URL\n        # font. The gate requires the measured WQY surfaces to improve while\n        # exact fallback-stack controls stay unchanged; no host passthrough.\n        run: npm run fonts:linux-terminal-mask -- --gate"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 80,
+          "workItemUris": [
+            "DM-2623"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "cd6fdafe1091cdfb710a784f1d41847d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "779e285e5fa67bafeb0bdcd31e233831377def9d",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

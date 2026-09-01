@@ -55,6 +55,9 @@ const FREE_SANS = resolveFontFile([
   "/usr/share/fonts/gnu-free/FreeSans.ttf",
   "/usr/share/fonts/TTF/FreeSans.ttf",
 ]);
+const WQY_ZEN_HEI = resolveFontFile([
+  "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+]);
 
 interface GlyphResult {
   id: number;
@@ -152,6 +155,7 @@ function expectOutlineParity(fontPath: string, cp: number) {
 describeHelper("Linux FreeType glyph extractor", () => {
   const describeLiberation = LIBERATION_SANS ? describe : describe.skip;
   const describeFreeSans = FREE_SANS ? describe : describe.skip;
+  const describeWqy = WQY_ZEN_HEI ? describe : describe.skip;
 
   describeLiberation("Liberation Sans", () => {
     it("reports font metadata in design units", () => {
@@ -218,6 +222,31 @@ describeHelper("Linux FreeType glyph extractor", () => {
       expect(a.d.length).toBeGreaterThan(0);
       expect(a.d).toMatch(/Q/); // curved glyph
       expectOutlineParity(FREE_SANS!, 0x1d44e);
+    });
+  });
+
+  describeWqy("WenQuanYi target strike (DM-2623)", () => {
+    it("returns the 17 px slight-hinted outline in 26.6 coordinates without changing the design query", () => {
+      const response = callHelper({
+        fonts: [{ ref: "f", fontPath: WQY_ZEN_HEI, postscriptName: "WenQuanYiZenHeiMono", size: 17 }],
+        queries: [
+          { type: "glyphs", fontRef: "f", glyphs: [{ cp: 0x55 }] },
+          {
+            type: "hintedGlyphs", fontRef: "f", fontSizePx: 17,
+            hintStyle: "slight", forceAutoHint: false, useBitmaps: true,
+            glyphs: [{ cp: 0x55 }],
+          },
+          { type: "glyphs", fontRef: "f", glyphs: [{ cp: 0x55 }] },
+        ],
+      });
+      const designBefore = response.results[0] as { glyphs: GlyphResult[] };
+      const hinted = response.results[1] as { type: string; fontSizePx: number; coordinateScale: number; glyphs: GlyphResult[] };
+      const designAfter = response.results[2] as { glyphs: GlyphResult[] };
+      expect(hinted).toMatchObject({ type: "hintedGlyphs", fontSizePx: 17, coordinateScale: 64 });
+      expect(hinted.glyphs[0].id).toBe(designBefore.glyphs[0].id);
+      expect(hinted.glyphs[0].d.length).toBeGreaterThan(0);
+      expect(hinted.glyphs[0].d).not.toBe(designBefore.glyphs[0].d);
+      expect(designAfter.glyphs[0]).toEqual(designBefore.glyphs[0]);
     });
   });
 });

@@ -68,6 +68,14 @@ identical to fontkit's `glyph.path.commands`, so the renderer's
 output interchangeably. (Do **not** negate y: the renderer flips to SVG y-down
 at draw time.)
 
+The Linux-only `hintedGlyphs` query is the deliberate exception: it executes
+FreeType hinting at a concrete `fontSizePx` and returns 26.6 pixel coordinates
+(`coordinateScale: 64`). DM-2623 uses it only for an oracle-proven WQY Mono
+17 px embedded-font strike. The response is target-size geometry, must be keyed
+by strike parameters, and must never be consumed as a reusable design outline.
+Playback remains self-contained: the query reads the already-resolved source
+face during capture; the generated SVG embeds the resulting subset font.
+
 Quick smoke test:
 
 ```bash

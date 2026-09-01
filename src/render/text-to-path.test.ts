@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach, beforeAll, afterAll } from "vitest";
 import * as fontkit from "fontkit";
-import { glyphIdForCp, __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, blinkSuppressesInterLetterSpacing, cjkTrimShiftFontUnits, classifyEmptyGlyphOutline, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, getFontInstance, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, positionShapedClusters, registerWebfont, renderRadicalGlyph, renderSourceOwnedTextBoundary, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveGlyphCommands, shapedGlyphSourceSpans, sourceClusterSpan, resolveFontKeyChain, setRenderTextMode, subBoldWeightCutSuffix, synthSmallCapsCharScale, usesComplexShaperDottedCircle, win32FallbackChain, __setWin32FamilyKeyResolverForTest } from "./text-to-path.js";
+import { glyphIdForCp, __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, blinkSuppressesInterLetterSpacing, cjkTrimShiftFontUnits, classifyEmptyGlyphOutline, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, embeddedLinuxTargetStrikeEnabled, embeddedSystemFontTextRendering, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, getFontInstance, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, positionShapedClusters, registerWebfont, renderRadicalGlyph, renderSourceOwnedTextBoundary, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveGlyphCommands, shapedGlyphSourceSpans, sourceClusterSpan, resolveFontKeyChain, setRenderTextMode, subBoldWeightCutSuffix, synthSmallCapsCharScale, targetStrikeVerticalCommands, usesComplexShaperDottedCircle, win32FallbackChain, __setWin32FamilyKeyResolverForTest } from "./text-to-path.js";
 import { haltInfoFor } from "./font-resolution.js";
 import { isRtlScriptCodepoint } from "./unicode-classification.js";
 import { blinkGenericFamilyFromDeclaredStack, clearFontResolutionCaches, getGlyphDefs, getSystemFallbackResolution, isNonCharacterCodepoint, isPrivateUseCodepoint, setSystemFallbackResolution, withSystemFallbackResolution, __resolveSystemFallbackKeyForCpForTest } from "./font-resolution.js";
@@ -29,6 +29,50 @@ const MACOS_FONTS = fs.existsSync("/System/Library/Fonts/Helvetica.ttc");
 // those assertions hold; the two embedded-font tests flip to embedded-font
 // within themselves.
 beforeEach(() => setRenderTextMode("paths"));
+
+describe("embedded system-font terminal rendering (DM-2623)", () => {
+  it("activates geometricPrecision only for measured Linux system-font bytes", () => {
+    expect(embeddedSystemFontTextRendering("linux", true, true, "WenQuanYiZenHei")).toBe("geometricPrecision");
+    expect(embeddedSystemFontTextRendering("linux", false, true)).toBeNull();
+    expect(embeddedSystemFontTextRendering("darwin", true, true, "WenQuanYiZenHei")).toBeNull();
+    expect(embeddedSystemFontTextRendering("win32", true, true, "WenQuanYiZenHei")).toBeNull();
+    expect(embeddedSystemFontTextRendering("linux", true, false, "WenQuanYiZenHei")).toBeNull();
+    expect(embeddedSystemFontTextRendering("linux", true, true, "FreeSans")).toBeNull();
+    expect(embeddedSystemFontTextRendering("linux", true, true, "FreeSans", "WenQuanYiZenHei")).toBeNull();
+    expect(embeddedSystemFontTextRendering("linux", true, true, "WenQuanYiZenHei", "WenQuanYiZenHei")).toBe("geometricPrecision");
+    expect(embeddedSystemFontTextRendering("linux", true, true, "WenQuanYiZenHei", undefined, "optimizeSpeed")).toBeNull();
+  });
+
+  it("limits the target strike to the measured Linux WQY Mono 17 px surface", () => {
+    expect(embeddedLinuxTargetStrikeEnabled("linux", "WenQuanYiZenHeiMono", 17, 400, 0, 100)).toBe(true);
+    expect(embeddedLinuxTargetStrikeEnabled("linux", "WenQuanYiZenHei", 17, 400, 0, 100)).toBe(false);
+    expect(embeddedLinuxTargetStrikeEnabled("linux", "WenQuanYiZenHeiMono", 16, 400, 0, 100)).toBe(false);
+    expect(embeddedLinuxTargetStrikeEnabled("linux", "WenQuanYiZenHeiMono", 17, 700, 0, 100)).toBe(false);
+    expect(embeddedLinuxTargetStrikeEnabled("linux", "WenQuanYiZenHeiMono", 17, 400, 0, 75)).toBe(false);
+    expect(embeddedLinuxTargetStrikeEnabled("darwin", "WenQuanYiZenHeiMono", 17, 400, 0, 100)).toBe(false);
+    expect(embeddedLinuxTargetStrikeEnabled("linux", "WenQuanYiZenHeiMono", 17, 400, 0, 100, "optimizeSpeed")).toBe(false);
+    expect(embeddedLinuxTargetStrikeEnabled("linux", "WenQuanYiZenHeiMono", 17, 400, 0, 100, "auto", false)).toBe(false);
+  });
+
+  it("takes y from the target strike while retaining scaled design x and rejects topology drift", () => {
+    const design = [
+      { command: "moveTo", args: [10, 20] },
+      { command: "quadraticCurveTo", args: [30, 40, 50, 60] },
+      { command: "closePath", args: [] },
+    ];
+    const hinted = [
+      { command: "moveTo", args: [111, 21] },
+      { command: "quadraticCurveTo", args: [333, 42, 555, 63] },
+      { command: "closePath", args: [] },
+    ];
+    expect(targetStrikeVerticalCommands(design, hinted, 1.0625)).toEqual([
+      { command: "moveTo", args: [10.625, 21] },
+      { command: "quadraticCurveTo", args: [31.875, 42, 53.125, 63] },
+      { command: "closePath", args: [] },
+    ]);
+    expect(targetStrikeVerticalCommands(design, hinted.slice(0, 2), 1.0625)).toBeNull();
+  });
+});
 
 // Pinned mappings for the CSS generic-family keywords. These exist to lock
 // the fidelity-critical resolutions Chrome on macOS performs (per Blink's

@@ -1648,7 +1648,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
     textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
     dottedCircleMarks: singleSeg?.dottedCircleMarks, bidiOverride: bidiContextFor(el),
     fontStretch: el.styles.fontStretch, fontVariantEmoji: fontVariantEmojiOf(el.styles),
-    fontSynthesis: fontSynthesisOf(el.styles),
+    fontSynthesis: fontSynthesisOf(el.styles), textRendering: el.styles.textRendering,
   });
   // Decorations anchor on the text fragment TOP (`tt`) + the captured
     // FloatAscent — the same pair Blink's decoration offsets are expressed
@@ -1855,6 +1855,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
       dottedCircleMarks: seg.dottedCircleMarks,
       bidiOverride: bidiContextFor(el), fontStretch: el.styles.fontStretch,
       fontVariantEmoji: fontVariantEmojiOf(el.styles), fontSynthesis: fontSynthesisOf(el.styles),
+      textRendering: el.styles.textRendering,
     });
     segParts.push(result);
     // DM-1723/DM-1725: the element's own decoration plus every ancestor
@@ -1942,6 +1943,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
         dottedCircleMarks: seg.dottedCircleMarks,
         bidiOverride: bidiContextFor(el), fontStretch: el.styles.fontStretch,
         fontVariantEmoji: fontVariantEmojiOf(el.styles), fontSynthesis: fontSynthesisOf(el.styles),
+        textRendering: el.styles.textRendering,
       });
       parts.push(`  ${result}`);
     }
@@ -1958,6 +1960,7 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
         textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
         bidiOverride: bidiContextFor(el), fontStretch: el.styles.fontStretch,
         fontVariantEmoji: fontVariantEmojiOf(el.styles), fontSynthesis: fontSynthesisOf(el.styles),
+        textRendering: el.styles.textRendering,
       });
       parts.push(`  ${result}`);
     }
@@ -2024,6 +2027,7 @@ export function renderInputText(opts: RenderTextOpts): string {
         textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
         bidiOverride: bidiContextFor(el), fontStretch: el.styles.fontStretch,
         fontVariantEmoji: fontVariantEmojiOf(el.styles), fontSynthesis: fontSynthesisOf(el.styles),
+        textRendering: el.styles.textRendering,
       });
       segParts.push(segResult);
     }
@@ -2035,7 +2039,7 @@ export function renderInputText(opts: RenderTextOpts): string {
     features: inputFeatures, lang: el.styles.lang, variationSettings: inputAxes,
     textStrokeWidth: _ts.width, textStrokeColor: _ts.color, paintOrder: _ts.paintOrder,
     bidiOverride: bidiContextFor(el), fontStretch: el.styles.fontStretch,
-    fontVariantEmoji: fontVariantEmojiOf(el.styles),
+    fontVariantEmoji: fontVariantEmojiOf(el.styles), textRendering: el.styles.textRendering,
   });
   // Clip the path-rendered text to the input's content rect so values that
   // overflow the visible width (common on readonly inputs with long text or

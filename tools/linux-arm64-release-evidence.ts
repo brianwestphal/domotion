@@ -320,7 +320,7 @@ async function assetEvidence(
 
 function helperSmoke(helperPath: string): Record<string, unknown> {
   const version = runText(helperPath, ["--version"]);
-  if (version !== "domotion-glyph-paths (linux/freetype) 0.3.0") {
+  if (version !== "domotion-glyph-paths (linux/freetype) 0.4.0") {
     throw new Error(`unexpected glyph helper version: ${version}`);
   }
   const fontconfigMode = runJson(helperPath, ["--fontconfig-mode"]) as { fontations?: boolean; configReady?: boolean };
