@@ -66,9 +66,17 @@ export function auditNativeControlFallbackSources(
   }
   const nativeRecord = emitterSource.indexOf("const nativeControlRaster = el.nativeControlRaster");
   const terminalGuard = emitterSource.indexOf("if (nativeControlRaster != null)", nativeRecord);
-  const structuralDispatch = emitterSource.indexOf("renderFormControl(el", terminalGuard);
-  if (nativeRecord < 0 || terminalGuard < 0 || structuralDispatch < 0
-      || !(nativeRecord < terminalGuard && terminalGuard < structuralDispatch)) {
+  const structuralDispatch = emitterSource.indexOf("renderFormControl(el");
+  // DM-2640 moved structural form-control paint into an explicit content-phase
+  // helper. Source order no longer matches runtime order: the helper definition
+  // precedes renderElement, while its call remains after the terminal raster
+  // guard. Audit that actual driver edge instead of the declaration position.
+  const contentPhaseCall = emitterSource.indexOf(
+    "paintElementContentPhase(elementPaintContext",
+    terminalGuard,
+  );
+  if (nativeRecord < 0 || terminalGuard < 0 || structuralDispatch < 0 || contentPhaseCall < 0
+      || !(nativeRecord < terminalGuard && terminalGuard < contentPhaseCall)) {
     errors.push("native-control raster must terminate emission before renderFormControl");
   }
   return errors;
