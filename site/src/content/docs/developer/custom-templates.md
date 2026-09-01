@@ -27,7 +27,7 @@ That reframing is what makes templates powerful:
   that work runs **once at author time**. The emitted SVG then replays for free.
 - Because templates are authored in HTML/CSS, they reflow, re-theme, and use
   real web fonts, and the text is laid out by the browser and captured as crisp
-  glyph paths — things baked keyframes can't do.
+  vector glyphs — things baked keyframes can't do.
 - Templates add **no new rendering code**. They are thin front-ends onto the
   same animate/capture pipeline everything else uses, so every fidelity fix in
   the core is inherited automatically.
@@ -118,8 +118,9 @@ tooling. The zod schema stays the authoritative validator.
 ### How animation is expressed
 
 Animate with **intra-frame animations**, not baked keyframes — that's what keeps
-the output re-themeable and the text as real glyph paths. Two constraints come
-straight from the SVG output model; respect them or motion breaks:
+the output re-themeable and the text as captured vector glyph data. Two
+constraints come straight from the SVG output model; respect them or motion
+breaks:
 
 1. **One animation per captured element.** A second animation entry on the same
    selector overrides the first. So put the *move* on a wrapper element and the

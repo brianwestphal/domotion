@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtj7py1sekdwdaqa",
+          "message": {
+            "text": "The generator now prefixes indentation only when an optional CSS rule exists, so absent reduced-motion clauses cannot leave whitespace-only lines. The same principle removes unconditional indentation before the keyframe block; the related regression test exercises a wipe transition and the regenerated storyboard passes git diff --check.",
+            "markdown": "The generator now prefixes indentation only when an optional CSS rule exists, so absent reduced-motion clauses cannot leave whitespace-only lines. The same principle removes unconditional indentation before the keyframe block; the related regression test exercises a wipe transition and the regenerated storyboard passes git diff --check."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/animation/svg-generator.ts"
+                },
+                "region": {
+                  "startLine": 1153,
+                  "endLine": 1158,
+                  "snippet": {
+                    "text": "  const motionClasses = [needSlide ? `.fp-${i}` : \"\", needScale ? `.fz-${i}` : \"\", needExitScale ? `.fzo-${i}` : \"\", needReveal ? `.fr-${i}` : \"\"].filter(Boolean).join(\", \");\n  if (motionClasses !== \"\") {\n    keyframe += `\n    @media (prefers-reduced-motion: reduce) {\n      ${motionClasses} { animation: none; transform: none; clip-path: none; }\n${reducedMotion === \"cut\" ? `      .f-${i} { animation-timing-function: step-end; }\\n` : \"\"}    }`;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/animation/animator.test.ts"
+                },
+                "region": {
+                  "startLine": 63
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "examples/output/storyboard-demo.svg"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 80,
+          "workItemUris": [
+            "DM-2630"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f93ba74d4186d66194cdc438680d53c5"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "721f5215002fc8c560050c9b1e49f3383474ff9f",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

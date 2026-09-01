@@ -18,8 +18,8 @@ the first job fast.
 The package ships several command-line tools:
 
 - **`domotion`** — the main CLI: `capture` a page, `animate` multi-frame flows,
-  `template` polished graphics, `term` terminal recordings, and `composite`
-  layered SVGs.
+  `template` polished graphics, `term` terminal recordings, `composite`
+  layered SVGs, and `storyboard` multi-scene narratives.
 - **`svg-to-video`** — render an animated SVG to MP4 / WebM / GIF (and more).
   [→ Export](/domotion/usage/export/)
 - **`svg-to-image`** — render any frame of an SVG to a PNG / JPEG still.

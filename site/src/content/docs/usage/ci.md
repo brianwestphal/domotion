@@ -8,11 +8,14 @@ Domotion is built to run unattended. It's a normal npm package that drives
 job — to regenerate demos on a schedule or a release, or to gate that committed
 demos stay in sync with the app.
 
-## Headless by default
+## Headless capture and automation-safe review
 
-Every command runs headless — there is no windowed mode and no `$DISPLAY`
-requirement. On first use Domotion installs Playwright's Chromium automatically;
-on CI you should **pre-install it** so the first job isn't slow:
+Capture, rendering, and export run headlessly — there is no `$DISPLAY`
+requirement. The interactive `svg-review` and `svg-scrubber` servers open the
+system browser by default; automation must pass `--no-open` (or set
+`DOMOTION_NO_OPEN=1`) and use the printed local URL instead. On first use
+Domotion installs Playwright's Chromium automatically; on CI you should
+**pre-install it** so the first job isn't slow:
 
 ```bash
 npx playwright install --with-deps chromium

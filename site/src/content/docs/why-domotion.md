@@ -32,14 +32,15 @@ Other formats can still be the right fit:
 
 Domotion's trade-off: it's raster-faithful to Chromium's paint rather than a
 live DOM, and animation plays wherever CSS runs (see below). In exchange you get
-one dependency-free file that looks identical everywhere.
+one dependency-free file whose captured font choices do not change with the
+viewer's installed fonts.
 
 ## It embeds where video can't
 
 A `<img src="demo.svg">` drops into places a `<video>` can't — Markdown docs,
 slide decks, PDFs, and anywhere a content-security-policy blocks external media
-or scripts. The SVG carries no external assets — no font files, no image
-requests, no JavaScript — so it can't be blocked, can't 404 a dependency, and
+or scripts. The SVG carries no external dependencies — font data and images are
+embedded, and there is no JavaScript — so it can't 404 a dependency and
 works fully offline.
 
 Where the CSS animation actually _plays_ depends on the host. It animates in any
@@ -67,18 +68,18 @@ soft, and "supporting" them means re-encoding multiple sizes. An SVG is
 resolution-independent: the **same file** is razor-sharp on a phone, a 5K
 display, a projector, and on paper — no re-render, no re-compress, no `@2x` set.
 
-## Pixel-faithful text, identical everywhere
+## Pixel-faithful text without viewer-side fallback
 
-Text is captured as actual glyph outlines, so the output is crisp at any zoom and
-renders identically in every browser — no font loading, no fallback flash, no
-hinting differences. It's an image that respects how the page was actually
-painted. Because the glyphs are vector paths, the text isn't selectable or
-searchable when embedded via `<img>`; give the image an `alt` for accessibility,
-or inline the `<svg>` if you need the underlying text in the DOM.
+Domotion records the exact glyphs Chromium selected, embeds subset font data and
+explicit positioning, and uses vector paths where required. The result stays
+crisp at any zoom and never asks the viewer's system to choose a replacement
+font. Consumer rasterizers can still differ slightly in antialiasing and
+hinting; the glyph selection and layout do not. When embedded via `<img>`, treat
+the output as an image rather than semantic page text and provide an `alt`.
 
 <figure>
-  <img src="/domotion/demos/fidelity/wikipedia-fidelity.png" alt="Side by side: a Chromium screenshot of the Ada Lovelace Wikipedia article next to the same page captured by Domotion as one self-contained SVG. They are pixel-identical; a 4x zoom of the title shows the screenshot pixelating while the SVG's text stays razor-sharp." style="width:100%;height:auto" loading="lazy" />
-  <figcaption>Don't take our word for it. A real page — the <a href="https://en.wikipedia.org/wiki/Ada_Lovelace">Ada Lovelace</a> Wikipedia article — captured both ways. The Domotion SVG is one self-contained file, fonts and images and all, pixel-identical to the browser; zoom in and its vector text stays razor-sharp where a screenshot or GIF turns to mush.</figcaption>
+  <img src="/domotion/demos/fidelity/wikipedia-fidelity.png" alt="Side by side: a Chromium screenshot of the Ada Lovelace Wikipedia article next to the same page captured by Domotion as one self-contained SVG. At normal size the captures match; a 4x zoom of the title shows the screenshot pixelating while the SVG's text stays razor-sharp." style="width:100%;height:auto" loading="lazy" />
+  <figcaption>Don't take our word for it. A real page — the <a href="https://en.wikipedia.org/wiki/Ada_Lovelace">Ada Lovelace</a> Wikipedia article — captured both ways. The Domotion SVG is one self-contained file, fonts and images and all; zoom in and its vector text stays razor-sharp where a screenshot or GIF turns to mush.</figcaption>
 </figure>
 
 ## Repeatable — for demos *and* review

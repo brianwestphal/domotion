@@ -141,3 +141,20 @@ A frame also supports:
 
 Run `domotion animate --help` and see the full
 [config reference](/domotion/developer/reference/animate-config-reference/).
+
+## Debug a multi-frame capture
+
+Add `--debug` when a source frame and the composed SVG disagree:
+
+```bash
+domotion animate ./demo.json --debug -o demo.svg
+# or choose the evidence directory explicitly
+domotion animate ./demo.json --debug-dir ./demo-repro -o demo.svg
+```
+
+The bundle contains the final `actual.svg`, one shared `capture.har`, and
+`frames/NNN/expected.png` plus `captured-tree.json` for every composed frame.
+DOM-backed frames keep their raw tree; embedded or compound frames use JSON
+`null` rather than pretending one tree represents the frame. Evidence
+collection is headless and does not open SVG Review, SVG Scrubber, or the system
+browser.

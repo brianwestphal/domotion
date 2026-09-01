@@ -13,8 +13,8 @@ in a new tab and watch it stay crisp at any zoom.
 
 ### Faithful capture
 
-A real page reproduced as native SVG — badges, status rows, code blocks, and
-inline styles, with text as glyph paths.
+A real page reproduced as native SVG — badges, status rows, code blocks, inline
+styles, and self-contained captured glyph data.
 
 <img src="/domotion/demos/showcase-rendering.svg" alt="A dark UI showing text styles, badges, status indicators, and a code block, captured faithfully" style="width:100%;height:auto" />
 
@@ -191,7 +191,7 @@ same logic as the parent page, not flattened to a raster screenshot. Zoom in and
 the embedded content stays crisp. (Cross-origin frames opt in with
 `--cross-origin-frames`.)
 
-<img src="/domotion/demos/iframe-recursion-same-origin.svg" alt="A page with an embedded iframe card reading 'This iframe is real, selectable SVG' — the iframe's content captured as crisp native SVG rather than a raster snapshot" style="width:100%;height:auto" />
+<img src="/domotion/demos/iframe-recursion-same-origin.svg" alt="A page with an embedded iframe card whose content is captured as crisp native SVG rather than a raster snapshot" style="width:100%;height:auto" />
 
 ## Full-application demos
 
@@ -230,5 +230,5 @@ pixel-faithful text.
 <Aside type="tip" title="These are real captures">
 Both apps already depend on Domotion to produce these images for their own
 READMEs. The provenance and regeneration steps live in the site repo at
-`site-next/demo-assets/apps/README.md`.
+`site/demo-assets/apps/README.md`.
 </Aside>

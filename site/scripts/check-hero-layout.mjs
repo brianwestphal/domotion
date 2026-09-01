@@ -39,20 +39,32 @@ async function startDevServer() {
   });
   const baseUrl = await new Promise((resolve, reject) => {
     let buf = "";
+    let timer;
     // Astro still emits ANSI color codes even with FORCE_COLOR/NO_COLOR set, and
     // it injects one between "Local" and the URL — strip them before matching.
     const stripAnsi = (s) => s.replace(/\x1b\[[0-9;]*m/g, "");
+    const finish = (settle, value) => {
+      clearTimeout(timer);
+      proc.stdout.off("data", onData);
+      proc.stderr.off("data", onData);
+      proc.off("exit", onExit);
+      settle(value);
+    };
     const onData = (chunk) => {
       buf += chunk.toString();
       const m = stripAnsi(buf).match(/Local\s+(https?:\/\/\S+)/);
       // The printed Local URL already carries the /domotion base path; keep only
       // the origin so appending PATH_ON_SITE doesn't double it.
-      if (m) resolve(new URL(m[1]).origin);
+      if (m) finish(resolve, new URL(m[1]).origin);
     };
+    const onExit = (code) => finish(
+      reject,
+      new Error(`astro dev exited early (code ${code})${buf.trim() ? `\n${stripAnsi(buf).trim()}` : ""}`),
+    );
     proc.stdout.on("data", onData);
     proc.stderr.on("data", onData);
-    proc.on("exit", (code) => reject(new Error(`astro dev exited early (code ${code})`)));
-    setTimeout(() => reject(new Error("timed out waiting for astro dev")), 90_000);
+    proc.on("exit", onExit);
+    timer = setTimeout(() => finish(reject, new Error("timed out waiting for astro dev")), 90_000);
   });
   // A fresh dev server re-optimizes Vite deps on startup, during which requests
   // can fail or the page full-reloads. Poll the SSR HTML until it serves the

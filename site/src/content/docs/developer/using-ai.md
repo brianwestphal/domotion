@@ -46,6 +46,12 @@ previews and times actually inspected—or disclose that a browser, ffmpeg, imag
 viewer, or video player was unavailable. A successful command alone is not a
 visual review. The shipped `llms.txt` contains the complete gate and checklist.
 
+Capture, rasterization, and export already use headless Chromium. `svg-review`
+and `svg-scrubber` are interactive local servers that otherwise open the system
+browser, so agents must pass `--no-open` (or set `DOMOTION_NO_OPEN=1`) and drive
+the printed local URL through headless browser automation. Do not open a desktop
+browser unless the user asks.
+
 ## The playbook in one breath
 
 The `llms.txt` design section distills established practice (Disney's principles,

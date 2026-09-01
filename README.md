@@ -12,7 +12,7 @@
   <a href="https://github.com/brianwestphal/domotion">GitHub</a>
 </p>
 
-**Domotion turns real HTML/CSS into one self-contained, animated SVG** — an accurate reproduction of the rendered page, with optional animation and simulated interaction built in. Text is emitted as real glyph paths, so it looks identical across browsers; the output scales crisply at any size and embeds anywhere with a plain `<img>`, no external assets.
+**Domotion turns real HTML/CSS into one self-contained, animated SVG** — an accurate reproduction of the rendered page, with optional animation and simulated interaction built in. It embeds the exact captured glyph data and positioning, so playback never falls back to a viewer's system fonts; the output scales crisply at any size and embeds anywhere with a plain `<img>`, no external assets.
 
 Beyond raw capture it ships a **template library** that turns a few flags into a polished animated SVG, **terminal-session capture** (a recording → an animated terminal), **scroll capture** (a long page replayed as one self-contained scrolling SVG), multi-frame **animation** with parameterized and custom transitions, overlays, and simulated interaction, **scene storyboarding** (sequence distinct scenes end-to-end), **brand kits** and **social-format presets** (reel / square / portrait / landscape), **device-chrome** framing, **nested compositing** (animated layers inside animated layers), one-command **SVG → MP4/WebM**, and a fidelity **review** tool.
 
@@ -38,7 +38,7 @@ Actively developed, with a broad shipped surface — capture, multi-frame animat
 
 ## Platform support
 
-Domotion runs on **macOS, Linux, and Windows**, and all three are calibrated. It renders text by extracting real system-font glyph outlines and matching how the browser falls back between fonts on the platform you run it on (CoreText on macOS, fontconfig on Linux, DirectWrite on Windows). macOS is held to pixel-exact parity; Linux and Windows match the browser's glyph selection and metrics within a small native-hinting margin (the residual is unhinted-outline-vs-native-raster rasterization, not missing calibration), and both are gated by visual-regression CI.
+Domotion runs on **macOS, Linux, and Windows**, and all three are calibrated. It renders text by extracting the glyphs Chromium selected on the platform you run it on (CoreText on macOS, fontconfig on Linux, DirectWrite on Windows), then embeds those glyphs instead of asking the viewer's machine to perform font fallback. macOS is held to pixel-exact parity; Linux and Windows match Chromium's glyph selection and metrics within a documented native-hinting margin. Linux fidelity is a required CI check; Windows has first-class native validation and release checks, with its slower broad suites dispatched on demand.
 
 Issues, fixes, and platform feedback are welcome on [GitHub](https://github.com/brianwestphal/domotion).
 
@@ -95,7 +95,7 @@ into Playwright's stricter network-idle heuristic with `--network-idle`; it is
 off by default because analytics, long polling, and streaming requests may
 never become idle.
 
-Same-origin `<iframe>` content is recursed into the capture as native, selectable SVG rather than flattened to a screenshot; opt into cross-origin frames you trust with `--cross-origin-frames "<hosts>"`.
+Same-origin `<iframe>` content is recursed into the capture as native SVG rather than flattened to a screenshot; opt into cross-origin frames you trust with `--cross-origin-frames "<hosts>"`.
 
 For a multi-frame animated SVG, write a JSON config and run:
 
@@ -177,6 +177,15 @@ svg-review --expected example.debug/expected.png --actual example.debug/actual.s
 
 The browser opens a single review card showing the expected / actual / diff PNGs. Arrow keys cycle through the three at full size; drag on any image to mark a problem region and caption it. The side panel builds a GitHub-issue-ready Markdown block as you go — copy it, then file the issue at <https://github.com/brianwestphal/domotion/issues/new> and attach `expected.png` + `actual.svg` so a maintainer can reproduce.
 
+For automation, pass `--no-open` (or set `DOMOTION_NO_OPEN=1`) and drive the
+printed local URL headlessly; Review and Scrubber otherwise open the system
+browser for interactive use.
+
+Animation runs have the same evidence path. `domotion animate demo.json --debug`
+writes the final `actual.svg`, one shared HAR, and an `expected.png` plus
+`captured-tree.json` for each composed frame. Use `--debug-dir <path>` to choose
+the bundle location.
+
 For an *animated* SVG, the package also ships `svg-scrubber` — a local video-style bench to play / pause / scrub / mark an in-out range, export the current frame as PNG, export the range as MP4, or trim it to a new self-contained animated SVG. Add `--review` to file a focused issue against a moment in the timeline: it writes an importable `.ticket` (frame time, range, and drawn regions) the same way `svg-review` builds a report for a still.
 
 ### Scripting API
@@ -198,6 +207,11 @@ await browser.close();
 ```
 
 For animated demos, capture multiple frames and pass them to `generateAnimatedSvg` (see `examples/`).
+
+Library callers can collect a reproduction entirely in memory with
+`captureElementTreeWithDebug()` and `assembleCaptureDebugBundle()`. The caller
+keeps ownership of the browser, files, and optional HAR lifecycle; see the
+[scripting API](https://brianwestphal.github.io/domotion/developer/api/).
 
 ## Scripts
 

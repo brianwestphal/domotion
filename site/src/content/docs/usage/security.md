@@ -12,8 +12,8 @@ dependency footprint.
 A Domotion SVG contains **no executable code**. There is no `<script>`, no event
 handlers (`onload`, `onclick`, …), and no `<foreignObject>` running HTML/JS — just
 static SVG markup plus CSS `@keyframes` for animation. It also makes **no external
-requests**: fonts are embedded as glyph `<path>`s, images are inlined as data
-URIs, and nothing is fetched at view time.
+requests**: subset font/glyph data and images are embedded, and nothing is
+fetched at view time.
 
 In practice that means the artifact is:
 

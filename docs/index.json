@@ -7776,6 +7776,36 @@
       }
     },
     {
+      "file": "handbook/major-release-visual-capture.md",
+      "metadata": {
+        "id": "handbook/major-release-visual-capture",
+        "title": "Major-release visual capture checklist",
+        "kind": "contract",
+        "status": "current",
+        "owners": [
+          "platform-release"
+        ],
+        "platforms": [
+          "macos",
+          "linux",
+          "windows"
+        ],
+        "tickets": [
+          "DM-2630"
+        ],
+        "code": [
+          "README.md",
+          "examples/",
+          "site/demo-assets/apps/",
+          "site/scripts/build-demos.mjs",
+          "site/src/content/docs/showcase.mdx"
+        ],
+        "aliases": [
+          "docs/handbook/major-release-visual-capture.md"
+        ]
+      }
+    },
+    {
       "file": "handbook/paint-effects-and-native-controls.md",
       "metadata": {
         "id": "handbook/paint-effects-and-native-controls",

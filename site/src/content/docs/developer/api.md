@@ -85,6 +85,35 @@ const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 800, he
 const svg = elementTreeToSvg(tree, 800, 200);
 ```
 
+#### Capture reproduction evidence in memory
+
+Library callers can collect the same source screenshot and raw-tree evidence as
+`domotion capture --debug` without adopting the CLI's directory or browser
+lifecycle:
+
+```ts
+import {
+  assembleCaptureDebugBundle,
+  captureElementTreeWithDebug,
+  elementTreeToSvg,
+} from "domotion-svg";
+
+const result = await captureElementTreeWithDebug(
+  page,
+  "body",
+  { x: 0, y: 0, width: 800, height: 200 },
+);
+const actualSvg = elementTreeToSvg(result.tree, 800, 200);
+const bundle = assembleCaptureDebugBundle(result.debug, actualSvg);
+```
+
+`bundle.expectedPng`, `bundle.capturedTreeJson`, and `bundle.actualSvg` stay in
+memory until the caller stores or transports them. HAR recording must be armed
+when the caller creates its Playwright context and flushed by closing that
+context; pass those optional bytes as
+`{ captureHar: await fs.readFile(harPath) }`. Neither helper launches or closes a
+browser, opens a UI, or writes a file.
+
 ### Animate multiple frames
 
 Compose several rendered frames into one self-contained animated SVG. There are
@@ -327,9 +356,9 @@ function getEmbeddedFontFaceCss(): string
 
 Domotion defaults to `embedded-font` mode: glyphs are drawn with a subset font
 embedded once as base64 `@font-face` CSS. `paths` mode draws every glyph as an
-SVG `<path>` (per-pixel faithful, larger output). When composing multiple frames
-yourself, call `clearEmbeddedFonts()` before a generation, render each frame with
-`includeEmbeddedFontCss: false`, then pass the accumulated
+SVG `<path>` (larger output with no consumer text rasterization). When composing
+multiple frames yourself, call `clearEmbeddedFonts()` before a generation,
+render each frame with `includeEmbeddedFontCss: false`, then pass the accumulated
 `getEmbeddedFontFaceCss()` into the composer so the font bytes appear once.
 
 ```ts

@@ -86,7 +86,8 @@ async function main(): Promise<void> {
         {
           template: "title-card",
           params: { eyebrow: "DOMOTION", title: "Storyboard", subtitle: "distinct scenes into one animated SVG" },
-          duration: 2600,
+          // Match the title-card's intrinsic 3500ms reveal/hold period.
+          duration: 3500,
           transition: { type: "crossfade", duration: 400 },
         },
         {
@@ -104,7 +105,9 @@ async function main(): Promise<void> {
         {
           template: "kinetic-text",
           params: { text: "Native. Crisp. Self-contained." },
-          duration: 2600,
+          // The template's rise/word sequence has a 3500ms intrinsic period;
+          // keep the whole phrase on screen instead of cutting its final beat.
+          duration: 3500,
           // DM-1552: a `zoom-in` scale dolly hands off into the next scene.
           transition: { type: "zoom-in", duration: 500 },
         },

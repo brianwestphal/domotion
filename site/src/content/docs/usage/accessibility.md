@@ -23,9 +23,10 @@ motion-safe for viewers who ask for it and animated for everyone else.
 
 ## Give the embed an accessible name
 
-Text in the output is captured as vector glyph `<path>`s, so it is **not
-selectable or readable as text** by a screen reader. Provide an accessible name
-instead:
+Text in the output is visual capture data: it may use vector paths or `<text>`
+whose characters privately address embedded glyphs, rather than preserving the
+source page's semantic text. Treat it as **not readable as document text** by a
+screen reader and provide an accessible name instead:
 
 - **Embedding via `<img>` (the common case):** use the `alt` attribute, exactly
   as you would for any image.
@@ -51,8 +52,8 @@ instead:
 
 ## Privacy, offline, and CSP
 
-The output makes **zero network requests** — fonts are glyph paths, images are
-inlined, and there is no JavaScript. That means:
+The output makes **zero network requests** — subset font/glyph data and images
+are embedded, and there is no JavaScript. That means:
 
 - It works **fully offline** and inside locked-down environments.
 - It's **CSP-friendly**: nothing to allowlist, no `script-src` or remote
@@ -65,6 +66,7 @@ model (what happens when Domotion drives a real browser to capture your page).
 
 ## Cross-browser rendering
 
-Because text is emitted as outlines rather than relying on the viewer's fonts,
-the demo renders **identically in every browser** — no font loading, no fallback
-flash, no hinting differences. What you capture is what every viewer sees.
+Because the selected glyph data travels with the SVG, playback does not depend
+on the viewer's installed fonts and cannot take a different native fallback
+route. Browser rasterizers may still differ slightly in antialiasing or hinting;
+the captured glyph choice and positioning stay fixed.

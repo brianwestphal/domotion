@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtj7j7o88kr5ofa4",
+          "message": {
+            "text": "Clearing the startup timer turns the passing hero gate from a 90-second process into a prompt exit. Before this change the assertions printed success but Pueue stayed running until the timeout fired; afterward the same headless desktop/mobile check completed successfully in about six seconds.",
+            "markdown": "Clearing the startup timer turns the passing hero gate from a 90-second process into a prompt exit. Before this change the assertions printed success but Pueue stayed running until the timeout fired; afterward the same headless desktop/mobile check completed successfully in about six seconds."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "site/scripts/check-hero-layout.mjs"
+                },
+                "region": {
+                  "startLine": 46,
+                  "endLine": 67,
+                  "snippet": {
+                    "text": "    const finish = (settle, value) => {\n      clearTimeout(timer);\n      proc.stdout.off(\"data\", onData);\n      proc.stderr.off(\"data\", onData);\n      proc.off(\"exit\", onExit);\n      settle(value);\n    };\n    const onData = (chunk) => {\n      buf += chunk.toString();\n      const m = stripAnsi(buf).match(/Local\\s+(https?:\\/\\/\\S+)/);\n      // The printed Local URL already carries the /domotion base path; keep only\n      // the origin so appending PATH_ON_SITE doesn't double it.\n      if (m) finish(resolve, new URL(m[1]).origin);\n    };\n    const onExit = (code) => finish(\n      reject,\n      new Error(`astro dev exited early (code ${code})${buf.trim() ? `\\n${stripAnsi(buf).trim()}` : \"\"}`),\n    );\n    proc.stdout.on(\"data\", onData);\n    proc.stderr.on(\"data\", onData);\n    proc.on(\"exit\", onExit);\n    timer = setTimeout(() => finish(reject, new Error(\"timed out waiting for astro dev\")), 90_000);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "site/src/content/docs/usage/ci.md"
+                },
+                "region": {
+                  "startLine": 11
+                }
+              }
+            }
+          ],
+          "rank": 85,
+          "workItemUris": [
+            "DM-2630"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "8dc6296db67999d6fa208c3207e4452b"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "721f5215002fc8c560050c9b1e49f3383474ff9f",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

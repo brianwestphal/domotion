@@ -60,6 +60,20 @@ describe("last-frame loop fade (DM-1148)", () => {
   });
 });
 
+describe("generated SVG formatting", () => {
+  it("does not emit whitespace-only CSS lines", () => {
+    const svg = generateAnimatedSvg({
+      width: 100,
+      height: 100,
+      frames: [
+        { svgContent: `<rect width="100" height="100"/>`, duration: 500, transition: { type: "wipe", duration: 200 } },
+        { svgContent: `<circle cx="50" cy="50" r="25"/>`, duration: 500 },
+      ],
+    });
+    expect(svg).not.toMatch(/[ \t]+$/m);
+  });
+});
+
 // DM-1207: the DM-1148 "hold last frame solid" rule must also cover the slide
 // paths (push-left / scroll). Before this fix, a push-left LAST frame used the
 // slide-out keyframes, which ramp opacity 1 -> 0 across the frame's hold — so a

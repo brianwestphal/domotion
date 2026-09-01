@@ -1,6 +1,6 @@
 ---
 title: Domotion for creators
-description: On-brand, embeddable, pixel-faithful motion from your real UI — one <img> that looks identical everywhere, and an MP4 when you need it.
+description: On-brand, embeddable, pixel-faithful motion from your real UI — one self-contained image, and an MP4 when you need it.
 ---
 
 import { Card, CardGrid, Aside, LinkButton } from "@astrojs/starlight/components";
@@ -8,7 +8,8 @@ import { Card, CardGrid, Aside, LinkButton } from "@astrojs/starlight/components
 You have a real product and a story to tell about it — a launch, a feature drop, a
 testimonial, a before/after. Domotion turns that into **motion you can ship
 anywhere**: one self-contained animated SVG built from your actual UI, on brand,
-that looks identical in every browser and exports to MP4 the moment you need it.
+whose captured fonts do not change with the viewer's machine, and that exports
+to MP4 the moment you need it.
 
 It isn't a motion-graphics suite, and it isn't trying to be. The wedge is narrow
 and honest: **polished, on-brand product motion, generated — not hand-animated.**
@@ -18,14 +19,14 @@ and honest: **polished, on-brand product motion, generated — not hand-animated
 <CardGrid>
   <Card title="From your real UI" icon="laptop">
     The picture is a genuine capture of your page — pixel-faithful to Chromium,
-    text as crisp vector outlines. Not a re-drawn mock that drifts from the
+    with crisp vector text. Not a re-drawn mock that drifts from the
     product every release.
   </Card>
   <Card title="On brand, by default" icon="seti:default">
     A single brand file — palette, font, radius, logo — themes every template and
     can be injected into a captured page. Reuse it across a whole campaign.
   </Card>
-  <Card title="One file, identical everywhere" icon="document">
+  <Card title="One file, no font fallback" icon="document">
     A plain `<img src="demo.svg">`. No video encoder, no Lottie runtime, no font
     loading, no external requests. Razor-sharp on a phone, a 5K display, and in
     print — the same file.

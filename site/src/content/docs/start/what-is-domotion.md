@@ -11,8 +11,8 @@ and navigation) baked in.
 The output is:
 
 - **Accurate** — a faithful reproduction of the rendered page, down to fonts:
-  text is emitted as real glyph `<path>`s, so it looks identical in every
-  browser.
+  the exact captured glyph data and positioning are embedded, so playback does
+  not fall back to fonts installed on the viewer's machine.
 - **Self-contained** — no external fonts, images, or scripts. It embeds with a
   plain `<img src="demo.svg">`.
 - **Scalable** — vector + CSS keyframes, so it stays crisp at any size, on any
@@ -20,7 +20,8 @@ The output is:
 
 It's built for **product, documentation, marketing, and teaching demos** that
 need to load fast, embed anywhere (including where video can't go — a README, a
-slide deck, or an LMS lesson, offline), and look identical everywhere. See
+slide deck, or an LMS lesson, offline), and remain faithful without depending on
+the viewer's font inventory. See
 [Why Domotion](/domotion/why-domotion/) for the full case, or the
 [showcase](/domotion/showcase/) for what it produces.
 
@@ -50,18 +51,20 @@ slide deck, or an LMS lesson, offline), and look identical everywhere. See
 ## Platform support
 
 Domotion is a normal npm package that runs on **macOS, Linux, and Windows**. It
-renders text by extracting real system-font glyph outlines and matching how the
-browser falls back between fonts on the platform you run it on — and all three
-platforms are calibrated for that. macOS is held to pixel-exact parity; Linux
-and Windows match the browser's glyph selection and metrics within a small
-native-hinting margin. Contributions and platform feedback are welcome on
+extracts the glyphs Chromium selected through CoreText, fontconfig, or
+DirectWrite and embeds them in the output; the viewer's native font fallback is
+never part of playback. All three capture platforms are calibrated. macOS is
+held to pixel-exact parity; Linux and Windows match Chromium's glyph selection
+and metrics within a documented native-hinting margin. Contributions and
+platform feedback are welcome on
 [GitHub](https://github.com/brianwestphal/domotion).
 
 ## Maturity & license
 
 Domotion is **MIT-licensed** and free for commercial use. It's actively
-developed and exercised by an extensive cross-platform visual-regression suite
-gated in CI on macOS, Linux, and Windows — so what it renders is continuously
-pinned against Chromium's actual paint on every change. The output itself is
+developed and exercised by an extensive cross-platform visual-regression suite.
+Linux fidelity is a required CI check; macOS is the primary calibration target;
+Windows uses first-class native and release validation, with its slower broad
+suites dispatched on demand. The output itself is
 inert and self-contained (no scripts, no external requests), which keeps it easy
 to host and to clear through a security or CSP review.

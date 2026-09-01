@@ -1155,8 +1155,7 @@ ${mid}
     keyframe += `
     @media (prefers-reduced-motion: reduce) {
       ${motionClasses} { animation: none; transform: none; clip-path: none; }
-      ${reducedMotion === "cut" ? `.f-${i} { animation-timing-function: step-end; }` : ""}
-    }`;
+${reducedMotion === "cut" ? `      .f-${i} { animation-timing-function: step-end; }\n` : ""}    }`;
   }
 
   const group = `  <g class="f f-${i}">${clipDef}\n${inner}\n  </g>`;
@@ -1694,7 +1693,7 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
   <style>
 ${config.fontFaceCss != null && config.fontFaceCss !== "" ? config.fontFaceCss + "\n" : ""}    :root { --scene-dur: ${totalSec.toFixed(2)}s; }
     .f { opacity: 0; visibility: hidden; }
-    ${keyframes.join("\n")}${animationCss}${cullCss === "" ? "" : "\n" + cullCss}
+${keyframes.join("\n")}${animationCss}${cullCss === "" ? "" : "\n" + cullCss}
   </style>
   <g clip-path="url(#viewport-clip)">
 ${canvasBgRect}${frameGroups.join("\n")}${shineTransitionGroups.length > 0 ? "\n" + shineTransitionGroups.join("\n") : ""}${textTrackMarkupStr}${overlayMarkup}

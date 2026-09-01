@@ -1,7 +1,7 @@
 /**
  * Example: convert a domotion-animated SVG to an mp4 with `svg-to-video`.
  *
- * Renders the showcase-transitions animated SVG (produced by
+ * Renders the transition-tour animated SVG (produced by
  * `showcase-transitions.ts`) to an h264/mp4 by stepping its CSS-keyframe
  * timeline frame by frame through Chromium and piping to ffmpeg.
  *
@@ -16,8 +16,8 @@ import { launchChromium } from "../src/index.js";
 import { runSvgToVideo } from "../src/cli/svg-to-video-core.js";
 
 const OUT_DIR = resolve("examples/output");
-const INPUT = resolve(OUT_DIR, "showcase-transitions.svg");
-const OUTPUT = resolve(OUT_DIR, "showcase-transitions.mp4");
+const INPUT = resolve(OUT_DIR, "transition-tour.svg");
+const OUTPUT = resolve(OUT_DIR, "transition-tour.mp4");
 
 async function main(): Promise<void> {
   if (spawnSync("ffmpeg", ["-version"], { encoding: "utf-8" }).status !== 0) {

@@ -90,6 +90,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtj7j7h0n8so7sf0",
+          "message": {
+            "text": "The release copy deliberately says captured glyph data rather than glyph paths. The production default is embedded-font mode (see the related API contract), which subsets the selected face and fixes glyph positions; paths remain an alternate/fallback route. The honest invariant is no viewer-side native fallback, not identical raster pixels in every browser.",
+            "markdown": "The release copy deliberately says captured glyph data rather than glyph paths. The production default is embedded-font mode (see the related API contract), which subsets the selected face and fixes glyph positions; paths remain an alternate/fallback route. The honest invariant is no viewer-side native fallback, not identical raster pixels in every browser."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "README.md"
+                },
+                "region": {
+                  "startLine": 15,
+                  "endLine": 41,
+                  "snippet": {
+                    "text": "**Domotion turns real HTML/CSS into one self-contained, animated SVG** — an accurate reproduction of the rendered page, with optional animation and simulated interaction built in. It embeds the exact captured glyph data and positioning, so playback never falls back to a viewer's system fonts; the output scales crisply at any size and embeds anywhere with a plain `<img>`, no external assets.\n\nBeyond raw capture it ships a **template library** that turns a few flags into a polished animated SVG, **terminal-session capture** (a recording → an animated terminal), **scroll capture** (a long page replayed as one self-contained scrolling SVG), multi-frame **animation** with parameterized and custom transitions, overlays, and simulated interaction, **scene storyboarding** (sequence distinct scenes end-to-end), **brand kits** and **social-format presets** (reel / square / portrait / landscape), **device-chrome** framing, **nested compositing** (animated layers inside animated layers), one-command **SVG → MP4/WebM**, and a fidelity **review** tool.\n\n<p align=\"center\">\n  <img src=\"examples/output/hero-product-demo.svg\" alt=\"An analytics dashboard assembling itself inside a browser window — KPI cards rise in, a bar chart grows with its peak highlighted, a search query types itself, and a nav item is clicked — all in one self-contained animated SVG\" width=\"760\">\n</p>\n\n<p align=\"center\"><sub>A real UI captured and brought to life — one self-contained SVG. <a href=\"https://brianwestphal.github.io/domotion/showcase/\">More demos →</a></sub></p>\n\n## Why\n\nAnimated demos for product marketing and documentation usually mean either:\n\n- A bundle of MP4s — heavy, hard to scale, no inline embedding.\n- A live iframe — slow, requires the source app to be online, breaks accessibility.\n- Hand-authored SVG animations — accurate but enormously time-consuming for anything beyond a couple of frames.\n\nDomotion captures real HTML/CSS as it renders in Chromium, then emits a single inline-embeddable SVG that replays the same pixels with CSS keyframe transitions. Author the demo as plain HTML/CSS in your real app, capture frames, and ship the result as a `<img src=\"demo.svg\">` that loads lazily and scales without artifacts.\n\n## Status\n\nActively developed, with a broad shipped surface — capture, multi-frame animation (transitions, overlays, simulated interaction), the template library, terminal capture, nested compositing, and the video/image exports — exercised by an extensive visual-regression suite. The CLIs and the animate-config schema are stable in practice.\n\n## Platform support\n\nDomotion runs on **macOS, Linux, and Windows**, and all three are calibrated. It renders text by extracting the glyphs Chromium selected on the platform you run it on (CoreText on macOS, fontconfig on Linux, DirectWrite on Windows), then embeds those glyphs instead of asking the viewer's machine to perform font fallback. macOS is held to pixel-exact parity; Linux and Windows match Chromium's glyph selection and metrics within a documented native-hinting margin. Linux fidelity is a required CI check; Windows has first-class native validation and release checks, with its slower broad suites dispatched on demand."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "site/src/content/docs/developer/api.md"
+                },
+                "region": {
+                  "startLine": 357
+                }
+              }
+            }
+          ],
+          "rank": 85,
+          "workItemUris": [
+            "DM-2630"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "1dcf414a1cbae3952f88c9d0b6d032e3"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "721f5215002fc8c560050c9b1e49f3383474ff9f",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
