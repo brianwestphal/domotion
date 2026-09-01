@@ -4706,7 +4706,7 @@
       "code": [
         "src/animation/",
         "src/cli/animate.ts",
-        "src/composite/",
+        "src/cli/composite.ts",
         "tests/animate-examples.tsx"
       ],
       "file": "handbook/animation-and-interaction.md"
@@ -4728,7 +4728,7 @@
         "src/capture/replaced-media-frame.ts",
         "src/capture/background-image-sizing.ts",
         "src/capture/pseudo-fragment-cdp.ts",
-        "src/render/image.ts",
+        "src/render/element-tree-to-svg.ts",
         "src/render/image-pattern.ts",
         "src/post-processing/",
         "tests/feature-coverage.ts"
@@ -4749,8 +4749,9 @@
         "windows"
       ],
       "code": [
-        "src/capture/geometry.ts",
-        "src/render/tree.ts",
+        "src/capture/script/walker/transforms.ts",
+        "src/render/element-tree-to-svg.ts",
+        "src/render/transforms.ts",
         "src/scroll/",
         "tests/feature-coverage.ts"
       ],
@@ -4771,7 +4772,8 @@
         "windows"
       ],
       "code": [
-        "src/render/paint.ts",
+        "src/render/element-tree-to-svg.ts",
+        "src/render/paint-order.ts",
         "src/capture/input-value-geometry.ts",
         "src/capture/native-control-raster.ts",
         "src/capture/pseudo-style-cdp.test.ts",
@@ -4819,8 +4821,11 @@
         "windows"
       ],
       "code": [
-        "src/capture/font-selection.ts",
+        "src/capture/script/index.ts",
+        "src/capture/script/walker/text-segments.ts",
         "src/render/font-resolution.ts",
+        "src/render/glyph-helper.ts",
+        "src/render/text-to-path.ts",
         "src/render/text.ts",
         "tests/feature-coverage.ts"
       ],

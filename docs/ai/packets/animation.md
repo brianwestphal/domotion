@@ -32,4 +32,4 @@ Generated from current and partial documentation metadata. Read the linked handb
 - [Strict animated-image static-frame capture](../../233-strict-animated-image-static-frame.md) — contract; current; `requirements/strict-animated-image-static-frame`; code: unmapped
 - [Frozen animated-image downstream ownership](../../234-frozen-animated-image-downstream-ownership.md) — contract; current; `requirements/frozen-animated-image-downstream-ownership`; code: unmapped
 - [Public SVG and CSS animated-image owner joins](../../235-public-svg-css-animated-image-owner-joins.md) — contract; current; `requirements/public-svg-css-animated-image-owner-joins`; code: `tools/animated-image-stock-cdp-support.ts`
-- [Animation and interaction handbook](../../handbook/animation-and-interaction.md) — contract; current; `handbook/animation-and-interaction`; code: `src/animation/`, `src/cli/animate.ts`, `src/composite/`, `tests/animate-examples.tsx`
+- [Animation and interaction handbook](../../handbook/animation-and-interaction.md) — contract; current; `handbook/animation-and-interaction`; code: `src/animation/`, `src/cli/animate.ts`, `src/cli/composite.ts`, `tests/animate-examples.tsx`

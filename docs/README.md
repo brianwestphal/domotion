@@ -36,8 +36,9 @@ npm run docs:index:check
 ```
 
 The check rejects invalid metadata, duplicate IDs, broken internal links, stale
-generated views, oversized default-context pages/handbooks, and handbooks with
-no owning code/test path. Regenerate after metadata changes with
+generated views, oversized default-context pages/handbooks, and every missing
+code/test path declared by a current or partial record. Historical records may
+retain removed paths as evidence. Regenerate after metadata changes with
 `npm run docs:index:generate`.
 
 macOS, Linux, and Windows are first-class supported capture platforms. Platform

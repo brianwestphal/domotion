@@ -6,7 +6,7 @@ status: "current"
 owners: ["images-media"]
 platforms: ["macos","linux","windows"]
 tickets: ["DM-2596","DM-2617","DM-2618"]
-code: ["src/capture/replaced-media-frame.ts","src/capture/background-image-sizing.ts","src/capture/pseudo-fragment-cdp.ts","src/render/image.ts","src/render/image-pattern.ts","src/post-processing/","tests/feature-coverage.ts"]
+code: ["src/capture/replaced-media-frame.ts","src/capture/background-image-sizing.ts","src/capture/pseudo-fragment-cdp.ts","src/render/element-tree-to-svg.ts","src/render/image-pattern.ts","src/post-processing/","tests/feature-coverage.ts"]
 aliases: ["docs/handbook/images-media-and-embedding.md"]
 ---
 

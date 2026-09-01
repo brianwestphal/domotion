@@ -42,7 +42,7 @@ A sticky element's captured `(x, y, width, height)` is its viewport-relative bou
 
 A sticky element appears in *multiple* segment captures. To stitch them together as one logical element we need a key that survives the in-flow → stuck transition. Specifically `y` (and possibly `x`) will move; everything else should be stable.
 
-**Identity key**: `(tag, rounded(width), rounded(height), structural-path)` — the element's tag, its layout box size (sticky elements rarely change size at the stick-edge), and its position in the DOM tree (index-of-child at each ancestor up to body). The path-in-tree is captured at walk time by `src/capture/script/walker/index.ts` and is the most direct stable identifier we have.
+**Identity key**: `(tag, rounded(width), rounded(height), structural-path)` — the element's tag, its layout box size (sticky elements rarely change size at the stick-edge), and its position in the captured tree. The scroll composer derives that path while walking each captured tree, so identity does not depend on a separate capture-side path field.
 
 Alternative considered: `(tag, rounded(x), rounded(width), rounded(height))` — drop `y` to allow vertical motion, keep `x` since horizontal position doesn't change. This works for most sites but breaks when the sticky element ALSO moves horizontally (e.g., a left-floated note bar that snaps to viewport top with a slight horizontal nudge). Path-in-tree is more robust.
 

@@ -827,7 +827,7 @@ assigned to the regions that changed" safe rather than merely plausible.
 
 ### Why not magic-move (the obvious-looking tool)
 
-Three structural mismatches, from `src/animation/magic-move.ts` / `tree-diff.ts`:
+Three structural mismatches, from `src/animation/magic-move.ts` / `src/tree-ops/tree-diff.ts`:
 (1) **granularity** — it fingerprints elements on (tag, text, children), so any
 text change unmatches the whole line (added+removed → whole-line crossfade), and
 even a forced `data-magic-key` pair goes through `appearanceChanged()` into the

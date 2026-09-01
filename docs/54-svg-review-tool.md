@@ -112,7 +112,7 @@ two source files when filing:
 - `src/cli/review.ts` — the CLI entry point. Parses `--expected` / `--actual`
   / `--port`. Reads both files, rasterises the SVG via Playwright (the only
   hard dependency we already have for accurate diffs), computes the diff PNG
-  via the same `tests/runner.ts` helpers the regression suites use (factored
+  via the same `tests/runner.tsx` helpers the regression suites use (factored
   out into a small reusable module under `src/review/` so it's bundle-safe
   for the published package), then spins up the local HTTP server and
   opens the URL.

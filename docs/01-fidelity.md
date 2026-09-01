@@ -227,6 +227,6 @@ Warnings are deduped by `(feature, selector)` within one capture. They're stored
 ## Testing approach
 
 - `tests/features.ts` — ~100 focused feature tests exercising one rendering property each. Each must pass the region-based diff gate (`regionCount === 0`, see [doc 12](12-diff-scoring.md)) vs. the captured HTML. Every change to fidelity must pass these.
-- `tests/showcase.ts` — 3 full-page integration tests derived from real product frames.
+- `tests/showcase.tsx` — 3 full-page integration tests derived from real product frames.
 - `tests/html-test-suite.tsx` — large external suite covering broadly-supported HTML5 + stable CSS, sourced from `external/html-test/` (clone of `github.com/brianwestphal/html-test`, gitignored). Baseline tracked in `tests/output/html-test/results.json` and visualized via `tests/output/html-test/index.html`. Bootstrap with `git clone https://github.com/brianwestphal/html-test.git external/html-test` (set `HTML_TEST_DIR` env to override).
 - `tests/composed-parity-fixtures.ts` + `36-composed-metamorphic-parity.html` — seven deliberate multi-decision pages and six live-validated metamorphic relations. Repository rows run one fresh process per fixture; the capture-freeze/iframe/state relations run in one live Chromium E2E leg. Native macOS/Linux/Windows CI and artifact ownership are defined in [doc 183](183-composed-metamorphic-parity-corpus.md).

@@ -6,7 +6,7 @@ status: "current"
 owners: ["animation"]
 platforms: ["macos","linux","windows"]
 tickets: ["DM-2596"]
-code: ["src/animation/","src/cli/animate.ts","src/composite/","tests/animate-examples.tsx"]
+code: ["src/animation/","src/cli/animate.ts","src/cli/composite.ts","tests/animate-examples.tsx"]
 aliases: ["docs/handbook/animation-and-interaction.md"]
 ---
 

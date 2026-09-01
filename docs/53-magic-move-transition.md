@@ -63,7 +63,7 @@ cross-fade.
 ## The mechanism (reuses existing infrastructure)
 
 `diffTrees(prev, next)` already classifies every element across two
-`CapturedElement` trees. Its `DiffEntryKind` values (`src/animation/tree-diff.ts`)
+`CapturedElement` trees. Its `DiffEntryKind` values (`src/tree-ops/tree-diff.ts`)
 are `static` (matched, unmoved) / `translated` (matched, bbox shifted) /
 `modified` (matched, same path) / `added` / `removed`, and `dominantTranslate()`
 already finds bulk-shifted groups. The scroll-segment composer

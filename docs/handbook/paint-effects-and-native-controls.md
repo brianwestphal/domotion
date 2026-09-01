@@ -6,7 +6,7 @@ status: "current"
 owners: ["paint-effects","text-fonts"]
 platforms: ["macos","linux","windows"]
 tickets: ["DM-2596","DM-2615","DM-2628","DM-2634"]
-code: ["src/render/paint.ts","src/capture/input-value-geometry.ts","src/capture/native-control-raster.ts","src/capture/pseudo-style-cdp.test.ts","src/capture/pseudo-style-cdp.ts","src/capture/script/walker/form-controls.ts","src/capture/script/walker/input-value.ts","src/render/form-controls.test.ts","src/render/form-controls.ts","tests/feature-coverage.ts"]
+code: ["src/render/element-tree-to-svg.ts","src/render/paint-order.ts","src/capture/input-value-geometry.ts","src/capture/native-control-raster.ts","src/capture/pseudo-style-cdp.test.ts","src/capture/pseudo-style-cdp.ts","src/capture/script/walker/form-controls.ts","src/capture/script/walker/input-value.ts","src/render/form-controls.test.ts","src/render/form-controls.ts","tests/feature-coverage.ts"]
 aliases: ["docs/handbook/paint-effects-and-native-controls.md"]
 ---
 

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtivnmngrlqknb47",
+          "message": {
+            "text": "Live and historical records intentionally have different path-validity contracts. Checking every current/partial entry prevents one surviving owner from masking removed paths in generated manifests, while exempting historical records preserves truthful evidence about the code that existed when those records were written. The injected existence predicate keeps this invariant directly testable across file and directory owners.",
+            "markdown": "Live and historical records intentionally have different path-validity contracts. Checking every current/partial entry prevents one surviving owner from masking removed paths in generated manifests, while exempting historical records preserves truthful evidence about the code that existed when those records were written. The injected existence predicate keeps this invariant directly testable across file and directory owners."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "scripts/documentation-code-paths.mjs"
+                },
+                "region": {
+                  "startLine": 4,
+                  "endLine": 41,
+                  "snippet": {
+                    "text": "const LIVE_STATUSES = new Set([\"current\", \"partial\"]);\n\n/**\n * Validate every code-owner path declared by a live documentation record.\n *\n * Checking only that a handbook has at least one owner lets a mixed list such\n * as `[\"real.ts\", \"removed.ts\"]` pass and then publishes the removed path into\n * the machine manifest and every generated owner packet. Historical records\n * intentionally retain old paths, so the existence contract applies only to\n * current/partial metadata.\n */\nexport function documentationCodePathErrors(\n  filename,\n  metadata,\n  projectRoot,\n  pathExists = existsSync,\n) {\n  if (!LIVE_STATUSES.has(metadata?.status) || !Array.isArray(metadata?.code)) return [];\n\n  const errors = [];\n  for (const declaredPath of metadata.code) {\n    if (typeof declaredPath !== \"string\" || declaredPath.trim() === \"\") {\n      errors.push(`${filename}: code path must be a non-empty repository-relative string`);\n      continue;\n    }\n    const resolvedPath = resolve(projectRoot, declaredPath);\n    const repositoryPath = relative(projectRoot, resolvedPath);\n    if (repositoryPath === \"\" || repositoryPath === \"..\"\n        || repositoryPath.startsWith(`..${sep}`)\n        || isAbsolute(repositoryPath)) {\n      errors.push(`${filename}: code path escapes the repository: ${declaredPath}`);\n      continue;\n    }\n    if (!pathExists(resolvedPath)) {\n      errors.push(`${filename}: code path does not exist: ${declaredPath}`);\n    }\n  }\n  return errors;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 80,
+          "workItemUris": [
+            "DM-2631"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "9b0cb5699a675802cac6af3ada52326a"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "82539ac142f3c77bddef1de5aabe689e0a34cbee",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
