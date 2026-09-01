@@ -4,6 +4,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { launchChromium } from "../index.js";
+import { generateAnimatedSvg } from "../animation/animator.js";
 import { runSvgToImage } from "./svg-to-image-core.js";
 
 // End-to-end coverage for the svg-to-image rasterize path (Playwright
@@ -193,6 +194,35 @@ describe("svg-to-image end-to-end (Chromium)", () => {
       await runSvgToImage(opts(input, late, { atMs: 500 }));
       const h = (p: string) => createHash("sha256").update(readFileSync(p)).digest("hex");
       expect(h(early)).not.toBe(h(late));
+    } finally {
+      rmSync(d, { recursive: true, force: true });
+    }
+  });
+
+  it("renders frame 0 during the wrapped half of a loop cross-dissolve", async () => {
+    const d = setup();
+    const input = path.join(d, "loop.svg");
+    const output = path.join(d, "loop-end.png");
+    writeFileSync(input, generateAnimatedSvg({
+      width: 32,
+      height: 32,
+      background: "#000000",
+      loopFade: true,
+      frames: [
+        { svgContent: `<rect width="32" height="32" fill="#ff0000"/>`, duration: 100, transition: { type: "crossfade", duration: 100 } },
+        { svgContent: `<rect width="32" height="32" fill="#0000ff"/>`, duration: 100, transition: { type: "crossfade", duration: 100 } },
+      ],
+    }));
+    try {
+      // At 390/400ms the outgoing blue frame is nearly transparent and the
+      // wrapped red frame should be nearly opaque. Before the wrap fix this
+      // sampled an almost-black canvas (blue only, at ~10% opacity).
+      await runSvgToImage(opts(input, output, { atMs: 390, background: "#000000" }));
+      const sharp = (await import("sharp")).default;
+      const { data, info } = await sharp(readFileSync(output)).raw().toBuffer({ resolveWithObject: true });
+      const p = ((Math.floor(info.height / 2) * info.width) + Math.floor(info.width / 2)) * info.channels;
+      expect(data[p]).toBeGreaterThan(150);
+      expect(data[p]).toBeGreaterThan(data[p + 2]);
     } finally {
       rmSync(d, { recursive: true, force: true });
     }

@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtj8yk6jxfc9s9fv",
+          "message": {
+            "text": "The browser-level regression samples 390ms of a 400ms red-to-blue-to-red loop. Before DM-2648 this pixel was almost black because only the outgoing blue frame remained; after the fix the wrapped red frame dominates, proving the loop boundary is composited rather than exposed.",
+            "markdown": "The browser-level regression samples 390ms of a 400ms red-to-blue-to-red loop. Before DM-2648 this pixel was almost black because only the outgoing blue frame remained; after the fix the wrapped red frame dominates, proving the loop boundary is composited rather than exposed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/svg-to-image-e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 201,
+                  "endLine": 228,
+                  "snippet": {
+                    "text": "\n  it(\"renders frame 0 during the wrapped half of a loop cross-dissolve\", async () => {\n    const d = setup();\n    const input = path.join(d, \"loop.svg\");\n    const output = path.join(d, \"loop-end.png\");\n    writeFileSync(input, generateAnimatedSvg({\n      width: 32,\n      height: 32,\n      background: \"#000000\",\n      loopFade: true,\n      frames: [\n        { svgContent: `<rect width=\"32\" height=\"32\" fill=\"#ff0000\"/>`, duration: 100, transition: { type: \"crossfade\", duration: 100 } },\n        { svgContent: `<rect width=\"32\" height=\"32\" fill=\"#0000ff\"/>`, duration: 100, transition: { type: \"crossfade\", duration: 100 } },\n      ],\n    }));\n    try {\n      // At 390/400ms the outgoing blue frame is nearly transparent and the\n      // wrapped red frame should be nearly opaque. Before the wrap fix this\n      // sampled an almost-black canvas (blue only, at ~10% opacity).\n      await runSvgToImage(opts(input, output, { atMs: 390, background: \"#000000\" }));\n      const sharp = (await import(\"sharp\")).default;\n      const { data, info } = await sharp(readFileSync(output)).raw().toBuffer({ resolveWithObject: true });\n      const p = ((Math.floor(info.height / 2) * info.width) + Math.floor(info.width / 2)) * info.channels;\n      expect(data[p]).toBeGreaterThan(150);\n      expect(data[p]).toBeGreaterThan(data[p + 2]);\n    } finally {\n      rmSync(d, { recursive: true, force: true });\n    }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/animation/svg-generator.ts"
+                },
+                "region": {
+                  "startLine": 1454
+                }
+              }
+            }
+          ],
+          "workItemUris": [
+            "DM-2648"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "2de93e887a144c6eb015f9800a216d9c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a964b757a1a4f0f60c8f8d3f9652531e2af01962",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

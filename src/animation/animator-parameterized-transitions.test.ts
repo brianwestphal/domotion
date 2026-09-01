@@ -57,4 +57,31 @@ describe("parameterized transition rendering", () => {
     expect(svg).toContain("@media (prefers-reduced-motion: reduce)");
     expect(svg).not.toMatch(/<script|<animate|filter:|mask:/);
   });
+
+  it("wraps frame zero into a custom crossfade-to-first loop", () => {
+    const svg = generateAnimatedSvg({
+      width: 100,
+      height: 100,
+      frames: [
+        { svgContent: content("red"), duration: 500 },
+        {
+          svgContent: content("blue"),
+          duration: 500,
+          transition: {
+            type: "custom",
+            duration: 400,
+            custom: {
+              incoming: { opacity: 0 },
+              outgoing: { opacity: 0 },
+              reducedMotion: "crossfade",
+              loop: "crossfade-to-first",
+              zOrder: "incoming-on-top",
+            },
+          },
+        },
+      ],
+    });
+    const frameZero = svg.match(/@keyframes fv-0 \{(?:[^{}]|\{[^}]*\})*\}/)?.[0] ?? "";
+    expect(frameZero).toMatch(/100%\s*\{\s*opacity:\s*1/);
+  });
 });

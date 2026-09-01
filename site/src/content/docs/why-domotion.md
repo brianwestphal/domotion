@@ -78,8 +78,8 @@ hinting; the glyph selection and layout do not. When embedded via `<img>`, treat
 the output as an image rather than semantic page text and provide an `alt`.
 
 <figure>
-  <img src="/domotion/demos/fidelity/wikipedia-fidelity.png" alt="Side by side: a Chromium screenshot of the Ada Lovelace Wikipedia article next to the same page captured by Domotion as one self-contained SVG. At normal size the captures match; a 4x zoom of the title shows the screenshot pixelating while the SVG's text stays razor-sharp." style="width:100%;height:auto" loading="lazy" />
-  <figcaption>Don't take our word for it. A real page — the <a href="https://en.wikipedia.org/wiki/Ada_Lovelace">Ada Lovelace</a> Wikipedia article — captured both ways. The Domotion SVG is one self-contained file, fonts and images and all; zoom in and its vector text stays razor-sharp where a screenshot or GIF turns to mush.</figcaption>
+  <img src="/domotion/demos/fidelity/wikipedia-fidelity.png" alt="Side by side: a Chromium screenshot of the Ada Lovelace Wikipedia article and a self-contained Domotion SVG from the same macOS capture. They closely match at normal size in the recorded environment; a 4x zoom shows the screenshot pixelating while the SVG's embedded vector glyphs stay sharp." style="width:100%;height:auto" loading="lazy" />
+  <figcaption>Don't take our word for it. A real page — the <a href="https://en.wikipedia.org/wiki/Ada_Lovelace">Ada Lovelace</a> Wikipedia article — captured both ways on macOS Chromium. The Domotion SVG is one self-contained file, fonts and images and all; zoom in and its vector text stays razor-sharp where a screenshot or GIF turns to mush. Consumer antialiasing and hinting can vary slightly by platform.</figcaption>
 </figure>
 
 ## Repeatable — for demos *and* review

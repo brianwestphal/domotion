@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["platform-release"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-2630"]
-code: ["README.md","examples/","site/demo-assets/apps/","site/scripts/build-demos.mjs","site/src/content/docs/showcase.mdx"]
+tickets: ["DM-2630","DM-2648"]
+code: ["README.md","examples/","site/demo-assets/apps/","site/demo-assets/fidelity/","site/scripts/build-demos.mjs","site/src/content/docs/showcase.mdx"]
 aliases: ["docs/handbook/major-release-visual-capture.md"]
 ---
 
@@ -101,3 +101,8 @@ The release handoff must name:
 - desktop and narrow site routes checked;
 - any asset deliberately retained, with the reason;
 - any unavailable visual check, without claiming it passed.
+
+The machine-readable DM-2648 capture record is
+`docs/evidence/dm-2648-major-release-visuals.json`. Maintainer approval remains a
+separate human judgment even when every automated capture and decode check
+passes.

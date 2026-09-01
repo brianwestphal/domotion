@@ -1,0 +1,95 @@
+{
+  "ticket": "DM-2648",
+  "capturedAt": "2026-09-02",
+  "automation": {
+    "headless": true,
+    "browserPolicy": "DOMOTION_NO_OPEN=1; no desktop browser launches",
+    "node": "v22.23.2"
+  },
+  "sourceApps": [
+    {
+      "name": "Glassbox",
+      "commit": "0f2fd17891511441538204dcf832d51b0f4e2e6c",
+      "commands": [
+        "npm run demo:capture",
+        "npm run demo:capture-stills -- --only risk-mode"
+      ]
+    },
+    {
+      "name": "Hot Sheet",
+      "commit": "5e7835e4c373f110345b798bb9cc05b66326af27",
+      "commands": [
+        "npx tsx scripts/capture-demos.ts 1 4 8"
+      ],
+      "normalization": "Trailing whitespace only was removed from the committed copies."
+    }
+  ],
+  "assetDigestsSha256": {
+    "site/demo-assets/apps/glassbox-review.svg": "7efdf53fa96e316a9b84faf65f0ec0a6f2b0405103e72c4d26da86465802c0ca",
+    "site/demo-assets/apps/glassbox-risk-mode.svg": "c66cc7591af083675c18acc0846eca051d32036c9ecaf55c0be31bfc09486258",
+    "site/demo-assets/apps/hotsheet-board.svg": "851430b92be54104d20addaf5fe0933e02492e3a0c1c11db783bee64d5e47a44",
+    "site/demo-assets/apps/hotsheet-up-next.svg": "27b97500929109b7d30777487e53e875f833f9e6e359b06645cb713186c3470b",
+    "site/demo-assets/apps/hotsheet-dashboard.svg": "cc30818a8fc9693060d565bf56a872c984d9d5fce24bf18c61d3456567d5113c",
+    "site/demo-assets/fidelity/wikipedia-fidelity.png": "1b56c52c13e364dc70ebe7e2bff8c8098afb9c2dddb7b15c182e089ed8672b5f"
+  },
+  "sampleTimesMs": {
+    "wordmark": [0, 1420, 2130, 2790],
+    "hero": [0, 3350, 5025, 6650],
+    "showcase": [0, 6750, 10125, 13450],
+    "transitionTour": [0, 4825, 7237, 9600],
+    "transitionMixed": [0, 5800, 8700, 11550],
+    "storyboard": [0, 7400, 11100, 14750],
+    "terminalOnboarding": [0, 7500, 11250, 14950],
+    "terminalScroll": [0, 6500, 9750, 12950],
+    "templateChart": [0, 1550, 2325, 3050],
+    "templateKinetic": [0, 1235, 1852, 2420],
+    "templateQuote": [0, 1900, 2850, 3750],
+    "templateCta": [0, 2000, 3000, 3950],
+    "templateCounter": [0, 1600, 2400, 3150],
+    "templateBackground": [0, 4500, 6750, 8950],
+    "glassboxReview": [0, 15030, 22545, 30010],
+    "hotsheetBoard": [0, 2300, 3450, 4550],
+    "hotsheetUpNext": [0, 2400, 3600, 4750],
+    "hotsheetDashboard": [0, 2300, 3450, 4550]
+  },
+  "fullLoopExports": {
+    "fps": {
+      "domotion": 20,
+      "sourceApps": 15
+    },
+    "count": 18,
+    "decodeStatus": "passed",
+    "maintainerWatchStatus": "pending"
+  },
+  "automatedReview": {
+    "stillScales": [1, 2],
+    "findings": [
+      "The release pass exposed a blank cross-dissolve loop boundary in transition-tour and transition-mixed; DM-2648 now paints frame zero back in during the final fade.",
+      "The fidelity proof's absolute pixel-identical wording was narrowed to the recorded macOS Chromium environment and now states the consumer antialiasing/hinting caveat.",
+      "The storyboard's time-zero title-card entrance begins on the dark canvas by design; its later sampled frames and exported loop contain the complete four-scene narrative."
+    ]
+  },
+  "siteRoutes": {
+    "desktop": [
+      "/domotion/",
+      "/domotion/showcase/"
+    ],
+    "narrow": [
+      "/domotion/",
+      "/domotion/showcase/"
+    ],
+    "status": "passed",
+    "builtDemoAssetCount": 107,
+    "resolvedReferenceCount": 69,
+    "checks": [
+      "No horizontal overflow at 1440×1000 or 390×844",
+      "All referenced demo images loaded with nonzero intrinsic and rendered dimensions",
+      "All referenced demo images had nonempty alt text",
+      "Rendered aspect ratios matched intrinsic aspect ratios"
+    ]
+  },
+  "maintainerApproval": {
+    "status": "pending",
+    "scope": "Final visual judgment and complete-loop viewing"
+  }
+}

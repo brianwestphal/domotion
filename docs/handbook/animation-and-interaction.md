@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["animation"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-2596","DM-2636","DM-2641"]
+tickets: ["DM-2596","DM-2636","DM-2641","DM-2648"]
 code: ["src/animation/","src/cli/animate-artifact.ts","src/cli/animate-capture-session.ts","src/cli/animate-command.ts","src/cli/animate-debug.ts","src/cli/animate-frame-capture.ts","src/cli/animate-orchestrator.ts","src/cli/animate.ts","src/cli/composite.ts","src/cli/debug-bundle.ts","tests/animate-debug.e2e.test.ts","tests/animate-examples.tsx"]
 aliases: ["docs/handbook/animation-and-interaction.md"]
 ---
@@ -24,7 +24,10 @@ aliases: ["docs/handbook/animation-and-interaction.md"]
    geometry and timing.
 3. Built-in and custom transitions compose only schema-owned channels. Frame
    visibility, transition windows, overlay windows, and keyframe padding must
-   remain exact at boundaries and when durations compress.
+   remain exact at boundaries and when durations compress. A loop
+   cross-dissolve paints both sides of the wrapped boundary: the final frame
+   fades out while frame zero fades in before 100%, so the loop never exposes
+   the canvas between scenes.
 4. Storyboards and nested composites retain child timing/resource identity.
    Templates and format/brand inputs compile into the same public animation
    model rather than a separate rendering path.

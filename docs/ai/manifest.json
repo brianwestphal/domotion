@@ -4856,6 +4856,7 @@
         "README.md",
         "examples/",
         "site/demo-assets/apps/",
+        "site/demo-assets/fidelity/",
         "site/scripts/build-demos.mjs",
         "site/src/content/docs/showcase.mdx"
       ],

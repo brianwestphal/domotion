@@ -66,7 +66,10 @@ total += copySvgs(resolve(HERE, "..", "demo-assets", "apps"), resolve(OUT, "apps
     const dst = resolve(OUT, "fidelity");
     mkdirSync(dst, { recursive: true });
     for (const f of readdirSync(src)) {
-      if (f.endsWith(".png") || f.endsWith(".svg")) {
+      if (
+        (f.endsWith(".png") || f.endsWith(".svg")) &&
+        !f.endsWith("-source.png")
+      ) {
         cpSync(resolve(src, f), resolve(dst, f));
         total++;
       }

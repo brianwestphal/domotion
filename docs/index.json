@@ -7690,7 +7690,8 @@
         "tickets": [
           "DM-2596",
           "DM-2636",
-          "DM-2641"
+          "DM-2641",
+          "DM-2648"
         ],
         "code": [
           "src/animation/",
@@ -7791,12 +7792,14 @@
           "windows"
         ],
         "tickets": [
-          "DM-2630"
+          "DM-2630",
+          "DM-2648"
         ],
         "code": [
           "README.md",
           "examples/",
           "site/demo-assets/apps/",
+          "site/demo-assets/fidelity/",
           "site/scripts/build-demos.mjs",
           "site/src/content/docs/showcase.mdx"
         ],

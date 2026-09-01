@@ -43,6 +43,7 @@ describe("last-frame loop fade (DM-1148)", () => {
   });
 
   // The fv-1 keyframe block has nested `{…}`, so span one level of nesting.
+  const firstKeyframe = (svg: string) => svg.match(/@keyframes fv-0 \{(?:[^{}]|\{[^}]*\})*\}/)?.[0] ?? "";
   const lastKeyframe = (svg: string) => svg.match(/@keyframes fv-1 \{(?:[^{}]|\{[^}]*\})*\}/)?.[0] ?? "";
 
   it("holds the last frame to 100% by default (no fade-out)", () => {
@@ -54,9 +55,14 @@ describe("last-frame loop fade (DM-1148)", () => {
   });
 
   it("fades the last frame out on loop when loopFade is true", () => {
-    const kf = lastKeyframe(generateAnimatedSvg(cfg(true)));
+    const svg = generateAnimatedSvg(cfg(true));
+    const kf = lastKeyframe(svg);
     // Restores the cross-dissolve: opacity 0 at 100%.
     expect(kf).toMatch(/100%\s*\{\s*opacity:\s*0/);
+    // The other half of the dissolve must wrap frame 0 back in over the final
+    // transition. Without this, the loop fades to the bare canvas before the
+    // CSS cycle jumps to 0%.
+    expect(firstKeyframe(svg)).toMatch(/100%\s*\{\s*opacity:\s*1/);
   });
 });
 

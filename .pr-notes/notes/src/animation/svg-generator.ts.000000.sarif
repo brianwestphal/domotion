@@ -90,6 +90,83 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtj8yeu8x7qblr1e",
+          "message": {
+            "text": "DM-2648 release visual capture exposed a blank loop seam: loopFade faded the final scene out without painting frame zero back in. Limit wrap re-entry to crossfade-style outgoing opacity transitions; cuts, slides, and reveals preserve their established loop behavior.",
+            "markdown": "DM-2648 release visual capture exposed a blank loop seam: loopFade faded the final scene out without painting frame zero back in. Limit wrap re-entry to crossfade-style outgoing opacity transitions; cuts, slides, and reveals preserve their established loop behavior."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/animation/svg-generator.ts"
+                },
+                "region": {
+                  "startLine": 1454,
+                  "endLine": 1471,
+                  "snippet": {
+                    "text": "  // A cross-dissolve back to frame 0 wraps across the CSS animation boundary:\n  // the final scene fades out near 100%, while frame 0 must fade in over that\n  // same window. Compute the wrapped entrance once; the frame-0 crossfade path\n  // consumes it below. Cut/slide/reveal exits keep their existing loop behavior.\n  const lastFrame = frames.at(-1);\n  const lastWindow = timeline.frames.at(-1);\n  const lastPlan = lastFrame == null\n    ? null\n    : normalizeTransition(lastFrame.transition ?? { type: \"crossfade\", duration: DEFAULT_TRANSITION_MS });\n  const wrapsViaCrossfade = frames.length > 1\n    && lastFrame != null\n    && lastWindow != null\n    && transitionDurationMs(lastFrame) > 0\n    && lastPlan?.outgoing.opacity === \"fade\"\n    && (config.loopFade === true || lastPlan.custom?.loop === \"crossfade-to-first\");\n  const wrapFadeInStartPct = wrapsViaCrossfade && lastWindow != null\n    ? pct(lastWindow.holdEndMs, totalDuration)\n    : undefined;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/svg-to-image-e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 201
+                }
+              }
+            }
+          ],
+          "workItemUris": [
+            "DM-2648"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "9e3a60d1122869b7aebf04b2530becb4"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a964b757a1a4f0f60c8f8d3f9652531e2af01962",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

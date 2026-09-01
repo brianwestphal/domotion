@@ -287,6 +287,9 @@ interface CrossfadeWindow {
   /** Crossfade fade-in window opens here — overlaps the previous frame's
    *  fade-out, so the caller derives it from the loop's overlap state. */
   fadeInStartPct: string;
+  /** Frame 0 only: when the final frame cross-dissolves back into the loop,
+   *  this is the start of frame 0's wrapped fade-in window near 100%. */
+  wrapFadeInStartPct?: string;
 }
 
 function emitCrossfadeOrCutFrame(
@@ -303,7 +306,7 @@ function emitCrossfadeOrCutFrame(
    *  its entrance window, resting at scale(1). Null → plain crossfade/cut. */
   entranceScale: { fromScale: number; enterStartPct: string; startPct: string; width: number; height: number; easing?: string } | null = null,
 ): { groups: string[]; keyframes: string[] } {
-  const { startPct, holdEndPct, transEndPct, fadeInStartPct } = win;
+  const { startPct, holdEndPct, transEndPct, fadeInStartPct, wrapFadeInStartPct } = win;
   const groups: string[] = [];
   const keyframes: string[] = [];
   // DM-1524: wrap in a scale-dolly group only when a zoom entrance is requested;
@@ -352,7 +355,20 @@ function emitCrossfadeOrCutFrame(
     const prevEnd = i > 0
       ? `${padBefore(parseFloat(fadeInStartPct), KEYFRAME_EPSILON.display, 2)}%,`
       : "";
-    if (holdToEnd) {
+    if (wrapFadeInStartPct != null && i === 0) {
+      // A loop cross-dissolve spans the end/start boundary. Frame 0 therefore
+      // has two visible windows in one CSS cycle: its ordinary window at 0%,
+      // and a wrapped fade-in over the final frame's outgoing transition. The
+      // old keyframes faded the last frame to the bare canvas because frame 0
+      // remained opacity:0 until the animation jumped back to 0%.
+      keyframes.push(`
+    @keyframes fv-${i} {
+      0%, ${holdEndPct} { opacity: 1; }
+      ${transEndPct}, ${wrapFadeInStartPct} { opacity: 0; }
+      100% { opacity: 1; }
+    }${buildWrappingDisplayKeyframes(`fd-${i}`, transEndPct, wrapFadeInStartPct, totalSec)}
+    .f-${i} { animation: fv-${i} ${totalSec.toFixed(2)}s infinite, fd-${i} ${totalSec.toFixed(2)}s infinite step-end; }`);
+    } else if (holdToEnd) {
       // DM-1148: the final frame holds solid to 100% (no fade-out); the loop
       // hard-cuts back to frame 0. The `fd` display window also runs to 100%.
       // `prevEnd` (the prior frame's fade-out boundary) is empty for a lone
@@ -1435,6 +1451,25 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
   // collected here.)
   const frameTiming = { startPct: timeline.frames.map((window) => window.startPct) };
 
+  // A cross-dissolve back to frame 0 wraps across the CSS animation boundary:
+  // the final scene fades out near 100%, while frame 0 must fade in over that
+  // same window. Compute the wrapped entrance once; the frame-0 crossfade path
+  // consumes it below. Cut/slide/reveal exits keep their existing loop behavior.
+  const lastFrame = frames.at(-1);
+  const lastWindow = timeline.frames.at(-1);
+  const lastPlan = lastFrame == null
+    ? null
+    : normalizeTransition(lastFrame.transition ?? { type: "crossfade", duration: DEFAULT_TRANSITION_MS });
+  const wrapsViaCrossfade = frames.length > 1
+    && lastFrame != null
+    && lastWindow != null
+    && transitionDurationMs(lastFrame) > 0
+    && lastPlan?.outgoing.opacity === "fade"
+    && (config.loopFade === true || lastPlan.custom?.loop === "crossfade-to-first");
+  const wrapFadeInStartPct = wrapsViaCrossfade && lastWindow != null
+    ? pct(lastWindow.holdEndMs, totalDuration)
+    : undefined;
+
   // Every sequence composites: each frame is emitted as a complete, internally
   // z-ordered `<g class="f f-N">` sub-SVG and switched/faded by opacity.
   //
@@ -1617,7 +1652,13 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
             // drives THIS frame's entrance (the previous frame's transition).
             easing: resolveEasingPreset(prevPlan.easing) }
         : null;
-      const r = emitCrossfadeOrCutFrame(i, frame, transType, transDur, { startPct, holdEndPct, transEndPct, fadeInStartPct }, totalSec, holdToEnd, entranceScale);
+      const r = emitCrossfadeOrCutFrame(i, frame, transType, transDur, {
+        startPct,
+        holdEndPct,
+        transEndPct,
+        fadeInStartPct,
+        wrapFadeInStartPct: i === 0 ? wrapFadeInStartPct : undefined,
+      }, totalSec, holdToEnd, entranceScale);
       frameGroups.push(...r.groups);
       keyframes.push(...r.keyframes);
 
@@ -2707,6 +2748,36 @@ function buildDisplayKeyframes(name: string, visibleStartPct: string | number, v
       ${end.toFixed(3)}% { visibility: visible; }
       ${endPlus}% { visibility: hidden; }
       100% { visibility: hidden; }
+    }`;
+}
+
+/** Paint-cull visibility for frame 0 when its opacity wraps across 100% → 0%.
+ * The frame is visible through its ordinary exit and again from the final
+ * scene's crossfade start through the loop boundary. Opacity still owns the
+ * visual blend; this track only avoids painting the frame during the long
+ * fully-transparent interval between those two windows. */
+function buildWrappingDisplayKeyframes(
+  name: string,
+  firstVisibleEndPct: string | number,
+  wrappedVisibleStartPct: string | number,
+  totalSec: number,
+): string {
+  const margin = cullOverlapPct(totalSec * 1000);
+  const firstEnd = Math.min(100, parseFloat(String(firstVisibleEndPct)) + margin);
+  const wrapStart = Math.max(0, parseFloat(String(wrappedVisibleStartPct)) - margin);
+  if (firstEnd >= wrapStart) {
+    return `
+    @keyframes ${name} {
+      0%, 100% { visibility: visible; }
+    }`;
+  }
+  const firstEndPlus = padAfter(firstEnd, KEYFRAME_EPSILON.cull, 3);
+  const wrapStartMinus = padBefore(wrapStart, KEYFRAME_EPSILON.cull, 3);
+  return `
+    @keyframes ${name} {
+      0%, ${firstEnd.toFixed(3)}% { visibility: visible; }
+      ${firstEndPlus}%, ${wrapStartMinus}% { visibility: hidden; }
+      ${wrapStart.toFixed(3)}%, 100% { visibility: visible; }
     }`;
 }
 
