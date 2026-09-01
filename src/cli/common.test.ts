@@ -13,6 +13,8 @@ describe("openInBrowser", () => {
     expect(shouldOpenInBrowser({ VITEST: "true" }, true)).toBe(false);
     expect(shouldOpenInBrowser({ DOMOTION_NO_OPEN: "1", DOMOTION_OPEN_BROWSER: "1" }, true)).toBe(false);
     expect(shouldOpenInBrowser({ CI: "true", DOMOTION_OPEN_BROWSER: "1" }, true)).toBe(false);
+    expect(shouldOpenInBrowser({ CODEX_CI: "1", DOMOTION_OPEN_BROWSER: "1" }, true)).toBe(false);
+    expect(shouldOpenInBrowser({ HOTSHEET_DRIVE_SPAWNED: "1", DOMOTION_OPEN_BROWSER: "1" }, true)).toBe(false);
   });
 
   it("inherits Vitest's no-open environment in the real test process", () => {

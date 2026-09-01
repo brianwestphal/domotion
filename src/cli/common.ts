@@ -75,7 +75,13 @@ export function shouldOpenInBrowser(
   env: NodeJS.ProcessEnv = process.env,
   interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY),
 ): boolean {
-  if (env.VITEST != null || env.DOMOTION_NO_OPEN === "1" || env.CI != null) return false;
+  if (
+    env.VITEST != null
+    || env.DOMOTION_NO_OPEN === "1"
+    || env.CI != null
+    || env.CODEX_CI != null
+    || env.HOTSHEET_DRIVE_SPAWNED != null
+  ) return false;
   return interactive || env.DOMOTION_OPEN_BROWSER === "1";
 }
 
@@ -84,8 +90,10 @@ export async function openInBrowser(url: string): Promise<void> {
   // Keep this guard here, at the final shared side-effect boundary, so a new
   // caller cannot bypass it by forgetting its own `--no-open` flag. Vitest
   // exports VITEST to its workers and their inherited child processes;
-  // DOMOTION_NO_OPEN covers other automated runners, and the TTY requirement
-  // fails closed for pueue/Codex/CI-style commands that carry neither sentinel.
+  // DOMOTION_NO_OPEN covers other automated runners. CODEX_CI and
+  // HOTSHEET_DRIVE_SPAWNED are inherited by agent-started commands, including
+  // pueue jobs whose daemon may retain a terminal. The TTY requirement fails
+  // closed for other non-interactive commands that carry none of the sentinels.
   // A deliberately non-interactive human launcher can opt in with
   // DOMOTION_OPEN_BROWSER=1 (unless an automation/no-open sentinel is present).
   if (!shouldOpenInBrowser()) return;

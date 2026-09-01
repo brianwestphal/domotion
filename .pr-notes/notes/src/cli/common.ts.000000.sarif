@@ -223,6 +223,68 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtiyg3ustyn731it",
+          "message": {
+            "text": "Automation identity must override both TTY detection and explicit browser opt-in. Pueue inherits the Hot Sheet desktop terminal, so TTY alone can misclassify an agent-started SVG Scrubber or Demo Review server as interactive; CODEXCI and HOTSHEETDRIVESPAWNED are durable inherited sentinels at the final shared opener boundary. The compiled dist copy was rebuilt after this change, and src/cli/common.test.ts covers both sentinels even with DOMOTIONOPEN_BROWSER=1.",
+            "markdown": "Automation identity must override both TTY detection and explicit browser opt-in. Pueue inherits the Hot Sheet desktop terminal, so TTY alone can misclassify an agent-started SVG Scrubber or Demo Review server as interactive; CODEX_CI and HOTSHEET_DRIVE_SPAWNED are durable inherited sentinels at the final shared opener boundary. The compiled dist copy was rebuilt after this change, and src/cli/common.test.ts covers both sentinels even with DOMOTION_OPEN_BROWSER=1."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/common.ts"
+                },
+                "region": {
+                  "startLine": 78,
+                  "endLine": 85,
+                  "snippet": {
+                    "text": "  if (\n    env.VITEST != null\n    || env.DOMOTION_NO_OPEN === \"1\"\n    || env.CI != null\n    || env.CODEX_CI != null\n    || env.HOTSHEET_DRIVE_SPAWNED != null\n  ) return false;\n  return interactive || env.DOMOTION_OPEN_BROWSER === \"1\";"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 92,
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "72d3c9da5916a01124e0b4673c0e000a"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "97c8698255889a7d8553b47aa4195051c05019a5",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -72,7 +72,7 @@ describeE2E("svg-review CLI end-to-end (DM-948)", () => {
       throw new Error(`${(e as Error).message}\nstderr:\n${stderrChunks.join("")}`);
     });
 
-    const browser = await chromium.launch();
+    const browser = await chromium.launch({ headless: true });
     try {
       const page = await browser.newPage({ viewport: { width: 1200, height: 900 } });
       await page.goto(url, { waitUntil: "networkidle" });
@@ -137,7 +137,7 @@ describeE2E("svg-review CLI end-to-end (DM-948)", () => {
       stdio: ["ignore", "pipe", "pipe"],
     });
     const url = await waitForUrl(child);
-    const browser = await chromium.launch();
+    const browser = await chromium.launch({ headless: true });
     try {
       const page = await browser.newPage({ viewport: { width: 1200, height: 900 } });
       await page.goto(url, { waitUntil: "networkidle" });
@@ -178,7 +178,7 @@ describeE2E("svg-review CLI end-to-end (DM-948)", () => {
       stdio: ["ignore", "pipe", "pipe"],
     });
     const url = await waitForUrl(child);
-    const browser = await chromium.launch();
+    const browser = await chromium.launch({ headless: true });
     try {
       const page = await browser.newPage({ viewport: { width: 1200, height: 900 } });
       await page.goto(url, { waitUntil: "networkidle" });
@@ -262,7 +262,7 @@ describeE2E("svg-review CLI end-to-end (DM-948)", () => {
       stdio: ["ignore", "pipe", "pipe"],
     });
     const url = await waitForUrl(child);
-    const browser = await chromium.launch();
+    const browser = await chromium.launch({ headless: true });
     try {
       const page = await browser.newPage({ viewport: { width: 1200, height: 900 } });
       await page.goto(url, { waitUntil: "networkidle" });
@@ -309,7 +309,7 @@ describeE2E("svg-review CLI end-to-end (DM-948)", () => {
       stdio: ["ignore", "pipe", "pipe"],
     });
     const url = await waitForUrl(child);
-    const browser = await chromium.launch();
+    const browser = await chromium.launch({ headless: true });
     try {
       const page = await browser.newPage({ viewport: { width: 1200, height: 900 } });
       await page.goto(url, { waitUntil: "networkidle" });

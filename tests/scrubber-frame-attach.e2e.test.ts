@@ -16,7 +16,7 @@ const SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 80" width=
 <rect width="120" height="80" fill="#0b1220"/><circle cx="60" cy="40" r="24" fill="#22d3ee"/></svg>`;
 
 const env = await (async () => {
-  try { return { browser: await chromium.launch() }; } catch { return null; }
+  try { return { browser: await chromium.launch({ headless: true }) }; } catch { return null; }
 })();
 const dir = mkdtempSync(join(tmpdir(), "scrubber-frame-attach-"));
 let srv: ScrubberServerHandle | null = null;
