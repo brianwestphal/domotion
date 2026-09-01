@@ -77,6 +77,13 @@ export const FEATURES: FeatureEntry[] = [
     tests: ["src/capture/warnings.test.ts"],
   },
   {
+    id: "capture.debug-bundle",
+    behavior: "Capture Chromium source pixels and the raw element tree from one stable frame in memory, then combine them with caller-rendered SVG and caller-owned HAR bytes without imposing CLI paths or filesystem writes.",
+    doc: "docs/238-programmatic-debug-capture-bundles.md",
+    exports: ["assembleCaptureDebugBundle", "captureElementTreeWithDebug"],
+    tests: ["src/capture/debug-bundle.test.ts", "tests/capture-debug-api.e2e.test.ts"],
+  },
+  {
     id: "capture.iframe-recursion",
     behavior: "A same-origin <iframe> recurses into native SVG; a cross-origin frame stays raster unless allowlisted.",
     doc: "docs/81-iframe-recursion.md",

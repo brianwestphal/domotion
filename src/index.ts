@@ -22,13 +22,25 @@ export {
   captureElementTree,
   captureElementTreeEnvelope,
   captureElementTreeSelfContained,
+  captureElementTreeWithDebug,
   captureElementTreeWithWarnings,
   DemoRecorder,
   launchChromium,
   injectBrandVariables,
   installCaptureRafClock,
 } from "./capture/index.js";
-export type { CaptureOptions, CaptureElementTreeOptions } from "./capture/index.js";
+export type {
+  CaptureOptions,
+  CaptureElementTreeOptions,
+  CaptureElementTreeDebugResult,
+  CaptureElementTreeResult,
+} from "./capture/index.js";
+export { assembleCaptureDebugBundle } from "./capture/debug-bundle.js";
+export type {
+  AssembleCaptureDebugBundleOptions,
+  CaptureDebugArtifacts,
+  CaptureDebugBundle,
+} from "./capture/debug-bundle.js";
 export { reverifyAnimationsAtFrame, seekAnimationsToFrame } from "./capture/animation-frame.js";
 export type {
   SeekAnimationsToFrameOptions,

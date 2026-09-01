@@ -1086,10 +1086,13 @@
       ],
       "platforms": [],
       "code": [
+        "src/capture/debug-bundle.ts",
+        "src/capture/index.ts",
         "src/cli/capture.ts",
         "src/cli/debug-bundle.test.ts",
         "src/cli/debug-bundle.ts",
-        "src/cli/review.ts"
+        "src/cli/review.ts",
+        "tests/capture-debug-api.e2e.test.ts"
       ],
       "file": "55-debug-mode-capture.md"
     },
@@ -4741,6 +4744,27 @@
       "file": "237-animate-debug-reproduction-bundles.md"
     },
     {
+      "id": "requirements/programmatic-debug-capture-bundles",
+      "title": "Programmatic debug capture bundles",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "rendering"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/capture/debug-bundle.ts",
+        "src/capture/index.ts",
+        "src/index.ts",
+        "tests/capture-debug-api.e2e.test.ts"
+      ],
+      "file": "238-programmatic-debug-capture-bundles.md"
+    },
+    {
       "id": "handbook/animation-and-interaction",
       "title": "Animation and interaction handbook",
       "kind": "contract",
@@ -4859,7 +4883,9 @@
       ],
       "code": [
         ".github/workflows/",
+        "src/capture/debug-bundle.ts",
         "tests/animate-debug.e2e.test.ts",
+        "tests/capture-debug-api.e2e.test.ts",
         "tests/feature-coverage.ts",
         "tools/parity-program.json",
         "scripts/ci-run-fast-visuals.mjs"

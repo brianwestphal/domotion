@@ -6,7 +6,7 @@ status: "current"
 owners: ["rendering"]
 platforms: []
 tickets: ["DM-946", "DM-2635", "DM-2636"]
-code: ["src/cli/capture.ts","src/cli/debug-bundle.test.ts","src/cli/debug-bundle.ts","src/cli/review.ts"]
+code: ["src/capture/debug-bundle.ts","src/capture/index.ts","src/cli/capture.ts","src/cli/debug-bundle.test.ts","src/cli/debug-bundle.ts","src/cli/review.ts","tests/capture-debug-api.e2e.test.ts"]
 aliases: ["docs/55-debug-mode-capture.md","doc-55"]
 ---
 
@@ -82,18 +82,14 @@ the file contract; nothing else in the bundle is `svg-review`-specific.
 one shared HAR and final `actual.svg`, plus a numbered `expected.png` / tree pair
 for every composed frame. See [Animate debug reproduction bundles](237-animate-debug-reproduction-bundles.md).
 
-## Not in v1 (deferred)
+Programmatic callers that already own a Playwright page/context use
+`captureElementTreeWithDebug()` and `assembleCaptureDebugBundle()` instead. The
+API returns the same evidence in memory and leaves storage, naming, HAR setup,
+and context shutdown to the caller. See [Programmatic debug capture
+bundles](238-programmatic-debug-capture-bundles.md).
 
-- **API surface**: there's no programmatic `captureElementTree({ debug
-  : true })` equivalent yet. The CLI flag covers the consumer flow
-  (`npx domotion capture …`); programmatic consumers can replicate by
-  passing their own `recordHar` to the context they create.
+## Format boundary
+
 - **Tree dump format**: `captured-tree.json` is the raw element-tree
   JSON. It's stable enough for issue triage but not a public schema —
   treat it as an opaque artifact attached to a bug.
-
-## Follow-up tickets
-
-- **DM-2635 (API debug option)** — programmatic equivalent for the
-  `captureElementTree`/`elementTreeToSvg` callers who already manage
-  their own browser context.

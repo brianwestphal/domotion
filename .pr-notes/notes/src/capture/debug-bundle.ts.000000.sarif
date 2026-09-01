@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtj0ndllf8nwshh4",
+          "message": {
+            "text": "HAR stays caller-injected because Playwright must arm recording when BrowserContext is created and only flushes reliably when that caller-owned context closes. The library therefore copies bytes into an in-memory bundle instead of retroactively recording, closing the context, or imposing a temporary directory.",
+            "markdown": "HAR stays caller-injected because Playwright must arm recording when BrowserContext is created and only flushes reliably when that caller-owned context closes. The library therefore copies bytes into an in-memory bundle instead of retroactively recording, closing the context, or imposing a temporary directory."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/debug-bundle.ts"
+                },
+                "region": {
+                  "startLine": 25,
+                  "endLine": 65,
+                  "snippet": {
+                    "text": "export interface AssembleCaptureDebugBundleOptions {\n  /**\n   * HAR content read after the caller closes its BrowserContext. Playwright\n   * requires HAR recording at context creation and flushes on context close,\n   * so a capture helper cannot retroactively obtain it from a caller-owned\n   * context.\n   */\n  captureHar?: string | Uint8Array;\n}\n\n/** Snapshot screenshot bytes and a JSON inspection form of the captured tree. */\nexport function createCaptureDebugArtifacts(\n  expectedPng: Uint8Array,\n  tree: CapturedElement[],\n): CaptureDebugArtifacts {\n  return {\n    expectedPng: Uint8Array.from(expectedPng),\n    capturedTreeJson: JSON.stringify(tree, null, 2),\n  };\n}\n\n/**\n * Combine capture-time evidence with the caller-rendered SVG and optional HAR.\n * Byte arrays are copied so later buffer reuse cannot mutate the bundle.\n */\nexport function assembleCaptureDebugBundle(\n  artifacts: CaptureDebugArtifacts,\n  actualSvg: string,\n  options: AssembleCaptureDebugBundleOptions = {},\n): CaptureDebugBundle {\n  const captureHar = options.captureHar == null\n    ? undefined\n    : typeof options.captureHar === \"string\"\n      ? new TextEncoder().encode(options.captureHar)\n      : Uint8Array.from(options.captureHar);\n  return {\n    expectedPng: Uint8Array.from(artifacts.expectedPng),\n    capturedTreeJson: artifacts.capturedTreeJson,\n    actualSvg,\n    ...(captureHar == null ? {} : { captureHar }),\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/capture-debug-api.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 50
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/238-programmatic-debug-capture-bundles.md"
+                },
+                "region": {
+                  "startLine": 53
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2635"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b3473f4433777851f5afbdbe353b6af9"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "418f2953f01d45e3c21e42fec5cea9d50a91047d",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

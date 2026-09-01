@@ -767,6 +767,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtj0ndaq91tlaroc",
+          "message": {
+            "text": "The PNG hook runs inside the capture transaction after animation seeking and optional replaced-media freezing, but before capture prepasses can mutate the page. A wrapper-level screenshot would either precede animationTimeMs seeking or repeat the seek, so it could not honestly claim the same stable frame.",
+            "markdown": "The PNG hook runs inside the capture transaction after animation seeking and optional replaced-media freezing, but before capture prepasses can mutate the page. A wrapper-level screenshot would either precede animationTimeMs seeking or repeat the seek, so it could not honestly claim the same stable frame."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/index.ts"
+                },
+                "region": {
+                  "startLine": 1876,
+                  "endLine": 1949,
+                  "snippet": {
+                    "text": "export async function captureElementTreeWithDebug(\n  page: Page,\n  selector: string = \"body\",\n  viewport: { x: number; y: number; width: number; height: number },\n  opts?: CaptureElementTreeOptions,\n): Promise<CaptureElementTreeDebugResult> {\n  let expectedPng: Uint8Array | undefined;\n  const result = await captureElementTreeWithWarningsInternal(\n    page,\n    selector,\n    viewport,\n    opts,\n    async () => {\n      expectedPng = await page.screenshot({\n        clip: viewport,\n        omitBackground: false,\n        type: \"png\",\n      });\n    },\n  );\n  if (expectedPng == null) throw new Error(\"debug capture did not produce a Chromium screenshot\");\n  return {\n    ...result,\n    debug: createCaptureDebugArtifacts(expectedPng, result.tree),\n  };\n}\n\nasync function captureElementTreeWithWarningsInternal(\n  page: Page,\n  selector: string,\n  viewport: { x: number; y: number; width: number; height: number },\n  opts?: CaptureElementTreeOptions,\n  captureStableFrame?: () => Promise<void>,\n): Promise<CaptureElementTreeResult> {\n  let animationFrameState: StableAnimationFrameState | undefined;\n  let rafClockState: StableCaptureRafState | undefined;\n  if (opts?.animationTimeMs != null) {\n    if (opts.rafClock != null) {\n      rafClockState = await sampleCaptureRafClock(page, opts.rafClock, opts.animationTimeMs);\n    }\n    animationFrameState = await seekAnimationsToFrame(page, opts.animationTimeMs, {\n      strict: true,\n      includeChildFrames: true,\n      settleWithAnimationFrame: opts.rafClock == null,\n    });\n    if (opts.rafClock != null && rafClockState != null) {\n      await reverifyCaptureRafClock(page, opts.rafClock, rafClockState);\n    }\n  }\n  const reverifyAnimationFrame = async (): Promise<void> => {\n    if (animationFrameState == null) return;\n    await reverifyAnimationsAtFrame(page, animationFrameState, {\n      includeChildFrames: true,\n      settleWithAnimationFrame: opts?.rafClock == null,\n    });\n    if (opts?.rafClock != null && rafClockState != null) {\n      await reverifyCaptureRafClock(page, opts.rafClock, rafClockState);\n    }\n  };\n  let replacedMediaTransaction: ReplacedMediaFrameTransaction | undefined;\n  try {\n    if (animationFrameState != null && rafClockState != null) {\n      if (opts?.rasterizeFromImagePath != null) {\n        throw new Error(\"atomic replaced-media capture cannot authenticate an external source image\");\n      }\n      replacedMediaTransaction = await prepareReplacedMediaFrameTransaction(\n        page,\n        selector,\n        viewport,\n        animationFrameState,\n        rafClockState,\n      );\n    }\n  await captureStableFrame?.();"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/capture-debug-api.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 58
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2635"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4458656a0e1e41e8dce32fdded9f6261"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "418f2953f01d45e3c21e42fec5cea9d50a91047d",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

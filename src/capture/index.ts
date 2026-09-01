@@ -72,6 +72,7 @@ import {
 // the capture pipeline (the template subsystem imports FROM this module, not the
 // other way around).
 import { brandCustomProperties, type Brand } from "../templates/brand.js";
+import { createCaptureDebugArtifacts, type CaptureDebugArtifacts } from "./debug-bundle.js";
 
 export { createCapturedTreeEnvelope, promoteCapturedSubtree };
 export { installCaptureRafClock } from "./raf-clock.js";
@@ -1555,6 +1556,19 @@ export interface CaptureElementTreeOptions {
   rafClock?: CaptureRafClockHandle;
 }
 
+export interface CaptureElementTreeResult {
+  tree: CapturedElement[];
+  warnings: CaptureWarning[];
+  frameScrollState: CapturedFrameScrollState;
+  animationFrameState?: StableAnimationFrameState;
+  rafClockState?: StableCaptureRafState;
+  replacedMediaFrameState?: StableReplacedMediaFrameState;
+}
+
+export interface CaptureElementTreeDebugResult extends CaptureElementTreeResult {
+  debug: CaptureDebugArtifacts;
+}
+
 export async function captureElementTree(
   page: Page,
   selector: string = "body",
@@ -1850,7 +1864,49 @@ export async function captureElementTreeWithWarnings(
   selector: string = "body",
   viewport: { x: number; y: number; width: number; height: number },
   opts?: CaptureElementTreeOptions,
-): Promise<{ tree: CapturedElement[]; warnings: CaptureWarning[]; frameScrollState: CapturedFrameScrollState; animationFrameState?: StableAnimationFrameState; rafClockState?: StableCaptureRafState; replacedMediaFrameState?: StableReplacedMediaFrameState }> {
+): Promise<CaptureElementTreeResult> {
+  return captureElementTreeWithWarningsInternal(page, selector, viewport, opts);
+}
+
+/**
+ * Capture a tree plus the source pixels from the same stable Chromium frame.
+ * The returned evidence is entirely in memory; callers decide where/how to
+ * store it and render `result.tree` with `elementTreeToSvg()` themselves.
+ */
+export async function captureElementTreeWithDebug(
+  page: Page,
+  selector: string = "body",
+  viewport: { x: number; y: number; width: number; height: number },
+  opts?: CaptureElementTreeOptions,
+): Promise<CaptureElementTreeDebugResult> {
+  let expectedPng: Uint8Array | undefined;
+  const result = await captureElementTreeWithWarningsInternal(
+    page,
+    selector,
+    viewport,
+    opts,
+    async () => {
+      expectedPng = await page.screenshot({
+        clip: viewport,
+        omitBackground: false,
+        type: "png",
+      });
+    },
+  );
+  if (expectedPng == null) throw new Error("debug capture did not produce a Chromium screenshot");
+  return {
+    ...result,
+    debug: createCaptureDebugArtifacts(expectedPng, result.tree),
+  };
+}
+
+async function captureElementTreeWithWarningsInternal(
+  page: Page,
+  selector: string,
+  viewport: { x: number; y: number; width: number; height: number },
+  opts?: CaptureElementTreeOptions,
+  captureStableFrame?: () => Promise<void>,
+): Promise<CaptureElementTreeResult> {
   let animationFrameState: StableAnimationFrameState | undefined;
   let rafClockState: StableCaptureRafState | undefined;
   if (opts?.animationTimeMs != null) {
@@ -1890,6 +1946,7 @@ export async function captureElementTreeWithWarnings(
         rafClockState,
       );
     }
+  await captureStableFrame?.();
   // DM-829 / DM-496: external-file `clip-path` / `mask-image` fragment refs
   // (`url("./shapes.svg#id")`) can't be resolved by the synchronous capture
   // walk (it can't fetch). Run an async pre-pass that fetches the external

@@ -1971,10 +1971,13 @@
           "DM-2636"
         ],
         "code": [
+          "src/capture/debug-bundle.ts",
+          "src/capture/index.ts",
           "src/cli/capture.ts",
           "src/cli/debug-bundle.test.ts",
           "src/cli/debug-bundle.ts",
-          "src/cli/review.ts"
+          "src/cli/review.ts",
+          "tests/capture-debug-api.e2e.test.ts"
         ],
         "aliases": [
           "docs/55-debug-mode-capture.md",
@@ -7640,6 +7643,36 @@
       }
     },
     {
+      "file": "238-programmatic-debug-capture-bundles.md",
+      "metadata": {
+        "id": "requirements/programmatic-debug-capture-bundles",
+        "title": "Programmatic debug capture bundles",
+        "kind": "contract",
+        "status": "current",
+        "owners": [
+          "rendering"
+        ],
+        "platforms": [
+          "macos",
+          "linux",
+          "windows"
+        ],
+        "tickets": [
+          "DM-2635"
+        ],
+        "code": [
+          "src/capture/debug-bundle.ts",
+          "src/capture/index.ts",
+          "src/index.ts",
+          "tests/capture-debug-api.e2e.test.ts"
+        ],
+        "aliases": [
+          "docs/238-programmatic-debug-capture-bundles.md",
+          "doc-238"
+        ]
+      }
+    },
+    {
       "file": "handbook/animation-and-interaction.md",
       "metadata": {
         "id": "handbook/animation-and-interaction",
@@ -7800,11 +7833,14 @@
         "tickets": [
           "DM-2596",
           "DM-2604",
+          "DM-2635",
           "DM-2636"
         ],
         "code": [
           ".github/workflows/",
+          "src/capture/debug-bundle.ts",
           "tests/animate-debug.e2e.test.ts",
+          "tests/capture-debug-api.e2e.test.ts",
           "tests/feature-coverage.ts",
           "tools/parity-program.json",
           "scripts/ci-run-fast-visuals.mjs"
@@ -8539,6 +8575,9 @@
     ],
     "237": [
       "requirements/animate-debug-reproduction-bundles"
+    ],
+    "238": [
+      "requirements/programmatic-debug-capture-bundles"
     ],
     "01": [
       "requirements/fidelity"

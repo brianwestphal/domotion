@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtj11mghk1oc00gf",
+          "message": {
+            "text": "The contract passed in explicit headless Chromium: a 750ms animation seek produced the expected blue-dominant PNG, tree JSON round-tripped, complete SVG rendered, caller-owned HAR contained the fixture request after context close, and no CLI debug directory was created. The full unit gate also passed 462 files and 5,093 tests.",
+            "markdown": "The contract passed in explicit headless Chromium: a 750ms animation seek produced the expected blue-dominant PNG, tree JSON round-tripped, complete SVG rendered, caller-owned HAR contained the fixture request after context close, and no CLI debug directory was created. The full unit gate also passed 462 files and 5,093 tests."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/capture-debug-api.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 45,
+                  "endLine": 90,
+                  "snippet": {
+                    "text": "describe(\"programmatic debug capture API (DM-2635)\", () => {\n  it(\"returns in-memory evidence while the caller owns HAR lifecycle and storage\", async () => {\n    const browser = await chromium.launch({ headless: true });\n    const harPath = join(tempRoot, \"caller-owned.har\");\n    try {\n      const context = await browser.newContext({\n        viewport: { width: 160, height: 90 },\n        deviceScaleFactor: 1,\n        recordHar: { path: harPath, mode: \"minimal\" },\n      });\n      const page = await context.newPage();\n      await page.goto(baseUrl, { waitUntil: \"load\" });\n\n      const result = await captureElementTreeWithDebug(\n        page,\n        \"#target\",\n        { x: 0, y: 0, width: 160, height: 90 },\n        { animationTimeMs: 750 },\n      );\n      const actualSvg = elementTreeToSvg(result.tree, 160, 90);\n\n      // Playwright flushes HAR only when the caller closes its context. The\n      // capture API deliberately neither owns nor closes that context.\n      await context.close();\n      const har = readFileSync(harPath);\n      const bundle = assembleCaptureDebugBundle(result.debug, actualSvg, { captureHar: har });\n\n      const png = await sharp(bundle.expectedPng).metadata();\n      expect({ width: png.width, height: png.height, format: png.format }).toEqual({\n        width: 160,\n        height: 90,\n        format: \"png\",\n      });\n      const rawPng = await sharp(bundle.expectedPng).removeAlpha().raw().toBuffer();\n      expect(rawPng[2], \"the debug screenshot must observe the sought 750ms animation frame\").toBeGreaterThan(rawPng[0]!);\n      expect(JSON.parse(bundle.capturedTreeJson)).toEqual(result.tree);\n      expect(bundle.capturedTreeJson).toContain(\"programmatic debug\");\n      expect(bundle.actualSvg).toMatch(/^<svg[^>]+width=\"160\"[^>]+height=\"90\"/);\n      const parsedHar = JSON.parse(new TextDecoder().decode(bundle.captureHar)) as {\n        log: { entries: Array<{ request: { url: string } }> };\n      };\n      expect(parsedHar.log.entries.some((entry) => entry.request.url === baseUrl)).toBe(true);\n\n      // No CLI directory convention is imposed; only the caller's chosen HAR\n      // path exists because every other artifact stayed in memory.\n      expect(readdirSync(tempRoot)).toEqual([\"caller-owned.har\"]);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/index.ts"
+                },
+                "region": {
+                  "startLine": 1876
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/debug-bundle.ts"
+                },
+                "region": {
+                  "startLine": 50
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2635"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "fc362b06ab1e61cea331443821d3933d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "418f2953f01d45e3c21e42fec5cea9d50a91047d",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
