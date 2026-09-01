@@ -172,6 +172,38 @@ describe("radial gradient length boundary (DM-2194)", () => {
   });
 });
 
+describe("radial gradient percentage ellipse sizing (DM-2649)", () => {
+  it("resolves the two percentage radii against width and height", () => {
+    const args = "120% 130% at 0% 0%, rgb(29, 39, 64) 0%, rgb(11, 16, 32) 60%";
+    const background = buildBackgroundRadialGradientDef("bg", args, false, 0, 0, 1000, 600);
+    expect(background).toContain('cx="0"');
+    expect(background).toContain('cy="0"');
+    expect(background).toContain('r="1200"');
+    expect(background).toContain('scale(1 0.65)');
+
+    const parsed = parseRadialGradient(`radial-gradient(${args})`);
+    expect(parsed?.size).toEqual({
+      kind: "axes",
+      x: { kind: "frac", value: 1.2 },
+      y: { kind: "frac", value: 1.3 },
+    });
+    expect(buildRadialGradientDef(parsed!, "control", { x: 0, y: 0, w: 1000, h: 600 }))
+      .toContain('scale(1 0.65)');
+  });
+
+  it("supports mixed length/percentage ellipse axes", () => {
+    const g = parseRadialGradient("radial-gradient(120px 80% at center, red, blue)")!;
+    expect(buildRadialGradientDef(g, "mixed", { x: 0, y: 0, w: 300, h: 200 }))
+      .toContain('r="120" gradientTransform="translate(150 100) scale(1 1.333)');
+  });
+
+  it("rejects the invalid one-percentage circle form", () => {
+    expect(buildBackgroundRadialGradientDef("bad", "120% at center, red, blue", false, 0, 0, 300, 200)).toBe("");
+    expect(parseRadialGradient("radial-gradient(120% at center, red, blue)")).toBeNull();
+    expect(parseRadialGradient("radial-gradient(circle 120% at center, red, blue)")).toBeNull();
+  });
+});
+
 describe("repeating radial gradient period geometry (DM-2290)", () => {
   it("makes the 20px CSS period the SVG radial vector instead of padding the ending color", () => {
     const svg = buildBackgroundRadialGradientDef(

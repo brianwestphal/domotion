@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtjb4a39d34gzl41",
+          "message": {
+            "text": "This is the regression boundary that failed in the demos: a body-propagated canvas background with percentage ellipse radii. The test proves capture ownership, emitted axis geometry, and independent Chromium raster parity; it passed alongside 5,098 repository unit tests.",
+            "markdown": "This is the regression boundary that failed in the demos: a body-propagated canvas background with percentage ellipse radii. The test proves capture ownership, emitted axis geometry, and independent Chromium raster parity; it passed alongside 5,098 repository unit tests."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/radial-percentage-ellipse.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 31,
+                  "endLine": 57,
+                  "snippet": {
+                    "text": "describeBrowser(\"body-propagated percentage radial gradient (DM-2649)\", () => {\n  it(\"retains Blink's width/height-based ellipse in the captured SVG\", async () => {\n    const context = await env!.browser.newContext({\n      viewport: { width: W, height: H },\n      deviceScaleFactor: 1,\n    });\n    const source = await context.newPage();\n    const generated = await context.newPage();\n    try {\n      await source.setContent(`<!doctype html><style>\n        html{margin:0;background:transparent}\n        body{margin:0;width:${W}px;height:${H}px;background:radial-gradient(120% 130% at 0% 0%,#1d2740 0%,#0b1020 60%)}\n      </style>`);\n      const expected = await source.screenshot();\n      const capture = await captureElementTreeWithWarnings(source, \"body\", {\n        x: 0, y: 0, width: W, height: H,\n      });\n      expect(capture.tree[0]?.styles.backgroundAttachmentGeometry?.canvas?.owner)\n        .toBe(\"body-propagated\");\n      const svg = elementTreeToSvg(capture.tree, W, H);\n      expect(svg).toContain(\"<radialGradient\");\n      expect(svg).toContain('r=\"360\"');\n      expect(svg).toContain('scale(1 0.65)');\n\n      await generated.setContent(`<style>html,body{margin:0}</style>${svg}`);\n      const actual = await generated.screenshot();\n      expect(await meanAbsoluteError(expected, actual)).toBeLessThan(0.35);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/gradient-defs.ts"
+                },
+                "region": {
+                  "startLine": 377
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2649"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "0ee547da5369ca3abf20c121a0f351cb"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "7c0495fca8d269aff21abecda3850c2f2acbc6b6",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

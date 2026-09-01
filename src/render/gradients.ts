@@ -55,7 +55,8 @@ export type PosValue = { kind: "frac"; value: number } | { kind: "px"; value: nu
 /** Sizing of a radial gradient (CSS extent keyword or explicit lengths). */
 export type RadialSize =
   | { kind: "extent"; value: "closest-side" | "closest-corner" | "farthest-side" | "farthest-corner" }
-  | { kind: "px"; r1: number; r2?: number };
+  | { kind: "px"; r1: number }
+  | { kind: "axes"; x: PosValue; y: PosValue };
 
 export interface RadialGradient {
   kind: "radial";
@@ -447,7 +448,11 @@ export function gradientCacheKey(g: AnyGradient, rect: { x: number; y: number; w
     return `C|${rep}|${num(g.fromAngleDeg)}|${posKey}|${rectKey}|${stopsKey}`;
   }
   // Radial
-  const sizeKey = g.size.kind === "extent" ? `e:${g.size.value}` : `p:${num(g.size.r1)}/${g.size.r2 != null ? num(g.size.r2) : ""}`;
+  const sizeKey = g.size.kind === "extent"
+    ? `e:${g.size.value}`
+    : g.size.kind === "px"
+      ? `p:${num(g.size.r1)}`
+      : `a:${posKey1(g.size.x)}/${posKey1(g.size.y)}`;
   const posKey = `${posKey1(g.position.x)},${posKey1(g.position.y)}`;
   const legacy = g.legacyCircles == null ? "" : `|legacy:${JSON.stringify(g.legacyCircles)}`;
   return `R|${rep}|${g.shape}|${sizeKey}|${posKey}${legacy}|${rectKey}|${stopsKey}`;
@@ -1076,25 +1081,34 @@ function parseRadialPrefix(tok: string): { shape: "circle" | "ellipse"; size: Ra
 function parseShapeAndSize(text: string): { shape: "circle" | "ellipse"; size: RadialSize } | null {
   const parts = splitTopLevelSpaces(text).map((p) => p.toLowerCase());
   let shape: "circle" | "ellipse" = "ellipse";
+  let explicitShape = false;
   let size: RadialSize = { kind: "extent", value: "farthest-corner" };
-  const sizes: number[] = [];
+  const sizes: PosValue[] = [];
   let extent: RadialSize | null = null;
   for (const p of parts) {
-    if (p === "circle") shape = "circle";
-    else if (p === "ellipse") shape = "ellipse";
+    if (p === "circle") { shape = "circle"; explicitShape = true; }
+    else if (p === "ellipse") { shape = "ellipse"; explicitShape = true; }
     else if (p === "closest-side" || p === "closest-corner" || p === "farthest-side" || p === "farthest-corner") {
       extent = { kind: "extent", value: p };
     } else {
       const parsed = parsePosition(p);
-      if (parsed != null && parsed.kind === "px") sizes.push(parsed.value);
+      if (parsed != null && parsed.value >= 0) sizes.push(parsed);
       else if (p === "") {
         /* skip */
       } else return null;
     }
   }
-  if (sizes.length === 1) size = { kind: "px", r1: sizes[0] };
+  if (sizes.length > 0 && extent != null) return null;
+  if (sizes.length === 1) {
+    // One radius selects a circle and must be a length; a percentage needs a
+    // second, independently based axis and is therefore ellipse-only.
+    if (sizes[0].kind !== "px" || (explicitShape && shape === "ellipse")) return null;
+    size = { kind: "px", r1: sizes[0].value };
+    shape = "circle";
+  }
   else if (sizes.length === 2) {
-    size = { kind: "px", r1: sizes[0], r2: sizes[1] };
+    if (explicitShape && shape === "circle") return null;
+    size = { kind: "axes", x: sizes[0], y: sizes[1] };
     shape = "ellipse"; // two sizes implies ellipse
   } else if (sizes.length === 0 && extent != null) {
     size = extent;
@@ -1162,9 +1176,13 @@ function resolvePos(p: PosValue, rectStart: number, rectExtent: number): number 
  */
 function resolveRadii(g: RadialGradient, cx: number, cy: number, rect: { x: number; y: number; w: number; h: number }): { rx: number; ry: number } {
   if (g.size.kind === "px") {
-    const r1 = g.size.r1;
-    const r2 = g.size.r2 ?? r1;
-    return { rx: r1, ry: g.shape === "circle" ? r1 : r2 };
+    return { rx: g.size.r1, ry: g.size.r1 };
+  }
+  if (g.size.kind === "axes") {
+    return {
+      rx: g.size.x.kind === "frac" ? g.size.x.value * rect.w : g.size.x.value,
+      ry: g.size.y.kind === "frac" ? g.size.y.value * rect.h : g.size.y.value,
+    };
   }
   const left = cx - rect.x;
   const right = rect.x + rect.w - cx;

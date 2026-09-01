@@ -518,6 +518,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtjb49xefrki6tzj",
+          "message": {
+            "text": "The apparent percentage-radius rejection was one token too broad. Blink accepts two length-percentage values as an ellipse, resolves the first against width and the second against height, but rejects a lone percentage because the one-value form is a circle. Keeping those grammar branches separate restores the lost backgrounds without accepting invalid CSS.",
+            "markdown": "The apparent percentage-radius rejection was one token too broad. Blink accepts two length-percentage values as an ellipse, resolves the first against width and the second against height, but rejects a lone percentage because the one-value form is a circle. Keeping those grammar branches separate restores the lost backgrounds without accepting invalid CSS."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/gradient-defs.ts"
+                },
+                "region": {
+                  "startLine": 366,
+                  "endLine": 388,
+                  "snippet": {
+                    "text": "    if (explicitSizes.length > 0 && explicitSizeKeyword) return \"\";\n    if (explicitSizes.length === 1) {\n      // Blink's ConsumeRadialGradient permits one explicit radius only for a\n      // circle, and that value must be a length. Percentages are valid only in\n      // the two-axis ellipse form below.\n      if ((explicitShape && shape === \"ellipse\") || /%/.test(explicitSizes[0])) return \"\";\n      const radius = parseResolvedLengthPercentage(explicitSizes[0], 0);\n      if (radius == null || radius < 0) return \"\";\n      explicitRx = radius;\n      explicitRy = radius;\n      shape = \"circle\";\n    } else if (explicitSizes.length === 2) {\n      if (explicitShape && shape === \"circle\") return \"\";\n      // Blink resolves the horizontal and vertical <length-percentage>\n      // against the gradient box width and height respectively\n      // (CSSRadialGradientValue::CreateGradient). parseResolved... returns a\n      // fraction when given a basis, so convert each axis back to user units.\n      const rxFraction = parseResolvedLengthPercentage(explicitSizes[0], w);\n      const ryFraction = parseResolvedLengthPercentage(explicitSizes[1], h);\n      if (rxFraction == null || ryFraction == null || rxFraction < 0 || ryFraction < 0) return \"\";\n      explicitRx = rxFraction * w;\n      explicitRy = ryFraction * h;\n      shape = \"ellipse\";"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/gradients.ts"
+                },
+                "region": {
+                  "startLine": 1080
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2649"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "a9310a8cc76a7d6212094bb5f206b75f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "7c0495fca8d269aff21abecda3850c2f2acbc6b6",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

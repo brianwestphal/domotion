@@ -302,7 +302,9 @@ export function buildRadialGradientDef(
   parts[0] = interpolation.value;
   let stopsStart = 0;
   let shape: "circle" | "ellipse" = "ellipse"; // CSS default
+  let explicitShape = false;
   let sizeKeyword: "closest-side" | "closest-corner" | "farthest-side" | "farthest-corner" = "farthest-corner";
+  let explicitSizeKeyword = false;
   let explicitRx: number | null = null;
   let explicitRy: number | null = null;
   let cxFrac = 0.5, cyFrac = 0.5;
@@ -348,27 +350,44 @@ export function buildRadialGradientDef(
       cyFrac = parsedY;
     }
     // Parse shape / size keyword / explicit radii from beforeAt.
+    const explicitSizes: string[] = [];
     const tokens = beforeAt.split(/\s+/).filter((t) => t !== "");
     for (const t of tokens) {
-      if (t === "circle") shape = "circle";
-      else if (t === "ellipse") shape = "ellipse";
+      if (t === "circle") { shape = "circle"; explicitShape = true; }
+      else if (t === "ellipse") { shape = "ellipse"; explicitShape = true; }
       else if (t === "closest-side" || t === "closest-corner" || t === "farthest-side" || t === "farthest-corner") {
         sizeKeyword = t;
+        explicitSizeKeyword = true;
       } else if (/^-?(?:\d+(?:\.\d+)?|\.\d+)(?:[a-z%]+)?$/i.test(t) || /^calc\(/i.test(t)) {
-        // Percentages are invalid for radial-gradient explicit radii. Raw
-        // font-relative units mean capture normalization was bypassed; reject
-        // rather than reading their numeric prefix as pixels.
-        if (/%/.test(t)) return "";
-        const val = parseResolvedLengthPercentage(t, 0);
-        if (val == null) return "";
-        if (explicitRx == null) explicitRx = val;
-        else if (explicitRy == null) explicitRy = val;
-      }
+        explicitSizes.push(t);
+      } else return "";
     }
-    if (explicitRx != null && explicitRy == null) {
-      // Single length -> circle with that radius.
-      explicitRy = explicitRx;
+
+    if (explicitSizes.length > 0 && explicitSizeKeyword) return "";
+    if (explicitSizes.length === 1) {
+      // Blink's ConsumeRadialGradient permits one explicit radius only for a
+      // circle, and that value must be a length. Percentages are valid only in
+      // the two-axis ellipse form below.
+      if ((explicitShape && shape === "ellipse") || /%/.test(explicitSizes[0])) return "";
+      const radius = parseResolvedLengthPercentage(explicitSizes[0], 0);
+      if (radius == null || radius < 0) return "";
+      explicitRx = radius;
+      explicitRy = radius;
       shape = "circle";
+    } else if (explicitSizes.length === 2) {
+      if (explicitShape && shape === "circle") return "";
+      // Blink resolves the horizontal and vertical <length-percentage>
+      // against the gradient box width and height respectively
+      // (CSSRadialGradientValue::CreateGradient). parseResolved... returns a
+      // fraction when given a basis, so convert each axis back to user units.
+      const rxFraction = parseResolvedLengthPercentage(explicitSizes[0], w);
+      const ryFraction = parseResolvedLengthPercentage(explicitSizes[1], h);
+      if (rxFraction == null || ryFraction == null || rxFraction < 0 || ryFraction < 0) return "";
+      explicitRx = rxFraction * w;
+      explicitRy = ryFraction * h;
+      shape = "ellipse";
+    } else if (explicitSizes.length > 2) {
+      return "";
     }
   }
   // Compute center in absolute user-space coords. DM-1121: `background-position`
