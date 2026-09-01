@@ -27,6 +27,9 @@ export default defineConfig({
     // removes this variable for its focused persistent-channel coverage.
     env: {
       DOMOTION_HELPER_NO_SERVE: "1",
+      // Defense in depth: even a test that spawns a server-backed CLI without
+      // its `--no-open` flag must not launch the user's desktop browser.
+      DOMOTION_NO_OPEN: "1",
     },
     testTimeout: 30_000,
     include: ["src/**/*.test.ts", "src/**/*.test.tsx", "tests/**/*.test.ts", "tests/**/*.test.tsx"],

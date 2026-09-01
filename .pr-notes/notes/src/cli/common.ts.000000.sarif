@@ -63,6 +63,106 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtilsfq4au5hoika",
+          "message": {
+            "text": "The no-open check lives at the shared OS side-effect boundary because per-command flags proved insufficient: an automated caller that forgot --no-open opened both svg-scrubber and SVG Demo Test Review in the user's real Chrome. Vitest's inherited sentinel protects child CLIs, while DOMOTIONNOOPEN=1 covers non-Vitest automation such as merged coverage. Normal interactive CLI behavior is unchanged.",
+            "markdown": "The no-open check lives at the shared OS side-effect boundary because per-command flags proved insufficient: an automated caller that forgot `--no-open` opened both svg-scrubber and SVG Demo Test Review in the user's real Chrome. Vitest's inherited sentinel protects child CLIs, while `DOMOTION_NO_OPEN=1` covers non-Vitest automation such as merged coverage. Normal interactive CLI behavior is unchanged."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/common.ts"
+                },
+                "region": {
+                  "startLine": 74,
+                  "endLine": 84,
+                  "snippet": {
+                    "text": "export function shouldOpenInBrowser(env: NodeJS.ProcessEnv = process.env): boolean {\n  return env.VITEST == null && env.DOMOTION_NO_OPEN !== \"1\";\n}\n\nexport async function openInBrowser(url: string): Promise<void> {\n  // Test code must never steal focus by launching the user's real browser.\n  // Keep this guard here, at the final shared side-effect boundary, so a new\n  // caller cannot bypass it by forgetting its own `--no-open` flag. Vitest\n  // exports VITEST to its workers and their inherited child processes;\n  // DOMOTION_NO_OPEN covers other automated runners.\n  if (!shouldOpenInBrowser()) return;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "vitest.config.ts"
+                },
+                "region": {
+                  "startLine": 30
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "vitest.e2e.config.ts"
+                },
+                "region": {
+                  "startLine": 21
+                }
+              }
+            },
+            {
+              "id": 2,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/coverage-all.mjs"
+                },
+                "region": {
+                  "startLine": 127
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2644"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "8539d36465461fe1a688ffcaf06bc455"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "fbeb3eda2a6ef43a600c3608278e11f4378a08dc",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

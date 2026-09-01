@@ -124,7 +124,9 @@ if (FULL) {
 
 rmSync(TMP, { recursive: true, force: true });
 mkdirSync(TMP, { recursive: true });
-const baseEnv = { ...process.env, NODE_V8_COVERAGE: TMP };
+// Coverage includes browser E2Es plus several visual runners. Keep every child
+// process non-interactive even if an individual command forgets `--no-open`.
+const baseEnv = { ...process.env, NODE_V8_COVERAGE: TMP, DOMOTION_NO_OPEN: "1" };
 
 for (const r of runs) {
   run(r.label, r.cmd, r.args, r.env != null ? { ...baseEnv, ...r.env } : baseEnv);

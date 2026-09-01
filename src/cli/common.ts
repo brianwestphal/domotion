@@ -71,7 +71,17 @@ export function parseNonNegativeFloat(value: string | undefined, name: string): 
  * are swallowed because the caller has already printed the URL for copy-paste.
  * Shared by the `svg-review` and `svg-scrubber` bins.
  */
+export function shouldOpenInBrowser(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.VITEST == null && env.DOMOTION_NO_OPEN !== "1";
+}
+
 export async function openInBrowser(url: string): Promise<void> {
+  // Test code must never steal focus by launching the user's real browser.
+  // Keep this guard here, at the final shared side-effect boundary, so a new
+  // caller cannot bypass it by forgetting its own `--no-open` flag. Vitest
+  // exports VITEST to its workers and their inherited child processes;
+  // DOMOTION_NO_OPEN covers other automated runners.
+  if (!shouldOpenInBrowser()) return;
   try {
     if (process.platform === "darwin") await execFileP("open", [url]);
     else if (process.platform === "win32") await execFileP("cmd", ["/c", "start", "", url]);

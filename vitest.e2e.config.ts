@@ -18,6 +18,7 @@ export default defineConfig({
     setupFiles: ["./tests/e2e-setup.ts"],
     env: {
       DOMOTION_HELPER_NO_SERVE: "1",
+      DOMOTION_NO_OPEN: "1",
       // The review server otherwise invokes the platform default-browser
       // opener. Browser tests drive its URL with Playwright instead.
       REVIEW_NO_OPEN: "1",

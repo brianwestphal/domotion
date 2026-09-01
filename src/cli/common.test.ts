@@ -1,6 +1,14 @@
 import type { Page } from "@playwright/test";
 import { describe, expect, it, vi } from "vitest";
-import { loadInputIntoPage, parsePort } from "./common.js";
+import { loadInputIntoPage, parsePort, shouldOpenInBrowser } from "./common.js";
+
+describe("openInBrowser", () => {
+  it("permits normal CLI use but rejects both automation sentinels", () => {
+    expect(shouldOpenInBrowser({})).toBe(true);
+    expect(shouldOpenInBrowser({ VITEST: "true" })).toBe(false);
+    expect(shouldOpenInBrowser({ DOMOTION_NO_OPEN: "1" })).toBe(false);
+  });
+});
 
 describe("parsePort", () => {
   it("returns undefined when the flag is absent", () => {
