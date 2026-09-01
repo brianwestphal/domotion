@@ -237,6 +237,19 @@ describe("gridToHtml", () => {
     expect((html.match(/<span/g) || []).length).toBe(1);
     expect(html).toContain(`background:${THEMES.catppuccin.bg}`);
   });
+
+  it("keeps terminal text inert while preserving quotes and apostrophes", async () => {
+    const emu = new TerminalEmulator(80, 2, THEMES.dark);
+    const text = `<img src="x" onerror="pwn()">it's & safe</img>`;
+    await emu.write(text);
+    const html = gridToHtml(emu.snapshot(), { theme: THEMES.dark });
+    emu.dispose();
+
+    expect(html).toContain(
+      `&lt;img src=&quot;x&quot; onerror=&quot;pwn()&quot;&gt;it's &amp; safe&lt;/img&gt;`,
+    );
+    expect(html).not.toContain('<img src="x"');
+  });
 });
 
 describe("gridSignature", () => {

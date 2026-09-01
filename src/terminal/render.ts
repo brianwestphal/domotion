@@ -16,6 +16,7 @@
  */
 
 import type { Page } from "@playwright/test";
+import { escapeHtml } from "../utils/escapeHtml.js";
 import type { CastOutputEvent, CastResizeEvent } from "./cast.js";
 import { TerminalEmulator, gridSignature, type TermGrid, type TermCell, type TermCursor } from "./emulator.js";
 import type { TerminalTheme } from "./theme.js";
@@ -101,9 +102,6 @@ export async function buildFrames(
   while (frames.length > 1 && gridSignature(frames[0].grid) === "") frames.shift();
   return frames;
 }
-
-const escapeHtml = (s: string): string =>
-  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 function cellStyle(cell: TermCell, theme: TerminalTheme): string {
   const parts: string[] = [];
