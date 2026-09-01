@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtisplo2ctpzbrgd",
+          "message": {
+            "text": "Renderer state scopes now enforce synchrony twice because either layer alone is incomplete. The SynchronousCallback constraint catches normal TypeScript async functions, while callable-then detection protects JavaScript, custom thenables, and explicitly cast callers; each owning guard keeps the invocation inside its existing try/finally, so synchronous returns, nested scopes, ordinary throws, and rejected Promise-like results all restore state through the same path.",
+            "markdown": "Renderer state scopes now enforce synchrony twice because either layer alone is incomplete. The SynchronousCallback constraint catches normal TypeScript async functions, while callable-then detection protects JavaScript, custom thenables, and explicitly cast callers; each owning guard keeps the invocation inside its existing try/finally, so synchronous returns, nested scopes, ordinary throws, and rejected Promise-like results all restore state through the same path."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/synchronous-scope.ts"
+                },
+                "region": {
+                  "startLine": 1,
+                  "endLine": 37,
+                  "snippet": {
+                    "text": "/**\n * Process-global renderer state cannot remain scoped across an `await`: the\n * synchronous `finally` must restore it before another render can observe the\n * temporary value. Keep both halves of that contract together (DM-2637): the\n * type rejects async callbacks for ordinary TypeScript callers, while the\n * runtime check rejects native Promises and custom thenables from JavaScript or\n * callers that bypass the type system.\n */\ntype SynchronousResultConstraint<T> = [T] extends [never]\n  ? unknown\n  : [Extract<T, PromiseLike<unknown>>] extends [never]\n    ? unknown\n    : never;\n\nexport type SynchronousCallback<F extends () => unknown> =\n  F & SynchronousResultConstraint<ReturnType<F>>;\n\nfunction isPromiseLike(value: unknown): value is PromiseLike<unknown> {\n  return value !== null\n    && (typeof value === \"object\" || typeof value === \"function\")\n    && typeof (value as { then?: unknown }).then === \"function\";\n}\n\n/** Invoke a callback and reject any value whose callable `then` would let work\n * escape the surrounding synchronous state scope. The owning guard's\n * `try/finally` performs restoration for callback throws and for this error. */\nexport function invokeSynchronousCallback<F extends () => unknown>(\n  scopeName: string,\n  callback: F,\n): ReturnType<F> {\n  const result = callback();\n  if (isPromiseLike(result)) {\n    throw new TypeError(\n      `${scopeName} callback must be synchronous; Promise-like results are not supported`,\n    );\n  }\n  return result as ReturnType<F>;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/synchronous-scope.test.ts"
+                },
+                "region": {
+                  "startLine": 25
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2637"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "af9d858b2642ac57012a8cb701b11b27"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d556e68c5d7699db083be3bd4e7222b6334a90cd",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

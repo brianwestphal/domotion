@@ -2832,11 +2832,14 @@
           "DM-1338",
           "DM-1350",
           "DM-1459",
+          "DM-2637",
           "DM-2645"
         ],
         "code": [
           "src/index.exports.test.ts",
           "src/render/render-text-mode-guard.test.ts",
+          "src/render/synchronous-scope.test.ts",
+          "src/render/synchronous-scope.ts",
           "tests/conventions.test.ts",
           "tests/feature-coverage.ts",
           "tests/feature-transition-evidence.test.ts",
@@ -6366,10 +6369,13 @@
           "windows"
         ],
         "tickets": [
-          "DM-2351"
+          "DM-2351",
+          "DM-2637"
         ],
         "code": [
-          ".github/workflows/generic-family-preference-parity.yml"
+          ".github/workflows/generic-family-preference-parity.yml",
+          "src/render/synchronous-scope.ts",
+          "src/render/synchronous-scope.test.ts"
         ],
         "aliases": [
           "docs/198-live-generic-family-preference-parity.md",

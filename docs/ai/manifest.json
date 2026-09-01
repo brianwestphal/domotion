@@ -1614,6 +1614,8 @@
       "code": [
         "src/index.exports.test.ts",
         "src/render/render-text-mode-guard.test.ts",
+        "src/render/synchronous-scope.test.ts",
+        "src/render/synchronous-scope.ts",
         "tests/conventions.test.ts",
         "tests/feature-coverage.ts",
         "tests/feature-transition-evidence.test.ts",
@@ -3898,7 +3900,9 @@
         "windows"
       ],
       "code": [
-        ".github/workflows/generic-family-preference-parity.yml"
+        ".github/workflows/generic-family-preference-parity.yml",
+        "src/render/synchronous-scope.ts",
+        "src/render/synchronous-scope.test.ts"
       ],
       "file": "198-live-generic-family-preference-parity.md"
     },

@@ -5,8 +5,8 @@ kind: "evidence"
 status: "current"
 owners: ["platform-release"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-2351"]
-code: [".github/workflows/generic-family-preference-parity.yml"]
+tickets: ["DM-2351","DM-2637"]
+code: [".github/workflows/generic-family-preference-parity.yml","src/render/synchronous-scope.ts","src/render/synchronous-scope.test.ts"]
 aliases: ["docs/198-live-generic-family-preference-parity.md","doc-198"]
 ---
 
@@ -125,13 +125,14 @@ full map onto every descendant.
 
 `elementTreeToSvg` and `elementTreeToSvgInner` accept either the legacy array or
 the envelope, read its one record, and call
-`withSessionGenericFamilyOverrides(record, render)`. The scope is synchronous,
-so JavaScript cannot interleave another render; `try/finally` restores any
-explicit oracle setting. Mixed annotated/unannotated roots and conflicting
-page/envelope records fail closed. Equivalent JSON records compare canonically
-rather than by object insertion order. Legacy trees without a record retain the
-documented degraded route; the envelope never synthesizes a browser/profile
-table when Page authority is absent.
+`withSessionGenericFamilyOverrides(record, render)`. The scope is synchronous:
+TypeScript rejects async callbacks and the runtime rejects native Promises or
+custom thenables, so JavaScript cannot interleave another render across an
+`await`; `try/finally` restores any explicit oracle setting. Mixed
+annotated/unannotated roots and conflicting page/envelope records fail closed.
+Equivalent JSON records compare canonically rather than by object insertion
+order. Legacy trees without a record retain the documented degraded route; the
+envelope never synthesizes a browser/profile table when Page authority is absent.
 
 ## Independent logical gate
 

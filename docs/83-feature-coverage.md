@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["product-tooling"]
 platforms: []
-tickets: ["DM-1058","DM-1338","DM-1350","DM-1459","DM-2645"]
-code: ["src/index.exports.test.ts","src/render/render-text-mode-guard.test.ts","tests/conventions.test.ts","tests/feature-coverage.ts","tests/feature-transition-evidence.test.ts","tools/check-feature-coverage.ts","tools/feature-transition-evidence.ts","tools/semantic-coverage.json"]
+tickets: ["DM-1058","DM-1338","DM-1350","DM-1459","DM-2637","DM-2645"]
+code: ["src/index.exports.test.ts","src/render/render-text-mode-guard.test.ts","src/render/synchronous-scope.test.ts","src/render/synchronous-scope.ts","tests/conventions.test.ts","tests/feature-coverage.ts","tests/feature-transition-evidence.test.ts","tools/check-feature-coverage.ts","tools/feature-transition-evidence.ts","tools/semantic-coverage.json"]
 aliases: ["docs/83-feature-coverage.md","doc-83"]
 ---
 
@@ -72,7 +72,9 @@ related test file is not evidence. Current
 transition-bearing entries (grep `transition:` in `tests/feature-coverage.ts`):
 
 - **`text.mode`** — `default → set(paths) → withRenderTextMode(…) restores paths`,
-  including when the callback throws (the DM-1338/DM-1350 leak class).
+  including when the callback throws or illegally returns a Promise. Async
+  callbacks are rejected by TypeScript and Promise-like results at runtime,
+  preventing process-global state from escaping across `await` (DM-2637).
 - **`text.glyph-defs` / `text.embedded-fonts`** — registry/CSS accumulate across a
   render, then `resetGeneration` / `clear*` empties them for the next frame.
 - **`scroll.execute`** — `until`-loop re-evaluates per iteration; the final

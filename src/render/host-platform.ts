@@ -1,3 +1,8 @@
+import {
+  invokeSynchronousCallback,
+  type SynchronousCallback,
+} from "./synchronous-scope.js";
+
 /**
  * The platform the renderer resolves fonts FOR — as an input, not an ambient
  * fact (DM-1980).
@@ -62,13 +67,18 @@ export function hostPlatformIsOverridden(): boolean {
  * global caches: a leaked override would poison every later resolution in the
  * same process with answers for the wrong OS. Callers that need the caches
  * cleared across the boundary should do that themselves — this only owns the
- * platform.
+ * platform. Async/Promise-like callbacks are rejected at the type boundary and
+ * at runtime because a process-global override cannot safely span an `await`
+ * (DM-2637).
  */
-export function withHostPlatform<T>(platform: HostPlatform, fn: () => T): T {
+export function withHostPlatform<F extends () => unknown>(
+  platform: HostPlatform,
+  fn: SynchronousCallback<F>,
+): ReturnType<F> {
   const prev = override;
   override = platform;
   try {
-    return fn();
+    return invokeSynchronousCallback("withHostPlatform", fn);
   } finally {
     override = prev;
   }

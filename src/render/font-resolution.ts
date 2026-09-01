@@ -19,6 +19,10 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { hostPlatform } from "./host-platform.js";
+import {
+  invokeSynchronousCallback,
+  type SynchronousCallback,
+} from "./synchronous-scope.js";
 import { existsSync } from "node:fs";
 import * as nodePath from "node:path";
 import { fileURLToPath } from "node:url";
@@ -542,14 +546,18 @@ export function getRenderTextMode(): RenderTextMode { return currentRenderTextMo
  * PROCESS-GLOBAL, so a caller that flips it with a bare `setRenderTextMode` and
  * forgets to restore leaks the mode into every later render in the same process.
  * Prefer this save/restore wrapper for a scoped change (mirrors
- * `withSystemFallbackResolution`, DM-1350 / DM-1435). Synchronous: the mode only
- * needs to hold for `fn`'s synchronous render.
+ * `withSystemFallbackResolution`, DM-1350 / DM-1435). Async/Promise-like
+ * callbacks are rejected at the type boundary and at runtime because the mode
+ * cannot remain process-globally scoped across an `await` (DM-2637).
  */
-export function withRenderTextMode<T>(mode: RenderTextMode, fn: () => T): T {
+export function withRenderTextMode<F extends () => unknown>(
+  mode: RenderTextMode,
+  fn: SynchronousCallback<F>,
+): ReturnType<F> {
   const prev = currentRenderTextMode;
   currentRenderTextMode = mode;
   try {
-    return fn();
+    return invokeSynchronousCallback("withRenderTextMode", fn);
   } finally {
     currentRenderTextMode = prev;
   }
@@ -2553,13 +2561,17 @@ export function getSystemFallbackResolution(): boolean { return _systemFallbackR
  * a bare `setSystemFallbackResolution(...)` for a temporary toggle so the change
  * can't leak into the next render in the same process (DM-1350). Synchronous:
  * scopes a synchronous render — the resolver runs during synchronous text
- * emission, so the toggle only needs to hold for `fn`'s synchronous duration.
+ * emission. Async/Promise-like callbacks are rejected at the type boundary and
+ * at runtime because the toggle cannot safely span an `await` (DM-2637).
  */
-export function withSystemFallbackResolution<T>(on: boolean, fn: () => T): T {
+export function withSystemFallbackResolution<F extends () => unknown>(
+  on: boolean,
+  fn: SynchronousCallback<F>,
+): ReturnType<F> {
   const prev = _systemFallbackResolutionEnabled;
   _systemFallbackResolutionEnabled = on;
   try {
-    return fn();
+    return invokeSynchronousCallback("withSystemFallbackResolution", fn);
   } finally {
     _systemFallbackResolutionEnabled = prev;
   }
@@ -8594,15 +8606,17 @@ export function getSessionGenericFamilyOverrides(): SessionGenericFamilyOverride
 
 /** Select captured page settings only for one synchronous render. Saving and
  * restoring the prior explicit/oracle setting makes independently captured
- * trees order-independent without introducing an async process-global scope. */
-export function withSessionGenericFamilyOverrides<T>(
+ * trees order-independent. Async/Promise-like callbacks are rejected at the
+ * type boundary and at runtime rather than escaping this process-global scope
+ * across an `await` (DM-2637). */
+export function withSessionGenericFamilyOverrides<F extends () => unknown>(
   overrides: SessionGenericFamilyOverrides,
-  render: () => T,
-): T {
+  render: SynchronousCallback<F>,
+): ReturnType<F> {
   const previous = sessionGenericFamilyOverrides;
   sessionGenericFamilyOverrides = overrides;
   try {
-    return render();
+    return invokeSynchronousCallback("withSessionGenericFamilyOverrides", render);
   } finally {
     sessionGenericFamilyOverrides = previous;
   }
