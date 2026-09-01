@@ -32,3 +32,40 @@ export function transitionDurationMs(f: TimelineFrame): number {
 export function frameAdvanceMs(f: TimelineFrame): number {
   return f.duration + transitionDurationMs(f);
 }
+
+export interface PlannedFrameWindow {
+  index: number;
+  startMs: number;
+  holdEndMs: number;
+  endMs: number;
+  startPct: number;
+}
+
+export interface FrameTimelinePlan {
+  totalDurationMs: number;
+  totalSeconds: number;
+  frames: PlannedFrameWindow[];
+}
+
+/**
+ * Plan every frame window once so SVG generation, cursor placement, capture
+ * culling, and artifact consumers share one deterministic clock.
+ */
+export function planFrameTimeline(frames: readonly TimelineFrame[]): FrameTimelinePlan {
+  const totalDurationMs = frames.reduce((sum, frame) => sum + frameAdvanceMs(frame), 0);
+  let startMs = 0;
+  const windows = frames.map((frame, index) => {
+    const holdEndMs = startMs + frame.duration;
+    const endMs = startMs + frameAdvanceMs(frame);
+    const window: PlannedFrameWindow = {
+      index,
+      startMs,
+      holdEndMs,
+      endMs,
+      startPct: totalDurationMs === 0 ? 0 : (startMs / totalDurationMs) * 100,
+    };
+    startMs = endMs;
+    return window;
+  });
+  return { totalDurationMs, totalSeconds: totalDurationMs / 1000, frames: windows };
+}

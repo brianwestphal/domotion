@@ -23,7 +23,11 @@ loading the historical documentation corpus.
   `linux-target-strike.ts`, respectively.
 - `src/animation/`, `src/tree-ops/`, and `src/scroll/` compose and transform
   static captures into timed frames, nested scenes, and scrolling outputs.
-  Declarative layer composition itself enters through `src/cli/composite.ts`.
+  `animation/animator.ts` is the stable facade; `svg-generator.ts` and
+  `frame-timeline.ts` own SVG emission and the deterministic clock.
+  Declarative capture is split across the `cli/animate-*` command, artifact,
+  capture-session, frame-capture, and orchestration modules. Declarative layer
+  composition itself enters through `src/cli/composite.ts`.
 - `src/terminal/` and `src/templates/` are authoring front ends that reuse the
   same render/animation pipeline.
 - `src/post-processing/` exports the self-contained SVG to raster or video.

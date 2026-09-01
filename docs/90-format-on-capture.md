@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["product-tooling"]
 platforms: []
-tickets: ["DM-1538","DM-1559"]
-code: ["src/cli/animate.ts","src/cli/capture.ts","src/templates/formats.ts"]
+tickets: ["DM-1538","DM-1559","DM-2641"]
+code: ["src/cli/animate-command.ts","src/cli/animate.ts","src/cli/capture.ts","src/templates/formats.ts"]
 aliases: ["docs/90-format-on-capture.md","doc-90"]
 ---
 

@@ -168,8 +168,11 @@
         "examples/animate/README.md",
         "src/animation/animator.ts",
         "src/animation/easing.ts",
+        "src/animation/frame-timeline.ts",
         "src/animation/motion-presets.ts",
+        "src/animation/svg-generator.ts",
         "src/animation/transition-schema.ts",
+        "src/cli/animate-orchestrator.ts",
         "src/cli/animate.ts",
         "src/utils/keyframe-pad.ts"
       ],
@@ -850,6 +853,7 @@
         "examples/animate/hover-reveal/",
         "examples/animate/hover-state/",
         "examples/animate/region-timing/",
+        "src/cli/animate-orchestrator.ts",
         "src/cli/animate.ts"
       ],
       "file": "43-declarative-animate-config.md"
@@ -1165,6 +1169,9 @@
       ],
       "platforms": [],
       "code": [
+        "src/cli/animate-capture-session.ts",
+        "src/cli/animate-frame-capture.ts",
+        "src/cli/animate-orchestrator.ts",
         "src/cli/animate.ts"
       ],
       "file": "60-programmatic-animate-pipeline.md"
@@ -1196,6 +1203,10 @@
       "platforms": [],
       "code": [
         "src/animation/animator.ts",
+        "src/animation/svg-generator.ts",
+        "src/cli/animate-capture-session.ts",
+        "src/cli/animate-frame-capture.ts",
+        "src/cli/animate-orchestrator.ts",
         "src/cli/animate.ts"
       ],
       "file": "62-frames-out-animate-pipeline.md"
@@ -1761,6 +1772,7 @@
       ],
       "platforms": [],
       "code": [
+        "src/cli/animate-command.ts",
         "src/cli/animate.ts",
         "src/cli/capture.ts",
         "src/templates/formats.ts"
@@ -2095,6 +2107,8 @@
         "src/animation/animator.test.ts",
         "src/animation/animator.ts",
         "src/animation/overlay-schema.ts",
+        "src/animation/svg-generator.ts",
+        "src/cli/animate-orchestrator.ts",
         "src/cli/animate.test.ts",
         "src/cli/animate.ts",
         "tests/overlay-window.e2e.test.ts"
@@ -4711,6 +4725,11 @@
       ],
       "code": [
         "src/animation/",
+        "src/cli/animate-artifact.ts",
+        "src/cli/animate-capture-session.ts",
+        "src/cli/animate-command.ts",
+        "src/cli/animate-frame-capture.ts",
+        "src/cli/animate-orchestrator.ts",
         "src/cli/animate.ts",
         "src/cli/composite.ts",
         "tests/animate-examples.tsx"

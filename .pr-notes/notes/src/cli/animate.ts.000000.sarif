@@ -346,6 +346,148 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtixw7hw1fivefd7",
+          "message": {
+            "text": "DM-2641 keeps animate.ts and animation/animator.ts as stable public facades while assigning implementation ownership to typed boundaries: command parsing/browser lifecycle, artifact optimization/writing, capture-session lifecycle, ordinary frame capture, cross-frame orchestration, deterministic timeline planning, and SVG generation. The shared frame plan is consumed by both capture culling/cursor timing and SVG emission so the split cannot create two clocks.",
+            "markdown": "DM-2641 keeps animate.ts and animation/animator.ts as stable public facades while assigning implementation ownership to typed boundaries: command parsing/browser lifecycle, artifact optimization/writing, capture-session lifecycle, ordinary frame capture, cross-frame orchestration, deterministic timeline planning, and SVG generation. The shared frame plan is consumed by both capture culling/cursor timing and SVG emission so the split cannot create two clocks."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/animate.ts"
+                },
+                "region": {
+                  "startLine": 1,
+                  "endLine": 10,
+                  "snippet": {
+                    "text": "/**\n * Stable public facade for declarative animation support.\n *\n * Config validation and capture orchestration live in\n * `animate-orchestrator.ts`; CLI parsing and artifact output live in\n * `animate-command.ts`.\n */\n\nexport * from \"./animate-orchestrator.js\";\nexport { runAnimate } from \"./animate-command.js\";"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ]
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/animate-command.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/animate-artifact.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "id": 2,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/animate-capture-session.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "id": 3,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/animate-frame-capture.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "id": 4,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/animate-orchestrator.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "id": 5,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/animation/frame-timeline.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "id": 6,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/animation/svg-generator.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "workItemUris": [
+            "DM-2641"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "457c9e3963f86dc81b10189fd137502c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "5e85069b86c823a1703a26b59ff1615fa84c7e95",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

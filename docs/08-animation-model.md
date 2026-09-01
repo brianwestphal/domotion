@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["animation"]
 platforms: ["windows"]
-tickets: ["DM-1297","DM-1414","DM-1511","DM-1512","DM-1517","DM-1524","DM-1526","DM-1542","DM-1548","DM-1767","DM-207","DM-208","DM-209","DM-210","DM-211","DM-2460","DM-599","DM-641","DM-854","DM-865","DM-898","DM-899","DM-900","DM-901"]
-code: ["examples/animate/","examples/animate/README.md","src/animation/animator.ts","src/animation/easing.ts","src/animation/motion-presets.ts","src/animation/transition-schema.ts","src/cli/animate.ts","src/utils/keyframe-pad.ts"]
+tickets: ["DM-1297","DM-1414","DM-1511","DM-1512","DM-1517","DM-1524","DM-1526","DM-1542","DM-1548","DM-1767","DM-207","DM-208","DM-209","DM-210","DM-211","DM-2460","DM-2641","DM-599","DM-641","DM-854","DM-865","DM-898","DM-899","DM-900","DM-901"]
+code: ["examples/animate/","examples/animate/README.md","src/animation/animator.ts","src/animation/easing.ts","src/animation/frame-timeline.ts","src/animation/motion-presets.ts","src/animation/svg-generator.ts","src/animation/transition-schema.ts","src/cli/animate-orchestrator.ts","src/cli/animate.ts","src/utils/keyframe-pad.ts"]
 aliases: ["docs/08-animation-model.md","doc-08"]
 ---
 
@@ -16,7 +16,7 @@ The animation pipeline composes multiple captured frames into a single SVG with 
 
 > **Runnable examples.** `examples/animate/` has one self-contained config per feature in this doc — crossfade, `cut` + typing overlay + intra-frame progress fill, `push-left`, a `scroll` block, and a `kind: "svg"` overlay — each with a committed golden SVG you can open. They double as a regression suite (`npm run demos:test:animate`). See `examples/animate/README.md`.
 
-> **Config validation.** The `domotion animate` JSON config is validated against a zod schema (`animateConfigSchema` in `src/cli/animate.ts`) — that schema is the source of truth for the config shape. Invalid configs fail with a path-specific message, e.g. `animate: frames[0].duration: Invalid input: expected number, received string`.
+> **Config validation.** The `domotion animate` JSON config is validated against a zod schema (`animateConfigSchema` in `src/cli/animate-orchestrator.ts`, re-exported through `src/cli/animate.ts`) — that schema is the source of truth for the config shape. Invalid configs fail with a path-specific message, e.g. `animate: frames[0].duration: Invalid input: expected number, received string`.
 
 > **Planned expansion (design).** `docs/43-declarative-animate-config.md` specs a declarative expansion of this config — continuous-session frames (stateful multi-step capture), DOM-mutation / interaction actions, richer readiness waits, selector-anchored overlays, a config-level cursor, `vars` + `${}` interpolation, and a small `evaluate` escape hatch — so interaction demos rarely need the programmatic API. `docs/44-repeating-animations.md` specs repeating animations — `repeat`/`alternate` on intra-frame animations, a blinking typing caret, and a `blink` overlay. Design only; not all implemented yet.
 

@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["animation"]
 platforms: []
-tickets: ["DM-1128","DM-1130","DM-1135","DM-1136","DM-1137","DM-1138"]
-code: ["src/animation/animator.ts","src/cli/animate.ts"]
+tickets: ["DM-1128","DM-1130","DM-1135","DM-1136","DM-1137","DM-1138","DM-2641"]
+code: ["src/animation/animator.ts","src/animation/svg-generator.ts","src/cli/animate-capture-session.ts","src/cli/animate-frame-capture.ts","src/cli/animate-orchestrator.ts","src/cli/animate.ts"]
 aliases: ["docs/62-frames-out-animate-pipeline.md","doc-62"]
 ---
 

@@ -1,0 +1,3650 @@
+/**
+ * Declarative animation capture and composition orchestration.
+ *
+ * Reads a JSON config describing N frames (each captured from a URL or HTML
+ * file), runs each frame's actions / scroll pattern / intra-frame animations,
+ * captures, and composes one animated SVG with CSS keyframe transitions.
+ */
+
+import { existsSync, readFileSync } from "node:fs";
+import { isAbsolute, resolve } from "node:path";
+import { z } from "zod";
+import type { Browser, Page, CDPSession } from "@playwright/test";
+// DM-1131: the authoring overlay / intra-frame-animation schemas below EXTEND
+// these single-source-of-truth base schemas (which also derive the renderer's
+// runtime types), so a field rename moves both views together instead of
+// silently drifting.
+import {
+  typingOverlaySchema,
+  tapOverlaySchema,
+  blinkOverlaySchema,
+  shineOverlaySchema,
+  interactOverlaySchema,
+  overlaySlideSchema,
+  intraFrameAnimationSchema,
+} from "../animation/overlay-schema.js";
+import { resolveAnchoredOverlays, resolveAnchoredOverlaysInTree } from "../animation/resolve-overlays.js";
+import {
+  captureStyleSnapshot,
+  classifyHoverTransition,
+  synthesizeMotionTween,
+  diffHoverSnapshots,
+  HOVER_DIFF_PROPERTIES,
+  type HoverDiff,
+} from "./hover-detect.js";
+// DM-1130: import from the feature sub-barrels rather than the package root
+// (`../index.js`). This module IS re-exported from the root (so library callers
+// can run the declarative pipeline in-process), so importing the root here would
+// create a barrel import cycle. The sub-barrels don't depend on the root.
+import {
+  buildMagicMove,
+  generateAnimatedSvg,
+  cursorAtPoint,
+  composeCompressedRun,
+  resolveTextTrack,
+  type AnimationConfig,
+  type AnimationFrame,
+  type IntraFrameAnimation,
+  type AnimationOverlay,
+  type CursorOverlay,
+  type CursorEvent,
+  type CursorStyle,
+  type CompressedRunState,
+  type ResolvedTextTrack,
+  type TextTrackSpec,
+  type TextTrackSpecEvent,
+} from "../animation/index.js";
+// DM-1767 (docs/104): re-basing a per-state overlay onto the collapsed run's
+// timeline has to add the state's offset to the overlay's EFFECTIVE delay, so
+// it needs each kind's default. Internal to the overlay-timing model — not part
+// of the published barrel (see the note in `../animation/index.ts`).
+import { OVERLAY_DEFAULT_DELAY_MS } from "../animation/animator.js";
+import { captureElementTreeSelfContained, attachWebfontTracker, discoverAndRegisterWebfonts } from "../capture/index.js";
+import { createCapturedTreeEnvelope } from "../capture/tree-envelope.js";
+import { loadBrand, brandSchema, type Brand } from "../templates/brand.js";
+import { type BoxAnchor, borderBox } from "../capture/content-box.js";
+import type { CapturedElement } from "../capture/types.js";
+import { elementTreeToSvgInner, getEmbeddedFontFaceCss } from "../render/index.js";
+// Speculative composition (kept off the package barrel — import direct, as the
+// animator does). Brackets each per-region trial compose so its PUA / dmfN
+// addressing leaves no trace in the real output.
+import { snapshotGeneration, restoreGeneration } from "../render/font-resolution.js";
+import { composeScrollSvg, executeScrollPattern, parseScrollPattern } from "../scroll/index.js";
+import { annotateAnimatedProperties, cullElementsOutsideViewBox } from "../tree-ops/index.js";
+import { planFrameTimeline, type FrameTimelinePlan } from "../animation/frame-timeline.js";
+import { resolveMotionPreset, resolveEasingPreset } from "../animation/motion-presets.js";
+import { namespaceEmbeddedAnimatedSvg } from "../animation/embed-namespace.js";
+import { prefixSvgIds, prefixSvgClasses } from "../render/svg-inline.js";
+import { escapeAttr } from "../utils/escapeHtml.js";
+import { castToAnimatedSvg } from "../terminal/index.js";
+import { transitionSchema } from "../animation/transition-schema.js";
+import { terminalThemeSpecSchema } from "../terminal/theme.js";
+import type { SafeInset } from "../templates/formats.js";
+import { buildTypeResampleAnimation, resolveTypeResampleSpec } from "./type-resample.js";
+import { buildJsRevealAnimation, resolveJsRevealSpec, MUTATION_DETECT_EVENTS } from "./mutation-detect.js";
+import { openAnimateCaptureSession } from "./animate-capture-session.js";
+import { captureAnimateFrame } from "./animate-frame-capture.js";
+import {
+  applyReadyWaits,
+  loadInputIntoPage,
+  timed,
+} from "./common.js";
+
+// ── Config schema (DM-843) ──────────────────────────────────────────────────
+// The animate config is external `JSON.parse`'d input, so it's validated with
+// a zod schema rather than hand-rolled type guards. The schema is the single
+// source of truth for the config's shape; the exported/used types below are
+// inferred from it (`z.infer`), so type and runtime check can't drift apart.
+
+const scrollSchema = z.object({
+  // Pattern string per the scroll-pattern grammar (docs/37). Validated by
+  // running the real parser so a malformed pattern fails at config-parse time.
+  pattern: z
+    .string()
+    .min(1, "must be a non-empty string")
+    .superRefine((val, ctx) => {
+      try {
+        parseScrollPattern(val);
+      } catch (e) {
+        ctx.addIssue({ code: "custom", message: `is not a valid scroll pattern: ${e instanceof Error ? e.message : String(e)}` });
+      }
+    }),
+  /** Default scroll speed in px/s for tokens without an explicit `/<duration>`. */
+  speed: z.number().positive("must be a positive number (px/s)").optional(),
+  /** CSS selector for an inner scrollable element (default: window). */
+  selector: z.string().optional(),
+  /** Optional page-space crop for the live per-anchor captures. */
+  clip: z.tuple([z.number(), z.number(), z.number().positive(), z.number().positive()]).optional(),
+  /** Skip the pre-scroll-to-bottom-then-top step. Default: false. */
+  prescroll: z.boolean().optional(),
+});
+
+// DM-1131: the authoring form of an intra-frame animation is the runtime shape
+// (SSOT `intraFrameAnimationSchema`) with the resolved `animId` swapped for the
+// authoring `selector` (resolved against the captured DOM → `animId`), and the
+// `repeat` count tightened to a positive integer for config-author ergonomics.
+const frameAnimationSchema = intraFrameAnimationSchema
+  .omit({ animId: true })
+  .extend({
+    selector: z.string(),
+    // DM-869: loop the animation (blink / pulse). Positive integer or "infinite".
+    repeat: z.union([z.number().int().positive(), z.literal("infinite")]).optional(),
+    // DM-1526: a named motion preset (fade-up / pop / slide-in-<dir> / wipe-in, …)
+    // can supply property/from/to/fuse/easing, so those become optional here — the
+    // preset fills them and any explicit field overrides. `easing` also accepts a
+    // named easing preset (spring / back-out / ease-out-quart / …). Expansion runs
+    // in `expandMotionPreset` before the animation is emitted.
+    property: intraFrameAnimationSchema.shape.property.optional(),
+    from: z.string().optional(),
+    to: z.string().optional(),
+    preset: z.string().optional().describe("Named motion preset supplying property/from/to/fuse/easing."),
+    presetDistance: z.coerce.number().optional().describe("Travel px for slide/fade presets."),
+    presetScaleFrom: z.coerce.number().optional().describe("Start scale for the `pop` preset."),
+    exit: z.boolean().optional().describe("Reverse the preset (animate the element OUT)."),
+  });
+
+/**
+ * DM-1526: expand a motion preset (if any) into concrete intra-frame animation
+ * fields and resolve any named easing preset. Explicit `property`/`from`/`to`/
+ * `easing`/`fuse` on the animation override the preset. Throws if neither a preset
+ * nor explicit property/from/to is present.
+ */
+type ExpandedFrameAnimation = z.infer<typeof frameAnimationSchema> & {
+  property: NonNullable<z.infer<typeof frameAnimationSchema>["property"]>;
+  from: string;
+  to: string;
+};
+function expandMotionPreset(a: z.infer<typeof frameAnimationSchema>): ExpandedFrameAnimation {
+  let preset: ReturnType<typeof resolveMotionPreset> | null = null;
+  if (a.preset != null) {
+    preset = resolveMotionPreset(a.preset, { distance: a.presetDistance, scaleFrom: a.presetScaleFrom, exit: a.exit });
+  }
+  const property = a.property ?? preset?.property;
+  const from = a.from ?? preset?.from;
+  const to = a.to ?? preset?.to;
+  if (property == null || from == null || to == null) {
+    throw new Error(
+      `animation for "${a.selector}": needs either a "preset" or explicit property/from/to.`,
+    );
+  }
+  return {
+    ...a,
+    property,
+    from,
+    to,
+    easing: resolveEasingPreset(a.easing ?? preset?.easing),
+    transformOrigin: a.transformOrigin ?? preset?.transformOrigin,
+    fuse: a.fuse ?? preset?.fuse,
+  } as ExpandedFrameAnimation;
+}
+
+const insertPositionSchema = z.enum(["beforebegin", "afterbegin", "beforeend", "afterend"]);
+const scrollLogicalSchema = z.enum(["start", "center", "end", "nearest"]);
+
+// DM-1742: optional cursor aim on interaction actions, consumed by
+// `cursor: "auto"` when deriving the pointer target. `cursorAt` picks one of
+// the nine named anchor points on the target's border box (the overlay
+// `anchor.at` vocabulary, default "center"); `cursorOffset` nudges from
+// there in px. Lets an auto-derived click land beside a label the viewer must
+// read (e.g. a counter button whose text IS the changing value) without the
+// invisible-child-pad workaround. Ignored under explicit `cursor.events`
+// (those carry their own selector/at/offset) and when no cursor is shown.
+const cursorAimSchema = {
+  cursorAt: z.enum(["top-left", "top", "top-right", "left", "center", "right", "bottom-left", "bottom", "bottom-right"]).optional(),
+  cursorOffset: z.object({ dx: z.number().optional(), dy: z.number().optional() }).optional(),
+};
+
+const actionSchema = z.discriminatedUnion("type", [
+  // Interaction (Playwright-native).
+  z.object({ type: z.literal("click"),  selector: z.string(), ...cursorAimSchema }),
+  z.object({ type: z.literal("fill"),   selector: z.string(), value: z.string(), ...cursorAimSchema }),
+  z.object({ type: z.literal("press"),  key: z.string() }),
+  z.object({ type: z.literal("scroll"), x: z.number().optional(), y: z.number().optional() }),
+  z.object({ type: z.literal("hover"),  selector: z.string(), ...cursorAimSchema }),
+  z.object({ type: z.literal("wait"),   ms: z.number() }),
+  // DM-848 §3 — interaction actions beyond click/fill.
+  z.object({ type: z.literal("scrollIntoView"), selector: z.string(), block: scrollLogicalSchema.optional(), inline: scrollLogicalSchema.optional() }),
+  z.object({ type: z.literal("dispatch"),       selector: z.string(), event: z.string(), bubbles: z.boolean().optional() }),
+  z.object({ type: z.literal("focus"),          selector: z.string() }),
+  z.object({ type: z.literal("blur"),           selector: z.string() }),
+  z.object({ type: z.literal("selectText"),     selector: z.string() }),
+  z.object({ type: z.literal("clear"),          selector: z.string() }),
+  // DM-847 §2 — declarative DOM mutations.
+  z.object({ type: z.literal("setText"),        selector: z.string(), value: z.string() }),
+  z.object({ type: z.literal("setHtml"),        selector: z.string(), value: z.string() }),
+  z.object({ type: z.literal("remove"),         selector: z.string() }),
+  z.object({ type: z.literal("setAttribute"),   selector: z.string(), name: z.string(), value: z.string() }),
+  z.object({ type: z.literal("removeAttribute"),selector: z.string(), name: z.string() }),
+  z.object({ type: z.literal("addClass"),       selector: z.string(), class: z.string() }),
+  z.object({ type: z.literal("removeClass"),    selector: z.string(), class: z.string() }),
+  z.object({ type: z.literal("toggleClass"),    selector: z.string(), class: z.string() }),
+  z.object({ type: z.literal("setStyle"),       selector: z.string(), props: z.record(z.string(), z.string()) }),
+  z.object({ type: z.literal("insert"),         selector: z.string(), position: insertPositionSchema, html: z.string() }),
+  z.object({ type: z.literal("setValue"),       selector: z.string(), value: z.string() }),
+  z.object({ type: z.literal("check"),          selector: z.string(), checked: z.boolean() }),
+  z.object({ type: z.literal("selectOption"),   selector: z.string(), value: z.string() }),
+  z.object({
+    type: z.literal("replaceText"),
+    selector: z.string(),
+    pattern: z.string().superRefine((val, ctx) => {
+      try {
+        new RegExp(val);
+      } catch (e) {
+        ctx.addIssue({ code: "custom", message: `is not a valid regular expression: ${e instanceof Error ? e.message : String(e)}` });
+      }
+    }),
+    replacement: z.string(),
+    flags: z.string().optional(),
+  }),
+  // DM-853 §8 — last-resort escape hatch.
+  z.object({ type: z.literal("evaluate"), script: z.string() }),
+]);
+
+// DM-850 §5 — anchor an overlay to an element's bounding box (resolved at
+// capture time), replacing hardcoded x/y. `at` picks the box corner/edge;
+// `dx`/`dy` offset from it.
+const anchorFields = {
+  selector: z.string(),
+  at: z.enum(["top-left", "top", "top-right", "left", "center", "right", "bottom-left", "bottom", "bottom-right"]).optional(),
+  dx: z.number().optional(),
+  dy: z.number().optional(),
+};
+// Strict so an anchor key that isn't supported on this overlay kind — e.g.
+// `baseline` on anything but a typing overlay (DM-1750) — fails validation at
+// its config path instead of being silently stripped.
+const anchorSchema = z.strictObject(anchorFields);
+// DM-1750: typing overlays additionally take `baseline: true` — resolve the
+// overlay's `y` (its text baseline) to the anchored element's measured
+// first-line text baseline, killing the hand-tuned ascent `dy`.
+const typingAnchorSchema = z.strictObject({ ...anchorFields, baseline: z.boolean().optional() });
+
+// DM-1131: overlay *authoring* shapes derive from the runtime base schemas in
+// `../animation/overlay-schema.ts`. Each adds the config-only conveniences —
+// `x`/`y` defaulted to 0 (an `anchor` can supply them), and selector
+// `anchor` / typing `maxWidth` (resolved at capture time, see
+// `resolveOverlayAnchors`). The `svg` kind is its own shape because authoring
+// takes a `src` file path that the CLI later reads / namespaces into the
+// runtime `innerSvg` + `animId` (see `resolveSvgOverlays`).
+// Exported so the `storyboard` runner can offer the SAME per-scene overlay
+// authoring vocabulary (typing / tap / svg / blink / shine) without redefining
+// it — DM-1554 reuses this schema + `resolveEmbeddedFrameOverlays` verbatim.
+export const overlaySchema = z.discriminatedUnion("kind", [
+  typingOverlaySchema.extend({
+    x: z.number().default(0),
+    y: z.number().default(0),
+    // DM-850 §5: anchor to an element bbox; maxWidth wraps to the anchored
+    // element's content width ("anchor") or a fixed px. DM-1750: the typing
+    // anchor additionally accepts `baseline: true` (y → the element's
+    // first-line text baseline).
+    anchor: typingAnchorSchema.optional(),
+    maxWidth: z.union([z.literal("anchor"), z.number()]).optional(),
+  }),
+  tapOverlaySchema.extend({
+    x: z.number().default(0),
+    y: z.number().default(0),
+    anchor: anchorSchema.optional(),
+  }),
+  z.object({
+    kind: z.literal("svg"),
+    src: z.string(),
+    x: z.number().default(0),
+    y: z.number().default(0),
+    width: z.number(),
+    height: z.number(),
+    enter: overlaySlideSchema.optional(),
+    exit: overlaySlideSchema.optional(),
+    anchor: anchorSchema.optional(),
+    // DM-1767 (docs/104): the `[delay, endAt]` per-overlay window. Hand-written
+    // here (this authoring kind takes a `src` path rather than the runtime
+    // `innerSvg`), so these must mirror `svgOverlaySchema`'s fields.
+    delay: z.number().optional(),
+    endAt: z.number().positive("must be a positive number (ms from frame start)").optional(),
+  }),
+  blinkOverlaySchema.extend({
+    x: z.number().default(0),
+    y: z.number().default(0),
+    anchor: anchorSchema.optional(),
+  }),
+  shineOverlaySchema.extend({
+    x: z.number().default(0),
+    y: z.number().default(0),
+    // DM-1549: an `anchor` can auto-size + auto-position the glint, so width /
+    // height default to 0 (like x / y). Unanchored, they must be given; anchored,
+    // the resolver fills them from the element's box (radius from its
+    // border-radius) unless an explicit positive value is supplied.
+    width: z.number().default(0),
+    height: z.number().default(0),
+    anchor: anchorSchema.optional(),
+  }),
+  // DM-1565: the synthetic interaction-feedback overlay. Like `shine`, an
+  // `anchor` can auto-size + auto-position the treatment, so width / height
+  // default to 0 (the resolver fills them from the anchored element's box, and
+  // the radius from its border-radius) unless explicit positive values are given.
+  interactOverlaySchema.extend({
+    x: z.number().default(0),
+    y: z.number().default(0),
+    width: z.number().default(0),
+    height: z.number().default(0),
+    anchor: anchorSchema.optional(),
+  }),
+]);
+
+// DM-1225 (doc 67): per-frame terminal options for a `cast` frame. All optional;
+// they default to the cast header / the term tool's defaults.
+// A built-in theme name, or a spec overriding bg / fg / ansi[16] on top of an
+// `extends` base (default catppuccin). DM-1225. The spec form is the shared
+// `terminalThemeSpecSchema` (also used by `term --theme-file`) so the two theme
+// surfaces validate identically.
+const termThemeSchema = z.union([z.string(), terminalThemeSpecSchema]);
+
+const termOptionsSchema = z.object({
+  theme: termThemeSchema.optional(),
+  mode: z.enum(["incremental", "full"]).optional(),
+  cursor: z.enum(["block", "bar", "underline", "none"]).optional(),
+  cursorColor: z.string().optional(),
+  fontSize: z.number().optional(),
+  fontFamily: z.string().optional(),
+  padding: z.number().optional(),
+  cols: z.number().int().positive().optional(),
+  rows: z.number().int().positive().optional(),
+  settleMs: z.number().optional(),
+  minFrameMs: z.number().optional(),
+  maxFrameMs: z.number().optional(),
+  tailMs: z.number().optional(),
+});
+
+// DM-1516 (docs/94): forced CSS pseudo-state capture. Before a frame is
+// captured, each `selector` is forced into the listed pseudo-classes via CDP
+// `CSS.forcePseudoState`, so the page's OWN `:hover` / `:active` / `:focus`
+// styling is what gets painted and serialized — no fake overlay, zero authoring
+// on top of the page's real rules. The enum is the well-supported subset of
+// CDP's `forcedPseudoClasses`; pair it with a cursor event/action so the pointer
+// sits on the element it's hovering.
+const forcePseudoClassSchema = z.enum([
+  "hover", "active", "focus", "focus-within", "focus-visible",
+  "visited", "target", "enabled", "disabled", "checked",
+  "indeterminate", "read-only", "read-write", "link",
+]);
+const forceStateSchema = z
+  .object({
+    selector: z.string(),
+    /** Pseudo-states to force (`:hover` / `:active` / `:focus` / …). Required
+     *  unless `reset` is set. */
+    states: z.array(forcePseudoClassSchema).optional(),
+    /**
+     * DM-1566 (docs/94): DROP any forced pseudo-state on the matched element(s)
+     * instead of setting one — the un-hover / return-to-rest verb. In a
+     * continuous-session (`continue`) flow this lets a later frame release a hover
+     * a previous frame forced and capture the element back at rest. Mutually
+     * exclusive with `states`. Under the hood it re-issues `CSS.forcePseudoState`
+     * with an EMPTY class list on the SAME CDP session that set the override
+     * (a different session can't clear another's override), so it truly reverts.
+     */
+    reset: z.boolean().optional(),
+  })
+  .refine((v) => v.reset === true || (v.states != null && v.states.length >= 1), {
+    message: "must list at least one pseudo-state, or set reset:true to clear",
+  })
+  .refine((v) => !(v.reset === true && v.states != null && v.states.length > 0), {
+    message: "cannot set both `states` and `reset` (force a state, or clear it — not both)",
+  });
+/** DM-1516 / DM-1566 (docs/94): one forced-pseudo-state entry. Either forces the
+ *  element(s) matching `selector` into `states` (`:hover` / `:active` / `:focus`
+ *  / …) via CDP before capture, or — with `reset: true` — clears any state a
+ *  previous frame forced on them (the un-hover verb). Consumed by
+ *  `applyForcedPseudoStates` and the animate config's per-frame `forceState`
+ *  array. */
+
+// DM-1556 (docs/93 §2): per-keystroke real-site re-sampling. Unlike the `typing`
+// OVERLAY (which synthesizes text as a `<text>` reveal on top of one capture),
+// this drives the live field one keystroke at a time and re-captures the page
+// after each keystroke, so the field's OWN input masking / auto-formatting /
+// validation styling / font is what gets serialized. The N captures compose into
+// one nested animated SVG (the `cast`/`template` nesting pattern) — heavier than
+// the overlay, so it's an explicit opt-in per frame. Mutually exclusive with the
+// other content-producing frame kinds (`scroll` / `cast` / `template`).
+const typeResampleSchema = z.object({
+  /** The input / textarea to type into. Must match a focusable element. */
+  selector: z.string(),
+  /** The keystrokes to send — one re-captured state per character. */
+  text: z.string().min(1, "must be a non-empty string"),
+  /** Per-keystroke hold in ms (the flipbook step). Default 60. */
+  speed: z.number().positive().optional(),
+  /** Hold before the first keystroke (ms). Default 0. */
+  delay: z.number().nonnegative().optional(),
+  /** Hold on the fully-typed final state (ms) before the internal loop restarts. Default 700. */
+  tailMs: z.number().nonnegative().optional(),
+  /** Clear the field before typing so the re-sample starts empty. Default true. */
+  clear: z.boolean().optional(),
+  /** Draw the field's REAL caret (from `selectionEnd`) as a blinking bar. Default true. */
+  caret: z.boolean().optional(),
+  /** Caret shape (DM-1591). `"auto"` (default) honors the field's computed CSS
+   *  `caret-shape`; `bar`/`block`/`underscore` force a shape. */
+  caretShape: z.enum(["auto", "bar", "block", "underscore"]).optional(),
+  /** DM-1581: capture only the field's region per keystroke onto a static base,
+   *  cutting output size (O(N·page) → O(page + N·field)). Off by default — with it
+   *  ON, changes OUTSIDE the field aren't animated (only the field is). */
+  regionOnly: z.boolean().optional(),
+});
+
+// DM-1564 (docs/94 option 3): MutationObserver JS-change harness. `forceState`
+// captures a page's CSS `:hover`/`:focus` styling, but not feedback a page drives
+// with JAVASCRIPT — a class flip, an injected tooltip/menu, an aria change. This
+// dispatches a real pointer event, runs a MutationObserver with an async
+// settle/debounce, and synthesizes the JS-driven reveal (added/removed nodes) as
+// a rest→after crossfade nested into this frame's content (the same nesting as
+// `typeResample`/`cast`, so no animator change). Opt-in (heavier: two captures +
+// a live settle). Mutually exclusive with the other content-producing kinds.
+const jsRevealSchema = z.object({
+  /** The element to dispatch the pointer event at. */
+  selector: z.string(),
+  /** The pointer event to dispatch. Default `mouseover`. */
+  event: z.enum(MUTATION_DETECT_EVENTS).optional(),
+  /** Max ms to wait for the page's JS mutations to settle. Default 600. */
+  settleMs: z.number().positive().optional(),
+  /** Quiet window (ms) with no mutations that counts as "settled". Default 120. */
+  debounceMs: z.number().positive().optional(),
+  /** Rest hold + after hold, each in ms. Default 700. */
+  holdMs: z.number().positive().optional(),
+  /** The rest→after crossfade duration (ms). Default 300. */
+  crossfadeMs: z.number().nonnegative().optional(),
+});
+export type ForceState = z.infer<typeof forceStateSchema>;
+
+// DM-1747 (docs/100 Primitive 1): compressed editing run — the `states: [...]`
+// block. One config frame captures N editing states of the live page (each
+// state runs its actions, then is captured) and composes them via
+// `composeCompressedRun` into ONE nested animated SVG: shared content emitted
+// once, every later state contributing only what changed (step-end glyph
+// births/deaths, tail shifts, recolors). The frame's content is the composed
+// run — the typeResample/cast nesting precedent, zero animator changes.
+const runStateSchema = z.object({
+  /** Actions applied to the live page before this state is captured. State 0
+   *  is the frame's own post-`actions` state, so it usually omits them. */
+  actions: z.array(actionSchema).optional(),
+  /** How long this state holds (ms) before snapping to the next. */
+  duration: z.number().positive("must be a positive number (ms)"),
+  /**
+   * DM-1770 (docs/100 "independent per-region timing", docs/43 §11.1): which
+   * declared `regions` this state advances. Names must appear in the frame's
+   * `regions` map, and state 0 (the frame's own post-actions state) may not
+   * declare any — it is every region's starting point.
+   *
+   * Declaring it is what lets each region run on its OWN schedule: the capture
+   * loop batches states that advance disjoint regions into one whole-page
+   * capture and assembles each state's tree from the capture holding each
+   * region's own state, so k regions cost `max(nᵢ)` captures instead of the
+   * `Σnᵢ` a hand-interleaved sequence pays. Omitting it on every state leaves
+   * capture exactly sequential (one per state) — `regions` is then purely a
+   * region-discriminator override.
+   */
+  advances: z.array(z.string().min(1, "must be a declared region name")).min(1, "must name at least one region").optional(),
+  /**
+   * DM-1767 (docs/104): overlays scoped to THIS state rather than to the whole
+   * run. Each is anchor-resolved against the live page at the moment this state
+   * is captured — so a `selector` anchor / `maxWidth: "anchor"` sees this
+   * state's layout, not the run's last — and then bounded to this state's slice
+   * of the run: its `delay` is shifted by the state's offset and its `endAt`
+   * pinned to the state's end, so it dies at this state's snap exactly as it
+   * would have at its own frame's cut.
+   *
+   * This is what lets `autoCompress` collapse a run whose members carry
+   * overlays (docs/43 §13.1) — each member's overlays become its state's — and
+   * it is authorable directly on a hand-written `states:` block.
+   */
+  overlays: z.array(overlaySchema).optional(),
+});
+type RunStateInput = z.infer<typeof runStateSchema>;
+
+/**
+ * DM-1770: explicit region declaration — `{ <name>: <selector> }`. Each
+ * selector resolves in page context at capture time (first match, stamped
+ * `data-domotion-anim` exactly like `textTracks` / intra-frame animations) and
+ * becomes an explicit region root for the compressor's glyph bucketing,
+ * overriding the auto-detected discriminator inside it. The HYBRID contract:
+ * auto-detection stays the default everywhere the author declares nothing.
+ */
+const runRegionsSchema = z
+  .record(z.string().min(1, "region names must be non-empty"), z.string().min(1, "region selectors must be non-empty"))
+  .refine((v) => Object.keys(v).length > 0, { message: "must declare at least one region" });
+
+// The run's opt-in auto-caret (docs/101 machinery): the compressor derives the
+// per-state edit points, so the caret rides the run with zero addressing.
+const statesCaretSchema = z.union([
+  z.boolean(),
+  z.object({
+    shape: z.enum(["bar", "block", "underscore"]).optional().describe("Caret shape (docs/97). Default bar."),
+    color: z.string().optional().describe("Caret color. Default #111111."),
+  }),
+]);
+
+// DM-1747 (docs/101): declarative caret + selection track. Events address
+// character positions inside a captured element (`selector` resolved at
+// capture time via the `data-domotion-anim` stamp, exactly like intra-frame
+// animations); `at` is ms within the frame, mapped to global time like cursor
+// events. Offsets count Unicode code points.
+const textTrackEventSchema = z.discriminatedUnion("type", [
+  /** Place the caret at the offset (shows it if hidden); blinks while parked. */
+  z.object({ type: z.literal("park"), at: z.number().nonnegative(), charOffset: z.number().int().nonnegative(), selector: z.string().optional() }),
+  /** Step-end jump to the offset (same semantics as park; reads better in scripts). */
+  z.object({ type: z.literal("move"), at: z.number().nonnegative(), charOffset: z.number().int().nonnegative(), selector: z.string().optional() }),
+  /** Hide the caret until the next park/move. */
+  z.object({ type: z.literal("hide"), at: z.number().nonnegative() }),
+  /** Sweep a selection over [charStart, charEnd), growing over sweepMs. */
+  z.object({
+    type: z.literal("select"),
+    at: z.number().nonnegative(),
+    charStart: z.number().int().nonnegative(),
+    charEnd: z.number().int().positive(),
+    sweepMs: z.number().nonnegative().optional(),
+    color: z.string().optional(),
+    selector: z.string().optional(),
+  }),
+  /** Clear the most recent selection. */
+  z.object({ type: z.literal("clearSelection"), at: z.number().nonnegative() }),
+]);
+
+const textTrackSchema = z
+  .object({
+    /** The element whose text the events address (first match; stamped with
+     *  `data-domotion-anim` at capture — a no-match is a hard error). */
+    selector: z.string(),
+    /** Caret shape (docs/97): bar (default) / block / underscore. */
+    shape: z.enum(["bar", "block", "underscore"]).optional(),
+    /** Caret color. Default #111111. */
+    color: z.string().optional(),
+    /** Bar-caret width px (default 2). */
+    barWidthPx: z.number().positive().optional(),
+    /** Blink period ms (default 1060). */
+    blinkMs: z.number().positive().optional(),
+    /** Default selection fill (per-event `color` overrides). Default a translucent blue. */
+    selectionColor: z.string().optional(),
+    events: z.array(textTrackEventSchema).min(1, "must be a non-empty array"),
+    /** DM-1763: by default a frame's track ENDS at that frame's cut — the CLI
+     *  synthesizes a trailing `hide` (and `clearSelection` if a selection is
+     *  still active) at the frame's `duration` so a parked caret/selection does
+     *  not hold through the loop and layer above every later frame. Set
+     *  `persist: true` to opt out for a deliberate carry-over (the pre-DM-1763
+     *  behavior, where the author ends the track by hand). */
+    persist: z.boolean().optional(),
+  })
+  .superRefine((tt, ctx) => {
+    tt.events.forEach((ev, j) => {
+      if (ev.type === "select" && ev.charEnd <= ev.charStart) {
+        ctx.addIssue({ code: "custom", path: ["events", j, "charEnd"], message: "`charEnd` must be greater than `charStart`" });
+      }
+    });
+  });
+type TextTrackInput = z.infer<typeof textTrackSchema>;
+
+// DM-1562 (docs/94 Option 1): `hoverReveal` sugar. A one-field per-frame reveal
+// that auto-expands (BEFORE the capture loop, in `expandHoverReveal`) into two
+// frames — the frame at REST, then a `continue` frame that forces `:hover`
+// (`forceState`) on the same selector — cross-fading between them, plus a cursor
+// move onto the element so the pointer sits where the hover happens. Pure sugar
+// over the shipped `forceState` + cursor + crossfade primitives; the 80% hover
+// demo without hand-wiring two frames.
+const hoverRevealSchema = z.object({
+  /** Element to reveal the interaction state on (forced + cursor target). */
+  selector: z.string(),
+  /** Pseudo-states to force on the reveal frame. Default `["hover"]` — set e.g.
+   *  `["focus", "focus-visible"]` for a focus reveal. */
+  states: z.array(forcePseudoClassSchema).min(1).optional(),
+  /** Crossfade duration into the reveal frame (ms). Default 400. */
+  crossfadeMs: z.number().positive().optional(),
+  /** How long the revealed (hover) frame holds (ms). Default: the frame's own
+   *  `duration` (the rest hold). */
+  hoverMs: z.number().positive().optional(),
+  /** Inject a cursor move onto `selector` on the reveal frame. Default `true`
+   *  (skipped when the config's cursor is `"auto"`, which can't mix with explicit
+   *  events). */
+  cursor: z.boolean().optional(),
+});
+
+// DM-1563 (docs/94 Option 2): `hoverDetect` — auto-DETECT what the page changes
+// on hover and synthesize the transition. A pre-pass (`expandHoverDetect`) drives
+// a real pointer via `forceState`, diffs `getComputedStyle` (+ geometry) on the
+// target and its descendants before → after, and picks a synthesis:
+//   - a PAINT change (color / background / border / box-shadow) → a rest→hover
+//     crossfade (blends the deltas faithfully, box-shadow included);
+//   - a MOTION-only change (transform / opacity on the target alone) → a single
+//     frame with an intra-frame keyframe TWEEN so the element animates in place.
+// Cross-engine `@keyframes` only. Only supported on a frame that loads an `input`
+// (a `continue`/`cast`/`template` frame has no standalone page to probe).
+const hoverDetectSchema = z.object({
+  /** Element whose hover response is detected (probed + cursor target). */
+  selector: z.string(),
+  /** Pseudo-states to enter while probing. Default `["hover"]`. */
+  states: z.array(forcePseudoClassSchema).min(1).optional(),
+  /** Transition duration into / of the synthesized reveal (ms). Default 400. */
+  transitionMs: z.number().positive().optional(),
+  /** How long the revealed state holds (ms). Default: the frame's `duration`. */
+  hoverMs: z.number().positive().optional(),
+  /** Inject a cursor move onto `selector`. Default `true`. */
+  cursor: z.boolean().optional(),
+});
+
+const frameSchema = z.object({
+  // DM-846 §1 — `input` is optional. Frame 0 must load an input; a later frame
+  // that omits `input` (or sets `continue: true`) keeps the previous frame's
+  // live page. The frame-0 / continue+input rules are enforced in the
+  // config-level superRefine below (they need cross-frame context).
+  input: z.string().optional(),
+  // DM-1225 (doc 67): a `cast` frame embeds a recorded terminal session
+  // (asciinema v2 .cast) as this frame's content — a self-contained animated
+  // terminal SVG, nested like a `scroll` block. Size `duration` to ≈ the cast's
+  // recorded length (the tool logs it). Mutually exclusive with `input`.
+  cast: z.string().optional(),
+  term: termOptionsSchema.optional(),
+  // DM-1287 (doc 73): a `template` frame embeds a named Domotion template's
+  // output (e.g. a `lower-third` banner or a `kinetic-text` title) as this
+  // frame's content — most templates emit an animated SVG, which nests like a
+  // `cast` frame. `params` is validated against the named template's own schema
+  // at compose time (path-specific errors). The template inherits the config's
+  // `width`/`height` when its schema has those params and they're unset, so it
+  // fills the frame by default; a smaller/larger output is centered (+ clipped).
+  // Mutually exclusive with `input` / `cast` / `continue`.
+  template: z.string().optional(),
+  params: z.record(z.string(), z.unknown()).optional(),
+  // DM-1293: how a `template` frame's output is placed when its size differs from
+  // the canvas. `center` (default) places it 1:1 (oversized → clipped); `contain`
+  // scales it down to fit, preserving aspect (letterboxed); `cover` scales it up
+  // to fill, preserving aspect (cropped). Only meaningful on a template frame.
+  fit: z.enum(["center", "contain", "cover"]).optional(),
+  continue: z.boolean().optional(),
+  // DM-1294: `duration` is required on every frame EXCEPT a `template` frame,
+  // which may omit it to inherit the template's own play time (its generator
+  // reports `durationMs`). Defaults to `0` (a sentinel for "unset" — a 0 ms frame
+  // is never valid), so the type stays `number` for the timeline math; the
+  // "required-and-positive unless template" rule is enforced in the config-level
+  // superRefine below (it needs the sibling `template` field).
+  duration: z.number().default(0),
+  transition: transitionSchema.optional(),
+  selector: z.string().optional(),
+  wait: z.number().optional(),
+  waitFor: z.string().optional(),
+  // DM-849 §4 — richer readiness waits (poll page context until satisfied).
+  waitForText: z
+    .object({ selector: z.string(), equals: z.string().optional(), contains: z.string().optional() })
+    .refine((v) => v.equals != null || v.contains != null, { message: "requires `equals` or `contains`" })
+    .optional(),
+  waitForGone: z.string().optional(),
+  waitForCount: z
+    .object({ selector: z.string(), equals: z.number().optional(), atLeast: z.number().optional(), atMost: z.number().optional() })
+    .refine((v) => v.equals != null || v.atLeast != null || v.atMost != null, { message: "requires `equals`, `atLeast`, or `atMost`" })
+    .optional(),
+  /**
+   * Scroll the page (or `selector`'s element) to this offset BEFORE the
+   * capture — static positioning for a fold-style capture. See `scroll` for
+   * the pattern-based animated-scroll flow.
+   */
+  scrollTo: z.tuple([z.number(), z.number()]).optional(),
+  /**
+   * DM-612: pattern-based scroll-demo block. The frame's `input` is loaded and
+   * the scroll executor runs against it; the per-segment captures are composed
+   * into one animated SVG that becomes the frame's content. Size the frame's
+   * `duration` to ≈ the pattern's total scroll time so the outer scene cycle
+   * matches the inner scroll's loop.
+   */
+  scroll: scrollSchema.optional(),
+  actions: z.array(actionSchema).optional(),
+  /**
+   * DM-1516 (docs/94): force real CSS pseudo-state on selectors before capture,
+   * so this frame paints the page's OWN `:hover` / `:active` / `:focus` styling
+   * (via CDP `CSS.forcePseudoState`) instead of a fake overlay. Applied after
+   * `actions`, so it reflects the post-action DOM. Combine with a `cursor` event
+   * to place the pointer on the hovered element.
+   */
+  forceState: z.array(forceStateSchema).optional(),
+  /**
+   * DM-1562 (docs/94): `hoverReveal` sugar. Expands this frame into a rest frame
+   * + a forced-`:hover` `continue` frame with a crossfade and a cursor move onto
+   * the element — the one-field version of the hand-wired two-frame hover demo.
+   * The frame must load an `input` or `continue` a live page (not a cast/template
+   * frame). Its `duration` becomes the rest hold.
+   */
+  hoverReveal: hoverRevealSchema.optional(),
+  /**
+   * DM-1563 (docs/94): `hoverDetect` — auto-detect the page's hover response and
+   * synthesize the transition (paint change → crossfade, motion-only → intra-frame
+   * tween). Only on a frame that loads an `input`. Its `duration` becomes the rest
+   * hold.
+   */
+  hoverDetect: hoverDetectSchema.optional(),
+  /**
+   * DM-1556 (docs/93 §2): re-capture the live field after each keystroke instead
+   * of synthesizing a `typing` overlay — the high-fidelity path that renders the
+   * page's OWN input masking / auto-formatting / validation / font. Composes into
+   * this frame's content (a nested per-keystroke animated SVG). Applied after
+   * `actions` / `forceState` (types into the post-action DOM). Mutually exclusive
+   * with `scroll` / `cast` / `template` (all produce the frame's content).
+   */
+  typeResample: typeResampleSchema.optional(),
+  /**
+   * DM-1564 (docs/94 option 3): detect JS-driven feedback. Dispatch a pointer
+   * event on `selector`, observe the page's own DOM mutations (a class flip, an
+   * injected tooltip / dropdown, an aria change) until they settle, and
+   * synthesize the reveal (added/removed nodes) as a rest→after crossfade that
+   * becomes this frame's content. Applied after `actions` / `forceState`.
+   * Mutually exclusive with `scroll` / `cast` / `template` / `typeResample`.
+   */
+  jsReveal: jsRevealSchema.optional(),
+  /**
+   * DM-1747 (docs/100 Primitive 1): compressed editing run. Captures N states
+   * of the live page inside this ONE frame — state 0 is the frame's own
+   * post-`actions` state; each later state runs its `actions` then captures —
+   * and composes them via the frame-sequence compressor into a nested animated
+   * SVG that becomes this frame's content (shared content once, step-end glyph
+   * births / tail shifts / recolors; layout SNAPS at state boundaries).
+   * Mutually exclusive with `scroll` / `cast` / `template` / `typeResample` /
+   * `jsReveal` (all produce the frame's content).
+   */
+  states: z.array(runStateSchema).min(1, "must be a non-empty array").optional(),
+  /**
+   * DM-1770 (docs/100 "independent per-region timing", docs/43 §11.1): name the
+   * scene's independently-updating regions — `{ "editor": "#ed", "preview":
+   * "#pv" }`. Two things follow, and they are separable:
+   *
+   *  1. Each named element becomes an explicit REGION ROOT for the compressor's
+   *     glyph bucketing, overriding the auto-detected discriminator (innermost
+   *     clipping ancestor / side-by-side column) inside it. Auto-detection
+   *     stays the default everywhere else — the declaration is an override, not
+   *     a replacement.
+   *  2. States may then declare `advances: [<name>…]`, which lets each region
+   *     run on its own schedule and collapses the capture count from `Σnᵢ`
+   *     toward `max(nᵢ)`.
+   *
+   * Requires `states`. A selector matching nothing at capture is a hard error
+   * naming the frame and the region.
+   */
+  regions: runRegionsSchema.optional(),
+  /**
+   * DM-1747: the compressed run's auto-caret — `true` (bar, #111111) or
+   * `{ shape, color }`. The compressor derives each state's edit point, so the
+   * caret rides the run with zero addressing. Requires `states`.
+   */
+  caret: statesCaretSchema.optional(),
+  /**
+   * DM-1747 (docs/101): declarative caret + selection tracks anchored to this
+   * frame's captured text. Each track's `selector` is stamped at capture time
+   * (`data-domotion-anim`, the intra-frame-animation mechanism) and events
+   * address character positions by code-point offset; `at` is ms within the
+   * frame. Requires a captured frame (not scroll/cast/template/typeResample/
+   * jsReveal/states, which have no single captured tree).
+   */
+  textTracks: z.array(textTrackSchema).optional(),
+  /**
+   * DM-1761 (docs/100 Primitive 1, docs/43 §13.2): PER-RUN compressed-run opt-in —
+   * the explicit marker counterpart to the whole-config `autoCompress` flag.
+   * `true` on the first frame of a run of consecutive plain `continue` + `cut`
+   * frames collapses that maximal run into ONE `states` compressed run (§11),
+   * exactly as `autoCompress` would, but only where the author asked. Because
+   * the author asked, an ineligible marker is a HARD ERROR naming the frame and
+   * the reason (`autoCompress` silently logs and skips instead — no intent to
+   * betray). Markers on later members of the same run are accepted as redundant.
+   * `false` opts the frame OUT entirely: it can neither anchor nor join a run,
+   * which is the escape hatch for a run that pairs poorly under `autoCompress`.
+   */
+  compress: z.boolean().optional(),
+  overlays: z.array(overlaySchema).optional(),
+  /** Intra-frame animations (DM-209). Selector resolved against the captured DOM. */
+  animations: z.array(frameAnimationSchema).optional(),
+});
+
+// DM-851 §6 — config-level cursor overlay. Either "auto" (derive a move +
+// click-pulse per click/hover/fill action) or an explicit event list.
+// Exported so the `storyboard` runner reuses the SAME cursor style / event
+// authoring shapes for its storyboard-level cursor track (DM-1554).
+export const cursorStyleSchema = z.object({
+  scale: z.number().optional(),
+  color: z.string().optional(),
+  pulseColor: z.string().optional(),
+  pulseRadius: z.number().optional(),
+  pulseDurationMs: z.number().optional(),
+});
+
+export const cursorEventSchema = z
+  .object({
+    frame: z.number().int().nonnegative(),
+    at: z.number().default(0),
+    type: z.enum(["move", "click", "moveClick", "hide"]),
+    selector: z.string().optional(),
+    to: z.object({ x: z.number(), y: z.number() }).optional(),
+    offset: z.object({ dx: z.number(), dy: z.number() }).optional(),
+    duration: z.number().optional(),
+    button: z.enum(["primary", "secondary", "middle"]).optional(),
+  })
+  .refine((e) => (e.type !== "move" && e.type !== "moveClick") || e.selector != null || e.to != null, {
+    message: "a move / moveClick event requires `selector` or `to`",
+  });
+
+const cursorSchema = z.union([
+  z.literal("auto"),
+  z.object({ style: cursorStyleSchema.optional(), events: z.array(cursorEventSchema).min(1, "must be a non-empty array") }),
+]);
+
+// Exported so the published JSON Schema can be generated from it (see
+// `src/cli/animate-config-json-schema.ts` and `scripts/generate-animate-schema.ts`).
+// Keeping the zod schema the single source of truth means the JSON Schema we
+// ship to consumers can never drift from what `validateAnimateConfig` enforces.
+export const animateConfigSchema = z
+  .object({
+    width: z.number(),
+    height: z.number(),
+    output: z.string().optional(),
+    optimize: z.boolean().optional(),
+    mobile: z.boolean().optional(),
+    colorScheme: z.enum(["light", "dark", "no-preference"]).optional(),
+    /** DM-852 §7 — string vars interpolated into `${name}` in any string field. */
+    vars: z.record(z.string(), z.string()).optional(),
+    /**
+     * DM-1544 (docs/85 + docs/92): an inline brand for the whole run, so a config
+     * is self-contained without the `--brand` CLI flag. Either a path (resolved
+     * relative to the config's directory) to a brand JSON file, or an inline brand
+     * object validated by the same `brandSchema`. The brand themes captured frames
+     * (CSS-variable injection, docs/92) AND `template` frames (their brand
+     * defaults, docs/85). Precedence: an explicit `--brand` flag overrides this
+     * config key. A relative `logo` inside an inline object resolves against the
+     * config's directory (a string path defers to `loadBrand`'s file-relative
+     * resolution).
+     */
+    brand: z.union([z.string(), brandSchema]).optional(),
+    /** DM-851 §6 — config-level cursor overlay. */
+    cursor: cursorSchema.optional(),
+    /**
+     * DM-1757 (docs/100 Primitive 1): AUTOMATIC compressed-run detection. A
+     * pre-pass detects maximal runs of consecutive plain `continue` + `cut`
+     * frames with no per-frame interactions crossing them (no overlays /
+     * animations / textTracks / forceState / cursor events / magic-move entry)
+     * and collapses each into ONE `states` compressed run — shared content
+     * emitted once, later frames contributing only their changes (docs/100).
+     * Output is pixel-identical to the uncompressed flipbook; the win is raw
+     * size + live-DOM weight. DEFAULTS ON (DM-1768): the size-regression guard
+     * makes it safe (a run that composes larger than its uncompressed states is
+     * reverted, so it can never grow output — DM-1772), and it is byte-neutral
+     * on the whole committed example corpus. Set `false` (or `--no-auto-compress`
+     * on the CLI) to opt OUT; runs it can't safely collapse are left untouched
+     * with a logged reason regardless.
+     */
+    autoCompress: z.boolean().optional(),
+    frames: z.array(frameSchema).min(1, "must be a non-empty array"),
+  })
+  .superRefine((cfg, ctx) => {
+    // DM-846 §1 cross-frame rules for the continuous-session model.
+    cfg.frames.forEach((f, i) => {
+      if (i === 0 && f.input == null && f.cast == null && f.template == null) {
+        ctx.addIssue({ code: "custom", path: ["frames", 0, "input"], message: "frame 0 must load an `input`, a `cast`, or a `template`" });
+      }
+      if (i === 0 && f.continue === true) {
+        ctx.addIssue({ code: "custom", path: ["frames", 0, "continue"], message: "frame 0 cannot continue — it has no predecessor" });
+      }
+      if (f.continue === true && f.input != null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "continue"], message: "a frame cannot set both `continue` and `input` (reload or continue, not both)" });
+      }
+      // DM-1225: a `cast` frame is its own content source — it can't also load
+      // an `input`, continue a live page, or run page-oriented options.
+      if (f.cast != null && f.input != null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "cast"], message: "a frame cannot set both `cast` and `input`" });
+      }
+      if (f.cast != null && f.continue === true) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "cast"], message: "a `cast` frame cannot also `continue` a live page" });
+      }
+      // DM-1287: a `template` frame is its own content source — it can't also
+      // load an `input`, embed a `cast`, or continue a live page. `params`
+      // without a `template` has nothing to validate against.
+      if (f.template != null && f.input != null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "template"], message: "a frame cannot set both `template` and `input`" });
+      }
+      if (f.template != null && f.cast != null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "template"], message: "a frame cannot set both `template` and `cast`" });
+      }
+      if (f.template != null && f.continue === true) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "template"], message: "a `template` frame cannot also `continue` a live page" });
+      }
+      if (f.params != null && f.template == null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "params"], message: "`params` requires a `template`" });
+      }
+      // DM-1293: `fit` only governs how a template frame's output is placed.
+      if (f.fit != null && f.template == null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "fit"], message: "`fit` requires a `template`" });
+      }
+      // DM-1556: `typeResample` produces the frame's content (a nested
+      // per-keystroke animated SVG), so it can't coexist with the other
+      // content-producing frame kinds. It DOES drive the live page, so it's fine
+      // on a `continue` frame or a fresh `input` load (unlike cast/template).
+      if (f.typeResample != null && f.scroll != null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "typeResample"], message: "a frame cannot set both `typeResample` and `scroll`" });
+      }
+      if (f.typeResample != null && f.cast != null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "typeResample"], message: "a frame cannot set both `typeResample` and `cast`" });
+      }
+      if (f.typeResample != null && f.template != null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "typeResample"], message: "a frame cannot set both `typeResample` and `template`" });
+      }
+      // DM-1564: `jsReveal` also produces the frame's content (a nested
+      // rest→after crossfade), so it can't coexist with the other
+      // content-producing kinds. It drives the live page, so it's fine on a
+      // `continue` frame or a fresh `input` load.
+      if (f.jsReveal != null && f.scroll != null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "jsReveal"], message: "a frame cannot set both `jsReveal` and `scroll`" });
+      }
+      if (f.jsReveal != null && f.cast != null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "jsReveal"], message: "a frame cannot set both `jsReveal` and `cast`" });
+      }
+      if (f.jsReveal != null && f.template != null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "jsReveal"], message: "a frame cannot set both `jsReveal` and `template`" });
+      }
+      if (f.jsReveal != null && f.typeResample != null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "jsReveal"], message: "a frame cannot set both `jsReveal` and `typeResample`" });
+      }
+      // DM-1747: `states` produces the frame's content (a compressed-run nested
+      // animated SVG), so it can't coexist with the other content-producing
+      // kinds. It drives the live page, so it's fine on a `continue` frame or a
+      // fresh `input` load (like `typeResample`).
+      if (f.states != null) {
+        const conflicts: Array<[string, unknown]> = [
+          ["scroll", f.scroll], ["cast", f.cast], ["template", f.template],
+          ["typeResample", f.typeResample], ["jsReveal", f.jsReveal],
+        ];
+        for (const [key, present] of conflicts) {
+          if (present != null) {
+            ctx.addIssue({ code: "custom", path: ["frames", i, "states"], message: `a frame cannot set both \`states\` and \`${key}\`` });
+          }
+        }
+      }
+      if (f.caret != null && f.states == null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "caret"], message: "`caret` requires a `states` compressed run (the typing overlay and `typeResample` carry their own caret options)" });
+      }
+      // DM-1770: explicit regions + per-state `advances`. Both only mean
+      // anything inside a compressed run, and `advances` can only name a region
+      // the frame actually declared — a typo there would silently give the
+      // author a different timing than they wrote, so it's a validation error
+      // rather than a runtime surprise.
+      if (f.regions != null && f.states == null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "regions"], message: "`regions` requires a `states` compressed run — it declares the run's independently-updating regions" });
+      }
+      if (f.states != null) {
+        const declared = Object.keys(f.regions ?? {});
+        for (let j = 0; j < f.states.length; j++) {
+          const adv = f.states[j].advances;
+          if (adv == null) continue;
+          if (f.regions == null) {
+            ctx.addIssue({ code: "custom", path: ["frames", i, "states", j, "advances"], message: "`advances` requires the frame to declare `regions`" });
+            continue;
+          }
+          if (j === 0) {
+            ctx.addIssue({ code: "custom", path: ["frames", i, "states", 0, "advances"], message: "state 0 is the frame's own post-`actions` state — every region's starting point — so it cannot advance one" });
+          }
+          const seen = new Set<string>();
+          for (let k = 0; k < adv.length; k++) {
+            if (!declared.includes(adv[k])) {
+              ctx.addIssue({ code: "custom", path: ["frames", i, "states", j, "advances", k], message: `unknown region "${adv[k]}" — this frame declares ${declared.map((n) => `"${n}"`).join(", ")}` });
+            } else if (seen.has(adv[k])) {
+              ctx.addIssue({ code: "custom", path: ["frames", i, "states", j, "advances", k], message: `region "${adv[k]}" is listed twice` });
+            }
+            seen.add(adv[k]);
+          }
+        }
+      }
+      // DM-1747: `textTracks` resolves addresses against THIS frame's single
+      // captured tree, so it can't ride a frame whose content is a nested
+      // composition (no single tree to resolve against).
+      if (f.textTracks != null) {
+        const conflicts: Array<[string, unknown]> = [
+          ["scroll", f.scroll], ["cast", f.cast], ["template", f.template],
+          ["typeResample", f.typeResample], ["jsReveal", f.jsReveal], ["states", f.states],
+        ];
+        for (const [key, present] of conflicts) {
+          if (present != null) {
+            ctx.addIssue({ code: "custom", path: ["frames", i, "textTracks"], message: `\`textTracks\` needs this frame's captured tree — it cannot be combined with \`${key}\`` });
+          }
+        }
+      }
+      // DM-1294: `duration` is required (and positive) except on a `template`
+      // frame, which derives it from the template's play time when omitted (the
+      // `0` default is the "unset" sentinel).
+      if (f.duration <= 0 && f.template == null) {
+        ctx.addIssue({ code: "custom", path: ["frames", i, "duration"], message: "`duration` is required and must be > 0 (only a `template` frame may omit it — it inherits the template's play time)" });
+      }
+      // DM-1562: `hoverReveal` expands into captured frames — it needs a page
+      // (an `input` or a `continue`), not a self-contained cast/template frame.
+      if (f.hoverReveal != null) {
+        if (f.cast != null || f.template != null) {
+          ctx.addIssue({ code: "custom", path: ["frames", i, "hoverReveal"], message: "`hoverReveal` needs a captured page — it can't be used on a `cast` or `template` frame" });
+        }
+        if (f.forceState != null) {
+          ctx.addIssue({ code: "custom", path: ["frames", i, "hoverReveal"], message: "`hoverReveal` already forces the hover state — don't combine it with `forceState` on the same frame" });
+        }
+        if (f.hoverDetect != null) {
+          ctx.addIssue({ code: "custom", path: ["frames", i, "hoverReveal"], message: "set either `hoverReveal` or `hoverDetect` on a frame, not both" });
+        }
+      }
+      // DM-1563: `hoverDetect` probes a standalone page — it needs an `input`
+      // (a `continue`/`cast`/`template` frame has no page to load-and-probe).
+      if (f.hoverDetect != null) {
+        if (f.input == null || f.continue === true) {
+          ctx.addIssue({ code: "custom", path: ["frames", i, "hoverDetect"], message: "`hoverDetect` requires an `input` (it loads-and-probes a standalone page; it can't run on a `continue`/`cast`/`template` frame)" });
+        }
+        if (f.forceState != null) {
+          ctx.addIssue({ code: "custom", path: ["frames", i, "hoverDetect"], message: "`hoverDetect` synthesizes the state itself — don't combine it with `forceState` on the same frame" });
+        }
+      }
+    });
+  });
+
+export type AnimateConfig = z.infer<typeof animateConfigSchema>;
+/** The intra-frame `animations` array of a frame — the working type templates build. */
+export type Anims = NonNullable<AnimateConfig["frames"][number]["animations"]>;
+/** DM-1140 (doc 63 §2): the declarative action union accepted by `runActions`
+ *  (and the `actions` field of an animate config). Interaction actions (click /
+ *  fill / press / hover / focus / selectOption / scroll / wait / evaluate) plus
+ *  the DOM-mutation set (setText / setHtml / remove / setAttribute / addClass /
+ *  toggleClass / setStyle / insert / setValue / check / clear / scrollIntoView /
+ *  blur / dispatch / selectText / replaceText). Re-exported from the package root. */
+export type AnimateAction = z.infer<typeof actionSchema>;
+type OverlayInput = z.infer<typeof overlaySchema>;
+
+/**
+ * DM-1138 (doc 62 §2): per-frame hook fired by `composeAnimateConfig` /
+ * `composeAnimateFrames` after each frame is captured + culled + overlays/anchors
+ * resolved and **pushed**, before the prior frame's magic-move bridge is built.
+ * `frame` is the just-pushed `AnimationFrame` (mutating `frame.overlays` etc. IS
+ * reflected in the final SVG); `page` is the live Playwright page (still on this
+ * frame's DOM); `tree` is the captured element tree — `null` for scroll-block
+ * frames, which compose their own sub-SVG and have no single tree. Caveat:
+ * mutating `tree` after the fact does NOT re-render `frame.svgContent` (it was
+ * already serialized) — edit `frame.svgContent` / `frame.overlays` instead. May
+ * be async; it's awaited before the next frame.
+ */
+export type OnFrameHook = (
+  frame: AnimationFrame,
+  ctx: { page: Page; tree: CapturedElement[] | null; index: number },
+) => void | Promise<void>;
+
+/**
+ * DM-1138 (doc 62 "Signature compatibility"): the options-object form of the
+ * `composeAnimateConfig` / `composeAnimateFrames` trailing arguments. Accepted as
+ * the 3rd argument in place of the positional `(configDir?, log?)` — both forms
+ * are supported (the positional form is kept for the already-published callers).
+ */
+export interface ComposeAnimateOptions {
+  /** Resolves a frame's relative `input` / svg-overlay `src` paths. Default `process.cwd()`. */
+  configDir?: string;
+  /** Progress logger. Default no-op. */
+  log?: (msg: string) => void;
+  /** DM-1138: per-frame hook (see `OnFrameHook`). */
+  onFrame?: OnFrameHook;
+  /** DM-1540 (docs/92): brand kit whose CSS custom properties are injected onto
+   *  every CAPTURED frame's `:root` before capture, so pages authored against
+   *  `var(--brand-*)` pick up the palette / font / radius. DM-1543: it ALSO feeds
+   *  every `template` frame's param defaults (docs/85), so one brand themes both.
+   *  Takes precedence over the config's inline `brand` key (DM-1544). Omitted (and
+   *  no config `brand`) → no brand. Cast frames theme themselves. */
+  brand?: Brand;
+  /**
+   * DM-1538: resolved safe-area inset (px per side) from a `--format` preset. It
+   * rides through to any `template` frame's render context (so a themeable
+   * built-in honors the format's safe margins + adaptive scale, DM-1537/DM-1541).
+   * Captured/page frames don't reflow to it — the format only sizes their
+   * viewport. Omitted → no inset.
+   */
+  safeInset?: SafeInset;
+}
+
+/** Normalize the `(configDir?, log?)` positional form OR the `(opts?)` object
+ *  form into a single shape (DM-1138). */
+function normalizeComposeArgs(
+  configDirOrOpts?: string | ComposeAnimateOptions,
+  log?: (msg: string) => void,
+): { configDir: string; log: (msg: string) => void; onFrame?: OnFrameHook; brand?: Brand; safeInset?: SafeInset } {
+  if (configDirOrOpts != null && typeof configDirOrOpts === "object") {
+    return {
+      configDir: configDirOrOpts.configDir ?? process.cwd(),
+      log: configDirOrOpts.log ?? (() => {}),
+      onFrame: configDirOrOpts.onFrame,
+      brand: configDirOrOpts.brand,
+      safeInset: configDirOrOpts.safeInset,
+    };
+  }
+  return { configDir: configDirOrOpts ?? process.cwd(), log: log ?? (() => {}), onFrame: undefined };
+}
+
+/**
+ * DM-1544: resolve a config's inline `brand` key into a `Brand`. A string is a
+ * path to a brand JSON file (resolved relative to `configDir`, then parsed +
+ * validated by `loadBrand`, which also resolves that file's own relative `logo`).
+ * An object is an inline brand already validated by `brandSchema` at config-parse
+ * time; here we only resolve a relative `logo` against `configDir` (mirroring
+ * `loadBrand`'s file-relative behavior) so a template's logo slot gets an
+ * absolute path. Returns `undefined` when the config sets no `brand`.
+ */
+export function resolveConfigBrand(brand: AnimateConfig["brand"], configDir: string): Brand | undefined {
+  if (brand == null) return undefined;
+  if (typeof brand === "string") return loadBrand(resolve(configDir, brand));
+  const resolved: Brand = { ...brand };
+  if (resolved.logo != null && resolved.logo !== "" && !isAbsolute(resolved.logo) && !/^https?:\/\//i.test(resolved.logo)) {
+    resolved.logo = resolve(configDir, resolved.logo);
+  }
+  return resolved;
+}
+
+/**
+ * DM-1137 (doc 62 §1): the "frames-out" variant of `composeAnimateConfig`. Runs
+ * the exact same capture + action + overlay/cursor resolution + cull + magic-move
+ * pipeline but STOPS before `generateAnimatedSvg`, returning the assembled
+ * `AnimationConfig` (`{ width, height, frames, fontFaceCss, cursorOverlay,
+ * resolveCursorAt, background }`). Lets callers inspect / mutate the composed
+ * frames (add an overlay, drop a frame, post-process glyphs) before rendering —
+ * the render is then just `generateAnimatedSvg(config)`. `composeAnimateConfig`
+ * is reduced to exactly that, so the two can't diverge (the doc 60/61 one-engine-
+ * two-callers pattern).
+ *
+ * Creates one browser context (sized / emulated per `cfg`) and closes it before
+ * returning; the caller owns the `browser` lifecycle. The trailing args accept
+ * EITHER the positional `(configDir?, log?)` form OR a single
+ * `ComposeAnimateOptions` object `{ configDir?, log?, onFrame? }` (DM-1138) — the
+ * options form is how you pass the per-frame `onFrame` hook. `configDir` resolves
+ * a frame's relative `input` / svg-overlay `src` paths (default `process.cwd()`);
+ * `log` defaults to a no-op.
+ */
+/**
+ * DM-1287 (doc 73): render every `template` frame's named template to a finished
+ * SVG string, ready to nest as that frame's `svgContent`. Returns a map keyed by
+ * frame index (only template frames appear).
+ *
+ * Runs BEFORE the caller's outer font lifecycle so the nested per-template
+ * `composeAnimateFrames` (a template is a front-end onto the same engine) can
+ * clear + manage the module-global font builders without clobbering the outer
+ * run's frames — each template's output carries its own `@font-face`.
+ *
+ * Sizing: the template inherits the config's `width`/`height` when its params
+ * schema declares those fields and the caller left them unset, so it fills the
+ * frame by default. A template whose output differs from the canvas (e.g.
+ * `device-mockup`, which grows by its bezel) is centered; an oversized output is
+ * centered and clipped by the frame viewport. The template's own internal
+ * timeline plays within the frame's `duration` (size `duration` to ≈ the
+ * template's play time, same rule as a `cast` frame).
+ *
+ * Loaded via dynamic `import()` to avoid a static import cycle (the template
+ * subsystem already imports `composeAnimateConfig` from this module).
+ */
+/**
+ * DM-1293: place a nested frame's `content` (a `srcW × srcH` SVG body) inside a
+ * `dstW × dstH` canvas per the `fit` policy, wrapping it in a `<g transform>` when
+ * a translate/scale is needed (and returning it untouched when neither is — the
+ * exact-fit common case). All modes keep the content centered:
+ *  - `center` — 1:1, no scale (oversized content is clipped by the frame viewport).
+ *  - `contain` — scale to fit, preserving aspect (letterboxed).
+ *  - `cover` — scale to fill, preserving aspect (the overflow is clipped).
+ * Exported for unit testing the geometry without a browser.
+ */
+export function placeEmbeddedFrame(
+  content: string,
+  srcW: number,
+  srcH: number,
+  dstW: number,
+  dstH: number,
+  fit: "center" | "contain" | "cover" = "center",
+): string {
+  const r = (n: number): number => Math.round(n * 1000) / 1000;
+  let scale = 1;
+  if (fit === "contain") scale = Math.min(dstW / srcW, dstH / srcH);
+  else if (fit === "cover") scale = Math.max(dstW / srcW, dstH / srcH);
+  const ox = r((dstW - srcW * scale) / 2);
+  const oy = r((dstH - srcH * scale) / 2);
+  const parts: string[] = [];
+  if (ox !== 0 || oy !== 0) parts.push(`translate(${ox},${oy})`);
+  // `transform` applies right-to-left, so `translate(…) scale(…)` scales first
+  // (about the content's own origin) then offsets — i.e. the scaled box is centered.
+  if (scale !== 1) parts.push(`scale(${r(scale)})`);
+  return parts.length > 0 ? `<g transform="${parts.join(" ")}">${content}</g>` : content;
+}
+
+async function renderTemplateFrames(
+  cfg: AnimateConfig,
+  browser: Browser,
+  log: (msg: string) => void,
+  safeInset?: SafeInset,
+  brand?: Brand,
+): Promise<Map<number, { content: string; durationMs: number | null }>> {
+  const out = new Map<number, { content: string; durationMs: number | null }>();
+  const idxs = cfg.frames.flatMap((f, i) => (f.template != null ? [i] : []));
+  if (idxs.length === 0) return out;
+
+  const { loadTemplate } = await import("../templates/registry.js");
+  const { renderTemplateToSvg } = await import("../templates/render.js");
+
+  for (const i of idxs) {
+    const fc = cfg.frames[i];
+    const name = fc.template as string;
+    log(`Rendering template "${name}" for frame ${i + 1}/${cfg.frames.length}…`);
+
+    let template;
+    try {
+      template = await loadTemplate(name);
+    } catch (e) {
+      throw new Error(`animate: frames[${i}].template: ${(e as Error).message}`);
+    }
+
+    // Inherit the canvas size into the template's `width`/`height` params when
+    // its schema declares them and the caller didn't set them, so the template
+    // fills the frame. Introspect the zod object shape; templates without those
+    // params (or non-object schemas) just get no injection.
+    const shape = (template.paramsSchema as { shape?: Record<string, unknown> }).shape;
+    const base: Record<string, unknown> = {};
+    if (shape != null && Object.prototype.hasOwnProperty.call(shape, "width")) base.width = cfg.width;
+    if (shape != null && Object.prototype.hasOwnProperty.call(shape, "height")) base.height = cfg.height;
+    const rawParams = { ...base, ...(fc.params ?? {}) };
+
+    let result;
+    try {
+      result = await renderTemplateToSvg(template, rawParams, {
+        browser,
+        log: (m) => log(`  ${m}`),
+        // DM-1538: a `--format` on `animate` passes its safe-area inset through to
+        // template frames, so a themeable built-in honors the format's safe margins
+        // + adaptive scale (DM-1537/DM-1541) — the same context a standalone
+        // `domotion template --format …` render gets.
+        ...(safeInset != null ? { safeInset } : {}),
+        // DM-1543: the run's brand (from `--brand` or the config's `brand` key)
+        // supplies each template frame's param defaults — the SAME `applyBrandDefaults`
+        // merge `domotion template --brand` uses — so one flag/key themes both
+        // captured frames (CSS-var injection, docs/92) and template frames (docs/85).
+        ...(brand != null ? { brand } : {}),
+      });
+    } catch (e) {
+      // Param-validation errors already carry their own `template "x": …` path.
+      throw new Error(`animate: frames[${i}]: ${(e as Error).message}`);
+    }
+
+    const fit = fc.fit ?? "center";
+    if (fit === "center" && (result.width > cfg.width || result.height > cfg.height)) {
+      log(`  note: template output ${result.width}×${result.height} exceeds the ${cfg.width}×${cfg.height} canvas — it will be centered and clipped (set "fit":"contain" to scale it down)`);
+    }
+
+    // DM-1294: resolve the frame's duration. When the author omitted it, inherit
+    // the template's own play time (`durationMs`); a static template (no intrinsic
+    // duration) MUST carry an explicit `duration`. When the author set one that's
+    // shorter than the template plays, warn — the template will be cut off (same
+    // rule as a `cast` frame).
+    if (fc.duration <= 0) {
+      if (result.durationMs == null) {
+        throw new Error(`animate: frames[${i}].duration: template "${name}" has no intrinsic play time (it's a static template) — set an explicit "duration"`);
+      }
+      fc.duration = result.durationMs;
+      log(`  frame duration defaulted to the template's play time: ${result.durationMs}ms`);
+    } else if (result.durationMs != null && fc.duration < result.durationMs) {
+      log(`  note: frame duration ${fc.duration}ms < template play time ${result.durationMs}ms — the template will be cut off; size duration to ≈ ${result.durationMs}ms`);
+    }
+
+    // Namespace the template's document-global names (ids, font families, frame
+    // classes, @keyframes, --scene-dur) with a per-frame token so they can't
+    // collide with the outer animation or sibling template frames once nested
+    // into one document (a template is a full `generateAnimatedSvg` SVG, and
+    // SVG/CSS names are document-global, not scoped to a nested `<svg>`).
+    let content = namespaceEmbeddedAnimatedSvg(result.svg, `tf${i}_`);
+    // Strip the XML prolog so the `<svg>` nests cleanly in the animator's frame
+    // group (same as a `cast` frame). Center within the canvas when smaller.
+    content = content.replace(/^<\?xml[^>]*\?>\s*/, "");
+    content = placeEmbeddedFrame(content, result.width, result.height, cfg.width, cfg.height, fit);
+    out.set(i, { content, durationMs: result.durationMs ?? null });
+  }
+  return out;
+}
+
+type AnimateFrameCfg = AnimateConfig["frames"][number];
+
+/**
+ * Build a `cast` frame (DM-1225): render the recorded terminal session to a
+ * self-contained animated SVG, namespace its document-global names, and return
+ * the frame. Extracted from `composeAnimateFrames`' loop (DM-1376); the caller
+ * pushes it and resets `prevFrameTree`/`frameTrees` (a cast has no captured tree).
+ */
+async function buildCastFrame(
+  fc: AnimateFrameCfg,
+  i: number,
+  cfg: AnimateConfig,
+  configDir: string,
+  browser: Browser,
+  log: (msg: string) => void,
+): Promise<AnimationFrame> {
+  const castPath = resolveFrameInput(fc.cast!, configDir);
+  log(`Frame ${i + 1}/${cfg.frames.length}: rendering terminal cast ${castPath}…`);
+  const castText = readFileSync(castPath, "utf8");
+  const t = fc.term ?? {};
+  // manageFonts: false — share THIS pipeline's embedded-font builder (the
+  // loop already cleared it at the start and collects it once below), so
+  // the terminal font lands in the scene-wide @font-face block exactly
+  // once and its glyph PUA family names stay unique vs the other frames'
+  // (no clobber, no per-cast duplicate). The nested terminal SVG is then
+  // composed WITHOUT its own font CSS — it defers to that block. The cast
+  // renders via the chosen mode (incremental by default).
+  const { svg: castSvg, totalDurationMs } = await castToAnimatedSvg(castText, browser, {
+    theme: t.theme, mode: t.mode, cursor: t.cursor, cursorColor: t.cursorColor,
+    fontSize: t.fontSize, fontFamily: t.fontFamily, padding: t.padding,
+    cols: t.cols, rows: t.rows,
+    settleMs: t.settleMs, minFrameMs: t.minFrameMs, maxFrameMs: t.maxFrameMs, tailMs: t.tailMs,
+    manageFonts: false,
+    log: (m) => log(`  ${m}`),
+  });
+  if (fc.duration < totalDurationMs) {
+    log(`  note: frame duration ${fc.duration}ms < cast play time ${totalDurationMs}ms — the terminal will be cut off; size duration to ≈ ${totalDurationMs}ms`);
+  }
+  // DM-1292: the cast SVG is a full `generateAnimatedSvg` document, so its
+  // document-global names (ids, `.f-N` frame classes + `@keyframes fv-N` in
+  // `mode: "full"`, the incremental `ln…` / `tcur…` keyframes, `--scene-dur`)
+  // collide with the outer animation's identical names, or with a sibling
+  // cast frame's, once concatenated — a duplicate `@keyframes`/rule wins
+  // globally and hijacks the wrong frame's timeline (visible when the
+  // timeline is SEEKED, like the DM-1145 id-collision bug). Namespace them
+  // with a per-frame token, exactly like a `template` frame. Fonts are the
+  // ONE exception: `manageFonts: false` defers them to this pipeline's shared
+  // embedded-font builder (one `@font-face` block, already-unique `dmfN`
+  // names) collected after the loop, so we must NOT prefix the cast's
+  // `font-family` references or they'd dangle.
+  const termSvg = namespaceEmbeddedAnimatedSvg(castSvg, `cf${i}_`, { namespaceFonts: false });
+  // The animator wraps `svgContent` in `<g class="f f-N">`, which holds a
+  // nested `<svg>` fine — strip just the XML prolog (same as scroll).
+  return {
+    svgContent: termSvg.replace(/^<\?xml[^>]*\?>\s*/, ""),
+    duration: fc.duration,
+    transition: fc.transition,
+    // DM-1320: overlays render on top of the cast (explicit x/y); a selector
+    // anchor can't resolve (no DOM) and now warns instead of vanishing.
+    overlays: resolveEmbeddedFrameOverlays(fc.overlays, configDir, i, "cast", log),
+    // DM-1319: the nested cast is a self-contained animated SVG with its own
+    // internal period (the rendered cast length). Tell the animator so it
+    // re-anchors the cast's timeline to start when THIS frame is shown, rather
+    // than running on the shared document origin (which desyncs a cast that
+    // isn't frame 0 to its back half).
+    embeddedAnimationPeriodMs: totalDurationMs,
+  };
+}
+
+/**
+ * Build a `template` frame (DM-1287): wrap a template's pre-rendered (self-
+ * contained, possibly animated) SVG. Extracted from `composeAnimateFrames`'
+ * loop (DM-1376); the caller pushes it and resets `prevFrameTree`/`frameTrees`.
+ */
+function buildTemplateFrame(
+  fc: AnimateFrameCfg,
+  i: number,
+  cfg: AnimateConfig,
+  configDir: string,
+  templateRenders: Awaited<ReturnType<typeof renderTemplateFrames>>,
+  log: (msg: string) => void,
+): AnimationFrame {
+  log(`Frame ${i + 1}/${cfg.frames.length}: embedding template "${fc.template}"…`);
+  const tr = templateRenders.get(i)!;
+  return {
+    svgContent: tr.content,
+    duration: fc.duration,
+    transition: fc.transition,
+    // DM-1320: same as a cast frame — a template frame has no captured DOM,
+    // so a selector anchor warns and falls back to explicit x/y.
+    overlays: resolveEmbeddedFrameOverlays(fc.overlays, configDir, i, "template", log),
+    // DM-1319: an ANIMATED template (one with an intrinsic play time) is a
+    // self-contained animated SVG, same as a `cast` frame — re-anchor its
+    // timeline to this frame's master-loop offset so it begins when shown.
+    // A static template (durationMs == null) carries no internal animation.
+    ...(tr.durationMs != null ? { embeddedAnimationPeriodMs: tr.durationMs } : {}),
+  };
+}
+
+/**
+ * Per-frame loop state threaded into `buildCapturedFrame` (DM-1379). These are
+ * the slices of `composeAnimateFrames`' shared state the captured/default frame
+ * body reads or appends to: the live `page`, the run config + paths + logger,
+ * the shared webfont tracker, and the cursor-recording accumulators (`auto`
+ * targets get pushed; explicit-event selector boxes get set). Everything else
+ * the loop owns (frames array, prevFrameTree, frameTrees, canvasBg) stays in the
+ * caller — the helper returns what the caller needs to update them.
+ */
+interface CapturedFrameContext {
+  page: Page;
+  cfg: AnimateConfig;
+  configDir: string;
+  log: (msg: string) => void;
+  tracker: ReturnType<typeof attachWebfontTracker>;
+  cursorAuto: boolean;
+  explicitCursorEvents: CursorEventInput[];
+  autoCursorTargets: Array<{ frame: number; cx: number; cy: number; cursor: string }>;
+  explicitCursorBoxes: Map<string, { cx: number; cy: number }>;
+  /** DM-1747 (docs/101): resolved caret/selection tracks accumulated across
+   *  frames (global-time geometry) for `AnimationConfig.textTracks`. */
+  textTracks: ResolvedTextTrack[];
+  /** Shared deterministic frame clock used by culling and text-track rebasing. */
+  timeline: FrameTimelinePlan;
+}
+
+/**
+ * Build a captured/default frame (DM-1379): the loop's main fall-through path —
+ * continue-vs-load → readyWaits → webfont discovery → scrollTo → cursor
+ * recording → actions → intra-frame animations → scroll-block-vs-capture →
+ * overlays. Extracted from `composeAnimateFrames`' loop; unlike the cast/template
+ * continue-branches (`buildCastFrame` / `buildTemplateFrame`) this is entangled
+ * with shared loop state, so it takes a `CapturedFrameContext` (DM-1342-style
+ * context struct) and returns `{ frame, frameTree, rootBg }` rather than pushing
+ * itself. The caller owns the cross-frame after-build orchestration: set
+ * `canvasBg` from `rootBg` on frame 0, push the frame, fire the `onFrame` hook,
+ * build the magic-move bridge, and update `prevFrameTree` / `frameTrees`.
+ *
+ * The cursor-recording paths (`autoCursorTargets.push` / `explicitCursorBoxes
+ * .set`) are byte-gated by the `cursor-auto` / `cursor-events` examples.
+ */
+async function buildCapturedFrame(
+  fc: AnimateFrameCfg,
+  i: number,
+  ctx: CapturedFrameContext,
+): Promise<{ frame: AnimationFrame; frameTree: CapturedElement[] | null; rootBg: string | undefined }> {
+  const { page, cfg, configDir, log, tracker, cursorAuto, explicitCursorEvents, autoCursorTargets, explicitCursorBoxes } = ctx;
+  // The captured root background of this frame (the caller stamps it onto the
+  // composed canvas only for frame 0 — see DM-893); computed in both the scroll
+  // and capture branches below.
+  let rootBg: string | undefined;
+  // DM-846 §1: a continued frame (explicit `continue: true`, or a non-first
+  // frame that omits `input`) captures the previous frame's live page after
+  // running its own actions, instead of reloading. The page persists across
+  // the whole loop, so "continue" simply means "don't navigate".
+  const isContinue = i > 0 && (fc.continue === true || fc.input == null);
+  if (isContinue) {
+    log(`Frame ${i + 1}/${cfg.frames.length}: continuing live page…`);
+  } else {
+    const inputStr = fc.input;
+    if (inputStr == null) throw new Error(`animate: frames[${i}] has no input and is not a continue frame`);
+    const input = resolveFrameInput(inputStr, configDir);
+    log(`Frame ${i + 1}/${cfg.frames.length}: loading ${input}…`);
+    await timed(log, `  loaded`, () => loadInputIntoPage(page, input));
+  }
+  await applyReadyWaits(page, {
+    wait: fc.wait ?? 200,
+    waitFor: fc.waitFor,
+    fontsReady: true,
+    frameIndex: i,
+    waitForText: fc.waitForText,
+    waitForGone: fc.waitForGone,
+    waitForCount: fc.waitForCount,
+  });
+  await discoverAndRegisterWebfonts(page, tracker.urls);
+  if (fc.scrollTo != null) {
+    const sx = fc.scrollTo[0], sy = fc.scrollTo[1];
+    await page.evaluate((coords: number[]) => window.scrollTo(coords[0], coords[1]), [sx, sy]);
+  }
+  // DM-851 §6: for `cursor: "auto"`, record each interaction target's
+  // aim point BEFORE the action runs (that's where the pointer clicks).
+  // DM-1742: the action's optional `cursorAt` / `cursorOffset` aim the
+  // pointer at a named border-box anchor + px nudge instead of the center.
+  if (cursorAuto && fc.actions != null) {
+    for (const a of fc.actions) {
+      if (a.type === "click" || a.type === "hover" || a.type === "fill") {
+        const c = await queryCursorBox(page, a.selector, a.cursorAt, a.cursorOffset);
+        if (c != null) autoCursorTargets.push({ frame: i, cx: c.cx, cy: c.cy, cursor: c.cursor });
+      }
+    }
+  }
+  if (fc.actions != null) await runActions(page, fc.actions, log);
+  // DM-1516 (docs/94): force real CSS pseudo-state (:hover / :active / :focus)
+  // on the listed selectors via CDP BEFORE capture, so this frame paints the
+  // page's OWN hover/focus styling. Runs after `actions` (reflects the
+  // post-action DOM) and before the capture below (the forced paint is what gets
+  // serialized). A no-op when the frame declares no `forceState`.
+  await applyForcedPseudoStates(page, fc.forceState, log);
+  // Explicit cursor-event selectors resolve against the post-action DOM.
+  for (const ev of explicitCursorEvents) {
+    if (ev.frame === i && ev.selector != null) {
+      const c = await queryCursorBox(page, ev.selector);
+      if (c == null) throw new Error(`animate: cursor.events selector "${ev.selector}" matched no element in frame ${i}`);
+      explicitCursorBoxes.set(`${i}:${ev.selector}`, c);
+    }
+  }
+
+  // Intra-frame animations (DM-209): tag the live DOM with
+  // `data-domotion-anim="<id>"` for each animation's selector. The capture
+  // pass picks up the data attribute and the renderer surfaces it as
+  // class="anim-<id>" on the rendered group, which the animator targets
+  // with a CSS keyframe block.
+  const resolvedAnimations: IntraFrameAnimation[] = [];
+  if (fc.animations != null && fc.animations.length > 0) {
+    for (let ai = 0; ai < fc.animations.length; ai++) {
+      const a = expandMotionPreset(fc.animations[ai]); // DM-1526: preset → concrete fields
+      const animId = `f${i}a${ai}`;
+      await page.evaluate(
+        (args: { selector: string; animId: string }) => {
+          const els = document.querySelectorAll(args.selector);
+          els.forEach((el) => {
+            if (el instanceof HTMLElement) el.dataset.domotionAnim = args.animId;
+          });
+        },
+        { selector: a.selector, animId },
+      );
+      resolvedAnimations.push({
+        animId,
+        property: a.property,
+        from: a.from,
+        to: a.to,
+        duration: a.duration,
+        easing: a.easing,
+        delay: a.delay,
+        repeat: a.repeat,
+        alternate: a.alternate,
+        transformOrigin: a.transformOrigin,
+        transformBox: a.transformBox,
+        fuse: a.fuse,
+      });
+    }
+  }
+
+  // DM-1747 (docs/101): stamp each text track's target (and any per-event
+  // selector override) with `data-domotion-anim` on the live DOM — the exact
+  // mechanism intra-frame animations use above — so the captured tree carries
+  // the animId the text-address resolver looks up. One target element per
+  // track (first match); a selector matching nothing is a hard error naming
+  // the frame + config path.
+  if (fc.textTracks != null && fc.textTracks.length > 0) {
+    const stamp = async (selector: string, animId: string, label: string): Promise<void> => {
+      const matched = await page.evaluate(
+        (args: { selector: string; animId: string }) => {
+          const el = document.querySelector(args.selector);
+          if (el instanceof HTMLElement) {
+            el.dataset.domotionAnim = args.animId;
+            return true;
+          }
+          return false;
+        },
+        { selector, animId },
+      );
+      if (!matched) throw new Error(`animate: ${label} selector "${selector}" matched no element in frame ${i}`);
+    };
+    for (let k = 0; k < fc.textTracks.length; k++) {
+      const tt = fc.textTracks[k];
+      await stamp(tt.selector, `f${i}tt${k}`, `frames[${i}].textTracks[${k}]`);
+      for (let j = 0; j < tt.events.length; j++) {
+        const ev = tt.events[j];
+        if ("selector" in ev && ev.selector != null) {
+          await stamp(ev.selector, `f${i}tt${k}e${j}`, `frames[${i}].textTracks[${k}].events[${j}]`);
+        }
+      }
+    }
+  }
+
+  let svgContent: string;
+  let frameCullCss: string;
+  // DM-898: retain this frame's captured tree so a magic-move transition
+  // can diff it against the next frame's. `null` for scroll-block frames
+  // (no single tree) — magic-move then falls back to crossfade.
+  let frameTree: CapturedElement[] | null = null;
+  // DM-1556: a `typeResample` frame nests a per-keystroke animated SVG with its
+  // own internal timeline; set so the animator re-anchors it to this frame's
+  // master-loop offset (same as a `cast` / animated-`template` frame).
+  let embeddedAnimationPeriodMs: number | undefined;
+  // DM-1767 (docs/104): overlays a `states` run's individual states carried,
+  // already anchor-resolved per state and re-based onto this frame's timeline.
+  // Appended AFTER the frame's own overlays below (frame-level paints first).
+  let stateOverlays: OverlayInput[] | undefined;
+  if (fc.typeResample != null) {
+    // DM-1556 (docs/93 §2): drive the field one keystroke at a time, re-capturing
+    // after each keystroke, and compose the captures into one nested animated SVG
+    // that becomes this frame's content. No single captured tree (like a scroll /
+    // cast block), so magic-move to/from it falls back to crossfade.
+    const spec = resolveTypeResampleSpec(fc.typeResample);
+    const res = await buildTypeResampleAnimation(page, spec, {
+      width: cfg.width, height: cfg.height, framePrefix: `tr${i}_`, log,
+    });
+    svgContent = res.svgContent;
+    frameCullCss = "";
+    rootBg = res.rootBg;
+    embeddedAnimationPeriodMs = res.periodMs;
+    if (fc.duration < res.periodMs) {
+      log(`  note: frame duration ${fc.duration}ms < type-resample play time ${res.periodMs}ms — the typing will be cut off; size duration to ≈ ${res.periodMs}ms`);
+    }
+  } else if (fc.jsReveal != null) {
+    // DM-1564 (docs/94 option 3): dispatch a pointer event, observe the page's
+    // own JS-driven DOM mutations until they settle, and synthesize the reveal as
+    // a rest→after crossfade nested into this frame's content. No single captured
+    // tree (like a scroll / cast block), so magic-move to/from it crossfades.
+    const spec = resolveJsRevealSpec(fc.jsReveal);
+    const res = await buildJsRevealAnimation(page, spec, {
+      width: cfg.width, height: cfg.height, framePrefix: `jr${i}_`, log,
+    });
+    svgContent = res.svgContent;
+    frameCullCss = "";
+    rootBg = res.rootBg;
+    embeddedAnimationPeriodMs = res.periodMs;
+    if (fc.duration < res.periodMs) {
+      log(`  note: frame duration ${fc.duration}ms < jsReveal play time ${res.periodMs}ms — the reveal will be cut off; size duration to ≈ ${res.periodMs}ms`);
+    }
+  } else if (fc.states != null) {
+    // DM-1747 (docs/100 Primitive 1): compressed editing run. Each state runs
+    // its actions against the live page and is captured; the N states compose
+    // via `composeCompressedRun` into ONE nested animated SVG (shared content
+    // emitted once, step-end birth/shift/recolor tracks, snap at boundaries)
+    // that becomes this frame's content — the typeResample/cast nesting
+    // precedent, so the animator needs zero changes. No single captured tree
+    // (magic-move to/from it falls back to crossfade).
+    const res = await buildStatesRunContent(page, fc, i, cfg, log);
+    svgContent = res.svgContent;
+    frameCullCss = "";
+    rootBg = res.rootBg;
+    embeddedAnimationPeriodMs = res.periodMs;
+    // DM-1767 (docs/104): per-state overlays, anchor-resolved against each
+    // state's own page inside the run and re-based onto this frame's timeline.
+    stateOverlays = res.overlays;
+    if (fc.duration < res.periodMs) {
+      log(`  note: frame duration ${fc.duration}ms < compressed-run play time ${res.periodMs}ms — the run will be cut off; size duration to ≈ ${res.periodMs}ms`);
+    }
+  } else if (fc.scroll != null) {
+    // DM-612: scroll-demo block. Run the executor against the loaded
+    // page, cull each segment's tree (DM-603), compose into one
+    // animated SVG, and use as this frame's svgContent. The composed
+    // SVG carries its own internal keyframes loop (animation-duration =
+    // pattern's total scroll time) — caller is expected to size the
+    // frame's `duration` to match so the outer scene cycle aligns with
+    // the inner scroll loop.
+    log(`  scroll pattern: ${fc.scroll.pattern}`);
+    const scrollPattern = parseScrollPattern(fc.scroll.pattern);
+    const scrollClip = fc.scroll.clip ?? [0, 0, cfg.width, cfg.height];
+    const segments = await executeScrollPattern(page, scrollPattern, {
+      selector: fc.scroll.selector,
+      captureSelector: fc.selector ?? "body",
+      captureViewport: {
+        x: scrollClip[0], y: scrollClip[1], width: scrollClip[2], height: scrollClip[3],
+      },
+      viewportW: scrollClip[2],
+      viewportH: scrollClip[3],
+      defaultSpeed: fc.scroll.speed,
+      prescroll: fc.scroll.prescroll !== false,
+      log,
+    });
+    for (const seg of segments) {
+      annotateAnimatedProperties(seg.tree, resolvedAnimations);
+      cullElementsOutsideViewBox(seg.tree, scrollClip[2], scrollClip[3], undefined, 0, 1);
+    }
+    rootBg = segments[0]?.tree?.[0]?.styles?.rootBgComputed;
+    const composed = composeScrollSvg(segments, { viewportW: scrollClip[2], viewportH: scrollClip[3] });
+    // The composer emits a full `<?xml ...><svg>...</svg>` document. The
+    // outer animator wraps `svgContent` in a `<g class="f f-N">`, which
+    // happily contains a nested `<svg>` element — strip just the XML
+    // prolog so we don't end up with `<?xml ...>` inside a `<g>`.
+    svgContent = composed.replace(/^<\?xml[^>]*\?>\s*/, "");
+    frameCullCss = "";
+  } else {
+    // Self-contained capture (capture + inline remote image bytes). `animate`
+    // doesn't go through `Capturer`, which is where the embed step used to live
+    // alone — so an `<img src="logo.png">` serialized with its literal origin
+    // URL and rendered blank anywhere that origin was unreachable. Silent, too:
+    // no warning, and the SVG looked fine until viewed elsewhere. Fonts, glyphs
+    // and conic gradients are all embedded here; images were the one asset class
+    // that was not.
+    const frameStartMs = ctx.timeline.frames[i].startMs;
+    const captured = await captureAnimateFrame({
+      page,
+      selector: fc.selector ?? "body",
+      width: cfg.width,
+      height: cfg.height,
+      framePrefix: `f${i}-`,
+      animations: resolvedAnimations,
+      frameStartMs,
+      totalDurationMs: ctx.timeline.totalDurationMs,
+    });
+    frameCullCss = captured.cullCss;
+    rootBg = captured.rootBackground;
+    svgContent = captured.svgContent;
+    frameTree = captured.tree;
+    // DM-1747 (docs/101): resolve this frame's declarative text tracks against
+    // the captured tree — frame-relative `at` mapped to global time (the cursor
+    // events' frame→global mapping) — and accumulate for the animator's
+    // `AnimationConfig.textTracks`.
+    if (fc.textTracks != null && fc.textTracks.length > 0) {
+      for (let k = 0; k < fc.textTracks.length; k++) {
+        ctx.textTracks.push(resolveTextTrack(captured.tree, configTextTrackSpec(fc.textTracks[k], i, k, frameStartMs, fc.duration)));
+      }
+    }
+  }
+
+  // DM-850 §5: resolve selector-anchored overlays against the live page
+  // (bbox → x/y, and maxWidth:"anchor" → the element's content width) BEFORE
+  // the svg-inlining pass, while the page is still loaded.
+  const anchoredOverlays = await resolveOverlayAnchors(page, fc.overlays, i);
+  // DM-1767: a `states` run's per-state overlays were already anchor-resolved
+  // against their own state's page (`buildStatesRunContent`), so they join the
+  // list AFTER the frame-level ones — declaration order is paint order, and a
+  // frame-level overlay spans the whole run while a state's is bounded to it.
+  const allOverlays = stateOverlays != null
+    ? [...(anchoredOverlays ?? []), ...stateOverlays]
+    : anchoredOverlays;
+  // Resolve SVG-kind overlays: read each `src` from disk, namespace its
+  // ids, and replace with `innerSvg`. Other overlay kinds pass through
+  // verbatim. (DM-210.)
+  const overlays = resolveSvgOverlays(allOverlays, configDir, i);
+
+  const frame: AnimationFrame = {
+    svgContent,
+    cullCss: frameCullCss === "" ? undefined : frameCullCss,
+    duration: fc.duration,
+    transition: fc.transition,
+    overlays,
+    animations: resolvedAnimations.length > 0 ? resolvedAnimations : undefined,
+    ...(embeddedAnimationPeriodMs != null ? { embeddedAnimationPeriodMs } : {}),
+  };
+  return { frame, frameTree, rootBg };
+}
+
+// ── DM-1770: independent per-region timing inside one compressed run ────────
+
+/** The capture schedule for a `states` run whose states advance named regions
+ *  independently (docs/100 "independent per-region timing", docs/43 §11.1). */
+export interface RegionCapturePlan {
+  /** `rounds[r]` = the state indices whose `actions` run before capture round
+   *  `r`, in state order. Round 0 is always empty: it IS state 0, the frame's
+   *  own post-`actions` state and every region's starting point. */
+  rounds: number[][];
+  /** `sourceRound[s][name]` = the capture round holding region `name`'s
+   *  subtree for state `s`. */
+  sourceRound: Array<Record<string, number>>;
+}
+
+/**
+ * Schedule the whole-page captures a per-region-timed run needs.
+ *
+ * Capture stays whole-page — the browser paints the page, so there is no such
+ * thing as capturing one pane. What per-region timing changes is that a single
+ * whole-page capture can be *assigned* to several regions at once: if states 1
+ * and 2 advance DISJOINT regions, driving both edits into the page and
+ * capturing once yields region A at its state-1 content and region B at its
+ * state-2 content in the same tree, and each state's tree is then assembled by
+ * taking each region's subtree from the round that holds its own state.
+ *
+ * The assignment is a longest-chain walk, which is minimal by construction: a
+ * state's `actions` are one indivisible script, so they run in exactly one
+ * round; and every region it advances must move strictly past the round of its
+ * own previous advance (rounds are cumulative — the page carries forward), so
+ * the state's round is one past the latest of those. With k regions advancing
+ * nᵢ times each on disjoint schedules that gives `1 + max(nᵢ)` captures against
+ * the `1 + Σnᵢ` a hand-interleaved sequence pays; states that advance several
+ * regions at once chain them, so the true bound is the longest such chain.
+ *
+ * Pure and total — no browser, no I/O. The caller enforces the one semantic
+ * precondition (regions are independent: a region's content may not move
+ * anything outside itself), which `buildStatesRunContent` checks against the
+ * captures and reports as a hard error.
+ */
+export function planRegionCaptureRounds(
+  states: ReadonlyArray<{ advances?: string[] }>,
+  regionNames: readonly string[],
+): RegionCapturePlan {
+  const cur: Record<string, number> = {};
+  for (const n of regionNames) cur[n] = 0;
+  const rounds: number[][] = [[]];
+  const sourceRound: Array<Record<string, number>> = [{ ...cur }];
+  for (let s = 1; s < states.length; s++) {
+    // A state with no `advances` advances everything — the sequential default.
+    const adv = states[s].advances ?? regionNames;
+    let r = 0;
+    for (const n of adv) r = Math.max(r, cur[n] ?? 0);
+    r += 1;
+    while (rounds.length <= r) rounds.push([]);
+    rounds[r].push(s);
+    for (const n of adv) cur[n] = r;
+    sourceRound.push({ ...cur });
+  }
+  return { rounds, sourceRound };
+}
+
+/** Index the declared region roots of a captured tree by their stamped
+ *  `animId`. A region root missing from a capture is a hard error upstream. */
+function indexRegionRoots(tree: CapturedElement[], ids: ReadonlySet<string>): Map<string, CapturedElement> {
+  const out = new Map<string, CapturedElement>();
+  const walk = (els: CapturedElement[]): void => {
+    for (const el of els) {
+      const id = el.animId;
+      // First match wins, matching the "first match" selector-stamping rule.
+      if (id != null && ids.has(id) && !out.has(id)) out.set(id, el);
+      walk(el.children);
+    }
+  };
+  walk(tree);
+  return out;
+}
+
+/** Assemble one state's tree: the non-region remainder from `base`, and each
+ *  declared region's subtree from the capture holding that region's own state.
+ *  Every spliced subtree is cloned, so the assembled trees never alias. */
+function spliceRegionSubtrees(base: CapturedElement[], sources: Map<string, CapturedElement>): CapturedElement[] {
+  const walk = (els: CapturedElement[]): CapturedElement[] => els.map((el) => {
+    const id = el.animId;
+    const src = id != null ? sources.get(id) : undefined;
+    if (src != null) return structuredClone(src);
+    if (el.children.length === 0) return el;
+    return { ...el, children: walk(el.children) };
+  });
+  return walk(base);
+}
+
+/** A content key for everything OUTSIDE the declared regions: the tree with
+ *  each region root's whole node replaced by a marker. Equal keys across
+ *  rounds is the precondition the splice rests on — a region whose content
+ *  moved something outside itself (or another region) breaks it, and it is
+ *  cheaper and far more legible to catch that here than to ship wrong pixels. */
+function outsideRegionsKey(tree: CapturedElement[], ids: ReadonlySet<string>): string {
+  const mask = (els: CapturedElement[]): unknown[] => els.map((el) => {
+    const id = el.animId;
+    if (id != null && ids.has(id)) return { region: id };
+    return { ...el, children: mask(el.children) };
+  });
+  return JSON.stringify(mask(tree));
+}
+
+/**
+ * Assemble the run's per-state trees from the per-round captures: the
+ * non-region remainder from round 0, and each declared region's subtree from
+ * the round holding that region's own state.
+ *
+ * Pure over the captures (no browser), and the load-bearing correctness step of
+ * per-region timing — the assembled configuration is one the page was never
+ * actually driven into, so nothing downstream would notice if it were wrong.
+ * It therefore checks its own precondition rather than trusting it: the
+ * remainder outside the declared regions must be identical in every round (no
+ * region's content moved anything outside itself), and every declared region
+ * root must still be present in every round. Both failures throw, naming
+ * `framePath` and the round that diverged.
+ */
+export function assembleRegionStateTrees(
+  roundTrees: CapturedElement[][],
+  plan: RegionCapturePlan,
+  regionIdByName: ReadonlyMap<string, string>,
+  framePath: string,
+): CapturedElement[][] {
+  const ids = new Set(regionIdByName.values());
+  // Missing-root first, on purpose. A vanished root ALSO perturbs the
+  // outside-the-regions key below (its marker disappears from the mask), so
+  // checking that first would report the generic "something outside changed"
+  // for what is really "your region element is gone" — the less actionable of
+  // the two messages for the same fault.
+  const rootsByRound = roundTrees.map((t) => indexRegionRoots(t, ids));
+  for (let r = 0; r < rootsByRound.length; r++) {
+    for (const [name, id] of regionIdByName) {
+      if (!rootsByRound[r].has(id)) {
+        throw new Error(`animate: ${framePath}.regions.${name} — the region's element is missing from capture round ${r}; its subtree was replaced without keeping the element itself`);
+      }
+    }
+  }
+  const baseKey = outsideRegionsKey(roundTrees[0], ids);
+  for (let r = 1; r < roundTrees.length; r++) {
+    if (outsideRegionsKey(roundTrees[r], ids) !== baseKey) {
+      throw new Error(
+        `animate: ${framePath} declares per-region timing (\`advances\`), but the page changed OUTSIDE the declared `
+        + `regions between capture round 0 and round ${r} — each state's tree is assembled from the round holding each `
+        + `region's own state, so anything that changes must live inside a declared region. Declare the changing element `
+        + `in \`regions\`, or drop \`advances\` to capture every state whole.`,
+      );
+    }
+  }
+  return plan.sourceRound.map((bySource) => {
+    const sources = new Map<string, CapturedElement>();
+    for (const [name, id] of regionIdByName) sources.set(id, rootsByRound[bySource[name]].get(id)!);
+    return spliceRegionSubtrees(roundTrees[0], sources);
+  });
+}
+
+/**
+ * DM-1747 (docs/100 Primitive 1): build a `states` frame's content. Runs each
+ * state's actions against the live page, captures the tree, and composes the N
+ * captured states via `composeCompressedRun` into one nested animated SVG:
+ * content shared across states is emitted once; later states contribute only
+ * their changes as `step-end` tracks (glyph births/deaths, uniform tail
+ * shifts, recolors), snapping at every state boundary. Fonts are deferred to
+ * the outer run's shared embedded-font builder (`manageFonts: false`, the
+ * cast/typeResample pattern), and the run's document-global names are
+ * namespaced per frame so nested runs can't collide. The compressor's pairing
+ * log line (`compress: run of N states, X% glyphs paired, …`) surfaces through
+ * the CLI logger.
+ *
+ * DM-1770: when the frame declares `regions` AND any state declares
+ * `advances`, the capture loop switches to the per-region schedule
+ * (`planRegionCaptureRounds`) — states advancing disjoint regions share one
+ * whole-page capture, and each state's tree is assembled from the round
+ * holding each region's own state. Without `advances` the loop is exactly
+ * sequential, one capture per state, as it has always been.
+ */
+async function buildStatesRunContent(
+  page: Page,
+  fc: AnimateFrameCfg,
+  i: number,
+  cfg: AnimateConfig,
+  log: (msg: string) => void,
+): Promise<{ svgContent: string; periodMs: number; rootBg: string | undefined; overlays?: OverlayInput[] }> {
+  const stateCfgs = fc.states!;
+
+  // DM-1770: stamp each declared region's element with `data-domotion-anim`,
+  // the same mechanism `textTracks` and intra-frame animations use, so the
+  // captured tree carries an `animId` the compressor can recognize as an
+  // explicit region root. Re-stamped before every capture, because a state's
+  // actions are free to rebuild the DOM under (or including) the region root.
+  const regionNames = Object.keys(fc.regions ?? {});
+  const regionIdOf = (name: string): string => `f${i}rg${regionNames.indexOf(name)}`;
+  const regionIds = regionNames.map(regionIdOf);
+  const regionIdSet = new Set(regionIds);
+  const stampRegions = async (): Promise<void> => {
+    for (const name of regionNames) {
+      const selector = fc.regions![name];
+      const matched = await page.evaluate(
+        (args: { selector: string; animId: string }) => {
+          const el = document.querySelector(args.selector);
+          if (el instanceof HTMLElement) {
+            el.dataset.domotionAnim = args.animId;
+            return true;
+          }
+          return false;
+        },
+        { selector, animId: regionIdOf(name) },
+      );
+      if (!matched) throw new Error(`animate: frames[${i}].regions.${name} selector "${selector}" matched no element`);
+    }
+    // Two regions whose selectors land on the SAME element would silently
+    // clobber each other's stamp, leaving one region with no root at all. Read
+    // the stamps back and name the colliding pair instead.
+    const stamps = await page.evaluate(
+      (args: { selectors: string[] }) => args.selectors.map((s) => {
+        const el = document.querySelector(s);
+        return el instanceof HTMLElement ? (el.dataset.domotionAnim ?? "") : "";
+      }),
+      { selectors: regionNames.map((n) => fc.regions![n]) },
+    );
+    for (let k = 0; k < regionNames.length; k++) {
+      if (stamps[k] === regionIdOf(regionNames[k])) continue;
+      const other = regionNames[regionIds.indexOf(stamps[k])] ?? "another region";
+      throw new Error(
+        `animate: frames[${i}].regions.${regionNames[k]} and .${other} resolve to the SAME element `
+        + `("${fc.regions![regionNames[k]]}" and "${fc.regions![other] ?? "?"}") — each region must name a distinct element, `
+        + `since a region is the unit a state advances independently.`,
+      );
+    }
+  };
+
+  // Per-region timing engages only once a state actually declares `advances`;
+  // a bare `regions` map is purely a region-discriminator override and leaves
+  // capture byte-for-byte what it was.
+  const perRegionTiming = regionNames.length > 0 && stateCfgs.some((st) => st.advances != null);
+  const plan = perRegionTiming ? planRegionCaptureRounds(stateCfgs, regionNames) : null;
+
+  const captureNow = async (): Promise<CapturedElement[]> => {
+    await stampRegions();
+    // DM-1799: stamp overlay anchor targets too, so the assembled tree carries
+    // an id the tree-side resolver can find them by (the same mechanism
+    // `regions` / `textTracks` use — no CSS-selector engine over the tree).
+    if (perRegionTiming) await stampAnchorTargets();
+    // Self-contained, as above — the compressed-run state path captures its own trees.
+    const tree = await captureElementTreeSelfContained(page, fc.selector ?? "body", {
+      x: 0, y: 0, width: cfg.width, height: cfg.height,
+    });
+    cullElementsOutsideViewBox(tree, cfg.width, cfg.height, undefined, 0, 1);
+    return tree;
+  };
+
+  // DM-1767 (docs/104): per-state overlays. Each state's overlays are anchor-
+  // resolved WHILE the page is at that state — the whole point, since a
+  // collapsed run leaves the page at its LAST state and layout moving between
+  // states is exactly why the run compresses — then rewritten onto the outer
+  // frame's timeline: `delay` shifted by the state's offset into the run and
+  // `endAt` pinned to the state's end, so the overlay dies at its own state's
+  // snap instead of holding to the end of the whole run.
+  const stateOffsets: number[] = [];
+  {
+    let t = 0;
+    for (const st of stateCfgs) { stateOffsets.push(t); t += st.duration; }
+  }
+  // Bucketed per state, then flattened in STATE order — with per-region timing
+  // the capture rounds visit states out of order, and an overlay's position in
+  // the frame's list is its paint order.
+  const overlayBuckets: OverlayInput[][] = stateCfgs.map(() => []);
+  /** Re-base a state's already-anchor-resolved overlays onto the run's timeline. */
+  const bucketStateOverlays = (j: number, resolved: OverlayInput[]): void => {
+    const start = stateOffsets[j];
+    const hold = stateCfgs[j].duration;
+    for (const ov of resolved) {
+      // An `endAt` authored on a per-state overlay is relative to ITS state, so
+      // it bounds the overlay inside the state; without one the state's own
+      // hold is the window. Either way the result can never outlive the state.
+      const endAt = start + Math.min(ov.endAt ?? hold, hold);
+      overlayBuckets[j].push({ ...ov, delay: (ov.delay ?? OVERLAY_DEFAULT_DELAY_MS[ov.kind]) + start, endAt } as OverlayInput);
+    }
+  };
+  const collectStateOverlays = async (j: number): Promise<void> => {
+    const authored = stateCfgs[j].overlays;
+    if (authored == null || authored.length === 0) return;
+    const resolved = await resolveOverlayAnchors(page, authored, i);
+    if (resolved != null) bucketStateOverlays(j, resolved);
+  };
+
+  // DM-1799: under PER-REGION TIMING the live page never stands in a state's
+  // assembled configuration — states advancing disjoint regions share a capture
+  // round, and each state's tree is assembled afterwards from the round holding
+  // each region's own state. So a page-context anchor into a region on a
+  // different schedule would resolve against that round's position, not the
+  // assembled one (DM-1793). Those runs resolve anchors against the ASSEMBLED
+  // TREE instead, which does hold every region at its own state.
+  //
+  // The sequential path keeps the page resolver: there the page DOES stand at
+  // each state when it is captured, so page resolution is already exact, it is
+  // what every shipped golden was measured under, and it can see things the
+  // tree cannot (anything capture drops).
+  const anchorSelectors = [...new Set(
+    stateCfgs.flatMap((st) => (st.overlays ?? []).map((ov) => ov.anchor?.selector).filter((sel): sel is string => sel != null)),
+  )];
+  const anchorAnimId = (sel: string): string => `f${i}ova${anchorSelectors.indexOf(sel)}`;
+  const stampAnchorTargets = async (): Promise<void> => {
+    for (const sel of anchorSelectors) {
+      const matched = await page.evaluate(
+        (args: { selector: string; animId: string }) => {
+          const el = document.querySelector(args.selector);
+          if (el instanceof HTMLElement) { el.dataset.domotionAnim = args.animId; return true; }
+          return false;
+        },
+        { selector: sel, animId: anchorAnimId(sel) },
+      );
+      if (!matched) throw new Error(`animate: frames[${i}] overlay anchor selector "${sel}" matched no element`);
+    }
+  };
+
+  const states: CompressedRunState[] = [];
+  if (plan != null) {
+    log(`  states: ${stateCfgs.length} states over ${regionNames.length} region${regionNames.length === 1 ? "" : "s"} `
+      + `→ ${plan.rounds.length} whole-page capture${plan.rounds.length === 1 ? "" : "s"} (per-region timing; ${stateCfgs.length} without it)…`);
+    const roundTrees: CapturedElement[][] = [];
+    for (let r = 0; r < plan.rounds.length; r++) {
+      for (const s of plan.rounds[r]) {
+        const acts = stateCfgs[s].actions;
+        if (acts != null && acts.length > 0) await runActions(page, acts, log);
+      }
+      roundTrees.push(await captureNow());
+    }
+    const assembled = assembleRegionStateTrees(
+      roundTrees,
+      plan,
+      new Map(regionNames.map((n) => [n, regionIdOf(n)])),
+      `frames[${i}]`,
+    );
+    // DM-1799: anchors resolve against each state's ASSEMBLED tree, which holds
+    // every region at its own state — exact even for an anchor pointing into a
+    // region on a different `advances` schedule.
+    for (let s = 0; s < stateCfgs.length; s++) {
+      const authored = stateCfgs[s].overlays;
+      if (authored != null && authored.length > 0) {
+        const resolved = resolveAnchoredOverlaysInTree(
+          assembled[s], authored, (sel) => anchorAnimId(sel),
+          (kind) => `animate: frames[${i}].states[${s}] ${kind} overlay`,
+        );
+        if (resolved != null) bucketStateOverlays(s, resolved);
+      }
+    }
+    for (let s = 0; s < stateCfgs.length; s++) states.push({ tree: assembled[s], holdMs: stateCfgs[s].duration });
+  } else {
+    log(`  states: capturing ${stateCfgs.length} editing state${stateCfgs.length === 1 ? "" : "s"} for the compressed run…`);
+    for (let j = 0; j < stateCfgs.length; j++) {
+      const st = stateCfgs[j];
+      // State 0 is the frame's own post-`actions` state; each state's own
+      // actions (if any) run before its capture.
+      if (st.actions != null && st.actions.length > 0) await runActions(page, st.actions, log);
+      states.push({ tree: await captureNow(), holdMs: st.duration });
+      // DM-1767: this state's overlays anchor against THIS state's layout.
+      await collectStateOverlays(j);
+    }
+  }
+  const runOverlays = overlayBuckets.flat();
+  const rootBg = states[0].tree[0]?.styles?.rootBgComputed;
+  // The size-regression guard (below) can only fall back to the uncompressed
+  // form for a run the automatic pass created, and the compressor renders from
+  // the trees, so snapshot them first — but ONLY for those runs, so a
+  // hand-authored `states:` block pays nothing.
+  const guarded = wasAutoCollapsed(fc);
+  const baseOpts = {
+    width: cfg.width,
+    height: cfg.height,
+    idPrefix: `cr${i}`,
+    ...(rootBg != null ? { background: rootBg } : {}),
+    ...(fc.caret != null ? { caret: fc.caret } : {}),
+    // DM-1770: the declared regions override the auto-detected discriminator
+    // inside them (the hybrid contract — auto-detection stays the default
+    // everywhere the author declared nothing).
+    ...(regionIds.length > 0 ? { regionRootIds: regionIds } : {}),
+    // Defer @font-face to the outer run's shared embedded-font builder (one
+    // scene-wide block, collected after the loop) — the cast pattern.
+    manageFonts: false,
+    log: (m: string) => log(`  ${m}`),
+  };
+  // Snapshot the shared builder BEFORE the keep-all compose. `manageFonts:false`
+  // leaves keep-all's PUA / dmfN addressing live; if the per-region guard below
+  // picks a demoted variant instead, it must roll back to here first so only the
+  // winner's addressing reaches the real output (DM-1771 speculative-compose).
+  const preRun = snapshotGeneration();
+  const run = composeCompressedRun(states, baseOpts);
+  // DM-1764 size-regression guard (docs/100), now PER REGION (DM-1772).
+  // Compression is pixel-identical but NOT unconditionally smaller: a
+  // wholesale-change pane (a slideshow, where consecutive states share almost
+  // nothing) pairs badly and re-emits nearly everything as births/deaths, paying
+  // the union + track overhead on top. `compressedBytes / rawBytes` is a free
+  // TRIGGER (the compressor already reports both), but the decision is made on
+  // REAL BYTES: each region is trialed demoted-vs-kept and demoted whenever that
+  // shrinks the run. Demoting a region moves its text into the chrome union (the
+  // path ineligible text already takes — pixel-safe), and demoting EVERY region
+  // is the whole-run fallback, which beats the old `composeStatesFlipbook` revert
+  // because the union dedupes subtrees shared across states.
+  const { rawBytes, compressedBytes } = run.pairingStats;
+  const ratio = rawBytes > 0 ? compressedBytes / rawBytes : 1;
+  let svg = run.svg;
+  let periodMs = run.durationMs;
+  if (ratio > (guarded ? COMPRESS_SIZE_GUARD_AUTO_RATIO : COMPRESS_SIZE_GUARD_RATIO)) {
+    const pct = `${((ratio - 1) * 100).toFixed(0)}%`;
+    if (guarded) {
+      // Decide on REAL BYTES among three pixel-identical candidates, each sized
+      // in a snapshot/restore trial so a discarded compose's PUA / dmfN
+      // addressing never leaks into the real output:
+      //   • keep-all (`run`, already composed)
+      //   • per-region demotion — demote every region that individually shrinks
+      //     the run (regions are pixel-independent: the occlusion promotion check
+      //     is whole-tree, so one region's demotion can't change another's).
+      //     Demoting them all is the chrome union, which beats the flipbook when
+      //     states share subtrees it can dedupe (docs/100: 81.8 vs 97.8 KB).
+      //   • composeStatesFlipbook — the uncompressed floor, kept so DM-1764's
+      //     guarantee (autoCompress never grows output) still holds for wholesale
+      //     runs whose union can't dedupe and would edge out larger.
+      const toKb = (n: number): string => (n / 1024).toFixed(1);
+      const paired = `${(run.pairingStats.pairedPct * 100).toFixed(1)}%`;
+      const cloneTrees = (): CapturedElement[][] => states.map((s) => structuredClone(s.tree));
+      const holds = states.map((s) => s.holdMs);
+
+      const demote: string[] = [];
+      for (const region of run.regions) {
+        const marker = snapshotGeneration();
+        const shrank = composeCompressedRun(states, { ...baseOpts, demotedRegions: [region] }).svg.length < run.svg.length;
+        restoreGeneration(marker);
+        if (shrank) demote.push(region);
+      }
+      // Size the two fallbacks (trials — rolled back, so only the winner
+      // re-composed below keeps its addressing).
+      let demotedLen = Infinity;
+      if (demote.length > 0) {
+        const marker = snapshotGeneration();
+        demotedLen = composeCompressedRun(states, { ...baseOpts, demotedRegions: demote }).svg.length;
+        restoreGeneration(marker);
+      }
+      const fbMarker = snapshotGeneration();
+      const flipbookLen = composeStatesFlipbook(cloneTrees(), holds, cfg.width, cfg.height, `cr${i}`, rootBg).svg.length;
+      restoreGeneration(fbMarker);
+
+      // Pick the smallest; keep-all wins ties (never rewrite when nothing helps),
+      // and demotion wins over the flipbook on a tie (the primary fallback).
+      if (demotedLen <= flipbookLen && demotedLen < run.svg.length) {
+        restoreGeneration(preRun);
+        const chosen = composeCompressedRun(states, { ...baseOpts, demotedRegions: demote });
+        const scope = demote.length === run.regions.length ? "all regions" : `${demote.length}/${run.regions.length} regions`;
+        log(`  auto-compress: demoting ${scope} into the chrome union — compressing kept them ${pct} larger than uncompressed (${toKb(rawBytes)} KB → ${toKb(compressedBytes)} KB, only ${paired} glyphs paired); demoted is ${toKb(chosen.svg.length)} KB`);
+        svg = chosen.svg;
+        periodMs = chosen.durationMs;
+      } else if (flipbookLen < run.svg.length) {
+        restoreGeneration(preRun);
+        const fb = composeStatesFlipbook(cloneTrees(), holds, cfg.width, cfg.height, `cr${i}`, rootBg);
+        log(`  auto-compress: reverting frame ${i}'s run to uncompressed states — compressing it grew the payload ${pct} (${toKb(rawBytes)} KB → ${toKb(compressedBytes)} KB, only ${paired} glyphs paired); uncompressed is ${toKb(fb.svg.length)} KB`);
+        svg = fb.svg;
+        periodMs = fb.durationMs;
+      }
+      // else: keep-all is already the smallest — leave `run` as emitted.
+    } else {
+      // A run the AUTHOR asked for (a hand-written `states:` block, or a
+      // `compress: true` marker). Same contract as the marker's hard error:
+      // don't silently rewrite what they wrote — say it, and point at the
+      // opt-out.
+      log(`  note: this compressed run is ${pct} LARGER than the same states rendered uncompressed (${(rawBytes / 1024).toFixed(1)} KB → ${(compressedBytes / 1024).toFixed(1)} KB, only ${(run.pairingStats.pairedPct * 100).toFixed(1)}% of glyphs paired) — its states share too little to pair; drop the run or set \`compress: false\``);
+    }
+  }
+  // Namespace the run's document-global names (ids, classes, @keyframes) so
+  // it can't collide with the outer animation or sibling nested frames — but
+  // NOT font-family refs (they point at the shared builder's already-unique
+  // dmfN names), same as a `cast` frame.
+  const namespaced = namespaceEmbeddedAnimatedSvg(svg, `cr${i}_`, { namespaceFonts: false });
+  return {
+    svgContent: namespaced.replace(/^<\?xml[^>]*\?>\s*/, ""),
+    periodMs,
+    rootBg,
+    // DM-1767: already anchor-resolved (each against its own state's page) and
+    // re-based onto the outer frame's timeline; the caller appends them to the
+    // frame's own overlays and runs the shared `svg`-kind `src` resolution.
+    ...(runOverlays.length > 0 ? { overlays: runOverlays } : {}),
+  };
+}
+
+/**
+ * DM-1764: the size-regression guard's TRIGGER for an AUTHOR-written run —
+ * `compressedBytes / rawBytes` above this warns that compressing grew the
+ * payload (an author's run is never silently rewritten). Measured shapes fall
+ * either side by a wide margin (a per-char typing run lands at 0.61x, a
+ * row-append run at 0.50x, a wholesale-change slideshow at 2.36x), so the exact
+ * threshold is not load-bearing; the 2% cushion keeps a run that merely ties on
+ * bytes from drawing a warning.
+ */
+const COMPRESS_SIZE_GUARD_RATIO = 1.02;
+
+/**
+ * The same trigger for an AUTOMATICALLY collapsed run, where the guard doesn't
+ * warn but picks among candidates on real bytes. Any ratio above 1 means
+ * compressing failed to shrink the chrome at all, which is reason enough to
+ * price the alternatives: the decision itself is made on measured bytes with
+ * ties keeping the compressed form, so arming more often can only FIND wins,
+ * never cost output — it costs a few speculative composes.
+ *
+ * The 2% cushion used to apply here too, and it silently left large wins on the
+ * table: a mixed-pane scene that compressed to 1.008x armed nothing and shipped
+ * 69.9 KB, where demoting the wholesale pane into the chrome union was 57.3 KB.
+ * A run whose chrome is a byte smaller compressed still short-circuits.
+ */
+const COMPRESS_SIZE_GUARD_AUTO_RATIO = 1;
+
+/**
+ * DM-1764: the uncompressed counterpart to `composeCompressedRun` — the same N
+ * captured states, nested in the same one frame, but each rendered whole and
+ * gated by a `step-end` `display` track over the run's period (the compressor's
+ * own track idiom). This is what the size-regression guard falls back to when
+ * compressing a run would make the output bigger: identical pixels at every
+ * time, a flipbook-sized payload, and — because it stays ONE nested frame — the
+ * 1 config-frame ↔ 1 animation-frame invariant the whole collapse pre-pass
+ * rests on is untouched.
+ *
+ * Pure; exported for unit tests.
+ */
+export function composeStatesFlipbook(
+  trees: CapturedElement[][],
+  holdMs: number[],
+  width: number,
+  height: number,
+  idPrefix: string,
+  background?: string,
+): { svg: string; durationMs: number } {
+  const totalMs = holdMs.reduce((a, b) => a + b, 0);
+  const starts: number[] = [];
+  {
+    let acc = 0;
+    for (const ms of holdMs) { starts.push(acc); acc += ms; }
+  }
+  const pct = (ms: number): string => `${Number(Math.max(0, Math.min(100, (ms / totalMs) * 100)).toFixed(4))}%`;
+  const kf: string[] = [];
+  const rules: string[] = [];
+  const groups: string[] = [];
+  const last = trees.length - 1;
+  for (let j = 0; j <= last; j++) {
+    const stops = [`0%{display:${j === 0 ? "inline" : "none"}}`];
+    if (j > 0) stops.push(`${pct(starts[j])}{display:inline}`);
+    if (j < last) stops.push(`${pct(starts[j] + holdMs[j])}{display:none}`);
+    stops.push(`100%{display:${j === last ? "inline" : "none"}}`);
+    kf.push(`@keyframes ${idPrefix}fb${j}{${stops.join("")}}`);
+    rules.push(`#${idPrefix}fb${j}{animation:${idPrefix}fb${j} ${(totalMs / 1000).toFixed(3)}s step-end infinite}`);
+    groups.push(`<g id="${idPrefix}fb${j}">${elementTreeToSvgInner(trees[j], width, height, `${idPrefix}s${j}-`, true, 2, false)}</g>`);
+  }
+  const bgRect = background != null ? `<rect width="${width}" height="${height}" fill="${escapeAttr(background)}"/>` : "";
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`
+    + `<style>${kf.join("")}${rules.join("")}</style>${bgRect}${groups.join("")}</svg>`;
+  return { svg, durationMs: totalMs };
+}
+
+/**
+ * DM-1747 (docs/101): map a config-level text track (frame-relative `at`
+ * times, capture-stamped selectors) to the engine's `TextTrackSpec` (global
+ * `t` times, `animId` targets). The animIds follow the stamping convention in
+ * `buildCapturedFrame`: `f{frame}tt{track}` for the track target,
+ * `f{frame}tt{track}e{event}` for a per-event selector override.
+ *
+ * DM-1763: a frame's track ENDS at that frame's cut by default. If the authored
+ * events leave the caret visible or a selection active at end-of-frame, the CLI
+ * synthesizes a trailing `clearSelection` / `hide` at the frame's `duration`
+ * (mapped to the same global time an explicit `at: <duration>` event would be)
+ * so the caret/selection does not hold through the loop and layer above every
+ * later frame. `persist: true` opts out. An author who already ends the track
+ * (their own terminal `hide` / `clearSelection`) sees no synthesized duplicate —
+ * the final-state scan leaves the caret hidden / selection cleared. Pure —
+ * exported for unit tests.
+ */
+export function configTextTrackSpec(tt: TextTrackInput, frameIdx: number, trackIdx: number, frameStartMs: number, frameDurationMs: number): TextTrackSpec {
+  const events: TextTrackSpecEvent[] = tt.events.map((ev, j) => {
+    const t = frameStartMs + ev.at;
+    const override = "selector" in ev && ev.selector != null
+      ? { target: { animId: `f${frameIdx}tt${trackIdx}e${j}` } }
+      : {};
+    switch (ev.type) {
+      case "park":
+      case "move":
+        return { type: ev.type, t, charOffset: ev.charOffset, ...override };
+      case "select":
+        return {
+          type: "select", t, charStart: ev.charStart, charEnd: ev.charEnd,
+          ...(ev.sweepMs != null ? { sweepMs: ev.sweepMs } : {}),
+          ...(ev.color != null ? { color: ev.color } : {}),
+          ...override,
+        };
+      case "hide":
+        return { type: "hide", t };
+      case "clearSelection":
+        return { type: "clearSelection", t };
+    }
+  });
+  // DM-1763: auto-end the track at the frame's cut unless `persist` is set.
+  // Scan the authored events in `at` order to find the caret/selection state
+  // the track would hold at end-of-frame; synthesize only what's still "on".
+  if (tt.persist !== true) {
+    let caretVisible = false;
+    let selectionActive = false;
+    for (const ev of [...tt.events].sort((a, b) => a.at - b.at)) {
+      switch (ev.type) {
+        case "park":
+        case "move":
+          caretVisible = true;
+          break;
+        case "hide":
+          caretVisible = false;
+          break;
+        case "select":
+          selectionActive = true;
+          break;
+        case "clearSelection":
+          selectionActive = false;
+          break;
+      }
+    }
+    const endT = frameStartMs + frameDurationMs;
+    if (selectionActive) events.push({ type: "clearSelection", t: endT });
+    if (caretVisible) events.push({ type: "hide", t: endT });
+  }
+  return {
+    target: { animId: `f${frameIdx}tt${trackIdx}` },
+    ...(tt.shape != null ? { shape: tt.shape } : {}),
+    ...(tt.color != null ? { color: tt.color } : {}),
+    ...(tt.barWidthPx != null ? { barWidthPx: tt.barWidthPx } : {}),
+    ...(tt.blinkMs != null ? { blinkMs: tt.blinkMs } : {}),
+    ...(tt.selectionColor != null ? { selectionColor: tt.selectionColor } : {}),
+    events,
+  };
+}
+
+/**
+ * The compressed-run collapse pre-pass shared by the two opt-in surfaces:
+ *
+ *   - `"auto"`  — the whole-config `autoCompress: true` flag (docs/43 §13.1):
+ *                 EVERY eligible maximal run collapses; an ineligible candidate
+ *                 is left untouched with a logged reason.
+ *   - `"marker"`— the per-frame `compress: true` marker (docs/43 §13.2): only
+ *                 the runs the author marked collapse, and an ineligible marker
+ *                 is a HARD ERROR naming the frame + the reason. The asymmetry
+ *                 is deliberate: an automatic pass that skips is doing its job,
+ *                 whereas a marker the author typed that silently did nothing
+ *                 would hide a bug.
+ *
+ * Either way this is a pure config rewrite (no page access) that detects maximal
+ * runs of consecutive plain `continue` + `cut` frames and rewrites each into a
+ * single `states` frame — reusing the whole shipped `states` machinery
+ * (`buildStatesRunContent` → `composeCompressedRun`) rather than adding a
+ * parallel path. Because the collapse happens BEFORE `frameStartsMs` / the
+ * capture loop / cursor validation are computed, the 1 config-frame ↔ 1
+ * animation-frame reindexing is handled for free downstream; the only
+ * cross-reference into original indices — explicit `cursor.events[].frame` — is
+ * remapped here via `newIndexForOld` (the `expandHoverReveal` precedent).
+ *
+ * SAFE SCOPE: a run is collapsed only when every member is a plain captured
+ * frame with a `cut` transition and NONE of it carries overlays / animations /
+ * textTracks / forceState / a non-`body` selector, and non-anchor members are
+ * pure `continue` frames with no readiness waits / scrollTo. Output stays
+ * pixel-identical to the flipbook (the compressor re-emits anything that fails
+ * to pair, never wrong pixels); the collapse only ever trades frame count for a
+ * nested run.
+ *
+ * SUB-RUN SPLITTING (DM-1764): the three remaining exclusions are single-FRAME
+ * reasons — an explicit `cursor` event addressing a member, an interaction
+ * action `cursor:"auto"` would derive a pointer from, and a `magic-move`
+ * landing on the anchor. Those frames SPLIT the candidate window instead of
+ * disqualifying it: each stays a plain sibling frame (so its pointer / its
+ * magic-move behaves exactly as it did uncollapsed) and the eligible sub-runs
+ * on either side collapse normally, subject to the 2-frame minimum. One bad
+ * frame therefore costs one frame, not the whole run. Frame-level blockers
+ * (overlays, animations, a readiness wait, …) already split the same way — the
+ * member scan simply ends there and the next eligible frame anchors a new run.
+ * In marker mode a split point is still a HARD ERROR: the author asked for that
+ * exact run, so compressing a shorter piece of it would hide the mismatch.
+ *
+ * A frame may also set `compress: false` to opt OUT entirely — it then neither
+ * anchors nor joins a run in either mode (the escape hatch for a run that pairs
+ * poorly, whose compressed form would be no smaller than the flipbook).
+ */
+/**
+ * DM-1764: the `states` frames the AUTOMATIC pass synthesized, by object
+ * identity. Only these are subject to the size-regression guard in
+ * `buildStatesRunContent`: nobody asked for them, so silently reverting one to
+ * its uncompressed states is exactly the right call, whereas a hand-authored
+ * `states:` block or a `compress: true` marker is a decision the author made
+ * and gets a warning instead. Not a config field, because it is provenance
+ * (which pass produced this frame), not authored input — a `WeakSet` keeps it
+ * off the schema, off the published JSON Schema, and out of any config a caller
+ * might round-trip. Frame objects survive from the pre-pass into the capture
+ * loop unchanged, which is what makes identity a valid key.
+ */
+const AUTO_COLLAPSED_RUNS = new WeakSet<AnimateFrameCfg>();
+
+/** Whether this `states` frame was synthesized by the automatic collapse pass
+ *  (rather than authored). Exported for unit tests. */
+export function wasAutoCollapsed(frame: AnimateFrameCfg): boolean {
+  return AUTO_COLLAPSED_RUNS.has(frame);
+}
+
+function collapseCompressibleRuns(
+  cfg: AnimateConfig,
+  log: (msg: string) => void,
+  mode: "auto" | "marker",
+): AnimateConfig {
+  const frames = cfg.frames;
+  const n = frames.length;
+  const strict = mode === "marker";
+  const tag = strict ? "compress" : "auto-compress";
+  // In marker mode an ineligible run is an author error, not a skip.
+  const failMarked = (idx: number, reason: string): never => {
+    throw new Error(`animate: frames[${idx}] sets \`compress: true\` but the run cannot be collapsed — ${reason}`);
+  };
+
+  const isCut = (f: AnimateFrameCfg): boolean => f.transition?.type === "cut";
+  // A frame that carries content or interactions the simple-case run can't
+  // absorb into a `states` run. Any of these on a member disqualifies the run.
+  // Named (not just detected) so the marker mode's hard error can say which.
+  const blockingFeature = (f: AnimateFrameCfg): string | null => {
+    if (f.cast != null) return "cast";
+    if (f.template != null) return "template";
+    if (f.scroll != null) return "scroll";
+    if (f.states != null) return "states";
+    if (f.typeResample != null) return "typeResample";
+    if (f.jsReveal != null) return "jsReveal";
+    if (f.hoverReveal != null) return "hoverReveal";
+    if (f.hoverDetect != null) return "hoverDetect";
+    // DM-1767 (docs/104): `overlays` is NO LONGER a blocker. A member's
+    // overlays become that state's `overlays` — anchor-resolved against its own
+    // state's page and bounded to its state's hold by the explicit per-overlay
+    // window — so the authored behavior survives the collapse instead of the
+    // frame having to stay a plain sibling.
+    if (f.animations != null && f.animations.length > 0) return "animations";
+    if (f.textTracks != null && f.textTracks.length > 0) return "textTracks";
+    if (f.forceState != null && f.forceState.length > 0) return "forceState";
+    return null;
+  };
+  // A content-producing frame kind is its own nested composition — it can't be a
+  // state of someone else's run. Everything else in `blockingFeature` is a
+  // per-frame decoration with no per-state equivalent, for which the hand-
+  // authored `states:` block (which CAN carry frame-level overlays) is the way.
+  const contentKinds = new Set(["cast", "template", "scroll", "states", "typeResample", "jsReveal", "hoverReveal", "hoverDetect"]);
+  const blockingFeatureReason = (idx: number, feature: string): string =>
+    feature === "states"
+      ? `frames[${idx}] already IS a compressed run (it carries a \`states\` block) — drop the \`compress\` marker`
+      : contentKinds.has(feature)
+      ? `frames[${idx}] is a \`${feature}\` frame, which produces its own nested content and cannot be a state of a compressed run`
+      : `frames[${idx}] carries \`${feature}\`, which has no per-state equivalent inside a compressed run — author that run as a \`states:\` block instead, which can carry frame-level \`${feature}\` (docs/43 §11)`;
+  const hasInteractionAction = (f: AnimateFrameCfg): boolean =>
+    f.actions != null && f.actions.some((a) => a.type === "click" || a.type === "hover" || a.type === "fill");
+  const hasReadinessWaitOrScroll = (f: AnimateFrameCfg): boolean =>
+    f.waitFor != null || f.waitForText != null || f.waitForGone != null || f.waitForCount != null ||
+    f.wait != null || f.scrollTo != null;
+
+  // Why frame `idx` cannot SEED a run (null when it can), and why frame `idx`
+  // cannot JOIN one. Shared by both modes: auto uses them as predicates, marker
+  // turns the string into the hard error's reason.
+  const anchorBlocker = (idx: number): string | null => {
+    const f = frames[idx];
+    if (f.compress === false) return `frames[${idx}] sets \`compress: false\``;
+    if (!isCut(f)) return `frames[${idx}] leaves via a \`${f.transition?.type ?? "crossfade"}\` transition, not a \`cut\` (a compressed run holds its states with cuts)`;
+    const feature = blockingFeature(f);
+    if (feature != null) return blockingFeatureReason(idx, feature);
+    if (f.selector != null) return `frames[${idx}] captures a \`selector\` subtree rather than the whole page`;
+    return null;
+  };
+  const memberBlocker = (idx: number): string | null => {
+    const f = frames[idx];
+    if (f.compress === false) return `frames[${idx}] sets \`compress: false\``;
+    if (f.input != null) return `frames[${idx}] loads an \`input\` (a compressed run holds ONE continuous page)`;
+    if (f.cast != null || f.template != null) return `frames[${idx}] is a \`${f.cast != null ? "cast" : "template"}\` frame (a compressed run holds ONE continuous page)`;
+    if (!isCut(f)) return `frames[${idx}] leaves via a \`${f.transition?.type ?? "crossfade"}\` transition, not a \`cut\``;
+    const feature = blockingFeature(f);
+    if (feature != null) return blockingFeatureReason(idx, feature);
+    if (f.selector != null) return `frames[${idx}] captures a \`selector\` subtree rather than the whole page`;
+    if (hasReadinessWaitOrScroll(f)) return `frames[${idx}] carries a readiness wait / \`scrollTo\` (a compressed run has no per-state wait)`;
+    return null;
+  };
+
+  const cursorAuto = cfg.cursor === "auto";
+  const explicitCursorFrames = new Set<number>(
+    cfg.cursor != null && cfg.cursor !== "auto" ? cfg.cursor.events.map((e) => e.frame) : [],
+  );
+
+  const newFrames: AnimateFrameCfg[] = [];
+  // Old frame index → its index in the rewritten frames array (a collapsed run
+  // maps every member index to the single states frame's index).
+  const newIndexForOld: number[] = new Array(n);
+
+  /** Emit frame `idx` unchanged, recording its new index. */
+  const passThrough = (idx: number): void => {
+    newIndexForOld[idx] = newFrames.length;
+    newFrames.push(frames[idx]);
+  };
+  /** Collapse frames [start..end] (≥ 2, all eligible) into ONE `states` frame:
+   *  the anchor's own frame-level setup is preserved, state 0 is the anchor's
+   *  post-actions capture, and each later member contributes its actions + hold. */
+  const collapseInto = (start: number, end: number): void => {
+    const runAnchor = frames[start];
+    const runFrames = frames.slice(start, end + 1);
+    const totalDuration = runFrames.reduce((sum, f) => sum + f.duration, 0);
+    // DM-1767: each member's `overlays` become its STATE's overlays. That is
+    // what preserves the authored behavior through the collapse: the state's
+    // capture is where its anchors resolve, and the state's slice of the run is
+    // the window `buildStatesRunContent` bounds them to — so an overlay on the
+    // third of five members still dies at that member's cut instead of holding
+    // to the end of the whole run.
+    const states: RunStateInput[] = [
+      {
+        duration: runAnchor.duration, // state 0 = the anchor's own post-actions capture
+        ...(runAnchor.overlays != null && runAnchor.overlays.length > 0 ? { overlays: runAnchor.overlays } : {}),
+      },
+      ...runFrames.slice(1).map((f) => ({
+        ...(f.actions != null ? { actions: f.actions } : {}),
+        duration: f.duration,
+        ...(f.overlays != null && f.overlays.length > 0 ? { overlays: f.overlays } : {}),
+      })),
+    ];
+    const collapsed: AnimateFrameCfg = {
+      ...(runAnchor.input != null ? { input: runAnchor.input } : { continue: true }),
+      ...(runAnchor.wait != null ? { wait: runAnchor.wait } : {}),
+      ...(runAnchor.waitFor != null ? { waitFor: runAnchor.waitFor } : {}),
+      ...(runAnchor.waitForText != null ? { waitForText: runAnchor.waitForText } : {}),
+      ...(runAnchor.waitForGone != null ? { waitForGone: runAnchor.waitForGone } : {}),
+      ...(runAnchor.waitForCount != null ? { waitForCount: runAnchor.waitForCount } : {}),
+      ...(runAnchor.scrollTo != null ? { scrollTo: runAnchor.scrollTo } : {}),
+      ...(runAnchor.actions != null ? { actions: runAnchor.actions } : {}),
+      transition: { type: "cut", duration: 0 },
+      duration: totalDuration,
+      states,
+    };
+    // Only the automatic pass's runs are guard-eligible (see AUTO_COLLAPSED_RUNS).
+    if (!strict) AUTO_COLLAPSED_RUNS.add(collapsed);
+    const collapsedIdx = newFrames.length;
+    newFrames.push(collapsed);
+    for (let k = start; k <= end; k++) newIndexForOld[k] = collapsedIdx;
+    log(`  ${tag}: collapsed frames ${start}–${end} into a states run (${states.length} states, ${totalDuration}ms)`);
+  };
+
+  let i = 0;
+  while (i < n) {
+    const anchor = frames[i];
+    // The anchor may load an `input` or `continue`; either kind of plain,
+    // cut-transition, feature-free frame can seed a run. In marker mode only a
+    // frame the author stamped `compress: true` seeds one — every other frame
+    // passes straight through even when it would have been eligible.
+    const marked = anchor.compress === true;
+    const anchorWhyNot = anchorBlocker(i);
+    if (strict && marked && anchorWhyNot != null) failMarked(i, anchorWhyNot);
+    if ((strict ? marked : true) && anchorWhyNot == null) {
+      // Extend the run over following pure `continue` + `cut` members.
+      let j = i + 1;
+      while (j < n && memberBlocker(j) == null) j++;
+      const b = j - 1; // inclusive run end
+      if (strict && b === i) {
+        failMarked(i, j < n
+          ? `no following frame can join it — ${memberBlocker(j)}`
+          : "it is the last frame in the config (a compressed run needs at least 2 frames)");
+      }
+      if (b > i) {
+        // A maximal candidate run [i..b] (≥ 2 frames). The remaining exclusions
+        // are single-FRAME reasons, not run-wide ones: a cursor event addressing
+        // one member, an interaction action auto-cursor would derive a pointer
+        // from, or a magic-move landing on the anchor. DM-1764: rather than
+        // dropping the whole window (v1's behavior, which made one bad frame
+        // cost every frame around it), split the window AT those frames and
+        // collapse the eligible sub-runs on either side. Each split frame stays
+        // a plain sibling frame, so whatever it carries — the pointer, the
+        // magic-move landing — behaves exactly as it did uncollapsed.
+        const splits: Array<{ idx: number; why: string; strictWhy: string }> = [];
+        const addSplit = (idx: number, why: string, strictWhy: string = why): void => {
+          if (!splits.some((s) => s.idx === idx)) splits.push({ idx, why, strictWhy });
+        };
+        if (i > 0 && frames[i - 1].transition?.type === "magic-move") {
+          // Only the run's ENTRY is affected: keeping the anchor a plain frame
+          // preserves the magic-move, and the sub-run after it still collapses.
+          addSplit(i, "it is entered via a magic-move transition (would degrade to crossfade)");
+        }
+        for (let k = i; k <= b; k++) {
+          if (explicitCursorFrames.has(k)) {
+            addSplit(k, `an explicit cursor event addresses frame ${k}`, `an explicit cursor event addresses frame ${k} inside it`);
+          } else if (cursorAuto && hasInteractionAction(frames[k])) {
+            addSplit(k, `cursor:"auto" derives a pointer from an interaction action in frame ${k}`);
+          }
+        }
+        // Marker mode keeps the loud failure: the author asked for THIS run, so
+        // silently compressing a shorter piece of it would hide the mismatch
+        // between what they wrote and what they got.
+        if (strict && splits.length > 0) failMarked(i, splits[0].strictWhy);
+        const splitAt = new Map(splits.map((s) => [s.idx, s.why]));
+        // Walk the window; every split frame closes the current sub-run and is
+        // emitted plain. A sub-run of a single frame is emitted plain too (a
+        // compressed run needs ≥ 2 states).
+        let segStart = i;
+        for (let k = i; k <= b + 1; k++) {
+          if (k <= b && !splitAt.has(k)) continue;
+          if (k - 1 > segStart) collapseInto(segStart, k - 1);
+          else for (let m = segStart; m <= k - 1; m++) passThrough(m);
+          if (k <= b) {
+            log(`  ${tag}: leaving frame ${k} uncompressed — ${splitAt.get(k)}`);
+            passThrough(k);
+          }
+          segStart = k + 1;
+        }
+        i = b + 1;
+        continue;
+      }
+    }
+    // Not a run head (or a run of one): keep frame i as-is.
+    passThrough(i);
+    i++;
+  }
+
+  if (newFrames.length === frames.length) return cfg; // nothing collapsed
+
+  // Remap explicit cursor events onto the rewritten frame indices (auto-cursor
+  // is re-derived from the rewritten frames, so it needs no remap). Rejected
+  // runs mean no cursor event points inside a collapsed run.
+  let cursor = cfg.cursor;
+  if (cursor != null && cursor !== "auto") {
+    cursor = { ...cursor, events: cursor.events.map((e) => ({ ...e, frame: newIndexForOld[e.frame] ?? e.frame })) };
+  }
+  log(`  ${tag}: ${frames.length} config frames → ${newFrames.length} after run collapse`);
+  return { ...cfg, frames: newFrames, ...(cursor !== undefined ? { cursor } : {}) };
+}
+
+/**
+ * DM-1757 (docs/43 §13.1): the whole-config `autoCompress: true` opt-in — collapse
+ * EVERY eligible maximal `continue` + `cut` run into a `states` compressed run,
+ * skipping (with a logged reason) anything the v1 safe scope excludes.
+ *
+ * Exported for unit tests. DM-1768: default-ON — collapses unless the config
+ * explicitly sets `autoCompress: false` (undefined ⇒ on). The size-regression
+ * guard makes this safe (an auto-collapsed run that composes larger than its
+ * uncompressed states is reverted, DM-1772), and it is byte-neutral on the whole
+ * committed example corpus (nothing there has an auto-collapsible plain
+ * continue+cut run). Returns `cfg` unchanged only when compression is opted out.
+ */
+export function autoCompressRuns(cfg: AnimateConfig, log: (msg: string) => void = () => {}): AnimateConfig {
+  if (cfg.autoCompress === false) return cfg;
+  return collapseCompressibleRuns(cfg, log, "auto");
+}
+
+/**
+ * DM-1761 (docs/43 §13.2): the per-frame `compress: true` marker — the surgical
+ * counterpart to `autoCompress`. Only the runs whose FIRST frame carries the
+ * marker collapse; every other frame passes through untouched, so an author can
+ * compress the one run that pays for it (docs/100 notes a wholesale-change run
+ * can pair poorly and end up marginally LARGER compressed) without flipping the
+ * output shape of the whole config.
+ *
+ * Anchor-only semantics, with a greedy left-to-right scan: the marker means
+ * "start a compressed run HERE and take the maximal eligible run". A marker on a
+ * later member of that same run is therefore absorbed as a redundant no-op — the
+ * scan already consumed the frame — so both the anchor-only and the mark-every-
+ * member styles do the same thing, and neither can produce overlapping runs.
+ *
+ * Unlike `autoCompress`, an ineligible marker is a HARD ERROR naming the frame
+ * and the reason: the author explicitly asked for this run, so silently emitting
+ * a flipbook would hide the bug rather than surface it.
+ *
+ * Runs BEFORE `autoCompressRuns` when both are on. There is no double-collapse:
+ * a collapsed frame carries `states`, which disqualifies it as an anchor and as
+ * a member of the automatic pass.
+ *
+ * Exported for unit tests. Returns `cfg` unchanged when no frame is marked.
+ */
+export function compressMarkedRuns(cfg: AnimateConfig, log: (msg: string) => void = () => {}): AnimateConfig {
+  if (!cfg.frames.some((f) => f.compress === true)) return cfg;
+  return collapseCompressibleRuns(cfg, log, "marker");
+}
+
+export async function composeAnimateFrames(
+  browser: Browser,
+  cfg: AnimateConfig,
+  configDirOrOpts?: string | ComposeAnimateOptions,
+  logArg?: (msg: string) => void,
+): Promise<AnimationConfig> {
+  const { configDir, log, onFrame, brand, safeInset } = normalizeComposeArgs(configDirOrOpts, logArg);
+  // DM-852: resolve `${vars}` across every string field before anything runs.
+  cfg = interpolateConfigVars(cfg);
+  // DM-1562: expand `hoverReveal` sugar (pure) into rest + forced-hover frames.
+  cfg = expandHoverReveal(cfg, log);
+  // DM-1563: `hoverDetect` — probe each such frame's page for its hover response
+  // and synthesize the transition. A browser pre-pass (its own throwaway context)
+  // that rewrites the frame(s) before the main capture loop runs.
+  cfg = await expandHoverDetect(cfg, browser, configDir, log);
+  // DM-1761 (docs/100 Primitive 1): the explicit per-run `compress: true` marker.
+  // Runs before the automatic pass so a marked run collapses on the author's
+  // terms (hard error if it can't) and the automatic pass then sees a `states`
+  // frame it will not touch again.
+  cfg = compressMarkedRuns(cfg, log);
+  // DM-1757 (docs/100 Primitive 1): opt-in automatic compressed-run detection.
+  // Collapses maximal continue+cut runs into `states` frames BEFORE frameStartsMs
+  // / the capture loop / cursor validation, so the reindexing is handled for free
+  // downstream. A no-op unless `cfg.autoCompress` is set (default off).
+  cfg = autoCompressRuns(cfg, log);
+  // DM-1544: an explicit `--brand` (passed in `opts.brand`) wins over the config's
+  // own `brand` key; when the flag is absent, fall back to the config-inline brand
+  // (a path relative to `configDir`, or a validated inline object). One brand then
+  // themes captured frames (CSS-var injection below) AND template frames (their
+  // brand defaults, wired through `renderTemplateFrames`).
+  const runBrand = brand ?? resolveConfigBrand(cfg.brand, configDir);
+  // DM-1287 (doc 73): render `template` frames UP FRONT, before the outer run's
+  // font lifecycle (clearWebfonts / clearEmbeddedFonts) starts below. A template
+  // is itself a front-end onto `composeAnimateConfig`, so rendering one runs a
+  // NESTED `composeAnimateFrames` that clears + manages the module-global font
+  // builders. Doing it here — before the outer clears — keeps each template's
+  // output fully self-contained (its own `@font-face`) and stops the nested run
+  // from clobbering the outer frames' embedded fonts. Each rendered template SVG
+  // is a finished string by the time the outer loop reaches its frame.
+  const templateRenders = await renderTemplateFrames(cfg, browser, log, safeInset, runBrand);
+  const session = await openAnimateCaptureSession(browser, {
+    width: cfg.width,
+    height: cfg.height,
+    mobile: cfg.mobile === true,
+    ...(cfg.colorScheme != null ? { colorScheme: cfg.colorScheme } : {}),
+    ...(runBrand != null ? { brand: runBrand } : {}),
+  });
+  try {
+    const { page, tracker } = session;
+    const frames: AnimationFrame[] = [];
+    // DM-898: the previous frame's captured tree, kept so a magic-move
+    // transition can diff (prev, next) once both are captured.
+    let prevFrameTree: CapturedElement[] | null = null;
+    // DM-1106: every frame's captured tree, indexed by frame, so the cursor
+    // overlay can hit-test the cursor TYPE under each pointer position.
+    const frameTrees: (CapturedElement[] | null)[] = [];
+    // Canvas background for the composed SVG: the captured root background of
+    // the first frame, so animated output matches single-frame `capture`
+    // output (a transparent page → transparent SVG). Stamped per-frame by the
+    // capture script as `rootBgComputed`; the animator paints no rect when it's
+    // transparent/absent (DM-893).
+    let canvasBg: string | undefined;
+    // DM-851 §6: config-level cursor. We resolve selectors to absolute coords
+    // during capture, then assemble a global-time CursorOverlay after the loop.
+    const cursorCfg = cfg.cursor;
+    const cursorAuto = cursorCfg === "auto";
+    const explicitCursorEvents = cursorCfg != null && cursorCfg !== "auto" ? cursorCfg.events : [];
+    const cursorStyleCfg = cursorCfg != null && cursorCfg !== "auto" ? cursorCfg.style : undefined;
+    const autoCursorTargets: Array<{ frame: number; cx: number; cy: number; cursor: string }> = [];
+    const explicitCursorBoxes = new Map<string, { cx: number; cy: number }>();
+    const frameTimeline = planFrameTimeline(cfg.frames);
+    const frameStartsMs = frameTimeline.frames.map((window) => window.startMs);
+    for (const ev of explicitCursorEvents) {
+      if (ev.frame >= cfg.frames.length) {
+        throw new Error(`animate: cursor.events references frame ${ev.frame}, but there are only ${cfg.frames.length} frames`);
+      }
+    }
+
+    // DM-1747 (docs/101): resolved caret/selection tracks accumulated across
+    // captured frames, threaded into the animator's `textTracks`.
+    const textTracks: ResolvedTextTrack[] = [];
+
+    // DM-1379: the per-frame loop state `buildCapturedFrame` reads/appends to.
+    const capturedCtx: CapturedFrameContext = {
+      page, cfg, configDir, log, tracker,
+      cursorAuto, explicitCursorEvents, autoCursorTargets, explicitCursorBoxes,
+      textTracks, timeline: frameTimeline,
+    };
+
+    for (let i = 0; i < cfg.frames.length; i++) {
+      const fc = cfg.frames[i];
+      // DM-1225 (doc 67): a `cast` frame embeds a recorded terminal session as
+      // this frame's content — a self-contained animated terminal SVG nested
+      // like a `scroll` block. It bypasses the page-load/capture path entirely.
+      if (fc.cast != null) {
+        frames.push(await buildCastFrame(fc, i, cfg, configDir, browser, log));
+        // A cast frame has no single captured tree; magic-move to/from it falls
+        // back to crossfade, and the cursor/overlay machinery is skipped.
+        prevFrameTree = null;
+        frameTrees.push(null);
+        continue;
+      }
+      // DM-1287 (doc 73): a `template` frame embeds a named template's output,
+      // pre-rendered above into a finished (self-contained, possibly animated)
+      // SVG string. Nest it exactly like a `cast` frame.
+      if (fc.template != null) {
+        frames.push(buildTemplateFrame(fc, i, cfg, configDir, templateRenders, log));
+        prevFrameTree = null;
+        frameTrees.push(null);
+        continue;
+      }
+      // DM-1379: the captured/default frame body (continue-vs-load →
+      // readyWaits → webfont discovery → scrollTo → cursor recording → actions
+      // → intra-frame animations → scroll-block-vs-capture → overlays) lives in
+      // `buildCapturedFrame`. It appends to the shared cursor accumulators via
+      // `capturedCtx`; we keep the cross-frame after-build orchestration here.
+      const { frame, frameTree, rootBg } = await buildCapturedFrame(fc, i, capturedCtx);
+      if (i === 0) canvasBg = rootBg;
+      frames.push(frame);
+
+      // DM-1138 (doc 62 §2): per-frame hook — fired after the frame is pushed
+      // (so `frame.overlays` mutations land in the final SVG) and while the page
+      // is still on this frame's DOM, BEFORE the magic-move bridge below.
+      if (onFrame != null) {
+        await onFrame(frames[frames.length - 1], { page, tree: frameTree, index: i });
+      }
+
+      // DM-898: when the PREVIOUS frame's transition is magic-move and both it
+      // and this frame captured a tree, build the bridge layer now — BEFORE the
+      // glyph/font @font-face defs are finalized below (getEmbeddedFontFaceCss),
+      // since the bridge re-renders subtrees and must contribute its glyphs to
+      // those defs — and attach it to that frame. Falls back to crossfade when
+      // either tree is absent (e.g. a scroll-block neighbor) or buildMagicMove
+      // finds nothing to animate (returns null).
+      if (i > 0 && frames[i - 1]?.transition?.type === "magic-move" && prevFrameTree != null && frameTree != null) {
+        // Magic-move appends cloned roots from the previous frame to the next
+        // frame's roots. Legacy Page-authority annotations live only on the
+        // original roots, so that synthetic list would otherwise look like a
+        // forbidden mix of authoritative and unauthoritative captures. Both
+        // frames came from this one Page session: lift the next frame's record
+        // into an envelope and strip only the redundant root annotations from
+        // the transient bridge list.
+        const bridgeEnvelope = createCapturedTreeEnvelope(frameTree);
+        frames[i - 1].magicMove = buildMagicMove(
+          prevFrameTree, frameTree,
+          (roots, prefix) => elementTreeToSvgInner({
+            ...bridgeEnvelope,
+            tree: roots.map((root) => {
+              if (root.sessionGenericFamilies == null) return root;
+              const copy = { ...root };
+              delete copy.sessionGenericFamilies;
+              return copy;
+            }),
+          }, cfg.width, cfg.height, prefix, true, 2, false),
+          `mm${i - 1}-`,
+        );
+      }
+      prevFrameTree = frameTree;
+      frameTrees[i] = frameTree;
+    }
+    // DM-851 §6: assemble the cursor overlay from the resolved coords + the
+    // frame timeline. Move events carry absolute `to` coords (selectors already
+    // resolved during capture), so no resolveSelector callback is needed.
+    const cursorOverlay = buildCursorOverlay(
+      cursorAuto, explicitCursorEvents, cursorStyleCfg, autoCursorTargets, explicitCursorBoxes, frameStartsMs, cfg.frames,
+    );
+    // DM-1106: hit-test the cursor TYPE under each pointer position against the
+    // frame's captured tree, so the overlay paints the matching glyph (hand over
+    // links, I-beam over text, …) and switches at element boundaries.
+    const resolveCursorAt = (x: number, y: number, frameIndex: number): string =>
+      cursorAtPoint(frameTrees[frameIndex] ?? [], x, y);
+
+    // DM-839: collect the embedded-font @font-face rules accumulated across all
+    // frames once, for the animator's top-level <style>.
+    const fontFaceCss = getEmbeddedFontFaceCss();
+    // DM-1137: return the assembled config instead of rendering it here — the
+    // render lives in `composeAnimateConfig` so callers can mutate frames first.
+    return {
+      width: cfg.width, height: cfg.height, frames, fontFaceCss, cursorOverlay, resolveCursorAt, background: canvasBg,
+      // DM-1747 (docs/101): declarative caret/selection tracks resolved during
+      // capture. Omitted when none are declared (byte-identical output).
+      ...(textTracks.length > 0 ? { textTracks } : {}),
+    };
+  } finally {
+    await session.close();
+  }
+}
+
+/**
+ * Capture and compose every frame in `cfg` into one animated SVG string
+ * (unoptimized). Shared by the `animate` CLI, the example-regression harness,
+ * and library callers who run the declarative pipeline in-process (DM-1130) —
+ * all exercise the exact same capture→compose path. The caller owns the
+ * `browser` lifecycle.
+ *
+ * DM-1137: this is now exactly `generateAnimatedSvg(await composeAnimateFrames(
+ * …))` — one engine, two callers. Reach for `composeAnimateFrames` directly when
+ * you need to inspect / mutate the assembled `AnimationConfig` before rendering.
+ *
+ * The trailing args accept EITHER the positional `(configDir?, log?)` form OR a
+ * single `ComposeAnimateOptions` object `{ configDir?, log?, onFrame? }`
+ * (DM-1138). `configDir` resolves a frame's relative `input` / svg-overlay `src`
+ * paths (default `process.cwd()`); `log` defaults to a no-op. A typical
+ * programmatic call is just `composeAnimateConfig(browser, cfg)` after
+ * `validateAnimateConfig(json)`.
+ */
+export async function composeAnimateConfig(
+  browser: Browser,
+  cfg: AnimateConfig,
+  configDirOrOpts?: string | ComposeAnimateOptions,
+  logArg?: (msg: string) => void,
+): Promise<string> {
+  const config = await composeAnimateFrames(browser, cfg, configDirOrOpts, logArg);
+  const { log } = normalizeComposeArgs(configDirOrOpts, logArg);
+  return await timed(log, `Composed animated SVG (${config.frames.length} frames)`, () =>
+    Promise.resolve(generateAnimatedSvg(config)),
+  );
+}
+
+/**
+ * DM-1140 (doc 63 §2): apply the declarative action vocabulary against a live
+ * Playwright page, in order. Re-exported from the package root so imperative
+ * scripting-API callers get the DOM-mutation actions (setText / addClass /
+ * insert / replaceText / setStyle / dispatch / …) — the ones that AREN'T
+ * one-line Playwright calls and that already encode the "apply across every
+ * matched element, throw if the selector matches nothing" semantics (doc 43 →
+ * Selectors) — without authoring a whole JSON config. `log` defaults to a no-op
+ * (the CLI passes a logger for the `evaluate`-too-long nudge); the public form
+ * doesn't need one. Throws on the first failing action (e.g. a DOM-mutation
+ * selector that matches nothing), surfacing the bug rather than silently
+ * skipping.
+ */
+export async function runActions(page: Page, actions: AnimateAction[], log: (msg: string) => void = () => {}): Promise<void> {
+  for (const a of actions) {
+    switch (a.type) {
+      // Playwright-native interactions (handle actionability + waiting).
+      case "click":        await page.click(a.selector); break;
+      case "fill":         await page.fill(a.selector, a.value); break;
+      case "press":        await page.keyboard.press(a.key); break;
+      case "hover":        await page.hover(a.selector); break;
+      case "focus":        await page.focus(a.selector); break;
+      case "selectOption": await page.selectOption(a.selector, a.value); break;
+      case "scroll":       await page.evaluate((coords: number[]) => window.scrollTo(coords[0], coords[1]), [a.x ?? 0, a.y ?? 0]); break;
+      case "wait":         await page.waitForTimeout(a.ms); break;
+      case "evaluate": {
+        // DM-853 §8: last resort. Nudge toward declarative actions / the API
+        // once a snippet outgrows a line or two, but don't block it.
+        const EVALUATE_NUDGE_MAX_CHARS = 200;
+        const EVALUATE_NUDGE_MAX_LINES = 2;
+        if (a.script.length > EVALUATE_NUDGE_MAX_CHARS || a.script.split("\n").length > EVALUATE_NUDGE_MAX_LINES) {
+          log(`  warning: evaluate script is ${a.script.length} chars / ${a.script.split("\n").length} lines — more than a line or two means you've outgrown the config; consider the declarative actions or the programmatic API`);
+        }
+        await page.evaluate(a.script);
+        break;
+      }
+      // DM-847 §2 + DM-848 §3: DOM mutations and the remaining interactions run
+      // in page context against all matched elements.
+      default: await applyDomAction(page, a); break;
+    }
+  }
+}
+
+/**
+ * DM-1516 (docs/94): force each `{ selector, states }` entry into its CSS
+ * pseudo-classes via the Chrome DevTools Protocol (`CSS.forcePseudoState`), so a
+ * subsequent capture paints the page's REAL `:hover` / `:active` / `:focus`
+ * styling. Unlike a synthetic overlay this triggers the page's own rules
+ * (including cascade siblings like `.card:has(.cta:hover)`) with no authoring —
+ * it's the state the browser itself enters on pointer/keyboard interaction.
+ * Applied to EVERY element the selector matches (CDP `DOM.querySelectorAll`),
+ * matching `runActions`' "apply across all matched" semantics; throws if a
+ * selector matches nothing. `log` defaults to a no-op. A no-op on an empty /
+ * absent list, so callers can pass through unconditionally.
+ *
+ * IMPORTANT — the CDP session is intentionally left ATTACHED and REUSED per page
+ * (`getForcedStateSession`). A `CSS.forcePseudoState` override lives for the
+ * lifetime of the session that set it: detaching (or disabling the CSS domain)
+ * immediately clears the override, so the forced paint would vanish before the
+ * capture that's supposed to record it. Leaving the session open lets the forced
+ * state survive into the very next `captureElementTree`; it's reclaimed when the
+ * page / context closes. The forced state therefore persists on the live page
+ * until navigation, carrying into a `continue` frame like any other pre-capture
+ * mutation.
+ *
+ * DM-1566: pass `{ selector, reset: true }` to DROP a state a previous frame
+ * forced (the un-hover verb) — it re-issues an empty forced-class list on the
+ * SAME cached session, so a continue-frame flow can force `:hover`, capture, then
+ * release it and capture the return-to-rest. (A fresh session couldn't clear
+ * another session's override, which is why the session is cached per page.)
+ *
+ * Re-exported from the package root so imperative capture callers can force the
+ * same states before their own `captureElementTree`, not just the declarative
+ * `animate` config (the doc-63 "expose the per-feature primitive" pattern).
+ */
+export async function applyForcedPseudoStates(
+  page: Page,
+  forceState: ForceState[] | undefined,
+  log: (msg: string) => void = () => {},
+): Promise<void> {
+  if (forceState == null || forceState.length === 0) return;
+  const entry = await getForcedStateSession(page);
+  // DM-1566: resolve the document root ONCE per document and reuse it for every
+  // `querySelectorAll`. This is load-bearing for `reset`: calling `DOM.getDocument`
+  // again re-issues node ids in a FRESH id space, and a `CSS.forcePseudoState([])`
+  // on a new-space id does NOT clear an override set on the old-space id (even for
+  // the same element — verified against Chromium). Querying under one cached root
+  // keeps all ids in one space, so a later re-query returns the same id the force
+  // was set on, and the clear lands. The root is invalidated on navigation (a
+  // reload frame gets a new document, which clears forced overrides anyway).
+  if (entry.rootNodeId == null) {
+    // `depth: -1` returns the full node tree so `querySelectorAll` can resolve
+    // selectors anywhere in the document (not just the shallow default depth).
+    const { root } = await entry.session.send("DOM.getDocument", { depth: -1 });
+    entry.rootNodeId = root.nodeId;
+  }
+  for (const fs of forceState) {
+    const { nodeIds } = await entry.session.send("DOM.querySelectorAll", { nodeId: entry.rootNodeId, selector: fs.selector });
+    if (nodeIds.length === 0) {
+      throw new Error(`animate: forceState selector "${fs.selector}" matched no element`);
+    }
+    // `reset: true` clears the override by re-issuing an EMPTY forced-class list.
+    const forcedPseudoClasses = fs.reset === true ? [] : fs.states ?? [];
+    for (const nodeId of nodeIds) {
+      await entry.session.send("CSS.forcePseudoState", { nodeId, forcedPseudoClasses });
+    }
+    const label = fs.reset === true
+      ? `cleared forced state on`
+      : `forced ${forcedPseudoClasses.map((s) => `:${s}`).join("")} on`;
+    log(`  ${label} "${fs.selector}" (${nodeIds.length} element${nodeIds.length === 1 ? "" : "s"})`);
+  }
+}
+
+/**
+ * DM-1516 / DM-1566: the per-page CDP session that carries forced-pseudo-state
+ * overrides. It's cached (and never detached) for two reasons:
+ *   1. A `CSS.forcePseudoState` override lives for the lifetime of the session
+ *      that set it — detaching (or disabling the CSS domain) clears it instantly,
+ *      so it must outlive the capture that records the forced paint (DM-1516).
+ *   2. Clearing a forced state (`reset`) only works from the SAME session that set
+ *      it, so a continue-frame flow that forces `:hover` on one frame then resets
+ *      it on a later frame must reuse one session across both calls (DM-1566).
+ * The session is reclaimed when the page / context closes. Keyed weakly by page so
+ * it can't leak across runs.
+ */
+interface ForcedStateSession {
+  session: CDPSession;
+  /** Cached `DOM.getDocument` root id, kept stable so `reset` clears the id it set
+   *  (see `applyForcedPseudoStates`). Nulled on main-frame navigation. */
+  rootNodeId: number | null;
+}
+const forcedStateSessions = new WeakMap<Page, ForcedStateSession>();
+async function getForcedStateSession(page: Page): Promise<ForcedStateSession> {
+  let entry = forcedStateSessions.get(page);
+  if (entry == null) {
+    const session = await page.context().newCDPSession(page);
+    await session.send("DOM.enable");
+    await session.send("CSS.enable");
+    const created: ForcedStateSession = { session, rootNodeId: null };
+    forcedStateSessions.set(page, created);
+    // A reload frame navigates the SAME page object; its new document invalidates
+    // the cached root id (and clears any forced overrides). Re-fetch on next use.
+    if (typeof (page as { on?: unknown }).on === "function") {
+      page.on("framenavigated", (frame) => {
+        if (frame === page.mainFrame()) created.rootNodeId = null;
+      });
+    }
+    entry = created;
+  }
+  return entry;
+}
+
+/**
+ * Apply a DOM-mutation / interaction action (the cases not handled by a
+ * Playwright-native call in `runActions`) in page context, across every matched
+ * element. Throws if the selector matches nothing (a silently-skipped step
+ * usually means the demo is subtly wrong — see docs/43 → Selectors).
+ */
+async function applyDomAction(page: Page, action: AnimateAction): Promise<void> {
+  const selector = "selector" in action ? action.selector : undefined;
+  const matched = await page.evaluate((a) => {
+    const sel = "selector" in a ? a.selector : "";
+    const els = Array.from(document.querySelectorAll(sel)) as HTMLElement[];
+    for (const h of els) {
+      switch (a.type) {
+        case "setText":         h.textContent = a.value; break;
+        case "setHtml":         h.innerHTML = a.value; break;
+        case "remove":          h.remove(); break;
+        case "setAttribute":    h.setAttribute(a.name, a.value); break;
+        case "removeAttribute": h.removeAttribute(a.name); break;
+        case "addClass":        h.classList.add(a.class); break;
+        case "removeClass":     h.classList.remove(a.class); break;
+        case "toggleClass":     h.classList.toggle(a.class); break;
+        case "setStyle":        for (const [k, v] of Object.entries(a.props)) h.style.setProperty(k, v); break;
+        case "insert":          h.insertAdjacentHTML(a.position, a.html); break;
+        case "setValue":        (h as HTMLInputElement).value = a.value; break;
+        case "check":           (h as HTMLInputElement).checked = a.checked; break;
+        case "clear":           (h as HTMLInputElement).value = ""; break;
+        case "scrollIntoView":  h.scrollIntoView({ block: a.block ?? "center", inline: a.inline ?? "nearest" }); break;
+        case "blur":            h.blur(); break;
+        case "dispatch":        h.dispatchEvent(new Event(a.event, { bubbles: a.bubbles ?? true })); break;
+        case "selectText": {
+          const range = document.createRange();
+          range.selectNodeContents(h);
+          const sics = window.getSelection();
+          sics?.removeAllRanges();
+          sics?.addRange(range);
+          break;
+        }
+        case "replaceText": {
+          const re = new RegExp(a.pattern, a.flags ?? "");
+          const walk = (n: Node): void => {
+            if (n.nodeType === 3) n.textContent = (n.textContent ?? "").replace(re, a.replacement);
+            else n.childNodes.forEach(walk);
+          };
+          walk(h);
+          break;
+        }
+      }
+    }
+    return els.length;
+  }, action);
+  if (matched === 0) {
+    throw new Error(`animate: action "${action.type}" selector "${selector ?? "?"}" matched no elements`);
+  }
+}
+
+/**
+ * DM-852 §7: resolve `${name}` against `cfg.vars` in every string field of the
+ * config (recursively), returning a new config. `$${` escapes to a literal
+ * `${`; an unknown `${name}` is a hard error (typo-catching). No-op when there
+ * are no vars.
+ */
+export function interpolateConfigVars(cfg: AnimateConfig): AnimateConfig {
+  const vars = cfg.vars ?? {};
+  if (Object.keys(vars).length === 0) return cfg;
+  const sub = (s: string): string =>
+    s.replace(/\$\$\{|\$\{([^}]*)\}/g, (match, name: string | undefined) => {
+      if (match === "$${") return "${";
+      if (name == null || !(name in vars)) throw new Error(`animate: unknown variable \${${name ?? ""}}`);
+      return vars[name];
+    });
+  const walk = (v: unknown): unknown => {
+    if (typeof v === "string") return sub(v);
+    if (Array.isArray(v)) return v.map(walk);
+    if (v != null && typeof v === "object") {
+      const out: Record<string, unknown> = {};
+      // Two exclusions:
+      //  - the `vars` map itself (no nested vars in v1);
+      //  - DM-1770 `advances`, whose entries are region NAMES. Object keys are
+      //    never interpolated, so the `regions` map's own keys are literal;
+      //    interpolating the names that have to match them would make the two
+      //    sides of the same identifier follow different rules — and the
+      //    cross-check that a name is declared runs at parse time, before any
+      //    substitution could happen. Region SELECTORS (the map's values) are
+      //    interpolated like every other selector in the config.
+      for (const [k, val] of Object.entries(v)) out[k] = (k === "vars" || k === "advances") ? val : walk(val);
+      return out;
+    }
+    return v;
+  };
+  return walk(cfg) as AnimateConfig;
+}
+
+/**
+ * DM-1562 (docs/94 Option 1): expand each frame's `hoverReveal` sugar into two
+ * concrete frames — the frame at REST, then a `continue` frame that forces the
+ * hover state — with a crossfade between them and a cursor move onto the element.
+ * A pure config → config transform (no browser); runs before the capture loop so
+ * the rest of the pipeline sees ordinary `forceState` + cursor frames. The
+ * original frame's own `transition` (if any) carries out of the reveal pair;
+ * existing explicit `cursor.events` frame indices are remapped to the post-
+ * expansion numbering. A config with no `hoverReveal` is returned untouched.
+ */
+export function expandHoverReveal(cfg: AnimateConfig, log: (msg: string) => void = () => {}): AnimateConfig {
+  if (!cfg.frames.some((f) => f.hoverReveal != null)) return cfg;
+  const newFrames: AnimateFrameCfg[] = [];
+  // Old frame index → the new index of its (rest) frame, for remapping cursor events.
+  const restIndexForOld: number[] = [];
+  const injectedCursorEvents: CursorEventInput[] = [];
+  cfg.frames.forEach((f, oldIdx) => {
+    restIndexForOld[oldIdx] = newFrames.length;
+    const hr = f.hoverReveal;
+    if (hr == null) { newFrames.push(f); return; }
+    const origTransition = f.transition;
+    const crossfadeMs = hr.crossfadeMs ?? 400;
+    // Rest frame: the original frame minus the sugar, cross-fading INTO the reveal.
+    const restFrame: AnimateFrameCfg = { ...f, transition: { type: "crossfade", duration: crossfadeMs } };
+    delete (restFrame as { hoverReveal?: unknown }).hoverReveal;
+    const hoverIdx = newFrames.length + 1;
+    // Reveal frame: continue the live page, force the state, and carry the
+    // ORIGINAL frame's transition (the transition OUT of the pair) if any.
+    const hoverFrame: AnimateFrameCfg = {
+      continue: true,
+      duration: hr.hoverMs ?? f.duration,
+      forceState: [{ selector: hr.selector, states: hr.states ?? ["hover"] }],
+      ...(origTransition != null ? { transition: origTransition } : {}),
+    };
+    newFrames.push(restFrame, hoverFrame);
+    if (hr.cursor !== false) {
+      // DM-1586: glide the cursor onto the element DURING the rest frame so it's
+      // settled on the target when the hover crossfade begins. Injecting the move
+      // on the hover frame (at 0) instead makes the pointer depart the same instant
+      // the paint starts, so the element reaches full hover before the cursor lands.
+      // Arrive at the rest frame's end (= the hover frame's start).
+      const restIdx = hoverIdx - 1;
+      injectedCursorEvents.push({
+        frame: restIdx,
+        at: Math.max(0, (restFrame.duration ?? 0) - CURSOR_MOVE_DUR_MS),
+        type: "move",
+        selector: hr.selector,
+      });
+    }
+  });
+  const cursor = mergeInjectedCursorEvents(cfg.cursor, restIndexForOld, injectedCursorEvents, log, "hoverReveal");
+  return { ...cfg, frames: newFrames, ...(cursor !== undefined ? { cursor } : {}) };
+}
+
+/**
+ * Merge sugar-injected cursor moves (from `hoverReveal` / `hoverDetect`) into the
+ * config's cursor, remapping any existing explicit `cursor.events` frame indices
+ * through `restIndexForOld` (the frame numbering shifted when sugar frames
+ * expanded). `"auto"` can't carry explicit events, so injected moves are dropped
+ * with a warning (a hover cursor still can't derive from a forced state, which has
+ * no action for `"auto"` to key off). Returns the (possibly rebuilt) cursor.
+ */
+function mergeInjectedCursorEvents(
+  cursor: AnimateConfig["cursor"],
+  restIndexForOld: number[],
+  injected: CursorEventInput[],
+  log: (msg: string) => void,
+  sugar: string,
+): AnimateConfig["cursor"] {
+  const remap = (c: { style?: CursorStyleInput; events: CursorEventInput[] }): { style?: CursorStyleInput; events: CursorEventInput[] } => ({
+    ...c,
+    events: c.events.map((e) => ({ ...e, frame: restIndexForOld[e.frame] ?? e.frame })),
+  });
+  if (injected.length === 0) {
+    return cursor != null && cursor !== "auto" ? remap(cursor) : cursor;
+  }
+  if (cursor === "auto") {
+    log(`  note: ${sugar} can't inject a cursor move under cursor:"auto" (auto derives the pointer from actions, and a forced state has none) — set an explicit cursor or "cursor": false on the ${sugar} to silence this`);
+    return cursor;
+  }
+  if (cursor == null) return { events: injected };
+  const remapped = remap(cursor);
+  return { ...remapped, events: [...remapped.events, ...injected] };
+}
+
+/**
+ * DM-1563 (docs/94 Option 2): the browser pre-pass behind `hoverDetect`. For each
+ * frame carrying the sugar it opens a THROWAWAY context, loads the frame's
+ * `input`, snapshots the target subtree's computed style at rest, forces the
+ * hover state, snapshots again, and diffs. From the diff it rewrites the frame:
+ *   - `none`   — no detectable change: keep the frame as-is (rest only), log why;
+ *   - `motion` — a clean transform/opacity change on the target: keep ONE frame
+ *                and add an intra-frame keyframe TWEEN so it animates in place;
+ *   - `paint`  — anything else: expand to a rest + forced-hover crossfade pair
+ *                (like `hoverReveal`), which blends the color/shadow/border deltas.
+ * A cursor move onto the element is injected (unless `cursor:false`). Returns the
+ * rewritten config; a config with no `hoverDetect` is returned untouched without
+ * launching anything.
+ */
+async function expandHoverDetect(
+  cfg: AnimateConfig,
+  browser: Browser,
+  configDir: string,
+  log: (msg: string) => void,
+): Promise<AnimateConfig> {
+  if (!cfg.frames.some((f) => f.hoverDetect != null)) return cfg;
+  const newFrames: AnimateFrameCfg[] = [];
+  const restIndexForOld: number[] = [];
+  const injectedCursorEvents: CursorEventInput[] = [];
+  for (let oldIdx = 0; oldIdx < cfg.frames.length; oldIdx++) {
+    const f = cfg.frames[oldIdx];
+    restIndexForOld[oldIdx] = newFrames.length;
+    const hd = f.hoverDetect;
+    if (hd == null) { newFrames.push(f); continue; }
+    const states = hd.states ?? ["hover"];
+    const transitionMs = hd.transitionMs ?? 400;
+
+    // Probe the page in a throwaway context: load → snapshot rest → force → snapshot.
+    const ctx = await browser.newContext({
+      viewport: { width: cfg.width, height: cfg.height },
+      isMobile: cfg.mobile === true,
+      ...(cfg.mobile === true ? { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" } : {}),
+      ...(cfg.colorScheme != null ? { colorScheme: cfg.colorScheme } : {}),
+    });
+    let diff: HoverDiff;
+    try {
+      const page = await ctx.newPage();
+      const input = resolveFrameInput(f.input!, configDir);
+      log(`Frame ${oldIdx + 1}/${cfg.frames.length}: hoverDetect probing "${hd.selector}" (${input})…`);
+      await loadInputIntoPage(page, input);
+      await applyReadyWaits(page, {
+        wait: f.wait ?? 200, waitFor: f.waitFor, fontsReady: true, frameIndex: oldIdx,
+        waitForText: f.waitForText, waitForGone: f.waitForGone, waitForCount: f.waitForCount,
+      });
+      const rest = await captureStyleSnapshot(page, hd.selector, HOVER_DIFF_PROPERTIES);
+      await applyForcedPseudoStates(page, [{ selector: hd.selector, states }], () => {});
+      const hover = await captureStyleSnapshot(page, hd.selector, HOVER_DIFF_PROPERTIES);
+      diff = diffHoverSnapshots(rest, hover);
+    } finally {
+      await ctx.close();
+    }
+    const mode = classifyHoverTransition(diff);
+
+    if (mode === "none") {
+      log(`  hoverDetect: no hover-state change detected on "${hd.selector}" — keeping the frame as rest-only (check the selector, or that the page defines a :${states.join("/:")} rule)`);
+      const plain: AnimateFrameCfg = { ...f };
+      delete (plain as { hoverDetect?: unknown }).hoverDetect;
+      newFrames.push(plain);
+      continue;
+    }
+
+    const frameIdx = newFrames.length;
+    if (hd.cursor !== false) {
+      // DM-1586: land the cursor on the target BEFORE the hover reveal fires.
+      // Motion mode is a single frame — glide the cursor in from the start and
+      // DELAY the tween by the glide (below) so it reacts after the pointer lands.
+      // Paint mode has a rest frame (frameIdx) then a reveal frame — glide the
+      // cursor during the rest frame so it arrives as the crossfade begins.
+      const cursorAt = mode === "motion" ? 0 : Math.max(0, f.duration - CURSOR_MOVE_DUR_MS);
+      injectedCursorEvents.push({ frame: frameIdx, at: cursorAt, type: "move", selector: hd.selector });
+    }
+
+    if (mode === "motion") {
+      // DM-1586: hold the tween until the cursor has glided in (when a cursor was injected).
+      const tweenDelay = hd.cursor !== false ? CURSOR_MOVE_DUR_MS : 0;
+      const anims = synthesizeMotionAnimations(diff, hd.selector, transitionMs, tweenDelay);
+      const frame: AnimateFrameCfg = { ...f, animations: [...(f.animations ?? []), ...anims] };
+      delete (frame as { hoverDetect?: unknown }).hoverDetect;
+      newFrames.push(frame);
+      log(`  hoverDetect: motion-only hover on "${hd.selector}" → intra-frame ${anims.map((a) => a.property).join("+")} tween`);
+    } else {
+      // paint: rest + forced-hover crossfade pair (like hoverReveal).
+      const origTransition = f.transition;
+      const restFrame: AnimateFrameCfg = { ...f, transition: { type: "crossfade", duration: transitionMs } };
+      delete (restFrame as { hoverDetect?: unknown }).hoverDetect;
+      const hoverFrame: AnimateFrameCfg = {
+        continue: true,
+        duration: hd.hoverMs ?? f.duration,
+        forceState: [{ selector: hd.selector, states }],
+        ...(origTransition != null ? { transition: origTransition } : {}),
+      };
+      newFrames.push(restFrame, hoverFrame);
+      const props = [...new Set(diff.paint.map((d) => d.property))].join(", ");
+      log(`  hoverDetect: paint hover on "${hd.selector}" (${props}) → rest→hover crossfade`);
+    }
+  }
+  const cursor = mergeInjectedCursorEvents(cfg.cursor, restIndexForOld, injectedCursorEvents, log, "hoverDetect");
+  return { ...cfg, frames: newFrames, ...(cursor !== undefined ? { cursor } : {}) };
+}
+
+/**
+ * DM-1563: build the intra-frame animation(s) for a MOTION-mode hover — a single
+ * fused tween of the target's transform (and/or opacity) from its rest baseline
+ * to the hover value, so the element animates in place. `transform` is the
+ * primary track (center transform-origin — the common hover-scale case) with
+ * `opacity` fused in; an opacity-only change becomes a plain opacity tween. The
+ * caller has already guaranteed clean baselines via `classifyHoverTransition`.
+ */
+function synthesizeMotionAnimations(diff: HoverDiff, selector: string, durationMs: number, delayMs = 0): Anims {
+  // DM-1582: the transform-primary-with-fused-opacity / opacity-only synthesis is
+  // the shared `synthesizeMotionTween` (also used by jsReveal, DM-1580); this just
+  // attaches the config-form `selector` key. `delayMs` (DM-1586) holds the tween
+  // until an injected cursor lands on the target.
+  return synthesizeMotionTween(diff, durationMs, delayMs).map((track) => ({ selector, ...track }));
+}
+
+/**
+ * Validate a parsed config object against {@link animateConfigSchema}. Returns
+ * the typed config on success; on failure throws an `animate:`-prefixed Error
+ * listing each offending path + message (the CLI surfaces it as
+ * `domotion: animate: …`). zod's default issue messages are specific enough on
+ * their own — "Invalid input: expected number, received string" etc. — so we
+ * just prefix each with its dotted/bracketed path rather than re-authoring them.
+ */
+export function validateAnimateConfig(raw: unknown): AnimateConfig {
+  const result = animateConfigSchema.safeParse(raw);
+  if (result.success) return result.data;
+  throw new Error(`animate: ${formatConfigIssues(result.error)}`);
+}
+
+function formatConfigIssues(err: z.ZodError): string {
+  return err.issues
+    .map((issue) => {
+      const path = issue.path
+        .map((seg) => (typeof seg === "number" ? `[${seg}]` : `.${String(seg)}`))
+        .join("")
+        .replace(/^\./, "");
+      return path === "" ? issue.message : `${path}: ${issue.message}`;
+    })
+    .join("; ");
+}
+
+/**
+ * DM-850 §5 / DM-1132: resolve any overlay `anchor` (and typing `maxWidth`)
+ * against the live page into concrete `x` / `y` / `bgWidth`. Delegates to the
+ * shared `resolveAnchoredOverlays` engine so the CLI and the public
+ * `resolveOverlays` primitive can't diverge; this wrapper only supplies the
+ * frame-indexed error label.
+ */
+function resolveOverlayAnchors(page: Page, overlays: OverlayInput[] | undefined, frameIdx: number): Promise<OverlayInput[] | undefined> {
+  return resolveAnchoredOverlays(page, overlays, (kind) => `animate: frames[${frameIdx}] ${kind} overlay`);
+}
+
+// ── Cursor overlay (DM-851 §6) ──────────────────────────────────────────────
+
+type CursorEventInput = z.infer<typeof cursorEventSchema>;
+type CursorStyleInput = z.infer<typeof cursorStyleSchema>;
+
+/** Resolve a selector's BORDER-box aim point in page (viewport) coords, or null
+ *  if absent. DM-1139: collapsed onto the shared `borderBox` primitive (doc 63)
+ *  so the CLI cursor and the public `resolveCursorTarget` can't diverge.
+ *  DM-1742: `at` picks one of the nine named anchor points (default center) and
+ *  `offset` nudges from there — the auto-cursor aim vocabulary. `borderBox`
+ *  throws on no-match; the `"auto"` recording path tolerates a missing selector
+ *  (the action itself fails later, the cursor recording just skips it), so we map
+ *  that throw back to null here. */
+async function queryCursorBox(
+  page: Page,
+  sel: string,
+  at: BoxAnchor = "center",
+  offset?: { dx?: number; dy?: number },
+): Promise<{ cx: number; cy: number; cursor: string } | null> {
+  try {
+    const [cx, cy] = (await borderBox(page, sel, { at, dx: offset?.dx ?? 0, dy: offset?.dy ?? 0 })).at;
+    const cursor = await page.evaluate((selector: string) => {
+      const el = document.querySelector(selector);
+      if (!(el instanceof HTMLElement)) return "default";
+      const cs = getComputedStyle(el);
+      let value = (cs.cursor || "auto").trim();
+      if (value.includes("url(")) value = value.split(",").at(-1)?.trim() ?? "default";
+      if (value !== "auto") return value;
+      const textInputTypes = new Set(["text", "search", "url", "tel", "email", "password", "number"]);
+      const editable = el.isContentEditable
+        || el.tagName === "TEXTAREA"
+        || (el.tagName === "INPUT" && textInputTypes.has((el.getAttribute("type") || "text").toLowerCase()));
+      const selectableText = !editable
+        && (cs.userSelect || cs.webkitUserSelect || "") !== "none"
+        && [...el.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && (node.textContent || "").trim() !== "");
+      if (editable || selectableText) return (cs.writingMode || "").startsWith("vertical") ? "vertical-text" : "text";
+      return "default";
+    }, sel);
+    return { cx, cy, cursor };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Assemble a global-time `CursorOverlay` from resolved coords + the frame
+ * timeline. "auto" derives a move + click-pulse per recorded interaction
+ * target, spaced across each frame's hold; the explicit form maps each
+ * `{ frame, at }` event to global time. Move events carry absolute `to` coords.
+ */
+// Auto-cursor timing. Each interaction glides the pointer to its target over
+// CURSOR_MOVE_DUR_MS, then a short beat (CURSOR_CLICK_TAIL_FRAC of the frame's
+// hold, capped at CURSOR_CLICK_TAIL_MAX_MS) elapses before the transition so the
+// click reads as cause-then-effect rather than landing on the cut.
+const CURSOR_MOVE_DUR_MS = 400;
+const CURSOR_CLICK_TAIL_MAX_MS = 250;
+const CURSOR_CLICK_TAIL_FRAC = 0.25;
+
+export function buildCursorOverlay(
+  auto: boolean,
+  explicitEvents: CursorEventInput[],
+  styleCfg: CursorStyleInput | undefined,
+  autoTargets: Array<{ frame: number; cx: number; cy: number; cursor?: string }>,
+  explicitBoxes: Map<string, { cx: number; cy: number }>,
+  frameStarts: number[],
+  frames: AnimateConfig["frames"],
+): CursorOverlay | undefined {
+  const moveDur = CURSOR_MOVE_DUR_MS;
+  const events: CursorEvent[] = [];
+
+  if (auto) {
+    // DM-1050: stage each interaction over the image it visually happens ON.
+    // In the continuous-session model a frame's CONTENT is the RESULT of its
+    // actions — capture runs AFTER the actions — and the transition INTO that
+    // frame is what reveals the result. So a click captured into a `continue`
+    // frame must be shown during the PREVIOUS frame's hold (the "before" image),
+    // landing just before that transition. Otherwise the click pulse fires in
+    // the middle of the frame that already shows the change it caused — the
+    // reported bug: "the mouse moves and clicks after the change is shown."
+    // A click in frame 0 (or a reload frame, which loads a fresh page) has no
+    // prior before-image, so it stays within its own hold.
+    const stageFor = (actionFrame: number): number => {
+      if (actionFrame === 0) return 0;
+      const fc = frames[actionFrame];
+      const isContinue = fc.continue === true || fc.input == null;
+      return isContinue ? actionFrame - 1 : actionFrame;
+    };
+    const byStage = new Map<number, Array<{ cx: number; cy: number; cursor?: string }>>();
+    for (const tgt of autoTargets) {
+      const stage = stageFor(tgt.frame);
+      const arr = byStage.get(stage) ?? [];
+      arr.push({ cx: tgt.cx, cy: tgt.cy, cursor: tgt.cursor });
+      byStage.set(stage, arr);
+    }
+    for (const [stage, targets] of byStage) {
+      const start = frameStarts[stage];
+      const holdEnd = start + frames[stage].duration;
+      // Leave a short beat after the last click before the transition reveals
+      // the result, so the click reads as cause-then-effect rather than landing
+      // exactly on the cut.
+      const tail = Math.min(CURSOR_CLICK_TAIL_MAX_MS, frames[stage].duration * CURSOR_CLICK_TAIL_FRAC);
+      const lastHit = holdEnd - tail;
+      const span = Math.max(0, lastHit - start);
+      targets.forEach((tg, m) => {
+        // Single click → land at `lastHit` (just before the transition).
+        // Multiple → spread across the hold so the LAST still lands at lastHit.
+        const tHit = targets.length === 1 ? lastHit : start + (span * (m + 1)) / targets.length;
+        events.push({ type: "move", t: Math.max(start, tHit - moveDur), duration: moveDur, to: { x: tg.cx, y: tg.cy }, cursor: tg.cursor });
+        events.push({ type: "click", t: tHit });
+      });
+    }
+  } else {
+    for (const ev of explicitEvents) {
+      const t = frameStarts[ev.frame] + ev.at;
+      if (ev.type === "hide") { events.push({ type: "hide", t }); continue; }
+      if (ev.type === "click") { events.push({ type: "click", t, button: ev.button }); continue; }
+      // move / moveClick
+      let pos: { x: number; y: number } | null = null;
+      if (ev.to != null) {
+        pos = { x: ev.to.x + (ev.offset?.dx ?? 0), y: ev.to.y + (ev.offset?.dy ?? 0) };
+      } else if (ev.selector != null) {
+        const b = explicitBoxes.get(`${ev.frame}:${ev.selector}`);
+        if (b != null) pos = { x: b.cx + (ev.offset?.dx ?? 0), y: b.cy + (ev.offset?.dy ?? 0) };
+      }
+      if (pos == null) continue;
+      const d = ev.duration ?? moveDur;
+      events.push({ type: "move", t, duration: d, to: pos });
+      if (ev.type === "moveClick") events.push({ type: "click", t: t + d, button: ev.button });
+    }
+  }
+
+  if (events.length === 0) return undefined;
+  return { events, style: mapCursorStyle(styleCfg) };
+}
+
+/** Map the config-facing cursor style to the renderer's `Partial<CursorStyle>`. */
+function mapCursorStyle(s: CursorStyleInput | undefined): Partial<CursorStyle> | undefined {
+  if (s == null) return undefined;
+  const style: Partial<CursorStyle> = {};
+  if (s.scale != null) style.cursorScale = s.scale;
+  if (s.color != null) style.cursorFill = s.color;
+  if (s.pulseColor != null) style.pulseStroke = s.pulseColor;
+  if (s.pulseRadius != null) style.pulseRadius = s.pulseRadius;
+  if (s.pulseDurationMs != null) style.pulseDurationMs = s.pulseDurationMs;
+  return style;
+}
+
+/**
+ * Walk a frame's overlay list, expand `kind: "svg"` entries by reading the
+ * referenced SVG file, namespacing its ids, and replacing `src` with the
+ * inlined `innerSvg`. Other overlay kinds pass through verbatim.
+ */
+/**
+ * DM-1320: overlays on an embedded-content frame (`cast` / `template`). These
+ * frames have NO captured DOM, so a selector `anchor` (or typing `maxWidth:
+ * "anchor"`) can't resolve — previously the whole overlay was silently dropped,
+ * leaving the author with a vanished overlay and no clue why. Instead: warn
+ * clearly that selector anchoring isn't supported here (use explicit `x`/`y`),
+ * strip the unresolvable anchor so the overlay falls back to its `x`/`y`, then
+ * resolve `svg` overlays as usual so explicit-coordinate overlays DO render on
+ * top of the embedded animation.
+ */
+export function resolveEmbeddedFrameOverlays(
+  overlays: OverlayInput[] | undefined,
+  configDir: string,
+  frameIdx: number,
+  frameKind: string,
+  log: (msg: string) => void,
+): AnimationOverlay[] | undefined {
+  if (overlays == null) return undefined;
+  const stripped = overlays.map((ov) => {
+    let next = ov;
+    if ("anchor" in next && next.anchor != null) {
+      log(`  warning: overlay anchor { selector: ${JSON.stringify(next.anchor.selector)} } is ignored on a ${frameKind} frame — it has no captured DOM to resolve a selector against. The overlay falls back to its x/y (default 0,0); set explicit "x"/"y" to position it.`);
+      next = { ...next, anchor: undefined };
+    }
+    if (next.kind === "typing" && next.maxWidth === "anchor") {
+      log(`  warning: typing overlay maxWidth:"anchor" is ignored on a ${frameKind} frame (no DOM); set a fixed px width instead.`);
+      next = { ...next, maxWidth: undefined };
+    }
+    return next;
+  });
+  return resolveSvgOverlays(stripped, configDir, frameIdx);
+}
+
+function resolveSvgOverlays(overlays: OverlayInput[] | undefined, configDir: string, frameIdx: number): AnimationOverlay[] | undefined {
+  if (overlays == null) return undefined;
+  const out: AnimationOverlay[] = [];
+  let svgIdx = 0;
+  for (const ov of overlays) {
+    if (ov.kind === "svg") {
+      // Inline the referenced file and swap `src` → `innerSvg`/`animId`.
+      const srcPath = resolve(configDir, ov.src);
+      if (!existsSync(srcPath)) throw new Error(`animate: svg overlay file not found: ${srcPath}`);
+      const fileText = readFileSync(srcPath, "utf8");
+      const animId = `s${svgIdx++}`;
+      const namespaced = namespaceSvgIds(fileText, `f${frameIdx}o${animId}-`);
+      out.push({
+        kind: "svg",
+        innerSvg: namespaced,
+        x: ov.x, y: ov.y, width: ov.width, height: ov.height,
+        animId,
+        enter: ov.enter, exit: ov.exit,
+      });
+    } else {
+      // typing / tap / blink already match their runtime overlay shapes verbatim.
+      out.push(ov);
+    }
+  }
+  return out;
+}
+
+/**
+ * Strip the outer `<svg>` wrapper (if present) from an SVG file's contents,
+ * then prefix every `id="..."`, `href="#..."`, and `xlink:href="#..."` with
+ * the given prefix so multiple inlined SVGs can coexist in one document
+ * without id collisions.
+ */
+function namespaceSvgIds(svg: string, prefix: string): string {
+  // Strip XML decl + outer <svg ...> wrapper, then namespace ids/refs via the
+  // shared prefixer (DM-1588 — same regexes back the native SVG-image inliner).
+  let inner = svg;
+  inner = inner.replace(/<\?xml[^>]*\?>/, "");
+  inner = inner.replace(/<svg\b[^>]*>/, "");
+  inner = inner.replace(/<\/svg>\s*$/, "");
+  inner = prefixSvgIds(inner, prefix);
+  // DM-1595: also namespace CSS class names when the overlay SVG carries a
+  // `<style>` block, so two svg overlays that both define e.g. `.cls-1` can't
+  // cross-contaminate. Gated on `<style>` presence → no-op (byte-identical) for
+  // the common presentation-attribute overlay.
+  if (/<style[\s>]/i.test(inner)) inner = prefixSvgClasses(inner, prefix);
+  return inner;
+}
+
+function resolveFrameInput(input: string, configDir: string): string {
+  if (input === "-") return input;
+  if (/^https?:\/\//i.test(input)) return input;
+  return resolve(configDir, input);
+}

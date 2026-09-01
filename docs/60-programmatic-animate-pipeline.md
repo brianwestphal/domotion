@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["animation"]
 platforms: []
-tickets: ["DM-1130","DM-1132","DM-1137","DM-1138"]
-code: ["src/cli/animate.ts"]
+tickets: ["DM-1130","DM-1132","DM-1137","DM-1138","DM-2641"]
+code: ["src/cli/animate-capture-session.ts","src/cli/animate-frame-capture.ts","src/cli/animate-orchestrator.ts","src/cli/animate.ts"]
 aliases: ["docs/60-programmatic-animate-pipeline.md","doc-60"]
 ---
 
@@ -21,7 +21,8 @@ out to the CLI or reimplementing the capture→compose loop by hand.
 
 The declarative runner already existed but was unreachable: `composeAnimateConfig`
 / `validateAnimateConfig` / `interpolateConfigVars` and the `AnimateConfig` type
-lived only in `src/cli/animate.ts`, and the package root re-exported
+lived only behind `src/cli/animate.ts` (the stable facade now backed by
+`src/cli/animate-orchestrator.ts`), and the package root re-exported
 capture / render / animation / scroll / tree-ops / post-processing but never
 `cli/`. A programmatic consumer doing `import { … } from "domotion-svg"` therefore
 had to either spawn the `domotion animate` subprocess or hand-reimplement the
@@ -58,9 +59,9 @@ try {
 }
 ```
 
-The `domotion animate` CLI is now exactly this wrapper around the same function:
-read file → `JSON.parse` → `validateAnimateConfig` → `composeAnimateConfig` →
-optional `optimizeSvg` → write.
+The `domotion animate` CLI remains a wrapper around the same function:
+`animate-command.ts` reads/parses → `validateAnimateConfig` →
+`composeAnimateConfig`; `animate-artifact.ts` optionally optimizes and writes.
 
 ### Frames-out: mutate before rendering (DM-1137)
 

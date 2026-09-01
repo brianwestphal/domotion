@@ -5,14 +5,14 @@ kind: "contract"
 status: "current"
 owners: ["animation"]
 platforms: ["windows"]
-tickets: ["DM-1050","DM-1134","DM-1140","DM-1287","DM-1292","DM-1319","DM-1320","DM-1322","DM-1323","DM-1324","DM-1516","DM-1518","DM-1555","DM-1557","DM-1558","DM-1562","DM-1563","DM-1566","DM-1742","DM-1749","DM-1750","DM-1757","DM-1761","DM-1763","DM-1767","DM-1768","DM-1770","DM-1771","DM-1772","DM-1796","DM-846","DM-853"]
-code: ["examples/animate/","examples/animate/compressed-run/","examples/animate/editor-session/","examples/animate/form-fill/","examples/animate/hover-detect/","examples/animate/hover-reveal/","examples/animate/hover-state/","examples/animate/region-timing/","src/cli/animate.ts"]
+tickets: ["DM-1050","DM-1134","DM-1140","DM-1287","DM-1292","DM-1319","DM-1320","DM-1322","DM-1323","DM-1324","DM-1516","DM-1518","DM-1555","DM-1557","DM-1558","DM-1562","DM-1563","DM-1566","DM-1742","DM-1749","DM-1750","DM-1757","DM-1761","DM-1763","DM-1767","DM-1768","DM-1770","DM-1771","DM-1772","DM-1796","DM-2641","DM-846","DM-853"]
+code: ["examples/animate/","examples/animate/compressed-run/","examples/animate/editor-session/","examples/animate/form-fill/","examples/animate/hover-detect/","examples/animate/hover-reveal/","examples/animate/hover-state/","examples/animate/region-timing/","src/cli/animate-orchestrator.ts","src/cli/animate.ts"]
 aliases: ["docs/43-declarative-animate-config.md","doc-43"]
 ---
 
 # 43 — Declarative `animate` config
 
-Status: **shipped**. This doc is the contract for the `domotion animate` JSON config; all eight sections below are implemented in `src/cli/animate.ts` (continuous-session `continue`, the DOM-mutation + interaction actions, the richer readiness waits, selector-anchored overlays, the config-level `cursor` incl. `"auto"`, `${}` variable interpolation, and the `evaluate` escape hatch — DM-846 through DM-853, with the auto-cursor timing refined in DM-1050). Each section reads as the spec; the per-section ticket tracked its build.
+Status: **shipped**. This doc is the contract for the `domotion animate` JSON config; all eight sections below are implemented in `src/cli/animate-orchestrator.ts` and re-exported through `src/cli/animate.ts` (continuous-session `continue`, the DOM-mutation + interaction actions, the richer readiness waits, selector-anchored overlays, the config-level `cursor` incl. `"auto"`, `${}` variable interpolation, and the `evaluate` escape hatch — DM-846 through DM-853, with the auto-cursor timing refined in DM-1050). Each section reads as the spec; the per-section ticket tracked its build.
 
 ## Why
 
