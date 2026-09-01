@@ -3,10 +3,20 @@ import { describe, expect, it, vi } from "vitest";
 import { loadInputIntoPage, parsePort, shouldOpenInBrowser } from "./common.js";
 
 describe("openInBrowser", () => {
-  it("permits normal CLI use but rejects both automation sentinels", () => {
-    expect(shouldOpenInBrowser({})).toBe(true);
-    expect(shouldOpenInBrowser({ VITEST: "true" })).toBe(false);
-    expect(shouldOpenInBrowser({ DOMOTION_NO_OPEN: "1" })).toBe(false);
+  it("permits interactive CLI use but fails closed without a TTY", () => {
+    expect(shouldOpenInBrowser({}, true)).toBe(true);
+    expect(shouldOpenInBrowser({}, false)).toBe(false);
+    expect(shouldOpenInBrowser({ DOMOTION_OPEN_BROWSER: "1" }, false)).toBe(true);
+  });
+
+  it("rejects automation sentinels even when a TTY or explicit opt-in is present", () => {
+    expect(shouldOpenInBrowser({ VITEST: "true" }, true)).toBe(false);
+    expect(shouldOpenInBrowser({ DOMOTION_NO_OPEN: "1", DOMOTION_OPEN_BROWSER: "1" }, true)).toBe(false);
+    expect(shouldOpenInBrowser({ CI: "true", DOMOTION_OPEN_BROWSER: "1" }, true)).toBe(false);
+  });
+
+  it("inherits Vitest's no-open environment in the real test process", () => {
+    expect(shouldOpenInBrowser()).toBe(false);
   });
 });
 

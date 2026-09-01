@@ -163,6 +163,66 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "unknown-ai-tool",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtiuqlyanomih9p0",
+          "message": {
+            "text": "The shared opener must fail closed when no interactive TTY is attached. Environment sentinels alone were insufficient because automated pueue/Codex commands can invoke svg-scrubber or SVG Demo Test Review without VITEST or DOMOTIONNOOPEN, reusing the user’s running desktop Chrome. Interactive terminals retain the normal auto-open behavior; deliberately non-interactive human launchers may opt in with DOMOTIONOPENBROWSER=1, while VITEST, DOMOTIONNOOPEN, and CI always win.",
+            "markdown": "The shared opener must fail closed when no interactive TTY is attached. Environment sentinels alone were insufficient because automated pueue/Codex commands can invoke svg-scrubber or SVG Demo Test Review without VITEST or DOMOTION_NO_OPEN, reusing the user’s running desktop Chrome. Interactive terminals retain the normal auto-open behavior; deliberately non-interactive human launchers may opt in with DOMOTION_OPEN_BROWSER=1, while VITEST, DOMOTION_NO_OPEN, and CI always win."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/common.ts"
+                },
+                "region": {
+                  "startLine": 74,
+                  "endLine": 91,
+                  "snippet": {
+                    "text": "export function shouldOpenInBrowser(\n  env: NodeJS.ProcessEnv = process.env,\n  interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY),\n): boolean {\n  if (env.VITEST != null || env.DOMOTION_NO_OPEN === \"1\" || env.CI != null) return false;\n  return interactive || env.DOMOTION_OPEN_BROWSER === \"1\";\n}\n\nexport async function openInBrowser(url: string): Promise<void> {\n  // Test code must never steal focus by launching the user's real browser.\n  // Keep this guard here, at the final shared side-effect boundary, so a new\n  // caller cannot bypass it by forgetting its own `--no-open` flag. Vitest\n  // exports VITEST to its workers and their inherited child processes;\n  // DOMOTION_NO_OPEN covers other automated runners, and the TTY requirement\n  // fails closed for pueue/Codex/CI-style commands that carry neither sentinel.\n  // A deliberately non-interactive human launcher can opt in with\n  // DOMOTION_OPEN_BROWSER=1 (unless an automation/no-open sentinel is present).\n  if (!shouldOpenInBrowser()) return;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ]
+          },
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b1f28f2b1192f5f7ebeac7f9e7240f6d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "b78286f3254b114311775a6f78636552c62c974f",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
