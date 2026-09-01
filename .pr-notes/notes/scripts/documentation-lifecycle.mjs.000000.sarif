@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtitg0xxmseeh7sx",
+          "message": {
+            "text": "The consistency gate reads only a document's canonical opening, not arbitrary completion words later in a long requirements record. It prioritizes an explicit Status line and supports the older opening-ticket form used by doc 116, while controls keep a completed design or investigation with pending/proposed implementation in the proposal lifecycle. This catches the three stale records without reclassifying proposals merely because they describe completed prerequisites.",
+            "markdown": "The consistency gate reads only a document's canonical opening, not arbitrary completion words later in a long requirements record. It prioritizes an explicit Status line and supports the older opening-ticket form used by doc 116, while controls keep a completed design or investigation with pending/proposed implementation in the proposal lifecycle. This catches the three stale records without reclassifying proposals merely because they describe completed prerequisites."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "scripts/documentation-lifecycle.mjs"
+                },
+                "region": {
+                  "startLine": 15,
+                  "endLine": 38,
+                  "snippet": {
+                    "text": "/** Return the canonical opening declaration that says implementation is done.\n * Explicit Status lines win; older records may instead open with a ticket\n * outcome such as \"DM-2070 ships …\". Keep the scan narrow so a later section\n * describing a completed prerequisite does not retire a genuine proposal. */\nexport function completedCanonicalDeclaration(body) {\n  const opening = body.slice(0, 2000);\n  const status = opening.match(/^\\s*(?:\\*\\*)?Status:(?:\\*\\*)?\\s*(.+?)\\s*$/mi)?.[1];\n  if (status != null && declaresImplementedOutcome(status)) return plainText(status);\n\n  const ticketOutcome = opening.match(\n    /^(?:DM|SK|KF)-[0-9]+\\s+(?:ships|shipped|landed|implemented|completed)\\b[^\\n]*/mi,\n  )?.[0];\n  return ticketOutcome == null ? null : plainText(ticketOutcome);\n}\n\n/** A proposal belongs in the historical index only while its canonical body\n * still describes proposed work. Shipped bodies must use current contract or\n * evidence metadata so consumers and generated packets can discover them. */\nexport function lifecycleConsistencyErrors(filename, metadata, body) {\n  if (metadata.kind !== \"proposal\" && metadata.status !== \"proposed\") return [];\n  const declaration = completedCanonicalDeclaration(body);\n  return declaration == null\n    ? []\n    : [`${filename}: proposal lifecycle conflicts with completed canonical declaration: ${declaration}`];"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/documentation-lifecycle.test.ts"
+                },
+                "region": {
+                  "startLine": 8
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "scripts/documentation-index.mjs"
+                },
+                "region": {
+                  "startLine": 235
+                }
+              }
+            }
+          ],
+          "rank": 86,
+          "workItemUris": [
+            "DM-2633"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c5f57b61ed96eeec2d9603f02267d048"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f700ed108ea3214078e15920008a3afbb123e23a",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

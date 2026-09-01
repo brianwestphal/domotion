@@ -9,6 +9,7 @@ import {
 } from "node:fs";
 import { dirname, extname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { lifecycleConsistencyErrors } from "./documentation-lifecycle.mjs";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const docsRoot = resolve(projectRoot, "docs");
@@ -234,6 +235,7 @@ for (const filename of files()) {
     continue;
   }
   errors.push(...validateMetadata(filename, metadata));
+  errors.push(...lifecycleConsistencyErrors(filename, metadata, body));
   errors.push(...internalLinkErrors(filename, body));
   if (ids.has(metadata.id)) errors.push(`${filename}: duplicate stable id also used by ${ids.get(metadata.id)}`);
   ids.set(metadata.id, filename);

@@ -1,12 +1,12 @@
 ---
 id: "requirements/transition-schema-and-normalization"
 title: "116 — Transition schema and compatibility normalization"
-kind: "proposal"
-status: "proposed"
+kind: "contract"
+status: "current"
 owners: ["animation","product-tooling"]
 platforms: []
-tickets: ["DM-2070","DM-2071","DM-2072"]
-code: ["src/animation/transition-schema.ts"]
+tickets: ["DM-2070","DM-2071","DM-2072","DM-2633"]
+code: ["src/animation/transition-schema.test.ts","src/animation/transition-schema.ts","src/cli/animate.ts","src/cli/storyboard.ts","tests/feature-coverage.ts"]
 aliases: ["docs/116-transition-schema-and-normalization.md","doc-116"]
 ---
 

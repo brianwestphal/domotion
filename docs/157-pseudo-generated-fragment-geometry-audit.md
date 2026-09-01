@@ -1,12 +1,12 @@
 ---
 id: "requirements/pseudo-generated-fragment-geometry-audit"
 title: "157 — Generated pseudo fragment and baseline geometry audit"
-kind: "proposal"
-status: "proposed"
+kind: "evidence"
+status: "current"
 owners: ["layout","platform-release"]
 platforms: ["macos","linux"]
-tickets: ["DM-2382","DM-2383","DM-2466","DM-2467","DM-2468"]
-code: ["src/capture/script/index.ts","src/capture/script/walker/pseudo-content.ts","src/capture/script/walker/pseudo-inject.ts","tests/generated-pseudo-layout-probe.e2e.test.ts","tools/replaced-geometry-oracle.ts"]
+tickets: ["DM-2382","DM-2383","DM-2466","DM-2467","DM-2468","DM-2633"]
+code: [".github/workflows/pseudo-fragment-render-parity.yml","src/capture/pseudo-fragment-cdp.ts","src/capture/pseudo-fragment-protocol.ts","src/capture/script/index.ts","src/capture/script/walker/pseudo-content.ts","src/capture/script/walker/pseudo-inject.ts","src/render/pseudo-fragments.test.ts","src/render/pseudo-fragments.ts","tests/generated-pseudo-layout-probe.e2e.test.ts","tests/pseudo-fragment-capture.e2e.test.ts","tests/pseudo-fragment-protocol.test.ts","tests/pseudo-fragment-render-oracle.e2e.test.ts","tools/pseudo-fragment-geometry-oracle.ts","tools/pseudo-fragment-render-oracle.ts","tools/replaced-geometry-oracle.ts"]
 aliases: ["docs/157-pseudo-generated-fragment-geometry-audit.md","doc-157"]
 ---
 
