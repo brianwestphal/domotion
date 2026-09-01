@@ -25,7 +25,7 @@ describe("svg-scrubber server (DM-1040)", () => {
 
   beforeAll(async () => {
     try {
-      browser = await chromium.launch();
+      browser = await chromium.launch({ headless: true });
     } catch {
       chromiumAvailable = false;
       return;
@@ -126,7 +126,7 @@ describe("svg-scrubber server (DM-1040)", () => {
     // A dedicated browser so the scoped server's close() (which closes the
     // browser it was handed) doesn't tear down the shared one used by the
     // sibling tests / afterAll.
-    const b2 = await chromium.launch();
+    const b2 = await chromium.launch({ headless: true });
     const s2 = await startScrubberServer({ launchBrowser: async () => b2, initialSvg: wide, initialName: "wide.svg" });
     const ctx = await b2.newContext({ viewport: { width: 900, height: 600 } });
     const page = await ctx.newPage();
@@ -172,7 +172,7 @@ describe("svg-scrubber server (DM-1040)", () => {
   it("playback advances the time label without re-rendering the transport (DM-1730)", async () => {
     if (!chromiumAvailable) return;
     const anim = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><rect width="40" height="40" fill="#28c"><animateTransform attributeName="transform" type="translate" from="0 0" to="60 60" dur="4s" repeatCount="indefinite"/></rect></svg>`;
-    const b2 = await chromium.launch();
+    const b2 = await chromium.launch({ headless: true });
     const s2 = await startScrubberServer({ launchBrowser: async () => b2, initialSvg: anim, initialName: "anim.svg" });
     const ctx = await b2.newContext({ viewport: { width: 900, height: 600 } });
     const page = await ctx.newPage();
@@ -256,7 +256,7 @@ describe("svg-scrubber server (DM-1040)", () => {
 
   it("toggling the crop button shows the crop overlay (DM-1104)", async () => {
     if (!chromiumAvailable) return;
-    const b2 = await chromium.launch();
+    const b2 = await chromium.launch({ headless: true });
     const s2 = await startScrubberServer({ launchBrowser: async () => b2, initialSvg: SVG, initialName: "anim.svg" });
     const ctx = await b2.newContext({ viewport: { width: 900, height: 600 } });
     const page = await ctx.newPage();
@@ -282,9 +282,9 @@ describe("svg-scrubber server (DM-1040)", () => {
     }
   }, 60_000);
 
-  it("supports keyboard file entry, visible focus, and pointer-free region marking (DM-2599)", async () => {
+  it("supports keyboard file entry and keeps region drawing armed across repeated drags (DM-2599)", async () => {
     if (!chromiumAvailable) return;
-    const b2 = await chromium.launch();
+    const b2 = await chromium.launch({ headless: true });
     const s2 = await startScrubberServer({ launchBrowser: async () => b2, initialSvg: SVG, initialName: "anim.svg", review: true });
     const ctx = await b2.newContext({ viewport: { width: 900, height: 600 } });
     const page = await ctx.newPage();
@@ -299,6 +299,33 @@ describe("svg-scrubber server (DM-1040)", () => {
       expect(await center.evaluate((el) => getComputedStyle(el).outlineStyle)).not.toBe("none");
       await page.keyboard.press("Enter");
       await expect.poll(() => page.locator(".region-box").count()).toBe(1);
+
+      // Reload to isolate the pointer sequence from the keyboard-created box.
+      // The bootstrap SVG is deterministic, and a fresh review session starts
+      // with no regions and drawing disarmed.
+      await page.reload({ waitUntil: "load" });
+      await page.waitForSelector(".svg-host svg", { timeout: 10_000 });
+      await expect.poll(() => page.locator(".region-box").count()).toBe(0);
+
+      const arm = page.locator('button[data-action="rv-region"]');
+      await arm.click();
+      await expect.poll(() => arm.textContent()).toContain("Drawing");
+      const layer = page.locator("[data-region-layer]");
+      const bounds = await layer.boundingBox();
+      expect(bounds).not.toBeNull();
+      await expect.poll(() => layer.evaluate((el) => getComputedStyle(el).pointerEvents)).toBe("auto");
+      const drag = async (x1: number, y1: number, x2: number, y2: number): Promise<void> => {
+        await page.mouse.move(bounds!.x + x1, bounds!.y + y1);
+        await page.mouse.down();
+        await page.mouse.move(bounds!.x + x2, bounds!.y + y2, { steps: 4 });
+        await page.mouse.up();
+      };
+      await drag(30, 30, 75, 65);
+      await expect.poll(() => page.locator(".region-box").count()).toBe(1);
+      expect(await arm.textContent()).toContain("Drawing");
+      await drag(110, 45, 165, 90);
+      await expect.poll(() => page.locator(".region-box").count()).toBe(2);
+      expect(await arm.textContent()).toContain("Drawing");
 
       const fileInput = page.locator('input[type="file"]');
       expect(await fileInput.getAttribute("class")).toBe("file-input");

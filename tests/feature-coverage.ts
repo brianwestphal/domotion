@@ -43,6 +43,8 @@ export interface FeatureEntry {
   tests: string[];
   /** Present when this is a state-*transition* assertion; describes the transition. */
   transition?: string;
+  /** Exact test declarations that assert the transition (not merely nearby files). */
+  transitionEvidence?: Array<{ test: string; title: string }>;
 }
 
 export const FEATURES: FeatureEntry[] = [
@@ -78,8 +80,18 @@ export const FEATURES: FeatureEntry[] = [
     id: "capture.iframe-recursion",
     behavior: "A same-origin <iframe> recurses into native SVG; a cross-origin frame stays raster unless allowlisted.",
     doc: "docs/81-iframe-recursion.md",
-    tests: ["src/capture/script/cross-origin.test.ts"],
+    tests: [
+      "src/capture/script/cross-origin.test.ts",
+      "tests/iframe-inner-prepasses.e2e.test.ts",
+      "tests/cross-origin-iframe-recursion.e2e.test.ts",
+    ],
     transition: "raster-fallback → native-recursion when contentDocument becomes readable (same-origin, or cross-origin via --cross-origin-frames).",
+    transitionEvidence: [
+      { test: "tests/iframe-inner-prepasses.e2e.test.ts", title: "resolves CSS counters and pre-scales text under an inner transform" },
+      { test: "tests/cross-origin-iframe-recursion.e2e.test.ts", title: "recurses a cross-origin frame whose host:port is on the allowlist" },
+      { test: "tests/cross-origin-iframe-recursion.e2e.test.ts", title: "leaves a non-allowlisted cross-origin frame as a raster snapshot (blast-radius limit)" },
+      { test: "tests/cross-origin-iframe-recursion.e2e.test.ts", title: "leaves cross-origin frames as raster when no allowlist is given (default)" },
+    ],
   },
   {
     id: "capture.emoji-detect",
@@ -110,6 +122,12 @@ export const FEATURES: FeatureEntry[] = [
       "tests/animated-projective-frame.e2e.test.ts",
     ],
     transition: "affine → projective and preserve-3d → flat/grouped ownership at exact paused timeline samples.",
+    transitionEvidence: [
+      { test: "tests/animated-projective-frame-oracle.test.ts", title: "kills stale time, shifted quad, dropped owner, 2D fitting, and composition collapse" },
+      { test: "tests/animated-projective-frame-oracle.test.ts", title: "requires an affine/inactive sample to stay vector-owned without a fabricated frame record" },
+      { test: "tests/raf-clock.e2e.test.ts", title: "orders the controlled callback before timeline seek and all capture prepasses" },
+      { test: "tests/animated-projective-frame.e2e.test.ts", title: "matches independent Chromium quads, composition, and raster owners at DPR 1" },
+    ],
   },
   {
     id: "capture.atomic-replaced-media-frame",
@@ -120,6 +138,13 @@ export const FEATURES: FeatureEntry[] = [
       "tests/replaced-media-frame.e2e.test.ts",
     ],
     transition: "decoded/seeked/presented and origin-clean surface → bound owner PNG → exact post-capture owner/frame epoch, with every hostile movement rejected.",
+    transitionEvidence: [
+      { test: "tests/replaced-media-frame.e2e.test.ts", title: "screenshots every canvas/video owner in one stable epoch across repeated production captures" },
+      { test: "tests/replaced-media-frame.e2e.test.ts", title: "fails closed when a canvas surface mutates after owner binding" },
+      { test: "tests/replaced-media-frame.e2e.test.ts", title: "waits for a concrete video frame and rejects a hostile post-bind seek" },
+      { test: "tests/replaced-media-frame.e2e.test.ts", title: "rejects owner detachment and document replacement" },
+      { test: "tests/replaced-media-frame.e2e.test.ts", title: "rejects child-frame navigation even when the main document remains stable" },
+    ],
   },
 
   // ── Render (DOM tree → SVG) ────────────────────────────────────────────
@@ -203,6 +228,10 @@ export const FEATURES: FeatureEntry[] = [
     exports: ["getRenderTextMode", "setRenderTextMode", "withRenderTextMode"],
     tests: ["src/render/render-text-mode-guard.test.ts"],
     transition: "default(embedded-font) → set(paths) → withRenderTextMode(embedded-font, cb) restores paths afterward, EVEN WHEN cb throws.",
+    transitionEvidence: [
+      { test: "src/render/render-text-mode-guard.test.ts", title: "sets the mode for the callback and restores the prior value" },
+      { test: "src/render/render-text-mode-guard.test.ts", title: "restores the prior mode even when the callback throws" },
+    ],
   },
   {
     id: "text.glyph-defs",
@@ -211,6 +240,10 @@ export const FEATURES: FeatureEntry[] = [
     exports: ["getGlyphDefs", "clearGlyphDefs"],
     tests: ["src/render/glyph-registry.test.ts", "src/render/render-text-mode-guard.test.ts"],
     transition: "empty → ensureGlyphDef populates (paths mode) → resetGeneration/clearGlyphDefs empties it for the next frame.",
+    transitionEvidence: [
+      { test: "src/render/glyph-registry.test.ts", title: "clearGlyphDefs empties the def map and rewinds the id counter" },
+      { test: "src/render/glyph-registry.test.ts", title: "two back-to-back renders separated by clearGlyphDefs do not accumulate" },
+    ],
   },
   {
     id: "text.embedded-fonts",
@@ -219,6 +252,9 @@ export const FEATURES: FeatureEntry[] = [
     exports: ["getEmbeddedFontFaceCss", "clearEmbeddedFonts"],
     tests: ["src/render/embedded-font-builder.test.ts"],
     transition: "clear → per-run registration accumulates → getEmbeddedFontFaceCss emits once → clearEmbeddedFonts resets.",
+    transitionEvidence: [
+      { test: "src/render/embedded-font-builder.test.ts", title: "accumulates one generation, emits it once, and resets before the next generation" },
+    ],
   },
   {
     id: "text.speculative-compose",
@@ -231,6 +267,11 @@ export const FEATURES: FeatureEntry[] = [
     doc: "docs/99-hinted-embedded-subset.md",
     tests: ["src/render/embedded-font-snapshot.test.ts"],
     transition: "populated → snapshot → speculative compose (different PUA/dmfN/gN allocation, possibly a clear) → restore → recompose yields the SAME bytes; nested snapshot/snapshot/restore/restore unwinds to each marker; markers are reusable and never throw on an empty builder.",
+    transitionEvidence: [
+      { test: "src/render/embedded-font-snapshot.test.ts", title: "composes → speculates → rolls back → recomposes to the same bytes" },
+      { test: "src/render/embedded-font-snapshot.test.ts", title: "nests: take, take, restore, restore unwinds to each marker in turn" },
+      { test: "src/render/embedded-font-snapshot.test.ts", title: "never throws on an empty / never-used builder, or on a repeated restore" },
+    ],
   },
 
   // ── Fonts / webfonts ───────────────────────────────────────────────────
@@ -264,6 +305,10 @@ export const FEATURES: FeatureEntry[] = [
     exports: ["executeScrollPattern", "ScrollExecutionError"],
     tests: ["src/scroll/executor.test.ts"],
     transition: "until-loop re-evaluates the condition per iteration; the final iteration clamps to the target (clampScrollToTarget), and a no-progress body ends the loop.",
+    transitionEvidence: [
+      { test: "src/scroll/executor.test.ts", title: "`until bottom - 1000px` lands exactly on the target, not one step past" },
+      { test: "src/scroll/executor.test.ts", title: "an until loop stops and reports when its body makes no scroll progress" },
+    ],
   },
   {
     id: "scroll.compose",
@@ -288,6 +333,11 @@ export const FEATURES: FeatureEntry[] = [
     exports: ["transitionSchema", "transitionTypeSchema", "normalizeTransition"],
     tests: ["src/animation/transition-schema.test.ts", "src/animation/animator-parameterized-transitions.test.ts", "src/animation/animator-mixed-transitions.test.ts", "tests/compose-animate-frames.e2e.test.ts"],
     transition: "a frame's entrance depends on the PREVIOUS transition type (fade-in after crossfade, slide-in after a same-axis slide, cut after cut) — the transition-to-transition matrix.",
+    transitionEvidence: [
+      { test: "src/animation/animator-mixed-transitions.test.ts", title: "a push frame after a crossfade FADES in (no slide-in) and exits sliding left" },
+      { test: "src/animation/animator-mixed-transitions.test.ts", title: "same-type chains are unchanged: a push frame after a push still SLIDES in" },
+      { test: "tests/compose-animate-frames.e2e.test.ts", title: "renders exact frame/overlay boundaries without ghost layers (DM-1994)" },
+    ],
   },
   {
     id: "animate.magic-move",
@@ -325,6 +375,9 @@ export const FEATURES: FeatureEntry[] = [
     exports: ["resolveOverlays", "runActions"],
     tests: ["src/animation/resolve-overlays.test.ts", "src/animation/overlay-schema.test.ts", "tests/cross-region-anchor.e2e.test.ts"],
     transition: "DM-1799 — two box producers, one arithmetic: the page probe (`getBoundingClientRect` + computed styles + canvas `measureText`) and a TREE-side producer reading the same inputs off a captured element (including `fontAscent`/`fontDescent`, the same canvas measurement, captured since DM-587). Both feed one `applyAnchorBox`, so corner math / `maxWidth:\"anchor\"` / `fontFamily:\"anchor\"` / baseline placement / shine+interact auto-size cannot drift. The tree producer exists for per-region-timing compressed runs, where the live page never stands in a state's ASSEMBLED configuration, so a cross-region anchor could not be exact page-side; targets are located by a pre-capture `data-domotion-anim` stamp rather than a selector engine over the tree.",
+    transitionEvidence: [
+      { test: "tests/cross-region-anchor.e2e.test.ts", title: "resolves each state's anchor against that state's assembled tree, not its capture round" },
+    ],
   },
   {
     id: "animate.tree-diff",
@@ -354,6 +407,9 @@ export const FEATURES: FeatureEntry[] = [
     exports: ["composeCompressedRun", "alignLineGlyphs"],
     tests: ["src/animation/glyph-align.test.ts", "src/animation/compressed-run.test.ts", "tests/compressed-run.e2e.test.ts"],
     transition: "type → colorize → select-ish chrome change → backspace ×2 across two lines threads one identity pool (birth/shift/recolor/death per glyph, windowed chrome variants) — asserted as a single multi-state sequence, not isolated pairs.",
+    transitionEvidence: [
+      { test: "src/animation/compressed-run.test.ts", title: "threads one realistic editing session's identities end to end" },
+    ],
   },
   {
     id: "animate.states-config",
@@ -361,6 +417,9 @@ export const FEATURES: FeatureEntry[] = [
     doc: "docs/43-declarative-animate-config.md",
     tests: ["src/cli/animate.test.ts", "tests/compressed-run-config.e2e.test.ts", "tests/animate-examples.tsx"],
     transition: "load → frame actions → state-0 capture → per-state actions+capture ×N → compose → nested embed, asserted end-to-end through composeAnimateFrames with the rasterized tail shift + colorize recolor at seeked state midpoints.",
+    transitionEvidence: [
+      { test: "tests/compressed-run-config.e2e.test.ts", title: "composes a states frame into a nested compressed run, logs the pairing ratio, and the rasterized tail shifts per state" },
+    ],
   },
   {
     id: "animate.overlay-window",
@@ -368,6 +427,10 @@ export const FEATURES: FeatureEntry[] = [
     doc: "docs/104-overlay-windows.md",
     tests: ["src/animation/animator.test.ts", "src/cli/animate.test.ts", "tests/overlay-window.e2e.test.ts", "tests/typing-handoff-seam.e2e.test.ts", "tests/animate-examples.tsx"],
     transition: "DM-1796 — a typing overlay HOLDS at full opacity through its window's end and exits the way its frame does (hard cut at a `cut` boundary or a compressed-run state snap, dissolve across a non-`cut` transition, historical 150 ms-early fade only on the scene's LAST frame where nothing takes over), because the overlay exists to be replaced by the same value as real captured text and any early fade blanks the field for ~120 ms; also, three plain continue+cut frames whose MIDDLE member anchors an overlay to a MOVING element collapse into one run; the composed SVG is rasterized at each state's midpoint and the overlay's painted pixels are asserted absent in state 0, present in state 1 at STATE 1's anchor position (not the run's final position), and absent again in state 2 (the window closed with its state).",
+    transitionEvidence: [
+      { test: "tests/typing-handoff-seam.e2e.test.ts", title: "never blanks the field between the typed overlay and the real captured value" },
+      { test: "tests/overlay-window.e2e.test.ts", title: "collapses a run whose member carries an anchored overlay, and paints it in that state only, at that state's layout" },
+    ],
   },
   {
     id: "animate.states-regions",
@@ -375,6 +438,10 @@ export const FEATURES: FeatureEntry[] = [
     doc: "docs/43-declarative-animate-config.md",
     tests: ["src/cli/animate.test.ts", "src/animation/compressed-run.test.ts", "tests/region-timing.e2e.test.ts", "tests/animate-examples.tsx"],
     transition: "state 0 → editor advances → preview advances → editor advances → … is captured in FOUR rounds and re-assembled into seven states; the assembled trees are asserted BYTE-IDENTICAL to capturing all seven configurations one at a time (the page is never driven into the assembled configuration, so this is the only exact check available), then the composed run is rasterized against the uncompressed flipbook of those same sequential captures at every state.",
+    transitionEvidence: [
+      { test: "tests/region-timing.e2e.test.ts", title: "the 4-round assembly reproduces the 7 sequential captures EXACTLY, tree for tree" },
+      { test: "tests/region-timing.e2e.test.ts", title: "two regions on their own schedules compose correctly, at 4 whole-page captures instead of 7" },
+    ],
   },
   {
     id: "animate.text-tracks-config",
@@ -399,6 +466,11 @@ export const FEATURES: FeatureEntry[] = [
     verbs: ["composite"],
     tests: ["src/animation/composite.test.ts", "src/animation/embed-namespace.test.ts", "src/animation/embed-timeline.test.ts", "src/cli/composite.test.ts"],
     transition: "a layer's internal timeline is re-anchored to start at its own `start` within the composite master loop and hold/stretch/loop before/after.",
+    transitionEvidence: [
+      { test: "src/animation/composite.test.ts", title: "re-anchors a layer's internal timeline to its start within the master loop" },
+      { test: "src/animation/embed-timeline.test.ts", title: "stretch mode time-scales the content to fill windowMs" },
+      { test: "src/animation/embed-timeline.test.ts", title: "loop mode keeps the content's own period and just delays its start" },
+    ],
   },
 
   // ── Templates ──────────────────────────────────────────────────────────
@@ -539,7 +611,11 @@ export const FEATURES: FeatureEntry[] = [
     behavior: "Animated-SVG timeline bench (play/scrub/trim/export-frame) + --review issue reporter (STATEFUL: review mode).",
     doc: "docs/82-svg-scrubber-review-mode.md",
     verbs: ["svg-scrubber"],
-    tests: ["src/scrubber/trim.test.ts", "src/scrubber/crop.test.ts", "src/scrubber/ticket.test.ts", "src/scrubber/server.validation.test.ts"],
-    transition: "POST /ticket + /export-frame are review-only routes (404 unless --review); the region overlay stays armed across multiple drags.",
+    tests: ["src/scrubber/trim.test.ts", "src/scrubber/crop.test.ts", "src/scrubber/ticket.test.ts", "src/scrubber/server.validation.test.ts", "src/scrubber/server.e2e.test.ts"],
+    transition: "POST /ticket is review-only (404 unless --review); after review mode is armed, the region overlay stays armed across multiple drags.",
+    transitionEvidence: [
+      { test: "src/scrubber/ticket.test.ts", title: "404s when review mode is not enabled" },
+      { test: "src/scrubber/server.e2e.test.ts", title: "supports keyboard file entry and keeps region drawing armed across repeated drags (DM-2599)" },
+    ],
   },
 ];

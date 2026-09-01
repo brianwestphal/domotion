@@ -25,6 +25,7 @@ import { dirname, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import * as barrel from "../src/index.js";
+import { transitionEvidenceProblems } from "../tools/feature-transition-evidence.js";
 import { FEATURES } from "./feature-coverage.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -214,6 +215,14 @@ describe("feature-coverage manifest (DM-1459)", () => {
       f.tests.filter((t) => !existsSync(resolve(ROOT, t))).map((t) => `${f.id} → ${t}`),
     );
     expect({ gaps, broken }).toEqual({ gaps: [], broken: [] });
+  });
+
+  it("every state transition cites exact assertion titles in its listed tests (DM-2645)", () => {
+    const problems = transitionEvidenceProblems(FEATURES, (testPath) => {
+      const path = resolve(ROOT, testPath);
+      return existsSync(path) ? readFileSync(path, "utf8") : undefined;
+    });
+    expect(problems).toEqual([]);
   });
 
   it("claims every public value-export (drift: a new export without a feature entry fails)", () => {

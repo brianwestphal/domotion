@@ -322,4 +322,24 @@ describe("until <position> final-iteration clamp", () => {
     expect(destYs).toEqual([600, 1200, 1800, 2400, 3000]);
     expect(state.scrollY).toBe(3000);
   });
+
+  it("an until loop stops and reports when its body makes no scroll progress", async () => {
+    const { query } = statefulPage(4000);
+    const destYs: number[] = [];
+    const logs: string[] = [];
+    await __walkPatternForTest(
+      parseScrollPattern("down:700px until bottom - 1000px"),
+      query, 1000,
+      async (op) => {
+        // Simulate a page that accepts the operation but remains pinned. The
+        // second condition snapshot must terminate instead of looping 1,000×.
+        if (op.kind === "scroll") destYs.push(op.destY);
+      },
+      () => {},
+      (message) => logs.push(message),
+    );
+    expect(destYs).toEqual([700]);
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toContain("until loop: no scroll progress at (0, 0) after 1 iteration(s)");
+  });
 });

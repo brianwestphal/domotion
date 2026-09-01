@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtim9coa6cqb89f1",
+          "message": {
+            "text": "The 16-entry audit found this claim itself was wrong: /export-frame is available in normal scrubber mode and is exercised that way by the server E2E. Only POST /ticket is review-gated. The corrected entry now cites both the exact 404 assertion and an explicitly headless two-drag browser sequence that proves drawing remains armed.",
+            "markdown": "The 16-entry audit found this claim itself was wrong: `/export-frame` is available in normal scrubber mode and is exercised that way by the server E2E. Only `POST /ticket` is review-gated. The corrected entry now cites both the exact 404 assertion and an explicitly headless two-drag browser sequence that proves drawing remains armed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/feature-coverage.ts"
+                },
+                "region": {
+                  "startLine": 610,
+                  "endLine": 619,
+                  "snippet": {
+                    "text": "    id: \"bin.svg-scrubber\",\n    behavior: \"Animated-SVG timeline bench (play/scrub/trim/export-frame) + --review issue reporter (STATEFUL: review mode).\",\n    doc: \"docs/82-svg-scrubber-review-mode.md\",\n    verbs: [\"svg-scrubber\"],\n    tests: [\"src/scrubber/trim.test.ts\", \"src/scrubber/crop.test.ts\", \"src/scrubber/ticket.test.ts\", \"src/scrubber/server.validation.test.ts\", \"src/scrubber/server.e2e.test.ts\"],\n    transition: \"POST /ticket is review-only (404 unless --review); after review mode is armed, the region overlay stays armed across multiple drags.\",\n    transitionEvidence: [\n      { test: \"src/scrubber/ticket.test.ts\", title: \"404s when review mode is not enabled\" },\n      { test: \"src/scrubber/server.e2e.test.ts\", title: \"supports keyboard file entry and keeps region drawing armed across repeated drags (DM-2599)\" },\n    ],"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/scrubber/server.ts"
+                },
+                "region": {
+                  "startLine": 423
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/scrubber/ticket.test.ts"
+                },
+                "region": {
+                  "startLine": 175
+                }
+              }
+            },
+            {
+              "id": 2,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/scrubber/server.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 285
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2645"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "8a02528bdc06f62d8e4e936efb505ce6"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "6f86ec98afb179f4741ce80fe44d544419ce1216",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

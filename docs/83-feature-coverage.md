@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["product-tooling"]
 platforms: []
-tickets: ["DM-1058","DM-1338","DM-1350","DM-1459"]
-code: ["src/index.exports.test.ts","src/render/render-text-mode-guard.test.ts","tests/conventions.test.ts","tests/feature-coverage.ts","tools/check-feature-coverage.ts","tools/semantic-coverage.json"]
+tickets: ["DM-1058","DM-1338","DM-1350","DM-1459","DM-2645"]
+code: ["src/index.exports.test.ts","src/render/render-text-mode-guard.test.ts","tests/conventions.test.ts","tests/feature-coverage.ts","tests/feature-transition-evidence.test.ts","tools/check-feature-coverage.ts","tools/feature-transition-evidence.ts","tools/semantic-coverage.json"]
 aliases: ["docs/83-feature-coverage.md","doc-83"]
 ---
 
@@ -38,8 +38,8 @@ that would catch its regression, plus a **report** that flags any gap.
 
 | Piece | File | Role |
 | --- | --- | --- |
-| Feature index | `tests/feature-coverage.ts` | One `FeatureEntry` per behavior: `behavior` → `exports`/`verbs` → `tests` (`[]` = known gap). Stateful features carry a `transition` note. |
-| Report | `tools/check-feature-coverage.ts` (`npm run check:features`) | Flags gaps, broken test refs, and drift; exits non-zero on any. |
+| Feature index | `tests/feature-coverage.ts` | One `FeatureEntry` per behavior: `behavior` → `exports`/`verbs` → `tests` (`[]` = known gap). Stateful features carry a `transition` note plus exact `transitionEvidence` test titles. |
+| Report | `tools/check-feature-coverage.ts` (`npm run check:features`) | Flags gaps, broken test refs, weak transition evidence, and drift; exits non-zero on any. |
 | Gate | `tests/conventions.test.ts` | Runs the same integrity + drift assertions inside `npm test`, so the axis is enforced without a separate command. |
 | Surface guard | `src/index.exports.test.ts` (DM-1058) | Pins the exact public value-export set against `docs/api.md`. |
 | Transition guard | `src/render/render-text-mode-guard.test.ts` | Example of a state-transition test (the process-global render mode's save/restore, incl. on-throw). |
@@ -52,6 +52,11 @@ that would catch its regression, plus a **report** that flags any gap.
   nothing would catch regressing.
 - **BROKEN REF** — a `tests` path that no longer exists (a renamed/deleted test
   silently dropping its feature's coverage).
+- **WEAK TRANSITION** — a state-transition claim has no `transitionEvidence`,
+  cites a file outside the feature's `tests`, or names a title that is not an
+  actual literal `it(...)` / `test(...)` declaration in that file. The checker
+  parses test source, so copying the title into a comment or fixture cannot
+  satisfy the gate.
 - **DRIFT** — a public value-export (from the package barrel) or a CLI verb/bin
   claimed by **no** feature. This is the self-policing part: **ship a new export
   or verb without adding a feature entry and the check turns red**, even at 100%
@@ -61,7 +66,9 @@ that would catch its regression, plus a **report** that flags any gap.
 
 The gap line coverage is blindest to is a **state transition**: operating on a
 module after it has already moved through one or more states. The index MUST
-include those, not just single operations from a clean state. Current
+include those, not just single operations from a clean state. A transition entry
+must cite the exact assertion(s) in `transitionEvidence`; a nearby or broadly
+related test file is not evidence. Current
 transition-bearing entries (grep `transition:` in `tests/feature-coverage.ts`):
 
 - **`text.mode`** — `default → set(paths) → withRenderTextMode(…) restores paths`,
@@ -76,8 +83,9 @@ transition-bearing entries (grep `transition:` in `tests/feature-coverage.ts`):
   own `start` within the master loop and held/stretched/looped before/after.
 - **`capture.iframe-recursion`** — `raster-fallback → native-recursion` when the
   frame document becomes readable.
-- **`bin.svg-scrubber`** — the `/ticket` + `/export-frame` routes are review-only
-  (404 unless `--review`); the region overlay stays armed across drags.
+- **`bin.svg-scrubber`** — `/ticket` is review-only (404 unless `--review`);
+  `/export-frame` remains a normal scrubber route, and the review region overlay
+  stays armed across repeated drags.
 
 ## The exercise
 

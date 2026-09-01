@@ -8,6 +8,8 @@
  * Fails (exit 1) on:
  *   - GAP        — a feature with no asserting test (`tests: []`).
  *   - BROKEN REF — a `tests` path that no longer exists on disk.
+ *   - WEAK TRANSITION — a transition claim without an exact `it`/`test` title
+ *                  in one of that feature's listed test files.
  *   - DRIFT      — a public value-export (from the package barrel) or a CLI
  *                  verb/bin claimed by NO feature. This is what keeps the index
  *                  honest: ship a new export/verb without a feature entry and
@@ -19,6 +21,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { FEATURES } from "../tests/feature-coverage.js";
+import { transitionEvidenceProblems } from "./feature-transition-evidence.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -42,6 +45,11 @@ async function main(): Promise<void> {
     if (ids.has(f.id)) dupIds.push(f.id);
     ids.add(f.id);
   }
+
+  const weakTransitions = transitionEvidenceProblems(FEATURES, (testPath) => {
+    const path = resolve(ROOT, testPath);
+    return existsSync(path) ? readFileSync(path, "utf8") : undefined;
+  });
 
   // ── 2. Broken test refs + gaps ──
   const gaps: string[] = [];
@@ -88,6 +96,11 @@ async function main(): Promise<void> {
     for (const g of gaps) console.log(`   - ${g}`);
     warn(`${gaps.length} untested feature(s)`);
   }
+  if (weakTransitions.length > 0) {
+    console.log(`❌ ${weakTransitions.length} transition-evidence problem(s):`);
+    for (const problem of weakTransitions) console.log(`   - ${problem}`);
+    warn(`${weakTransitions.length} transition-evidence problem(s)`);
+  }
   if (unclaimedExports.length > 0) {
     console.log(`❌ ${unclaimedExports.length} public export(s) claimed by NO feature (add an index entry):`);
     for (const e of unclaimedExports) console.log(`   - ${e}`);
@@ -105,11 +118,11 @@ async function main(): Promise<void> {
   }
 
   if (problems.length === 0) {
-    console.log("✅ Every public export + CLI verb/bin is claimed by a feature, and every feature has an asserting test.\n");
+    console.log("✅ Every public export + CLI verb/bin is claimed by a feature, and every feature/transition has an exact asserting test.\n");
     process.exit(0);
   }
   console.log(`\n💥 Feature-coverage check failed: ${problems.length} problem(s).`);
-  console.log("   Fix: add the missing test, add/repair the feature entry in tests/feature-coverage.ts,");
+  console.log("   Fix: add the missing exact transition test, add/repair the feature entry in tests/feature-coverage.ts,");
   console.log("   or map the new export/verb to a feature. See docs/83-feature-coverage.md.\n");
   process.exit(1);
 }

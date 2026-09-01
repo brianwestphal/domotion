@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtim9coa7wh53h07",
+          "message": {
+            "text": "Transition evidence is parsed as syntax instead of checked with a source substring. A path-only manifest let an unrelated test satisfy a claim, and a substring check would merely move that loophole to comments or fixtures; exact literal it/test titles make the named assertion reviewable and rename-sensitive while still supporting .skip, .only, and .each.",
+            "markdown": "Transition evidence is parsed as syntax instead of checked with a source substring. A path-only manifest let an unrelated test satisfy a claim, and a substring check would merely move that loophole to comments or fixtures; exact literal `it`/`test` titles make the named assertion reviewable and rename-sensitive while still supporting `.skip`, `.only`, and `.each`."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/feature-transition-evidence.ts"
+                },
+                "region": {
+                  "startLine": 17,
+                  "endLine": 47,
+                  "snippet": {
+                    "text": "/**\n * Return the literal titles declared by Vitest/Jest-style `it` and `test`\n * calls. Parsing the source prevents a title copied into a comment, fixture, or\n * unrelated string from masquerading as an assertion.\n */\nexport function declaredTestTitles(source: string, fileName = \"test.ts\"): Set<string> {\n  const file = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true,\n    fileName.endsWith(\"x\") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);\n  const titles = new Set<string>();\n\n  const rootCallName = (expr: ts.Expression): string | null => {\n    if (ts.isIdentifier(expr)) return expr.text;\n    if (ts.isPropertyAccessExpression(expr)) return rootCallName(expr.expression);\n    if (ts.isCallExpression(expr)) return rootCallName(expr.expression);\n    return null;\n  };\n\n  const visit = (node: ts.Node): void => {\n    if (ts.isCallExpression(node)) {\n      const root = rootCallName(node.expression);\n      const title = node.arguments[0];\n      if ((root === \"it\" || root === \"test\")\n        && title != null\n        && (ts.isStringLiteral(title) || ts.isNoSubstitutionTemplateLiteral(title))) {\n        titles.add(title.text);\n      }\n    }\n    ts.forEachChild(node, visit);\n  };\n  visit(file);\n  return titles;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/check-feature-coverage.ts"
+                },
+                "region": {
+                  "startLine": 45
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/feature-transition-evidence.test.ts"
+                },
+                "region": {
+                  "startLine": 4
+                }
+              }
+            },
+            {
+              "id": 2,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/conventions.test.ts"
+                },
+                "region": {
+                  "startLine": 220
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2645"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "2318a3b9bff84497f700d88dd644c32f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "6f86ec98afb179f4741ce80fe44d544419ce1216",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

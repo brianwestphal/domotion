@@ -1615,7 +1615,9 @@
         "src/render/render-text-mode-guard.test.ts",
         "tests/conventions.test.ts",
         "tests/feature-coverage.ts",
+        "tests/feature-transition-evidence.test.ts",
         "tools/check-feature-coverage.ts",
+        "tools/feature-transition-evidence.ts",
         "tools/semantic-coverage.json"
       ],
       "file": "83-feature-coverage.md"

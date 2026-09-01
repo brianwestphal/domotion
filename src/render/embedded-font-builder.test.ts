@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, getEmbeddedFontBuildDiagnostics, trackGlyphInEmbedFont } from "./embedded-font-builder.js";
+import { clearEmbeddedFonts, getEmbeddedFontFaceCss } from "./font-resolution.js";
 import { buildStaticHintedFont, buildVariableHintedFont } from "./synth-test-fonts.js";
 
 // A small deterministic glyph outline (a triangle) to register.
@@ -51,6 +52,25 @@ function decodeFirstFont(css: string): Buffer {
 
 describe("embedded-font-builder determinism (DM-902)", () => {
   beforeEach(() => clearEmbeddedFontBuilder());
+
+  it("accumulates one generation, emits it once, and resets before the next generation", () => {
+    clearEmbeddedFonts();
+    const first = trackGlyphInEmbedFont("life-a|w=400|s=0", 1000, 800, -200, 1, TRI, 600);
+    const second = trackGlyphInEmbedFont("life-b|w=700|s=0", 1000, 800, -200, 2, TRI, 620);
+    expect(first?.cssFamily).toBe("dmf0");
+    expect(second?.cssFamily).toBe("dmf1");
+
+    const accumulated = getEmbeddedFontFaceCss();
+    expect(accumulated.match(/@font-face/g)).toHaveLength(2);
+    expect(getEmbeddedFontFaceCss()).toBe(accumulated); // reading does not duplicate or consume the generation
+
+    clearEmbeddedFonts();
+    expect(getEmbeddedFontFaceCss()).toBe("");
+    const next = trackGlyphInEmbedFont("life-next|w=400|s=0", 1000, 800, -200, 3, TRI, 600);
+    expect(next?.cssFamily).toBe("dmf0");
+    expect(getEmbeddedFontFaceCss().match(/@font-face/g)).toHaveLength(1);
+    clearEmbeddedFonts();
+  });
 
   it("produces byte-identical @font-face output across builds of the same glyphs", () => {
     // Without the head-timestamp strip, opentype.js stamps the build time into
