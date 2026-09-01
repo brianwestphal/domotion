@@ -5,8 +5,26 @@ import {
   hasAuthorPseudoOrigin,
   resolvedControlPseudoStyle,
 } from "./pseudo-style-cdp.js";
+import { capturedInputValueTextGeometry } from "./input-value-geometry.js";
 
 describe("Chromium-resolved control pseudo capture", () => {
+  it("retains the closed-shadow input text top as a host-relative used offset", () => {
+    expect(capturedInputValueTextGeometry(
+      [[98.703125, 235.046875, 159.078125, 235.046875, 159.078125, 270.046875, 98.703125, 270.046875]],
+      [[109.703125, 242.046875, 138.140625, 242.046875, 138.140625, 262.046875, 109.703125, 262.046875]],
+    )).toEqual({
+      source: "chromium-ua-shadow-text-quad-v1",
+      hostWidth: 60.375,
+      hostHeight: 35,
+      textTopOffset: 7,
+      textHeight: 20,
+    });
+    expect(capturedInputValueTextGeometry(
+      [[0, 0, 10, 1, 9, 10, 0, 10]],
+      [[1, 1, 8, 1, 8, 9, 1, 9]],
+    )).toBeNull();
+  });
+
   it("maps Blink UA-shadow pseudo identities, including the id-only range thumb", () => {
     const rows = [
       ["-webkit-slider-runnable-track", "track"],

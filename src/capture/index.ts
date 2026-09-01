@@ -1971,6 +1971,7 @@ export async function captureElementTreeWithWarnings(
       pk: pseudoStyles.propertyKey,
       ps: pseudoStyles.stylesByHost,
       ndk: pseudoStyles.decorationPropertyKey,
+      ivk: pseudoStyles.inputValuePropertyKey,
       eak: effectiveAppearance.propertyKey,
       ear: effectiveAppearance.setupFailure,
       sk: scrollbarCapture.propertyKey,

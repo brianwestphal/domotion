@@ -259,6 +259,7 @@ const captureDocumentTree =
     normColor,
     measureFontMetrics: _measureFontMetrics,
     fontFamilyStackFor: _fontFamilyStackFor,
+    valueTextGeometryKey: args.ivk,
   });
   const { finalizeLineClampText } = createLineClampHandler({
     vp,

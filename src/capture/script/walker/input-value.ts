@@ -67,7 +67,7 @@ const SKIP_VALUE_TYPES = new Set([
 
 const NOT_APPLIED = { applied: false };
 
-export const createInputValueHandler = ({ vp, normColor, measureFontMetrics, fontFamilyStackFor }) => {
+export const createInputValueHandler = ({ vp, normColor, measureFontMetrics, fontFamilyStackFor, valueTextGeometryKey }) => {
   const captureInputValue = (el, cs, tag, rect) => {
     if (tag !== 'input' && tag !== 'textarea') return NOT_APPLIED;
     const inputType = tag === 'input' ? (el.type || 'text') : '';
@@ -161,6 +161,27 @@ export const createInputValueHandler = ({ vp, normColor, measureFontMetrics, fon
       // line-height:14` button, Inter natural height 17) → negative leading; the
       // glyphs sit ~(fontH - lineHeight)/2 ABOVE the content-box top.
       textTop -= (fontH - textHeight) / 2;
+    }
+
+    // DM-2628: a single-line input's value lives in Blink's closed-UA-shadow
+    // inner editor. Chromium centers that editor with
+    // `-internal-align-content-block`, whose `AlignBlockContent` implementation
+    // moves children by LayoutUnit `free_space / 2`. The host's computed
+    // `line-height: normal` and canvas font box cannot reconstruct the used
+    // FragmentItem top exactly (the old estimate landed both requested regions
+    // 0.5 CSS px low, which rasterized one device pixel low). Prefer the
+    // pierced, same-frame text quad when the host dimensions prove there was no
+    // scale/rotation between the retained quad and this neutral capture.
+    const usedTextGeometry = typeof valueTextGeometryKey === 'string' && valueTextGeometryKey !== ''
+      ? el[valueTextGeometryKey] : null;
+    if (tag === 'input'
+        && usedTextGeometry?.source === 'chromium-ua-shadow-text-quad-v1'
+        && isFinite(usedTextGeometry.hostWidth)
+        && isFinite(usedTextGeometry.hostHeight)
+        && isFinite(usedTextGeometry.textTopOffset)
+        && Math.abs(rect.width - usedTextGeometry.hostWidth) <= 0.05
+        && Math.abs(rect.height - usedTextGeometry.hostHeight) <= 0.05) {
+      textTop = rect.top - vp.y + usedTextGeometry.textTopOffset;
     }
 
     // DM-991: textareas produce per-line textSegments via a soft-wrap probe

@@ -232,6 +232,69 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mti8x2zy1qoq7fmv",
+          "message": {
+            "text": "Blink centers a single-line input's closed-shadow inner editor in LayoutUnit space. Capture the actual visible text FragmentItem quad through the already-pierced CDP tree because host computed line-height and canvas font bounds cannot reconstruct half-CSS-pixel used offsets. Multiple text candidates fail closed so compound control labels are never guessed.",
+            "markdown": "Blink centers a single-line input's closed-shadow inner editor in LayoutUnit space. Capture the actual visible text FragmentItem quad through the already-pierced CDP tree because host computed line-height and canvas font bounds cannot reconstruct half-CSS-pixel used offsets. Multiple text candidates fail closed so compound control labels are never guessed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/pseudo-style-cdp.ts"
+                },
+                "region": {
+                  "startLine": 653,
+                  "endLine": 669,
+                  "snippet": {
+                    "text": "        // Blink centers single-line input content with the private\n        // `-internal-align-content-block` path. Host CSSOM exposes neither the\n        // inner editor nor its final FragmentItem top, so retain the one\n        // pierced visible text node and consume its used content quad below.\n        // `AlignBlockContent` performs this in LayoutUnit (`free_space / 2`),\n        // which cannot be recovered from a 1.2em `line-height: normal`\n        // estimate without half-pixel drift.\n        if (uaHost.nodeName === \"INPUT\" && node.nodeName === \"#text\" && node.nodeValue !== \"\") {\n          const measured = await session.send(\"DOM.getContentQuads\", {\n            backendNodeId: node.backendNodeId,\n          }).catch(() => null);\n          if (measured?.quads != null) {\n            const candidates = inputValueTextQuads.get(uaHost.nodeId) ?? [];\n            candidates.push(measured.quads);\n            inputValueTextQuads.set(uaHost.nodeId, candidates);\n            inputValueHosts.set(uaHost.nodeId, uaHost);\n          }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ]
+          },
+          "workItemUris": [
+            "DM-2628"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "5821b01227ad2d41f235798b0905f7a3"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "80adbdbb59fb96069b5d4d4b9c8643d69c640811",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

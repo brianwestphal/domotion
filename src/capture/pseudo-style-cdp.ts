@@ -30,6 +30,10 @@ import {
   effectiveAppearanceForControl,
   type CdpMatchedStylesLike,
 } from "./effective-appearance.js";
+import {
+  capturedInputValueTextGeometry,
+  type CapturedInputValueTextGeometry,
+} from "./input-value-geometry.js";
 import type { CapturedScrollbarPseudoStyle } from "./types.js";
 
 export const CONTROL_PSEUDO_KINDS = [
@@ -69,7 +73,9 @@ export type ResolvedControlPseudoStyles = Record<
 
 interface CdpNode {
   nodeId: number;
+  backendNodeId: number;
   nodeName: string;
+  nodeValue?: string;
   attributes?: string[];
   children?: CdpNode[];
   shadowRoots?: CdpNode[];
@@ -519,6 +525,8 @@ export interface ResolvedPseudoStyleCapture {
   propertyKey: string;
   /** Expando whose entries retain pierced closed-UA-shadow decoration nodes. */
   decorationPropertyKey: string;
+  /** Expando carrying the input inner editor's used text FragmentItem top. */
+  inputValuePropertyKey: string;
   stylesByHost: ResolvedControlPseudoStyles;
   /** Author scrollbar pseudos with anonymous state-dependent final winners. */
   dynamicScrollbarKinds: ReadonlySet<ControlPseudoKind>;
@@ -536,12 +544,15 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
   const session = await page.context().newCDPSession(page);
   const propertyKey = `__domotionResolvedPseudos_${randomUUID().replaceAll("-", "")}`;
   const decorationPropertyKey = `${propertyKey}_decorations`;
+  const inputValuePropertyKey = `${propertyKey}_inputValue`;
   const objectGroup = `${propertyKey}_objects`;
   const stylesByHost: ResolvedControlPseudoStyles = {};
   const hostIdsByNode = new Map<number, string>();
   const hostObjectIdsByNode = new Map<number, string>();
   const hostObjectIds = new Set<string>();
   const authorStyleSheetIds = new Set<string>();
+  const inputValueTextQuads = new Map<number, number[][][]>();
+  const inputValueHosts = new Map<number, CdpNode>();
   let nextHostId = 1;
 
   session.on("CSS.styleSheetAdded", (event: unknown) => {
@@ -602,6 +613,22 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
     });
   };
 
+  const storeInputValueGeometry = async (
+    hostNodeId: number,
+    geometry: CapturedInputValueTextGeometry,
+  ): Promise<void> => {
+    await ensureHost(hostNodeId);
+    const hostObjectId = hostObjectIdsByNode.get(hostNodeId);
+    if (hostObjectId == null) throw new Error("Chromium did not expose input value host ownership");
+    await session.send("Runtime.callFunctionOn", {
+      objectId: hostObjectId,
+      functionDeclaration: `function(key, geometry) {
+        Object.defineProperty(this, key, { value: geometry, configurable: true });
+      }`,
+      arguments: [{ value: inputValuePropertyKey }, { value: geometry }],
+    });
+  };
+
   const store = async (
     hostNodeId: number,
     kind: ControlPseudoKind,
@@ -623,6 +650,24 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
       if (visited.has(node.nodeId)) return;
       visited.add(node.nodeId);
       if (uaHost != null) {
+        // Blink centers single-line input content with the private
+        // `-internal-align-content-block` path. Host CSSOM exposes neither the
+        // inner editor nor its final FragmentItem top, so retain the one
+        // pierced visible text node and consume its used content quad below.
+        // `AlignBlockContent` performs this in LayoutUnit (`free_space / 2`),
+        // which cannot be recovered from a 1.2em `line-height: normal`
+        // estimate without half-pixel drift.
+        if (uaHost.nodeName === "INPUT" && node.nodeName === "#text" && node.nodeValue !== "") {
+          const measured = await session.send("DOM.getContentQuads", {
+            backendNodeId: node.backendNodeId,
+          }).catch(() => null);
+          if (measured?.quads != null) {
+            const candidates = inputValueTextQuads.get(uaHost.nodeId) ?? [];
+            candidates.push(measured.quads);
+            inputValueTextQuads.set(uaHost.nodeId, candidates);
+            inputValueHosts.set(uaHost.nodeId, uaHost);
+          }
+        }
         const kind = controlPseudoKindForNode(
           attributesOf(node), uaHost.nodeName, attributesOf(uaHost), node.nodeName,
         );
@@ -699,6 +744,21 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
     };
     await visit(documentResult.root as CdpNode, null);
 
+    for (const [hostNodeId, candidates] of inputValueTextQuads) {
+      // File/temporal controls can expose multiple independent labels. The
+      // input-value walker does not own those surfaces; fail closed instead of
+      // guessing which text row is the editing value.
+      if (candidates.length !== 1) continue;
+      const host = inputValueHosts.get(hostNodeId);
+      if (host == null) continue;
+      const hostMeasured = await session.send("DOM.getContentQuads", {
+        backendNodeId: host.backendNodeId,
+      }).catch(() => null);
+      if (hostMeasured?.quads == null) continue;
+      const geometry = capturedInputValueTextGeometry(hostMeasured.quads, candidates[0]);
+      if (geometry != null) await storeInputValueGeometry(hostNodeId, geometry);
+    }
+
     // `::-webkit-resizer` has no UA-shadow DOM node: Blink resolves its style
     // on demand and assigns it to an anonymous LayoutCustomScrollbarPart.
     // Query only hosts whose computed `resize` is active, then combine the
@@ -762,14 +822,15 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
   return {
     propertyKey,
     decorationPropertyKey,
+    inputValuePropertyKey,
     stylesByHost,
     dynamicScrollbarKinds,
     async dispose(): Promise<void> {
       await Promise.all([...hostObjectIds].map(async (objectId) => {
         await session.send("Runtime.callFunctionOn", {
           objectId,
-          functionDeclaration: "function(styleKey, decorationKey) { delete this[styleKey]; delete this[decorationKey]; }",
-          arguments: [{ value: propertyKey }, { value: decorationPropertyKey }],
+          functionDeclaration: "function(styleKey, decorationKey, inputValueKey) { delete this[styleKey]; delete this[decorationKey]; delete this[inputValueKey]; }",
+          arguments: [{ value: propertyKey }, { value: decorationPropertyKey }, { value: inputValuePropertyKey }],
         }).catch(() => undefined);
       }));
       await session.send("Runtime.releaseObjectGroup", { objectGroup }).catch(() => undefined);

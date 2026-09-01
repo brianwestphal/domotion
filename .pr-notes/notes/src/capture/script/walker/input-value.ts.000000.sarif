@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mti8x36qlcd5xin8",
+          "message": {
+            "text": "The ticket's two input labels were both exactly 0.5 CSS px below Chromium's UA-shadow text quad and therefore rasterized one device pixel low. Reusing the captured host-relative text top removes both regions on native arm64 and CI-matching amd64 Linux; the fixture improved from 9 regions / 0.26% to 2 unrelated regions / 0.01%.",
+            "markdown": "The ticket's two input labels were both exactly 0.5 CSS px below Chromium's UA-shadow text quad and therefore rasterized one device pixel low. Reusing the captured host-relative text top removes both regions on native arm64 and CI-matching amd64 Linux; the fixture improved from 9 regions / 0.26% to 2 unrelated regions / 0.01%."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/input-value.ts"
+                },
+                "region": {
+                  "startLine": 166,
+                  "endLine": 185,
+                  "snippet": {
+                    "text": "    // DM-2628: a single-line input's value lives in Blink's closed-UA-shadow\n    // inner editor. Chromium centers that editor with\n    // `-internal-align-content-block`, whose `AlignBlockContent` implementation\n    // moves children by LayoutUnit `free_space / 2`. The host's computed\n    // `line-height: normal` and canvas font box cannot reconstruct the used\n    // FragmentItem top exactly (the old estimate landed both requested regions\n    // 0.5 CSS px low, which rasterized one device pixel low). Prefer the\n    // pierced, same-frame text quad when the host dimensions prove there was no\n    // scale/rotation between the retained quad and this neutral capture.\n    const usedTextGeometry = typeof valueTextGeometryKey === 'string' && valueTextGeometryKey !== ''\n      ? el[valueTextGeometryKey] : null;\n    if (tag === 'input'\n        && usedTextGeometry?.source === 'chromium-ua-shadow-text-quad-v1'\n        && isFinite(usedTextGeometry.hostWidth)\n        && isFinite(usedTextGeometry.hostHeight)\n        && isFinite(usedTextGeometry.textTopOffset)\n        && Math.abs(rect.width - usedTextGeometry.hostWidth) <= 0.05\n        && Math.abs(rect.height - usedTextGeometry.hostHeight) <= 0.05) {\n      textTop = rect.top - vp.y + usedTextGeometry.textTopOffset;\n    }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ]
+          },
+          "workItemUris": [
+            "DM-2628"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b88ebbc6077d360da2844e0184fafeec"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "80adbdbb59fb96069b5d4d4b9c8643d69c640811",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
