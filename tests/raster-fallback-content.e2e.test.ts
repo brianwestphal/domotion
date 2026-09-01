@@ -92,10 +92,21 @@ describeBrowser("pixel content at Chromium-owned raster boundaries", () => {
       await page.setContent(`<div id="sprite" aria-label="icon" style="position:absolute;left:20px;top:20px;width:48px;height:36px;text-indent:-9999px;overflow:hidden;white-space:nowrap;background:linear-gradient(90deg,#e22,#25c)">icon</div><div id="vector" style="position:absolute;left:90px;top:20px;width:40px;height:36px;background:#2c5"></div>`);
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 240, height: 160 });
       const nodes = walk(tree);
-      const sprite = nodes.find((node) => node.replacedSnapshot?.dataUri != null)?.replacedSnapshot;
+      const spriteNode = nodes.find((node) => node.imageReplacement != null);
+      // Offscreen replacement text may deliberately promote the same 48x36
+      // box to the text-geometry Chromium surface boundary. Either owner is
+      // authoritative; requiring the older replacedSnapshot specifically made
+      // this test reject the stricter fail-closed route even though its pixels
+      // and crop are exact.
+      const sprite = spriteNode?.replacedSnapshot?.dataUri != null
+        ? spriteNode.replacedSnapshot
+        : spriteNode?.transformSubtreeRaster;
       expect(sprite?.dataUri).toMatch(/^data:image\/png;base64,/);
       expect(await pixelSummary(sprite!.dataUri!)).toMatchObject({ width: 48, height: 36, opaque: 48 * 36 });
-      expect(nodes.some((node) => node.x === 90 && node.replacedSnapshot == null && node.styles.backgroundColor === "rgb(34, 204, 85)" )).toBe(true);
+      expect(nodes.some((node) => node.x === 90
+        && node.replacedSnapshot == null
+        && node.transformSubtreeRaster == null
+        && node.styles.backgroundColor === "rgb(34, 204, 85)" )).toBe(true);
     } finally { await page.close(); }
   }, 60_000);
 
@@ -132,7 +143,8 @@ describeBrowser("pixel content at Chromium-owned raster boundaries", () => {
     try {
       await page.setContent(`<div style="font:48px sans-serif">A😀B</div>`);
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 260, height: 150 });
-      const segments = walk(tree).flatMap((node) => node.textSegments ?? []);
+      const segments = walk(tree).flatMap((node) =>
+        node.textPaintGeometry?.neutral?.textSegments ?? node.textSegments ?? []);
       const glyph = segments.flatMap((segment) => segment.rasterGlyphs ?? []).find((entry) => entry.dataUri != null);
       expect(glyph?.dataUri).toMatch(/^data:image\/png;base64,/);
       expect((await pixelSummary(glyph!.dataUri!)).opaque).toBeGreaterThan(100);

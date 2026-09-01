@@ -72,8 +72,10 @@ describeBrowser("DM-2162: replaced elements retain Blink's flex/grid used size",
 
       const output = elementTreeToSvgInner(tree, W, H);
       expect(output).toMatch(/<image\b[^>]*x="0" y="0" width="120" height="120"/);
-      expect(output).toMatch(/<image\b[^>]*x="130" y="0" width="240" height="120"/);
-      expect(output).toMatch(/<svg\b[^>]*x="0" y="160" width="220" height="90"/);
+      // object-fit:cover paints the intrinsic object rectangle and clips it to
+      // the already-validated used content box.
+      expect(output).toMatch(/<image\b[^>]*x="130" y="-60" width="240" height="240"/);
+      expect(output).toMatch(/<svg\b[^>]*x="0" y="150" width="220" height="110"/);
     } finally {
       await page.close();
     }

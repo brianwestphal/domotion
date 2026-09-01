@@ -63,7 +63,7 @@ afterAll(async () => {
   await browser?.close();
 }, 20_000);
 
-try { browser = await chromium.launch(); } catch { browser = null; }
+try { browser = await chromium.launch({ headless: true }); } catch { browser = null; }
 const describeBrowser = browser ? describe : describe.skip;
 
 describeBrowser("kerf-driven client UIs (DM-1798)", () => {
@@ -125,7 +125,10 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
   }));
 
   it("review UI: each() reconciles across reorder and filter, preserving row identity", async () => {
-    const started = await startServer("tests/review-server.tsx", [], { REVIEW_OUTPUT_DIR: fixtureRoot });
+    const started = await startServer("tests/review-server.tsx", [], {
+      REVIEW_OUTPUT_DIR: fixtureRoot,
+      REVIEW_NO_OPEN: "1",
+    });
     expect(started, "review server failed to start").not.toBeNull();
     servers.push(started!.proc);
     const page = await browser!.newPage();
@@ -215,7 +218,7 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
 
   it("scrubber UI: delegate → signal → bound attribute/value round-trips", async () => {
     const svg = resolve(ROOT, "examples/animate/overlay-window/overlay-window.svg");
-    const started = await startServer("src/cli/scrubber.ts", [svg]);
+    const started = await startServer("src/cli/scrubber.ts", [svg, "--no-open"]);
     expect(started, "scrubber failed to start").not.toBeNull();
     servers.push(started!.proc);
     const page = await browser!.newPage();

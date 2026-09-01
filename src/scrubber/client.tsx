@@ -212,6 +212,12 @@ function render() {
   const zoomPct = Math.round(zoom.value * 100);
   return (
     <div class="wrap">
+      <input
+        type="file"
+        accept=".svg,image/svg+xml"
+        class="file-input"
+        aria-label="Choose an animated SVG file"
+      />
       <div class="stage" data-stage>
         <div class="svg-host" data-svg-host data-morph-skip></div>
         {/* DM-1104: crop overlay host — data-morph-skip so the box/handles we
@@ -795,7 +801,9 @@ void delegate(app, "click", "[data-action]", (e, target) => {
   if (a && CLICK[a]) CLICK[a]();
 });
 // Click the drop overlay → file picker. Click outside the export menu → close it.
-void delegate(app, "click", "[data-drop]", () => fileInput.click());
+void delegate(app, "click", "[data-drop]", () => {
+  (app.querySelector(".file-input") as HTMLInputElement | null)?.click();
+});
 void delegate(app, "click", "[data-stage]", () => { if (exportMenuOpen.value) exportMenuOpen.value = false; });
 
 void delegate(app, "input", "[data-action=scrub]", (e, target) => {
@@ -873,11 +881,9 @@ void delegate(app, "dragover", "[data-stage]", (e) => { e.preventDefault(); drag
 void delegate(app, "dragleave", "[data-stage]", (e) => { e.preventDefault(); dragging.value = false; });
 void delegate(app, "drop", "[data-stage]", (e) => { e.preventDefault(); dragging.value = false; readFile((e as DragEvent).dataTransfer?.files?.[0]); });
 
-const fileInput = document.createElement("input");
-fileInput.type = "file"; fileInput.accept = ".svg,image/svg+xml"; fileInput.className = "file-input";
-fileInput.setAttribute("aria-label", "Choose an animated SVG file");
-fileInput.addEventListener("change", () => readFile(fileInput.files?.[0] ?? undefined));
-app.append(fileInput);
+void delegate(app, "change", ".file-input", (_e, target) => {
+  readFile((target as HTMLInputElement).files?.[0] ?? undefined);
+});
 
 // Keyboard (page-lifetime, outside the mount tree).
 window.addEventListener("keydown", (e) => {

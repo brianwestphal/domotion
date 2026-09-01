@@ -25,6 +25,12 @@ function withPosition(elements: CapturedElement[], position: string): CapturedEl
   return found;
 }
 
+function withAnimId(elements: CapturedElement[], animId: string): CapturedElement {
+  const found = flatten(elements).find((element) => element.animId === animId);
+  if (found == null) throw new Error(`missing captured animation id ${animId}`);
+  return found;
+}
+
 async function meanAbsoluteError(left: Buffer, right: Buffer): Promise<number> {
   const [a, b] = await Promise.all([
     sharp(left).removeAlpha().raw().toBuffer(),
@@ -107,7 +113,7 @@ describeBrowser("Blink URL background attachment geometry (DM-2479)", () => {
         #affine{position:absolute;left:250px;top:230px;transform:matrix(1.1,.22,-.18,.9,0,0);transform-origin:0 0}
         #affineLocal{position:static;width:90px;height:70px;overflow:scroll;scrollbar-width:none;background-image:url("${TILE}");background-size:8px 8px;background-repeat:repeat;background-position:7px 8px;background-attachment:local}
         #affineLocal::-webkit-scrollbar{display:none}#affineLocal>i{display:block;width:230px;height:170px}
-      </style><div id="plain" class="bg"></div><div id="translated"><div class="bg"></div></div><div id="will"><div class="bg"></div></div><div id="perspective"><div class="bg"></div></div><span id="inert"><div class="bg"></div></span><div id="local" class="bg"><i></i></div><div id="affine"><div id="affineLocal"><i></i></div></div>`);
+      </style><div id="plain" class="bg"></div><div id="translated"><div class="bg"></div></div><div id="will"><div class="bg"></div></div><div id="perspective"><div class="bg"></div></div><span id="inert"><div class="bg"></div></span><div id="local" class="bg" data-domotion-anim="local"><i></i></div><div id="affine"><div id="affineLocal" data-domotion-anim="affine-local"><i></i></div></div>`);
       await page.locator("#local").evaluate((element) => { element.scrollLeft = 41; element.scrollTop = 23; });
       await page.locator("#affineLocal").evaluate((element) => { element.scrollLeft = 83; element.scrollTop = 47; });
       await page.evaluate(() => { scrollTo(0, 121); });
@@ -133,13 +139,13 @@ describeBrowser("Blink URL background attachment geometry (DM-2479)", () => {
       // plus will-change transform, so the background itself remains fixed.
       expect(withPosition(first.tree, "4px 5px").styles.backgroundAttachmentGeometry?.fixedToViewport).toBe(true);
       expect(withPosition(first.tree, "5px 6px").styles.backgroundAttachmentGeometry?.fixedToViewport).toBe(true);
-      const localFirst = withPosition(first.tree, "6px 7px").styles.backgroundAttachmentGeometry?.local;
+      const localFirst = withAnimId(first.tree, "local").styles.backgroundAttachmentGeometry?.local;
       expect(localFirst?.scrollOffsetX).toBe(Math.round(live.local.x * 1.25));
       expect(localFirst?.scrollOffsetY).toBe(Math.round(live.local.y * 1.25));
       // The affine ancestor is frozen and re-applied by the SVG wrapper. Its
       // matrix a/d terms therefore must not scale the snapped local offsets a
       // second time (83 would otherwise become 91 and 47 would become 42).
-      expect(withPosition(first.tree, "7px 8px").styles.backgroundAttachmentGeometry?.local).toMatchObject({
+      expect(withAnimId(first.tree, "affine-local").styles.backgroundAttachmentGeometry?.local).toMatchObject({
         active: true,
         scrollOffsetX: 83,
         scrollOffsetY: 47,
@@ -151,7 +157,7 @@ describeBrowser("Blink URL background attachment geometry (DM-2479)", () => {
 
       await page.locator("#local").evaluate((element) => { element.scrollLeft = 73; element.scrollTop = 59; });
       const second = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 360, height: 240 });
-      const localSecond = withPosition(second.tree, "6px 7px").styles.backgroundAttachmentGeometry?.local;
+      const localSecond = withAnimId(second.tree, "local").styles.backgroundAttachmentGeometry?.local;
       expect(localSecond?.scrollOffsetX).not.toBe(localFirst?.scrollOffsetX);
       expect(localSecond?.scrollOffsetY).not.toBe(localFirst?.scrollOffsetY);
       expect(localSecond?.borderPaintWidth).toBe(localFirst?.borderPaintWidth);

@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,6 +8,7 @@ import { generateAnimatedSvg } from "../src/animation/index.js";
 import { composeAnimateFrames, validateAnimateConfig } from "../src/cli/animate.js";
 import { seekTo } from "../src/cli/svg-to-video-core.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
+import { setRenderTextMode } from "../src/render/text-to-path.js";
 import { PARITY_LAUNCH_OPTS, loadSeekableSvg } from "./flipbook-parity.js";
 
 // Declarative config surface for the frame-sequence compressor + the caret /
@@ -19,6 +20,8 @@ import { PARITY_LAUNCH_OPTS, loadSeekableSvg } from "./flipbook-parity.js";
 
 const W = 640;
 const H = 240;
+
+beforeEach(() => setRenderTextMode("paths"));
 
 // A small editor-like page: one Menlo line whose `ins(k)` helper inserts a
 // mid-line string one character at a time (reflowing the tail), plus a
@@ -187,7 +190,9 @@ describeBrowser("`states` compressed-run config (docs/100 stage 4)", () => {
       const amberBefore = await scanInk(viewer, shots[2], "amber", strip);
       const amberAfter = await scanInk(viewer, shots[3], "amber", strip);
       expect(amberBefore.count).toBe(0);
-      expect(amberAfter.count).toBeGreaterThan(5);
+      // Chromium 147's 14px unhinted brace has only two fully-saturated core
+      // pixels; the discriminator is appearance vs the exact zero before it.
+      expect(amberAfter.count).toBeGreaterThan(0);
     } finally {
       await ctx.close();
     }

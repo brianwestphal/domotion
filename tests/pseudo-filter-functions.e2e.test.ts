@@ -58,10 +58,10 @@ const env = await (async () => {
 afterAll(async () => { await closeBrowserSafely(env?.browser); }, 15_000);
 const describeBrowser = env ? describe : describe.skip;
 
-function pseudoBoxes(nodes: CapturedElement[]): NonNullable<CapturedElement["pseudoBoxes"]> {
-  const result: NonNullable<CapturedElement["pseudoBoxes"]> = [];
+function pseudoRecords(nodes: CapturedElement[]): NonNullable<CapturedElement["pseudoFragments"]> {
+  const result: NonNullable<CapturedElement["pseudoFragments"]> = [];
   const visit = (node: CapturedElement): void => {
-    result.push(...(node.pseudoBoxes ?? []));
+    result.push(...(node.pseudoFragments ?? []));
     for (const child of node.children ?? []) visit(child);
   };
   for (const node of nodes) visit(node);
@@ -79,6 +79,7 @@ function byAnimId(nodes: CapturedElement[], id: string): CapturedElement | null 
 
 function stripPseudoFilters(nodes: CapturedElement[]): void {
   const visit = (node: CapturedElement): void => {
+    for (const record of node.pseudoFragments ?? []) record.paint.filter = "none";
     for (const box of node.pseudoBoxes ?? []) delete box.filter;
     for (const image of node.pseudoImages ?? []) delete image.filter;
     for (const segment of node.textSegments ?? []) {
@@ -143,24 +144,32 @@ describeBrowser("DM-2367: pseudo-element CSS filter lists", () => {
       <div id="image" class="host" data-domotion-anim="image"></div>`, { waitUntil: "load" });
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 420, height: 180 });
       const text = byAnimId(tree, "text")!;
-      const textPseudo = text.textSegments?.find((segment) => segment.text === "PF")?.pseudoBox;
-      expect(textPseudo?.filter).toBe(
+      const textPseudo = text.pseudoFragments?.find((record) => record.pseudo === "::before");
+      expect(textPseudo?.paint.filter).toBe(
         await page.locator("#text").evaluate((el) => getComputedStyle(el, "::before").filter),
       );
-      expect(textPseudo?.opacity).toBeCloseTo(0.7, 4);
+      expect(textPseudo?.paint.opacity).toBeCloseTo(0.7, 4);
 
-      const image = byAnimId(tree, "image")!.pseudoImages?.[0];
-      expect(image?.filter).toBe("blur(2.5px) invert(0.65) saturate(1.8)");
-      expect(image?.transform).toMatch(/^matrix\(/);
-      expect(image?.transform).toContain(", 2.5, 1.25)");
-      expect(image?.transformOrigin).toBe("5px 8.75px");
-      expect(image).toMatchObject({ width: 35, height: 25 });
+      const image = byAnimId(tree, "image")!.pseudoFragments?.find((record) => record.pseudo === "::after");
+      const imageComputed = await page.locator("#image").evaluate((el) => {
+        const style = getComputedStyle(el, "::after");
+        return {
+          filter: style.filter,
+          transform: style.transform,
+          transformOrigin: style.transformOrigin,
+        };
+      });
+      // Computed pseudo paint properties stay in the pseudo's pre-zoom CSS
+      // plane. The physical fragment below carries the host's effective zoom.
+      expect(image?.paint).toMatchObject(imageComputed);
+      expect(image?.fragments.find((fragment) => fragment.kind === "image")?.physicalRect)
+        .toMatchObject({ width: 28 * 1.25 * 0.85, height: 20 * 1.25 * 0.85 });
 
       const svg = elementTreeToSvg(tree, 420, 180);
-      expect(svg).toContain(`style="filter:${textPseudo!.filter}"`);
-      expect(svg).toContain(`style="filter:${image!.filter}"`);
-      expect(svg).toContain('<g opacity="0.7"><g style="filter:hue-rotate');
-      expect(svg).toMatch(/transform="translate\([^\"]+\) matrix\([^\"]+\) translate\([^\"]+\)"><g style="filter:blur\(2\.5px\) invert/);
+      expect(svg).toContain(`style="filter:${textPseudo!.paint.filter}"`);
+      expect(svg).toContain(`style="filter:${image!.paint.filter}"`);
+      expect(svg).toContain(`opacity="0.7" style="filter:${textPseudo!.paint.filter}"`);
+      expect(svg).toMatch(/data-domotion-pseudo="::after"[^>]*style="filter:blur\(2px\) invert[^\"]*"><g transform="matrix\(/);
     } finally {
       await page.close();
     }
@@ -174,7 +183,7 @@ describeBrowser("DM-2367: pseudo-element CSS filter lists", () => {
         cards.map((card) => getComputedStyle(card, "::before").filter),
       );
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
-      const captured = pseudoBoxes(tree).map((box) => box.filter).filter((value): value is string => value != null);
+      const captured = pseudoRecords(tree).map((record) => record.paint.filter);
       for (const filter of computed) expect(captured).toContain(filter);
 
       const svg = elementTreeToSvg(tree, W, H);
@@ -190,7 +199,7 @@ describeBrowser("DM-2367: pseudo-element CSS filter lists", () => {
       expect(svg.indexOf(`style="filter:${forward}"`)).toBeLessThan(
         svg.indexOf(`style="filter:${reverse}"`),
       );
-      expect(svg).toMatch(/transform="translate\([^\"]+\) matrix\([^\"]+\) translate\([^\"]+\)"><g style="filter:opacity\(0\.35\) drop-shadow/);
+      expect(svg).toMatch(/style="filter:opacity\(0\.35\) drop-shadow[^\"]*"><g transform="matrix\(/);
     } finally {
       await page.close();
     }

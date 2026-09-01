@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -14,6 +14,9 @@ import { comparePngs } from "../src/review/compare-pngs.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import { expectFlipbookParity, PARITY_LAUNCH_OPTS, loadSeekableSvg } from "./flipbook-parity.js";
 import { FIXTURE_FONT_CSS, FIXTURE_MONO_STACK, FIXTURE_SERIF_STACK, registerFixtureFonts } from "./fixture-fonts.js";
+import { setRenderTextMode } from "../src/render/text-to-path.js";
+
+beforeEach(() => setRenderTextMode("paths"));
 
 /**
  * Independent per-region timing inside ONE compressed run (docs/100

@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtikw6qfmbbk52yr",
+          "message": {
+            "text": "These client-UI tests are non-interactive by construction. Playwright uses bundled headless Chromium, while the review and scrubber child processes receive their own no-open controls; either child could otherwise invoke macOS's default-browser opener even though Playwright itself was headless. The focused file passes 2/2 without opening a window.",
+            "markdown": "These client-UI tests are non-interactive by construction. Playwright uses bundled headless Chromium, while the review and scrubber child processes receive their own no-open controls; either child could otherwise invoke macOS's default-browser opener even though Playwright itself was headless. The focused file passes 2/2 without opening a window."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/kerf-client-uis.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 66,
+                  "endLine": 66,
+                  "snippet": {
+                    "text": "try { browser = await chromium.launch({ headless: true }); } catch { browser = null; }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/kerf-client-uis.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 128
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/kerf-client-uis.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 221
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2644"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "445a81dd6891455f7fc64b544bdd6e40"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "e2c46e174a7f52b2b28f65d38ea9657d157a7e20",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

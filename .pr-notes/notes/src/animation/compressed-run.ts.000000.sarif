@@ -127,6 +127,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtikw6chgf0kol34",
+          "message": {
+            "text": "The compressor must distinguish inert selected-representation probes from paint-bearing raster glyphs. Chromium capture now retains probe metadata even when font inspection proves the selected representation is an outline; rejecting all rasterGlyphs disabled ordinary ASCII compression. Materialized PNGs and zero-area first-letter suppression remain fail-closed, while authoritative textPaintGeometry is normalized and only identity residuals enter absolute-coordinate tracks. Focused unit coverage and the 529-test headless E2E run exercise both sides.",
+            "markdown": "The compressor must distinguish inert selected-representation probes from paint-bearing raster glyphs. Chromium capture now retains probe metadata even when font inspection proves the selected representation is an outline; rejecting all rasterGlyphs disabled ordinary ASCII compression. Materialized PNGs and zero-area first-letter suppression remain fail-closed, while authoritative textPaintGeometry is normalized and only identity residuals enter absolute-coordinate tracks. Focused unit coverage and the 529-test headless E2E run exercise both sides."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/animation/compressed-run.ts"
+                },
+                "region": {
+                  "startLine": 364,
+                  "endLine": 389,
+                  "snippet": {
+                    "text": "  // Current capture retains selected-representation probe candidates even when\n  // they proved inert: no PNG was materialized and the ordinary glyph remains\n  // the sole paint. Only a real overlay or the zero-area ::first-letter\n  // suppression marker changes rendering and must stay in the chrome layer.\n  if (seg.rasterGlyphs?.some((glyph) => glyph.dataUri != null\n    || (glyph.suppressGlyph === true && glyph.rect.width === 0 && glyph.rect.height === 0))) return false;\n  if (seg.dottedCircleMarks != null && seg.dottedCircleMarks.length > 0) return false;\n  if (seg.pseudoBox != null) return false;\n  if (seg.textShadow != null && seg.textShadow !== \"none\") return false;\n  for (const ch of seg.text) {\n    const cp = ch.codePointAt(0);\n    if (cp == null || !isSimpleTextChar(cp)) return false;\n  }\n  return true;\n}\n\nfunction textPlaneForCompression(el: CapturedElement): CapturedElement | null {\n  if (el.textPaintGeometry == null) return el;\n  const prepared = prepareAffineTextPaint(el, IDENTITY_TEXT_AFFINE);\n  if (prepared.failureReason != null) return null;\n  // The compressor emits absolute glyph coordinates and its own translation\n  // tracks. A non-identity residual would need matrix-aware track composition;\n  // keep that text in the byte-safe chrome flipbook until such support exists.\n  if (prepared.residualMatrix != null\n    && !textAffineEquals(prepared.residualMatrix, IDENTITY_TEXT_AFFINE)) return null;\n  return prepared.element;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text.ts"
+                },
+                "region": {
+                  "startLine": 193
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2644"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c12725bf12adfd65118d70e8615b5f85"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "e2c46e174a7f52b2b28f65d38ea9657d157a7e20",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

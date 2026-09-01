@@ -663,6 +663,24 @@ describe("buildCompressedRunPlan — eligibility guards (re-emit on doubt)", () 
     expect(glyphCount(plan)).toBe(0);
   });
 
+  it("ignores unmaterialized raster probe candidates that do not affect paint", () => {
+    const el = lineEl("abc");
+    el.textSegments![0].rasterGlyphs = [
+      { charIndex: 0, rect: { x: 60, y: 100, width: ADV, height: 19 } },
+    ];
+    const plan = buildCompressedRunPlan([state([box([el])])]);
+    expect(glyphCount(plan)).toBe(3);
+  });
+
+  it("keeps materialized raster overlays in the chrome layer", () => {
+    const el = lineEl("abc");
+    el.textSegments![0].rasterGlyphs = [
+      { charIndex: 0, rect: { x: 60, y: 100, width: ADV, height: 19 }, dataUri: "data:image/png;base64,AA==" },
+    ];
+    const plan = buildCompressedRunPlan([state([box([el])])]);
+    expect(glyphCount(plan)).toBe(0);
+  });
+
   it("decorated text (underline) stays in the chrome layer", () => {
     const el = lineEl("abc", { styles: { textDecorationLine: "underline" } });
     const plan = buildCompressedRunPlan([state([box([el])])]);

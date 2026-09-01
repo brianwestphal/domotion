@@ -30,11 +30,12 @@ afterAll(async () => { await closeBrowserSafely(env?.browser); }, 15_000);
 const describeBrowser = env ? describe : describe.skip;
 
 function pseudoBox(tree: CapturedElement[]) {
-  let box: NonNullable<CapturedElement["textSegments"]>[number]["pseudoBox"];
+  let box: { width: number; height: number } | undefined;
   const visit = (nodes: CapturedElement[]): void => {
     for (const node of nodes) {
-      const segment = node.textSegments?.find((seg) => seg.text.includes("縦 AB"));
-      if (segment?.pseudoBox) box = segment.pseudoBox;
+      const record = node.pseudoFragments?.find((entry) => entry.pseudo === "::before"
+        && entry.fragments.some((fragment) => fragment.kind === "text" && fragment.text.includes("縦 AB")));
+      if (record != null) box = record.boxFragments[0]?.physicalRect;
       if (node.children) visit(node.children as CapturedElement[]);
     }
   };

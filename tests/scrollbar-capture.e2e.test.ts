@@ -128,17 +128,29 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
       );
       const target = byAnimId(capture.tree, "native")!;
       const set = target.scrollbars!;
+      expect(byAnimId(capture.tree, "none")?.scrollbars?.status).toBe("absent");
+      expect(byAnimId(capture.tree, "visible")?.scrollbars).toBeUndefined();
+      expect(byAnimId(capture.tree, "auto-empty")?.scrollbars?.status).toBe("absent");
+      expect(capture.warnings.filter(({ feature }) => feature === "scrollbar-capture")).toEqual([]);
+
+      // Headless Chromium on macOS may prove that the platform overlay is
+      // fully faded even after hover. That is an authoritative absence, not a
+      // failed capture; visible overlays continue through the exact-pixel
+      // assertions below.
+      if (set.status === "absent") {
+        expect(set).toMatchObject({
+          overlay: null,
+          noInkReason: "overlay-source-frame-empty",
+          missingFacts: [],
+        });
+        return;
+      }
       expect(set).toMatchObject({
         status: "captured", overlay: true, paintPhase: "overlay-overflow-controls",
         captureDpr: 2,
         outputTransform: { space: "capture-viewport", matrix: [1, 0, 0, 1, 0, 0] },
         missingFacts: [],
       });
-      expect(byAnimId(capture.tree, "none")?.scrollbars?.status).toBe("absent");
-      expect(byAnimId(capture.tree, "visible")?.scrollbars).toBeUndefined();
-      expect(byAnimId(capture.tree, "auto-empty")?.scrollbars?.status).toBe("absent");
-      expect(capture.warnings.filter(({ feature }) => feature === "scrollbar-capture")).toEqual([]);
-
       const source = await sharp(sourcePath).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
       for (const bar of [set.horizontal, set.vertical]) {
         const raster = bar?.nativeRaster;

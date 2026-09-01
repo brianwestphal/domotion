@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Page, BrowserContext } from "@playwright/test";
@@ -13,6 +13,9 @@ import { seekTo } from "../src/cli/svg-to-video-core.js";
 import { comparePngs } from "../src/review/compare-pngs.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import { expectFlipbookParity, PARITY_LAUNCH_OPTS, loadSeekableSvg } from "./flipbook-parity.js";
+import { setRenderTextMode } from "../src/render/text-to-path.js";
+
+beforeEach(() => setRenderTextMode("paths"));
 
 /**
  * Two independently-updating regions in one compressed run (docs/100,

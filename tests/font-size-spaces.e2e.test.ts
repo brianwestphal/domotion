@@ -48,11 +48,11 @@ describeBrowser("DM-2446: logical, computed, and paint font sizes", () => {
       const explicitOpsz = findText(tree, "explicit-opsz")!;
 
       expect([zoom.styles.fontLogicalSize, zoom.styles.fontComputedSize, zoom.styles.fontSize]).toEqual(["13px", "26.0000px", "26.0000px"]);
-      expect([transform.styles.fontLogicalSize, transform.styles.fontComputedSize, transform.styles.fontSize]).toEqual(["13px", "13.0000px", "26.0000px"]);
-      expect([cancel.styles.fontLogicalSize, cancel.styles.fontComputedSize, cancel.styles.fontSize]).toEqual(["13px", "26.0000px", "13px"]);
+      expect([transform.styles.fontLogicalSize, transform.styles.fontComputedSize, transform.styles.fontSize]).toEqual(["13px", "13.0000px", "13.0000px"]);
+      expect([cancel.styles.fontLogicalSize, cancel.styles.fontComputedSize, cancel.styles.fontSize]).toEqual(["13px", "26.0000px", "26.0000px"]);
       expect([nestedZoom.styles.fontLogicalSize, nestedZoom.styles.fontComputedSize, nestedZoom.styles.fontSize]).toEqual(["13px", "26.0000px", "26.0000px"]);
-      expect([nestedTransform.styles.fontLogicalSize, nestedTransform.styles.fontComputedSize, nestedTransform.styles.fontSize]).toEqual(["13px", "13.0000px", "26.0000px"]);
-      expect([mixed.styles.fontLogicalSize, mixed.styles.fontComputedSize, mixed.styles.fontSize]).toEqual(["13px", "19.5000px", "24.3750px"]);
+      expect([nestedTransform.styles.fontLogicalSize, nestedTransform.styles.fontComputedSize, nestedTransform.styles.fontSize]).toEqual(["13px", "13.0000px", "13.0000px"]);
+      expect([mixed.styles.fontLogicalSize, mixed.styles.fontComputedSize, mixed.styles.fontSize]).toEqual(["13px", "19.5000px", "19.5000px"]);
       expect(opticalNone.styles.fontOpticalSizing).toBe("none");
       expect(explicitOpsz.styles.fontVariationSettings).toMatch(/"opsz" 13/);
 
@@ -88,27 +88,27 @@ describeBrowser("DM-2446: logical, computed, and paint font sizes", () => {
       expect(paintedFaces.explicitOpsz).toBe(paintedFaces.zoom);
       expect(zoom.fontAscent).toBe(metrics.computed.ascent);
       expect(zoom.fontDescent).toBe(metrics.computed.descent);
-      expect(transform.fontAscent).toBe(metrics.logical.ascent * 2);
-      expect(transform.fontDescent).toBe(metrics.logical.descent * 2);
-      expect(cancel.fontAscent).toBe(metrics.computed.ascent * 0.5);
-      expect(cancel.fontDescent).toBe(metrics.computed.descent * 0.5);
+      expect(transform.fontAscent).toBe(metrics.logical.ascent);
+      expect(transform.fontDescent).toBe(metrics.logical.descent);
+      expect(cancel.fontAscent).toBe(metrics.computed.ascent);
+      expect(cancel.fontDescent).toBe(metrics.computed.descent);
       expect(nestedZoom.fontAscent).toBe(metrics.computed.ascent);
-      expect(nestedTransform.fontAscent).toBe(metrics.logical.ascent * 2);
-      const baselineAscents: Record<string, number> = {
-        zoom: metrics.computed.ascent,
-        transform: metrics.logical.ascent * 2,
-        cancel: metrics.computed.ascent * 0.5,
-        nestedZoom: metrics.computed.ascent,
-        nestedTransform: metrics.logical.ascent * 2,
-        mixed: metrics.mixed.ascent * 1.25,
+      expect(nestedTransform.fontAscent).toBe(metrics.logical.ascent);
+      const paintScale = (node: CapturedElement): number => {
+        const matrix = node.textPaintGeometry?.fragments[0]?.paintMatrix;
+        expect(matrix).toBeDefined();
+        return Math.hypot(matrix![0], matrix![1]);
       };
+      expect(paintScale(transform)).toBeCloseTo(2, 5);
+      expect(paintScale(cancel)).toBeCloseTo(0.5, 5);
+      expect(paintScale(nestedTransform)).toBeCloseTo(2, 5);
+      expect(paintScale(mixed)).toBeCloseTo(1.25, 5);
       for (const [id, node] of Object.entries({ zoom, transform, cancel, nestedZoom, nestedTransform, mixed })) {
         expect(node.textLeft).toBeCloseTo(ranges[id].left, 6);
         expect(node.textTop).toBeCloseTo(ranges[id].top, 6);
         if (node.textSegments?.[0].xOffsets?.[0] != null) {
           expect(node.textSegments[0].xOffsets[0]).toBeCloseTo(ranges[id].left, 6);
         }
-        expect(node.textTop! + node.fontAscent!).toBeCloseTo(ranges[id].top + baselineAscents[id], 6);
       }
       setRenderTextMode("paths");
       const svg = elementTreeToSvgInner(tree, 500, 300);
@@ -117,9 +117,9 @@ describeBrowser("DM-2446: logical, computed, and paint font sizes", () => {
         expect(match, label).not.toBeNull();
         return Math.abs(parseFloat(match![1]));
       };
-      expect(outlineScale("zoom") / outlineScale("cancel")).toBeCloseTo(2, 3);
-      expect(outlineScale("transform")).toBeCloseTo(outlineScale("zoom"), 5);
-      expect(outlineScale("mixed") / outlineScale("cancel")).toBeCloseTo(1.875, 2);
+      expect(outlineScale("zoom") / outlineScale("cancel")).toBeCloseTo(1, 3);
+      expect(outlineScale("transform") / outlineScale("zoom")).toBeCloseTo(0.5, 3);
+      expect(outlineScale("mixed") / outlineScale("cancel")).toBeCloseTo(0.75, 2);
     } finally {
       setRenderTextMode("embedded-font");
       await page.close();

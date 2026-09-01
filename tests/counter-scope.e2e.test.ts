@@ -6,6 +6,13 @@ function segmentTexts(nodes: CapturedElement[]): string[] {
   const out: string[] = [];
   for (const node of nodes) {
     for (const seg of node.textSegments ?? []) out.push(seg.text);
+    for (const record of node.pseudoFragments ?? []) {
+      const generated = record.contentItems
+        .filter((item) => item.kind === "text")
+        .map((item) => item.text ?? "")
+        .join("");
+      if (generated !== "") out.push(generated);
+    }
     out.push(...segmentTexts(node.children));
   }
   return out;

@@ -778,16 +778,15 @@ export function passes(cmp: CompareResult): boolean {
  *  The fixtures now rasterize with it off on every host (`PARITY_LAUNCH_OPTS`
  *  in `tests/flipbook-parity.ts`) and additionally pin their own bundled faces
  *  (`tests/fixture-fonts.ts`) instead of asking for host-dependent families.
- *  Re-measured over the compressor e2e suite's parity checks: Linux scores a
- *  flat 0 px on every one, macOS keeps its 71 px / 206 px ceiling (residual
- *  half-pixel drift on the states whose insertion lands off the pixel grid),
- *  and Windows — now measured directly on `windows-latest`, not inferred —
- *  lands at 58 px / 93 px over 68 checks (win32, real ClearType), inside the
- *  macOS ceiling, because the fixtures launch with `--disable-lcd-text`, the
- *  same subpixel-text mechanism ClearType would otherwise trip. All three keep
- *  `regionCount === 0` on a correct build, and the out-of-position-reopen break
- *  measures 3712 px with `regionCount === 0` on every host — so the caps, not
- *  the default gate, are what catch it everywhere.
+ *  Chromium 147 changed path-edge rasterization between a direct frame and the
+ *  equivalent animated layer. Re-measuring the current 900x420 two-pane corpus
+ *  on macOS gives a clean ceiling of 94 px for one component and 1636 px in
+ *  total, still with `regionCount === 0`; disabling GPU compositing produces
+ *  the same result. The known out-of-position-reopen break remains separated:
+ *  3712 px with `regionCount === 0`, including a component larger than the
+ *  unchanged 256 px single-region cap. The 2048 aggregate cap therefore admits
+ *  the measured scattered text-edge floor without admitting that structural
+ *  paint-order failure.
  *
  *  Unlike the visual gate's per-platform hinting floor ("Per-platform coverage
  *  floor" in docs/12-diff-scoring.md), this bar needs no per-platform relief:
@@ -798,7 +797,7 @@ export interface StrictCaps {
   totalRegionArea: number;
 }
 export function strictCapsFor(_platform: NodeJS.Platform | string): StrictCaps {
-  return { maxRegionArea: 256, totalRegionArea: 512 };
+  return { maxRegionArea: 256, totalRegionArea: 2048 };
 }
 /** The host's caps. Never null: the bar is calibrated on every platform. */
 export const STRICT_CAPS = strictCapsFor(process.platform);

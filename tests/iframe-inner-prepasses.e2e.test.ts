@@ -22,6 +22,13 @@ function findByTag(tree: CapturedElement[], tag: string): CapturedElement | null
 }
 function collectText(el: CapturedElement, out: string[] = []): string[] {
   if (el.text) out.push(el.text);
+  for (const record of el.pseudoFragments ?? []) {
+    const generated = record.contentItems
+      .filter((item) => item.kind === "text")
+      .map((item) => item.text ?? "")
+      .join("");
+    if (generated !== "") out.push(generated);
+  }
   for (const c of el.children ?? []) collectText(c, out);
   return out;
 }
@@ -83,12 +90,15 @@ describeBrowser("recursed iframe inner-document pre-passes (DM-1443)", () => {
       expect(texts).toContain("3. ");
       expect(texts).not.toContain("0. ");
 
-      // Inner transform: scale(2) on a 10px element → captured font size ~20px.
+      // Inner transform: the captured font stays in its 10px pre-transform
+      // plane and Chromium's authoritative text matrix carries the 2x paint.
       const scaled = findText(iframe!, "Scaled");
       expect(scaled, "scaled element captured").not.toBeNull();
       const fs = parseFloat(String(scaled!.styles?.fontSize));
-      expect(fs).toBeGreaterThan(19);
-      expect(fs).toBeLessThan(21);
+      expect(fs).toBeCloseTo(10, 5);
+      const matrix = scaled!.textPaintGeometry?.fragments[0]?.paintMatrix;
+      expect(matrix).toBeDefined();
+      expect(Math.hypot(matrix![0], matrix![1])).toBeCloseTo(2, 5);
 
       // Computed styles must come from the iframe's Window. The top Window's
       // getter can otherwise substitute its default serif family.

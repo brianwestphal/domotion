@@ -22,18 +22,17 @@ const HTML =
 const BOX_HTML =
   `<!doctype html><style>body{margin:0}.host{display:flex;align-items:center;justify-content:space-between;` +
   `width:300px;height:48px;padding:0 18px;border:2px solid #ccc}.host::after{content:"";display:block;` +
-  `width:8px;height:8px;border-top:2px solid;border-right:2px solid;transform:rotate(45deg)}</style>` +
+  `width:8px;height:8px;border-top:2px solid;border-right:2px solid}</style>` +
   `<div class="host">Account</div>`;
 
-interface Seg { text?: string; x?: number; width?: number }
-interface El { tag?: string; x?: number; width?: number; styles?: { borderRightWidth?: string; paddingRight?: string }; textSegments?: Seg[] }
-function findSummaryAfter(tree: CapturedElement[]): { seg: Seg; el: El } | null {
-  let hit: { seg: Seg; el: El } | null = null;
+function findSummaryAfter(tree: CapturedElement[]) {
+  let hit: { rect: { x: number; width: number }; el: CapturedElement } | null = null;
   const visit = (nodes: CapturedElement[]): void => {
     for (const n of nodes) {
-      const el = n as El;
-      if (el.tag === "summary" && el.textSegments) {
-        for (const s of el.textSegments) if (typeof s.text === "string" && s.text.includes("+")) { hit = { seg: s, el }; return; }
+      if (n.tag === "summary") {
+        const record = n.pseudoFragments?.find((entry) => entry.pseudo === "::after");
+        const fragment = record?.fragments.find((entry) => entry.kind === "text" && entry.text.includes("+"));
+        if (fragment?.kind === "text") { hit = { rect: fragment.physicalRect, el: n }; return; }
       }
       if (n.children) visit(n.children as CapturedElement[]);
       if (hit) return;
@@ -59,14 +58,14 @@ describeBrowser("DM-1256: flex space-between ::after is anchored at the content-
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
       const hit = findSummaryAfter(tree);
       expect(hit, "captured the summary::after marker").not.toBeNull();
-      const { seg, el } = hit!;
-      const borderR = parseFloat(el.styles?.borderRightWidth ?? "0") || 0;
-      const padR = parseFloat(el.styles?.paddingRight ?? "0") || 0;
-      const contentRight = (el.x ?? 0) + (el.width ?? 0) - borderR - padR;
+      const { rect, el } = hit!;
+      const borderR = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
+      const padR = parseFloat(el.styles.paddingRight ?? "0") || 0;
+      const contentRight = el.x + el.width - borderR - padR;
       // The marker's RIGHT edge (text-left + its advance) must land at the
       // content-right edge — that's where flex space-between pushes the last item.
       // The legacy heuristic overshot it past the content edge.
-      const markerRight = (seg.x ?? 0) + (seg.width ?? 0);
+      const markerRight = rect.x + rect.width;
       expect(markerRight).toBeCloseTo(contentRight, 0);
     } finally {
       await page.close();
@@ -78,8 +77,8 @@ describeBrowser("DM-1256: flex space-between ::after is anchored at the content-
     try {
       await page.setContent(BOX_HTML, { waitUntil: "load" });
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
-      const host = tree[0] as CapturedElement & { pseudoBoxes?: Array<{ pseudo?: string; x: number; y: number; width: number; height: number }> };
-      const box = host.pseudoBoxes?.find((p) => p.pseudo === "::after");
+      const host = tree[0];
+      const box = host.pseudoFragments?.find((record) => record.pseudo === "::after")?.boxFragments[0]?.physicalRect;
       expect(box).toBeDefined();
       expect(box!.x + box!.width).toBeCloseTo(320, 0); // 340 border-box right − 2 border − 18 padding
       expect(box!.y).toBeCloseTo(21, 0); // centered 10px border-box in the 48px content box

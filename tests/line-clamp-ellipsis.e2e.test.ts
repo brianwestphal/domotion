@@ -195,10 +195,14 @@ describeBrowser('DM-2417 generated line-clamp ellipsis capture', () => {
   });
 
   it('renders generated fragments while preserving ordinary text-overflow', () => {
-    expect(svg).toContain('aria-label="ordinary text overflow marker remains independent"');
-    expect(svg).toMatch(/<text[^>]*>…<\/text>/);
-    expect(marker(findByIdText(tree, 'ordinary '))).toBeUndefined();
-    expect(findByIdText(tree, 'ordinary ')!.styles.textOverflow).toBe('ellipsis');
+    const ordinary = findByIdText(tree, 'ordinary ')!;
+    expect(marker(ordinary)).toBeUndefined();
+    expect(ordinary.styles.textOverflow).toBe('ellipsis');
+    // Embedded subsets remap source characters to private-use codepoints; the
+    // source label is the stable representation contract, not literal text
+    // content inside the emitted <text> element.
+    expect(svg).toContain('role="img" aria-label="…"');
+    expect(svg).toMatch(/<text[^>]*font-family="dmf\d+"/);
   });
 
   it('matches Chromium generated-fragment ink bounds in isolated paint oracle rows', async () => {

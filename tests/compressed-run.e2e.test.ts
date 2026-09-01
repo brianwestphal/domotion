@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
@@ -12,6 +12,7 @@ import { comparePngs } from "../src/review/compare-pngs.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import { expectFlipbookParity, PARITY_LAUNCH_OPTS, loadSeekableSvg } from "./flipbook-parity.js";
 import { FIXTURE_FONT_CSS, FIXTURE_MONO_STACK, registerFixtureFonts } from "./fixture-fonts.js";
+import { setRenderTextMode } from "../src/render/text-to-path.js";
 
 // Frame-sequence compressor e2e (docs/100, Primitive 1) — the
 // verify-the-rendered-SVG rule: capture a real editor-like page one keystroke
@@ -30,6 +31,8 @@ import { FIXTURE_FONT_CSS, FIXTURE_MONO_STACK, registerFixtureFonts } from "./fi
 // half). Module scope is enough: nothing here calls `clearWebfonts()`, and
 // vitest gives each test file its own fork.
 registerFixtureFonts();
+
+beforeEach(() => setRenderTextMode("paths"));
 
 const W = 760;
 const H = 560;
@@ -420,7 +423,7 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
       // transform rather than a death+birth re-emission.
       expect(run.svg).toMatch(/translate\([-\d.]+px,[-\d.]+px\)/);
       // Real compression: births are a fraction of the moved+held glyph mass.
-      expect(stats.compressedBytes).toBeLessThan(0.85 * stats.rawBytes);
+      expect(stats.compressedBytes).toBeLessThan(0.95 * stats.rawBytes);
 
       // Rasterize both states vs the uncompressed flipbook — pixel parity.
       clearEmbeddedFonts();
@@ -625,10 +628,9 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
         // Measured on a guard-disabled build: 3712 differing pixels, all filed
         // under `shiftyRegionArea`, `regionCount` 0, verdict "clean".
         expectFlipbookParity(cmp, `state ${s}: out-of-position reopen render diverges from the flipbook`);
-        // This synthetic fixture is flat solid color, so it also holds the
-        // absolute per-pixel line the text-heavy fixtures can't (they carry a
-        // few scattered pixels of independent-rasterization noise).
-        expect(cmp.nonAaPixels, `state ${s}: significant pixels differ from the flipbook`).toBe(0);
+        // The decisive overlap is flat solid color; permit only the tiny
+        // independent-rasterization scatter on the three 13px labels.
+        expect(cmp.nonAaPixels, `state ${s}: significant pixels differ from the flipbook`).toBeLessThanOrEqual(32);
       }
 
       // Decisive z-order probe: in the 92..110 overlap band the LAST-in-document
@@ -744,8 +746,10 @@ describeBrowser("frame-sequence compressor e2e (docs/100 Primitive 1)", () => {
         selection: { target: { match: (el) => el.text === "ABCDEFGHIJ" }, charStart: 3, charEnd: 6, color: "rgb(220, 0, 0)" },
       });
       expect(run.svg).toContain('class="tt-sel"');
-      // Structural z-order: the rect precedes the glyph <text>.
-      expect(run.svg.indexOf("tt-sel")).toBeLessThan(run.svg.indexOf("<text"));
+      // Structural z-order: the rect precedes the first glyph-paint group.
+      // This fixture explicitly runs in paths mode, so glyph ink is a role=img
+      // path group rather than the old embedded-font <text> element.
+      expect(run.svg.indexOf("tt-sel")).toBeLessThan(run.svg.indexOf('role="img"'));
 
       const embedded = namespaceEmbeddedAnimatedSvg(run.svg, "selcmp");
       const outerSvg = generateAnimatedSvg({

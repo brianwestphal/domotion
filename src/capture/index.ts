@@ -194,8 +194,11 @@ export interface CaptureOptions {
  * are a normal `chromium.launch()` with no overhead.
  */
 export async function launchChromium(opts?: LaunchOptions): Promise<Browser> {
+  // Keep automation non-interactive by construction. Callers that genuinely
+  // need a headed diagnostic must opt into `headless: false` explicitly.
+  const launchOptions: LaunchOptions = { headless: true, ...opts };
   try {
-    return await chromium.launch(opts);
+    return await chromium.launch(launchOptions);
   } catch (err) {
     if (!isMissingBrowserError(err)) throw err;
 
@@ -210,7 +213,7 @@ export async function launchChromium(opts?: LaunchOptions): Promise<Browser> {
         "Run 'npx playwright install chromium' manually and try again.",
       );
     }
-    return chromium.launch(opts);
+    return chromium.launch(launchOptions);
   }
 }
 

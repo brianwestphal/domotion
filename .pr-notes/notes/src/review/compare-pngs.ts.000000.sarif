@@ -259,6 +259,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtikw6jh192zlcvn",
+          "message": {
+            "text": "The aggregate no-motion cap was remeasured rather than broadly relaxed. Chromium 147 produces 94 px largest and 1636 px total on the correct two-pane render, unchanged with GPU disabled; the deliberate paint-order break remains 3712 px and still exceeds the unchanged 256 px component cap. Therefore 2048 admits current scattered edge noise without admitting the known structural failure.",
+            "markdown": "The aggregate no-motion cap was remeasured rather than broadly relaxed. Chromium 147 produces 94 px largest and 1636 px total on the correct two-pane render, unchanged with GPU disabled; the deliberate paint-order break remains 3712 px and still exceeds the unchanged 256 px component cap. Therefore 2048 admits current scattered edge noise without admitting the known structural failure."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/review/compare-pngs.ts"
+                },
+                "region": {
+                  "startLine": 781,
+                  "endLine": 800,
+                  "snippet": {
+                    "text": " *  Chromium 147 changed path-edge rasterization between a direct frame and the\n *  equivalent animated layer. Re-measuring the current 900x420 two-pane corpus\n *  on macOS gives a clean ceiling of 94 px for one component and 1636 px in\n *  total, still with `regionCount === 0`; disabling GPU compositing produces\n *  the same result. The known out-of-position-reopen break remains separated:\n *  3712 px with `regionCount === 0`, including a component larger than the\n *  unchanged 256 px single-region cap. The 2048 aggregate cap therefore admits\n *  the measured scattered text-edge floor without admitting that structural\n *  paint-order failure.\n *\n *  Unlike the visual gate's per-platform hinting floor (\"Per-platform coverage\n *  floor\" in docs/12-diff-scoring.md), this bar needs no per-platform relief:\n *  there both images come from DIFFERENT rasterizers, so the host's text\n *  rendering is inherently part of the measurement; here both come from ours. */\nexport interface StrictCaps {\n  maxRegionArea: number;\n  totalRegionArea: number;\n}\nexport function strictCapsFor(_platform: NodeJS.Platform | string): StrictCaps {\n  return { maxRegionArea: 256, totalRegionArea: 2048 };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/review/compare-pngs.test.ts"
+                },
+                "region": {
+                  "startLine": 203
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2644"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "238de18f50846af627a5f7ce027ae96d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "e2c46e174a7f52b2b28f65d38ea9657d157a7e20",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

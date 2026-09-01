@@ -107,6 +107,7 @@ import type { CapturedElement, TextSegment } from "../capture/types.js";
 import { elementTreeToSvgInner } from "../render/element-tree-to-svg.js";
 import { paintOrderHitSequence } from "../render/paint-order.js";
 import { clearEmbeddedFonts, clearGlyphDefs, getEmbeddedFontFaceCss } from "../render/index.js";
+import { IDENTITY_TEXT_AFFINE, prepareAffineTextPaint, textAffineEquals } from "../render/text-affine.js";
 import { alignLineGlyphs, type AlignGlyph } from "./glyph-align.js";
 import { textTrackMarkup, CARET_BLINK_MS, DEFAULT_SELECTION_COLOR, type ResolvedTextTrack, type ResolvedSelection } from "./caret-track.js";
 import { DEFAULT_CARET_WIDTH_PX, type CaretShape } from "./caret-metrics.js";
@@ -360,7 +361,12 @@ function segmentEligible(seg: TextSegment): boolean {
   if (seg.verticalWritingMode != null) return false;
   if (seg.xOffsets == null || seg.xOffsets.length < seg.text.length) return false;
   if (seg.rasterRect != null || seg.rasterDataUri != null) return false;
-  if (seg.rasterGlyphs != null && seg.rasterGlyphs.length > 0) return false;
+  // Current capture retains selected-representation probe candidates even when
+  // they proved inert: no PNG was materialized and the ordinary glyph remains
+  // the sole paint. Only a real overlay or the zero-area ::first-letter
+  // suppression marker changes rendering and must stay in the chrome layer.
+  if (seg.rasterGlyphs?.some((glyph) => glyph.dataUri != null
+    || (glyph.suppressGlyph === true && glyph.rect.width === 0 && glyph.rect.height === 0))) return false;
   if (seg.dottedCircleMarks != null && seg.dottedCircleMarks.length > 0) return false;
   if (seg.pseudoBox != null) return false;
   if (seg.textShadow != null && seg.textShadow !== "none") return false;
@@ -371,9 +377,21 @@ function segmentEligible(seg: TextSegment): boolean {
   return true;
 }
 
-function elementTextEligible(el: CapturedElement, ctx: AncestorCtx): boolean {
+function textPlaneForCompression(el: CapturedElement): CapturedElement | null {
+  if (el.textPaintGeometry == null) return el;
+  const prepared = prepareAffineTextPaint(el, IDENTITY_TEXT_AFFINE);
+  if (prepared.failureReason != null) return null;
+  // The compressor emits absolute glyph coordinates and its own translation
+  // tracks. A non-identity residual would need matrix-aware track composition;
+  // keep that text in the byte-safe chrome flipbook until such support exists.
+  if (prepared.residualMatrix != null
+    && !textAffineEquals(prepared.residualMatrix, IDENTITY_TEXT_AFFINE)) return null;
+  return prepared.element;
+}
+
+function elementTextEligible(el: CapturedElement, textEl: CapturedElement | null, ctx: AncestorCtx): boolean {
   if (ctx.blocked) return false;
-  if (el.textSegments == null || el.textSegments.length === 0) return false;
+  if (textEl?.textSegments == null || textEl.textSegments.length === 0) return false;
   if (el.elementRaster != null) return false;
   if (el.propagatedDecorations != null && el.propagatedDecorations.length > 0) return false;
   const s = el.styles;
@@ -383,7 +401,7 @@ function elementTextEligible(el: CapturedElement, ctx: AncestorCtx): boolean {
   if (num(s.webkitTextStrokeWidth) > 0) return false;
   if (s.webkitTextFillColor != null && !colorPaints(s.webkitTextFillColor) && s.webkitTextFillColor !== "") return false;
   if (s.direction === "rtl") return false;
-  for (const seg of el.textSegments) {
+  for (const seg of textEl.textSegments) {
     if (!segmentEligible(seg)) return false;
     for (const clip of ctx.clips) {
       const inset = clip.inset;
@@ -561,9 +579,9 @@ function extractState(tree: CapturedElement[], regionRootIds: ReadonlySet<string
   const paintIndex = new Map<CapturedElement, number>();
   for (let i = 0; i < order.length; i++) paintIndex.set(order[i].el, i);
 
-  const occluded = (el: CapturedElement): boolean => {
+  const occluded = (el: CapturedElement, textSegments: readonly TextSegment[]): boolean => {
     const mine = paintIndex.get(el);
-    if (mine == null || el.textSegments == null) return true;
+    if (mine == null) return true;
     for (let i = mine + 1; i < order.length; i++) {
       const f = order[i];
       if (!paintsBox(f.el)) continue;
@@ -575,7 +593,7 @@ function extractState(tree: CapturedElement[], regionRootIds: ReadonlySet<string
         fr = Math.min(fr, c.x + c.w); fb = Math.min(fb, c.y + c.h);
       }
       if (!(fr - fx > 0 && fb - fy > 0)) continue;
-      for (const seg of el.textSegments) {
+      for (const seg of textSegments) {
         const ix = Math.min(seg.x + seg.width, fr) - Math.max(seg.x, fx);
         const iy = Math.min(seg.y + seg.height, fb) - Math.max(seg.y, fy);
         if (ix > 0.5 && iy > 0.5) return true;
@@ -595,9 +613,13 @@ function extractState(tree: CapturedElement[], regionRootIds: ReadonlySet<string
     else if (isRegionRoot) ctx = { ...ctx, region: regionKeyOf(el) };
     // A demoted region's text stays in the chrome tree (the ineligible path):
     // skip glyph extraction so `strip` leaves its `textSegments` intact.
-    if (elementTextEligible(el, ctx) && !occluded(el) && !demoted.has(ctx.region)) {
+    const textEl = textPlaneForCompression(el);
+    const textSegments = textEl?.textSegments;
+    const textEligible = elementTextEligible(el, textEl, ctx);
+    const textOccluded = textEligible && textSegments != null ? occluded(el, textSegments) : true;
+    if (textEligible && !textOccluded && !demoted.has(ctx.region)) {
       eligible.add(el);
-      for (const seg of el.textSegments!) {
+      for (const seg of textSegments!) {
         const xs = seg.xOffsets!;
         const fontSize = seg.fontSize ?? (num(el.styles.fontSize) || 14);
         const ascent = seg.fontAscent ?? el.fontAscent ?? fontSize * 0.8;
@@ -616,7 +638,7 @@ function extractState(tree: CapturedElement[], regionRootIds: ReadonlySet<string
             lineKey: lineKeyOf(ctx.region, seg.y), region: ctx.region, segY: seg.y, segHeight: seg.height,
             fill: isWs ? "" : fillResolved, isWs, styleKey,
             fontSize, ascent, descent,
-            srcEl: el, srcSeg: seg,
+            srcEl: textEl!, srcSeg: seg,
           });
           u = nextU;
         }
@@ -644,6 +666,7 @@ function extractState(tree: CapturedElement[], regionRootIds: ReadonlySet<string
     const copy: CapturedElement = { ...el, children: el.children.map(strip) };
     if (eligible.has(el)) {
       copy.textSegments = undefined;
+      copy.textPaintGeometry = undefined;
       copy.text = "";
     }
     return copy;
@@ -958,6 +981,7 @@ function glyphBase(el: CapturedElement): CapturedElement {
     inlineFragments: undefined,
     propagatedDecorations: undefined,
     elementRaster: undefined,
+    textPaintGeometry: undefined,
     styles: {
       ...el.styles,
       backgroundColor: "transparent",

@@ -105,8 +105,9 @@ describe("template render end-to-end (DM-1276)", () => {
     expect([out.width, out.height]).toEqual([640, 360]);
     expect(out.svg).toContain("<svg");
     expect(out.svg).toContain("</svg>");
-    // Soft blobs are radial gradients; the loop is infinite + alternate.
-    expect(out.svg).toMatch(/radialGradient/);
+    // CSS radial gradients are materialized as self-contained PNG patterns by
+    // the current advanced-gradient boundary; motion remains vector animation.
+    expect(out.svg).toMatch(/<pattern[^>]*>[\s\S]*<image href="data:image\/png;base64,/);
     expect(out.svg).toMatch(/infinite/);
     expect(out.svg).toMatch(/alternate/);
   }, 60_000);

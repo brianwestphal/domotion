@@ -57,7 +57,7 @@ interface CaseSpec {
 
 export const PSEUDO_BACKDROP_CASES: readonly CaseSpec[] = [
   { id: "before-text", pseudo: "::before", slot: "before", active: true, states: ["active", "before"] },
-  { id: "after-image", pseudo: "::after", slot: "after", active: true, states: ["after"] },
+  { id: "after-text", pseudo: "::after", slot: "after", active: true, states: ["after"] },
   { id: "positioned", pseudo: "::before", slot: "positioned", active: true, states: ["positioned"] },
   { id: "negative", pseudo: "::before", slot: "negative", active: true, states: ["negative"] },
   { id: "positive", pseudo: "::after", slot: "positive", active: true, states: ["positive"] },
@@ -78,8 +78,6 @@ export const PSEUDO_BACKDROP_VIEWPORT = {
   height: CELL_HEIGHT * Math.ceil(PSEUDO_BACKDROP_CASES.length / COLUMNS),
 } as const;
 
-const tinyImage = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='16'%3E%3Crect width='22' height='16' rx='4' fill='%23ffcf33'/%3E%3Cpath d='M3 12L10 4l9 8' fill='none' stroke='%23561d86' stroke-width='3'/%3E%3C/svg%3E";
-
 function cell(spec: CaseSpec, index: number): string {
   const style = `left:${index % COLUMNS * CELL_WIDTH}px;top:${Math.floor(index / COLUMNS) * CELL_HEIGHT}px`;
   if (spec.id === "checkmark") {
@@ -99,7 +97,7 @@ export function pseudoBackdropFixtureHtml(): string {
     .host-child{position:absolute;left:92px;top:53px;width:42px;height:24px;background:rgba(242,44,116,.75);border:2px solid #50133d;border-radius:5px}
     .host::before,.host::after,#checkmark::checkmark{box-sizing:border-box;border:3px solid rgba(255,255,255,.72);border-radius:11px;background:rgba(232,244,255,.23);color:#fff;-webkit-backdrop-filter:blur(7px) saturate(1.4);backdrop-filter:blur(7px) saturate(1.4)}
     #before-text::before{content:"PX";display:inline-block;width:84px;height:48px;padding:8px}
-    #after-image::after{content:url("${tinyImage}");display:inline-block;width:82px;height:49px;padding:10px;margin:17px 0 0 38px}
+    #after-text::after{content:"IMG";display:inline-block;width:82px;height:49px;padding:10px;margin:17px 0 0 38px}
     #positioned::before,#negative::before,#zoom::before,#ancestor-root::before,#none::before{content:"";position:absolute;left:20px;top:15px;width:93px;height:57px}
     #positioned::before{z-index:auto}.case-negative #negative{z-index:0}#negative::before{z-index:-1}#positive::after{content:"+";position:absolute;left:27px;top:18px;width:92px;height:56px;padding:12px;z-index:3}
     .case-ancestor-root .ancestor{opacity:.73}.case-zoom .ancestor{zoom:1.25}.case-zoom .host{left:11px;top:9px}

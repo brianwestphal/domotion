@@ -59,20 +59,21 @@ describeBrowser("DM-1105: in-flow ::before marker before a child-first line", ()
     try {
       await page.setContent(HTML, { waitUntil: "load" });
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
-
-      // The `.code` host: ::before "+" text is concatenated onto the host text,
-      // so its captured `text` begins with "+".
+      // The `.code` host retains authored text separately from Chromium's
+      // source-owned generated-fragment record.
       let host: CapturedElement | null = null;
       walk(tree, (n) => {
-        if (host == null && typeof n.text === "string" && n.text.startsWith("+") && n.text.includes("run")) host = n;
+        if (host == null && n.text.includes("run")
+          && n.pseudoFragments?.some((fragment) => fragment.pseudo === "::before")) host = n;
       });
-      expect(host, "found the .code host with the '+' ::before").not.toBeNull();
+      expect(host, "found the .code host with a source-owned ::before").not.toBeNull();
       const h = host!;
 
       const segs = (h.textSegments ?? []) as Array<{ text?: string; x: number }>;
-      const plus = segs.find((s) => (s.text ?? "").trim() === "+");
+      const before = h.pseudoFragments?.find((fragment) => fragment.pseudo === "::before");
+      const plus = before?.fragments.find((fragment) => fragment.kind === "text" && fragment.text.trim() === "+");
       const own = segs.find((s) => (s.text ?? "").includes("run"));
-      expect(plus, "captured a '+' segment").toBeTruthy();
+      expect(plus, "captured a '+' generated fragment").toBeTruthy();
       expect(own, "captured the host's own ' run' segment").toBeTruthy();
 
       // The host content-box left is its x (no padding/border on .code itself);
@@ -80,11 +81,11 @@ describeBrowser("DM-1105: in-flow ::before marker before a child-first line", ()
       // (within a few px for the pseudo's own metrics), NOT after the leading
       // `function` token span (which would place it ~100px+ to the right, near
       // the host's own ` run` segment).
-      expect(plus!.x).toBeLessThan(h.x + 12);
-      expect(plus!.x).toBeGreaterThan(h.x - 6);
+      expect(plus!.physicalRect.x).toBeLessThan(h.x + 12);
+      expect(plus!.physicalRect.x).toBeGreaterThan(h.x - 6);
       // And unambiguously to the LEFT of the host's own text run (the bug put it
       // immediately left of `own`, i.e. only ~one glyph-width apart).
-      expect(own!.x - plus!.x).toBeGreaterThan(40);
+      expect(own!.x - plus!.physicalRect.x).toBeGreaterThan(40);
     } finally {
       await page.close();
     }

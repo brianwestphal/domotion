@@ -13,6 +13,15 @@ export default defineConfig({
   },
   test: {
     pool: "forks",
+    // Restore the product render mode after every browser test. Tests that
+    // inspect paths-mode structure opt into it explicitly in their own scope.
+    setupFiles: ["./tests/e2e-setup.ts"],
+    env: {
+      DOMOTION_HELPER_NO_SERVE: "1",
+      // The review server otherwise invokes the platform default-browser
+      // opener. Browser tests drive its URL with Playwright instead.
+      REVIEW_NO_OPEN: "1",
+    },
     testTimeout: 60_000,
     include: ["src/**/*e2e.test.ts", "tests/**/*e2e.test.ts"],
     exclude: ["**/node_modules/**", "**/dist/**", "**/tests/output/**"],

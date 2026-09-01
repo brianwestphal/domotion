@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,6 +9,9 @@ import { composeAnimateFrames, validateAnimateConfig } from "../src/cli/animate.
 import { seekTo } from "../src/cli/svg-to-video-core.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import { PARITY_LAUNCH_OPTS, loadSeekableSvg } from "./flipbook-parity.js";
+import { setRenderTextMode } from "../src/render/text-to-path.js";
+
+beforeEach(() => setRenderTextMode("paths"));
 
 /**
  * Rasterized verification of the flagship `editor-session` example (docs/100
