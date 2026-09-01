@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: []
-tickets: ["DM-946"]
+tickets: ["DM-946", "DM-2635", "DM-2636"]
 code: []
 aliases: ["docs/55-debug-mode-capture.md","doc-55"]
 ---
@@ -94,8 +94,8 @@ the file contract; nothing else in the bundle is `svg-review`-specific.
 
 ## Follow-up tickets
 
-- **DM-XXX (animate --debug)** — extend the bundle to the animate
+- **DM-2636 (animate --debug)** — extend the bundle to the animate
   subcommand (per-frame expected.png + tree + one shared HAR).
-- **DM-XXX (API debug option)** — programmatic equivalent for the
+- **DM-2635 (API debug option)** — programmatic equivalent for the
   `captureElementTree`/`elementTreeToSvg` callers who already manage
   their own browser context.

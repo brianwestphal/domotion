@@ -10,14 +10,24 @@ loading the historical documentation corpus.
   evidence, replaced/native surfaces, and the serialized page capture script.
 - `src/render/` turns captured facts into SVG. It must preserve Chromium's
   decisions; it does not independently lay out the page.
-- `src/animation/`, `src/composite/`, and `src/scroll/` compose static captures
-  into timed frames, nested scenes, and scrolling outputs.
+- `src/animation/`, `src/tree-ops/`, and `src/scroll/` compose and transform
+  static captures into timed frames, nested scenes, and scrolling outputs.
+  Declarative layer composition itself enters through `src/cli/composite.ts`.
 - `src/terminal/` and `src/templates/` are authoring front ends that reuse the
   same render/animation pipeline.
 - `src/post-processing/` exports the self-contained SVG to raster or video.
 - `src/review/` and `src/scrubber/` provide local review and timeline UIs.
 - `src/cli/` exposes capture, animate, template, terminal, review, and scrubber
   workflows.
+- `src/utils/` holds cross-cutting runtime helpers; `src/generated/` contains
+  checked-in generated source; and `src/test-support/` contains reusable test
+  lifecycle helpers.
+
+## Published command-line programs
+
+- `domotion` — capture, animate, terminal, template, composite, and storyboard
+- `svg-to-video` and `svg-to-image` — export animated or static SVG output
+- `svg-review` and `svg-scrubber` — inspect static diffs or animated timelines
 
 ## Correctness and evidence
 
