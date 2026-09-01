@@ -14,6 +14,8 @@ describe("openInBrowser", () => {
     expect(shouldOpenInBrowser({ DOMOTION_NO_OPEN: "1", DOMOTION_OPEN_BROWSER: "1" }, true)).toBe(false);
     expect(shouldOpenInBrowser({ CI: "true", DOMOTION_OPEN_BROWSER: "1" }, true)).toBe(false);
     expect(shouldOpenInBrowser({ CODEX_CI: "1", DOMOTION_OPEN_BROWSER: "1" }, true)).toBe(false);
+    expect(shouldOpenInBrowser({ CODEX_SESSION_ID: "session", DOMOTION_OPEN_BROWSER: "1" }, true)).toBe(false);
+    expect(shouldOpenInBrowser({ CODEX_THREAD_ID: "thread", DOMOTION_OPEN_BROWSER: "1" }, true)).toBe(false);
     expect(shouldOpenInBrowser({ HOTSHEET_DRIVE_SPAWNED: "1", DOMOTION_OPEN_BROWSER: "1" }, true)).toBe(false);
   });
 
