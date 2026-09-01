@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["images-media"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-2380","DM-457"]
-code: ["src/capture/index.ts","src/capture/replaced-media-frame.test.ts","src/capture/replaced-media-frame.ts","src/render/element-tree-to-svg.ts","tests/features.ts","tests/replaced-media-frame.e2e.test.ts","tests/replaced-snapshot-transform.e2e.test.ts"]
+tickets: ["DM-2380","DM-457","DM-2642"]
+code: ["src/capture/replaced-element-raster.ts","src/capture/replaced-element-raster.test.ts","src/capture/replaced-media-frame.test.ts","src/capture/replaced-media-frame.ts","src/render/element-tree-to-svg.ts","tests/features.ts","tests/replaced-media-frame.e2e.test.ts","tests/replaced-snapshot-transform.e2e.test.ts"]
 aliases: ["docs/17-replaced-element-snapshots.md","doc-17"]
 ---
 
@@ -119,7 +119,7 @@ outside that ownership boundary.
 
 1. **CAPTURE_SCRIPT**: when `tag` is one of the five replaced types and the element has non-zero area and is not `display: none`, assign `data-domotion-rid` and emit a bootstrap content-box rect. That rect is retained only for an untransformed CDP-unavailable fallback; normal capture replaces it with Blink's authoritative quad-derived mapping. The warning is still emitted on the same code path.
 
-2. **Post-capture pass — `rasterizeReplacedElements()`** in `src/capture/index.ts`. Runs after `rasterizeBitmapGlyphs` inside `captureElementTreeWithWarnings()`. It:
+2. **Post-capture pass — `rasterizeReplacedElements()`** in `src/capture/replaced-element-raster.ts`. The capture orchestrator calls this typed subsystem after `rasterizeBitmapGlyphs`. It owns its CDP session, isolation stylesheet, per-target mutation restoration, final marker cleanup, and a structured non-fatal failure report. Failures are also appended to the capture-owned warning sink. It:
    - Walks the captured tree collecting `(stableId, contentRect)` pairs for every flagged element.
    - Injects the hide stylesheet via `page.addStyleTag`.
    - Opens one CDP session and reads the target's `DOM.getBoxModel` content (or border quad for the sprite-icon route).

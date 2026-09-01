@@ -341,7 +341,8 @@
         "windows"
       ],
       "code": [
-        "src/capture/index.ts",
+        "src/capture/replaced-element-raster.ts",
+        "src/capture/replaced-element-raster.test.ts",
         "src/capture/replaced-media-frame.test.ts",
         "src/capture/replaced-media-frame.ts",
         "src/render/element-tree-to-svg.ts",
