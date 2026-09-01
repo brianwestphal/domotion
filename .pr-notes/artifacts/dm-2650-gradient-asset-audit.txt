@@ -1,0 +1,55 @@
+DM-2650 percentage radial-gradient asset audit
+Date: 2026-09-02 Asia/Manila
+Renderer fix: 602f24a9 (fix(render): restore percentage radial ellipses)
+
+Generation
+- examples/hero-product-demo.ts: success
+- examples/showcase-transitions.ts: success
+- examples/transition-tour.ts: success
+- examples/transition-mixed.ts: success
+- examples/templates-demo.ts: success
+- examples/format-capture-demo.ts: success
+- site/scripts/build-demos.mjs: 107 public demo assets copied
+- All browser launches were explicitly headless.
+
+Committed asset audit
+- examples/output/format-capture-landscape.svg: radial 0 -> 1
+- examples/output/format-capture-reel.svg: radial 0 -> 1
+- examples/output/hero-product-demo.svg: radial 1 -> 2
+- examples/output/templates/device-mockup-browser.svg: radial 0 -> 1
+- examples/output/templates/device-mockup-phone.svg: radial 0 -> 1
+- examples/output/templates/device-mockup-window.svg: radial 0 -> 1
+- examples/output/templates/format-reel-device-mockup.svg: radial 0 -> 1
+- examples/output/transition-clock.svg: radial 0 -> 2
+- examples/output/transition-crossfade.svg: radial 0 -> 2
+- examples/output/transition-effects.svg: radial 0 -> 1
+- examples/output/transition-iris.svg: radial 0 -> 2
+- examples/output/transition-magicmove.svg: radial 0 -> 4
+- examples/output/transition-mixed.svg: radial 0 -> 5
+- examples/output/transition-pushleft.svg: radial 0 -> 2
+- examples/output/transition-scroll.svg: radial 0 -> 2
+- examples/output/transition-shine.svg: radial 0 -> 2
+- examples/output/transition-tour.svg: radial 0 -> 4
+- examples/output/transition-wipe.svg: radial 0 -> 2
+- examples/output/transition-zoom.svg: radial 0 -> 2
+
+Every radialGradient id has a matching url(#id) paint reference. Every refreshed
+site/public/demos copy byte-matches its examples/output source. The phone, window,
+and reel-device templates were additional affected outputs discovered by auditing
+all uses of the sample-app source.
+
+Headless source-vs-generated background crop (format-capture-landscape)
+- Chromium: MAE 0.0617, max channel delta 19
+- Firefox: MAE 0.3774 (one sparse edge outlier; background colors/corners match)
+- WebKit: MAE 0.2817, max channel delta 35
+
+Representative Chromium alpha at four canvas corners
+- format-capture-reel.svg: 255 / 255 / 255 / 255
+- transition-crossfade.svg: 255 / 255 / 255 / 255
+- hero-product-demo.svg: 255 / 255 / 255 / 255
+- device-mockup-browser.svg: 0 / 0 / 0 / 0 (intentional rounded bezel)
+
+Representative center pixels were opaque in Chromium, Firefox, and WebKit. The
+format and transition corners show the intended dark gradients in every engine;
+the device mockup center shows the restored page gradient while preserving the
+transparent exterior of its rounded browser frame.
