@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtiyzodd2evxub78",
+          "message": {
+            "text": "The HAR belongs to the one persistent animation BrowserContext, not to individual frames. Continued frames share browser state and network history, and explicit context.close is the Playwright flush boundary; the browser-level finally remains a separate outer lifecycle.",
+            "markdown": "The HAR belongs to the one persistent animation BrowserContext, not to individual frames. Continued frames share browser state and network history, and explicit context.close is the Playwright flush boundary; the browser-level finally remains a separate outer lifecycle."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/animate-capture-session.ts"
+                },
+                "region": {
+                  "startLine": 34,
+                  "endLine": 60,
+                  "snippet": {
+                    "text": "  const context = await browser.newContext({\n    viewport: { width: options.width, height: options.height },\n    isMobile: options.mobile,\n    ...(options.mobile ? { userAgent: \"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)\" } : {}),\n    ...(options.colorScheme != null ? { colorScheme: options.colorScheme } : {}),\n    ...(options.recordHarPath != null\n      ? { recordHar: { path: options.recordHarPath, mode: \"minimal\" as const } }\n      : {}),\n  });\n  if (options.brand != null) await injectBrandVariables(context, options.brand);\n  const page = await context.newPage();\n  page.setDefaultTimeout(90_000);\n  page.setDefaultNavigationTimeout(90_000);\n\n  clearWebfonts();\n  clearEmbeddedFonts();\n  clearGlyphDefs();\n  const tracker = attachWebfontTracker(page);\n  let closed = false;\n  return {\n    page,\n    tracker,\n    async close(): Promise<void> {\n      if (closed) return;\n      closed = true;\n      tracker.detach();\n      await context.close();"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/animate-orchestrator.ts"
+                },
+                "region": {
+                  "startLine": 2750
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2636"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "82ad9afea3871e55e0afdbefb5fb35fe"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f4402945a960485a8143220b48263638a3bca71a",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -26,7 +26,9 @@ loading the historical documentation corpus.
   `animation/animator.ts` is the stable facade; `svg-generator.ts` and
   `frame-timeline.ts` own SVG emission and the deterministic clock.
   Declarative capture is split across the `cli/animate-*` command, artifact,
-  capture-session, frame-capture, and orchestration modules. Declarative layer
+  capture-session, frame-capture, debug-bundle, and orchestration modules;
+  `cli/debug-bundle.ts` shares reproduction-directory naming with static
+  capture. Declarative layer
   composition itself enters through `src/cli/composite.ts`.
 - `src/terminal/` and `src/templates/` are authoring front ends that reuse the
   same render/animation pipeline.

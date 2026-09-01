@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["animation"]
 platforms: []
-tickets: ["DM-1130","DM-1132","DM-1137","DM-1138","DM-2641"]
-code: ["src/cli/animate-capture-session.ts","src/cli/animate-frame-capture.ts","src/cli/animate-orchestrator.ts","src/cli/animate.ts"]
+tickets: ["DM-1130","DM-1132","DM-1137","DM-1138","DM-2636","DM-2641"]
+code: ["src/cli/animate-capture-session.ts","src/cli/animate-debug.ts","src/cli/animate-frame-capture.ts","src/cli/animate-orchestrator.ts","src/cli/animate.ts","tests/animate-debug.e2e.test.ts"]
 aliases: ["docs/60-programmatic-animate-pipeline.md","doc-60"]
 ---
 
@@ -111,6 +111,12 @@ The options form works on both `composeAnimateConfig` and `composeAnimateFrames`
 the positional `(configDir?, log?)` form stays supported. Caveats: mutating `tree`
 does NOT re-render the already-serialized `frame.svgContent` (edit `svgContent` /
 `overlays` instead); scroll-block frames pass `tree === null`.
+
+The same options object accepts `debugDir`. When present, the orchestration
+context records one shared HAR and writes each frame's source PNG and raw tree
+using the [animate debug-bundle contract](237-animate-debug-reproduction-bundles.md).
+The caller still owns writing the returned final SVG into `actual.svg`; the
+`domotion animate` CLI does that after its optimization/output stage.
 
 ## `configDir` is optional
 

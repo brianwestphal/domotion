@@ -51,6 +51,7 @@ import {
   timed,
   writeOutput,
 } from "./common.js";
+import { setupDebugBundle } from "./debug-bundle.js";
 
 interface CaptureFlags {
   output?: string;
@@ -110,38 +111,6 @@ function validateCaptureFlags(values: CaptureFlagValues, har: boolean): void {
   if (!har && (values.url != null || values["har-fallback"] === true)) {
     throw new Error("capture: --url / --har-fallback only apply to a .har input");
   }
-}
-
-/**
- * Resolve + create the `--debug` reproduction-bundle directory (extracted from
- * `runCapture`, DM-1458). DM-945: `--debug` records a HAR + a 1× page screenshot
- * + the captured-tree JSON to `<output>.debug/` (overridable with `--debug-dir
- * <path>`), giving consumers a turnkey reproduction bundle — including the
- * `expected.png` / `actual.svg` pair `svg-review` (DM-946) consumes directly.
- * Returns whether debug is on and the resolved directory (created on disk).
- */
-async function setupDebugBundle(
-  debugFlag: boolean | undefined,
-  debugDirFlag: string | undefined,
-  output: string | undefined,
-  log: (msg: string) => void,
-): Promise<{ debug: boolean; debugDir: string | undefined }> {
-  const debug = debugFlag === true || debugDirFlag != null;
-  if (!debug) return { debug, debugDir: undefined };
-  const { mkdirSync } = await import("node:fs");
-  const { resolve, dirname, basename } = await import("node:path");
-  let debugDir: string;
-  if (debugDirFlag != null) {
-    debugDir = resolve(debugDirFlag);
-  } else if (output != null) {
-    const outPath = resolve(output);
-    debugDir = resolve(dirname(outPath), `${basename(outPath, ".svg").replace(/\.svgz$/, "")}.debug`);
-  } else {
-    throw new Error("capture: --debug requires either --output (so we can derive <output>.debug/) or --debug-dir <path>");
-  }
-  mkdirSync(debugDir, { recursive: true });
-  log(`Debug bundle → ${debugDir}/`);
-  return { debug, debugDir };
 }
 
 export async function runCapture(args: string[], help: string): Promise<void> {
@@ -230,7 +199,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
   };
 
   const log = makeLogger(values.quiet === true);
-  const { debug, debugDir } = await setupDebugBundle(values.debug, values["debug-dir"], flags.output, log);
+  const { debug, debugDir } = setupDebugBundle("capture", values.debug, values["debug-dir"], flags.output, log);
   // DM-1442: opt-in cross-origin iframe recursion launches Chromium with web
   // security disabled (so cross-origin contentDocuments are readable). That
   // ALSO disables CORS for the whole capture session, so a malicious/untrusted

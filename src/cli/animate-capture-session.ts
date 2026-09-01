@@ -11,6 +11,8 @@ export interface AnimateCaptureSessionOptions {
   mobile: boolean;
   colorScheme?: "light" | "dark" | "no-preference";
   brand?: Brand;
+  /** DM-2636: one shared HAR for every page-backed animation frame. */
+  recordHarPath?: string;
 }
 
 export interface AnimateCaptureSession {
@@ -34,6 +36,9 @@ export async function openAnimateCaptureSession(
     isMobile: options.mobile,
     ...(options.mobile ? { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" } : {}),
     ...(options.colorScheme != null ? { colorScheme: options.colorScheme } : {}),
+    ...(options.recordHarPath != null
+      ? { recordHar: { path: options.recordHarPath, mode: "minimal" as const } }
+      : {}),
   });
   if (options.brand != null) await injectBrandVariables(context, options.brand);
   const page = await context.newPage();

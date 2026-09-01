@@ -194,6 +194,9 @@ animate config (JSON):
                            inset rides through to any "template" frame (page frames
                            only get resized). See docs/90-format-on-capture.md.
         --width/--height <n> Override the config canvas on one/both axes.
+        --debug              Write one shared HAR plus per-frame source PNG/tree
+                             artifacts next to the output.
+        --debug-dir <path>   Override the animation debug-bundle directory.
         --optimize | --no-optimize | --quiet
 
   Transitions: compatibility presets plus parameterized "push", "reveal", "zoom",
@@ -254,6 +257,13 @@ animate options:
                            properties onto every CAPTURED frame's :root before
                            capture (same var names as capture --brand; see
                            docs/92). Template/cast frames theme themselves.
+      --debug              Write a reproduction bundle next to the output:
+                           capture.har, final actual.svg, and
+                           frames/NNN/{expected.png,captured-tree.json}.
+                           Embedded/compound frames write JSON null when no
+                           single captured element tree exists.
+      --debug-dir <path>   Override the .debug/ folder location (also enables
+                           debug without requiring an output path).
       --quiet              Suppress per-phase progress messages on stderr.
 
 Examples:

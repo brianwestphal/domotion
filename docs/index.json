@@ -1970,7 +1970,12 @@
           "DM-2635",
           "DM-2636"
         ],
-        "code": [],
+        "code": [
+          "src/cli/capture.ts",
+          "src/cli/debug-bundle.test.ts",
+          "src/cli/debug-bundle.ts",
+          "src/cli/review.ts"
+        ],
         "aliases": [
           "docs/55-debug-mode-capture.md",
           "doc-55"
@@ -2106,13 +2111,16 @@
           "DM-1132",
           "DM-1137",
           "DM-1138",
+          "DM-2636",
           "DM-2641"
         ],
         "code": [
           "src/cli/animate-capture-session.ts",
+          "src/cli/animate-debug.ts",
           "src/cli/animate-frame-capture.ts",
           "src/cli/animate-orchestrator.ts",
-          "src/cli/animate.ts"
+          "src/cli/animate.ts",
+          "tests/animate-debug.e2e.test.ts"
         ],
         "aliases": [
           "docs/60-programmatic-animate-pipeline.md",
@@ -7600,6 +7608,38 @@
       }
     },
     {
+      "file": "237-animate-debug-reproduction-bundles.md",
+      "metadata": {
+        "id": "requirements/animate-debug-reproduction-bundles",
+        "title": "Animate debug reproduction bundles",
+        "kind": "contract",
+        "status": "current",
+        "owners": [
+          "animation"
+        ],
+        "platforms": [
+          "macos",
+          "linux",
+          "windows"
+        ],
+        "tickets": [
+          "DM-2636"
+        ],
+        "code": [
+          "src/cli/animate-command.ts",
+          "src/cli/animate-debug.ts",
+          "src/cli/animate-orchestrator.ts",
+          "src/cli/animate-capture-session.ts",
+          "src/cli/debug-bundle.ts",
+          "tests/animate-debug.e2e.test.ts"
+        ],
+        "aliases": [
+          "docs/237-animate-debug-reproduction-bundles.md",
+          "doc-237"
+        ]
+      }
+    },
+    {
       "file": "handbook/animation-and-interaction.md",
       "metadata": {
         "id": "handbook/animation-and-interaction",
@@ -7616,6 +7656,7 @@
         ],
         "tickets": [
           "DM-2596",
+          "DM-2636",
           "DM-2641"
         ],
         "code": [
@@ -7623,10 +7664,13 @@
           "src/cli/animate-artifact.ts",
           "src/cli/animate-capture-session.ts",
           "src/cli/animate-command.ts",
+          "src/cli/animate-debug.ts",
           "src/cli/animate-frame-capture.ts",
           "src/cli/animate-orchestrator.ts",
           "src/cli/animate.ts",
           "src/cli/composite.ts",
+          "src/cli/debug-bundle.ts",
+          "tests/animate-debug.e2e.test.ts",
           "tests/animate-examples.tsx"
         ],
         "aliases": [
@@ -7755,10 +7799,12 @@
         ],
         "tickets": [
           "DM-2596",
-          "DM-2604"
+          "DM-2604",
+          "DM-2636"
         ],
         "code": [
           ".github/workflows/",
+          "tests/animate-debug.e2e.test.ts",
           "tests/feature-coverage.ts",
           "tools/parity-program.json",
           "scripts/ci-run-fast-visuals.mjs"
@@ -8490,6 +8536,9 @@
     ],
     "236": [
       "requirements/strict-static-frames-for-svg-css-images"
+    ],
+    "237": [
+      "requirements/animate-debug-reproduction-bundles"
     ],
     "01": [
       "requirements/fidelity"

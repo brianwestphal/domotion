@@ -14,8 +14,16 @@ export interface AnimateArtifactRequest {
   log: (message: string) => void;
 }
 
+export interface AnimateArtifactResult {
+  /** Final plain SVG after optional optimization. */
+  svg: string;
+  /** Resolved file destination, or null when streamed to stdout. */
+  outPath: string | null;
+  svgz: boolean;
+}
+
 /** Optimize, resolve the destination, and write one completed animation. */
-export async function writeAnimateArtifact(request: AnimateArtifactRequest): Promise<void> {
+export async function writeAnimateArtifact(request: AnimateArtifactRequest): Promise<AnimateArtifactResult> {
   const svgz = isSvgzPath(request.outputArg);
   const optimize = request.optimizeRequested
     || (request.optimizeConfigured && !request.noOptimize)
@@ -30,4 +38,5 @@ export async function writeAnimateArtifact(request: AnimateArtifactRequest): Pro
   }
   const outPath = resolveOutputPath(request.outputArg, request.configPath, ".svg");
   writeOutput(svg, outPath, svgz, `, ${request.frameCount} frames`);
+  return { svg, outPath, svgz };
 }

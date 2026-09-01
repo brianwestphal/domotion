@@ -7,7 +7,7 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
-import { isAbsolute, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { z } from "zod";
 import type { Browser, Page, CDPSession } from "@playwright/test";
 // DM-1131: the authoring overlay / intra-frame-animation schemas below EXTEND
@@ -84,6 +84,7 @@ import { buildTypeResampleAnimation, resolveTypeResampleSpec } from "./type-resa
 import { buildJsRevealAnimation, resolveJsRevealSpec, MUTATION_DETECT_EVENTS } from "./mutation-detect.js";
 import { openAnimateCaptureSession } from "./animate-capture-session.js";
 import { captureAnimateFrame } from "./animate-frame-capture.js";
+import { prepareAnimateDebugBundle, writeEmbeddedAnimateDebugFrame, writeLiveAnimateDebugFrame } from "./animate-debug.js";
 import {
   applyReadyWaits,
   loadInputIntoPage,
@@ -1089,6 +1090,10 @@ export interface ComposeAnimateOptions {
    * viewport. Omitted → no inset.
    */
   safeInset?: SafeInset;
+  /** DM-2636: internal CLI reproduction-bundle destination. When present, the
+   *  capture session records one shared HAR and writes one source/tree pair per
+   *  composed frame. Programmatic callers may also opt in. */
+  debugDir?: string;
 }
 
 /** Normalize the `(configDir?, log?)` positional form OR the `(opts?)` object
@@ -1096,7 +1101,7 @@ export interface ComposeAnimateOptions {
 function normalizeComposeArgs(
   configDirOrOpts?: string | ComposeAnimateOptions,
   log?: (msg: string) => void,
-): { configDir: string; log: (msg: string) => void; onFrame?: OnFrameHook; brand?: Brand; safeInset?: SafeInset } {
+): { configDir: string; log: (msg: string) => void; onFrame?: OnFrameHook; brand?: Brand; safeInset?: SafeInset; debugDir?: string } {
   if (configDirOrOpts != null && typeof configDirOrOpts === "object") {
     return {
       configDir: configDirOrOpts.configDir ?? process.cwd(),
@@ -1104,6 +1109,7 @@ function normalizeComposeArgs(
       onFrame: configDirOrOpts.onFrame,
       brand: configDirOrOpts.brand,
       safeInset: configDirOrOpts.safeInset,
+      debugDir: configDirOrOpts.debugDir,
     };
   }
   return { configDir: configDirOrOpts ?? process.cwd(), log: log ?? (() => {}), onFrame: undefined };
@@ -2709,7 +2715,7 @@ export async function composeAnimateFrames(
   configDirOrOpts?: string | ComposeAnimateOptions,
   logArg?: (msg: string) => void,
 ): Promise<AnimationConfig> {
-  const { configDir, log, onFrame, brand, safeInset } = normalizeComposeArgs(configDirOrOpts, logArg);
+  const { configDir, log, onFrame, brand, safeInset, debugDir } = normalizeComposeArgs(configDirOrOpts, logArg);
   // DM-852: resolve `${vars}` across every string field before anything runs.
   cfg = interpolateConfigVars(cfg);
   // DM-1562: expand `hoverReveal` sugar (pure) into rest + forced-hover frames.
@@ -2743,12 +2749,14 @@ export async function composeAnimateFrames(
   // from clobbering the outer frames' embedded fonts. Each rendered template SVG
   // is a finished string by the time the outer loop reaches its frame.
   const templateRenders = await renderTemplateFrames(cfg, browser, log, safeInset, runBrand);
+  if (debugDir != null) prepareAnimateDebugBundle(debugDir);
   const session = await openAnimateCaptureSession(browser, {
     width: cfg.width,
     height: cfg.height,
     mobile: cfg.mobile === true,
     ...(cfg.colorScheme != null ? { colorScheme: cfg.colorScheme } : {}),
     ...(runBrand != null ? { brand: runBrand } : {}),
+    ...(debugDir != null ? { recordHarPath: join(debugDir, "capture.har") } : {}),
   });
   try {
     const { page, tracker } = session;
@@ -2798,7 +2806,16 @@ export async function composeAnimateFrames(
       // this frame's content — a self-contained animated terminal SVG nested
       // like a `scroll` block. It bypasses the page-load/capture path entirely.
       if (fc.cast != null) {
-        frames.push(await buildCastFrame(fc, i, cfg, configDir, browser, log));
+        const frame = await buildCastFrame(fc, i, cfg, configDir, browser, log);
+        frames.push(frame);
+        if (debugDir != null) {
+          await writeEmbeddedAnimateDebugFrame({
+            debugDir, index: i, frameCount: cfg.frames.length,
+            width: cfg.width, height: cfg.height, tree: null, log,
+            sessionPage: page, svgContent: frame.svgContent,
+            fontFaceCss: getEmbeddedFontFaceCss(),
+          });
+        }
         // A cast frame has no single captured tree; magic-move to/from it falls
         // back to crossfade, and the cursor/overlay machinery is skipped.
         prevFrameTree = null;
@@ -2809,7 +2826,16 @@ export async function composeAnimateFrames(
       // pre-rendered above into a finished (self-contained, possibly animated)
       // SVG string. Nest it exactly like a `cast` frame.
       if (fc.template != null) {
-        frames.push(buildTemplateFrame(fc, i, cfg, configDir, templateRenders, log));
+        const frame = buildTemplateFrame(fc, i, cfg, configDir, templateRenders, log);
+        frames.push(frame);
+        if (debugDir != null) {
+          await writeEmbeddedAnimateDebugFrame({
+            debugDir, index: i, frameCount: cfg.frames.length,
+            width: cfg.width, height: cfg.height, tree: null, log,
+            sessionPage: page, svgContent: frame.svgContent,
+            fontFaceCss: getEmbeddedFontFaceCss(),
+          });
+        }
         prevFrameTree = null;
         frameTrees.push(null);
         continue;
@@ -2822,6 +2848,13 @@ export async function composeAnimateFrames(
       const { frame, frameTree, rootBg } = await buildCapturedFrame(fc, i, capturedCtx);
       if (i === 0) canvasBg = rootBg;
       frames.push(frame);
+
+      if (debugDir != null) {
+        await writeLiveAnimateDebugFrame({
+          debugDir, index: i, frameCount: cfg.frames.length,
+          width: cfg.width, height: cfg.height, tree: frameTree, log, page,
+        });
+      }
 
       // DM-1138 (doc 62 §2): per-frame hook — fired after the frame is pushed
       // (so `frame.overlays` mutations land in the final SVG) and while the page

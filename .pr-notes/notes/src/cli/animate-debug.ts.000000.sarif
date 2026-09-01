@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtiyzoddnpvrgvhf",
+          "message": {
+            "text": "Embedded cast/template frames still receive a complete artifact pair without inventing a DOM tree. Their authoritative frame source is the nested self-contained SVG, so it is rasterized at time zero in headless Chromium and captured-tree.json contains explicit JSON null; omitting either file would make consumers guess whether collection failed.",
+            "markdown": "Embedded cast/template frames still receive a complete artifact pair without inventing a DOM tree. Their authoritative frame source is the nested self-contained SVG, so it is rasterized at time zero in headless Chromium and captured-tree.json contains explicit JSON null; omitting either file would make consumers guess whether collection failed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/animate-debug.ts"
+                },
+                "region": {
+                  "startLine": 52,
+                  "endLine": 90,
+                  "snippet": {
+                    "text": "/**\n * Embedded cast/template frames have no source DOM tree. Rasterize the exact\n * nested frame content in Chromium and write JSON `null` as the explicit tree\n * sentinel, so every composed frame still has a complete artifact pair.\n */\nexport async function writeEmbeddedAnimateDebugFrame(request: EmbeddedAnimateDebugFrameRequest): Promise<void> {\n  const dir = frameDirectory(request.debugDir, request.index, request.frameCount);\n  mkdirSync(dir, { recursive: true });\n  const page = await request.sessionPage.context().newPage();\n  try {\n    await page.setViewportSize({ width: request.width, height: request.height });\n    await page.setContent(\n      `<!doctype html><style>html,body{margin:0;width:100%;height:100%;overflow:hidden}</style>`\n      + `<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"${request.width}\" height=\"${request.height}\" viewBox=\"0 0 ${request.width} ${request.height}\">`\n      + `<style>${request.fontFaceCss}</style>${request.svgContent}</svg>`,\n      { waitUntil: \"load\" },\n    );\n    await page.evaluate(() => document.fonts.ready);\n    await page.evaluate(() => {\n      for (const animation of document.getAnimations()) {\n        animation.pause();\n        animation.currentTime = 0;\n      }\n      const svg = document.querySelector(\"svg\");\n      if (svg != null && \"pauseAnimations\" in svg && typeof svg.pauseAnimations === \"function\") {\n        svg.pauseAnimations();\n        svg.setCurrentTime(0);\n      }\n    });\n    await page.screenshot({\n      path: join(dir, \"expected.png\"),\n      clip: { x: 0, y: 0, width: request.width, height: request.height },\n      omitBackground: false,\n    });\n  } finally {\n    await page.close();\n  }\n  writeFileSync(join(dir, \"captured-tree.json\"), \"null\");\n  request.log(`  debug: frames/${basename(dir)}/expected.png + captured-tree.json (embedded frame)`);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "alternative-considered"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/237-animate-debug-reproduction-bundles.md"
+                },
+                "region": {
+                  "startLine": 42
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2636"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "543ddfa7f794b3b5fda8ab6205066fed"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f4402945a960485a8143220b48263638a3bca71a",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

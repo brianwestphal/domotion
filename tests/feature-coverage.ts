@@ -370,6 +370,13 @@ export const FEATURES: FeatureEntry[] = [
     tests: ["src/cli/animate.test.ts", "tests/showcase-transitions.test.ts"],
   },
   {
+    id: "animate.debug-bundle",
+    behavior: "Record one shared animation HAR and a complete expected-PNG/raw-tree pair per composed frame, alongside the final plain actual.svg.",
+    doc: "docs/237-animate-debug-reproduction-bundles.md",
+    verbs: ["animate"],
+    tests: ["src/cli/debug-bundle.test.ts", "tests/animate-debug.e2e.test.ts"],
+  },
+  {
     id: "animate.config",
     behavior: "Validate the animate config (zod) + ${} var interpolation.",
     doc: "docs/60-programmatic-animate-pipeline.md",

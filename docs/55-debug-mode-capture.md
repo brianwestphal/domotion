@@ -6,7 +6,7 @@ status: "current"
 owners: ["rendering"]
 platforms: []
 tickets: ["DM-946", "DM-2635", "DM-2636"]
-code: []
+code: ["src/cli/capture.ts","src/cli/debug-bundle.test.ts","src/cli/debug-bundle.ts","src/cli/review.ts"]
 aliases: ["docs/55-debug-mode-capture.md","doc-55"]
 ---
 
@@ -78,24 +78,22 @@ visually annotate the regions that matter and copy a GitHub-issue-ready
 Markdown block. The two tools share `expected.png` + `actual.svg` as
 the file contract; nothing else in the bundle is `svg-review`-specific.
 
+`domotion animate` now applies the same hand-off principle to multiple frames:
+one shared HAR and final `actual.svg`, plus a numbered `expected.png` / tree pair
+for every composed frame. See [Animate debug reproduction bundles](237-animate-debug-reproduction-bundles.md).
+
 ## Not in v1 (deferred)
 
 - **API surface**: there's no programmatic `captureElementTree({ debug
   : true })` equivalent yet. The CLI flag covers the consumer flow
   (`npx domotion capture …`); programmatic consumers can replicate by
   passing their own `recordHar` to the context they create.
-- **Per-frame artifacts for `animate`**: `domotion animate --debug` is
-  not yet wired up. Same artifact set applies in principle (one
-  expected.png + captured-tree.json per frame, one shared HAR); track
-  as a follow-up if a consumer asks.
 - **Tree dump format**: `captured-tree.json` is the raw element-tree
   JSON. It's stable enough for issue triage but not a public schema —
   treat it as an opaque artifact attached to a bug.
 
 ## Follow-up tickets
 
-- **DM-2636 (animate --debug)** — extend the bundle to the animate
-  subcommand (per-frame expected.png + tree + one shared HAR).
 - **DM-2635 (API debug option)** — programmatic equivalent for the
   `captureElementTree`/`elementTreeToSvg` callers who already manage
   their own browser context.

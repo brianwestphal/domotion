@@ -1085,7 +1085,12 @@
         "rendering"
       ],
       "platforms": [],
-      "code": [],
+      "code": [
+        "src/cli/capture.ts",
+        "src/cli/debug-bundle.test.ts",
+        "src/cli/debug-bundle.ts",
+        "src/cli/review.ts"
+      ],
       "file": "55-debug-mode-capture.md"
     },
     {
@@ -1170,9 +1175,11 @@
       "platforms": [],
       "code": [
         "src/cli/animate-capture-session.ts",
+        "src/cli/animate-debug.ts",
         "src/cli/animate-frame-capture.ts",
         "src/cli/animate-orchestrator.ts",
-        "src/cli/animate.ts"
+        "src/cli/animate.ts",
+        "tests/animate-debug.e2e.test.ts"
       ],
       "file": "60-programmatic-animate-pipeline.md"
     },
@@ -4711,6 +4718,29 @@
       "file": "236-strict-static-frames-for-svg-css-images.md"
     },
     {
+      "id": "requirements/animate-debug-reproduction-bundles",
+      "title": "Animate debug reproduction bundles",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "animation"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/cli/animate-command.ts",
+        "src/cli/animate-debug.ts",
+        "src/cli/animate-orchestrator.ts",
+        "src/cli/animate-capture-session.ts",
+        "src/cli/debug-bundle.ts",
+        "tests/animate-debug.e2e.test.ts"
+      ],
+      "file": "237-animate-debug-reproduction-bundles.md"
+    },
+    {
       "id": "handbook/animation-and-interaction",
       "title": "Animation and interaction handbook",
       "kind": "contract",
@@ -4728,10 +4758,13 @@
         "src/cli/animate-artifact.ts",
         "src/cli/animate-capture-session.ts",
         "src/cli/animate-command.ts",
+        "src/cli/animate-debug.ts",
         "src/cli/animate-frame-capture.ts",
         "src/cli/animate-orchestrator.ts",
         "src/cli/animate.ts",
         "src/cli/composite.ts",
+        "src/cli/debug-bundle.ts",
+        "tests/animate-debug.e2e.test.ts",
         "tests/animate-examples.tsx"
       ],
       "file": "handbook/animation-and-interaction.md"
@@ -4826,6 +4859,7 @@
       ],
       "code": [
         ".github/workflows/",
+        "tests/animate-debug.e2e.test.ts",
         "tests/feature-coverage.ts",
         "tools/parity-program.json",
         "scripts/ci-run-fast-visuals.mjs"

@@ -9,6 +9,8 @@ import { resolveFormat, type SafeInset } from "../templates/formats.js";
 import { makeLogger, parseIntFlag } from "./common.js";
 import { composeAnimateConfig, validateAnimateConfig } from "./animate-orchestrator.js";
 import { writeAnimateArtifact } from "./animate-artifact.js";
+import { logAnimateDebugBundle, writeAnimateDebugActual } from "./animate-debug.js";
+import { setupDebugBundle } from "./debug-bundle.js";
 
 export async function runAnimate(args: string[], help: string): Promise<void> {
   const { values, positionals } = parseArgs({
@@ -26,6 +28,8 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
       "no-auto-compress": { type: "boolean" },
       brand: { type: "string" },
       quiet: { type: "boolean" },
+      debug: { type: "boolean" },
+      "debug-dir": { type: "string" },
       help: { type: "boolean", short: "h" },
     },
   });
@@ -57,6 +61,8 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
   if (values.height != null) cfg.height = parseIntFlag(values.height, "height", cfg.height);
 
   const log = makeLogger(values.quiet === true);
+  const outputArg = values.output ?? cfg.output;
+  const { debug, debugDir } = setupDebugBundle("animate", values.debug, values["debug-dir"], outputArg, log);
   const brand: Brand | undefined = values.brand != null ? loadBrand(resolve(values.brand)) : undefined;
   log("Launching Chromium…");
   const browser = await launchChromium();
@@ -67,14 +73,15 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
       log,
       ...(brand != null ? { brand } : {}),
       ...(safeInset != null ? { safeInset } : {}),
+      ...(debugDir != null ? { debugDir } : {}),
     });
   } finally {
     await browser.close();
   }
 
-  await writeAnimateArtifact({
+  const artifact = await writeAnimateArtifact({
     svg,
-    outputArg: values.output ?? cfg.output,
+    outputArg,
     configPath,
     frameCount: cfg.frames.length,
     optimizeRequested: values.optimize === true,
@@ -82,4 +89,8 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
     noOptimize: values["no-optimize"] === true,
     log,
   });
+  if (debug && debugDir != null) {
+    writeAnimateDebugActual(debugDir, artifact.svg);
+    logAnimateDebugBundle(debugDir, log);
+  }
 }
