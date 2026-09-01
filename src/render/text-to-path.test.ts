@@ -43,7 +43,7 @@ describe("embedded system-font terminal rendering (DM-2623)", () => {
     expect(embeddedSystemFontTextRendering("linux", true, true, "WenQuanYiZenHei", undefined, "optimizeSpeed")).toBeNull();
   });
 
-  it("limits target strikes to individually measured Linux WQY surfaces", () => {
+  it("limits target strikes to individually measured Linux surfaces", () => {
     expect(embeddedLinuxTargetStrikeEnabled("linux", "WenQuanYiZenHeiMono", 17, 400, 0, 100)).toBe(true);
     expect(embeddedLinuxTargetStrikeEnabled("linux", "WenQuanYiZenHeiMono", 26, 700, 0, 100)).toBe(true);
     expect(embeddedLinuxTargetStrikeEnabled("linux", "WenQuanYiZenHei", 32, 700, 0, 100)).toBe(true);

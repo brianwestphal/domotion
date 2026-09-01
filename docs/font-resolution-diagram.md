@@ -2309,8 +2309,8 @@ flowchart TD
   E5 -->|"embedded-font"| E7["trackGlyphInEmbedFont() → subset glyf TTF at PUA cp<br/>· &lt;text font-family=dmfN&gt; · getBuiltEmbeddedFontFaceCss()"]
   E7 -->|"decline: layout / outline / PUA exhaustion"| E6
   E11 --> E12["source-owned partial/boundary group<br/>reason + degraded spans; no visible &lt;text&gt;"]
-  E7 --> ET{"Linux DM-2623 target strike?<br/>WQY Mono · 17px · 400 upright ·<br/>normal stretch · auto rendering · no stroke/scale"}
-  ET -->|"yes + helper topology match"| E13["helper design x + FT LIGHT hinted y<br/>1088-upem svg2ttf · strike-keyed<br/>geometricPrecision prevents second hint"]
+  E7 --> ET{"Exact Linux target-strike tuple?<br/>WQY Mono 17/400 or 26/700 · WQY 32/700<br/>Liberation Sans / FreeSans / FreeSerif 32/400<br/>upright · normal stretch · auto · no stroke/scale"}
+  ET -->|"yes + helper topology match"| E13["helper design x + FT LIGHT hinted y<br/>(size × 64)-upem svg2ttf · strike-keyed<br/>geometricPrecision prevents second hint"]
   ET -->|"no / helper unavailable"| E8{"entry pure?<br/>(one sfnt · one NAMED member index ·<br/>one axis location ·<br/>no synthetic bake · has glyf)"}
   E8 -->|"yes"| E9["hinted hb-subset of ORIGINAL file<br/>RETAIN_GIDS + pin axes + PUA cmap<br/>(keeps cvt/fpgm/prep + glyph bytecode)"]
   E8 -->|"no / failure"| E10["svg2ttf rebuild from outlines (unhinted)"]
@@ -2331,7 +2331,7 @@ opentype.js-built CFF subset with even-odd fill, which holes any glyph whose
 source outline draws overlapping contours (SF Pro's bold "A" = leg + crossbar +
 leg). `glyf` fills nonzero, so the overlaps union correctly.
 
-**Three glyf builders (DM-1714/DM-1716/DM-2623, doc [99](99-hinted-embedded-subset.md)):**
+**Three glyf builders (DM-1714/DM-1716/DM-2623/DM-2626/DM-2627, doc [99](99-hinted-embedded-subset.md)):**
 `buildGlyfFontForEntry` picks per entry:
 
 The hinted builder is the production default (`DOMOTION_HINTED_SUBSET` absent
@@ -2407,15 +2407,24 @@ still fall back to svg2ttf when the source cannot be subset safely.
    `resolveFaceInfoForFile` supplies `namedInstances` and
    `memberPostscriptName`, and the HarfBuzz shaping proxy forwards the stamp
    (`carryFontInstanceMetadata`) so a shaped-script override does not strip it.
-2. **Linux target-strike svg2ttf** (narrow exception): for the oracle-proven
-   WQY Mono 17 px regular/upright/normal-stretch strike, the Linux helper
-   returns the same gid's design and `FT_LOAD_TARGET_LIGHT` outlines. The
-   builder scales design x into a 1088-upem font and copies hinted 26.6 y,
-   retains linear advances and the explicit captured x list, then emits with
-   `geometricPrecision` so Chromium does not hint twice. The entry key carries
-   the strike and is disqualified from hb-subset. Playback reads only the
-   embedded data font—never a host family. Older helpers, topology mismatch,
-   strokes/small-caps, or any unproven face/size fall through unchanged.
+2. **Linux target-strike svg2ttf** (six narrow exceptions): the allowlist is
+   exactly `WenQuanYiZenHeiMono` 17/400 and 26/700,
+   `WenQuanYiZenHei` 32/700, and `LiberationSans` / `FreeSans` / `FreeSerif`
+   32/400. The Linux helper returns each gid's design and
+   `FT_LOAD_TARGET_LIGHT` outlines. The builder scales design x into a
+   `(size × 64)`-upem font and copies hinted 26.6 y, retains linear advances
+   and the explicit captured x list, then emits with `geometricPrecision` so
+   Chromium does not hint twice. The entry key carries the strike and is
+   disqualified from hb-subset. Playback reads only the embedded data font—never
+   a host family. Older helpers, topology mismatch, strokes/small-caps,
+   synthetic oblique, or any unproven tuple fall through unchanged.
+
+   Admission evidence remains tuple- and fixture-scoped: DM-2623 independently
+   proves WQY Mono 17/400 across 16 raster phases; DM-2627 jointly proves only
+   its WQY Mono 26/700 and WQY 32/700 header; DM-2626's 520/520 logical oracle
+   plus fixture delta jointly proves only its three named Latin 32/400 faces.
+   In particular WQY UI 32/400 remains a negative. See doc 99 for the measured
+   deltas and the complete evidence boundary.
 3. **svg2ttf rebuild** (fallback): an SVG-font description of the tracked
    outlines (cubic → quadratic via cubic2quad), unhinted. Used for synthetic
    faux-oblique bakes, per-glyph helper outlines, CFF/CFF2 faces (the
@@ -3001,22 +3010,25 @@ see the two-mode table above.
 
 ## Caches & lifecycle (summary)
 
-| Cache / registry | Scope | Cleared by |
-|---|---|---|
-| `fontInstanceCache` (key-weight-size-slant-fvs → instance) | process | `clearFontResolutionCaches` † |
-| `resolvedSpecCache` (key → FontPath) | process | `clearFontResolutionCaches` † |
-| `systemFallbackKeyCache` (cp + weight + italic + size → sysfb key\|null) | process | `clearFontResolutionCaches` † |
-| `fallbackFamilyCutCache` (chain key + cp + weight + italic + size → sysfb cut\|null) | process | `clearFontResolutionCaches` † |
-| `fileFaceInfoCache` / `_famAvailCache` | process | `clearFontResolutionCaches` † |
-| `dynamicSystemFontPaths` (sysfb: → FontPath) | process | **never** — a registry, not a memo (grows as resolver fires) |
-| ideograph document cache (base+weight+style+size → first sysfb answer, § 8b) | **document** (`beginCharacterFallbackDocument` … `end…`) | scope close — deliberately NOT by `clearFontResolutionCaches` (modeled Chrome state, not a memo) |
-| `helperFontCache` / `helperOutlineCache` | process | `clearFontResolutionCaches` † · `__clearGlyphFallbackCaches` (test) |
-| `_systemFallbackCache` (macOS/Windows) / `_fcFallbackCache` (Linux) — the helper's OWN per-codepoint memo, one layer below `systemFallbackKeyCache` | process | `clearFontResolutionCaches` † (via `clearGlyphHelperCodepointMemos`) · `clearGlyphHelperCache` (test) |
-| `coverageBitsets` (font file path + physical face index → 136 KB cmap bitset) | process | `clearFontResolutionCaches` † |
-| `_sysfbCoverage` (sysfb key + cp → covered?) — coverage the helper decided while it still held the nominated face open | process | `clearFontResolutionCaches` † |
-| `webfontRegistry` / `localFontAliasRegistry` | session (per capture) | `clearWebfonts` |
-| `glyphDefs` (paths mode) | generation | `clearGlyphDefs` / `resetGeneration` |
-| `embeddedFonts` + subset builder | generation | `clearEmbeddedFonts` / `resetGeneration` |
+| Cache / registry | Scope | Bounded-memory trim | Font-environment invalidation |
+|---|---|---|---|
+| `fontInstanceCache`; `resolvedSpecCache` | process | `clearFontResolutionCaches` † | yes (invalidation starts with the trim) |
+| `systemFallbackKeyCache`; `fallbackFamilyCutCache`; `fallbackBaseCache` | process, partly per codepoint | `clearFontResolutionCaches` † | yes |
+| `darwinPrimaryCutCache`; `linuxPrimaryCutCache`; `win32PrimaryCutCache`; `win32FamilyKeyCache` | process, family/style | `clearFontResolutionCaches` † | yes |
+| `fileFaceInfoCache`; `_famAvailCache`; `darwinHandleAxesMap` | process, face/inventory | `clearFontResolutionCaches` † | yes |
+| `helperFontCache`; `helperOutlineCache` | process, source face/glyph | `clearFontResolutionCaches` † | yes |
+| `coverageBitsets` (font file + physical face → 136 KB cmap bitset); `_sysfbCoverage` (sysfb key + cp → covered?) | process | `clearFontResolutionCaches` † | yes |
+| `_systemFallbackCache` (macOS/Windows); `_fcFallbackCache` (Linux) — helper-owned per-codepoint memos one layer below `systemFallbackKeyCache` | process | `clearFontResolutionCaches` † via `clearGlyphHelperCodepointMemos` | yes via `clearGlyphHelperCache` |
+| helper availability/path/transport; `_installedFontCache`; `_familyStyleMatchCache`; `_linuxFamilyMatchCache`; `_traitBoldCache`; `_traitItalicCache`; Windows `_systemUiFamily` preference | process, host environment | no | `clearGlyphHelperCache` |
+| HarfBuzz `hbFontCache`; `trakStatCache` | process, source face | no | `_clearHbFontCache` / `_clearTrakStatCache` |
+| shaped-cluster `verdictCache` | process, bounded LRU | no | registered higher-layer invalidator |
+| `dynamicSystemFontPaths` (dynamic key → FontPath); `declaredFamilyForKey`; `win32SuffixDeclaredForKey`; Darwin system-UI warm state | process, derived registry | deliberately preserved | cleared/reset directly |
+| ideograph document/renderer cache (base+weight+style+size → first sysfb answer, § 8b) | **document / renderer session** | no | scope/session lifetime — modeled Blink state, not a memo |
+| `webfontRegistry` | capture session, caller supplied | preserved | preserved; `clearWebfonts` owns it |
+| `localFontAliasRegistry` | capture session, installed-face derived | preserved | cleared directly (also by `clearWebfonts`) |
+| `linuxTargetStrikeCache`; embedded-builder `hintedOutlineGuardMemo` | process, exact source path/face/strike | no | no; source-identity memo, test seam/process exit only |
+| `glyphDefs` (paths mode) | generation | n/a | n/a; `clearGlyphDefs` / `resetGeneration` |
+| `embeddedFonts` + subset builder | generation | n/a | n/a; `clearEmbeddedFonts` / `resetGeneration` |
 
 † **`clearFontResolutionCaches()` is for bounded-memory batch work, not for
 rendering.** Normal generation never calls it: these memoize deterministic
@@ -3027,9 +3039,15 @@ glyph id for the life of a `Font`, and `fontInstanceCache` keeps the `Font`
 alive, so a full-universe run exhausted the heap partway through and reported
 its prefix as the answer. Clearing is safe (every entry is a pure function of
 its key; a cold lookup re-derives it) but costs the file / CoreText reads again.
-`dynamicSystemFontPaths` is excluded on purpose — `resolveFontSpec` consults it,
-so dropping it would make a previously-resolvable `sysfb:` key stop resolving,
-and it is bounded by distinct fonts rather than by codepoints anyway.
+`dynamicSystemFontPaths` and the other derived registries are excluded from the
+memory trim on purpose — `resolveFontSpec` consults them, so dropping one during
+a sweep could make a previously-issued dynamic key stop resolving. They are
+bounded by distinct faces/declarations rather than codepoints. The stronger
+`invalidateFontEnvironmentCaches()` operation has a different contract: after
+an installed-font, fontconfig, or OS-preference generation change, those paths
+and declarations are stale, so it clears them after the memory trim and then
+runs every registered higher-layer invalidator. Downloaded webfonts survive;
+installed-face-backed `local()` aliases do not.
 
 **Both per-codepoint layers have to be dropped together, and for a while only
 one was.** `systemFallbackKeyCache` memoizes the *decision*; the platform

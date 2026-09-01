@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "unknown-ai-tool",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtiv81w01vkikm4z",
+          "message": {
+            "text": "The allowlist is documented as six exact tuples with three distinct evidence scopes: DM-2623 independently proves WQY Mono 17/400; DM-2627 jointly proves its two header strikes; DM-2626 jointly proves its three Latin 32/400 faces after logical parity. Grouped fixture evidence must not be rewritten as face-family evidence. WQY UI 32/400 remains a negative even though 32/700 is admitted.",
+            "markdown": "The allowlist is documented as six exact tuples with three distinct evidence scopes: DM-2623 independently proves WQY Mono 17/400; DM-2627 jointly proves its two header strikes; DM-2626 jointly proves its three Latin 32/400 faces after logical parity. Grouped fixture evidence must not be rewritten as face-family evidence. WQY UI 32/400 remains a negative even though 32/700 is admitted."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/99-hinted-embedded-subset.md"
+                },
+                "region": {
+                  "startLine": 178,
+                  "endLine": 206,
+                  "snippet": {
+                    "text": "The production allowlist is six exact PostScript-name / size / weight tuples:\n\n| Exact target strike | Evidence owner | Admission evidence |\n|---|---|---|\n| `WenQuanYiZenHeiMono` 17 px / 400 | DM-2623 label fixture + quarter-phase oracle | The ordinary embedded control changed 512 pixels with vertical centroid −0.523 px; the target strike is exact in all 16 phase cells. |\n| `WenQuanYiZenHeiMono` 26 px / 700 | DM-2627 `06-deep-field-sizing` header | Joint two-strike fixture evidence removed the header's remaining major region; the 26 px monospace segment became pixel-exact. Disabling `geometricPrecision` worsened the crop (4,117 → 4,226 changed pixels; RMSE 0.0661 → 0.0826). |\n| `WenQuanYiZenHei` 32 px / 700 | DM-2627 `06-deep-field-sizing` header | The same joint gate proved the proportional title strike and removed the requested header region; it does not admit another WQY size or weight. |\n| `LiberationSans` 32 px / 400 | DM-2626 `1E00-1EFF-latin-extended-additional` | The fixture-level oracle passed 520/520 face, gid, cluster, span, metric, and outline checks before the three-strike fixture gate reduced 21 regions / 0.05427% coverage / 0.23824% diff to one residual region / 0.00344% / 0.04402%. |\n| `FreeSans` 32 px / 400 | DM-2626 `1E00-1EFF-latin-extended-additional` | Same grouped fixture gate. A full hinted-x experiment did not improve the remaining U+1EFE residual, so production deliberately retains design x. |\n| `FreeSerif` 32 px / 400 | DM-2626 `1E00-1EFF-latin-extended-additional` | Same grouped fixture gate; no evidence is claimed for another FreeSerif strike. |\n\nThis route is deliberately narrower than the general hb-subset path. It is on\nonly for one exact tuple above on Linux, upright, normal stretch, authored\n`text-rendering:auto`, no author stroke, no small-caps size scaling, no\nsynthetic-oblique bake, and matching helper outline topology for the whole run.\nIts builder key includes the target size and the entry is marked\n`target-strike`, so it cannot fall back into hb-subset and be hinted a second\ntime. An unavailable/older helper, a topology mismatch, or any failed guard\npreserves the ordinary hinted-subset route (plus the independently allowed\nordinary WQY `geometricPrecision` behavior where applicable).\n\nThe evidence boundary is the tuple, not the family, font class, or nominal\nsize. The earlier WQY UI 13/20/32 regular-weight experiment was mixed or worse;\n`WenQuanYiZenHei` 32 px / 400 remains explicitly outside the allowlist even\nthough 32 px / 700 is admitted by its separate DM-2627 fixture. The DM-2626\nLatin result is one fixture-level gate covering its three named 32/400 faces,\nnot permission to extrapolate to other sizes or weights. Every additional\ntuple requires new strike evidence. This is target-size vector geometry, not a\nbitmap/mask fallback, system-font passthrough, or native font fallback."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ]
+          },
+          "workItemUris": [
+            "DM-2632"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "03572d8bd0c9d96f2e34095fa31df9db"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "5459ebce07e6a28fd0560e9044e71fbdb9c91ebe",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

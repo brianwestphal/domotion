@@ -66,6 +66,69 @@
           "branch": "validation/dm-2083"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "unknown-ai-tool",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtiv81w04pezwi07",
+          "message": {
+            "text": "The table separates clearFontResolutionCaches from invalidateFontEnvironmentCaches because they have different correctness contracts. The former preserves dynamic registries so issued sysfb keys remain resolvable during a memory-bounded sweep; the latter deliberately clears dynamicSystemFontPaths and other host-derived state after a font-environment generation change while preserving downloaded webfonts.",
+            "markdown": "The table separates clearFontResolutionCaches from invalidateFontEnvironmentCaches because they have different correctness contracts. The former preserves dynamic registries so issued sysfb keys remain resolvable during a memory-bounded sweep; the latter deliberately clears dynamicSystemFontPaths and other host-derived state after a font-environment generation change while preserving downloaded webfonts."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/font-resolution-diagram.md"
+                },
+                "region": {
+                  "startLine": 3013,
+                  "endLine": 3050,
+                  "snippet": {
+                    "text": "| Cache / registry | Scope | Bounded-memory trim | Font-environment invalidation |\n|---|---|---|---|\n| `fontInstanceCache`; `resolvedSpecCache` | process | `clearFontResolutionCaches` † | yes (invalidation starts with the trim) |\n| `systemFallbackKeyCache`; `fallbackFamilyCutCache`; `fallbackBaseCache` | process, partly per codepoint | `clearFontResolutionCaches` † | yes |\n| `darwinPrimaryCutCache`; `linuxPrimaryCutCache`; `win32PrimaryCutCache`; `win32FamilyKeyCache` | process, family/style | `clearFontResolutionCaches` † | yes |\n| `fileFaceInfoCache`; `_famAvailCache`; `darwinHandleAxesMap` | process, face/inventory | `clearFontResolutionCaches` † | yes |\n| `helperFontCache`; `helperOutlineCache` | process, source face/glyph | `clearFontResolutionCaches` † | yes |\n| `coverageBitsets` (font file + physical face → 136 KB cmap bitset); `_sysfbCoverage` (sysfb key + cp → covered?) | process | `clearFontResolutionCaches` † | yes |\n| `_systemFallbackCache` (macOS/Windows); `_fcFallbackCache` (Linux) — helper-owned per-codepoint memos one layer below `systemFallbackKeyCache` | process | `clearFontResolutionCaches` † via `clearGlyphHelperCodepointMemos` | yes via `clearGlyphHelperCache` |\n| helper availability/path/transport; `_installedFontCache`; `_familyStyleMatchCache`; `_linuxFamilyMatchCache`; `_traitBoldCache`; `_traitItalicCache`; Windows `_systemUiFamily` preference | process, host environment | no | `clearGlyphHelperCache` |\n| HarfBuzz `hbFontCache`; `trakStatCache` | process, source face | no | `_clearHbFontCache` / `_clearTrakStatCache` |\n| shaped-cluster `verdictCache` | process, bounded LRU | no | registered higher-layer invalidator |\n| `dynamicSystemFontPaths` (dynamic key → FontPath); `declaredFamilyForKey`; `win32SuffixDeclaredForKey`; Darwin system-UI warm state | process, derived registry | deliberately preserved | cleared/reset directly |\n| ideograph document/renderer cache (base+weight+style+size → first sysfb answer, § 8b) | **document / renderer session** | no | scope/session lifetime — modeled Blink state, not a memo |\n| `webfontRegistry` | capture session, caller supplied | preserved | preserved; `clearWebfonts` owns it |\n| `localFontAliasRegistry` | capture session, installed-face derived | preserved | cleared directly (also by `clearWebfonts`) |\n| `linuxTargetStrikeCache`; embedded-builder `hintedOutlineGuardMemo` | process, exact source path/face/strike | no | no; source-identity memo, test seam/process exit only |\n| `glyphDefs` (paths mode) | generation | n/a | n/a; `clearGlyphDefs` / `resetGeneration` |\n| `embeddedFonts` + subset builder | generation | n/a | n/a; `clearEmbeddedFonts` / `resetGeneration` |\n\n† **`clearFontResolutionCaches()` is for bounded-memory batch work, not for\nrendering.** Normal generation never calls it: these memoize deterministic\nlookups over immutable system fonts, so keeping them is free correctness-wise\nand expensive to give up. It exists because a process that sweeps the *entire*\ncodepoint space accumulates without bound — fontkit memoizes a `Glyph` per\nglyph id for the life of a `Font`, and `fontInstanceCache` keeps the `Font`\nalive, so a full-universe run exhausted the heap partway through and reported\nits prefix as the answer. Clearing is safe (every entry is a pure function of\nits key; a cold lookup re-derives it) but costs the file / CoreText reads again.\n`dynamicSystemFontPaths` and the other derived registries are excluded from the\nmemory trim on purpose — `resolveFontSpec` consults them, so dropping one during\na sweep could make a previously-issued dynamic key stop resolving. They are\nbounded by distinct faces/declarations rather than codepoints. The stronger\n`invalidateFontEnvironmentCaches()` operation has a different contract: after\nan installed-font, fontconfig, or OS-preference generation change, those paths\nand declarations are stale, so it clears them after the memory trim and then\nruns every registered higher-layer invalidator. Downloaded webfonts survive;\ninstalled-face-backed `local()` aliases do not."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ]
+          },
+          "workItemUris": [
+            "DM-2632"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "31f640c2fb4f87a9e93418429c21ae5a"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "5459ebce07e6a28fd0560e9044e71fbdb9c91ebe",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
