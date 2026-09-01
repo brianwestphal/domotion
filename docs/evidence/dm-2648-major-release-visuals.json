@@ -10,6 +10,7 @@
     {
       "name": "Glassbox",
       "commit": "0f2fd17891511441538204dcf832d51b0f4e2e6c",
+      "artifactCommit": "59ef9def6ab93e221f82d8c57529fad505a63f4f",
       "commands": [
         "npm run demo:capture",
         "npm run demo:capture-stills -- --only risk-mode"
@@ -18,6 +19,7 @@
     {
       "name": "Hot Sheet",
       "commit": "5e7835e4c373f110345b798bb9cc05b66326af27",
+      "artifactCommit": "97305f0b092d5ecadb540babdd55195ec2ee437c",
       "commands": [
         "npx tsx scripts/capture-demos.ts 1 4 8"
       ],

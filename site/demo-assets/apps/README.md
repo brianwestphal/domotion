@@ -31,10 +31,10 @@ Then copy the chosen files into this directory and rebuild the site
 
 Captured headlessly on 2026-09-02 with `DOMOTION_NO_OPEN=1`:
 
-| App | Source commit | Capture command |
-|---|---|---|
-| Glassbox | `0f2fd17891511441538204dcf832d51b0f4e2e6c` | `npm run demo:capture`; `npm run demo:capture-stills -- --only risk-mode` |
-| Hot Sheet | `5e7835e4c373f110345b798bb9cc05b66326af27` | `npx tsx scripts/capture-demos.ts 1 4 8` |
+| App | Application source commit | Generated-artifact commit | Capture command |
+|---|---|---|---|
+| Glassbox | `0f2fd17891511441538204dcf832d51b0f4e2e6c` | `59ef9def6ab93e221f82d8c57529fad505a63f4f` | `npm run demo:capture`; `npm run demo:capture-stills -- --only risk-mode` |
+| Hot Sheet | `5e7835e4c373f110345b798bb9cc05b66326af27` | `97305f0b092d5ecadb540babdd55195ec2ee437c` | `npx tsx scripts/capture-demos.ts 1 4 8` |
 
 Committed asset SHA-256 digests:
 
