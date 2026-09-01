@@ -5290,6 +5290,521 @@ function ensureChildOverflowClipId(
   return overflowClipId;
 }
 
+/**
+ * Typed, per-element paint context. Each phase mutates only the shared SVG
+ * accumulators and returns the small amount of state required by the next
+ * phase; the driver below owns wrapper lifetime and Appendix E ordering.
+ */
+interface ElementPaintPhaseContext {
+  state: RenderState;
+  el: CapturedElement;
+  depth: number;
+  indent: string;
+  paintBoxPhase: boolean;
+  bgColor: RGBA | null;
+  textColor: RGBA | null;
+  borderColor: RGBA | null;
+  borderWidth: number;
+  borderRadius: number;
+  corners: CornerRadii;
+  boxPaintEl: CapturedElement;
+  boxPaintCorners: CornerRadii;
+  suppressEmptyCell: boolean;
+  useInlineFragments: boolean;
+  pseudoNegativePaintsAboveHostBox: boolean;
+}
+
+type TextClipBackgroundStack = RenderState["bgClipTextFills"] extends Map<CapturedElement, infer Stack>
+  ? Stack
+  : never;
+
+interface ElementBackgroundPhaseResult {
+  textBgClipStack: TextClipBackgroundStack | undefined;
+  nativeDecoration: CapturedElement["nativeControlDecorationRaster"];
+  isMenulistButtonDecoration: boolean;
+}
+
+/**
+ * Appendix E background phase: negative host pseudos, fragment decorations,
+ * outset shadow, background stack, native background decoration, and inset
+ * shadow. Source order below is the paint contract.
+ */
+function paintElementBackgroundPhase(
+  context: ElementPaintPhaseContext,
+): ElementBackgroundPhaseResult {
+  const {
+    state, el, indent, paintBoxPhase, bgColor, corners, boxPaintEl, boxPaintCorners, suppressEmptyCell,
+    useInlineFragments, pseudoNegativePaintsAboveHostBox,
+  } = context;
+  const { svgParts, paintCtx, captureViewport } = state;
+  // A negative positioned pseudo on a host that does not itself establish a
+  // stacking context participates in the nearest ancestor context. It paints
+  // below the host's own box (the common `position:relative; z-index:auto`
+  // case), not in the host-local post-background step. A real host stacking
+  // context retains the Appendix E order and paints its negative descendants
+  // immediately after its own background/border below.
+  if (paintBoxPhase && !pseudoNegativePaintsAboveHostBox) {
+    paintCapturedPseudoFragments(state, el, indent, "negative");
+  }
+
+  // Inline-fragment paint: when the element wraps across multiple line
+  // boxes and the bbox-based paint would smear background + border across
+  // the whole logical inline (typically the full container width), paint
+  // each line fragment individually. The remaining bbox-based emissions
+  // (outset shadow, bg color, bg image, inset shadow, border-image,
+  // border) are gated below on `!useInlineFragments` so they don't double
+  // up. Outline still paints around the bbox — it's outside the box and
+  // CSS doesn't fragment it per inline line box.
+  if (useInlineFragments && paintBoxPhase) {
+    renderInlineFragments(state, el, indent, bgColor, corners);
+  }
+
+  // Outset box-shadow (SK-1101 + SK-1113): paints BENEATH the element box.
+  // CSS spec says the first shadow in the list is closest to the element;
+  // later shadows sit further behind. SVG paints later in document order,
+  // so to get the same stacking we iterate the list in REVERSE (deepest
+  // first). Blur > 0 routes through an SVG <filter feGaussianBlur> with
+  // stdDeviation ≈ blur/2 (matches Chromes blur-to-stdDev mapping).
+  if (!useInlineFragments && paintBoxPhase) {
+    paintBoxShadow(paintCtx, boxPaintEl, boxPaintCorners, indent);
+  }
+
+  // Background rect(s). CSS lets backgrounds stack via background-image with
+  // a comma-separated list of linear/radial gradients and url() images. The
+  // first layer paints on top — we emit in reverse so the rect order matches
+  // CSS layering. The background-color paints *under* all layers.
+  const backgroundStackStart = svgParts.length;
+  if (paintBoxPhase) {
+    svgParts.push(...paintBackgroundColor(boxPaintEl, boxPaintCorners, indent, bgColor, useInlineFragments, suppressEmptyCell));
+  }
+  // DM-462: when the element uses `background-clip: text`, the first
+  // text-clipped layer's gradient/image is captured here and used as the
+  // fill on the text glyph group (instead of painting it as a normal
+  // <rect fill=url(#bg)> over the headline area). Initialized to null and
+  // assigned in the bg-layer loop below.
+  // DM-696: multiple `background-clip: text` layers must all composite into
+  // the glyph shapes (top layer on top of lower layers, same as CSS bg
+  // layering on a normal box). Collect them in CSS-source order (layer 0
+  // = topmost) and emit each as its own masked rect at render time, in
+  // REVERSE order so the topmost CSS layer is the last `<rect>` and paints
+  // on top.
+  // Background-image layers + the background-clip:text fills consumed by
+  // paintText. The layers belong to the box phase but the fills are consumed
+  // in the inline phase, so they are stashed for the second pass to pick up.
+  if (paintBoxPhase) {
+    const backgroundImageStart = svgParts.length;
+    state.bgClipTextFills.set(el, paintBackgroundImageLayers(paintCtx, boxPaintEl, indent, boxPaintCorners, useInlineFragments, captureViewport));
+    const blendLayers = splitTopLevelCommas(el.styles.backgroundBlendMode ?? "normal");
+    const hasNonNormalBlend = blendLayers.some((mode) => mode.trim() !== "" && mode.trim() !== "normal");
+    // Blink's BoxPainterBase opens its separate buffer around PaintFillLayers,
+    // whose bottom FillLayer paints both the background color and its image.
+    // Keep the same boundary here: isolating only image rects leaves the
+    // bottom blended layer with a transparent backdrop instead of the color.
+    if (hasNonNormalBlend && svgParts.length > backgroundImageStart) {
+      const stack = svgParts.slice(backgroundStackStart).join("\n");
+      svgParts.length = backgroundStackStart;
+      svgParts.push(`${indent}<g style="isolation:isolate">\n${stack}\n${indent}</g>`);
+    }
+  }
+  // The element's own stack wins. If it has no text-clipped paint, walk to
+  // the nearest ancestor stack: Blink's kTextClip phase traverses descendants
+  // (including self-painting inline layers) when masking an owner's background.
+  // This replaces the old gradient-only, transparent-text-only capture
+  // projection and therefore preserves URL selection/sizing, color and every
+  // per-layer positioning fact already owned by that captured ancestor.
+  let textBgClipStack = state.bgClipTextFills.get(el);
+  if (textBgClipStack == null || !textBgClipStack.fills.some((fill) => fill != null)) {
+    let ancestor = state.parentElements.get(el);
+    while (ancestor != null) {
+      const candidate = state.bgClipTextFills.get(ancestor);
+      if (candidate != null && candidate.fills.some((fill) => fill != null)) {
+        textBgClipStack = candidate;
+        break;
+      }
+      ancestor = state.parentElements.get(ancestor);
+    }
+  }
+  const nativeDecoration = el.nativeControlDecorationRaster;
+  const isMenulistButtonDecoration = nativeDecoration?.kinds.includes("menulist-button-arrow") === true;
+  if (paintBoxPhase && isMenulistButtonDecoration && nativeDecoration?.dataUri != null) {
+    // Blink's BoxFragmentPainter emits kMenulistButton's ThemePainter
+    // decoration after CSS background layers but before inset shadow and
+    // border. Selected text is later child content. Keep this exact phase:
+    // putting the transparent crop after the border/text changes overlap for
+    // thick borders, inset shadows, and tight vertical controls.
+    svgParts.push(`${indent}<image href="${nativeDecoration.dataUri}" x="${r(nativeDecoration.x)}" y="${r(nativeDecoration.y)}" width="${r(nativeDecoration.width)}" height="${r(nativeDecoration.height)}" preserveAspectRatio="none"/>`);
+  }
+
+  // Inset box-shadow per CSS Backgrounds 3 §6.4 + Chromium
+  // `BoxPainterBase::PaintInsetBoxShadow`: the shadow shape is the padding
+  // box shifted by (x, y) and inset by `spread` on each side. The shadow
+  // paints inside the padding box BUT OUTSIDE the shadow shape — like a
+  // donut whose hole is the shadow shape. With offset, the donut becomes
+  // asymmetric (e.g. `inset 0 -16px 32px` darkens the bottom strip and
+  // fades upward); with pure spread, it becomes a uniform ring; with pure
+  // blur centered, it becomes a soft inner glow.
+  //
+  // Implementation: emit two subpaths with `fill-rule="evenodd"` — outer =
+  // padding box expanded outward by enough margin to contain the blur
+  // halo, inner = padding box shifted by (sh.x, sh.y) and inset by
+  // sh.spread on each side. Apply Gaussian blur (stdDev = blur/2). Clip
+  // the whole thing to the padding box so the outer-margin overflow and
+  // the parts of the halo outside the box don't leak.
+  if (!useInlineFragments && paintBoxPhase) {
+    paintInsetBoxShadow(paintCtx, boxPaintEl, boxPaintCorners, indent);
+  }
+
+  return { textBgClipStack, nativeDecoration, isMenulistButtonDecoration };
+}
+
+/** Appendix E border phase: border image/sides, column rules, then outline. */
+function paintElementBorderPhase(context: ElementPaintPhaseContext): void {
+  const {
+    state, el, indent, paintBoxPhase, borderColor, borderWidth, borderRadius,
+    boxPaintEl, boxPaintCorners, suppressEmptyCell, useInlineFragments,
+  } = context;
+  const { svgParts, paintCtx, width, height, offGridCollapsedCells } = state;
+
+  if (paintBoxPhase) {
+    paintBorder(paintCtx, boxPaintEl, indent, boxPaintCorners, width, height, borderWidth, borderColor, suppressEmptyCell, useInlineFragments, offGridCollapsedCells);
+  }
+
+  // Column rules belong to the multicol container's box-paint phase and sit
+  // behind its contents. Capture supplies disjoint row segments so spanning
+  // elements leave the same gap Blink paints instead of receiving a rule
+  // through their middle.
+  if (paintBoxPhase && el.columnRules != null) {
+    for (const rule of el.columnRules) {
+      const ruleColor = colorStr(parseColor(rule.color) ?? { r: 0, g: 0, b: 0, a: 1 });
+      const dash = rule.style === "dashed"
+        ? ` stroke-dasharray="${r(rule.width * 3)},${r(rule.width * 3)}"`
+        : rule.style === "dotted"
+          ? ` stroke-dasharray="0,${r(rule.width * 2)}" stroke-linecap="round"`
+          : "";
+      if (rule.style === "double" && rule.width >= 3) {
+        const part = rule.width / 3;
+        svgParts.push(`${indent}<line x1="${r(rule.x - part)}" y1="${r(rule.y1)}" x2="${r(rule.x - part)}" y2="${r(rule.y2)}" stroke="${ruleColor}" stroke-width="${r(part)}" />`);
+        svgParts.push(`${indent}<line x1="${r(rule.x + part)}" y1="${r(rule.y1)}" x2="${r(rule.x + part)}" y2="${r(rule.y2)}" stroke="${ruleColor}" stroke-width="${r(part)}" />`);
+      } else {
+        svgParts.push(`${indent}<line x1="${r(rule.x)}" y1="${r(rule.y1)}" x2="${r(rule.x)}" y2="${r(rule.y2)}" stroke="${ruleColor}" stroke-width="${r(rule.width)}"${dash} />`);
+      }
+    }
+  }
+
+  // Outline (SK-1111): drawn outside the border-box and shifted further out
+  // by outline-offset (which can be negative). Doesn't take layout space —
+  // the captured rect is the border-box, so we inflate from that. Outline
+  // styles (solid / dashed / dotted) reuse dashArrayForStyle.
+  if (paintBoxPhase) {
+    svgParts.push(...paintOutline(el, borderRadius, indent));
+  }
+}
+
+/**
+ * Atomic/replaced/generated inline content that must precede authored text.
+ * Returns true when inline SVG consumed the entire content phase.
+ */
+function paintElementContentPhase(
+  context: ElementPaintPhaseContext,
+  backgroundPhase: ElementBackgroundPhaseResult,
+): boolean {
+  const {
+    state, el, indent, borderRadius, corners, textColor,
+  } = context;
+  const { svgParts, defsParts, paintCtx, defCtx, captureViewport } = state;
+  const { nativeDecoration, isMenulistButtonDecoration } = backgroundPhase;
+  // Inline SVG content (see paintInlineSvg). A replaced element's SVG content
+  // is its entire paint, so when present we push the content, close the
+  // wrapper groups opened above (animClass + opacity/transform/clip/mask
+  // group, plus the DM-704 filter-outer wrapper) and return — otherwise an
+  // inline-SVG element with e.g. `opacity < 1` would emit an unbalanced <g>
+  // and break the document (observable on resend/stripe nav chevrons).
+  {
+    const _isvg = paintInlineSvg(el, indent, () => state.paintCtx.nextClipId("svgic"), state.paintCtx.idPrefix);
+    if (_isvg.handled) {
+      svgParts.push(..._isvg.svg);
+      return true;
+    }
+  }
+
+  // Form control chrome (checkbox, radio, range, color, progress, meter,
+  // select chevron, details disclosure). Paints on top of the element's
+  // bg/border so the UA-default visuals are synthesized where the bare
+  // capture missed them. Styled controls (author-set background/border)
+  // still look like bare rects — the common case where authors match
+  // Chromium defaults is handled here.
+  const isFileSelectorDecoration = nativeDecoration?.kinds.includes("file-selector-button") === true;
+  if (isFileSelectorDecoration) {
+    // FileInputType's closed-shadow child paints its outset shadow, native
+    // border-box surface, then its sibling status text. The crop deliberately
+    // excludes shadow overflow and status, so keep all three source phases
+    // separate and never place the raster after the filename.
+    const shadow = renderFileSelectorOutsetShadow(el, indent, defCtx, true);
+    if (shadow !== "") svgParts.push(shadow);
+    if (nativeDecoration?.dataUri != null) {
+      svgParts.push(`${indent}<image href="${nativeDecoration.dataUri}" x="${r(nativeDecoration.x)}" y="${r(nativeDecoration.y)}" width="${r(nativeDecoration.width)}" height="${r(nativeDecoration.height)}" preserveAspectRatio="none"/>`);
+    }
+  }
+  const fc = renderFormControl(el, indent, defCtx);
+  if (fc !== "") svgParts.push(fc);
+  if (!isMenulistButtonDecoration && !isFileSelectorDecoration && nativeDecoration?.dataUri != null) {
+    // This transparent image owns only the decoration pixels. It deliberately
+    // stays inside the host's normal opacity/transform/clip/filter wrappers,
+    // above the structural box and value text, unlike a complete native host
+    // raster which terminates rendering near the top of this function.
+    svgParts.push(`${indent}<image href="${nativeDecoration.dataUri}" x="${r(nativeDecoration.x)}" y="${r(nativeDecoration.y)}" width="${r(nativeDecoration.width)}" height="${r(nativeDecoration.height)}" preserveAspectRatio="none"/>`);
+  }
+
+  // DM-2464: the authoritative live record owns failed/loading/no-source
+  // image paint. Its helper emits captured UA vectors + shaped text and only
+  // the isolated Chromium icon pixels. Old serialized `imageBroken` records
+  // deliberately fail closed instead of reviving the fixed mountain/raw-text
+  // approximation removed here.
+  const brokenFallback = renderBrokenImageFallback(el, {
+    indent,
+    idPrefix: paintCtx.idPrefix,
+    nextId: (prefix) => paintCtx.nextClipId(prefix),
+  });
+  defsParts.push(...brokenFallback.defs);
+  svgParts.push(...brokenFallback.svg);
+  if (!brokenFallback.handled && el.imageBroken !== true
+      && el.imageSrc != null
+      && (el.tag === "img" || (el.tag === "input" && el.styles.inputType === "image"))) {
+    paintImage(paintCtx, el, borderRadius, corners, indent);
+  }
+
+  // Rasterized snapshot for <canvas> / <video> / <iframe> / <object> /
+  // <embed> (DM-457; DM-598 guards against double-paint when an <img> also
+  // carries a snapshot). See paintRasterSnapshot for the full rationale.
+  svgParts.push(...paintRasterSnapshot(el, indent));
+
+  // List marker — render list-style-image at the marker position for <li>
+  // elements. Per CSS spec, the marker image paints at its INTRINSIC size
+  // (not scaled to fontSize). The li's own height is stretched by Chromium
+  // to accommodate the marker, which means el.height for a large-image
+  // marker is big — we position the marker vertically centered in the first
+  // line box (top of li) and let it overflow left for outside markers.
+  // <summary> has UA `display: list-item` with list-style-type
+  // `disclosure-closed`/`disclosure-open` — those are painted by the
+  // renderDetailsMarker pipeline on the <details> parent (DM-448), so
+  // skip the generic list-item marker here to avoid double-painting.
+  //
+  // DM-597: marker paints when the element's `display` is `list-item` —
+  // NOT just because the tag is `<li>`. Slashdot's social-icon strip uses
+  // `<li>` with `display: inline-block` (no marker per CSS spec). The
+  // previous `tag === "li" || ...` check painted spurious bullets in
+  // front of every social icon.
+  svgParts.push(...paintListMarker(el, textColor, indent));
+
+  // Pseudo-element image content (::before / ::after with content: url(...)).
+  // CSS atomic-inline-box paint order: the ::before's replaced-element box
+  // paints BEFORE the parent's main-text inline content in the same line,
+  // so subsequent text appears on top of any image overflow. Painting after
+  // text put our SVG circles ON TOP of the paragraph in the 24-generated-content
+  // fixture (DM-440 user feedback: 'z-index of svg is wrong'). Move the
+  // emit ahead of the text block so text reliably wins z.
+  paintCapturedPseudoFragments(state, el, indent, "before");
+  if (el.pseudoImages != null) {
+    for (const pi of el.pseudoImages) {
+      const image = `<image href="${esc(embedResizedDataUri(pi.url, pi.width, pi.height))}" x="${r(pi.x)}" y="${r(pi.y)}" width="${r(pi.width)}" height="${r(pi.height)}" preserveAspectRatio="xMidYMid meet" />`;
+      svgParts.push(`${indent}${wrapPseudoPaintEffects(pi, image)}`);
+    }
+  }
+  // Box-only pseudo-elements (DM-579): empty-content `::before` / `::after`
+  // with non-zero borders or background act as decorative separators /
+  // overlays. Capture pass records their effective rect + per-side
+  // borders; we emit one `<rect>` for the background fill (if any) plus
+  // up to four `<line>`s for the visible border sides. Per-side colors /
+  // widths can differ so we can't collapse them into a single
+  // stroke="..." attribute the way the regular-element border path does.
+  paintPseudoBoxes(state, el, indent);
+  return false;
+}
+
+/** Authored text and its truncation marker, kept after generated-before paint. */
+function paintElementTextPhase(
+  context: ElementPaintPhaseContext,
+  backgroundPhase: ElementBackgroundPhaseResult,
+): void {
+  const { state, el, indent, textColor } = context;
+  const { svgParts, paintCtx, captureViewport } = state;
+  const {
+    fills: textBgClipFills,
+    fragmentFills: textBgClipFragmentFills,
+    fragmentRects: textBgClipFragmentRects,
+  } = backgroundPhase.textBgClipStack ?? { fills: [], fragmentFills: [], fragmentRects: null };
+  // Text rendering — delegated to text-renderer.ts based on configured mode
+  {
+    paintText(
+      paintCtx,
+      el,
+      textColor,
+      indent,
+      textBgClipFills,
+      captureViewport,
+      textBgClipFragmentFills,
+      textBgClipFragmentRects,
+    );
+  }
+
+  // text-overflow truncation marker (DM-373). When an element has
+  // text-overflow: ellipsis (or a custom string) AND overflow:hidden AND
+  // white-space:nowrap, Chrome truncates the visible text and paints a
+  // truncation marker (`…` by default, or the author-specified string)
+  // at the right edge of the content box. Our text capture reads the
+  // FULL source text and clips with SVG clip-path, so the marker is
+  // missing visually. Approximate Chrome's behavior by emitting a
+  // small `<text>` with the marker glyph at the right edge of the
+  // visible content area when the truncation conditions are met.
+  svgParts.push(...paintTruncationMarker(el, textColor, indent));
+}
+
+/**
+ * Descendant inline/positioned paint followed by host overlays and overflow
+ * controls. Keeping these emissions in one final phase makes the "last wins"
+ * invariants visible at the call site.
+ */
+function paintElementOverlayPhase(
+  context: ElementPaintPhaseContext,
+  childPlan: ChildPaintPlan,
+): void {
+  const { state, el, depth, indent, corners } = context;
+  const { svgParts, defsParts, paintCtx, captureViewport } = state;
+  // ── Step 5 (continued) + steps 6-7: the children's inline content, then
+  // the flex/grid items and the positioned / stacking-context children.
+  //
+  // DM-473: when `el` is a stacking-context root its paint list was flattened
+  // (positioned descendants of non-SC children hoisted up to this level) when
+  // `resolveChildPlan` bucketed it; when it is NOT an SC root, the plan holds
+  // its direct children minus any already hoisted to an ancestor SC's list
+  // (they render at the ancestor's depth, and re-rendering here would
+  // double-emit).
+  if (childPlan.flat3d != null) {
+    // A 3D rendering context paints its children in translateZ order, each
+    // atomically — the Z sort spans every paint-step bucket, so there is no
+    // block/inline seam to split it on.
+    const childClipId = openChildOverflowClip(state, el, indent, corners);
+    for (const child of childPlan.flat3d) {
+      renderElementWithOverflowClip(state, child, depth + 1, childPlan.childDisplay);
+    }
+    if (childClipId != null) svgParts.push(`${indent}</g>`);
+  } else if (!childInlinePhaseIsEmpty(childPlan)) {
+    const childClipId = openChildOverflowClip(state, el, indent, corners);
+    renderChildInlinePhase(state, childPlan, depth);
+    if (childClipId != null) svgParts.push(`${indent}</g>`);
+  }
+
+  // A non-positioned ::after is the host's final generated child. Positioned
+  // auto/zero and positive stacking records follow the in-flow child paint;
+  // their exact geometry remains source-owned in all three slots.
+  paintCapturedPseudoFragments(state, el, indent, "after");
+  paintCapturedPseudoFragments(state, el, indent, "positioned");
+
+  // Blink's TablePainter paints the collapsed edge graph after cell/row/table
+  // backgrounds. Emitting here gives the single table-owned layer the same
+  // ownership and prevents descendant backgrounds from covering its edges.
+  paintCollapsedBorderRects(paintCtx, el, indent);
+
+  // DM-1001: emit deferred fade-overlay `::after` pseudoBoxes AFTER all
+  // child recursion. The `::before` loop above skipped these so they paint
+  // last and win z over child headline text — matches NYT's right-edge
+  // mask-image-style fade pattern. Same filter as the skip condition above
+  // so we don't double-emit decorative `::after` boxes (carets / dividers)
+  // that the earlier loop already handled in CSS-correct inline position.
+  paintDeferredFadeOverlays(state, el, indent);
+  paintCapturedPseudoFragments(state, el, indent, "positive");
+
+  // DM-808: MathML `<mfrac>` needs a horizontal fraction bar between its
+  // numerator (first child) and denominator (second child). Chrome's
+  // MathML layout paints this from internal layout — there's no CSS
+  // border on the children to capture. Synthesize the bar at the midpoint
+  // between numerator bottom and denominator top, default 1px thickness
+  // (matches MathML's `mfrac@linethickness="medium"`).
+  //
+  // DM-896: span the bar across the mfrac ELEMENT box (`el.x` … `el.x +
+  // el.width`), NOT the children's content span. Chromium paints the
+  // fraction rule across the full inline-size of the mfrac. For inline
+  // fractions the mfrac shrink-wraps its content so the two are equal, but
+  // a display-block fraction (`<math display="block">` quadratic formula)
+  // is stretched to the block width — there the element box is 800 px wide
+  // while the num/den content is ~135 px, and the old children-span bar was
+  // far too short. PNG scan of the expected output confirms Chrome's bar
+  // runs the full mfrac width.
+  //
+  // DM-832/DM-896: snap the 1-px bar to the device pixel row the math-axis
+  // midpoint falls in via `round` (the previous fractional `midpoint - 0.5`
+  // straddled two rows and rasterized to a blurred gray 2-px bar). `round`
+  // matches Chrome's pixel snap on both the layout fixture (mid 1469.03 →
+  // 1469) and the quadratic (mid 1372.85 → 1373, where `floor` gave 1372).
+  if (el.tag === "mfrac" && el.children.length >= 2) {
+    const num = el.children[0];
+    const den = el.children[1];
+    const barX = el.x;
+    const barRight = el.x + el.width;
+    const barY = Math.round((num.y + num.height + den.y) / 2);
+    const fillCol = el.styles.color ? esc(el.styles.color) : "rgb(0,0,0)";
+    svgParts.push(`${indent}<rect x="${r(barX)}" y="${r(barY)}" width="${r(barRight - barX)}" height="1" fill="${fillCol}" />`);
+  }
+
+  // DM-809 / DM-897: MathML `<msqrt>` / `<mroot>` need their radical sign +
+  // overbar synthesised — Chrome's MathML layout paints them from internal
+  // layout (no border / glyph capture). Preferred path (DM-897): render the
+  // actual √ (U+221A) font glyph fitted to the captured radical box, so the
+  // checkmark inherits the font's stroke-weight contrast and hook shape that
+  // a uniform stroke can't reproduce; the overbar (vinculum) is extended
+  // across the radicand separately. Falls back to the legacy uniform-stroke
+  // 3-segment path when the √ glyph can't be resolved (e.g. a platform whose
+  // fallback chain lacks it). For `<mroot>` the structure is `<mroot>
+  // <radicand><index></mroot>` — the index renders normally as a child
+  // glyph; only the radical + overbar are synthesised here.
+  if ((el.tag === "msqrt" || el.tag === "mroot") && el.children.length >= 1) {
+    const radicand = el.children[0];
+    const strokeCol = el.styles.color ? esc(el.styles.color) : "rgb(0,0,0)";
+    const radFontSize = parseFloat(el.styles.fontSize) || 16;
+    const glyphRadical = renderRadicalGlyph(
+      el.x, el.y, el.height, el.width,
+      { fontSize: radFontSize, fontFamily: el.styles.fontFamily, fontWeight: el.styles.fontWeight, fontStyle: el.styles.fontStyle, fontStretch: el.styles.fontStretch },
+      strokeCol,
+    );
+    if (glyphRadical != null) {
+      svgParts.push(`${indent}${glyphRadical}`);
+    } else {
+      const radX0 = el.x;
+      const radX1 = radicand.x;
+      const radTop = el.y;
+      const radBottom = el.y + el.height;
+      const radMid = el.y + el.height * 0.6;
+      const radRight = el.x + el.width;
+      // Radical checkmark: enter at (radX0, radMid), descend to bottom at
+      // 40% across the radical-sign zone, climb to top-right at radicand
+      // start. Then overbar across the top.
+      const vertexX = radX0 + (radX1 - radX0) * 0.4;
+      const path = `M${r(radX0)},${r(radMid)} L${r(vertexX)},${r(radBottom - 1)} L${r(radX1)},${r(radTop)} L${r(radRight)},${r(radTop)}`;
+      svgParts.push(`${indent}<path d="${path}" fill="none" stroke="${strokeCol}" stroke-width="1" />`);
+    }
+  }
+
+  // CustomScrollbarTheme paints the captured CSS boxes in source order:
+  // horizontal, vertical, custom corner, then the separately owned resizer.
+  // Geometry is already in capture-viewport coordinates and must not be
+  // recomputed from scroll ranges or transformed a second time.
+  svgParts.push(...paintCustomScrollbars({
+    defsParts,
+    nextId: (prefix) => paintCtx.nextClipId(prefix),
+    paintVectorPart: (item, partIndent) => paintCustomScrollbarVectorPart(
+      paintCtx, captureViewport, el, item, partIndent,
+    ),
+  }, captureViewport, el, indent));
+
+  // PaintOverflowControls orders both axes and the corner before the resizer.
+  // Native crops are already clipped source-frame pixels in capture-viewport
+  // coordinates; this consumer never reconstructs or scales platform chrome.
+  svgParts.push(...paintNativeScrollbarRasters(el, indent));
+
+  svgParts.push(...paintResizeHandle(paintCtx, captureViewport, el, indent));
+}
+
+
 function renderElement(state: RenderState, el: CapturedElement, depth: number, parentDisplayForEl?: string, phase: PaintPhase = "all"): void {
   const {
     svgParts, defsParts, paintCtx, defCtx, captureViewport, width, height,
@@ -5514,162 +6029,27 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
   if (animClass !== "") svgParts.push(`${indent}<g class="${animClass}">`);
   const wrapperContentStart = svgParts.length;
 
-  // A negative positioned pseudo on a host that does not itself establish a
-  // stacking context participates in the nearest ancestor context. It paints
-  // below the host's own box (the common `position:relative; z-index:auto`
-  // case), not in the host-local post-background step. A real host stacking
-  // context retains the Appendix E order and paints its negative descendants
-  // immediately after its own background/border below.
   const pseudoNegativePaintsAboveHostBox = establishesStackingContext(el, parentDisplayForEl);
-  if (paintBoxPhase && !pseudoNegativePaintsAboveHostBox) {
-    paintCapturedPseudoFragments(state, el, indent, "negative");
-  }
-
-  // Inline-fragment paint: when the element wraps across multiple line
-  // boxes and the bbox-based paint would smear background + border across
-  // the whole logical inline (typically the full container width), paint
-  // each line fragment individually. The remaining bbox-based emissions
-  // (outset shadow, bg color, bg image, inset shadow, border-image,
-  // border) are gated below on `!useInlineFragments` so they don't double
-  // up. Outline still paints around the bbox — it's outside the box and
-  // CSS doesn't fragment it per inline line box.
-  if (useInlineFragments && paintBoxPhase) {
-    renderInlineFragments(state, el, indent, bgColor, corners);
-  }
-
-  // Outset box-shadow (SK-1101 + SK-1113): paints BENEATH the element box.
-  // CSS spec says the first shadow in the list is closest to the element;
-  // later shadows sit further behind. SVG paints later in document order,
-  // so to get the same stacking we iterate the list in REVERSE (deepest
-  // first). Blur > 0 routes through an SVG <filter feGaussianBlur> with
-  // stdDeviation ≈ blur/2 (matches Chromes blur-to-stdDev mapping).
-  if (!useInlineFragments && paintBoxPhase) {
-    paintBoxShadow(paintCtx, boxPaintEl, boxPaintCorners, indent);
-  }
-
-  // Background rect(s). CSS lets backgrounds stack via background-image with
-  // a comma-separated list of linear/radial gradients and url() images. The
-  // first layer paints on top — we emit in reverse so the rect order matches
-  // CSS layering. The background-color paints *under* all layers.
-  const backgroundStackStart = svgParts.length;
-  if (paintBoxPhase) {
-    svgParts.push(...paintBackgroundColor(boxPaintEl, boxPaintCorners, indent, bgColor, useInlineFragments, suppressEmptyCell));
-  }
-  // DM-462: when the element uses `background-clip: text`, the first
-  // text-clipped layer's gradient/image is captured here and used as the
-  // fill on the text glyph group (instead of painting it as a normal
-  // <rect fill=url(#bg)> over the headline area). Initialized to null and
-  // assigned in the bg-layer loop below.
-  // DM-696: multiple `background-clip: text` layers must all composite into
-  // the glyph shapes (top layer on top of lower layers, same as CSS bg
-  // layering on a normal box). Collect them in CSS-source order (layer 0
-  // = topmost) and emit each as its own masked rect at render time, in
-  // REVERSE order so the topmost CSS layer is the last `<rect>` and paints
-  // on top.
-  // Background-image layers + the background-clip:text fills consumed by
-  // paintText. The layers belong to the box phase but the fills are consumed
-  // in the inline phase, so they are stashed for the second pass to pick up.
-  if (paintBoxPhase) {
-    const backgroundImageStart = svgParts.length;
-    state.bgClipTextFills.set(el, paintBackgroundImageLayers(paintCtx, boxPaintEl, indent, boxPaintCorners, useInlineFragments, captureViewport));
-    const blendLayers = splitTopLevelCommas(el.styles.backgroundBlendMode ?? "normal");
-    const hasNonNormalBlend = blendLayers.some((mode) => mode.trim() !== "" && mode.trim() !== "normal");
-    // Blink's BoxPainterBase opens its separate buffer around PaintFillLayers,
-    // whose bottom FillLayer paints both the background color and its image.
-    // Keep the same boundary here: isolating only image rects leaves the
-    // bottom blended layer with a transparent backdrop instead of the color.
-    if (hasNonNormalBlend && svgParts.length > backgroundImageStart) {
-      const stack = svgParts.slice(backgroundStackStart).join("\n");
-      svgParts.length = backgroundStackStart;
-      svgParts.push(`${indent}<g style="isolation:isolate">\n${stack}\n${indent}</g>`);
-    }
-  }
-  // The element's own stack wins. If it has no text-clipped paint, walk to
-  // the nearest ancestor stack: Blink's kTextClip phase traverses descendants
-  // (including self-painting inline layers) when masking an owner's background.
-  // This replaces the old gradient-only, transparent-text-only capture
-  // projection and therefore preserves URL selection/sizing, color and every
-  // per-layer positioning fact already owned by that captured ancestor.
-  let textBgClipStack = state.bgClipTextFills.get(el);
-  if (textBgClipStack == null || !textBgClipStack.fills.some((fill) => fill != null)) {
-    let ancestor = state.parentElements.get(el);
-    while (ancestor != null) {
-      const candidate = state.bgClipTextFills.get(ancestor);
-      if (candidate != null && candidate.fills.some((fill) => fill != null)) {
-        textBgClipStack = candidate;
-        break;
-      }
-      ancestor = state.parentElements.get(ancestor);
-    }
-  }
-  const {
-    fills: textBgClipFills,
-    fragmentFills: textBgClipFragmentFills,
-    fragmentRects: textBgClipFragmentRects,
-  } = textBgClipStack ?? { fills: [], fragmentFills: [], fragmentRects: null };
-  const nativeDecoration = el.nativeControlDecorationRaster;
-  const isMenulistButtonDecoration = nativeDecoration?.kinds.includes("menulist-button-arrow") === true;
-  if (paintBoxPhase && isMenulistButtonDecoration && nativeDecoration?.dataUri != null) {
-    // Blink's BoxFragmentPainter emits kMenulistButton's ThemePainter
-    // decoration after CSS background layers but before inset shadow and
-    // border. Selected text is later child content. Keep this exact phase:
-    // putting the transparent crop after the border/text changes overlap for
-    // thick borders, inset shadows, and tight vertical controls.
-    svgParts.push(`${indent}<image href="${nativeDecoration.dataUri}" x="${r(nativeDecoration.x)}" y="${r(nativeDecoration.y)}" width="${r(nativeDecoration.width)}" height="${r(nativeDecoration.height)}" preserveAspectRatio="none"/>`);
-  }
-
-  // Inset box-shadow per CSS Backgrounds 3 §6.4 + Chromium
-  // `BoxPainterBase::PaintInsetBoxShadow`: the shadow shape is the padding
-  // box shifted by (x, y) and inset by `spread` on each side. The shadow
-  // paints inside the padding box BUT OUTSIDE the shadow shape — like a
-  // donut whose hole is the shadow shape. With offset, the donut becomes
-  // asymmetric (e.g. `inset 0 -16px 32px` darkens the bottom strip and
-  // fades upward); with pure spread, it becomes a uniform ring; with pure
-  // blur centered, it becomes a soft inner glow.
-  //
-  // Implementation: emit two subpaths with `fill-rule="evenodd"` — outer =
-  // padding box expanded outward by enough margin to contain the blur
-  // halo, inner = padding box shifted by (sh.x, sh.y) and inset by
-  // sh.spread on each side. Apply Gaussian blur (stdDev = blur/2). Clip
-  // the whole thing to the padding box so the outer-margin overflow and
-  // the parts of the halo outside the box don't leak.
-  if (!useInlineFragments && paintBoxPhase) {
-    paintInsetBoxShadow(paintCtx, boxPaintEl, boxPaintCorners, indent);
-  }
-
-  if (paintBoxPhase) {
-    paintBorder(paintCtx, boxPaintEl, indent, boxPaintCorners, width, height, borderWidth, borderColor, suppressEmptyCell, useInlineFragments, offGridCollapsedCells);
-  }
-
-  // Column rules belong to the multicol container's box-paint phase and sit
-  // behind its contents. Capture supplies disjoint row segments so spanning
-  // elements leave the same gap Blink paints instead of receiving a rule
-  // through their middle.
-  if (paintBoxPhase && el.columnRules != null) {
-    for (const rule of el.columnRules) {
-      const ruleColor = colorStr(parseColor(rule.color) ?? { r: 0, g: 0, b: 0, a: 1 });
-      const dash = rule.style === "dashed"
-        ? ` stroke-dasharray="${r(rule.width * 3)},${r(rule.width * 3)}"`
-        : rule.style === "dotted"
-          ? ` stroke-dasharray="0,${r(rule.width * 2)}" stroke-linecap="round"`
-          : "";
-      if (rule.style === "double" && rule.width >= 3) {
-        const part = rule.width / 3;
-        svgParts.push(`${indent}<line x1="${r(rule.x - part)}" y1="${r(rule.y1)}" x2="${r(rule.x - part)}" y2="${r(rule.y2)}" stroke="${ruleColor}" stroke-width="${r(part)}" />`);
-        svgParts.push(`${indent}<line x1="${r(rule.x + part)}" y1="${r(rule.y1)}" x2="${r(rule.x + part)}" y2="${r(rule.y2)}" stroke="${ruleColor}" stroke-width="${r(part)}" />`);
-      } else {
-        svgParts.push(`${indent}<line x1="${r(rule.x)}" y1="${r(rule.y1)}" x2="${r(rule.x)}" y2="${r(rule.y2)}" stroke="${ruleColor}" stroke-width="${r(rule.width)}"${dash} />`);
-      }
-    }
-  }
-
-  // Outline (SK-1111): drawn outside the border-box and shifted further out
-  // by outline-offset (which can be negative). Doesn't take layout space —
-  // the captured rect is the border-box, so we inflate from that. Outline
-  // styles (solid / dashed / dotted) reuse dashArrayForStyle.
-  if (paintBoxPhase) {
-    svgParts.push(...paintOutline(el, borderRadius, indent));
-  }
+  const elementPaintContext: ElementPaintPhaseContext = {
+    state,
+    el,
+    depth,
+    indent,
+    paintBoxPhase,
+    bgColor,
+    textColor,
+    borderColor,
+    borderWidth,
+    borderRadius,
+    corners,
+    boxPaintEl,
+    boxPaintCorners,
+    suppressEmptyCell,
+    useInlineFragments,
+    pseudoNegativePaintsAboveHostBox,
+  };
+  const backgroundPhase = paintElementBackgroundPhase(elementPaintContext);
+  paintElementBorderPhase(elementPaintContext);
 
   // The children's paint-step buckets, resolved once for both phases.
   const childPlan = resolveChildPlan(state, el, parentDisplayForEl);
@@ -5735,271 +6115,15 @@ function renderElement(state: RenderState, el: CapturedElement, depth: number, p
     return;
   }
 
-  // Inline SVG content (see paintInlineSvg). A replaced element's SVG content
-  // is its entire paint, so when present we push the content, close the
-  // wrapper groups opened above (animClass + opacity/transform/clip/mask
-  // group, plus the DM-704 filter-outer wrapper) and return — otherwise an
-  // inline-SVG element with e.g. `opacity < 1` would emit an unbalanced <g>
-  // and break the document (observable on resend/stripe nav chevrons).
-  {
-    const _isvg = paintInlineSvg(el, indent, () => state.paintCtx.nextClipId("svgic"), state.paintCtx.idPrefix);
-    if (_isvg.handled) {
-      svgParts.push(..._isvg.svg);
-      closeWrappers();
-      appendBoxReflection(state, el, reflectionFragmentStart, depth);
-      return;
-    }
+  if (paintElementContentPhase(elementPaintContext, backgroundPhase)) {
+    closeWrappers();
+    appendBoxReflection(state, el, reflectionFragmentStart, depth);
+    return;
   }
 
-  // Form control chrome (checkbox, radio, range, color, progress, meter,
-  // select chevron, details disclosure). Paints on top of the element's
-  // bg/border so the UA-default visuals are synthesized where the bare
-  // capture missed them. Styled controls (author-set background/border)
-  // still look like bare rects — the common case where authors match
-  // Chromium defaults is handled here.
-  const isFileSelectorDecoration = nativeDecoration?.kinds.includes("file-selector-button") === true;
-  if (isFileSelectorDecoration) {
-    // FileInputType's closed-shadow child paints its outset shadow, native
-    // border-box surface, then its sibling status text. The crop deliberately
-    // excludes shadow overflow and status, so keep all three source phases
-    // separate and never place the raster after the filename.
-    const shadow = renderFileSelectorOutsetShadow(el, indent, defCtx, true);
-    if (shadow !== "") svgParts.push(shadow);
-    if (nativeDecoration?.dataUri != null) {
-      svgParts.push(`${indent}<image href="${nativeDecoration.dataUri}" x="${r(nativeDecoration.x)}" y="${r(nativeDecoration.y)}" width="${r(nativeDecoration.width)}" height="${r(nativeDecoration.height)}" preserveAspectRatio="none"/>`);
-    }
-  }
-  const fc = renderFormControl(el, indent, defCtx);
-  if (fc !== "") svgParts.push(fc);
-  if (!isMenulistButtonDecoration && !isFileSelectorDecoration && nativeDecoration?.dataUri != null) {
-    // This transparent image owns only the decoration pixels. It deliberately
-    // stays inside the host's normal opacity/transform/clip/filter wrappers,
-    // above the structural box and value text, unlike a complete native host
-    // raster which terminates rendering near the top of this function.
-    svgParts.push(`${indent}<image href="${nativeDecoration.dataUri}" x="${r(nativeDecoration.x)}" y="${r(nativeDecoration.y)}" width="${r(nativeDecoration.width)}" height="${r(nativeDecoration.height)}" preserveAspectRatio="none"/>`);
-  }
+  paintElementTextPhase(elementPaintContext, backgroundPhase);
 
-  // DM-2464: the authoritative live record owns failed/loading/no-source
-  // image paint. Its helper emits captured UA vectors + shaped text and only
-  // the isolated Chromium icon pixels. Old serialized `imageBroken` records
-  // deliberately fail closed instead of reviving the fixed mountain/raw-text
-  // approximation removed here.
-  const brokenFallback = renderBrokenImageFallback(el, {
-    indent,
-    idPrefix: paintCtx.idPrefix,
-    nextId: (prefix) => paintCtx.nextClipId(prefix),
-  });
-  defsParts.push(...brokenFallback.defs);
-  svgParts.push(...brokenFallback.svg);
-  if (!brokenFallback.handled && el.imageBroken !== true
-      && el.imageSrc != null
-      && (el.tag === "img" || (el.tag === "input" && el.styles.inputType === "image"))) {
-    paintImage(paintCtx, el, borderRadius, corners, indent);
-  }
-
-  // Rasterized snapshot for <canvas> / <video> / <iframe> / <object> /
-  // <embed> (DM-457; DM-598 guards against double-paint when an <img> also
-  // carries a snapshot). See paintRasterSnapshot for the full rationale.
-  svgParts.push(...paintRasterSnapshot(el, indent));
-
-  // List marker — render list-style-image at the marker position for <li>
-  // elements. Per CSS spec, the marker image paints at its INTRINSIC size
-  // (not scaled to fontSize). The li's own height is stretched by Chromium
-  // to accommodate the marker, which means el.height for a large-image
-  // marker is big — we position the marker vertically centered in the first
-  // line box (top of li) and let it overflow left for outside markers.
-  // <summary> has UA `display: list-item` with list-style-type
-  // `disclosure-closed`/`disclosure-open` — those are painted by the
-  // renderDetailsMarker pipeline on the <details> parent (DM-448), so
-  // skip the generic list-item marker here to avoid double-painting.
-  //
-  // DM-597: marker paints when the element's `display` is `list-item` —
-  // NOT just because the tag is `<li>`. Slashdot's social-icon strip uses
-  // `<li>` with `display: inline-block` (no marker per CSS spec). The
-  // previous `tag === "li" || ...` check painted spurious bullets in
-  // front of every social icon.
-  svgParts.push(...paintListMarker(el, textColor, indent));
-
-  // Pseudo-element image content (::before / ::after with content: url(...)).
-  // CSS atomic-inline-box paint order: the ::before's replaced-element box
-  // paints BEFORE the parent's main-text inline content in the same line,
-  // so subsequent text appears on top of any image overflow. Painting after
-  // text put our SVG circles ON TOP of the paragraph in the 24-generated-content
-  // fixture (DM-440 user feedback: 'z-index of svg is wrong'). Move the
-  // emit ahead of the text block so text reliably wins z.
-  paintCapturedPseudoFragments(state, el, indent, "before");
-  if (el.pseudoImages != null) {
-    for (const pi of el.pseudoImages) {
-      const image = `<image href="${esc(embedResizedDataUri(pi.url, pi.width, pi.height))}" x="${r(pi.x)}" y="${r(pi.y)}" width="${r(pi.width)}" height="${r(pi.height)}" preserveAspectRatio="xMidYMid meet" />`;
-      svgParts.push(`${indent}${wrapPseudoPaintEffects(pi, image)}`);
-    }
-  }
-  // Box-only pseudo-elements (DM-579): empty-content `::before` / `::after`
-  // with non-zero borders or background act as decorative separators /
-  // overlays. Capture pass records their effective rect + per-side
-  // borders; we emit one `<rect>` for the background fill (if any) plus
-  // up to four `<line>`s for the visible border sides. Per-side colors /
-  // widths can differ so we can't collapse them into a single
-  // stroke="..." attribute the way the regular-element border path does.
-  paintPseudoBoxes(state, el, indent);
-
-  // Text rendering — delegated to text-renderer.ts based on configured mode
-  {
-    paintText(
-      paintCtx,
-      el,
-      textColor,
-      indent,
-      textBgClipFills,
-      captureViewport,
-      textBgClipFragmentFills,
-      textBgClipFragmentRects,
-    );
-  }
-
-  // text-overflow truncation marker (DM-373). When an element has
-  // text-overflow: ellipsis (or a custom string) AND overflow:hidden AND
-  // white-space:nowrap, Chrome truncates the visible text and paints a
-  // truncation marker (`…` by default, or the author-specified string)
-  // at the right edge of the content box. Our text capture reads the
-  // FULL source text and clips with SVG clip-path, so the marker is
-  // missing visually. Approximate Chrome's behavior by emitting a
-  // small `<text>` with the marker glyph at the right edge of the
-  // visible content area when the truncation conditions are met.
-  svgParts.push(...paintTruncationMarker(el, textColor, indent));
-
-  // ── Step 5 (continued) + steps 6-7: the children's inline content, then
-  // the flex/grid items and the positioned / stacking-context children.
-  //
-  // DM-473: when `el` is a stacking-context root its paint list was flattened
-  // (positioned descendants of non-SC children hoisted up to this level) when
-  // `resolveChildPlan` bucketed it; when it is NOT an SC root, the plan holds
-  // its direct children minus any already hoisted to an ancestor SC's list
-  // (they render at the ancestor's depth, and re-rendering here would
-  // double-emit).
-  if (childPlan.flat3d != null) {
-    // A 3D rendering context paints its children in translateZ order, each
-    // atomically — the Z sort spans every paint-step bucket, so there is no
-    // block/inline seam to split it on.
-    const childClipId = openChildOverflowClip(state, el, indent, corners);
-    for (const child of childPlan.flat3d) {
-      renderElementWithOverflowClip(state, child, depth + 1, childPlan.childDisplay);
-    }
-    if (childClipId != null) svgParts.push(`${indent}</g>`);
-  } else if (!childInlinePhaseIsEmpty(childPlan)) {
-    const childClipId = openChildOverflowClip(state, el, indent, corners);
-    renderChildInlinePhase(state, childPlan, depth);
-    if (childClipId != null) svgParts.push(`${indent}</g>`);
-  }
-
-  // A non-positioned ::after is the host's final generated child. Positioned
-  // auto/zero and positive stacking records follow the in-flow child paint;
-  // their exact geometry remains source-owned in all three slots.
-  paintCapturedPseudoFragments(state, el, indent, "after");
-  paintCapturedPseudoFragments(state, el, indent, "positioned");
-
-  // Blink's TablePainter paints the collapsed edge graph after cell/row/table
-  // backgrounds. Emitting here gives the single table-owned layer the same
-  // ownership and prevents descendant backgrounds from covering its edges.
-  paintCollapsedBorderRects(paintCtx, el, indent);
-
-  // DM-1001: emit deferred fade-overlay `::after` pseudoBoxes AFTER all
-  // child recursion. The `::before` loop above skipped these so they paint
-  // last and win z over child headline text — matches NYT's right-edge
-  // mask-image-style fade pattern. Same filter as the skip condition above
-  // so we don't double-emit decorative `::after` boxes (carets / dividers)
-  // that the earlier loop already handled in CSS-correct inline position.
-  paintDeferredFadeOverlays(state, el, indent);
-  paintCapturedPseudoFragments(state, el, indent, "positive");
-
-  // DM-808: MathML `<mfrac>` needs a horizontal fraction bar between its
-  // numerator (first child) and denominator (second child). Chrome's
-  // MathML layout paints this from internal layout — there's no CSS
-  // border on the children to capture. Synthesize the bar at the midpoint
-  // between numerator bottom and denominator top, default 1px thickness
-  // (matches MathML's `mfrac@linethickness="medium"`).
-  //
-  // DM-896: span the bar across the mfrac ELEMENT box (`el.x` … `el.x +
-  // el.width`), NOT the children's content span. Chromium paints the
-  // fraction rule across the full inline-size of the mfrac. For inline
-  // fractions the mfrac shrink-wraps its content so the two are equal, but
-  // a display-block fraction (`<math display="block">` quadratic formula)
-  // is stretched to the block width — there the element box is 800 px wide
-  // while the num/den content is ~135 px, and the old children-span bar was
-  // far too short. PNG scan of the expected output confirms Chrome's bar
-  // runs the full mfrac width.
-  //
-  // DM-832/DM-896: snap the 1-px bar to the device pixel row the math-axis
-  // midpoint falls in via `round` (the previous fractional `midpoint - 0.5`
-  // straddled two rows and rasterized to a blurred gray 2-px bar). `round`
-  // matches Chrome's pixel snap on both the layout fixture (mid 1469.03 →
-  // 1469) and the quadratic (mid 1372.85 → 1373, where `floor` gave 1372).
-  if (el.tag === "mfrac" && el.children.length >= 2) {
-    const num = el.children[0];
-    const den = el.children[1];
-    const barX = el.x;
-    const barRight = el.x + el.width;
-    const barY = Math.round((num.y + num.height + den.y) / 2);
-    const fillCol = el.styles.color ? esc(el.styles.color) : "rgb(0,0,0)";
-    svgParts.push(`${indent}<rect x="${r(barX)}" y="${r(barY)}" width="${r(barRight - barX)}" height="1" fill="${fillCol}" />`);
-  }
-
-  // DM-809 / DM-897: MathML `<msqrt>` / `<mroot>` need their radical sign +
-  // overbar synthesised — Chrome's MathML layout paints them from internal
-  // layout (no border / glyph capture). Preferred path (DM-897): render the
-  // actual √ (U+221A) font glyph fitted to the captured radical box, so the
-  // checkmark inherits the font's stroke-weight contrast and hook shape that
-  // a uniform stroke can't reproduce; the overbar (vinculum) is extended
-  // across the radicand separately. Falls back to the legacy uniform-stroke
-  // 3-segment path when the √ glyph can't be resolved (e.g. a platform whose
-  // fallback chain lacks it). For `<mroot>` the structure is `<mroot>
-  // <radicand><index></mroot>` — the index renders normally as a child
-  // glyph; only the radical + overbar are synthesised here.
-  if ((el.tag === "msqrt" || el.tag === "mroot") && el.children.length >= 1) {
-    const radicand = el.children[0];
-    const strokeCol = el.styles.color ? esc(el.styles.color) : "rgb(0,0,0)";
-    const radFontSize = parseFloat(el.styles.fontSize) || 16;
-    const glyphRadical = renderRadicalGlyph(
-      el.x, el.y, el.height, el.width,
-      { fontSize: radFontSize, fontFamily: el.styles.fontFamily, fontWeight: el.styles.fontWeight, fontStyle: el.styles.fontStyle, fontStretch: el.styles.fontStretch },
-      strokeCol,
-    );
-    if (glyphRadical != null) {
-      svgParts.push(`${indent}${glyphRadical}`);
-    } else {
-      const radX0 = el.x;
-      const radX1 = radicand.x;
-      const radTop = el.y;
-      const radBottom = el.y + el.height;
-      const radMid = el.y + el.height * 0.6;
-      const radRight = el.x + el.width;
-      // Radical checkmark: enter at (radX0, radMid), descend to bottom at
-      // 40% across the radical-sign zone, climb to top-right at radicand
-      // start. Then overbar across the top.
-      const vertexX = radX0 + (radX1 - radX0) * 0.4;
-      const path = `M${r(radX0)},${r(radMid)} L${r(vertexX)},${r(radBottom - 1)} L${r(radX1)},${r(radTop)} L${r(radRight)},${r(radTop)}`;
-      svgParts.push(`${indent}<path d="${path}" fill="none" stroke="${strokeCol}" stroke-width="1" />`);
-    }
-  }
-
-  // CustomScrollbarTheme paints the captured CSS boxes in source order:
-  // horizontal, vertical, custom corner, then the separately owned resizer.
-  // Geometry is already in capture-viewport coordinates and must not be
-  // recomputed from scroll ranges or transformed a second time.
-  svgParts.push(...paintCustomScrollbars({
-    defsParts,
-    nextId: (prefix) => paintCtx.nextClipId(prefix),
-    paintVectorPart: (item, partIndent) => paintCustomScrollbarVectorPart(
-      paintCtx, captureViewport, el, item, partIndent,
-    ),
-  }, captureViewport, el, indent));
-
-  // PaintOverflowControls orders both axes and the corner before the resizer.
-  // Native crops are already clipped source-frame pixels in capture-viewport
-  // coordinates; this consumer never reconstructs or scales platform chrome.
-  svgParts.push(...paintNativeScrollbarRasters(el, indent));
-
-  svgParts.push(...paintResizeHandle(paintCtx, captureViewport, el, indent));
+  paintElementOverlayPhase(elementPaintContext, childPlan);
 
   closeWrappers();
   appendBoxReflection(state, el, reflectionFragmentStart, depth);

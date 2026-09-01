@@ -5,7 +5,7 @@ kind: "contract"
 status: "partial"
 owners: ["rendering"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-1022","DM-1028","DM-2161","DM-2192","DM-227","DM-228","DM-229","DM-2355","DM-2365","DM-2366","DM-2367","DM-2368","DM-237","DM-2380","DM-2419","DM-2453","DM-2455","DM-2465","DM-2477","DM-2478","DM-2479","DM-2480","DM-2488","DM-2491","DM-2520","DM-258","DM-259","DM-260","DM-262","DM-300","DM-457","DM-462","DM-984","DM-987","SK-1093","SK-1097","SK-1099","SK-1100","SK-1101","SK-1105","SK-1108","SK-1111","SK-1113","SK-1114","SK-1115","SK-466","SK-468"]
+tickets: ["DM-1022","DM-1028","DM-2161","DM-2192","DM-227","DM-228","DM-229","DM-2355","DM-2365","DM-2366","DM-2367","DM-2368","DM-237","DM-2380","DM-2419","DM-2453","DM-2455","DM-2465","DM-2477","DM-2478","DM-2479","DM-2480","DM-2488","DM-2491","DM-2520","DM-258","DM-259","DM-260","DM-262","DM-2640","DM-300","DM-457","DM-462","DM-984","DM-987","SK-1093","SK-1097","SK-1099","SK-1100","SK-1101","SK-1105","SK-1108","SK-1111","SK-1113","SK-1114","SK-1115","SK-466","SK-468"]
 code: ["src/animation/animator.ts","src/render/clip-path.ts","src/render/element-tree-to-svg.ts","tests/composed-parity-fixtures.ts","tests/features.ts","tests/html-test-suite.tsx","tests/output/html-test/index.html","tests/output/html-test/results.json","tests/textarea-line-baseline.e2e.test.ts"]
 aliases: ["docs/01-fidelity.md","doc-01"]
 ---
@@ -177,6 +177,7 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
   - A float paints **above** the background of any block-level sibling, including ones that follow it in document order (the "float overflows its zero-height wrapper, later section's background covers it" case).
   - A float paints **below** every piece of inline content in the context — its own parent's text and any other paragraph's text. This is what `shape-outside` needs: shrinking the exclusion area below the float's border box makes the wrapped text legitimately overlap the painted float, and the overlapping text has to win z whichever paragraph it belongs to.
   - Because the block and inline phases are separate passes, a later block's background can no longer cover an earlier block's text either.
+  - The renderer expresses this ordering through a typed per-element context and explicit background/border, child-box, content, text, and overlay calls. The driver owns wrapper lifetime and is the single visible ordering authority; helpers may append paint but cannot reorder phases (DM-2640).
   - Fixture: `float-paint-order-context-wide` in the feature suite covers both directions (a hoisted float under a following paragraph's text; a float above a later sibling's negative-margin background).
   - Two constructs opt out of the phase split and paint atomically, matching CSS: an inline-level box (its background, border and content paint together while walking line boxes), and a `transform-style: preserve-3d` container (children sort by translateZ, which cuts across the paint-step buckets).
 
