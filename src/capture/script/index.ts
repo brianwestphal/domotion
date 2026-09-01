@@ -12,10 +12,12 @@
 // Helpers that are self-contained pre-walk / per-call utilities live in
 // sibling files (`color-norm.ts`, `emoji-detect.ts`, `font-metrics.ts`,
 // `placeholder-shown.ts`, `pseudo-rules.ts`, `warnings.ts`); per-concern
-// walker handlers live under `./walker/`. This file owns the remaining
-// `captureInner` walker body and the top-level orchestration (fixed-ancestor
-// pre-pass, counter pre-walk, root-element capture, mask-def + dark-mode
-// attachment to the result tree).
+// walker handlers live under `./walker/`. `walker/capture-phases.ts` owns the
+// geometry/style admission, pseudo/closed-shadow normalization, child
+// traversal, and final result-assembly boundaries. This file keeps the
+// remaining content/style record body and top-level orchestration
+// (fixed-ancestor pre-pass, counter pre-walk, root-element capture, mask-def +
+// dark-mode attachment to the result tree).
 
 import { createColorNorm } from "./color-norm.js";
 import { createEmojiDetect } from "./emoji-detect.js";
@@ -52,6 +54,12 @@ import { createInputValueHandler } from "./walker/input-value.js";
 import { createTextSegmentsHandler, computeElementRaster } from "./walker/text-segments.js";
 import { createPseudoInjectHandler } from "./walker/pseudo-inject.js";
 import { createResizeHandleHandler } from "./walker/resize-handle.js";
+import {
+  assembleCaptureResultPhase,
+  captureGeometryStylePhase,
+  captureTraversalPhase,
+  normalizePseudoShadowPhase,
+} from "./walker/capture-phases.js";
 import { createLineClampHandler } from "./line-clamp.js";
 import { resolveElementCursor, extractCssUrl, sideWidths, isOutsideCaptureViewport } from "./utils.js";
 import { parseCrossOriginAllowlist, frameHostAllowed } from "./cross-origin.js";
@@ -306,16 +314,6 @@ const captureDocumentTree =
     const _textPaintFact = _textPaintFactFor(el);
     const _pseudoFragmentFacts = _pseudoFragmentFactsFor(el);
     const _capturedFontFamilyStack = _fontFamilyStackFor(el, cs.fontFamily);
-    if (Array.isArray(_pseudoFragmentFacts)) {
-      for (const _pseudoFact of _pseudoFragmentFacts) {
-        if (_pseudoFact?.typography?.fontFamily == null) continue;
-        _pseudoFact.typography.fontFamilyStack = _fontFamilyStackFor(
-          el,
-          _pseudoFact.typography.fontFamily,
-          _pseudoFact.pseudo,
-        );
-      }
-    }
     let projectiveTransform;
     let projectiveHidden;
     let projectiveFrameState;
@@ -402,115 +400,24 @@ const captureDocumentTree =
     // capture the element as a transparent container (no own paint, but walk
     // children) so the in-viewport descendants are reached. _fixedAncestors
     // is precomputed in the pre-pass below.
-    const outsideViewport = isOutsideCaptureViewport(rect, vp);
-    // DM-2498: ruby base/annotation boxes are fragments of the parent's ruby
-    // column. In sideways/vertical layout their physical child DOMRects can
-    // lie outside the capture viewport even while the retained parent paints
-    // the column inside it (ruby annotations in particular live outside the
-    // base line box). Blink keeps these as kOpenRubyColumn/kCloseRubyColumn/
-    // kRubyLinePlaceholder inline items; culling the DOM child independently
-    // drops source-owned base/annotation text from an otherwise visible row.
-    // Retain only when the direct parent intersects the viewport, so a wholly
-    // offscreen ruby subtree still takes the ordinary culling path.
-    const _rubyTag = el.tagName == null ? '' : el.tagName.toLowerCase();
-    let _rubyOwner = el.parentElement;
-    while (_rubyOwner != null) {
-      const _ownerTag = _rubyOwner.tagName == null ? '' : _rubyOwner.tagName.toLowerCase();
-      if (_ownerTag !== 'ruby' && _ownerTag !== 'rt' && _ownerTag !== 'rp') break;
-      _rubyOwner = _rubyOwner.parentElement;
-    }
-    const _rubyFragmentOfVisibleParent = (_rubyTag === 'ruby' || _rubyTag === 'rt' || _rubyTag === 'rp')
-      && _rubyOwner != null
-      && !isOutsideCaptureViewport(_rubyOwner.getBoundingClientRect(), vp);
-    if (outsideViewport && !_rubyFragmentOfVisibleParent
-      && !_fixedAncestors.has(el) && !_transformInfluenced.has(el) && !_animInfluenced.has(el)) return null;
-
-    // visibility: collapse on table-row/column/group collapses that section
-    // (Chrome zero-sizes the row/col, so the zeroSized check below handles it).
-    // On any other element, the spec says it behaves as visibility: hidden — the
-    // text + children are hidden but adjacent layout / shared borders remain.
-    // DM-375.
-    //
-    // For <td>/<th> with visibility:hidden|collapse inside a border-collapse:collapse
-    // table, Chrome still paints the cell's borders (they're part of the shared
-    // table grid). The TOP edge of a hidden header cell is owned by the cell
-    // itself (no neighbor above to draw it), so dropping the cell loses that line.
-    // Fall through with bordersOnlyCell = true and clear text/children/bg
-    // before the final return. DM-450.
-    const _earlyTag = el.tagName.toLowerCase();
-    const bordersOnlyCell = (_earlyTag === 'td' || _earlyTag === 'th')
-      && (cs.visibility === 'hidden' || cs.visibility === 'collapse')
-      && cs.borderCollapse === 'collapse';
-    if (cs.display === 'none') return null;
-    if ((cs.visibility === 'hidden' || cs.visibility === 'collapse') && !bordersOnlyCell) return null;
-
-    // DM-750: `content-visibility: hidden` skips paint AND layout of the
-    // subtree; Chrome treats the element as a sized placeholder (driven by
-    // `contain-intrinsic-size`) with no visible children. `getBoundingClientRect`
-    // on the host still returns the placeholder box, but child rects would
-    // re-trigger layout if asked, producing rects that don't match what Chrome
-    // actually paints. Capture the host (so background / border / placeholder
-    // box land in the output) but drop the entire subtree's text + children.
-    // `content-visibility: auto` is handled implicitly — Chrome paints in-
-    // viewport `auto` sections normally, and the live-rect capture inherits
-    // that. Out-of-viewport `auto` sections are already culled by the captured
-    // viewport's bbox filter.
-    const _contentVisHidden = cs.contentVisibility === 'hidden';
-
-    // DM-580: standard accessibility "visually-hidden" / "sr-only" idioms.
-    // Chrome paints nothing for these (clipped to zero), but the DOM text is
-    // still present for screen readers. Without this filter the captured tree
-    // emits stray text (skip-to-content links, country/section abbreviations,
-    // hidden tooltip labels) that the real page never paints. Three patterns:
-    //   1. Legacy: clip: rect(0,0,0,0) (still used across major news/CMS sites)
-    //   2. Modern: clip-path: inset(50%) or inset(100%) — collapses to 0 box
-    //   3. 1x1 sr-only: tiny absolutely-positioned box with overflow:hidden
-    const _clip = cs.clip || '';
-    if (_clip !== 'auto' && _clip !== '' && _clip !== 'normal') {
-      const _cm = _clip.match(/rect\(\s*([^,\s]+)[ ,]+([^,\s]+)[ ,]+([^,\s]+)[ ,]+([^)\s]+)\s*\)/);
-      if (_cm != null
-          && parseFloat(_cm[1]) === 0 && parseFloat(_cm[2]) === 0
-          && parseFloat(_cm[3]) === 0 && parseFloat(_cm[4]) === 0) {
-        return null;
-      }
-    }
-    const _cp = cs.clipPath || '';
-    if (_cp.indexOf('inset(') === 0) {
-      const _ipm = _cp.match(/inset\(\s*([0-9.]+)\s*%/);
-      if (_ipm != null && parseFloat(_ipm[1]) >= 50) return null;
-    }
-    if (rect.width <= 1 && rect.height <= 1
-        && (cs.overflow === 'hidden' || cs.overflowX === 'hidden' || cs.overflowY === 'hidden')
-        && (cs.position === 'absolute' || cs.position === 'fixed')) {
-      return null;
-    }
-
-    // Zero-sized elements — skip visual rendering of the element itself but
-    // still walk children. Elements with all position:absolute children
-    // collapse to 0 height (absolutes don't contribute to layout) — those
-    // children still need to be captured and painted.
-    const zeroSized = rect.width === 0 || rect.height === 0;
-    // Skip empty zero-sized elements UNLESS they're tagged for an intra-frame
-    // animation — an animated element starting at width: 0 should still be
-    // captured so the renderer can emit its anim-class wrapper. (DM-209.)
-    const _hasAnim = el.dataset != null && el.dataset.domotionAnim != null && el.dataset.domotionAnim !== '';
-    // DM-1027: a lone combining mark (e.g. U+0300 grave in `<g>̀</g>`) lays out
-    // with ZERO advance width but still paints ink — the mark's glyph extends
-    // left of the origin (negative left side-bearing) at the full line height.
-    // Chrome paints it, so dropping the element as "zero-sized" loses the
-    // character. Keep a zero-WIDTH element that has non-zero height and
-    // non-whitespace text content; truly empty / zero-HEIGHT collapsed
-    // elements are still skipped.
-    const _inkTextZeroWidth = rect.width === 0 && rect.height > 0
-      && el.textContent != null && el.textContent.trim().length > 0;
-    // DM-2463: a failed/no-source image can be a zero-sized but semantically
-    // distinct Blink disposition (collapsed vs empty-inline vs primary). Keep
-    // the host long enough for the CDP UA-shadow post-pass to classify it; its
-    // zero box remains non-painting in the renderer.
-    const _keepImageFallbackState = el.tagName != null && el.tagName.toLowerCase() === 'img';
-    if (zeroSized && el.children.length === 0 && !_hasAnim && !_inkTextZeroWidth && !_keepImageFallbackState) return null;
-
-    const tag = el.tagName.toLowerCase();
+    const _geometryStyle = captureGeometryStylePhase({
+      el,
+      cs,
+      rect,
+      vp,
+      fixedAncestors: _fixedAncestors,
+      transformInfluenced: _transformInfluenced,
+      animInfluenced: _animInfluenced,
+      isOutsideCaptureViewport,
+    });
+    if (_geometryStyle == null) return null;
+    const {
+      outsideViewport,
+      bordersOnlyCell,
+      contentVisibilityHidden: _contentVisHidden,
+      zeroSized,
+      tag,
+    } = _geometryStyle;
 
     // Emit warnings for features domotion can't fully round-trip. Keep
     // these short and actionable — consumers (CLI, tests, demo scripts) log
@@ -586,86 +493,17 @@ const captureDocumentTree =
           tag === 'input' && el.type === 'file' ? _fileSelectorButtonAppearance : undefined,
         )
       : [];
-    const _nativeDecorationParts = [];
-    const _missingNativeDecorationKinds = [];
-    let _nativeDecorationUnavailableReason;
-    for (let _dki = 0; _dki < _nativeDecorationKinds.length; _dki++) {
-      const _kind = _nativeDecorationKinds[_dki];
-      if (_kind === 'menulist-button-arrow') continue;
-      let _found = false;
-      for (let _dri = 0; _dri < _nativeDecorationRefs.length; _dri++) {
-        const _entry = _nativeDecorationRefs[_dri];
-        if (_entry == null || _entry.kind !== _kind || !(_entry.node instanceof Element)) continue;
-        _found = true;
-        if (_kind === 'file-selector-button'
-            && (_entry.ownership == null || _entry.ownership.effectiveAppearance == null)) {
-          _nativeDecorationUnavailableReason = _entry.ownership && _entry.ownership.reason
-            ? _entry.ownership.reason
-            : 'file-selector child EffectiveAppearance unavailable';
-        }
-        const _part = _entry.node;
-        const _partStyle = getComputedStyle(_part);
-        const _partRect = _part.getBoundingClientRect();
-        const _partOpacity = parseFloat(_partStyle.opacity);
-        if (_part.isConnected && _partStyle.display !== 'none'
-            && _partStyle.visibility === 'visible'
-            && (!isFinite(_partOpacity) || _partOpacity > 0)
-            && _partRect.width > 0 && _partRect.height > 0) {
-          _nativeDecorationParts.push({
-            kind: _kind,
-            index: _dri,
-            x: _partRect.left,
-            y: _partRect.top,
-            width: _partRect.width,
-            height: _partRect.height,
-          });
-        }
-      }
-      if (!_found) _missingNativeDecorationKinds.push(_kind);
-    }
-    // The file status <span> is a sibling layout/text owner, not part of the
-    // native crop. Retain its identity and quad solely so isolation can hide
-    // it reversibly while keeping the exact button visible.
-    if (_nativeDecorationKinds.indexOf('file-selector-button') >= 0) {
-      let _fileStatusFound = false;
-      for (let _dri = 0; _dri < _nativeDecorationRefs.length; _dri++) {
-        const _entry = _nativeDecorationRefs[_dri];
-        if (_entry == null || _entry.kind !== 'file-selector-status' || !(_entry.node instanceof Element)) continue;
-        _fileStatusFound = true;
-        const _statusRect = _entry.node.getBoundingClientRect();
-        if (_entry.node.isConnected && _statusRect.width >= 0 && _statusRect.height >= 0) {
-          _nativeDecorationParts.push({
-            kind: 'file-selector-status',
-            index: _dri,
-            x: _statusRect.left,
-            y: _statusRect.top,
-            width: _statusRect.width,
-            height: _statusRect.height,
-          });
-        }
-      }
-      if (!_fileStatusFound) _missingNativeDecorationKinds.push('file-selector-status');
-    }
-    if (_nativeDecorationKinds.indexOf('menulist-button-arrow') >= 0) {
-      let _selectInnerFound = false;
-      for (let _dri = 0; _dri < _nativeDecorationRefs.length; _dri++) {
-        const _entry = _nativeDecorationRefs[_dri];
-        if (_entry == null || _entry.kind !== 'select-inner' || !(_entry.node instanceof Element)) continue;
-        _selectInnerFound = true;
-        const _partRect = _entry.node.getBoundingClientRect();
-        if (_entry.node.isConnected && _partRect.width >= 0 && _partRect.height >= 0) {
-          _nativeDecorationParts.push({
-            kind: 'select-inner',
-            index: _dri,
-            x: _partRect.left,
-            y: _partRect.top,
-            width: _partRect.width,
-            height: _partRect.height,
-          });
-        }
-      }
-      if (!_selectInnerFound) _missingNativeDecorationKinds.push('select-inner');
-    }
+    const {
+      nativeDecorationParts: _nativeDecorationParts,
+      missingNativeDecorationKinds: _missingNativeDecorationKinds,
+      nativeDecorationUnavailableReason: _nativeDecorationUnavailableReason,
+    } = normalizePseudoShadowPhase({
+      el,
+      pseudoFragmentFacts: _pseudoFragmentFacts,
+      fontFamilyStackFor: _fontFamilyStackFor,
+      nativeDecorationRefs: _nativeDecorationRefs,
+      nativeDecorationKinds: _nativeDecorationKinds,
+    });
     // FileInputType's button and filename are real closed-shadow children.
     // Preserve their source layout/text facts independently of whether the
     // button's own EffectiveAppearance selects native pixels or author paint.
@@ -1038,47 +876,12 @@ const captureDocumentTree =
       svgReferenceScope = _svgReferenceScope(el);
     }
 
-    const children = [];
-    // DM-750: see the `content-visibility: hidden` note above — capture the
-    // host's own box (background / border / placeholder) but drop the subtree
-    // entirely. Skip the whole `for (child of el.children)` loop so neither
-    // children nor their text gets pushed.
-    if (_contentVisHidden) {
-      // fall through to the rest of the capture with `children = []`.
-    } else
-    for (const child of el.children) {
-      // Closed <details> hides non-<summary> children visually. getBoundingClientRect
-      // still returns their rects and cs.display isn't 'none', so we explicitly
-      // skip non-summary children when the parent details is closed.
-      if (tag === 'details' && !el.open && child.tagName.toLowerCase() !== 'summary') continue;
-      // <select> renders its own listbox/dropdown via the form-control
-      // synth; recursively capturing <option>/<optgroup> children would
-      // emit their own background rects and stack them on top of the
-      // synth output, hiding the option text. Skip them. (DM-355)
-      if (tag === 'select' && (child.tagName.toLowerCase() === 'option' || child.tagName.toLowerCase() === 'optgroup')) continue;
-      const c = capture(child);
-      if (c) {
-        // DM-1177: splice a captured `scroll-marker-group` in as a real sibling
-        // of its scroller — before the scroller for `scroll-marker-group: before`,
-        // after it for `after`. As a sibling it sits OUTSIDE the scroller's
-        // overflow clip (Chrome paints the group outside the scrollport) and the
-        // normal paint-order pass places it correctly.
-        const _grp = c.scrollMarkerGroup;
-        const _before = c._scrollMarkerGroupBefore;
-        delete c.scrollMarkerGroup;
-        delete c._scrollMarkerGroupBefore;
-        // DM-1234: `::scroll-button(<dir>)` paging arrows captured as replica
-        // siblings; Chrome paints them OUTSIDE the scroller's overflow clip and
-        // ABOVE its content (the fixture's `z-index:1`), so emit them AFTER the
-        // scroller (and after the marker group) as last-painted siblings.
-        const _btns = c.scrollButtons;
-        delete c.scrollButtons;
-        if (_grp && _before) children.push(_grp);
-        children.push(c);
-        if (_grp && !_before) children.push(_grp);
-        if (_btns) for (let _bi = 0; _bi < _btns.length; _bi++) children.push(_btns[_bi]);
-      }
-    }
+    const children = captureTraversalPhase({
+      el,
+      tag,
+      contentVisibilityHidden: _contentVisHidden,
+      capture,
+    });
 
     const _animId = el.dataset != null ? el.dataset.domotionAnim : undefined;
     // DM-900: author-supplied magic-move pairing key (`data-magic-key`). When
@@ -1609,99 +1412,21 @@ const captureDocumentTree =
         token: urlFilterRasterToken,
       },
     };
-    // Elements that fragment into multiple paint boxes need per-fragment
-    // paint of background + border, not a single rect covering the bbox
-    // (the bbox is the union of every fragment and produces an over-wide /
-    // over-tall shape that paints across the gap between fragments).
-    // Trigger when:
-    //   1. The element has a non-transparent background OR a non-zero border
-    //      width on any side, AND
-    //   2. `el.getClientRects()` returns more than one rect, AND
-    //   3. The element is either
-    //      (a) `display: inline` and wrapped onto multiple lines, OR
-    //      (b) DM-754: block-level (block / list-item / flex / grid /
-    //          flow-root) inside a multi-column container ancestor —
-    //          `column-count > 1` or `column-width: <length>` — where a
-    //          tall block fragments at the column boundary.
-    // Without the `display` / ancestor-column guard we'd trip on table cells
-    // and other layouts where Chrome legitimately reports multiple client
-    // rects for an axis-aligned bbox (e.g. SVG paint shapes); restrict to
-    // the two known fragmentation cases.
-    //
-    // The renderer reads `inlineFragments`, detects axis from frag geometry
-    // (block-axis when fragments stack vertically, inline-axis when they
-    // stack horizontally), and walks per-fragment with the right
-    // `box-decoration-break` slice/clone semantics for that axis.
-    // Multi-fragment inline / multi-column paint detection (DM-1436: extracted to walker/fragmentation.ts).
-    detectInlineFragments(el, cs, vp, _captured);
-
-    // DM-450: hidden/collapsed table cell — keep the cell's box + borders so
-    // shared edges of the collapsed table grid still paint, but suppress
-    // text, children, and background fill (per CSS visibility:hidden).
-    if (bordersOnlyCell) {
-      _captured.text = '';
-      _captured.children = [];
-      _captured.styles.backgroundColor = 'rgba(0, 0, 0, 0)';
-      _captured.styles.backgroundImage = undefined;
-      _captured.textSegments = undefined;
-      _captured.imageSrc = undefined;
-      _captured.svgContent = undefined;
-      _captured.pseudoImages = undefined;
-      _captured.elementRaster = undefined;
-    }
-    // DM-1441: same-origin <iframe> recursion. When the frame's document is
-    // accessible (same-origin — cross-origin contentDocument is null under the
-    // SOP), walk it with the same capture logic and splice the resulting
-    // subtree in as the iframe node's child, transformed into the parent's
-    // coordinate space. The iframe node then becomes an overflow-clipped
-    // container (its own bg/border still paint; children clip to its content
-    // box) and the raster-snapshot routing below is skipped for it. See
-    // docs/81-iframe-recursion.md.
-    if (tag === 'iframe' && !bordersOnlyCell) {
-      var _iframeAuthority = _iframeFrameAuthority(el);
-      if (_iframeAuthority != null) {
-        _captured.frameScrollIdentity = {
-          source: _iframeAuthority.source,
-          captureId: _iframeAuthority.captureId,
-          frameId: _iframeAuthority.frameId,
-          parentFrameId: _iframeAuthority.parentFrameId,
-          access: _iframeAuthority.access,
-          allowlistSha256: _iframeAuthority.allowlistSha256,
-        };
-      }
-      var _iframeNode = _captureIframeRecursion(el, cs, rect);
-      if (_iframeNode != null) {
-        _captured.children = [_iframeNode];
-        _captured._iframeRecursed = true;
-        // Clip the spliced inner document to the iframe content box. The
-        // renderer overflow-clips children when overflow != visible.
-        _captured.styles.overflowX = 'hidden';
-        _captured.styles.overflowY = 'hidden';
-      }
-    }
-    // Replaced-element snapshot routing — <iframe>/<canvas>/<video>/<object>/
-    // <embed>, custom elements with open shadow DOM, and the CSS sprite-icon
-    // image-replacement idiom. Handler mutates _captured (.replacedSnapshot,
-    // .imageReplacement, and on the sprite-icon path .styles.backgroundImage /
-    // .text / .textSegments). A recursed iframe (_iframeRecursed) skips the
-    // snapshot path. See walker/replaced-elements.ts.
-    handleReplacedElement(el, cs, tag, rect, _captured, bordersOnlyCell);
-    // The recursion marker is only needed to gate handleReplacedElement; drop
-    // it so it doesn't leak into the serialized tree.
-    delete _captured._iframeRecursed;
-    // DM-1177: CSS `scroll-marker-group` (Chrome 135+). Capture the synthesized
-    // dot/pill marker-group box as a replica subtree (see _captureScrollMarkerGroup).
-    // Stash it (plus its before/after placement) on the node so the PARENT's
-    // children loop can splice it in as a real sibling — emitting it inside the
-    // scroller's own render fights the renderer's paint-order / overflow-clip
-    // machinery, so it must be a first-class tree node next to the scroller.
-    if (!bordersOnlyCell) {
-      var _smg = _captureScrollMarkerGroup(el, cs, rect);
-      if (_smg) { _captured.scrollMarkerGroup = _smg.node; _captured._scrollMarkerGroupBefore = _smg.before; }
-      var _sbtns = _captureScrollButtons(el, cs, rect);
-      if (_sbtns) _captured.scrollButtons = _sbtns;
-    }
-    return _captured;
+    return assembleCaptureResultPhase({
+      captured: _captured,
+      el,
+      cs,
+      tag,
+      rect,
+      vp,
+      bordersOnlyCell,
+      detectInlineFragments,
+      iframeFrameAuthority: _iframeFrameAuthority,
+      captureIframeRecursion: _captureIframeRecursion,
+      handleReplacedElement,
+      captureScrollMarkerGroup: _captureScrollMarkerGroup,
+      captureScrollButtons: _captureScrollButtons,
+    });
   };
 
   // DM-1177: A scroll container with `scroll-marker-group: after | before`

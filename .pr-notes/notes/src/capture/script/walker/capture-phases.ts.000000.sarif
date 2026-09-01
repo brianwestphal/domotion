@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "unknown-ai-tool",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtiryps5d9cwwdm7",
+          "message": {
+            "text": "These phase helpers stay ordinary importable ESM for direct boundary and session-isolation tests, while the capture build inlines them into the same single browser-context IIFE. Keeping them stateless (all capture-local registries and callbacks arrive explicitly) prevents one page.evaluate capture or hostile DOM mutation from leaking phase state into the next session.",
+            "markdown": "These phase helpers stay ordinary importable ESM for direct boundary and session-isolation tests, while the capture build inlines them into the same single browser-context IIFE. Keeping them stateless (all capture-local registries and callbacks arrive explicitly) prevents one page.evaluate capture or hostile DOM mutation from leaking phase state into the next session."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/capture-phases.ts"
+                },
+                "region": {
+                  "startLine": 1,
+                  "endLine": 254,
+                  "snippet": {
+                    "text": "// @ts-nocheck\n//\n// Source-owned phase boundaries for the in-page element walker. These helpers\n// are ordinary ESM for direct unit testing, but build-capture-script bundles\n// them into the one self-contained browser injection used by page.evaluate().\n\nexport function captureGeometryStylePhase({\n  el,\n  cs,\n  rect,\n  vp,\n  fixedAncestors,\n  transformInfluenced,\n  animInfluenced,\n  isOutsideCaptureViewport,\n}) {\n  const outsideViewport = isOutsideCaptureViewport(rect, vp);\n  // Ruby base/annotation boxes belong to the parent's ruby column. In vertical\n  // layout their own DOMRects may lie outside a retained, visible owner.\n  const rubyTag = el.tagName == null ? '' : el.tagName.toLowerCase();\n  let rubyOwner = el.parentElement;\n  while (rubyOwner != null) {\n    const ownerTag = rubyOwner.tagName == null ? '' : rubyOwner.tagName.toLowerCase();\n    if (ownerTag !== 'ruby' && ownerTag !== 'rt' && ownerTag !== 'rp') break;\n    rubyOwner = rubyOwner.parentElement;\n  }\n  const rubyFragmentOfVisibleParent = (rubyTag === 'ruby' || rubyTag === 'rt' || rubyTag === 'rp')\n    && rubyOwner != null\n    && !isOutsideCaptureViewport(rubyOwner.getBoundingClientRect(), vp);\n  if (outsideViewport && !rubyFragmentOfVisibleParent\n      && !fixedAncestors.has(el) && !transformInfluenced.has(el) && !animInfluenced.has(el)) return null;\n\n  // A hidden/collapsed border-collapse cell still owns shared grid edges;\n  // other hidden elements do not paint. DM-375 / DM-450.\n  const tag = el.tagName.toLowerCase();\n  const bordersOnlyCell = (tag === 'td' || tag === 'th')\n    && (cs.visibility === 'hidden' || cs.visibility === 'collapse')\n    && cs.borderCollapse === 'collapse';\n  if (cs.display === 'none') return null;\n  if ((cs.visibility === 'hidden' || cs.visibility === 'collapse') && !bordersOnlyCell) return null;\n\n  // Keep the content-visibility host box but never force layout or traversal\n  // of its skipped subtree. DM-750.\n  const contentVisibilityHidden = cs.contentVisibility === 'hidden';\n  // Standard visually-hidden/sr-only recipes retain DOM text but no pixels.\n  // Reject all three common forms before text capture. DM-580.\n  const clip = cs.clip || '';\n  if (clip !== 'auto' && clip !== '' && clip !== 'normal') {\n    const match = clip.match(/rect\\(\\s*([^,\\s]+)[ ,]+([^,\\s]+)[ ,]+([^,\\s]+)[ ,]+([^)\\s]+)\\s*\\)/);\n    if (match != null\n        && parseFloat(match[1]) === 0 && parseFloat(match[2]) === 0\n        && parseFloat(match[3]) === 0 && parseFloat(match[4]) === 0) return null;\n  }\n  const clipPath = cs.clipPath || '';\n  if (clipPath.indexOf('inset(') === 0) {\n    const match = clipPath.match(/inset\\(\\s*([0-9.]+)\\s*%/);\n    if (match != null && parseFloat(match[1]) >= 50) return null;\n  }\n  if (rect.width <= 1 && rect.height <= 1\n      && (cs.overflow === 'hidden' || cs.overflowX === 'hidden' || cs.overflowY === 'hidden')\n      && (cs.position === 'absolute' || cs.position === 'fixed')) return null;\n\n  // Empty zero-size boxes do not paint, except animated boxes, zero-advance\n  // combining-mark ink, and images awaiting UA-shadow fallback classification.\n  const zeroSized = rect.width === 0 || rect.height === 0;\n  const hasAnimation = el.dataset != null\n    && el.dataset.domotionAnim != null\n    && el.dataset.domotionAnim !== '';\n  const inkTextZeroWidth = rect.width === 0 && rect.height > 0\n    && el.textContent != null && el.textContent.trim().length > 0;\n  const keepImageFallbackState = tag === 'img';\n  if (zeroSized && el.children.length === 0 && !hasAnimation\n      && !inkTextZeroWidth && !keepImageFallbackState) return null;\n\n  return {\n    rect,\n    tag,\n    outsideViewport,\n    bordersOnlyCell,\n    contentVisibilityHidden,\n    zeroSized,\n  };\n}\n\nexport function normalizePseudoShadowPhase({\n  el,\n  pseudoFragmentFacts,\n  fontFamilyStackFor,\n  nativeDecorationRefs,\n  nativeDecorationKinds,\n}) {\n  if (Array.isArray(pseudoFragmentFacts)) {\n    for (const fact of pseudoFragmentFacts) {\n      if (fact?.typography?.fontFamily == null) continue;\n      fact.typography.fontFamilyStack = fontFamilyStackFor(\n        el,\n        fact.typography.fontFamily,\n        fact.pseudo,\n      );\n    }\n  }\n\n  const nativeDecorationParts = [];\n  const missingNativeDecorationKinds = [];\n  let nativeDecorationUnavailableReason;\n  for (let kindIndex = 0; kindIndex < nativeDecorationKinds.length; kindIndex++) {\n    const kind = nativeDecorationKinds[kindIndex];\n    if (kind === 'menulist-button-arrow') continue;\n    let found = false;\n    for (let refIndex = 0; refIndex < nativeDecorationRefs.length; refIndex++) {\n      const entry = nativeDecorationRefs[refIndex];\n      if (entry == null || entry.kind !== kind || !(entry.node instanceof Element)) continue;\n      found = true;\n      if (kind === 'file-selector-button'\n          && (entry.ownership == null || entry.ownership.effectiveAppearance == null)) {\n        nativeDecorationUnavailableReason = entry.ownership && entry.ownership.reason\n          ? entry.ownership.reason\n          : 'file-selector child EffectiveAppearance unavailable';\n      }\n      const part = entry.node;\n      const partStyle = getComputedStyle(part);\n      const partRect = part.getBoundingClientRect();\n      const partOpacity = parseFloat(partStyle.opacity);\n      if (part.isConnected && partStyle.display !== 'none'\n          && partStyle.visibility === 'visible'\n          && (!isFinite(partOpacity) || partOpacity > 0)\n          && partRect.width > 0 && partRect.height > 0) {\n        nativeDecorationParts.push({\n          kind,\n          index: refIndex,\n          x: partRect.left,\n          y: partRect.top,\n          width: partRect.width,\n          height: partRect.height,\n        });\n      }\n    }\n    if (!found) missingNativeDecorationKinds.push(kind);\n  }\n\n  const auxiliaryKinds = nativeDecorationKinds.indexOf('file-selector-button') >= 0\n    ? ['file-selector-status']\n    : (nativeDecorationKinds.indexOf('menulist-button-arrow') >= 0 ? ['select-inner'] : []);\n  for (const kind of auxiliaryKinds) {\n    let found = false;\n    for (let refIndex = 0; refIndex < nativeDecorationRefs.length; refIndex++) {\n      const entry = nativeDecorationRefs[refIndex];\n      if (entry == null || entry.kind !== kind || !(entry.node instanceof Element)) continue;\n      found = true;\n      const partRect = entry.node.getBoundingClientRect();\n      if (entry.node.isConnected && partRect.width >= 0 && partRect.height >= 0) {\n        nativeDecorationParts.push({\n          kind,\n          index: refIndex,\n          x: partRect.left,\n          y: partRect.top,\n          width: partRect.width,\n          height: partRect.height,\n        });\n      }\n    }\n    if (!found) missingNativeDecorationKinds.push(kind);\n  }\n\n  return {\n    nativeDecorationParts,\n    missingNativeDecorationKinds,\n    nativeDecorationUnavailableReason,\n  };\n}\n\nexport function captureTraversalPhase({ el, tag, contentVisibilityHidden, capture }) {\n  const children = [];\n  if (contentVisibilityHidden) return children;\n  for (const child of el.children) {\n    if (tag === 'details' && !el.open && child.tagName.toLowerCase() !== 'summary') continue;\n    if (tag === 'select'\n        && (child.tagName.toLowerCase() === 'option' || child.tagName.toLowerCase() === 'optgroup')) continue;\n    const captured = capture(child);\n    if (captured == null) continue;\n    const group = captured.scrollMarkerGroup;\n    const before = captured._scrollMarkerGroupBefore;\n    delete captured.scrollMarkerGroup;\n    delete captured._scrollMarkerGroupBefore;\n    const buttons = captured.scrollButtons;\n    delete captured.scrollButtons;\n    if (group && before) children.push(group);\n    children.push(captured);\n    if (group && !before) children.push(group);\n    if (buttons) for (let index = 0; index < buttons.length; index++) children.push(buttons[index]);\n  }\n  return children;\n}\n\nexport function assembleCaptureResultPhase({\n  captured,\n  el,\n  cs,\n  tag,\n  rect,\n  vp,\n  bordersOnlyCell,\n  detectInlineFragments,\n  iframeFrameAuthority,\n  captureIframeRecursion,\n  handleReplacedElement,\n  captureScrollMarkerGroup,\n  captureScrollButtons,\n}) {\n  detectInlineFragments(el, cs, vp, captured);\n  if (bordersOnlyCell) {\n    captured.text = '';\n    captured.children = [];\n    captured.styles.backgroundColor = 'rgba(0, 0, 0, 0)';\n    captured.styles.backgroundImage = undefined;\n    captured.textSegments = undefined;\n    captured.imageSrc = undefined;\n    captured.svgContent = undefined;\n    captured.pseudoImages = undefined;\n    captured.elementRaster = undefined;\n  }\n  if (tag === 'iframe' && !bordersOnlyCell) {\n    const authority = iframeFrameAuthority(el);\n    if (authority != null) {\n      captured.frameScrollIdentity = {\n        source: authority.source,\n        captureId: authority.captureId,\n        frameId: authority.frameId,\n        parentFrameId: authority.parentFrameId,\n        access: authority.access,\n        allowlistSha256: authority.allowlistSha256,\n      };\n    }\n    const iframeNode = captureIframeRecursion(el, cs, rect);\n    if (iframeNode != null) {\n      captured.children = [iframeNode];\n      captured._iframeRecursed = true;\n      captured.styles.overflowX = 'hidden';\n      captured.styles.overflowY = 'hidden';\n    }\n  }\n  handleReplacedElement(el, cs, tag, rect, captured, bordersOnlyCell);\n  delete captured._iframeRecursed;\n  if (!bordersOnlyCell) {\n    const markerGroup = captureScrollMarkerGroup(el, cs, rect);\n    if (markerGroup) {\n      captured.scrollMarkerGroup = markerGroup.node;\n      captured._scrollMarkerGroupBefore = markerGroup.before;\n    }\n    const buttons = captureScrollButtons(el, cs, rect);\n    if (buttons) captured.scrollButtons = buttons;\n  }\n  return captured;\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 86,
+          "workItemUris": [
+            "DM-2639"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "52fb374f08ae0066539ece30f7d71dde"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "7fcc13eb68b46dc9f2862bfc9ffd361fd0569f83",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

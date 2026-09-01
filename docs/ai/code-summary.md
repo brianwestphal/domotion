@@ -8,6 +8,12 @@ loading the historical documentation corpus.
 
 - `src/capture/` owns browser bring-up, DOM/style/geometry collection, source
   evidence, replaced/native surfaces, and the serialized page capture script.
+  The browser payload enters through `src/capture/script/index.ts`; its
+  geometry/style admission, pseudo/closed-shadow normalization, child
+  traversal, and result assembly are isolated in
+  `src/capture/script/walker/capture-phases.ts`. The capture build inlines those
+  importable/testable phases back into one self-contained `page.evaluate`
+  function, so no module boundary leaks into the captured page (DM-2639).
 - `src/render/` turns captured facts into SVG. It must preserve Chromium's
   decisions; it does not independently lay out the page.
 - `src/animation/`, `src/tree-ops/`, and `src/scroll/` compose and transform
