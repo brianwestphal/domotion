@@ -2272,12 +2272,15 @@ const LINUX_TARGET_STRIKES = new Set([
   "WenQuanYiZenHeiMono|17|400",
   "WenQuanYiZenHeiMono|26|700",
   "WenQuanYiZenHei|32|700",
+  "LiberationSans|32|400",
+  "FreeSans|32|400",
+  "FreeSerif|32|400",
 ]);
 
 /**
  * Each production target-strike route is an exact face/size/weight surface
- * proven by the phase oracle or its owning fixture. Other WQY faces/sizes do
- * not all improve under the same outline transformation, so widening this
+ * proven by the phase oracle or its owning fixture. Other faces/sizes do not
+ * all improve under the same outline transformation, so widening this
  * predicate requires a new per-strike result rather than family extrapolation.
  */
 export function embeddedLinuxTargetStrikeEnabled(
@@ -2759,14 +2762,19 @@ function renderEmbeddedGlyphRuns(
     // match what this run shaped with (and hinting survives instancing).
     // Webfont instances return null here (no backing file) and keep svg2ttf.
     const hintedSource = srcInfo;
-    const textRendering = embeddedSystemFontTextRendering(
-      process.platform,
-      hintedSource != null,
-      undefined,
-      hintedSource?.postscriptName,
-      undefined,
-      authoredTextRendering,
-    );
+    // Target-strike outlines already carry FreeType's concrete 26.6-grid y
+    // coordinates. geometricPrecision prevents the consumer's custom-font
+    // scaler from applying a second, family-less webfont hinting pass.
+    const textRendering = targetStrikeActive
+      ? "geometricPrecision"
+      : embeddedSystemFontTextRendering(
+        process.platform,
+        hintedSource != null,
+        undefined,
+        hintedSource?.postscriptName,
+        undefined,
+        authoredTextRendering,
+      );
     const textRenderingAttr = textRendering == null ? "" : ` text-rendering="${textRendering}"`;
 
     // Resolve cssFamily + PUA codepoints for every shaped glyph in this

@@ -1803,6 +1803,69 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mti9p9mrb3cksghz",
+          "message": {
+            "text": "DM-2626's fixture-level oracle proves face/gid/cluster/span parity for all 520 checks; the 21-region residual is therefore terminal strike, not fallback. On pinned amd64 Linux, exact 32px y strikes for the fixture's LiberationSans, FreeSans, and FreeSerif source faces reduce the fixture from 21 regions / 0.0543% coverage / 0.2382% diff to 1 region / 0.00344% coverage / 0.0440% diff. Full hinted x for FreeSans did not improve the remaining U+1EFE region, so production retains design x.",
+            "markdown": "DM-2626's fixture-level oracle proves face/gid/cluster/span parity for all 520 checks; the 21-region residual is therefore terminal strike, not fallback. On pinned amd64 Linux, exact 32px y strikes for the fixture's LiberationSans, FreeSans, and FreeSerif source faces reduce the fixture from 21 regions / 0.0543% coverage / 0.2382% diff to 1 region / 0.00344% coverage / 0.0440% diff. Full hinted x for FreeSans did not improve the remaining U+1EFE region, so production retains design x."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 2271,
+                  "endLine": 2302,
+                  "snippet": {
+                    "text": "const LINUX_TARGET_STRIKES = new Set([\n  \"WenQuanYiZenHeiMono|17|400\",\n  \"WenQuanYiZenHeiMono|26|700\",\n  \"WenQuanYiZenHei|32|700\",\n  \"LiberationSans|32|400\",\n  \"FreeSans|32|400\",\n  \"FreeSerif|32|400\",\n]);\n\n/**\n * Each production target-strike route is an exact face/size/weight surface\n * proven by the phase oracle or its owning fixture. Other faces/sizes do not\n * all improve under the same outline transformation, so widening this\n * predicate requires a new per-strike result rather than family extrapolation.\n */\nexport function embeddedLinuxTargetStrikeEnabled(\n  capturePlatform: NodeJS.Platform,\n  sourcePostscriptName: string | undefined,\n  fontSizePx: number,\n  weight: number,\n  slant: number,\n  stretch: number,\n  authoredTextRendering = \"auto\",\n  enabled = process.env.DOMOTION_LINUX_TARGET_STRIKE !== \"0\",\n): boolean {\n  return enabled\n    && capturePlatform === \"linux\"\n    && sourcePostscriptName != null\n    && LINUX_TARGET_STRIKES.has(`${sourcePostscriptName}|${fontSizePx}|${weight}`)\n    && slant === 0\n    && stretch === 100\n    && authoredTextRendering.toLowerCase() === \"auto\";"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ]
+          },
+          "workItemUris": [
+            "DM-2626"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "cfdfbcd8cf465e79035d7e68b9649401"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f2468561f9dd84edcd3c40d0bf01df884d99a49c",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

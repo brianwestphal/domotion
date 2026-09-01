@@ -47,6 +47,9 @@ describe("embedded system-font terminal rendering (DM-2623)", () => {
     expect(embeddedLinuxTargetStrikeEnabled("linux", "WenQuanYiZenHeiMono", 17, 400, 0, 100)).toBe(true);
     expect(embeddedLinuxTargetStrikeEnabled("linux", "WenQuanYiZenHeiMono", 26, 700, 0, 100)).toBe(true);
     expect(embeddedLinuxTargetStrikeEnabled("linux", "WenQuanYiZenHei", 32, 700, 0, 100)).toBe(true);
+    expect(embeddedLinuxTargetStrikeEnabled("linux", "LiberationSans", 32, 400, 0, 100)).toBe(true);
+    expect(embeddedLinuxTargetStrikeEnabled("linux", "FreeSans", 32, 400, 0, 100)).toBe(true);
+    expect(embeddedLinuxTargetStrikeEnabled("linux", "FreeSerif", 32, 400, 0, 100)).toBe(true);
     expect(embeddedLinuxTargetStrikeEnabled("linux", "WenQuanYiZenHei", 17, 400, 0, 100)).toBe(false);
     expect(embeddedLinuxTargetStrikeEnabled("linux", "WenQuanYiZenHei", 32, 400, 0, 100)).toBe(false);
     expect(embeddedLinuxTargetStrikeEnabled("linux", "WenQuanYiZenHeiMono", 16, 400, 0, 100)).toBe(false);
