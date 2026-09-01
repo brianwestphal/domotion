@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-2458"]
-code: [".github/workflows/native-control-fallback-parity.yml","src/render/form-controls.ts","tests/native-control-fallback-activation.e2e.test.ts","tests/native-control-fallback-gate.test.ts","tools/native-control-fallback-gate.ts"]
+tickets: ["DM-2458","DM-2615","DM-2628","DM-2634"]
+code: [".github/workflows/native-control-fallback-parity.yml","src/capture/input-value-geometry.ts","src/capture/pseudo-style-cdp.test.ts","src/capture/pseudo-style-cdp.ts","src/capture/script/walker/form-controls.ts","src/capture/script/walker/input-value.ts","src/render/form-controls.test.ts","src/render/form-controls.ts","tests/native-control-fallback-activation.e2e.test.ts","tests/native-control-fallback-gate.test.ts","tools/native-control-fallback-gate.ts"]
 aliases: ["docs/182-native-control-fallback-retirement.md","doc-182"]
 ---
 
@@ -67,7 +67,13 @@ The structural helpers now require their source inputs:
   author background/border; localized status text uses the captured closed
   shadow span;
 - structural select text requires captured font metrics and content-box
-  dimensions; arrow paint is an exact decoration surface or author background;
+  dimensions; a base-select disclosure is structural vector paint from the
+  captured `::picker-icon` color, while native arrows remain exact decoration
+  surfaces or author backgrounds;
+- single-line input value text may use Chromium's closed-UA-shadow FragmentItem
+  top only when its one axis-aligned quad and same-frame host dimensions pass
+  the validation contract in doc 171; rejected or old records retain the
+  metric-based compatibility estimate;
 - search cancel, number spin, and temporal picker glyphs are exact decoration
   surfaces, not renderer drawings; and
 - summary disclosure paint is owned by the source-recorded generic list-marker
@@ -87,7 +93,9 @@ The following native-default mechanisms are removed from
 - default color-swatch wrapper padding and surrounding native box;
 - English `Choose File` / `No file chosen` labels and file-button geometry;
 - calendar/clock/search-cancel/spin glyph geometry;
-- selected-value font/baseline and select-chevron approximations; and
+- native selected-value font/baseline and generic native select-chevron
+  approximations (the source-semantic structural base-select icon in doc 171 is
+  a separate vector route); and
 - the legacy details disclosure triangle.
 
 `src/dark-mode-form-controls.test.ts` was deleted because it asserted the

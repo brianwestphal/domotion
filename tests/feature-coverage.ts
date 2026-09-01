@@ -163,6 +163,20 @@ export const FEATURES: FeatureEntry[] = [
     tests: ["src/render/text.test.ts", "src/render/text-to-path.test.ts", "src/render/vertical-text.test.ts", "tests/vertical-font-metrics.e2e.test.ts", "tests/generated-pseudo-layout-probe.e2e.test.ts"],
   },
   {
+    id: "capture.input-value-text-geometry",
+    behavior: "A single-line input can use Chromium's closed-UA-shadow FragmentItem top only from one finite, positive-area, axis-aligned host/text quad pair whose recorded host dimensions still match the live walk; ambiguous or transformed records retain the metric compatibility path.",
+    doc: "docs/171-closed-shadow-control-decorations.md",
+    exports: [],
+    tests: ["src/capture/pseudo-style-cdp.test.ts"],
+  },
+  {
+    id: "render.base-select-picker-icon",
+    behavior: "Structural base-select disclosure paint is a vector at the logical inline end using the captured resolved ::picker-icon color; native menulist decoration ownership suppresses it.",
+    doc: "docs/171-closed-shadow-control-decorations.md",
+    exports: [],
+    tests: ["src/render/form-controls.test.ts", "src/capture/native-control-decoration.test.ts"],
+  },
+  {
     id: "render.optimize",
     behavior: "Optional SVGO optimize pass + gzip (.svgz) output.",
     doc: "docs/26-self-contained-svgs.md",

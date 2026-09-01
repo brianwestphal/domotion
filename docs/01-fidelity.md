@@ -5,8 +5,8 @@ kind: "contract"
 status: "partial"
 owners: ["rendering"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-1022","DM-1028","DM-2161","DM-2192","DM-227","DM-228","DM-229","DM-2355","DM-2365","DM-2366","DM-2367","DM-2368","DM-237","DM-2380","DM-2419","DM-2453","DM-2455","DM-2465","DM-2477","DM-2478","DM-2479","DM-2480","DM-2488","DM-2491","DM-2520","DM-258","DM-259","DM-260","DM-262","DM-2640","DM-300","DM-457","DM-462","DM-984","DM-987","SK-1093","SK-1097","SK-1099","SK-1100","SK-1101","SK-1105","SK-1108","SK-1111","SK-1113","SK-1114","SK-1115","SK-466","SK-468"]
-code: ["src/animation/animator.ts","src/render/clip-path.ts","src/render/element-tree-to-svg.ts","tests/composed-parity-fixtures.ts","tests/features.ts","tests/html-test-suite.tsx","tests/output/html-test/index.html","tests/output/html-test/results.json","tests/textarea-line-baseline.e2e.test.ts"]
+tickets: ["DM-1022","DM-1028","DM-2161","DM-2192","DM-227","DM-228","DM-229","DM-2355","DM-2365","DM-2366","DM-2367","DM-2368","DM-237","DM-2380","DM-2419","DM-2453","DM-2455","DM-2465","DM-2477","DM-2478","DM-2479","DM-2480","DM-2488","DM-2491","DM-2520","DM-258","DM-259","DM-260","DM-2615","DM-262","DM-2628","DM-2634","DM-2640","DM-300","DM-457","DM-462","DM-984","DM-987","SK-1093","SK-1097","SK-1099","SK-1100","SK-1101","SK-1105","SK-1108","SK-1111","SK-1113","SK-1114","SK-1115","SK-466","SK-468"]
+code: ["src/animation/animator.ts","src/capture/input-value-geometry.ts","src/capture/pseudo-style-cdp.test.ts","src/capture/pseudo-style-cdp.ts","src/capture/script/walker/form-controls.ts","src/capture/script/walker/input-value.ts","src/render/clip-path.ts","src/render/element-tree-to-svg.ts","src/render/form-controls.test.ts","src/render/form-controls.ts","tests/composed-parity-fixtures.ts","tests/features.ts","tests/html-test-suite.tsx","tests/output/html-test/index.html","tests/output/html-test/results.json","tests/textarea-line-baseline.e2e.test.ts"]
 aliases: ["docs/01-fidelity.md","doc-01"]
 ---
 
@@ -161,6 +161,14 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
   narrow Chromium overlays without flattening the host or value text (DM-2455,
   [doc 171](171-closed-shadow-control-decorations.md)). Author-owned pseudo
   paint is preserved inside that exact closed-part boundary.
+  - Single-line inputs prefer the one source-owned closed-UA-shadow FragmentItem
+    top over a reconstructed `line-height:normal` estimate, but only when the
+    host/text quads are unambiguous and axis-aligned and the live host dimensions
+    still match. Rejected or legacy records retain the metric estimate (DM-2628).
+  - A structural `base-select` paints its disclosure icon as vector geometry at
+    the logical inline end using the captured resolved `::picker-icon` color.
+    Native menulist arrows remain Chromium raster-owned and suppress this path
+    even when their raster is empty or unavailable (DM-2615).
 
 ### List markers
 

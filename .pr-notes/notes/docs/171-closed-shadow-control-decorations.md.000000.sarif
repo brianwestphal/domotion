@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtit1vi3lazjd401",
+          "message": {
+            "text": "These two form-control fixes share a source-ownership rule but intentionally have different failure behavior. Input text geometry is a closed-shadow layout fact and is admitted only after strict quad/cardinality/live-size checks, with old or rejected records keeping the existing metric compatibility path. The base-select icon is author-styleable structural CSS paint, so it stays vector; any native-decoration reservation suppresses it to prevent a platform menulist arrow from falling through to generic geometry.",
+            "markdown": "These two form-control fixes share a source-ownership rule but intentionally have different failure behavior. Input text geometry is a closed-shadow layout fact and is admitted only after strict quad/cardinality/live-size checks, with old or rejected records keeping the existing metric compatibility path. The base-select icon is author-styleable structural CSS paint, so it stays vector; any native-decoration reservation suppresses it to prevent a platform menulist arrow from falling through to generic geometry."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/171-closed-shadow-control-decorations.md"
+                },
+                "region": {
+                  "startLine": 74,
+                  "endLine": 110,
+                  "snippet": {
+                    "text": "## Structural closed-shadow facts\n\n### Single-line input value geometry\n\n`pseudo-style-cdp.ts` pierces the input's closed UA shadow tree in the same\nsource frame used for control pseudo capture. It admits only one non-empty text\nnode candidate, one host quad, and one text FragmentItem quad. Both quads must\nbe finite, positive-area, and axis-aligned within 0.05 CSS px. The compact\nrecord stores the host width/height, text height, and translation-invariant\ntext-top offset; it does not store a platform font metric guess.\n\nThe synchronous input walker consumes that offset only for a single-line\n`input` with the authenticated source tag, finite dimensions, and a current\nhost width/height matching the recorded box within 0.05 CSS px. That last check\nproves the CDP and DOM-walk geometry remained in the same axis-aligned scale.\nMultiple labels (file/temporal compound controls), multiple quads, rotation or\nskew, invalid values, or a changed host box omit the authority. The renderer\nthen retains the legacy line-height/font-box estimate for compatibility rather\nthan choosing an arbitrary closed-shadow candidate. Textareas keep their\nseparate measured per-line path.\n\nThis procedure is identical on macOS, Linux, and Windows and contains no\nplatform constants. DM-2628 ratified the exact-pixel effect on Linux's\n`06-deep-field-sizing` fixture, where the old reconstruction placed two labels\n0.5 CSS px (one device pixel) too low.\n\n### Base-select picker icon\n\nThe form-control walker records the resolved `::picker-icon` `currentColor` for\na closed, non-multiple select whose appearance has not suppressed the pseudo.\nFor the structural `base-select` route, `form-controls.ts` emits the disclosure\ntriangle at the logical inline end (LTR or RTL) using that captured color, with\nthe host color as the CSS inheritance fallback. Missing both colors omits the\npath. A native-decoration raster reservation always suppresses this vector, so\nnative `auto`/`menulist-button` arrows remain exact Chromium pixels and cannot\nfall through to a generic glyph. Listboxes and `appearance:none` do not receive\nthe structural disclosure."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/input-value-geometry.ts"
+                },
+                "region": {
+                  "startLine": 39
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/form-controls.ts"
+                },
+                "region": {
+                  "startLine": 825
+                }
+              }
+            }
+          ],
+          "rank": 88,
+          "workItemUris": [
+            "DM-2634"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "7aec743085b1e6dbe657b84407535e5c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d069470801d773f9874783300fa391e7493797ef",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
