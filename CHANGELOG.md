@@ -2,6 +2,19 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.26.0] - 2026-09-03
+
+
+**🐛 Fixes**
+
+- **Dashed and dotted outlines** now start a fresh dash at each corner and run between the outer corners, matching Chrome's outline painter — this corrects both the dash phasing and the gap widths on square (non-rounded) outlines.
+- **Border-collapse:** a `<td>`/`<th>` restyled to `display: block` is no longer pulled into the collapsed table grid, fixing a stroke that was shifted onto the table grid line (~5px off).
+- **Windows — real small caps:** faces that carry `smcp`/`c2sc` (e.g. Georgia) now render with the font's actual small-cap glyphs instead of a synthetic 0.7-scaled fallback.
+- **Windows — bitmap strikes:** embedded-bitmap/GDI-classic text (e.g. SimSun at small sizes) is retained as a raster so it matches Chrome's native terminal mask rather than being replaced by a vector subset.
+- **Windows — `.notdef` glyphs:** an explicitly selected `.notdef` glyph is now painted as an outline the way Chrome paints it after fallback is exhausted, while an ordinary coverage miss still continues to fall back correctly.
+- **Windows — unavailable authored families:** an author-named family that isn't installed (e.g. Hiragino Mincho) is now skipped instead of being mis-mapped to SimSun, so CJK text falls back the way Chrome does.
+- **Linux — sharper embedded text:** expanded the exact hinted target-strike coverage (Liberation Sans/Serif across more sizes and weights) for pixel-faithful body and heading text; mixed full/small-cap runs are now split into per-size strikes so synthesized small caps match Chrome's independently measured ink heights.
+
 ## [0.25.0] - 2026-09-02
 
 
