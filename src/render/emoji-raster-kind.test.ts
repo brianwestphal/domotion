@@ -24,6 +24,14 @@ describe("selected glyph raster representation", () => {
     expect(glyphRasterRepresentation(mixed, "mixed", selected, 32)).toBe("colr");
   });
 
+  it("routes a Windows embedded-bitmap strike even when the glyph has an outline", () => {
+    const bitmap = font({ EBDT: {}, EBLC: {}, glyf: {} });
+    bitmap.embeddedBitmapPaint = true;
+    expect(glyphRasterRepresentation(bitmap, "simsun", glyph(7), 18)).toBe("bitmap");
+    bitmap.embeddedBitmapPaint = false;
+    expect(glyphRasterRepresentation(bitmap, "simsun", glyph(7), 18)).toBeNull();
+  });
+
   it("carries every selected-glyph raster kind across the outline boundary", () => {
     const mixed = font({ glyf: {} });
     for (const rasterRepresentation of ["sbix", "colr", "bitmap", "svg"] as const) {

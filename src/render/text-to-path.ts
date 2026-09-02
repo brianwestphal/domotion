@@ -3356,6 +3356,11 @@ export function glyphRasterRepresentation(
   // wide COLR/CBDT/SVG table flag remains only the compatibility fallback for
   // helpers that predate the field and for outline-less fontkit glyphs.
   if (glyph.rasterRepresentation != null) return glyph.rasterRepresentation;
+  // DM-2655: a Windows EBDT/EBLC face can expose an ordinary outline and still
+  // be painted through Skia's embedded-bitmap/GDI-classic scaler at this exact
+  // size. A retained webfont drops that native strike and repaints a visibly
+  // different outline, so the Chromium screenshot owns these glyph pixels.
+  if (font.embeddedBitmapPaint === true) return "bitmap";
   if (glyph.type === "SBIX") {
     try { if (glyph.getImageForSize?.(fontSize) != null) return "sbix"; } catch { /* use table/path evidence below */ }
   }

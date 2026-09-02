@@ -137,6 +137,10 @@ export interface FontInstance {
   /** Available OpenType feature tags (e.g. ['liga', 'kern', 'smcp']). Used by
    *  the synthesized-small-caps path to detect when smcp is missing. */
   availableFeatures?: string[];
+  /** Skia's Windows scaler uses its embedded-bitmap/GDI-classic route for this
+   *  size. Such text is capture-raster-owned because a webfont subset cannot
+   *  reproduce the native terminal mask. */
+  embeddedBitmapPaint?: boolean;
   "OS/2"?: {
     yStrikeoutPosition?: number; yStrikeoutSize?: number;
     /** sTypoAscender / sTypoDescender (font units; descender stored negative).
@@ -6590,6 +6594,7 @@ function instantiateResolvedFont(
       : undefined;
     const helper = createGlyphHelperFont({
       postscriptName: spec.postscriptName, fontPath: spec.path, variations: helperAxes,
+      fontSizePx: fontSize,
       // DM-1883: consulted when the helper's own `shape` query fails, which on
       // Windows is always — its helper has no such query, so without this a
       // shaped run silently degrades to isolated letterforms. On a `trak`+`STAT`
@@ -6733,7 +6738,7 @@ function instantiateResolvedFont(
   const fontkitHasOutlines = font != null && fontHasOutlineTable(font);
   if (helperEligible && !fontkitHasOutlines && isGlyphHelperAvailable()) {
     const helper = createGlyphHelperFont({
-      postscriptName: spec.postscriptName, fontPath: spec.path,
+      postscriptName: spec.postscriptName, fontPath: spec.path, fontSizePx: fontSize,
       shapeFallback: makeFontkitShaper(spec.path, spec.postscriptName),
     });
     if (helper != null) {

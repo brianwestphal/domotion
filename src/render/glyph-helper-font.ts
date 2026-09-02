@@ -37,6 +37,7 @@ export interface GlyphHelperFontInstance {
     typoAscender?: number; typoDescender?: number;
   };
   availableFeatures?: string[];
+  embeddedBitmapPaint?: boolean;
   faceIsBoldTrait?: boolean;
   faceIsItalicTrait?: boolean;
   directory?: { tables: Record<string, unknown> };
@@ -94,6 +95,7 @@ export function buildGlyphHelperFontProbeEnvelope(spec: {
   postscriptName?: string;
   fontPath?: string;
   variations?: Record<string, number>;
+  fontSizePx?: number;
 }): HelperRequest {
   // Dot-prefixed Apple system faces cannot be reopened by name: CoreText logs
   // a warning and substitutes Times New Roman. The existing response guard
@@ -107,7 +109,7 @@ export function buildGlyphHelperFontProbeEnvelope(spec: {
       ...(probeByName ? [{ ref: "n", postscriptName: spec.postscriptName, size: 1000 }] : []),
     ],
     queries: [
-      { type: "meta" as const, fontRef: "f" },
+      { type: "meta" as const, fontRef: "f", ...(spec.fontSizePx != null ? { fontSizePx: spec.fontSizePx } : {}) },
       ...(probeByName
         ? [
           { type: "meta" as const, fontRef: "n" },
@@ -127,6 +129,8 @@ export function createGlyphHelperFont(spec: {
    *  the resolved location here; the helper applies it via
    *  IDWriteFontResource::CreateFontFace. Omitted on macOS. */
   variations?: Record<string, number>;
+  /** CSS/device pixel size used by Skia's Windows embedded-bitmap predicate. */
+  fontSizePx?: number;
   /**
    * DM-1883: a shaper to use when THIS helper has no `shape` query.
    *
@@ -421,6 +425,9 @@ export function createGlyphHelperFont(spec: {
     // featureless and real small caps (Georgia's smcp+c2sc) were replaced by
     // Blink's 0.7 synthetic fallback.
     availableFeatures: Array.isArray(metaResp.availableFeatures) ? metaResp.availableFeatures : [],
+    ...(metaResp.embeddedBitmapPaint != null
+      ? { embeddedBitmapPaint: metaResp.embeddedBitmapPaint }
+      : {}),
     ...(metaResp.supportedColorTables != null ? {
       directory: { tables: Object.fromEntries(metaResp.supportedColorTables.map((tag) => [tag, true])) }
     } : {}),

@@ -1006,6 +1006,122 @@ static std::string runGlyphsQuery(const JsonValue& query, IDWriteFactory* factor
 
 static std::string faceResolvedAxesJson(IDWriteFontFace* face);
 
+// DM-2655: transcription of SkScalerContext_win_dw.cpp's
+// `treatLikeBitmap` decision. Chromium enables embedded bitmaps for Windows
+// system fonts; when a gridfit-only gasp range contains an EBLC/EBSC strike,
+// Skia switches the whole size range to its GDI-classic paint route. The
+// outline remains available, so outline presence cannot reveal this decision.
+static bool faceUsesEmbeddedBitmapPaintAtSize(IDWriteFontFace* face, double requestedSize) {
+  if (!face || !std::isfinite(requestedSize) || requestedSize <= 0) return false;
+  const double gdiTextSize = std::round(requestedSize * 64.0) / 64.0;
+  const int bitmapPpem = static_cast<int>(gdiTextSize);
+  if (bitmapPpem <= 0 || bitmapPpem > 0xffff) return false;
+
+  auto readU16BE = [](const BYTE* bytes, UINT32 offset) {
+    return static_cast<UINT16>((static_cast<UINT16>(bytes[offset]) << 8) |
+                               static_cast<UINT16>(bytes[offset + 1]));
+  };
+  auto readU32BE = [](const BYTE* bytes, UINT32 offset) {
+    return (static_cast<UINT32>(bytes[offset]) << 24) |
+           (static_cast<UINT32>(bytes[offset + 1]) << 16) |
+           (static_cast<UINT32>(bytes[offset + 2]) << 8) |
+            static_cast<UINT32>(bytes[offset + 3]);
+  };
+
+  int rangeMin = bitmapPpem;
+  int rangeMax = bitmapPpem;
+  {
+    const void* data = nullptr;
+    UINT32 size = 0;
+    void* context = nullptr;
+    BOOL exists = FALSE;
+    const HRESULT hr = face->TryGetFontTable(
+        DWRITE_MAKE_OPENTYPE_TAG('g','a','s','p'), &data, &size, &context, &exists);
+    if (SUCCEEDED(hr) && exists && data && size >= 4) {
+      const auto* bytes = static_cast<const BYTE*>(data);
+      const UINT32 count = readU16BE(bytes, 2);
+      if (count <= 1024 && 4ull + static_cast<UINT64>(count) * 4ull <= size) {
+        int previousMax = -1;
+        for (UINT32 i = 0; i < count; i++) {
+          const UINT32 offset = 4 + i * 4;
+          const int maxPpem = readU16BE(bytes, offset);
+          const UINT16 behavior = readU16BE(bytes, offset + 2);
+          if (previousMax < bitmapPpem && bitmapPpem <= maxPpem) {
+            // Skia widens only a gridfit-only range (GASP_GRIDFIT == 0x0001).
+            if (behavior == 0x0001) {
+              rangeMin = previousMax + 1;
+              rangeMax = maxPpem;
+            }
+            break;
+          }
+          previousMax = maxPpem;
+        }
+      }
+    }
+    if (context) face->ReleaseFontTable(context);
+  }
+
+  bool found = false;
+  {
+    const void* data = nullptr;
+    UINT32 size = 0;
+    void* context = nullptr;
+    BOOL exists = FALSE;
+    const HRESULT hr = face->TryGetFontTable(
+        DWRITE_MAKE_OPENTYPE_TAG('E','B','L','C'), &data, &size, &context, &exists);
+    if (SUCCEEDED(hr) && exists && data && size >= 8) {
+      const auto* bytes = static_cast<const BYTE*>(data);
+      const UINT32 count = readU32BE(bytes, 4);
+      if (readU32BE(bytes, 0) == 0x00020000 && count <= 1024
+          && 8ull + static_cast<UINT64>(count) * 48ull <= size) {
+        for (UINT32 i = 0; i < count; i++) {
+          const UINT32 offset = 8 + i * 48;
+          const UINT16 startGlyph = readU16BE(bytes, offset + 40);
+          const UINT16 endGlyph = readU16BE(bytes, offset + 42);
+          const int ppemX = bytes[offset + 44];
+          const int ppemY = bytes[offset + 45];
+          if (ppemX == ppemY && rangeMin <= ppemX && ppemX <= rangeMax
+              && endGlyph >= static_cast<UINT32>(startGlyph) + 3u) {
+            found = true;
+            break;
+          }
+        }
+      }
+    }
+    if (context) face->ReleaseFontTable(context);
+  }
+  if (found) return true;
+
+  // EBSC scaling records are uncommon and normally belong to bitmap-only
+  // faces, but Skia checks them after EBLC, so retain that terminal too.
+  {
+    const void* data = nullptr;
+    UINT32 size = 0;
+    void* context = nullptr;
+    BOOL exists = FALSE;
+    const HRESULT hr = face->TryGetFontTable(
+        DWRITE_MAKE_OPENTYPE_TAG('E','B','S','C'), &data, &size, &context, &exists);
+    if (SUCCEEDED(hr) && exists && data && size >= 8) {
+      const auto* bytes = static_cast<const BYTE*>(data);
+      const UINT32 count = readU32BE(bytes, 4);
+      if (readU32BE(bytes, 0) == 0x00020000 && count <= 1024
+          && 8ull + static_cast<UINT64>(count) * 28ull <= size) {
+        for (UINT32 i = 0; i < count; i++) {
+          const UINT32 offset = 8 + i * 28;
+          const int ppemX = bytes[offset + 24];
+          const int ppemY = bytes[offset + 25];
+          if (ppemX == ppemY && rangeMin <= ppemX && ppemX <= rangeMax) {
+            found = true;
+            break;
+          }
+        }
+      }
+    }
+    if (context) face->ReleaseFontTable(context);
+  }
+  return found;
+}
+
 static std::string runMetaQuery(const JsonValue& query, std::map<std::string, FontEntry>& fonts) {
   std::string ref = query.at("fontRef").asString();
   auto it = fonts.find(ref);
@@ -1113,6 +1229,11 @@ static std::string runMetaQuery(const JsonValue& query, std::map<std::string, Fo
   if (hasTypoMetrics) {
     out << ",\"typoAscender\":" << static_cast<int>(typoAscender)
         << ",\"typoDescender\":" << static_cast<int>(typoDescender);
+  }
+  if (query.has("fontSizePx")) {
+    out << ",\"embeddedBitmapPaint\":"
+        << (faceUsesEmbeddedBitmapPaintAtSize(it->second.face, query.at("fontSizePx").asNumber())
+              ? "true" : "false");
   }
   out << ",\"availableFeatures\":[";
   for (size_t i = 0; i < availableFeatures.size(); i++) {

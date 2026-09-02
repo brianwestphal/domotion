@@ -69,6 +69,9 @@ export interface MetaResponse {
   /** OpenType GSUB feature tags exposed by the selected face. Native helpers
    *  predating this field are treated as reporting none. */
   availableFeatures?: string[];
+  /** Whether Skia's Windows scaler selects its embedded-bitmap/GDI-classic
+   *  paint route at the requested meta-query size. */
+  embeddedBitmapPaint?: boolean;
 }
 
 export interface GlyphResponse {

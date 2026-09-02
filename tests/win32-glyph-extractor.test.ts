@@ -32,6 +32,7 @@ function resolveFontFile(candidates: string[]): string | null {
 }
 const ARIAL = resolveFontFile(["C:/Windows/Fonts/arial.ttf", "C:\\Windows\\Fonts\\arial.ttf"]);
 const GEORGIA = resolveFontFile(["C:/Windows/Fonts/georgia.ttf", "C:\\Windows\\Fonts\\georgia.ttf"]);
+const SIMSUN = resolveFontFile(["C:/Windows/Fonts/simsun.ttc", "C:\\Windows\\Fonts\\simsun.ttc"]);
 const CAMBRIA = resolveFontFile(["C:/Windows/Fonts/cambria.ttc", "C:\\Windows\\Fonts\\cambria.ttc"]);
 const SEGOE_UI_EMOJI = resolveFontFile(["C:/Windows/Fonts/seguiemj.ttf", "C:\\Windows\\Fonts\\seguiemj.ttf"]);
 
@@ -106,6 +107,7 @@ function fontkitPoints(cmds: Array<{ args: number[] }>): Array<[number, number]>
 describeHelper("Windows DirectWrite glyph extractor", () => {
   const describeArial = ARIAL ? describe : describe.skip;
   const describeGeorgia = GEORGIA ? describe : describe.skip;
+  const describeSimsun = SIMSUN ? describe : describe.skip;
   const describeCambria = CAMBRIA ? describe : describe.skip;
   const describeSegoeEmoji = SEGOE_UI_EMOJI ? describe : describe.skip;
 
@@ -168,6 +170,27 @@ describeHelper("Windows DirectWrite glyph extractor", () => {
       });
       const meta = resp.results[0] as { availableFeatures?: string[] };
       expect(meta.availableFeatures).toEqual(expect.arrayContaining(["smcp", "c2sc"]));
+    });
+  });
+
+  describeArial("SimSun-compatible bitmap predicate control", () => {
+    it("keeps an outline-only face on the vector route", () => {
+      const resp = callHelper({
+        fonts: [{ ref: "f", fontPath: ARIAL, size: 2048 }],
+        queries: [{ type: "meta", fontRef: "f", fontSizePx: 18 }],
+      });
+      expect(resp.results[0].embeddedBitmapPaint).toBe(false);
+    });
+  });
+
+  describeSimsun("SimSun embedded bitmap paint", () => {
+    it("matches Skia's bitmap/GDI-classic route at the fixture's 18px strike", () => {
+      const query = (fontSizePx: number) => callHelper({
+        fonts: [{ ref: "f", fontPath: SIMSUN, postscriptName: "SimSun", size: 256 }],
+        queries: [{ type: "meta", fontRef: "f", fontSizePx }],
+      }).results[0].embeddedBitmapPaint;
+      expect(query(18)).toBe(true);
+      expect(query(64)).toBe(false);
     });
   });
 
