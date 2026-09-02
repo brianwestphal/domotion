@@ -378,6 +378,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtjifoyn3bvl17jq",
+          "message": {
+            "text": "The query form is the only safe discriminator for glyph ID zero. A codepoint mapping to zero is a coverage miss and must stay empty so fallback continues; explicit {id:0} is Blinks selected .notdef glyph and Skia sends it to GetGlyphRunOutline. The Windows test pins both answers in one helper request.",
+            "markdown": "The query form is the only safe discriminator for glyph ID zero. A codepoint mapping to zero is a coverage miss and must stay empty so fallback continues; explicit `{id:0}` is Blinks selected `.notdef` glyph and Skia sends it to `GetGlyphRunOutline`. The Windows test pins both answers in one helper request."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/win32-glyph-extractor/src/main.cpp"
+                },
+                "region": {
+                  "startLine": 957,
+                  "endLine": 963,
+                  "snippet": {
+                    "text": "    // Glyph id 0 is the font's real .notdef glyph. Skia's DirectWrite scaler\n    // passes it to GetGlyphRunOutline like every other in-range glyph; Blink\n    // deliberately paints it after exhausting fallback. A cmap miss also\n    // returns zero, however, and must remain an empty coverage answer so the\n    // fallback resolver can continue. The query shape disambiguates the two:\n    // explicit {id:0} means paint .notdef, while {cp:...} -> 0 means missing.\n    if (glyphIndex != 0 || explicitGlyphId) {"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2653"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "9526fea094478555ab0681a55c3c499f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "e2f9c857aa2df65d1cbe73360882541892553d43",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

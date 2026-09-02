@@ -438,6 +438,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtjifosf5a44vtuw",
+          "message": {
+            "text": "Generated display type, not the DOM tag, decides collapsed-grid participation. DM-2654 proved that CSSOM can still expose inherited border-collapse: collapse on a td that generates an ordinary block box; including that box in the edge graph moved its border five pixels. The headless fixture is clean after filtering on display: table-cell, and the 11-case collapsed-border browser suite passes.",
+            "markdown": "Generated display type, not the DOM tag, decides collapsed-grid participation. DM-2654 proved that CSSOM can still expose inherited `border-collapse: collapse` on a `td` that generates an ordinary block box; including that box in the edge graph moved its border five pixels. The headless fixture is clean after filtering on `display: table-cell`, and the 11-case collapsed-border browser suite passes."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/script/walker/borders-backgrounds.ts"
+                },
+                "region": {
+                  "startLine": 291,
+                  "endLine": 297,
+                  "snippet": {
+                    "text": "  // A td/th only participates in Blink's table border-collapse machinery\n  // while its generated box is a table cell. Author CSS can change a td to a\n  // block (the DM-2654 fixture does this via a shared `.lab` rule); the\n  // inherited computed `border-collapse: collapse` value then remains visible\n  // through CSSOM even though it is inert for that ordinary block box.\n  const isCollapsedTableCell = (tag, cs) =>\n    (tag === 'td' || tag === 'th') && cs.display === 'table-cell';"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2654"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e96912666b110069799db4083973c607"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "e2f9c857aa2df65d1cbe73360882541892553d43",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

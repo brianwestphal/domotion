@@ -1866,6 +1866,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtjifp4mv69xncra",
+          "message": {
+            "text": "These Linux target strikes remain exact measured surfaces rather than family-wide policy. In CI-matching Docker, adding the three Liberation Sans surfaces for DM-2652 reduced requested crop differences from 4,679 to 22 pixels and from 2,234 to 6 pixels; full-page average diff fell from 0.300727% to 0.090457%. Other sizes and weights remain negative controls.",
+            "markdown": "These Linux target strikes remain exact measured surfaces rather than family-wide policy. In CI-matching Docker, adding the three Liberation Sans surfaces for DM-2652 reduced requested crop differences from 4,679 to 22 pixels and from 2,234 to 6 pixels; full-page average diff fell from 0.300727% to 0.090457%. Other sizes and weights remain negative controls."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.ts"
+                },
+                "region": {
+                  "startLine": 2271,
+                  "endLine": 2281,
+                  "snippet": {
+                    "text": "const LINUX_TARGET_STRIKES = new Set([\n  \"WenQuanYiZenHeiMono|17|400\",\n  \"WenQuanYiZenHeiMono|26|700\",\n  \"WenQuanYiZenHei|32|700\",\n  \"LiberationSans|32|400\",\n  \"LiberationSans|16|400\",\n  \"LiberationSans-Bold|32|700\",\n  \"LiberationSans-Bold|14|700\",\n  \"FreeSans|32|400\",\n  \"FreeSerif|32|400\",\n]);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 94,
+          "workItemUris": [
+            "DM-2652"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "8ab9d6aee1348176110ebabb94c328ad"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "e2f9c857aa2df65d1cbe73360882541892553d43",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
