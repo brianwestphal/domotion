@@ -2,6 +2,33 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.25.0] - 2026-09-02
+
+
+**🚀 Features**
+
+- Debug reproduction bundles now work for animated SVGs: `animate --debug` writes a HAR, expected frames, the captured tree, and the output SVG — the same way `capture --debug` does — and there's a programmatic API for producing these bundles from code.
+- CSS `corner-shape` (superellipse / squircle corners) now renders as crisp vector contours.
+- `-webkit-box-reflect` reflections are emitted as native vector paint instead of being dropped.
+- Static CSS 3D transforms are projected onto vector planes rather than falling back to raster.
+- `-webkit-line-clamp` truncation, including the trailing ellipsis, is now captured and rendered.
+- Broader native form-control coverage: native scrollbars, the file-upload selector button, and closed `<select>` picker indicators are captured and drawn.
+- `font-palette` and COLR palette color fonts are supported.
+- Embedded font subsets keep their TrueType hinting by default, sharpening rasterized text on Linux and Windows.
+
+**🐛 Fixes**
+
+- Radial gradients: percentage-based radial ellipses render correctly again, and repeating-radial period, focal, and color-hint geometry now match Chromium.
+- Gradient interpolation, legacy `-webkit-gradient` endpoints, and conic-gradient tiling now follow Chromium — and conic gradients paint inside generated (pseudo-element) content.
+- Border fidelity: collapsed and fragmented table borders, thin dotted borders, mixed dashed/dotted joints, rounded side clipping, and effective-zoom border geometry all match Chromium more closely.
+- Text and shaping: cursive (Arabic) shaping and shaped cluster origins are preserved, dotted-circle insertion follows the font's coverage, MathML fence and italic-token placement is corrected, and font optical sizing is honored.
+- Linux text rendering picks the correct fontconfig TTC face index and matches Chromium's glyph strikes for Latin Extended and WenQuanYi headers.
+- Text inside affine/projective transforms stays legible and correctly positioned.
+- Form fields use Chromium's input text geometry, and closed `<select>` display text is aligned correctly.
+- Images and backgrounds: local SVG background tiling and local bitmap natural sizing are restored, and generated (`content:`) image intrinsic paint is preserved.
+- Resize handles keep their shadow ink and integer-zoom borders, list markers align to the full marker advance, and flex-item paint order is preserved.
+- Looping animations close cleanly at their starting frame, removing a visible seam at the loop point.
+
 ## [0.24.0] - 2026-08-16
 
 
