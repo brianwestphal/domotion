@@ -288,6 +288,14 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
     (tag === 'td' || tag === 'th') && cs.borderCollapse !== 'collapse'
       && cs.emptyCells === 'hide' && !tableCellHasInflowFragments(el);
 
+  // A td/th only participates in Blink's table border-collapse machinery
+  // while its generated box is a table cell. Author CSS can change a td to a
+  // block (the DM-2654 fixture does this via a shared `.lab` rule); the
+  // inherited computed `border-collapse: collapse` value then remains visible
+  // through CSSOM even though it is inert for that ordinary block box.
+  const isCollapsedTableCell = (tag, cs) =>
+    (tag === 'td' || tag === 'th') && cs.display === 'table-cell';
+
   const resolveTableGridRect = (el, cs, tag, rect) => {
     if (tag !== 'table') return undefined;
     const captions = [];
@@ -399,7 +407,9 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
         else current.count++;
       }
       let c = 0;
-      for (const cell of Array.from(entry.row.children).filter((x) => x.tagName === 'TD' || x.tagName === 'TH')) {
+      for (const cell of Array.from(entry.row.children).filter((x) =>
+        (x.tagName === 'TD' || x.tagName === 'TH')
+          && getComputedStyle(x).display === 'table-cell')) {
         while (occupancy[r][c] != null) c++;
         const colspan = Math.max(1, cell.colSpan || 1);
         let rowspan = Math.max(1, cell.rowSpan || 1);
@@ -631,7 +641,12 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
     borderRightColor: tintedBorderColor(tag, el, cs, 'borderRightColor'),
     borderBottomColor: tintedBorderColor(tag, el, cs, 'borderBottomColor'),
     borderLeftColor: tintedBorderColor(tag, el, cs, 'borderLeftColor'),
-    borderCollapse: cs.borderCollapse,
+    // Normalize the inherited-but-inert value on DOM cells whose author style
+    // generates a non-table-cell box. This keeps the renderer's ordinary box
+    // border path from centering the stroke on a table grid line.
+    borderCollapse: (tag === 'td' || tag === 'th') && !isCollapsedTableCell(tag, cs)
+      ? 'separate'
+      : cs.borderCollapse,
     // DM-1260: full collapsed-border conflict resolution. For a cell, override
     // each side with the resolved winning border (overlapping the adjacent cell's
     // matching resolved side); for a collapsed structural element, suppress its
@@ -639,7 +654,8 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
     // color fields above so it wins. Complex tables (no resolution) fall through.
     ...(function () {
       let collapsedTable = null;
-      if (cs.borderCollapse === 'collapse') {
+      if (cs.borderCollapse === 'collapse'
+          && ((tag !== 'td' && tag !== 'th') || isCollapsedTableCell(tag, cs))) {
         collapsedTable = tag === 'table' ? el : el.closest && el.closest('table');
       }
       const tableRects = collapsedTable != null ? resolveCollapsedTableRects(collapsedTable) : null;
@@ -652,7 +668,7 @@ export const createBordersBackgroundsHandler = ({ normColor, normGradientColors,
           borderWidth: '0px', borderColor: 'rgba(0, 0, 0, 0)',
         };
       }
-      if (tableRects != null && (isCollapsedStructural(tag, cs) || tag === 'td' || tag === 'th')) {
+      if (tableRects != null && (isCollapsedStructural(tag, cs) || isCollapsedTableCell(tag, cs))) {
         return {
           borderTopStyle: 'none', borderRightStyle: 'none', borderBottomStyle: 'none', borderLeftStyle: 'none',
           borderTopWidth: '0px', borderRightWidth: '0px', borderBottomWidth: '0px', borderLeftWidth: '0px',

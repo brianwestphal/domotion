@@ -38,6 +38,31 @@ afterAll(async () => { await closeBrowserSafely(env?.browser); }, 15_000);
 const describeBrowser = env ? describe : describe.skip;
 
 describeBrowser("DM-1260: border-collapse conflict resolution", () => {
+  it("keeps block-displayed td boxes outside the collapsed table grid (DM-2654)", async () => {
+    const page = await env!.browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
+    try {
+      await page.setContent(`<style>body{margin:0}table{border-collapse:collapse}td{padding:6px 12px;border:1px solid rgb(226,232,240)}td.lab{display:block;margin-top:4px}</style><table><tr><td class="lab">Label</td><td>A</td><td>B</td></tr></table>`, { waitUntil: "load" });
+      const geometry = await page.evaluate(() => {
+        const block = document.querySelector("td.lab")!.getBoundingClientRect();
+        const firstCell = document.querySelector("td:not(.lab)")!.getBoundingClientRect();
+        return { blockTop: block.top, firstCellLeft: firstCell.left };
+      });
+      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
+      const block = find(tree, (node) => node.tag === "td" && node.text === "Label")!;
+      const table = find(tree, (node) => node.tag === "table")!;
+      const rects = (table.styles as any).collapsedBorderRects as Array<any>;
+
+      // CSSOM inherits `collapse` into the authored block, but Blink does not
+      // make that ordinary box a cell in the collapsed edge graph.
+      expect(block.styles!.borderCollapse).toBe("separate");
+      expect(parseFloat(block.styles!.borderTopWidth ?? "0")).toBe(1);
+      expect(block.y).toBe(geometry.blockTop);
+      expect(rects.length).toBeGreaterThan(0);
+      expect(rects.every((rect) => rect.x + rect.width >= geometry.firstCellLeft
+        && (rect.axis !== "row" || rect.x >= geometry.firstCellLeft - 1))).toBe(true);
+    } finally { await page.close(); }
+  }, 60_000);
+
   it("resolves shared edges to the winner and suppresses structural box borders", async () => {
     const { browser } = env!;
     const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
