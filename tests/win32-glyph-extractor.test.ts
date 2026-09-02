@@ -160,6 +160,22 @@ describeHelper("Windows DirectWrite glyph extractor", () => {
       expect(han.id).toBe(0);
       expect(han.d).toBe("");
     });
+
+    it("returns the .notdef outline only when glyph id 0 is requested explicitly (DM-2653)", () => {
+      const resp = callHelper({
+        fonts: [{ ref: "f", fontPath: ARIAL, size: 2048 }],
+        queries: [{ type: "glyphs", fontRef: "f", glyphs: [{ id: 0 }, { cp: 0x6f22 }] }],
+      });
+      const [notdef, missing] = (resp.results[0] as { glyphs: GlyphResult[] }).glyphs;
+
+      expect(notdef.id).toBe(0);
+      expect(notdef.advance).toBeGreaterThan(0);
+      expect(notdef.d).toMatch(/^M /);
+      expect(notdef.d).toMatch(/Z$/);
+      // The same gid from a cmap miss remains an empty coverage signal so the
+      // JS fallback resolver does not stop at the first font without a glyph.
+      expect(missing).toMatchObject({ id: 0, advance: 0, d: "" });
+    });
   });
 
   describeGeorgia("Georgia", () => {

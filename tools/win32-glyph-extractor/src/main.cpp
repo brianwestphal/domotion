@@ -941,8 +941,9 @@ static std::string runGlyphsQuery(const JsonValue& query, IDWriteFactory* factor
   const JsonArray& inputs = query.at("glyphs").asArray();
   for (size_t i = 0; i < inputs.size(); i++) {
     const JsonValue& g = inputs[i];
+    const bool explicitGlyphId = g.has("id");
     UINT16 glyphIndex = 0;
-    if (g.has("id")) {
+    if (explicitGlyphId) {
       glyphIndex = static_cast<UINT16>(g.at("id").asNumber());
     } else if (g.has("cp")) {
       UINT32 cp = static_cast<UINT32>(g.at("cp").asNumber());
@@ -953,7 +954,13 @@ static std::string runGlyphsQuery(const JsonValue& query, IDWriteFactory* factor
     const char* rasterRepresentation = nullptr;
     double advance = 0;
     double bx = 0, by = 0, bw = 0, bh = 0;
-    if (glyphIndex != 0) {
+    // Glyph id 0 is the font's real .notdef glyph. Skia's DirectWrite scaler
+    // passes it to GetGlyphRunOutline like every other in-range glyph; Blink
+    // deliberately paints it after exhausting fallback. A cmap miss also
+    // returns zero, however, and must remain an empty coverage answer so the
+    // fallback resolver can continue. The query shape disambiguates the two:
+    // explicit {id:0} means paint .notdef, while {cp:...} -> 0 means missing.
+    if (glyphIndex != 0 || explicitGlyphId) {
       DWRITE_GLYPH_METRICS gm;
       if (SUCCEEDED(face->GetDesignGlyphMetrics(&glyphIndex, 1, &gm, FALSE))) {
         advance = static_cast<double>(gm.advanceWidth);  // design units (emSize == unitsPerEm)
@@ -961,7 +968,7 @@ static std::string runGlyphsQuery(const JsonValue& query, IDWriteFactory* factor
       // Preserve Skia's ownership order even though this helper still returns
       // the base outline as diagnostic/vector-fallback data: decide native
       // color/image paint for the selected gid before requesting that outline.
-      if (isColorFont) {
+      if (isColorFont && glyphIndex != 0) {
         rasterRepresentation = glyphRasterRepresentation(
             face, factory2, face4,
 #if DWRITE_CORE || (defined(NTDDI_WIN11_ZN) && NTDDI_VERSION >= NTDDI_WIN11_ZN)
