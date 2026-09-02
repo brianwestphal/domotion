@@ -152,7 +152,13 @@ export function createGlyphHelperFont(spec: {
    * Self-scoping by construction: it is consulted only where the helper's own
    * `shape` query returned null, so a platform that has one is untouched.
    */
-  shapeFallback?: (text: string, direction?: "ltr" | "rtl") => ShapedRunFallback | null;
+  shapeFallback?: (
+    text: string,
+    direction?: "ltr" | "rtl",
+    features?: string[],
+    script?: string,
+    language?: string,
+  ) => ShapedRunFallback | null;
   /**
    * DM-1916: consult `shapeFallback` BEFORE this helper's own `shape` query,
    * rather than only where that query fails.
@@ -371,7 +377,13 @@ export function createGlyphHelperFont(spec: {
    *
    *  Both callers gate on `fullyCovered` first; this deliberately does not
    *  re-check it, since the coverage probe lives in `layout()`. */
-  function shapeViaFallback(text: string, direction?: "ltr" | "rtl"): {
+  function shapeViaFallback(
+    text: string,
+    direction?: "ltr" | "rtl",
+    features?: string[],
+    script?: string,
+    language?: string,
+  ): {
     glyphs: GlyphHelperGlyph[];
     positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }>;
     clusters: number[];
@@ -380,7 +392,7 @@ export function createGlyphHelperFont(spec: {
     let ext: ShapedRunFallback | null = null;
     // A shaper is an optimisation of correctness, never a correctness
     // requirement: if it throws, the caller's remaining paths still render text.
-    try { ext = spec.shapeFallback(text, direction); } catch { ext = null; }
+    try { ext = spec.shapeFallback(text, direction, features, script, language); } catch { ext = null; }
     if (ext == null || ext.ids.length === 0 || ext.ids.length !== ext.positions.length) return null;
     return { glyphs: ext.ids.map((id) => fetchById(id)), positions: ext.positions, clusters: ext.clusters };
   }
@@ -404,7 +416,11 @@ export function createGlyphHelperFont(spec: {
     // `metaResp` already carried `traitItalic`; this line is the fix — it was
     // being read into nothing.
     ...(metaResp.traitItalic != null ? { faceIsItalicTrait: metaResp.traitItalic } : {}),
-    availableFeatures: [],
+    // DM-2656: DirectWrite exposes the source face's GSUB inventory through
+    // helper metadata. Without it, every Windows helper-backed face appeared
+    // featureless and real small caps (Georgia's smcp+c2sc) were replaced by
+    // Blink's 0.7 synthetic fallback.
+    availableFeatures: Array.isArray(metaResp.availableFeatures) ? metaResp.availableFeatures : [],
     ...(metaResp.supportedColorTables != null ? {
       directory: { tables: Object.fromEntries(metaResp.supportedColorTables.map((tag) => [tag, true])) }
     } : {}),
@@ -475,7 +491,7 @@ export function createGlyphHelperFont(spec: {
 
     layout(
       text: string,
-      _features?: string[], _script?: string, _language?: string,
+      features?: string[], script?: string, language?: string,
       // DM-1894: forwarded to the injected shaper. Blink passes direction into
       // the shaper rather than letting it be inferred from content, and a
       // helper-backed face is exactly where that inference used to happen.
@@ -510,7 +526,7 @@ export function createGlyphHelperFont(spec: {
       // codepoint must reach the naive branch so the renderer's own `.notdef`
       // handling applies rather than a shaper's substituted tofu.
       const preferred = (spec.preferShapeFallback === true && fullyCovered)
-        ? shapeViaFallback(text, direction)
+        ? shapeViaFallback(text, direction, features, script, language)
         : null;
       if (preferred != null) return preferred;
       const shaped = fullyCovered ? shapeText(text) : null;
@@ -569,7 +585,7 @@ export function createGlyphHelperFont(spec: {
       // `.notdef` handling applies, rather than having a shaper substitute a
       // different tofu.
       if (fullyCovered) {
-        const ext = shapeViaFallback(text, direction);
+        const ext = shapeViaFallback(text, direction, features, script, language);
         if (ext != null) return ext;
       }
 

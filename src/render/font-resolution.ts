@@ -7249,7 +7249,7 @@ function pickNameString(rec: unknown): string | null {
  */
 export function makeFontkitShaper(
   path: string, postscriptName?: string, variations?: Record<string, number>,
-): ((text: string, direction?: "ltr" | "rtl") => { ids: number[]; positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }>; clusters: number[] } | null) | undefined {
+): ((text: string, direction?: "ltr" | "rtl", features?: string[], script?: string, language?: string) => { ids: number[]; positions: Array<{ xAdvance: number; yAdvance: number; xOffset: number; yOffset: number }>; clusters: number[] } | null) | undefined {
   if (path === "") return undefined;
   let font: any | null | undefined; // undefined = not yet opened, null = unopenable
   const open = (): any | null => {
@@ -7271,13 +7271,17 @@ export function makeFontkitShaper(
     } catch { font = null; }
     return font;
   };
-  return (text: string, direction?: "ltr" | "rtl") => {
+  return (text: string, direction?: "ltr" | "rtl", features?: string[], script?: string, language?: string) => {
     const f = open();
     if (f?.layout == null) return null;
     // Direction passed through explicitly when the caller knows it (a
     // single-script segment), the way Blink hands it to HarfBuzz rather than
     // letting content inference decide.
-    const run: any = f.layout(text, undefined, undefined, undefined, direction);
+    // DM-2656: Windows delegates shaping to this fontkit view because its
+    // DirectWrite helper has no shape query. Preserve the renderer's exact
+    // OpenType request here; otherwise metadata can correctly suppress
+    // synthetic small caps while shaping still silently drops smcp/c2sc.
+    const run: any = f.layout(text, features, script, language, direction);
     const glyphs: any[] = run?.glyphs ?? [];
     const positions: any[] = run?.positions ?? [];
     if (glyphs.length === 0 || glyphs.length !== positions.length) return null;

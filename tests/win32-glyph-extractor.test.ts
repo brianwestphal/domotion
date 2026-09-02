@@ -31,6 +31,7 @@ function resolveFontFile(candidates: string[]): string | null {
   return null;
 }
 const ARIAL = resolveFontFile(["C:/Windows/Fonts/arial.ttf", "C:\\Windows\\Fonts\\arial.ttf"]);
+const GEORGIA = resolveFontFile(["C:/Windows/Fonts/georgia.ttf", "C:\\Windows\\Fonts\\georgia.ttf"]);
 const CAMBRIA = resolveFontFile(["C:/Windows/Fonts/cambria.ttc", "C:\\Windows\\Fonts\\cambria.ttc"]);
 const SEGOE_UI_EMOJI = resolveFontFile(["C:/Windows/Fonts/seguiemj.ttf", "C:\\Windows\\Fonts\\seguiemj.ttf"]);
 
@@ -104,6 +105,7 @@ function fontkitPoints(cmds: Array<{ args: number[] }>): Array<[number, number]>
 
 describeHelper("Windows DirectWrite glyph extractor", () => {
   const describeArial = ARIAL ? describe : describe.skip;
+  const describeGeorgia = GEORGIA ? describe : describe.skip;
   const describeCambria = CAMBRIA ? describe : describe.skip;
   const describeSegoeEmoji = SEGOE_UI_EMOJI ? describe : describe.skip;
 
@@ -155,6 +157,17 @@ describeHelper("Windows DirectWrite glyph extractor", () => {
       const han = helperGlyph(ARIAL!, 0x6f22); // 漢 — not in Arial
       expect(han.id).toBe(0);
       expect(han.d).toBe("");
+    });
+  });
+
+  describeGeorgia("Georgia", () => {
+    it("reports the real small-cap GSUB features used by Blink", () => {
+      const resp = callHelper({
+        fonts: [{ ref: "f", fontPath: GEORGIA, size: 2048 }],
+        queries: [{ type: "meta", fontRef: "f" }],
+      });
+      const meta = resp.results[0] as { availableFeatures?: string[] };
+      expect(meta.availableFeatures).toEqual(expect.arrayContaining(["smcp", "c2sc"]));
     });
   });
 

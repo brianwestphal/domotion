@@ -1008,6 +1008,25 @@ describeHelper("preferShapeFallback (DM-1916)", () => {
     expect(run.glyphs[0].path.commands).toEqual(direct.path.commands);
   });
 
+  it("forwards feature, script, language, and direction to the injected shaper", () => {
+    const id = someGlyphId();
+    let seen: unknown[] | null = null;
+    const font = createGlyphHelperFont({
+      postscriptName: "Helvetica", fontPath: HELVETICA,
+      preferShapeFallback: true,
+      shapeFallback: (text, direction, features, script, language) => {
+        seen = [text, direction, features, script, language];
+        return {
+          ids: [id],
+          positions: [{ xAdvance: 4242, yAdvance: 0, xOffset: 0, yOffset: 0 }],
+          clusters: [0],
+        };
+      },
+    })!;
+    font.layout(TEXT, ["smcp", "c2sc"], "latn", "en", "ltr");
+    expect(seen).toEqual([TEXT, "ltr", ["smcp", "c2sc"], "latn", "en"]);
+  });
+
   it("falls through to the platform shaper when the preferred shaper declines", () => {
     // A shaper is an optimisation of correctness, never a correctness
     // requirement. Declining (or throwing) must land on CoreText's shaping,

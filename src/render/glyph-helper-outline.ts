@@ -66,6 +66,9 @@ export interface MetaResponse {
   ctAxes?: Array<{ tag: string; min: number; def: number; max: number; value: number }>;
   /** Physical SFNT paint tables reported by the selected native face. */
   supportedColorTables?: string[];
+  /** OpenType GSUB feature tags exposed by the selected face. Native helpers
+   *  predating this field are treated as reporting none. */
+  availableFeatures?: string[];
 }
 
 export interface GlyphResponse {

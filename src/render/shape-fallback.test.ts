@@ -26,6 +26,17 @@ function arabicFontPath(): { path: string; ps?: string } | null {
 }
 
 const arabic = arabicFontPath();
+const WINDOWS_GEORGIA = ["C:/Windows/Fonts/georgia.ttf", "C:\\Windows\\Fonts\\georgia.ttf"]
+  .find((candidate) => existsSync(candidate));
+
+it.runIf(WINDOWS_GEORGIA != null)("forwards explicit GSUB features to fontkit on Windows", () => {
+  const shape = makeFontkitShaper(WINDOWS_GEORGIA!)!;
+  const plain = shape("Abc", "ltr");
+  const caps = shape("Abc", "ltr", ["smcp", "c2sc"], "latn", "en");
+  expect(plain).not.toBeNull();
+  expect(caps).not.toBeNull();
+  expect(caps!.ids).not.toEqual(plain!.ids);
+});
 
 /**
  * Does that face actually COVER Arabic?

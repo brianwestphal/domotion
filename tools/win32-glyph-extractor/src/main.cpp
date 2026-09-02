@@ -41,6 +41,7 @@
 
 #include <fcntl.h>     // _O_BINARY — LF-only stdio on Windows (DM-1035 serve loop)
 #include <io.h>        // _setmode / _fileno
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -1051,6 +1052,53 @@ static std::string runMetaQuery(const JsonValue& query, std::map<std::string, Fo
     if (context) it->second.face->ReleaseFontTable(context);
   }
 
+  // DM-2656: Blink asks the selected face whether the requested caps features
+  // exist before deciding to synthesize 0.7-scale capitals. The Windows helper
+  // used to report no feature inventory at all, so Georgia's real smcp+c2sc
+  // substitutions were replaced by visibly undersized synthetic text. Read the
+  // GSUB FeatureList directly from the selected face. Every offset/count is
+  // bounded before use because TryGetFontTable returns untrusted font bytes.
+  std::vector<std::string> availableFeatures;
+  {
+    const void* data = nullptr;
+    UINT32 size = 0;
+    void* context = nullptr;
+    BOOL exists = FALSE;
+    const HRESULT hr = it->second.face->TryGetFontTable(
+        DWRITE_MAKE_OPENTYPE_TAG('G','S','U','B'), &data, &size, &context, &exists);
+    if (SUCCEEDED(hr) && exists && data && size >= 10) {
+      const auto* bytes = static_cast<const BYTE*>(data);
+      auto readU16BE = [bytes](UINT32 offset) {
+        return static_cast<UINT16>((static_cast<UINT16>(bytes[offset]) << 8) |
+                                   static_cast<UINT16>(bytes[offset + 1]));
+      };
+      const UINT32 featureListOffset = readU16BE(6);
+      if (featureListOffset <= size - 2) {
+        const UINT32 count = readU16BE(featureListOffset);
+        const UINT64 recordsEnd = static_cast<UINT64>(featureListOffset) + 2ull
+                                + static_cast<UINT64>(count) * 6ull;
+        if (count <= 4096 && recordsEnd <= size) {
+          for (UINT32 i = 0; i < count; i++) {
+            const UINT32 tagOffset = featureListOffset + 2 + i * 6;
+            bool printable = true;
+            std::string tag;
+            tag.reserve(4);
+            for (UINT32 j = 0; j < 4; j++) {
+              const BYTE b = bytes[tagOffset + j];
+              printable = printable && b >= 0x20 && b <= 0x7e;
+              tag.push_back(static_cast<char>(b));
+            }
+            if (printable && std::find(availableFeatures.begin(), availableFeatures.end(), tag)
+                              == availableFeatures.end()) {
+              availableFeatures.push_back(tag);
+            }
+          }
+        }
+      }
+    }
+    if (context) it->second.face->ReleaseFontTable(context);
+  }
+
   std::ostringstream out;
   out << "{\"type\":\"meta\""
       << ",\"unitsPerEm\":" << static_cast<int>(m.designUnitsPerEm)
@@ -1066,6 +1114,12 @@ static std::string runMetaQuery(const JsonValue& query, std::map<std::string, Fo
     out << ",\"typoAscender\":" << static_cast<int>(typoAscender)
         << ",\"typoDescender\":" << static_cast<int>(typoDescender);
   }
+  out << ",\"availableFeatures\":[";
+  for (size_t i = 0; i < availableFeatures.size(); i++) {
+    if (i > 0) out << ",";
+    out << "\"" << jsonEscape(availableFeatures[i]) << "\"";
+  }
+  out << "]";
   out << ",\"supportedColorTables\":[";
   bool firstTable = true;
   struct TaggedTable { const char* name; UINT32 tag; };
