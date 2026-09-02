@@ -8905,11 +8905,19 @@ function matchFamilyCandidateToKey(
     if (name === "playfair display" || name === "playfairdisplay") return "playfair-display";
     // DM-1117: Hiragino Mincho ProN — the Japanese serif (明朝). Only when an
     // author NAMES it (any of the ProN / Pro / ASCII / native spellings); the
-    // generic `serif` keyword stays Songti. Routing here gives the East-Asian
-    // OpenType features (trad / fwid / jp78) a font that actually carries them.
+    // generic `serif` keyword stays Songti. Like every author-named family, the
+    // name must actually resolve on the modeled host. The old unconditional
+    // logical-key mapping made a missing macOS family become SimSun on Windows,
+    // pre-empting both the following CSS `serif` family and Blink's hardcoded
+    // Windows fallback stage. Chromium instead walks past the missing name;
+    // Han is then nominated from the locale-dependent Microsoft YaHei list and
+    // kana from the Japanese Yu Gothic list (`FontFallbackIterator::Next` and
+    // `GetFallbackFamilyNameFromHardcodedChoices`, Chromium rev 7d859f27).
     if (name === "hiragino mincho pron" || name === "hiragino mincho pro"
       || name === "hiragino mincho" || name === "ヒラギノ明朝 pron"
-      || name === "hiraminpron" || name === "hiraminpro") return "hiragino-mincho";
+      || name === "hiraminpron" || name === "hiraminpro") {
+      return authorFamilyAvailable(lookupName) ? "hiragino-mincho" : null;
+    }
     // Chrome on macOS resolves the CSS `cursive` generic keyword to Apple
     // Chancery (per the empirical probe — bare `cursive` paints at exactly
     // Apple Chancery's advance, NOT Snell Roundhand's, on macOS Sonoma+).

@@ -12,6 +12,7 @@ import { resolveInstalledFont } from "./glyph-helper.js";
 import { hbSubsetRetainGids } from "./hb-subset.js";
 import { getTextRunProvenance, resetTextRunProvenance, setTextRunProvenanceEnabled } from "./text-run-provenance.js";
 import { UNICODE_FONT_FILES_WIN32, UNICODE_FONT_RANGES_WIN32 } from "./unicode-font-routing.win32.generated.js";
+import { withHostPlatform } from "./host-platform.js";
 
 // Tests that exercise glyph emission (renderTextAsPath returning markup,
 // fontkit-driven small-caps shaping, descender skip-ink probing, ligature
@@ -1864,6 +1865,19 @@ describe("Primary-aware CJK fallback (DM-333)", () => {
     expect(darwinFallbackChain(0x3042, "hiragino-mincho")).toEqual(["hiragino-mincho", "cjk-serif", "cjk"]);
     // The bare `serif` generic is unchanged — still Songti, not Mincho.
     expect(darwinFallbackChain(0x4E00, "times")).toEqual(["cjk-serif", "cjk"]);
+  });
+  it("walks past unavailable Hiragino Mincho on Windows instead of substituting SimSun (DM-2658)", () => {
+    const hidden = process.env.DOMOTION_HIDE_FAMILIES;
+    process.env.DOMOTION_HIDE_FAMILIES = "Hiragino Mincho ProN";
+    try {
+      withHostPlatform("win32", () => {
+        expect(resolveFontKey("Hiragino Mincho ProN")).not.toBe("hiragino-mincho");
+        expect(resolveFontKey("Hiragino Mincho ProN, serif")).toBe("times");
+      });
+    } finally {
+      if (hidden == null) delete process.env.DOMOTION_HIDE_FAMILIES;
+      else process.env.DOMOTION_HIDE_FAMILIES = hidden;
+    }
   });
   it("routes Han Unified Ideographs through pingfang-sc → cjk for non-serif primaries (DM-388)", () => {
     // U+4F60 is in CJK Unified Ideographs (the 你 in 你好). Sans-serif primary
