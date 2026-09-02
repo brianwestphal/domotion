@@ -2412,6 +2412,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtjirfzud4lzz6u5",
+          "message": {
+            "text": "Outer-corner side lengths are required because Blink fits each dash pattern after PaintSingleRectOutline constructs the full side geometry. Extending the SVG centerline by (width + 1) / 2 changes the DM-2660 vertical path from 90px / 4.5px gaps to Chromium’s 92px / 3.6px gaps; the CI-matching Linux fixture improved from 16 regions (0.140344% coverage) to 0 regions.",
+            "markdown": "Outer-corner side lengths are required because Blink fits each dash pattern after `PaintSingleRectOutline` constructs the full side geometry. Extending the SVG centerline by `(width + 1) / 2` changes the DM-2660 vertical path from 90px / 4.5px gaps to Chromium’s 92px / 3.6px gaps; the CI-matching Linux fixture improved from 16 regions (0.140344% coverage) to 0 regions."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 3176,
+                  "endLine": 3179,
+                  "snippet": {
+                    "text": "        const jointOffset = Math.floor((Math.round(ow) + 1) / 2);\n        const sideLeft = ox - jointOffset, sideRight = oxR + jointOffset;\n        const sideTop = oy - jointOffset, sideBottom = oyB + jointOffset;\n        const hLen = sideRight - sideLeft, vLen = sideBottom - sideTop;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 92,
+          "workItemUris": [
+            "DM-2660"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "158435dee5242db3aa38fe70febdfc11"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "2f9e494af3760580aa30552b6ca698358c61d0ef",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

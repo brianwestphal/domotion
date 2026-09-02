@@ -3154,19 +3154,29 @@ function paintOutline(el: CapturedElement, borderRadius: number, indent: string)
       } else if ((ostyle === "dashed" || ostyle === "dotted") && oRadius === 0) {
         // DM-910 / DM-911: a single `<rect stroke-dasharray>` runs the
         // dash pattern unbroken across all four corners, so the dashes
-        // phase differently from Chrome's `OutlinePainter::PaintOutline`
-        // — Chrome paints each side as a separate path and starts a
-        // fresh dash at each corner. Reproduce that by emitting four
-        // `<line>`s with the same per-side adjusted dash math used for
-        // dashed/dotted borders (`adjustedDashAttrs` → Chrome's
-        // `SelectBestDashGap`), so each side begins flush at its
-        // start corner. We only take this path when the outline is
-        // NOT rounded (oRadius == 0) — for rounded outlines the
-        // single-rect emit is still the closest SVG-native fit.
+        // phase differently from Chrome's outline painter. Chrome paints
+        // each side independently and starts a fresh dash at each corner.
+        //
+        // DM-2660: for a single outline rect, Blink delegates to
+        // `BoxBorderPainter::PaintSingleRectOutline`. Its side rectangles run
+        // all the way between the OUTER corners; the stroke centerline is only
+        // inset perpendicular to the side. The old SVG used the center-path
+        // corners on both axes, shortening every side by one outline width.
+        // Besides moving the first dash inward, that changed
+        // `SelectBestDashGap` (90px vertical side => 4.5px gap instead of the
+        // correct 92px side => 3.6px gap in `14-deep-float-bfc`).
+        //
+        // Reproduce the outer-corner side geometry with the same per-side dash
+        // math used for dashed/dotted borders. We only take this path when the
+        // outline is NOT rounded (oRadius == 0); for rounded outlines the
+        // single-rect emit remains the closest SVG-native fit.
         const thinDotted = ostyle === "dotted" && Math.round(ow) <= 3;
         const linecap = ostyle === "dotted" && !thinDotted ? ` stroke-linecap="round"` : "";
         const oxR = ox + owd, oyB = oy + oh;
-        const hLen = owd, vLen = oh;
+        const jointOffset = Math.floor((Math.round(ow) + 1) / 2);
+        const sideLeft = ox - jointOffset, sideRight = oxR + jointOffset;
+        const sideTop = oy - jointOffset, sideBottom = oyB + jointOffset;
+        const hLen = sideRight - sideLeft, vLen = sideBottom - sideTop;
         const hAttrs = (() => {
           const { array, offset } = adjustedDashAttrs(ostyle, ow, hLen);
           return array !== "" ? ` stroke-dasharray="${array}"${offset !== 0 ? ` stroke-dashoffset="${r(offset)}"` : ""}` : "";
@@ -3181,17 +3191,17 @@ function paintOutline(el: CapturedElement, borderRadius: number, indent: string)
         if (thinDotted) {
           const color = colorStr(ocolor);
           out.push(
-            ...paintThinDottedLine(ox, oy, oxR, oy, ow, color, indent),
-            ...paintThinDottedLine(oxR, oy, oxR, oyB, ow, color, indent),
-            ...paintThinDottedLine(ox, oyB, oxR, oyB, ow, color, indent),
-            ...paintThinDottedLine(ox, oy, ox, oyB, ow, color, indent),
+            ...paintThinDottedLine(sideLeft, oy, sideRight, oy, ow, color, indent),
+            ...paintThinDottedLine(oxR, sideTop, oxR, sideBottom, ow, color, indent),
+            ...paintThinDottedLine(sideLeft, oyB, sideRight, oyB, ow, color, indent),
+            ...paintThinDottedLine(ox, sideTop, ox, sideBottom, ow, color, indent),
           );
         } else {
           out.push(
-            `${indent}<line x1="${r(ox)}" y1="${r(oy)}" x2="${r(oxR)}" y2="${r(oy)}" ${strokeAttrs}${hAttrs}${linecap} />`,
-            `${indent}<line x1="${r(oxR)}" y1="${r(oy)}" x2="${r(oxR)}" y2="${r(oyB)}" ${strokeAttrs}${vAttrs}${linecap} />`,
-            `${indent}<line x1="${r(ox)}" y1="${r(oyB)}" x2="${r(oxR)}" y2="${r(oyB)}" ${strokeAttrs}${hAttrs}${linecap} />`,
-            `${indent}<line x1="${r(ox)}" y1="${r(oy)}" x2="${r(ox)}" y2="${r(oyB)}" ${strokeAttrs}${vAttrs}${linecap} />`,
+            `${indent}<line x1="${r(sideLeft)}" y1="${r(oy)}" x2="${r(sideRight)}" y2="${r(oy)}" ${strokeAttrs}${hAttrs}${linecap} />`,
+            `${indent}<line x1="${r(oxR)}" y1="${r(sideTop)}" x2="${r(oxR)}" y2="${r(sideBottom)}" ${strokeAttrs}${vAttrs}${linecap} />`,
+            `${indent}<line x1="${r(sideLeft)}" y1="${r(oyB)}" x2="${r(sideRight)}" y2="${r(oyB)}" ${strokeAttrs}${hAttrs}${linecap} />`,
+            `${indent}<line x1="${r(ox)}" y1="${r(sideTop)}" x2="${r(ox)}" y2="${r(sideBottom)}" ${strokeAttrs}${vAttrs}${linecap} />`,
           );
         }
       } else {

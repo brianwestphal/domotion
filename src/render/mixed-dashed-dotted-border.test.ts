@@ -108,3 +108,26 @@ describe("rounded mixed dashed/dotted border paths (DM-2430)", () => {
     expect(arrays(second)).toEqual(arrays(first));
   });
 });
+
+describe("square dashed outline side geometry (DM-2660)", () => {
+  const outlineOnly = {
+    borderStyle: "none",
+    borderTopStyle: "none", borderRightStyle: "none",
+    borderBottomStyle: "none", borderLeftStyle: "none",
+    outlineColor: "rgb(109,40,217)", outlineWidth: "2px",
+    outlineStyle: "dashed", outlineOffset: "0px",
+  };
+
+  it("runs each dash plan between the outer corners, not the shorter center-path corners", () => {
+    const svg = render(outlineOnly);
+    const lines = svg.split("\n").filter(line => line.includes("<line") && line.includes('stroke="rgb(109,40,217)"'));
+
+    expect(lines).toHaveLength(4);
+    expect(lines[0]).toContain('x1="8" y1="19" x2="112" y2="19"');
+    expect(lines[0]).toContain('stroke-dasharray="6 3.8"');
+    expect(lines[1]).toContain('x1="111" y1="18" x2="111" y2="82"');
+    expect(lines[1]).toContain('stroke-dasharray="6 3.7"');
+    expect(lines[2]).toContain('x1="8" y1="81" x2="112" y2="81"');
+    expect(lines[3]).toContain('x1="9" y1="18" x2="9" y2="82"');
+  });
+});
