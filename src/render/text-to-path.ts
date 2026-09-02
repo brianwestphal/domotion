@@ -2276,6 +2276,9 @@ const LINUX_TARGET_STRIKES = new Set([
   "LiberationSans|16|400",
   "LiberationSans-Bold|32|700",
   "LiberationSans-Bold|14|700",
+  "LiberationSerif|13|400",
+  "LiberationSerif|18|400",
+  "LiberationSerif|44|400",
   "FreeSans|32|400",
   "FreeSerif|32|400",
 ]);
@@ -2303,6 +2306,37 @@ export function embeddedLinuxTargetStrikeEnabled(
     && slant === 0
     && stretch === 100
     && authoredTextRendering.toLowerCase() === "auto";
+}
+
+/** Blink rounds synthesized-small-caps sizes before constructing the scaled
+ * font. Keep that effective strike stable across floating-point ratios such as
+ * 13 / 18 without rounding unrelated fractional authored sizes to an admitted
+ * integer surface. */
+export function effectiveGlyphFontSize(fontSizePx: number, glyphScale: number): number {
+  return Math.round(fontSizePx * glyphScale * 1_000_000) / 1_000_000;
+}
+
+/** Resolve an all-or-nothing target-strike plan for a shaped run. Mixed-size
+ * synthesized caps may use one embedded subset per effective strike, but a
+ * run stays on the ordinary hinted-subset route unless every size is an
+ * independently admitted Linux surface. */
+export function embeddedLinuxTargetStrikeSizes(
+  capturePlatform: NodeJS.Platform,
+  sourcePostscriptName: string | undefined,
+  fontSizePx: number,
+  glyphScales: readonly number[],
+  weight: number,
+  slant: number,
+  stretch: number,
+  authoredTextRendering = "auto",
+  enabled = process.env.DOMOTION_LINUX_TARGET_STRIKE !== "0",
+): number[] | null {
+  const sizes = [...new Set(glyphScales.map((scale) => effectiveGlyphFontSize(fontSizePx, scale)))];
+  if (sizes.length === 0 || sizes.some((size) => !embeddedLinuxTargetStrikeEnabled(
+    capturePlatform, sourcePostscriptName, size, weight, slant, stretch,
+    authoredTextRendering, enabled,
+  ))) return null;
+  return sizes;
 }
 
 /** Preserve the already-correct linear x geometry while substituting the y
@@ -2470,15 +2504,20 @@ function renderEmbeddedGlyphRuns(
   // padding stacking on the right — visibly off-centre.
   // DM-938: per-glyph scale carries the synthesized small-caps multiplier
   // (1.0 for native-size glyphs, 0.7 for synthesized cap-shrunk lowercase).
-  // Pending segments group consecutive glyphs of the same scale so each
-  // emits a single `<text>` with its own `font-size` attribute.
+  // Pending segments group consecutive glyphs that share scale, embedded
+  // family, and terminal paint policy so each emits one coherent `<text>`.
   interface PendingSeg {
-    perGlyph: Array<{ pua: string; xCss: number; yCss: number; scale: number }>;
-    runCssFamily: string;
+    perGlyph: Array<{
+      pua: string;
+      xCss: number;
+      yCss: number;
+      scale: number;
+      cssFamily: string;
+      textRenderingAttr: string;
+    }>;
     weightAttr: string;
     italicAttr: string;
     fvsAttr: string;
-    textRenderingAttr: string;
     paintPasses: FakeBoldSvgPaintPass[];
   }
   const pending: PendingSeg[] = [];
@@ -2683,46 +2722,6 @@ function renderEmbeddedGlyphRuns(
     const shearFactor = faceNeedsSyntheticOblique(run.font, blinkRequestedSlopeDegrees(fontStyle), fontSynthesis)
       ? OBLIQUE_SHEAR : 0;
 
-    const targetStrikeRequested = srcInfo?.faceIndex != null
-      && perCharScale.every((scale) => scale === 1)
-      && shearFactor === 0
-      && (textStrokeWidth == null || textStrokeWidth === 0)
-      && embeddedLinuxTargetStrikeEnabled(
-        process.platform, srcInfo.postscriptName, fontSize, weight, slant, stretch,
-        authoredTextRendering,
-      );
-    const targetUnitsPerEm = Math.round(fontSize * 64);
-    let targetStrikeCommandsByGlyphId: Map<number, PathCommand[]> | null = null;
-    if (targetStrikeRequested) {
-      const hintedGlyphs = linuxTargetStrikeGlyphs({
-        postscriptName: srcInfo!.postscriptName,
-        fontPath: srcInfo!.path,
-        faceIndex: srcInfo!.faceIndex!,
-        variations: srcInfo!.variationAxes,
-      }, fontSize, layout.glyphs.map((glyph) => glyph.id));
-      if (hintedGlyphs != null) {
-        const xScale = targetUnitsPerEm / run.font.unitsPerEm;
-        const merged = new Map<number, PathCommand[]>();
-        let topologyMatches = true;
-        for (const glyph of layout.glyphs) {
-          const hinted = hintedGlyphs.get(glyph.id);
-          const designCommands = hinted?.designCommands ?? [];
-          // Spaces and other genuinely inkless glyphs never enter the subset.
-          if (designCommands.length === 0) continue;
-          const commands = hinted == null
-            ? null
-            : targetStrikeVerticalCommands(designCommands, hinted.commands, xScale);
-          if (commands == null || commands.length === 0) {
-            topologyMatches = false;
-            break;
-          }
-          merged.set(glyph.id, commands);
-        }
-        if (topologyMatches && merged.size > 0) targetStrikeCommandsByGlyphId = merged;
-      }
-    }
-    const targetStrikeActive = targetStrikeCommandsByGlyphId != null;
-
     // DM-1722 / DM-2390: for a STATIC-weight source on the hinted path (no
     // wght axis), the glyph outlines are identical at every requested
     // CSS weight — the file is what it is. Requested weight then only matters
@@ -2752,8 +2751,7 @@ function renderEmbeddedGlyphRuns(
     // identity. Bold now changes paint records, not outlines; oblique still
     // shears the outline and therefore remains keyed.
     const synthPart = `|sh=${shearFactor}`;
-    const instanceKey = `${run.fontKey}|${weightPart}|s=${slant}${fvsTuple}${cutTuple}${axesTuple}${synthPart}`
-      + (targetStrikeActive ? `|strike-y=${fontSize}` : "");
+    const instanceKey = `${run.fontKey}|${weightPart}|s=${slant}${fvsTuple}${cutTuple}${axesTuple}${synthPart}`;
 
 
     // DM-1714/DM-1716: tag the run with the sfnt file it resolved to, so the
@@ -2765,20 +2763,17 @@ function renderEmbeddedGlyphRuns(
     // match what this run shaped with (and hinting survives instancing).
     // Webfont instances return null here (no backing file) and keep svg2ttf.
     const hintedSource = srcInfo;
-    // Target-strike outlines already carry FreeType's concrete 26.6-grid y
-    // coordinates. geometricPrecision prevents the consumer's custom-font
-    // scaler from applying a second, family-less webfont hinting pass.
-    const textRendering = targetStrikeActive
-      ? "geometricPrecision"
-      : embeddedSystemFontTextRendering(
-        process.platform,
-        hintedSource != null,
-        undefined,
-        hintedSource?.postscriptName,
-        undefined,
-        authoredTextRendering,
-      );
-    const textRenderingAttr = textRendering == null ? "" : ` text-rendering="${textRendering}"`;
+    const ordinaryTextRendering = embeddedSystemFontTextRendering(
+      process.platform,
+      hintedSource != null,
+      undefined,
+      hintedSource?.postscriptName,
+      undefined,
+      authoredTextRendering,
+    );
+    const ordinaryTextRenderingAttr = ordinaryTextRendering == null
+      ? ""
+      : ` text-rendering="${ordinaryTextRendering}"`;
 
     // Resolve cssFamily + PUA codepoints for every shaped glyph in this
     // run. We also need each glyph's anchor x in CSS pixels so we can
@@ -2789,9 +2784,15 @@ function renderEmbeddedGlyphRuns(
     // multi-pixel drift across a 12-glyph run). We anchor at the captured
     // xOffsets where available (Chrome's actual paint position, subpixel-
     // accurate); else use fontkit's shaped advances cumulatively.
-    interface PerGlyph { pua: string; xCss: number; yCss: number; scale: number }
+    interface PerGlyph {
+      pua: string;
+      xCss: number;
+      yCss: number;
+      scale: number;
+      cssFamily: string;
+      textRenderingAttr: string;
+    }
     const perGlyph: PerGlyph[] = [];
-    let runCssFamily: string | null = null;
     let runCursorFontUnits = 0;
     // DM-906 + DM-940: fontkit returns shaped glyphs in VISUAL order for
     // RTL scripts (Arabic, Hebrew) and LOGICAL order for LTR scripts.
@@ -2843,6 +2844,88 @@ function renderEmbeddedGlyphRuns(
       // LTR while looking like a fix. The residual case is a genuinely RTL run
       // whose first glyph is tofu AND which was shaped without clusters.
     }
+
+    // DM-2662: Blink builds synthesized small capitals as a second integer
+    // font strike (18px source text becomes 13px small caps). The former Linux
+    // target-strike gate rejected that mixed-scale run wholesale, leaving the
+    // native 18/13 pair to be repainted as two family-less custom-webfont
+    // strikes. At small sizes those strikes can snap in opposite directions
+    // and materially change the cap-height ratio even though shaping and
+    // placement agree. Derive the effective size of every shaped glyph using
+    // the same cluster walk as emission, then require every distinct size to
+    // be admitted before constructing one target subset per size.
+    const clusters = layout.clusters;
+    const glyphScales: number[] = [];
+    if (clusters != null) {
+      for (let glyphIndex = 0; glyphIndex < layout.glyphs.length; glyphIndex++) {
+        glyphScales.push(perCharScale[clusters[glyphIndex]] ?? 1);
+      }
+    } else {
+      let scaleTextIdx = runIsRtl ? run.text.length : 0;
+      for (const glyph of layout.glyphs) {
+        const cps = glyph.codePoints;
+        const span = sourceClusterSpan(
+          run.text, scaleTextIdx, cps != null && cps.length > 0 ? cps.length : 1, runIsRtl,
+        );
+        if (runIsRtl) scaleTextIdx -= span;
+        glyphScales.push(perCharScale[scaleTextIdx] ?? 1);
+        if (!runIsRtl) scaleTextIdx += span;
+      }
+    }
+    const candidateStrikeSizes = srcInfo?.faceIndex != null
+      && shearFactor === 0
+      && (textStrokeWidth == null || textStrokeWidth === 0)
+      ? embeddedLinuxTargetStrikeSizes(
+        process.platform, srcInfo.postscriptName, fontSize, glyphScales,
+        weight, slant, stretch, authoredTextRendering,
+      )
+      : null;
+    let targetStrikeCommandsBySize: Map<number, Map<number, PathCommand[]>> | null = null;
+    if (candidateStrikeSizes != null) {
+      const planned = new Map<number, Map<number, PathCommand[]>>();
+      let topologyMatches = true;
+      let hasInk = false;
+      for (const targetSize of candidateStrikeSizes) {
+        const glyphIds = layout.glyphs
+          .filter((_glyph, glyphIndex) => effectiveGlyphFontSize(fontSize, glyphScales[glyphIndex]) === targetSize)
+          .map((glyph) => glyph.id);
+        const hintedGlyphs = linuxTargetStrikeGlyphs({
+          postscriptName: srcInfo!.postscriptName,
+          fontPath: srcInfo!.path,
+          faceIndex: srcInfo!.faceIndex!,
+          variations: srcInfo!.variationAxes,
+        }, targetSize, glyphIds);
+        if (hintedGlyphs == null) {
+          topologyMatches = false;
+          break;
+        }
+        const targetUnitsPerEm = Math.round(targetSize * 64);
+        const xScale = targetUnitsPerEm / run.font.unitsPerEm;
+        const merged = new Map<number, PathCommand[]>();
+        for (const glyphId of glyphIds) {
+          const hinted = hintedGlyphs.get(glyphId);
+          const designCommands = hinted?.designCommands ?? [];
+          // Spaces and other genuinely inkless glyphs never enter the subset.
+          if (designCommands.length === 0) continue;
+          const commands = hinted == null
+            ? null
+            : targetStrikeVerticalCommands(designCommands, hinted.commands, xScale);
+          if (commands == null || commands.length === 0) {
+            topologyMatches = false;
+            break;
+          }
+          merged.set(glyphId, commands);
+        }
+        if (!topologyMatches) break;
+        if (merged.size > 0) {
+          hasInk = true;
+          planned.set(targetSize, merged);
+        }
+      }
+      if (topologyMatches && hasInk) targetStrikeCommandsBySize = planned;
+    }
+    const targetStrikeActive = targetStrikeCommandsBySize != null;
+
     // Walk the shaped glyph stream. For each glyph: convert its cluster's
     // first-codepoint xOffset to a CSS pixel x, OR fall back to the
     // accumulated cursor when no xOffsets are present (or the cluster
@@ -2862,7 +2945,6 @@ function renderEmbeddedGlyphRuns(
     // glyph per source char at xOffset and dropped every inserted/extra glyph
     // and every GPOS offset.) For 1:1 scripts each glyph is its own cluster,
     // so this is identical to the per-char anchoring below.
-    const clusters = layout.clusters;
     let clusterAnchorCss = 0;
     let clusterCursorFU = 0;
     let prevCluster = -1;
@@ -2947,7 +3029,7 @@ function renderEmbeddedGlyphRuns(
           yCss = -pos.yOffset * runScale;
           clusterCursorFU += pos.xAdvance;
         }
-        glyphScale = perCharScale[srcIdx] ?? 1;
+        glyphScale = glyphScales[i];
       } else {
         // fontkit-shaped run: per-char xOffset anchoring (unchanged).
         // Glyph x anchor: captured xOffset at the cluster's first char
@@ -2996,7 +3078,7 @@ function renderEmbeddedGlyphRuns(
         // cluster's first char (textIdx) is where Chrome's painted-position
         // anchor lives; use its scale. For multi-char clusters all chars in
         // the cluster get the same case treatment so the scale is uniform.
-        glyphScale = perCharScale[textIdx] ?? 1;
+        glyphScale = glyphScales[i];
         // For LTR, advance textIdx AFTER lookup. (For RTL we decremented
         // before the lookup so the next iteration's pre-decrement lands on
         // the previous cluster's start.)
@@ -3048,20 +3130,28 @@ function renderEmbeddedGlyphRuns(
           },
         };
       } else {
-        const targetCommands = targetStrikeActive
-          ? targetStrikeCommandsByGlyphId!.get(glyph.id)
+        const targetSize = targetStrikeActive
+          ? effectiveGlyphFontSize(fontSize, glyphScale)
           : null;
-        // Activation is all-or-nothing for a run. Mixing target-strike and
-        // design-unit contours in one TTF would assign two coordinate systems
-        // to one units-per-em value, so decline if an alternate outline backend
-        // discovered ink the preflight could not pair with a hinted contour.
+        const targetCommands = targetSize == null
+          ? null
+          : targetStrikeCommandsBySize!.get(targetSize)?.get(glyph.id);
+        // Activation is all-or-nothing for a run. Every effective size gets a
+        // distinct TTF because its hinted coordinates use a different
+        // units-per-em space; decline if an alternate outline backend found ink
+        // the preflight could not pair with that size's hinted contour.
         if (targetStrikeActive && targetCommands == null) {
           return { markup: null, decline: { reason: "glyph-outline-unavailable" } };
         }
-        const trackedUnitsPerEm = targetStrikeActive ? targetUnitsPerEm : run.font.unitsPerEm;
+        const trackedUnitsPerEm = targetSize == null
+          ? run.font.unitsPerEm
+          : Math.round(targetSize * 64);
         const metricScale = trackedUnitsPerEm / run.font.unitsPerEm;
+        const placementInstanceKey = targetSize == null
+          ? instanceKey
+          : `${instanceKey}|strike-y=${targetSize}`;
         placement = trackGlyphInEmbedFont(
-          instanceKey, trackedUnitsPerEm, runAscent * metricScale, runDescent * metricScale,
+          placementInstanceKey, trackedUnitsPerEm, runAscent * metricScale, runDescent * metricScale,
           glyph.id, targetCommands ?? commandResolution.commands, glyph.advanceWidth * metricScale,
           // The descriptor exactly matches the already-resolved/baked face;
           // the consumer browser performs neither face selection nor shaping.
@@ -3070,10 +3160,21 @@ function renderEmbeddedGlyphRuns(
         if (placement == null) {
           return { markup: null, decline: { reason: "pua-exhausted" } };
         }
-        if (runCssFamily == null) runCssFamily = placement.cssFamily;
       }
       if (!rasterOwned && !glyphInkless && placement != null) {
-        perGlyph.push({ pua: String.fromCodePoint(placement.puaCodepoint), xCss, yCss, scale: glyphScale });
+        perGlyph.push({
+          pua: String.fromCodePoint(placement.puaCodepoint),
+          xCss,
+          yCss,
+          scale: glyphScale,
+          cssFamily: placement.cssFamily,
+          // Target-strike outlines already carry FreeType's concrete 26.6-grid
+          // y coordinates. geometricPrecision prevents the consumer's
+          // family-less custom-font scaler from applying a second hint pass.
+          textRenderingAttr: targetStrikeActive
+            ? ' text-rendering="geometricPrecision"'
+            : ordinaryTextRenderingAttr,
+        });
       }
       // DM-2020: HarfBuzz doesn't just hide a default-ignorable's ink after
       // shaping — `hb_ot_zero_width_default_ignorables` (hb-ot-shape.cc:779-796,
@@ -3099,7 +3200,7 @@ function renderEmbeddedGlyphRuns(
     // embedded glyph segment. Keep walking so adjacent vector runs remain in
     // embedded mode; if every run is raster-owned, `pending` stays empty and
     // the coordinator declines cleanly to the path/overlay boundary below.
-    if (perGlyph.length === 0 || runCssFamily == null) {
+    if (perGlyph.length === 0) {
       cssX += runCursorFontUnits * runScale;
       continue;
     }
@@ -3123,7 +3224,7 @@ function renderEmbeddedGlyphRuns(
       ? ` style="font-variation-settings: ${Object.entries(variationSettings).map(([k, v]) => `'${k}' ${v}`).join(", ")}"` : "";
 
     pending.push({
-      perGlyph, runCssFamily, weightAttr, italicAttr, fvsAttr, textRenderingAttr,
+      perGlyph, weightAttr, italicAttr, fvsAttr,
       paintPasses: fakeBoldPaint.svgPasses,
     });
     cssX += runCursorFontUnits * runScale;
@@ -3159,16 +3260,19 @@ function renderEmbeddedGlyphRuns(
   // unit), so the list aligns 1:1 with the PUA stream. Same pixel-faithful
   // placement, ~2-3x less markup than per-glyph `<tspan>`s.
   for (const p of pending) {
-    // DM-938: synthesized small-caps splits the per-glyph stream into
-    // runs of consecutive same-scale glyphs. Each run emits its own
-    // `<text>` with the matching `font-size` (`fontSize × scale`). When
-    // no glyph in this PendingSeg carries a non-1.0 scale, we emit a
-    // single `<text>` for the whole segment as before.
+    // DM-938 / DM-2662: synthesized small-caps splits the per-glyph stream
+    // into consecutive runs with one scale, embedded family, and paint policy.
+    // Each run emits its matching `font-size` (`fontSize × scale`); ordinary
+    // single-scale entries still emit one `<text>` as before.
     let runStart = 0;
     while (runStart < p.perGlyph.length) {
-      const runScale = p.perGlyph[runStart].scale;
+      const firstGlyph = p.perGlyph[runStart];
+      const runScale = firstGlyph.scale;
       let runEnd = runStart + 1;
-      while (runEnd < p.perGlyph.length && p.perGlyph[runEnd].scale === runScale) runEnd++;
+      while (runEnd < p.perGlyph.length
+          && p.perGlyph[runEnd].scale === runScale
+          && p.perGlyph[runEnd].cssFamily === firstGlyph.cssFamily
+          && p.perGlyph[runEnd].textRenderingAttr === firstGlyph.textRenderingAttr) runEnd++;
       const slice = p.perGlyph.slice(runStart, runEnd);
       const xList = slice.map((g) => r2(x + g.xCss * xScale)).join(" ");
       const puaStream = slice.map((g) => g.pua).join("");
@@ -3181,7 +3285,7 @@ function renderEmbeddedGlyphRuns(
       const yAttr = anyY
         ? `y="${slice.map((g) => r2(baselineY + g.yCss)).join(" ")}"`
         : `y="${r2(baselineY)}"`;
-      const base = `<text x="${xList}" ${yAttr} font-family="${p.runCssFamily}" font-size="${emitFontSize}"${p.weightAttr}${p.italicAttr}${p.fvsAttr}${p.textRenderingAttr}`;
+      const base = `<text x="${xList}" ${yAttr} font-family="${firstGlyph.cssFamily}" font-size="${emitFontSize}"${p.weightAttr}${p.italicAttr}${p.fvsAttr}${firstGlyph.textRenderingAttr}`;
       const paint = {
         fill,
         strokeWidthPx: textStrokeWidth ?? 0,

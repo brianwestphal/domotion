@@ -54,6 +54,8 @@
           "DM-2632",
           "DM-2634",
           "DM-2640",
+          "DM-2652",
+          "DM-2662",
           "DM-300",
           "DM-457",
           "DM-462",
@@ -91,6 +93,7 @@
           "tests/composed-parity-fixtures.ts",
           "tests/features.ts",
           "tests/html-test-suite.tsx",
+          "tests/linux-target-strike-small-caps.e2e.test.ts",
           "tests/output/html-test/index.html",
           "tests/output/html-test/results.json",
           "tests/textarea-line-baseline.e2e.test.ts",
@@ -1627,6 +1630,10 @@
           "DM-259",
           "DM-262",
           "DM-2623",
+          "DM-2626",
+          "DM-2627",
+          "DM-2652",
+          "DM-2662",
           "DM-389",
           "DM-390",
           "DM-393",
@@ -1644,6 +1651,7 @@
           "src/render/helper-acquire.ts",
           "src/render/text-to-path.ts",
           "tests/linux-glyph-extractor.test.ts",
+          "tests/linux-target-strike-small-caps.e2e.test.ts",
           "tools/linux-glyph-extractor/",
           "tools/linux-glyph-extractor/CMakeLists.txt",
           "tools/linux-terminal-mask-oracle.ts"
@@ -3436,7 +3444,9 @@
           "DM-2626",
           "DM-2627",
           "DM-2632",
-          "DM-2643"
+          "DM-2643",
+          "DM-2652",
+          "DM-2662"
         ],
         "code": [
           ".github/workflows/visual-tests.yml",
@@ -3457,6 +3467,7 @@
           "src/render/synth-test-fonts.ts",
           "src/render/text-to-path.test.ts",
           "src/render/text-to-path.ts",
+          "tests/linux-target-strike-small-caps.e2e.test.ts",
           "tools/linux-glyph-extractor/src/main.cpp",
           "tools/linux-terminal-mask-oracle.ts"
         ],

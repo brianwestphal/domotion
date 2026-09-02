@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-2623","DM-2626","DM-2627","DM-2632","DM-2643"]
-code: [".github/workflows/visual-tests.yml","src/render/embedded-font-builder.test.ts","src/render/embedded-font-builder.ts","src/render/embedded-font-snapshot.test.ts","src/render/font-resolution-cache-reset.test.ts","src/render/font-resolution.ts","src/render/glyph-helper-boundaries.test.ts","src/render/glyph-helper-font.ts","src/render/glyph-helper-outline.ts","src/render/glyph-helper-protocol.ts","src/render/glyph-helper-transport.ts","src/render/glyph-helper.ts","src/render/hb-subset.test.ts","src/render/hb-subset.ts","src/render/linux-target-strike.ts","src/render/synth-test-fonts.ts","src/render/text-to-path.test.ts","src/render/text-to-path.ts","tools/linux-glyph-extractor/src/main.cpp","tools/linux-terminal-mask-oracle.ts"]
+tickets: ["DM-2623","DM-2626","DM-2627","DM-2632","DM-2643","DM-2652","DM-2662"]
+code: [".github/workflows/visual-tests.yml","src/render/embedded-font-builder.test.ts","src/render/embedded-font-builder.ts","src/render/embedded-font-snapshot.test.ts","src/render/font-resolution-cache-reset.test.ts","src/render/font-resolution.ts","src/render/glyph-helper-boundaries.test.ts","src/render/glyph-helper-font.ts","src/render/glyph-helper-outline.ts","src/render/glyph-helper-protocol.ts","src/render/glyph-helper-transport.ts","src/render/glyph-helper.ts","src/render/hb-subset.test.ts","src/render/hb-subset.ts","src/render/linux-target-strike.ts","src/render/synth-test-fonts.ts","src/render/text-to-path.test.ts","src/render/text-to-path.ts","tests/linux-target-strike-small-caps.e2e.test.ts","tools/linux-glyph-extractor/src/main.cpp","tools/linux-terminal-mask-oracle.ts"]
 aliases: ["docs/99-hinted-embedded-subset.md","doc-99"]
 ---
 
@@ -157,7 +157,7 @@ outlines (glyphs fontkit couldn't decode), CFF/CFF2 faces, native-only
 no-`glyf` fonts (PingFang `hvgl`), webfont buffers (no on-disk file is recorded
 for them).
 
-### Linux exact target-strike exceptions (DM-2623 / DM-2626 / DM-2627)
+### Linux exact target-strike exceptions (DM-2623 / DM-2626 / DM-2627 / DM-2652 / DM-2662)
 
 Retaining source hint bytecode does not guarantee that an embedded webfont gets
 the same strike as a native Linux font. Native Blink asks Fontconfig for
@@ -175,7 +175,7 @@ list and `text-rendering="geometricPrecision"`, so the consumer neither reflows
 nor grid-fits the already-adjusted outline. The generated document remains
 fully self-contained; no host font is consulted during playback.
 
-The production allowlist is six exact PostScript-name / size / weight tuples:
+The production allowlist is twelve exact PostScript-name / size / weight tuples:
 
 | Exact target strike | Evidence owner | Admission evidence |
 |---|---|---|
@@ -183,14 +183,25 @@ The production allowlist is six exact PostScript-name / size / weight tuples:
 | `WenQuanYiZenHeiMono` 26 px / 700 | DM-2627 `06-deep-field-sizing` header | Joint two-strike fixture evidence removed the header's remaining major region; the 26 px monospace segment became pixel-exact. Disabling `geometricPrecision` worsened the crop (4,117 → 4,226 changed pixels; RMSE 0.0661 → 0.0826). |
 | `WenQuanYiZenHei` 32 px / 700 | DM-2627 `06-deep-field-sizing` header | The same joint gate proved the proportional title strike and removed the requested header region; it does not admit another WQY size or weight. |
 | `LiberationSans` 32 px / 400 | DM-2626 `1E00-1EFF-latin-extended-additional` | The fixture-level oracle passed 520/520 face, gid, cluster, span, metric, and outline checks before the three-strike fixture gate reduced 21 regions / 0.05427% coverage / 0.23824% diff to one residual region / 0.00344% / 0.04402%. |
+| `LiberationSans` 16 px / 400 | DM-2652 `14-deep-float-bfc` | Together with the two exact bold strikes below, reduced the requested body and heading crops from 4,679 / 2,234 changed pixels to 22 / 6 while preserving captured x. |
+| `LiberationSans-Bold` 32 px / 700 | DM-2652 `14-deep-float-bfc` | Same grouped fixture gate; applies only to the measured page-title strike. |
+| `LiberationSans-Bold` 14 px / 700 | DM-2652 `14-deep-float-bfc` | Same grouped fixture gate; applies only to the measured section-label strike. |
+| `LiberationSerif` 13 px / 400 | DM-2662 `20-deep-font-feature-values` + focused scale probe | Chromium's synthesized 18 px small caps use a separately rounded 13 px strike. At a mid-ink threshold the native and target-strike `H` are both 8 px high; the ordinary embedded control is 9 px. |
+| `LiberationSerif` 18 px / 400 | DM-2662 `20-deep-font-feature-values` + focused scale probe | The full-size `T` and synthesized 13 px `H` match Chromium independently at three ink thresholds, correcting the visible small-cap height ratio without changing their glyphs, baselines, or x positions. |
+| `LiberationSerif` 44 px / 400 | DM-2662 `20-deep-font-feature-values` | The fixture's separate 44 px feature row is admitted by the same before/after gate; 36/25 and 72/50 controls remain outside the allowlist. |
 | `FreeSans` 32 px / 400 | DM-2626 `1E00-1EFF-latin-extended-additional` | Same grouped fixture gate. A full hinted-x experiment did not improve the remaining U+1EFE residual, so production deliberately retains design x. |
 | `FreeSerif` 32 px / 400 | DM-2626 `1E00-1EFF-latin-extended-additional` | Same grouped fixture gate; no evidence is claimed for another FreeSerif strike. |
 
 This route is deliberately narrower than the general hb-subset path. It is on
-only for one exact tuple above on Linux, upright, normal stretch, authored
-`text-rendering:auto`, no author stroke, no small-caps size scaling, no
-synthetic-oblique bake, and matching helper outline topology for the whole run.
-Its builder key includes the target size and the entry is marked
+only when every effective glyph size in a run has an exact tuple above on
+Linux, with upright style, normal stretch, authored `text-rendering:auto`, no
+author stroke, no synthetic-oblique bake, and matching helper outline topology
+for the whole run. Blink rounds a synthesized-small-caps size before creating
+its scaled font (18 px × 0.7 becomes 13 px), so a mixed full/small-caps run is
+split into independently admitted 18 px and 13 px embedded entries. If either
+effective strike is absent, the entire run stays on the ordinary route rather
+than mixing coordinate spaces. Each builder key includes its target size and
+the entry is marked
 `target-strike`, so it cannot fall back into hb-subset and be hinted a second
 time. An unavailable/older helper, a topology mismatch, or any failed guard
 preserves the ordinary hinted-subset route (plus the independently allowed
@@ -201,8 +212,10 @@ size. The earlier WQY UI 13/20/32 regular-weight experiment was mixed or worse;
 `WenQuanYiZenHei` 32 px / 400 remains explicitly outside the allowlist even
 though 32 px / 700 is admitted by its separate DM-2627 fixture. The DM-2626
 Latin result is one fixture-level gate covering its three named 32/400 faces,
-not permission to extrapolate to other sizes or weights. Every additional
-tuple requires new strike evidence. This is target-size vector geometry, not a
+not permission to extrapolate to other sizes or weights. DM-2662 likewise
+admits only Liberation Serif 13/18/44 at weight 400; its intentionally larger
+36/25 and 72/50 probe rows remain ordinary controls. Every additional tuple
+requires new strike evidence. This is target-size vector geometry, not a
 bitmap/mask fallback, system-font passthrough, or native font fallback.
 
 ## Speculative composition: snapshot / restore

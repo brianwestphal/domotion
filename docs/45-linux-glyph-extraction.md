@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts","platform-release"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-1034","DM-2056","DM-2353","DM-258","DM-259","DM-262","DM-2623","DM-389","DM-390","DM-393","DM-837","DM-838","DM-872","DM-876","DM-881","DM-886"]
-code: [".github/workflows/release-helpers.yml","src/render/glyph-helper.test.ts","src/render/glyph-helper.ts","src/render/helper-acquire.ts","src/render/text-to-path.ts","tests/linux-glyph-extractor.test.ts","tools/linux-glyph-extractor/","tools/linux-glyph-extractor/CMakeLists.txt","tools/linux-terminal-mask-oracle.ts"]
+tickets: ["DM-1034","DM-2056","DM-2353","DM-258","DM-259","DM-262","DM-2623","DM-2626","DM-2627","DM-2652","DM-2662","DM-389","DM-390","DM-393","DM-837","DM-838","DM-872","DM-876","DM-881","DM-886"]
+code: [".github/workflows/release-helpers.yml","src/render/glyph-helper.test.ts","src/render/glyph-helper.ts","src/render/helper-acquire.ts","src/render/text-to-path.ts","tests/linux-glyph-extractor.test.ts","tests/linux-target-strike-small-caps.e2e.test.ts","tools/linux-glyph-extractor/","tools/linux-glyph-extractor/CMakeLists.txt","tools/linux-terminal-mask-oracle.ts"]
 aliases: ["docs/45-linux-glyph-extraction.md","doc-45"]
 ---
 
@@ -163,15 +163,18 @@ Mirrors doc 16 §"Internal pipeline" with FreeType calls:
    matching Chromium's configuration for the affected WenQuanYi face. Returned
    coordinates are y-up 26.6 values with `coordinateScale: 64`.
 
-   The renderer uses this only for the self-contained DM-2623 exception:
-   regular `WenQuanYi Zen Hei Mono` at exactly 17 CSS px. It requests normal and
-   hinted outlines from the same helper call, retains the normal outline's x
-   coordinates and the target-strike outline's y coordinates, and packages the
-   result in an embedded SVG font at 1088 units/em (`17 * 64`). Chromium still
-   paints that embedded artifact; there is no system-font passthrough or native
-   fallback. A topology mismatch, unavailable/older helper, unsupported style,
-   or any request failure disables the exception and returns to the existing
-   self-contained path.
+   The renderer uses this only for an evidence-owned allowlist of exact face / CSS
+   size / weight tuples. It requests normal and hinted outlines from the same
+   helper call, retains the normal outline's x coordinates and the target-strike
+   outline's y coordinates, and packages the result in an embedded SVG font at
+   `size * 64` units/em. A mixed synthesized-small-caps run receives one embedded
+   entry per effective rounded size only when every size is independently
+   admitted. Chromium still paints those embedded artifacts; there is no
+   system-font passthrough or native fallback. A topology mismatch,
+   unavailable/older helper, unsupported style, unadmitted effective size, or
+   any request failure disables the exception for the whole run and returns to
+   the existing self-contained path. Doc 99 owns the current tuple list and
+   admission evidence.
 
    This y-only merge is deliberately not a generic small-text policy. The
    Linux terminal-mask oracle shows that applying the same transformation to
@@ -332,13 +335,16 @@ defines the native arm64 clean-cache consumer gate over the published bytes.
   a real glyph (corrected DM-876; the earlier "empty path" claim was the
   `FreeSansOblique` face, which lacks the block). This is positive coverage, not
   an empty-regression guard.
-- **DM-2623 target-strike parity** *(implemented)*: the Linux helper test
+- **Linux target-strike parity** *(implemented)*: the Linux helper test
   confirms that a 17 px WenQuanYi Mono `hintedGlyphs` response uses 26.6 target
   coordinates while the normal design-outline response remains unchanged. The
   terminal-mask oracle compares all 16 quarter-pixel phases and gates on no
   per-case regression plus at least 95% removal of the affected mono label's
   production residual. The full `4E00-9FFF-cjk-unified-ideographs.30` fixture is
-  the end-to-end visual check.
+  the original end-to-end visual check. DM-2662 adds a focused mixed 18/13 px
+  Liberation Serif small-caps browser gate: both target entries must reproduce
+  Chromium's independently measured full-cap and small-cap ink heights, while
+  disabling the route must diverge.
 - **CI**: a Linux job (the `test-linux.yml` from DM-262, or the Docker harness
   `npm run test:linux-docker`) builds the helper from a clean checkout and runs
   `npm run demos:test:html`, exercising the FreeSans / Noto fallback ranges
@@ -392,12 +398,12 @@ defines the native arm64 clean-cache consumer gate over the published bytes.
   channel is enabled for `linux` (was darwin-only). Byte-identical to one-shot,
   guarded by a Linux serve test in `src/render/glyph-helper.test.ts`. See
   "Persistent `--serve` mode" above.
-- ✅ **Scoped target-strike route** (DM-2623): Linux WenQuanYi Mono at exactly
-  17 px can consume the helper's slight-hinted target outline and embed its
-  y geometry in a self-contained font. The ticket crop matches the Linux
-  reference across all 16 quarter-pixel phases without native font fallback;
-  other faces, sizes, styles, and failed helper probes retain the established
-  route.
+- ✅ **Scoped target-strike route** (DM-2623 / DM-2626 / DM-2627 / DM-2652 /
+  DM-2662): exact evidence-owned Linux tuples can consume the helper's
+  slight-hinted target outline and embed its y geometry in self-contained
+  strike-keyed fonts. Mixed synthesized caps are admitted only when every
+  effective size has its own tuple. Other faces, sizes, styles, and failed
+  helper probes retain the established route; none uses native font fallback.
 - ⏳ **Remaining — the probe-then-fallback *trigger* (separate follow-up).** The
   renderer can invoke the Linux helper through the DM-2623 target-strike route,
   but the general fontkit-empty-path trigger remains unbuilt. That follow-up

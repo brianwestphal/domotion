@@ -32,6 +32,7 @@
         "tests/composed-parity-fixtures.ts",
         "tests/features.ts",
         "tests/html-test-suite.tsx",
+        "tests/linux-target-strike-small-caps.e2e.test.ts",
         "tests/output/html-test/index.html",
         "tests/output/html-test/results.json",
         "tests/textarea-line-baseline.e2e.test.ts",
@@ -894,6 +895,7 @@
         "src/render/helper-acquire.ts",
         "src/render/text-to-path.ts",
         "tests/linux-glyph-extractor.test.ts",
+        "tests/linux-target-strike-small-caps.e2e.test.ts",
         "tools/linux-glyph-extractor/",
         "tools/linux-glyph-extractor/CMakeLists.txt",
         "tools/linux-terminal-mask-oracle.ts"
@@ -1986,6 +1988,7 @@
         "src/render/synth-test-fonts.ts",
         "src/render/text-to-path.test.ts",
         "src/render/text-to-path.ts",
+        "tests/linux-target-strike-small-caps.e2e.test.ts",
         "tools/linux-glyph-extractor/src/main.cpp",
         "tools/linux-terminal-mask-oracle.ts"
       ],

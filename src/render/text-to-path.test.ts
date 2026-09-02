@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import { describe, expect, it, beforeEach, afterEach, beforeAll, afterAll } from "vitest";
 import * as fontkit from "fontkit";
-import { glyphIdForCp, __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, blinkSuppressesInterLetterSpacing, cjkTrimShiftFontUnits, classifyEmptyGlyphOutline, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, embeddedLinuxTargetStrikeEnabled, embeddedSystemFontTextRendering, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, getFontInstance, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, positionShapedClusters, registerWebfont, renderRadicalGlyph, renderSourceOwnedTextBoundary, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveGlyphCommands, shapedGlyphSourceSpans, sourceClusterSpan, resolveFontKeyChain, setRenderTextMode, subBoldWeightCutSuffix, synthSmallCapsCharScale, targetStrikeVerticalCommands, usesComplexShaperDottedCircle, win32FallbackChain, __setWin32FamilyKeyResolverForTest } from "./text-to-path.js";
+import { glyphIdForCp, __clearGlyphFallbackCaches, __resolveDarwinFontSpecForTest, __resolveFontForCodepointForTest, __resolveFontSpecForTest, blinkSuppressesInterLetterSpacing, cjkTrimShiftFontUnits, classifyEmptyGlyphOutline, clearEmbeddedFonts, clearGlyphDefs, clearWebfonts, commandsFor, complexShaperBaseMarkDecomposition, nfdBaseMarkDecomposition, computeSkipInkGaps, darwinFallbackChain, effectiveGlyphFontSize, embeddedLinuxTargetStrikeEnabled, embeddedLinuxTargetStrikeSizes, embeddedSystemFontTextRendering, fallbackFontChain, fontHasOutlineTable, getDecorationMetrics, getEmbeddedFontFaceCss, getFontInstance, insertSyntheticDottedCircles, isStrippableOrphanIgnorable, stripOrphanedDefaultIgnorables, isLeftReorderingMatra, isLegitimatelyInklessCodepoint, isStretchyFenceChar, isTextToPathAvailable, linuxFallbackChain, mathAlphaToBase, measureInkMetrics, pingfangKeyForLang, positionShapedClusters, registerWebfont, renderRadicalGlyph, renderSourceOwnedTextBoundary, renderStretchyFenceGlyph, renderTextAsPath, resolveFontKey, resolveGlyphCommands, shapedGlyphSourceSpans, sourceClusterSpan, resolveFontKeyChain, setRenderTextMode, subBoldWeightCutSuffix, synthSmallCapsCharScale, targetStrikeVerticalCommands, usesComplexShaperDottedCircle, win32FallbackChain, __setWin32FamilyKeyResolverForTest } from "./text-to-path.js";
 import { haltInfoFor } from "./font-resolution.js";
 import { isRtlScriptCodepoint } from "./unicode-classification.js";
 import { blinkGenericFamilyFromDeclaredStack, clearFontResolutionCaches, getGlyphDefs, getSystemFallbackResolution, isNonCharacterCodepoint, isPrivateUseCodepoint, setSystemFallbackResolution, withSystemFallbackResolution, __resolveSystemFallbackKeyForCpForTest } from "./font-resolution.js";
@@ -52,6 +52,9 @@ describe("embedded system-font terminal rendering (DM-2623)", () => {
     expect(embeddedLinuxTargetStrikeEnabled("linux", "LiberationSans", 16, 400, 0, 100)).toBe(true);
     expect(embeddedLinuxTargetStrikeEnabled("linux", "LiberationSans-Bold", 32, 700, 0, 100)).toBe(true);
     expect(embeddedLinuxTargetStrikeEnabled("linux", "LiberationSans-Bold", 14, 700, 0, 100)).toBe(true);
+    expect(embeddedLinuxTargetStrikeEnabled("linux", "LiberationSerif", 13, 400, 0, 100)).toBe(true);
+    expect(embeddedLinuxTargetStrikeEnabled("linux", "LiberationSerif", 18, 400, 0, 100)).toBe(true);
+    expect(embeddedLinuxTargetStrikeEnabled("linux", "LiberationSerif", 44, 400, 0, 100)).toBe(true);
     expect(embeddedLinuxTargetStrikeEnabled("linux", "FreeSans", 32, 400, 0, 100)).toBe(true);
     expect(embeddedLinuxTargetStrikeEnabled("linux", "FreeSerif", 32, 400, 0, 100)).toBe(true);
     expect(embeddedLinuxTargetStrikeEnabled("linux", "WenQuanYiZenHei", 17, 400, 0, 100)).toBe(false);
@@ -63,6 +66,40 @@ describe("embedded system-font terminal rendering (DM-2623)", () => {
     expect(embeddedLinuxTargetStrikeEnabled("darwin", "WenQuanYiZenHeiMono", 17, 400, 0, 100)).toBe(false);
     expect(embeddedLinuxTargetStrikeEnabled("linux", "WenQuanYiZenHeiMono", 17, 400, 0, 100, "optimizeSpeed")).toBe(false);
     expect(embeddedLinuxTargetStrikeEnabled("linux", "WenQuanYiZenHeiMono", 17, 400, 0, 100, "auto", false)).toBe(false);
+  });
+
+  it("plans synthesized small caps as an all-or-nothing set of effective strikes", () => {
+    const smallCapsScale = 13 / 18;
+    expect(effectiveGlyphFontSize(18, smallCapsScale)).toBe(13);
+    expect(embeddedLinuxTargetStrikeSizes(
+      "linux", "LiberationSerif", 18, [1, smallCapsScale, 1], 400, 0, 100,
+    )).toEqual([18, 13]);
+    expect(embeddedLinuxTargetStrikeSizes(
+      "linux", "LiberationSerif", 18, [smallCapsScale], 400, 0, 100,
+    )).toEqual([13]);
+
+    // One unsupported effective size keeps the whole run on the ordinary
+    // subset path instead of mixing coordinate spaces within one result.
+    expect(embeddedLinuxTargetStrikeSizes(
+      "linux", "WenQuanYiZenHeiMono", 17, [1, 13 / 17], 400, 0, 100,
+    )).toBeNull();
+    expect(embeddedLinuxTargetStrikeSizes(
+      "linux", "LiberationSerif", 18, [1, smallCapsScale], 400, 0, 100,
+      "optimizeSpeed",
+    )).toBeNull();
+    expect(embeddedLinuxTargetStrikeSizes(
+      "darwin", "LiberationSerif", 18, [1, smallCapsScale], 400, 0, 100,
+    )).toBeNull();
+    expect(embeddedLinuxTargetStrikeSizes(
+      "linux", "LiberationSerif", 18, [], 400, 0, 100,
+    )).toBeNull();
+
+    // Do not let floating-point cleanup broaden the allowlist by rounding an
+    // unrelated fractional authored size to an admitted integer strike.
+    expect(effectiveGlyphFontSize(17.6, 1)).toBe(17.6);
+    expect(embeddedLinuxTargetStrikeSizes(
+      "linux", "LiberationSerif", 17.6, [1], 400, 0, 100,
+    )).toBeNull();
   });
 
   it("takes y from the target strike while retaining scaled design x and rejects topology drift", () => {

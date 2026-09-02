@@ -2320,8 +2320,8 @@ flowchart TD
   E5 -->|"embedded-font"| E7["trackGlyphInEmbedFont() → subset glyf TTF at PUA cp<br/>· &lt;text font-family=dmfN&gt; · getBuiltEmbeddedFontFaceCss()"]
   E7 -->|"decline: layout / outline / PUA exhaustion"| E6
   E11 --> E12["source-owned partial/boundary group<br/>reason + degraded spans; no visible &lt;text&gt;"]
-  E7 --> ET{"Exact Linux target-strike tuple?<br/>WQY Mono 17/400 or 26/700 · WQY 32/700<br/>Liberation Sans / FreeSans / FreeSerif 32/400<br/>upright · normal stretch · auto · no stroke/scale"}
-  ET -->|"yes + helper topology match"| E13["helper design x + FT LIGHT hinted y<br/>(size × 64)-upem svg2ttf · strike-keyed<br/>geometricPrecision prevents second hint"]
+  E7 --> ET{"Every effective glyph size has an exact<br/>Linux target-strike tuple?<br/>upright · normal stretch · auto · no stroke"}
+  ET -->|"yes + helper topology match"| E13["one strike-keyed subset per effective size<br/>helper design x + FT LIGHT hinted y<br/>(size × 64)-upem svg2ttf · geometricPrecision"]
   ET -->|"no / helper unavailable"| E8{"entry pure?<br/>(one sfnt · one NAMED member index ·<br/>one axis location ·<br/>no synthetic bake · has glyf)"}
   E8 -->|"yes"| E9["hinted hb-subset of ORIGINAL file<br/>RETAIN_GIDS + pin axes + PUA cmap<br/>(keeps cvt/fpgm/prep + glyph bytecode)"]
   E8 -->|"no / failure"| E10["svg2ttf rebuild from outlines (unhinted)"]
@@ -2418,24 +2418,30 @@ still fall back to svg2ttf when the source cannot be subset safely.
    `resolveFaceInfoForFile` supplies `namedInstances` and
    `memberPostscriptName`, and the HarfBuzz shaping proxy forwards the stamp
    (`carryFontInstanceMetadata`) so a shaped-script override does not strip it.
-2. **Linux target-strike svg2ttf** (six narrow exceptions): the allowlist is
-   exactly `WenQuanYiZenHeiMono` 17/400 and 26/700,
-   `WenQuanYiZenHei` 32/700, and `LiberationSans` / `FreeSans` / `FreeSerif`
-   32/400. The Linux helper returns each gid's design and
+2. **Linux target-strike svg2ttf** (twelve narrow exceptions): the allowlist is
+   exactly `WenQuanYiZenHeiMono` 17/400 and 26/700;
+   `WenQuanYiZenHei` 32/700; `LiberationSans` 16/400 and 32/400;
+   `LiberationSans-Bold` 14/700 and 32/700; `LiberationSerif` 13/400, 18/400,
+   and 44/400; and `FreeSans` / `FreeSerif` 32/400. The Linux helper returns each gid's design and
    `FT_LOAD_TARGET_LIGHT` outlines. The builder scales design x into a
    `(size × 64)`-upem font and copies hinted 26.6 y, retains linear advances
    and the explicit captured x list, then emits with `geometricPrecision` so
    Chromium does not hint twice. The entry key carries the strike and is
    disqualified from hb-subset. Playback reads only the embedded data font—never
-   a host family. Older helpers, topology mismatch, strokes/small-caps,
-   synthetic oblique, or any unproven tuple fall through unchanged.
+   a host family. Blink rounds a synthesized-small-caps size before creating
+   its scaled font, so mixed caps are split into one strike-keyed subset per
+   effective size (for DM-2662, 18 px and 13 px). This activates only when
+   every size is independently admitted; older helpers, topology mismatch,
+   strokes, synthetic oblique, or any unproven tuple fall through unchanged.
 
    Admission evidence remains tuple- and fixture-scoped: DM-2623 independently
    proves WQY Mono 17/400 across 16 raster phases; DM-2627 jointly proves only
    its WQY Mono 26/700 and WQY 32/700 header; DM-2626's 520/520 logical oracle
-   plus fixture delta jointly proves only its three named Latin 32/400 faces.
-   In particular WQY UI 32/400 remains a negative. See doc 99 for the measured
-   deltas and the complete evidence boundary.
+   plus fixture delta jointly proves only its three named Latin 32/400 faces;
+   DM-2652 proves Liberation Sans 16/400 plus Bold 14/700 and 32/700; and
+   DM-2662 proves only Liberation Serif 13/18/44 at weight 400. In particular
+   WQY UI 32/400 and the focused 36/25 and 72/50 controls remain negatives. See
+   doc 99 for the measured deltas and the complete evidence boundary.
 3. **svg2ttf rebuild** (fallback): an SVG-font description of the tracked
    outlines (cubic → quadratic via cubic2quad), unhinted. Used for synthetic
    faux-oblique bakes, per-glyph helper outlines, CFF/CFF2 faces (the
