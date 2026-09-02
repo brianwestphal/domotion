@@ -2273,6 +2273,9 @@ const LINUX_TARGET_STRIKES = new Set([
   "WenQuanYiZenHeiMono|26|700",
   "WenQuanYiZenHei|32|700",
   "LiberationSans|32|400",
+  "LiberationSans|16|400",
+  "LiberationSans-Bold|32|700",
+  "LiberationSans-Bold|14|700",
   "FreeSans|32|400",
   "FreeSerif|32|400",
 ]);
