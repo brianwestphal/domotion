@@ -49,6 +49,10 @@ export const TEXT_TRANSFORM_GATE_THRESHOLDS = {
 } as const;
 
 type ExpectedRoute = "affine-vector" | "affine-vector-or-source-raster" | "projective-raster";
+
+export function expectedRouteAllowsAffineVector(route: ExpectedRoute): boolean {
+  return route !== "projective-raster";
+}
 type Matrix2D = CapturedTextPaintAffine;
 interface AuditTarget { selector: `#${string}`; label: string }
 export interface TextTransformCase {
@@ -229,7 +233,7 @@ function compareTarget(direct: DirectTargetFacts, owner: CapturedElement | null,
     fragments.push(comparison);
   }
   const classification = direct.liveQuads.length === 0 || direct.neutralQuads.length === 0 ? "unavailable" : projective ? "projective" : "affine";
-  const pass = route === "affine-vector"
+  const pass = expectedRouteAllowsAffineVector(route)
     ? classification === "affine" && captured.length === direct.liveQuads.length && direct.liveQuads.length === direct.neutralQuads.length && direct.liveQuads.length === direct.restoredQuads.length && captured.map((fragment) => fragment.physicalFragmentIndex).sort((a, b) => a - b).every((value, index) => value === index) && owner?.textPaintGeometry?.neutral != null && fragments.length === captured.length && fragments.every((fragment) => fragment.pass)
     : classification === "projective" && captured.length === 0;
   return { selector: direct.selector, label: direct.label, directFragmentCount: direct.liveQuads.length, capturedFragmentCount: captured.length, capturedNeutralBundle: owner?.textPaintGeometry?.neutral != null, fragments, independentClassification: classification, pass };

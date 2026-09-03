@@ -36,7 +36,6 @@ jobs:
             Add-WindowsCapability -Online -Name $capability.Name
           }
       - run: npm ci
-      - run: npx playwright install chrome
       - name: Exact profile and target authority
         if: runner.os != 'Linux'
         run: npm run fonts:generic-profile-target -- --allow-headed-browser --json generic-profile-target.json

@@ -4,6 +4,7 @@ import {
   REQUIRED_TEXT_TRANSFORM_MUTATIONS,
   TEXT_TRANSFORM_CASES,
   TEXT_TRANSFORM_GATE_THRESHOLDS,
+  expectedRouteAllowsAffineVector,
   nearestInkColorError,
   validateTextTransformCorpus,
 } from "../tools/text-transform-geometry-audit.js";
@@ -63,6 +64,9 @@ describe("transformed-text hard parity gate", () => {
     ]));
     expect(TEXT_TRANSFORM_CASES.find((row) => row.id === "vertical-writing")?.expectedRoute)
       .toBe("affine-vector-or-source-raster");
+    expect(expectedRouteAllowsAffineVector("affine-vector")).toBe(true);
+    expect(expectedRouteAllowsAffineVector("affine-vector-or-source-raster")).toBe(true);
+    expect(expectedRouteAllowsAffineVector("projective-raster")).toBe(false);
   });
 
   it("pins fixed device-space tolerances without platform envelopes", () => {

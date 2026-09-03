@@ -11,7 +11,10 @@ describe("generic profile/target workflow", () => {
     expect(workflow).toContain("Get-WindowsCapability -Online");
     expect(workflow).toContain("Language.Fonts.Deva*");
     expect(workflow).toContain("Add-WindowsCapability -Online -Name $capability.Name");
-    expect(workflow).toContain("npx playwright install chrome");
+    // GitHub's native runner images already provide the system Chrome channel.
+    // Reinstalling it deletes that known-good copy before making a network
+    // download, which can turn transient CDN corruption into a red oracle.
+    expect(workflow).not.toContain("npx playwright install chrome");
     expect(workflow).toContain("xvfb-run -a npm run fonts:generic-profile-target");
     expect(workflow.match(/--allow-headed-browser/g)).toHaveLength(2);
     expect(workflow).toContain("generic-profile-target.json");
