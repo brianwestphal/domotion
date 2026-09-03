@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtkxhtj773b9jtip",
+          "message": {
+            "text": "The release gate now distinguishes optional author-installed candidates from OS-owned paths without weakening the system-font audit. Blink returns no platform data for an unavailable named family and advances through the CSS stack; the optional marker on the related font table entries records exactly that host-dependent contract, while every unmarked missing path still fails.",
+            "markdown": "The release gate now distinguishes optional author-installed candidates from OS-owned paths without weakening the system-font audit. Blink returns no platform data for an unavailable named family and advances through the CSS stack; the optional marker on the related font table entries records exactly that host-dependent contract, while every unmarked missing path still fails."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-path-table-integrity.test.ts"
+                },
+                "region": {
+                  "startLine": 14,
+                  "endLine": 28,
+                  "snippet": {
+                    "text": "function missingRequiredPaths(\n  keys: readonly string[],\n  resolve: (key: string) => AuditedFontSpec | null,\n  pathExists: (path: string) => boolean,\n): string[] {\n  const missing: string[] = [];\n  for (const key of keys) {\n    const spec = resolve(key);\n    // A key with no entry on this host is a legitimate miss (the resolver\n    // falls through). Author-installed candidates are equally legitimate\n    // misses, but a missing OS-owned path remains a table defect.\n    if (spec?.path == null || spec.path === \"\" || spec.optionalInstall === true) continue;\n    if (!pathExists(spec.path)) missing.push(`${key} -> ${spec.path}`);\n  }\n  return missing;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 1560
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 1871
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2667"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "8272f3797c316680c464f5bbaa665bd8"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c7ac73e2854aeb68059ef5aa604b081d82611c2a",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

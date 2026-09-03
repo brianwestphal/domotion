@@ -1557,6 +1557,13 @@ export const ITALIC_SLNT = -9.99;
 interface FontPath {
   path: string;
   postscriptName?: string;
+  /** An author-installed candidate rather than an OS-owned font. Its absence
+   *  is a valid host state: Blink's `GetFontData` returns null when platform
+   *  matching fails, and `FontFallbackIterator::Next` advances to the next
+   *  CSS family (`font_cache.cc:176-190`, `font_fallback_iterator.cc:150-178`,
+   *  Chromium rev 7d859f271c). Integrity audits must therefore distinguish
+   *  this from a stale path for a font the platform guarantees. */
+  optionalInstall?: boolean;
   /** Authoritative physical collection member supplied by the platform font
    * matcher (Linux fontconfig's FC_FILE + FC_INDEX identity). */
   faceIndex?: number;
@@ -1861,10 +1868,10 @@ const FONT_PATHS: Record<string, FontPath> = {
   // stack. Domotion mirrors that: when the path doesn't exist on this
   // host, `resolveFont` returns null for the SSP key and the family-chain
   // walks to the next entry (typically `serif` → Times). DM-804.
-  "source-serif-pro":              { path: "/Library/Fonts/SourceSerifPro-Regular.ttf" },
-  "source-serif-pro-bold":         { path: "/Library/Fonts/SourceSerifPro-Bold.ttf" },
-  "source-serif-pro-italic":       { path: "/Library/Fonts/SourceSerifPro-Italic.ttf" },
-  "source-serif-pro-bold-italic":  { path: "/Library/Fonts/SourceSerifPro-BoldItalic.ttf" },
+  "source-serif-pro":              { path: "/Library/Fonts/SourceSerifPro-Regular.ttf", optionalInstall: true },
+  "source-serif-pro-bold":         { path: "/Library/Fonts/SourceSerifPro-Bold.ttf", optionalInstall: true },
+  "source-serif-pro-italic":       { path: "/Library/Fonts/SourceSerifPro-Italic.ttf", optionalInstall: true },
+  "source-serif-pro-bold-italic":  { path: "/Library/Fonts/SourceSerifPro-BoldItalic.ttf", optionalInstall: true },
   // Playfair Display — a high-contrast display serif (Google Fonts), commonly
   // installed under `/Library/Fonts/` for drop caps / headings. Same
   // present-or-fall-through contract as Source Serif Pro: Chrome on macOS picks
@@ -1874,10 +1881,10 @@ const FONT_PATHS: Record<string, FontPath> = {
   // body), otherwise it falls through to the next family (Georgia / serif).
   // When the path is absent, `resolveFont` returns null and the family chain
   // walks on, matching Chrome's fallback on a host without Playfair. DM-1120.
-  "playfair-display":              { path: "/Library/Fonts/PlayfairDisplay-Regular.ttf" },
-  "playfair-display-bold":         { path: "/Library/Fonts/PlayfairDisplay-Bold.ttf" },
-  "playfair-display-italic":       { path: "/Library/Fonts/PlayfairDisplay-Italic.ttf" },
-  "playfair-display-bold-italic":  { path: "/Library/Fonts/PlayfairDisplay-BoldItalic.ttf" },
+  "playfair-display":              { path: "/Library/Fonts/PlayfairDisplay-Regular.ttf", optionalInstall: true },
+  "playfair-display-bold":         { path: "/Library/Fonts/PlayfairDisplay-Bold.ttf", optionalInstall: true },
+  "playfair-display-italic":       { path: "/Library/Fonts/PlayfairDisplay-Italic.ttf", optionalInstall: true },
+  "playfair-display-bold-italic":  { path: "/Library/Fonts/PlayfairDisplay-BoldItalic.ttf", optionalInstall: true },
   // Generic cursive — Chrome on macOS resolves `cursive` to Apple Chancery
   // (NOT Snell Roundhand). Empirical probe at 16px on the sample "The quick
   // brown fox jumps over the lazy dog": Chrome cursive = 290.08px, Apple
@@ -4021,6 +4028,7 @@ export function __resolveSystemFallbackKeyForCpForTest(
  *  off-host) font file they describe. */
 export function __resolveFontSpecForTest(key: string): {
   path: string; postscriptName?: string; extractor?: string;
+  optionalInstall?: boolean;
   linuxFallbackIsBold?: boolean; linuxFallbackIsItalic?: boolean;
 } | null {
   return resolveFontSpec(key);
@@ -4036,7 +4044,9 @@ export function __resolveFontSpecForTest(key: string): {
  * Mirrors how the win32 routing guard (DM-987) checks `UNICODE_FONT_FILES_WIN32`
  * directly rather than going through the host resolver.
  */
-export function __resolveDarwinFontSpecForTest(key: string): { path: string; postscriptName?: string; extractor?: string } | null {
+export function __resolveDarwinFontSpecForTest(key: string): {
+  path: string; postscriptName?: string; extractor?: string; optionalInstall?: boolean;
+} | null {
   return FONT_PATHS[key] ?? null;
 }
 
