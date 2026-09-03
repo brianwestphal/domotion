@@ -2,6 +2,11 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.26.1] - 2026-09-03
+
+
+<!-- No user-facing capture, render, animation, CLI, or fidelity changes in this range; all changes are release/CI infrastructure, tests, and docs, which the directives exclude. -->
+
 ## [0.26.0] - 2026-09-03
 
 
