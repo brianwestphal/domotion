@@ -8,6 +8,9 @@ describe("generic profile/target workflow", () => {
     expect(workflow).toContain("macos-14");
     expect(workflow).toContain("ubuntu-24.04");
     expect(workflow).toContain("windows-2025");
+    expect(workflow).toContain("Get-WindowsCapability -Online");
+    expect(workflow).toContain("Language.Fonts.Deva*");
+    expect(workflow).toContain("Add-WindowsCapability -Online -Name $capability.Name");
     expect(workflow).toContain("npx playwright install chrome");
     expect(workflow).toContain("xvfb-run -a npm run fonts:generic-profile-target");
     expect(workflow.match(/--allow-headed-browser/g)).toHaveLength(2);

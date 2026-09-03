@@ -24,6 +24,17 @@ jobs:
         with:
           node-version: 22.21.0
           cache: npm
+      - name: Install a non-inert Windows Devanagari comparison family
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $capability = Get-WindowsCapability -Online |
+            Where-Object Name -Like 'Language.Fonts.Deva*' |
+            Select-Object -First 1
+          if ($null -eq $capability) { throw 'Windows Devanagari font capability is unavailable' }
+          if ($capability.State -ne 'Installed') {
+            Add-WindowsCapability -Online -Name $capability.Name
+          }
       - run: npm ci
       - run: npx playwright install chrome
       - name: Exact profile and target authority
