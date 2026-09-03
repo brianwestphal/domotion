@@ -1,17 +1,17 @@
 name: CI
 
-# Fast, host-independent validation on every PR and push to main: type-check,
-# unit tests, and a production build. These gates previously ran ONLY in
+# Validation on every PR and push to main: type-check, the complete primary-host
+# test suite, and a production build. These gates previously ran ONLY in
 # release.yml (which triggers on version tags), so a type error or unit-test
 # regression stayed invisible until release time — exactly how DM-1220 (a
 # stale `AnimationFrame.transition` test fixture missing the required
 # `duration`) reached `main` red without anyone noticing. Running them here
 # catches that drift on the PR that introduces it.
 #
-# The Linux/Windows VISUAL-fidelity suites stay in their own path-filtered
-# workflows (test-linux.yml / windows-fidelity.yml) — they need the calibrated
-# container / a real platform font stack. This workflow is just the
-# platform-independent compile + unit signal, so it runs unconditionally.
+# Linux/Windows native fidelity stays in test-linux.yml / windows-fidelity.yml,
+# where the calibrated image, fonts, and helper exist. The complete `npm test`
+# suite is intentionally a macOS primary-host gate: it includes CoreText
+# assertions, source-authenticated checks, and two headless browser oracles.
 
 on:
   push:
@@ -21,6 +21,7 @@ on:
 
 env:
   NODE_VERSION: '22.21.0'
+  DOMOTION_NO_OPEN: '1'
 
 jobs:
   typecheck:
@@ -34,12 +35,22 @@ jobs:
       - run: npm run typecheck
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
       - run: npm ci
+      - name: Materialize pinned source authorities
+        run: npm run sources:materialize
+      - name: Install headless Chromium
+        run: npx playwright install chromium
+      - name: Build the macOS glyph helper
+        run: |
+          SWIFT_ARCH="$(uname -m)"
+          swift build -c release --arch "$SWIFT_ARCH" --package-path tools/macos-glyph-extractor
+          cp "tools/macos-glyph-extractor/.build/${SWIFT_ARCH}-apple-macosx/release/DomotionGlyphPaths" \
+             tools/macos-glyph-extractor/domotion-glyph-paths
       - run: npm test
       # DM-1459: behavior/feature coverage — flags a documented behavior with no
       # asserting test, or a new export/verb not yet in tests/feature-coverage.ts,
@@ -51,7 +62,6 @@ jobs:
       - run: npm run check:activation-coverage
       - run: npm run gate:parity-release -- --report-only
       - run: npm run paint:geometry-oracle
-      - run: npx playwright install chromium
       - run: npm run fonts:layout:oracle
       - run: npm run paint:geometry-browser-oracle
       - run: npm run transform:geometry-oracle

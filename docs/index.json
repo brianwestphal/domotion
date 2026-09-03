@@ -1807,6 +1807,7 @@
         ],
         "tickets": [
           "DM-2353",
+          "DM-2664",
           "DM-393",
           "DM-881",
           "DM-886",
@@ -1815,8 +1816,10 @@
         ],
         "code": [
           ".github/workflows/release-helpers.yml",
+          ".github/workflows/release.yml",
           "src/render/glyph-helper.ts",
-          "src/render/helper-acquire.ts"
+          "src/render/helper-acquire.ts",
+          "tests/release-helpers-workflow.test.ts"
         ],
         "aliases": [
           "docs/50-glyph-helper-acquisition.md",
@@ -7878,14 +7881,18 @@
           "DM-2596",
           "DM-2604",
           "DM-2635",
-          "DM-2636"
+          "DM-2636",
+          "DM-2664"
         ],
         "code": [
           ".github/workflows/",
+          "scripts/materialize-source-authorities.mjs",
           "src/capture/debug-bundle.ts",
           "tests/animate-debug.e2e.test.ts",
           "tests/capture-debug-api.e2e.test.ts",
           "tests/feature-coverage.ts",
+          "tests/release-helpers-workflow.test.ts",
+          "tests/release-workflow.test.ts",
           "tools/parity-program.json",
           "scripts/ci-run-fast-visuals.mjs"
         ],

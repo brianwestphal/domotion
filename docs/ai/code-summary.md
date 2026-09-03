@@ -56,6 +56,11 @@ loading the historical documentation corpus.
   source ownership, stage gates, activation, platform coverage, and gaps.
 - `tools/*oracle*`, `tools/*gate*`, and `.github/workflows/` produce and
   adjudicate exact logical, native, and visual evidence.
+- `scripts/materialize-source-authorities.mjs` reconstructs the source subset
+  required by clean-checkout CI from immutable Chromium, Chromium-pinned
+  Skia/ICU, HarfBuzz, and html-test revisions. Release validation installs its
+  headless browser and native helper explicitly; helper builds retain staged
+  artifacts and attach only after the GitHub release exists.
 - `external/chromium`, pinned Skia, HarfBuzz, ICU, and platform-native helpers
   are the authority for fidelity work. Cite the governing decision before
   changing a parity branch.

@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-2353","DM-393","DM-881","DM-886","DM-887","DM-890"]
-code: [".github/workflows/release-helpers.yml","src/render/glyph-helper.ts","src/render/helper-acquire.ts"]
+tickets: ["DM-2353","DM-2664","DM-393","DM-881","DM-886","DM-887","DM-890"]
+code: [".github/workflows/release-helpers.yml",".github/workflows/release.yml","src/render/glyph-helper.ts","src/render/helper-acquire.ts","tests/release-helpers-workflow.test.ts"]
 aliases: ["docs/50-glyph-helper-acquisition.md","doc-50"]
 ---
 
@@ -41,7 +41,8 @@ it, cache it, and reuse it — adding a third resolution source ahead of the
 ## The release-asset contract (already in place)
 
 `.github/workflows/release-helpers.yml` builds and attaches, to the GitHub
-release for each pushed `vX.Y.Z` tag (repo `brianwestphal/domotion`):
+release for the explicit `vX.Y.Z` tag supplied by the caller (repo
+`brianwestphal/domotion`):
 
 | Platform | Asset name | Sidecar | Arch coverage |
 | --- | --- | --- | --- |
@@ -51,6 +52,15 @@ release for each pushed `vX.Y.Z` tag (repo `brianwestphal/domotion`):
 
 Each `.sha256` sidecar is the `shasum -a 256` / `sha256sum` output (hex digest +
 filename). The asset is keyed to the package version via the release tag.
+
+The release workflow invokes the helper workflow only after GitHub Release
+creation succeeds. All five native jobs retain their staged binary and sidecar
+as seven-day Actions artifacts; a single fan-in job downloads the complete set,
+verifies that the release exists, and attaches every asset. Manual dispatch
+uses the requested tag for both checkout and upload. There is no parallel tag
+trigger or polling window, so a failed release validation cannot cascade into
+five misleading helper-upload failures, and a transient attach failure can be
+retried without repeating native builds/signing (DM-2664).
 
 > **Current Linux arm64 contract (DM-2353):** v0.24.0 carries the native glyph
 > asset + sidecar and `icu-v78.2-domotion.1` carries the arm64 executable/data +

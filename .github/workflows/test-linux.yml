@@ -18,10 +18,10 @@ name: Linux fidelity
 # breakage. (Making these checks *blocking* is a branch-protection setting in
 # the repo's GitHub settings, separate from this trigger.)
 #
-# Unit tests already run on every push via release.yml's `test` job on
-# ubuntu-latest; this workflow adds the parts that need the calibrated
-# container / a real Linux font stack: the VISUAL baseline and the FreeType
-# helper's fontkit-parity test.
+# The complete primary-host test suite runs on macOS in ci.yml and release.yml.
+# This workflow owns the assertions that specifically need the calibrated
+# Noble container / Linux font stack: the visual baseline, explicit helper
+# activation, declared-family cut, and the FreeType helper parity test.
 #
 # Produces two downloadable artifacts:
 #   - font-widths-linux  : Chromium-on-Linux painted advance widths (JSON), the

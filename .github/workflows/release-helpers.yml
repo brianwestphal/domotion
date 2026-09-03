@@ -1,17 +1,16 @@
 name: Release helpers
 
-# Builds the native glyph-extractor helper binaries and attaches them to the
-# GitHub release for the pushed tag. Domotion downloads the matching
+# Builds the native glyph-extractor helper binaries and attaches them to an
+# existing GitHub release. Domotion downloads the matching
 # platform/arch asset on demand at runtime — the binaries are intentionally
 # NOT committed to git and NOT bundled in the npm tarball (they live only as
 # release assets).
 #
-# This runs as a SEPARATE workflow from release.yml (which publishes the npm
-# package): the helper build is slow (Swift compile + Apple notarization) and
-# will grow sibling Linux/Windows jobs, so it has its own lifecycle. It uploads
-# to the same release.yml creates — `gh release upload` only adds assets and
-# never touches the release body/flags, and the upload step waits for the
-# release to exist so the two parallel workflows don't race.
+# release.yml calls this reusable workflow only after creating the GitHub
+# release. Every build first uploads its staged binary + checksum as a retained
+# Actions artifact; one fan-in job then attaches the complete set. A transient
+# attach failure can therefore be retried without repeating native builds,
+# signing, or notarization.
 #
 # All native helper binaries are wired up here: macOS (universal,
 # signed/notarized), Linux (x64 + arm64, FreeType), and Windows (x64 + arm64,
@@ -20,10 +19,12 @@ name: Release helpers
 # resolves for arm64 hosts.
 
 on:
-  push:
-    tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
-      - 'v[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+'
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Release tag whose source is built and whose release receives the assets'
+        required: true
+        type: string
   # Manual re-run against an EXISTING release tag — lets you iterate on the
   # signing setup without cutting a new version (it only uploads helper assets,
   # never publishes to npm).
@@ -38,7 +39,7 @@ permissions:
   contents: write   # attach assets to the release
 
 concurrency:
-  group: release-helpers-${{ github.ref_name }}
+  group: release-helpers-${{ inputs.tag }}
   cancel-in-progress: false
 
 jobs:
@@ -46,6 +47,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+        with: { ref: '${{ inputs.tag }}' }
 
       # Imports the Developer ID Application cert (+ private key) from the
       # base64-encoded .p12 secret into a throwaway keychain and authorizes
@@ -91,34 +93,21 @@ jobs:
           shasum -a 256 domotion-glyph-paths-darwin-universal \
             > domotion-glyph-paths-darwin-universal.sha256
 
-      - name: Attach binaries to the release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          # `gh` resolves the repo from the local git remote, but the steps
-          # below run from $RUNNER_TEMP (not a checkout). GH_REPO makes every
-          # `gh` call repo-aware regardless of cwd — without it `gh release
-          # view` errors and the wait loop misreads that as "release missing".
-          GH_REPO: ${{ github.repository }}
-          TAG: ${{ github.event.inputs.tag || github.ref_name }}
-        run: |
-          set -euo pipefail
-          cd "$RUNNER_TEMP"
-          # release.yml creates the GitHub Release in a parallel workflow; wait
-          # for it (up to ~5 min) before attaching assets.
-          for i in $(seq 1 30); do
-            if gh release view "$TAG" >/dev/null 2>&1; then break; fi
-            echo "Release $TAG not present yet; waiting… ($i/30)"
-            sleep 10
-          done
-          gh release upload "$TAG" \
-            domotion-glyph-paths-darwin-universal \
-            domotion-glyph-paths-darwin-universal.sha256 \
-            --clobber
+      - name: Retain staged release asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-helper-darwin-universal
+          path: |
+            ${{ runner.temp }}/domotion-glyph-paths-darwin-universal
+            ${{ runner.temp }}/domotion-glyph-paths-darwin-universal.sha256
+          if-no-files-found: error
+          retention-days: 7
 
   linux-glyph-extractor:
     runs-on: ubuntu-22.04   # glibc 2.35 floor — see tools/linux-glyph-extractor/Dockerfile
     steps:
       - uses: actions/checkout@v4
+        with: { ref: '${{ inputs.tag }}' }
 
       # FreeType dev headers + a C++17 toolchain. The binary links
       # libfreetype.so.6 dynamically; that shared library is always present
@@ -145,30 +134,21 @@ jobs:
           sha256sum domotion-glyph-paths-linux-x64 \
             > domotion-glyph-paths-linux-x64.sha256
 
-      - name: Attach binaries to the release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          TAG: ${{ github.event.inputs.tag || github.ref_name }}
-        run: |
-          set -euo pipefail
-          cd "$RUNNER_TEMP"
-          # release.yml creates the GitHub Release in a parallel workflow; wait
-          # for it (up to ~5 min) before attaching assets.
-          for i in $(seq 1 30); do
-            if gh release view "$TAG" >/dev/null 2>&1; then break; fi
-            echo "Release $TAG not present yet; waiting… ($i/30)"
-            sleep 10
-          done
-          gh release upload "$TAG" \
-            domotion-glyph-paths-linux-x64 \
-            domotion-glyph-paths-linux-x64.sha256 \
-            --clobber
+      - name: Retain staged release asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-helper-linux-x64
+          path: |
+            ${{ runner.temp }}/domotion-glyph-paths-linux-x64
+            ${{ runner.temp }}/domotion-glyph-paths-linux-x64.sha256
+          if-no-files-found: error
+          retention-days: 7
 
   linux-arm64-glyph-extractor:
     runs-on: ubuntu-22.04-arm   # GitHub-hosted arm64 Linux runner; glibc 2.35 floor
     steps:
       - uses: actions/checkout@v4
+        with: { ref: '${{ inputs.tag }}' }
 
       - name: Install build dependencies
         run: |
@@ -191,28 +171,21 @@ jobs:
           sha256sum domotion-glyph-paths-linux-arm64 \
             > domotion-glyph-paths-linux-arm64.sha256
 
-      - name: Attach binaries to the release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          TAG: ${{ github.event.inputs.tag || github.ref_name }}
-        run: |
-          set -euo pipefail
-          cd "$RUNNER_TEMP"
-          for i in $(seq 1 30); do
-            if gh release view "$TAG" >/dev/null 2>&1; then break; fi
-            echo "Release $TAG not present yet; waiting… ($i/30)"
-            sleep 10
-          done
-          gh release upload "$TAG" \
-            domotion-glyph-paths-linux-arm64 \
-            domotion-glyph-paths-linux-arm64.sha256 \
-            --clobber
+      - name: Retain staged release asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-helper-linux-arm64
+          path: |
+            ${{ runner.temp }}/domotion-glyph-paths-linux-arm64
+            ${{ runner.temp }}/domotion-glyph-paths-linux-arm64.sha256
+          if-no-files-found: error
+          retention-days: 7
 
   windows-glyph-extractor:
     runs-on: windows-latest   # x64; DirectWrite + the Windows SDK ship preinstalled
     steps:
       - uses: actions/checkout@v4
+        with: { ref: '${{ inputs.tag }}' }
 
       # MSVC + the Windows SDK (dwrite.lib, D2D headers) are preinstalled on the
       # runner. build.ps1 drives CMake and links the CRT statically (/MT), so the
@@ -234,31 +207,21 @@ jobs:
           sha256sum domotion-glyph-paths-win32-x64.exe \
             > domotion-glyph-paths-win32-x64.exe.sha256
 
-      - name: Attach binaries to the release
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          TAG: ${{ github.event.inputs.tag || github.ref_name }}
-        run: |
-          set -euo pipefail
-          cd "$RUNNER_TEMP"
-          # release.yml creates the GitHub Release in a parallel workflow; wait
-          # for it (up to ~5 min) before attaching assets.
-          for i in $(seq 1 30); do
-            if gh release view "$TAG" >/dev/null 2>&1; then break; fi
-            echo "Release $TAG not present yet; waiting… ($i/30)"
-            sleep 10
-          done
-          gh release upload "$TAG" \
-            domotion-glyph-paths-win32-x64.exe \
-            domotion-glyph-paths-win32-x64.exe.sha256 \
-            --clobber
+      - name: Retain staged release asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-helper-win32-x64
+          path: |
+            ${{ runner.temp }}/domotion-glyph-paths-win32-x64.exe
+            ${{ runner.temp }}/domotion-glyph-paths-win32-x64.exe.sha256
+          if-no-files-found: error
+          retention-days: 7
 
   windows-arm64-glyph-extractor:
     runs-on: windows-11-arm   # GitHub-hosted arm64 Windows runner; MSVC + SDK preinstalled
     steps:
       - uses: actions/checkout@v4
+        with: { ref: '${{ inputs.tag }}' }
 
       # build.ps1 drives CMake for the host arch; on the arm64 runner it links
       # an arm64 .exe (CRT statically linked /MT, no VC++ redistributable).
@@ -276,21 +239,38 @@ jobs:
           sha256sum domotion-glyph-paths-win32-arm64.exe \
             > domotion-glyph-paths-win32-arm64.exe.sha256
 
-      - name: Attach binaries to the release
-        shell: bash
+      - name: Retain staged release asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-helper-win32-arm64
+          path: |
+            ${{ runner.temp }}/domotion-glyph-paths-win32-arm64.exe
+            ${{ runner.temp }}/domotion-glyph-paths-win32-arm64.exe.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  attach-binaries:
+    needs:
+      - macos-glyph-extractor
+      - linux-glyph-extractor
+      - linux-arm64-glyph-extractor
+      - windows-glyph-extractor
+      - windows-arm64-glyph-extractor
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download retained helper assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-helper-*
+          path: ${{ runner.temp }}/release-helpers
+          merge-multiple: true
+      - name: Attach complete helper set to the existing release
         env:
+          ASSET_DIR: ${{ runner.temp }}/release-helpers
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+          TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
-          cd "$RUNNER_TEMP"
-          for i in $(seq 1 30); do
-            if gh release view "$TAG" >/dev/null 2>&1; then break; fi
-            echo "Release $TAG not present yet; waiting… ($i/30)"
-            sleep 10
-          done
-          gh release upload "$TAG" \
-            domotion-glyph-paths-win32-arm64.exe \
-            domotion-glyph-paths-win32-arm64.exe.sha256 \
-            --clobber
+          gh release view "$TAG" >/dev/null
+          gh release upload "$TAG" "$ASSET_DIR"/* --clobber

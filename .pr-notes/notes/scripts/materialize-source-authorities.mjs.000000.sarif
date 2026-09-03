@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtksc5s4x2vqey6o",
+          "message": {
+            "text": "Clean-checkout validation downloads the exact authority subset instead of weakening source-backed tests. The plan covers every external semantic-evidence reference plus direct drift-test inputs at immutable Chromium, Chromium-pinned Skia and ICU, HarfBuzz, and html-test revisions; it rejects an unowned existing tree rather than mislabeling it. A temporary clean git archive fetched 148 of 148 files, after which all 46 source-backed and generated-table checks passed.",
+            "markdown": "Clean-checkout validation downloads the exact authority subset instead of weakening source-backed tests. The plan covers every external semantic-evidence reference plus direct drift-test inputs at immutable Chromium, Chromium-pinned Skia and ICU, HarfBuzz, and html-test revisions; it rejects an unowned existing tree rather than mislabeling it. A temporary clean git archive fetched 148 of 148 files, after which all 46 source-backed and generated-table checks passed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "scripts/materialize-source-authorities.mjs"
+                },
+                "region": {
+                  "startLine": 151,
+                  "endLine": 186,
+                  "snippet": {
+                    "text": "export async function materializeSourceAuthorities({ concurrency = 4 } = {}) {\n  const inventory = JSON.parse(await readFile(INVENTORY, \"utf8\"));\n  const plan = sourceAuthorityPlan(inventory);\n  const manifestPath = resolve(ROOT, \"external/.domotion-source-authorities.json\");\n  let trustedCache = false;\n  if (existsSync(manifestPath)) {\n    const manifest = JSON.parse(await readFile(manifestPath, \"utf8\"));\n    trustedCache = JSON.stringify(manifest.pins) === JSON.stringify(SOURCE_AUTHORITY_PINS)\n      && JSON.stringify(manifest.files) === JSON.stringify(plan.files);\n  }\n  const unownedExisting = trustedCache ? [] : plan.files.filter((path) => existsSync(resolve(ROOT, path)));\n  if (unownedExisting.length > 0) {\n    throw new Error(\n      `refusing to label ${unownedExisting.length} existing source files as pinned; run from a clean checkout`,\n    );\n  }\n  await Promise.all(plan.directories.map((path) => mkdir(resolve(ROOT, path), { recursive: true })));\n\n  let cursor = 0;\n  let fetched = 0;\n  let cached = 0;\n  const workers = Array.from({ length: Math.min(concurrency, plan.files.length) }, async () => {\n    while (cursor < plan.files.length) {\n      const ref = plan.files[cursor++];\n      const result = await materializeFile(ref);\n      if (result === \"fetched\") fetched++;\n      else cached++;\n    }\n  });\n  await Promise.all(workers);\n\n  await writeFile(manifestPath, `${JSON.stringify({\n    schemaVersion: 1,\n    pins: SOURCE_AUTHORITY_PINS,\n    files: plan.files,\n  }, null, 2)}\\n`);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/source-authorities.test.ts"
+                },
+                "region": {
+                  "startLine": 8
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2664"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c806be8c9d174e2d3a458baf22aed1c0"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "75615b0ef05378edd29d68ad8c7e20412e298200",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

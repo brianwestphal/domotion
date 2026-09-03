@@ -106,6 +106,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtksc60nhp4xg8gd",
+          "message": {
+            "text": "The complete suite is deliberately a primary-host macOS gate, while Linux-native fidelity remains in the calibrated Noble workflow. The previously bare Ubuntu job mixed CoreText-specific unit expectations, browser oracles without a browser, source-backed assertions without sources, and Linux font checks without their calibrated inventory; explicitly materializing sources, installing headless Chromium, and building the host-architecture CoreText helper makes each dependency visible.",
+            "markdown": "The complete suite is deliberately a primary-host macOS gate, while Linux-native fidelity remains in the calibrated Noble workflow. The previously bare Ubuntu job mixed CoreText-specific unit expectations, browser oracles without a browser, source-backed assertions without sources, and Linux font checks without their calibrated inventory; explicitly materializing sources, installing headless Chromium, and building the host-architecture CoreText helper makes each dependency visible."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/release.yml"
+                },
+                "region": {
+                  "startLine": 48,
+                  "endLine": 79,
+                  "snippet": {
+                    "text": "  test:\n    # The complete suite includes source-authenticated Blink/HarfBuzz checks,\n    # two headless browser oracles, and primary-host CoreText assertions. Run it\n    # in its declared environment instead of relying on a bare Ubuntu image's\n    # incidental fonts and missing native helpers.\n    runs-on: macos-latest\n    steps:\n      - uses: actions/checkout@v4\n        with: { ref: '${{ env.RELEASE_REF }}' }\n      - uses: actions/setup-node@v4\n        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }\n      - run: npm ci\n      - name: Materialize pinned source authorities\n        # workflow_dispatch can resume a tag cut before DM-2664 added this\n        # script. In that one case, bootstrap the script from the immutable\n        # workflow commit; normal tag pushes execute the checked-out copy.\n        run: |\n          if [ ! -f scripts/materialize-source-authorities.mjs ]; then\n            curl --fail --silent --show-error --location \\\n              \"https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/scripts/materialize-source-authorities.mjs\" \\\n              --output scripts/materialize-source-authorities.mjs\n          fi\n          node scripts/materialize-source-authorities.mjs\n      - name: Install headless Chromium\n        run: npx playwright install chromium\n      - name: Build the macOS glyph helper\n        run: |\n          SWIFT_ARCH=\"$(uname -m)\"\n          swift build -c release --arch \"$SWIFT_ARCH\" --package-path tools/macos-glyph-extractor\n          cp \"tools/macos-glyph-extractor/.build/${SWIFT_ARCH}-apple-macosx/release/DomotionGlyphPaths\" \\\n             tools/macos-glyph-extractor/domotion-glyph-paths\n      - run: npm test"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/test-linux.yml"
+                },
+                "region": {
+                  "startLine": 21
+                }
+              }
+            }
+          ],
+          "rank": 91,
+          "workItemUris": [
+            "DM-2664"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "2de46395d221d0bc62d18b3170fb79cf"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "75615b0ef05378edd29d68ad8c7e20412e298200",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

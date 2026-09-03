@@ -53,6 +53,7 @@
     "lint": "eslint . --max-warnings 0",
     "capture": "npm run build:capture-script && tsx src/cli/index.ts",
     "test": "npm run build:capture-script && vitest run",
+    "sources:materialize": "node scripts/materialize-source-authorities.mjs",
     "test:e2e": "npm run build:capture-script && vitest run --config vitest.e2e.config.ts",
     "test:coverage": "npm run build:capture-script && vitest run --coverage",
     "test:coverage:all": "npm run build:capture-script && node tools/coverage-all.mjs",

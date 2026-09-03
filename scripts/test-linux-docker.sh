@@ -3,15 +3,13 @@
 # local runs reproduce Linux-only failures faithfully — without pushing a tag.
 #
 # WHY THIS EXISTS
-#   CI (`.github/workflows/release.yml`, the `test` job) runs on
-#   `ubuntu-latest` with `npm ci && npm test`. Domotion's font-fallback chain
-#   is calibrated against the HOST platform's system fonts, so any test that
-#   renders text exercises a different code path on Linux than on macOS: there
-#   is no `/System/Library/Fonts/...`, so glyph-path rendering can't load the
-#   host font and falls back to a `<text>` element. That divergence is exactly
-#   the class of failure that only surfaces in CI (e.g. a substring-count
-#   assertion that holds for the macOS glyph-path output but not the Linux
-#   `<text>` fallback). This script lets you reproduce it on a Mac.
+#   The complete `npm test` suite is a macOS primary-host gate because it
+#   contains CoreText assertions. Linux-native CI lives in `test-linux.yml`
+#   inside this same pinned Noble image, with the Linux helper built explicitly.
+#   This script is the local Linux diagnostic counterpart: it lets a Mac run an
+#   individual Linux test/oracle or the full suite to expose accidental host
+#   assumptions, but a full default run is not claimed to equal the release
+#   gate.
 #
 #   The Microsoft Playwright image is pinned to the @playwright/test version
 #   resolved from the lockfile/install — Microsoft ships one image per
@@ -49,9 +47,9 @@ PW_VERSION=$(
 )
 IMAGE="mcr.microsoft.com/playwright:v${PW_VERSION}-noble"
 
-# Default to the exact command the failing CI `test` job runs. Forward any
-# extra args to vitest (the file / -t patterns above). An explicit CMD env var
-# overrides entirely (typecheck, demos, an interactive shell, etc.).
+# Default to the full Linux diagnostic suite. Forward any extra args to vitest
+# (the file / -t patterns above). An explicit CMD env var overrides entirely
+# (typecheck, demos, an interactive shell, etc.).
 if [ -n "${CMD:-}" ]; then
   RUN_CMD="$CMD"
 elif [ "$#" -gt 0 ]; then

@@ -40,18 +40,42 @@ env:
   # to a major-version range (`'22'`) is safe once 22.22.2 ages out.
   NODE_VERSION: '22.21.0'
   RELEASE_REF: ${{ inputs.release_ref || github.ref_name }}
+  DOMOTION_NO_OPEN: '1'
 
 jobs:
   # ─── Phase 1: validation (parallel) ─────────────────────────────────
 
   test:
-    runs-on: ubuntu-latest
+    # The complete suite includes source-authenticated Blink/HarfBuzz checks,
+    # two headless browser oracles, and primary-host CoreText assertions. Run it
+    # in its declared environment instead of relying on a bare Ubuntu image's
+    # incidental fonts and missing native helpers.
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
         with: { ref: '${{ env.RELEASE_REF }}' }
       - uses: actions/setup-node@v4
         with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
       - run: npm ci
+      - name: Materialize pinned source authorities
+        # workflow_dispatch can resume a tag cut before DM-2664 added this
+        # script. In that one case, bootstrap the script from the immutable
+        # workflow commit; normal tag pushes execute the checked-out copy.
+        run: |
+          if [ ! -f scripts/materialize-source-authorities.mjs ]; then
+            curl --fail --silent --show-error --location \
+              "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/scripts/materialize-source-authorities.mjs" \
+              --output scripts/materialize-source-authorities.mjs
+          fi
+          node scripts/materialize-source-authorities.mjs
+      - name: Install headless Chromium
+        run: npx playwright install chromium
+      - name: Build the macOS glyph helper
+        run: |
+          SWIFT_ARCH="$(uname -m)"
+          swift build -c release --arch "$SWIFT_ARCH" --package-path tools/macos-glyph-extractor
+          cp "tools/macos-glyph-extractor/.build/${SWIFT_ARCH}-apple-macosx/release/DomotionGlyphPaths" \
+             tools/macos-glyph-extractor/domotion-glyph-paths
       - run: npm test
 
   typecheck:
@@ -154,10 +178,20 @@ jobs:
           prerelease: true
           make_latest: 'false'  # defence-in-depth
 
+  # Native assets start only after the release exists. The reusable workflow
+  # retains every staged binary as an Actions artifact before its one attach
+  # job, so a transient GitHub release upload can be retried without rebuilding.
+  release-helpers:
+    needs: create-release
+    uses: ./.github/workflows/release-helpers.yml
+    with:
+      tag: ${{ inputs.release_ref || github.ref_name }}
+    secrets: inherit
+
   # ─── Phase 3: npm publish ───────────────────────────────────────────
 
   npm-publish:
-    needs: [create-release, detect]
+    needs: [create-release, detect, release-helpers]
     runs-on: ubuntu-latest
     environment: npm-publish
     steps:
