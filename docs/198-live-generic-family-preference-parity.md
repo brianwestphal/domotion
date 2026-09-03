@@ -5,8 +5,8 @@ kind: "evidence"
 status: "current"
 owners: ["platform-release"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-2351","DM-2637"]
-code: [".github/workflows/generic-family-preference-parity.yml","src/render/synchronous-scope.ts","src/render/synchronous-scope.test.ts"]
+tickets: ["DM-2351","DM-2637","DM-2668"]
+code: [".github/workflows/generic-family-preference-parity.yml","src/capture/generic-font-probe.ts","src/capture/generic-font-probe.test.ts","src/render/synchronous-scope.ts","src/render/synchronous-scope.test.ts"]
 aliases: ["docs/198-live-generic-family-preference-parity.md","doc-198"]
 ---
 
@@ -101,6 +101,14 @@ font-affecting, and parsed as either `auto` or a CSS string, and its
 the reset is not equivalent—the reset returns the row to the document locale
 and silently asks the Common/document script map.
 
+The captured face name is serialized in the form accepted by the native family
+matcher that will replay it. CoreText keeps CDP's exact PostScript member,
+which is required for protected dot-prefixed faces. Fontconfig and DirectWrite
+instead receive CDP's family display name: a painted identifier such as
+`LiberationSans` or `ArialMT` is not necessarily a valid family request, while
+`Liberation Sans` or `Arial` is. The distinction prevents a live Windows Page
+preference from silently falling through to a static generic route.
+
 Legacy array captures serialize the concrete answers as
 `sessionGenericFamilies` on each top-level captured root. The stable
 `CapturedTreeEnvelope` instead stores that Page authority once beside `tree`:
@@ -133,6 +141,16 @@ annotated/unannotated roots and conflicting page/envelope records fail closed.
 Equivalent JSON records compare canonically rather than by object insertion
 order. Legacy trees without a record retain the documented degraded route; the
 envelope never synthesizes a browser/profile table when Page authority is absent.
+
+The observer Inspector session is retained for the lifetime of the Page and
+reused by later captures rather than attached and detached around every probe.
+This is semantically significant on hosted macOS Chrome: detaching a transient
+observer can expose the constructor/profile table after the first frame even
+while Playwright's primary Page session owns its launch-time font-family
+overlay. Each probe also crosses renderer turns before and between its two
+matching observations. A stable record is therefore stable across CDP task and
+paint boundaries, and a read-only probe cannot split adjacent animation frames
+between two preference authorities.
 
 ## Independent logical gate
 

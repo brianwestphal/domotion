@@ -44,6 +44,11 @@ The implementation keeps Blink's decisions separated by owner:
   HarfBuzz/fontkit, and path route at its captured physical baseline and
   inline origin. Bidi fragments are projected from the retained visual order;
   horizontal, vertical, and sideways records use the captured writing plane.
+- When capture authenticates a bitmap/color representation in an otherwise
+  exact text-only record, one isolated Chromium text surface replaces only the
+  vector text fragments. The record's boxes, paint slot, filter/opacity wrapper,
+  and geometry remain direct and vector-owned; `font-variant-emoji` is retained
+  for both classification and ordinary outline-capable text.
 - Each anonymous `url()` child stays a separate content item and is emitted
   through the ordinary image embedding cache at its captured replaced-child
   quad. Text/image/text sequences are never concatenated or independently

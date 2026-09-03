@@ -90,6 +90,18 @@ export interface SessionGenericFamilyProbe {
   byScript: ReadonlyMap<string, ReadonlyMap<string, string>>;
 }
 
+/** Select a name that the platform's native family resolver can replay.
+ * CoreText accepts exact PostScript members and needs them for dot-prefixed
+ * system faces. Fontconfig and DirectWrite consume family display names. */
+export function genericFamilyReplayName(
+  platform: NodeJS.Platform,
+  face: { familyName: string; postScriptName?: string },
+): string {
+  return platform === "darwin"
+    ? face.postScriptName || face.familyName
+    : face.familyName;
+}
+
 export function serializeSessionGenericFamilyProbe(
   probe: SessionGenericFamilyProbe,
 ): CapturedSessionGenericFamilies {
@@ -192,6 +204,58 @@ export function genericProbeArmed(): boolean {
 
 let probeDocumentSequence = 0;
 
+// Keep the Inspector session that observes Page-owned font Settings alive for
+// the lifetime of its target. On some hosted macOS Chrome builds, attaching and
+// immediately detaching a fresh session can expose the constructor/profile
+// table on the next capture even though Playwright's primary Page session still
+// owns its launch-time `Page.setFontFamilies` overlay. Besides making a
+// read-only probe change the state it is meant to observe, that split adjacent
+// animation frames between two otherwise equivalent preference records.
+// Reusing one observer also avoids 150+ attach/detach transitions per frame.
+const targetProbeSessions = new WeakMap<Page | Frame, Promise<CDPSession>>();
+
+async function persistentTargetProbeSession(target: Page | Frame): Promise<CDPSession> {
+  const existing = targetProbeSessions.get(target);
+  if (existing != null) return await existing;
+  const ownerPage = "page" in target ? target.page() : target;
+  const pending = (async () => {
+    const session = await ownerPage.context().newCDPSession(target);
+    await session.send("DOM.enable");
+    await session.send("CSS.enable");
+    return session;
+  })();
+  targetProbeSessions.set(target, pending);
+  ownerPage.once("close", () => {
+    if (targetProbeSessions.get(target) !== pending) return;
+    targetProbeSessions.delete(target);
+    void pending.then((session) => session.detach()).catch(() => {});
+  });
+  try {
+    return await pending;
+  } catch (error) {
+    if (targetProbeSessions.get(target) === pending) targetProbeSessions.delete(target);
+    throw error;
+  }
+}
+
+function invalidateTargetProbeSession(target: Page | Frame, session: CDPSession): void {
+  const pending = targetProbeSessions.get(target);
+  if (pending == null) return;
+  targetProbeSessions.delete(target);
+  void session.detach().catch(() => {});
+}
+
+async function waitForGenericSettingsTurn(target: Page | Frame): Promise<void> {
+  // `Page.setFontFamilies` reaches the renderer asynchronously. Immediate
+  // back-to-back platform-font reads can therefore agree on the pre-update
+  // table under load. Cross one rendering turn before the first observation
+  // and between confirmations so "stable" means stable across task/paint
+  // boundaries, not merely within one CDP dispatch batch.
+  await target.evaluate(() => new Promise<void>((resolve) => {
+    requestAnimationFrame(() => resolve());
+  }));
+}
+
 async function readPageGenericFamilies(
   page: Page | Frame,
   cdp: CDPSession,
@@ -269,7 +333,11 @@ async function readPageGenericFamilies(
         null as (typeof fonts)[number] | null,
       );
       if (primary == null || primary.familyName === "") continue;
-      const faceName = primary.postScriptName || primary.familyName;
+      // Fontconfig and DirectWrite resolve family display names, not arbitrary
+      // painted PostScript identifiers (`LiberationSans`, `ArialMT`). CoreText
+      // can reopen exact PostScript members and needs that precision for
+      // dot-prefixed system faces.
+      const faceName = genericFamilyReplayName(process.platform, primary);
       if (target.script == null) common.set(target.generic, faceName);
       else {
         let scriptMap = byScript.get(target.script);
@@ -302,26 +370,26 @@ export async function probePageGenericFamilies(
 ): Promise<SessionGenericFamilyProbe | null> {
   let cdp: CDPSession | null = null;
   try {
-    cdp = await page.context().newCDPSession(page);
-    await cdp.send("DOM.enable");
-    await cdp.send("CSS.enable");
+    cdp = await persistentTargetProbeSession(page);
     const targets = genericFamilyProbeTargets(await pageLanguageFacts(cdp));
+    await waitForGenericSettingsTurn(page);
     const first = await readPageGenericFamilies(page, cdp, targets);
+    await waitForGenericSettingsTurn(page);
     const second = await readPageGenericFamilies(page, cdp, targets);
     if (probeResultsEqual(first, second)) return second;
+    await waitForGenericSettingsTurn(page);
     const third = await readPageGenericFamilies(page, cdp, targets);
     return probeResultsEqual(second, third) ? third : null;
   } catch {
+    if (cdp != null) invalidateTargetProbeSession(page, cdp);
     return null;
-  } finally {
-    await cdp?.detach().catch(() => {});
   }
 }
 
 async function probeFrameGenericFamilies(frame: Frame): Promise<SessionGenericFamilyProbe | null> {
   let cdp: CDPSession | null = null;
   try {
-    cdp = await frame.page().context().newCDPSession(frame);
+    cdp = await persistentTargetProbeSession(frame);
   } catch (error) {
     // A local child frame shares its parent's renderer target. Only OOPIFs
     // expose a separate Inspector session and can carry divergent Settings.
@@ -329,17 +397,18 @@ async function probeFrameGenericFamilies(frame: Frame): Promise<SessionGenericFa
     throw error;
   }
   try {
-    await cdp.send("DOM.enable");
-    await cdp.send("CSS.enable");
     const languages = await frame.evaluate(() => [...document.querySelectorAll("[lang]")]
       .map((element) => element.getAttribute("lang") ?? "")
       .filter(Boolean));
     const targets = genericFamilyProbeTargets(languages);
+    await waitForGenericSettingsTurn(frame);
     const first = await readPageGenericFamilies(frame, cdp, targets);
+    await waitForGenericSettingsTurn(frame);
     const second = await readPageGenericFamilies(frame, cdp, targets);
     return probeResultsEqual(first, second) ? second : null;
-  } finally {
-    await cdp.detach().catch(() => {});
+  } catch (error) {
+    invalidateTargetProbeSession(frame, cdp);
+    throw error;
   }
 }
 

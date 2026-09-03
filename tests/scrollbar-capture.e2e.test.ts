@@ -30,6 +30,29 @@ function byAnimId(nodes: CapturedElement[], id: string): CapturedElement | null 
   return null;
 }
 
+function rgbaDifference(a: Uint8Array, b: Uint8Array): {
+  changedPixels: number;
+  maxChannelDelta: number;
+  firstChangedByte: number | null;
+} {
+  expect(a.length).toBe(b.length);
+  let changedPixels = 0;
+  let maxChannelDelta = 0;
+  let firstChangedByte: number | null = null;
+  for (let offset = 0; offset < a.length; offset += 4) {
+    let changed = false;
+    for (let channel = 0; channel < 4; channel++) {
+      const delta = Math.abs(a[offset + channel]! - b[offset + channel]!);
+      if (delta === 0) continue;
+      changed = true;
+      maxChannelDelta = Math.max(maxChannelDelta, delta);
+      if (firstChangedByte == null) firstChangedByte = offset + channel;
+    }
+    if (changed) changedPixels++;
+  }
+  return { changedPixels, maxChannelDelta, firstChangedByte };
+}
+
 const CUSTOM_CSS = `
   .scrollbox{width:180px;height:120px;overflow:scroll;border:3px solid #111}
   .scrollbox::-webkit-scrollbar{width:16px;height:14px;background:#aaa}
@@ -146,13 +169,19 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
         return;
       }
       expect(set).toMatchObject({
-        status: "captured", overlay: true, paintPhase: "overlay-overflow-controls",
+        status: "captured",
         captureDpr: 2,
         outputTransform: { space: "capture-viewport", matrix: [1, 0, 0, 1, 0, 0] },
         missingFacts: [],
       });
+      expect(typeof set.overlay).toBe("boolean");
+      expect(set.paintPhase).toBe(
+        set.overlay ? "overlay-overflow-controls" : "background",
+      );
       const source = await sharp(sourcePath).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-      for (const bar of [set.horizontal, set.vertical]) {
+      const capturedBars = [set.horizontal, set.vertical].filter((bar) => bar != null);
+      expect(capturedBars.length).toBeGreaterThan(0);
+      for (const bar of capturedBars) {
         const raster = bar?.nativeRaster;
         expect(raster).toMatchObject({
           captureDpr: 2, precomposited: true,
@@ -190,13 +219,42 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
           const raster = bar!.nativeRaster!;
           const left = Math.round(raster.x * 2);
           const top = Math.round(raster.y * 2);
+          const resizer = set.resizerOverlap?.rect;
           for (let y = 0; y < raster.pixelHeight; y++) {
             const sourceStart = ((top + y) * source.info.width + left) * 4;
             const outputStart = ((top + y) * output.info.width + left) * 4;
-            expect(Buffer.compare(
-              source.data.subarray(sourceStart, sourceStart + raster.pixelWidth * 4),
-              output.data.subarray(outputStart, outputStart + raster.pixelWidth * 4),
-            )).toBe(0);
+            const sourceRow = Buffer.from(source.data.subarray(
+              sourceStart,
+              sourceStart + raster.pixelWidth * 4,
+            ));
+            const outputRow = Buffer.from(output.data.subarray(
+              outputStart,
+              outputStart + raster.pixelWidth * 4,
+            ));
+            if (resizer != null) {
+              // ScrollableAreaPainter deliberately paints the resizer after
+              // both native strips and the corner. The strip's encoded crop is
+              // still byte-exact above; exclude only those later-owned device
+              // pixels when checking the composed SVG surface.
+              const absoluteY = top + y;
+              const resizerLeft = Math.floor(resizer.x * 2);
+              const resizerTop = Math.floor(resizer.y * 2);
+              const resizerRight = Math.ceil((resizer.x + resizer.width) * 2);
+              const resizerBottom = Math.ceil((resizer.y + resizer.height) * 2);
+              if (absoluteY >= resizerTop && absoluteY < resizerBottom) {
+                for (let absoluteX = Math.max(left, resizerLeft);
+                  absoluteX < Math.min(left + raster.pixelWidth, resizerRight);
+                  absoluteX++) {
+                  const offset = (absoluteX - left) * 4;
+                  sourceRow.copy(outputRow, offset, offset, offset + 4);
+                }
+              }
+            }
+            expect(rgbaDifference(sourceRow, outputRow)).toEqual({
+              changedPixels: 0,
+              maxChannelDelta: 0,
+              firstChangedByte: null,
+            });
           }
         }
       } finally {
@@ -421,6 +479,15 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
         // A fully faded platform overlay has no source-frame ink. This is a
         // proven negative, not the old marker-paint failure.
         expect(set.noInkReason).toBe("overlay-source-frame-empty");
+      } else if (set.status === "unavailable") {
+        // Forced-colors theme paint can suppress the marker probe entirely on
+        // a runner whose native bars occupy layout space. That is an honest
+        // unavailable observation, not proof of either a visible or faded
+        // overlay; retain the context and the missing-fact explanation.
+        expect(set.missingFacts).toEqual(expect.arrayContaining([
+          "marker-paint",
+          "scrollbar-object-existence",
+        ]));
       } else {
         expect(["captured", "partial"]).toContain(set.status);
         for (const bar of [set.horizontal, set.vertical]) {

@@ -1,11 +1,26 @@
 import { describe, expect, it } from "vitest";
 import {
   deserializeSessionGenericFamilyProbe,
+  genericFamilyReplayName,
   genericFamilyProbeTargets,
   genericProbeArmed,
   languagesFromDomSnapshot,
   serializeSessionGenericFamilyProbe,
 } from "./generic-font-probe.js";
+
+describe("genericFamilyReplayName", () => {
+  const face = { familyName: "Arial", postScriptName: "ArialMT" };
+
+  it("uses family display names for fontconfig and DirectWrite replay", () => {
+    expect(genericFamilyReplayName("linux", face)).toBe("Arial");
+    expect(genericFamilyReplayName("win32", face)).toBe("Arial");
+  });
+
+  it("retains CoreText's exact PostScript member", () => {
+    expect(genericFamilyReplayName("darwin", face)).toBe("ArialMT");
+    expect(genericFamilyReplayName("darwin", { familyName: "Fallback" })).toBe("Fallback");
+  });
+});
 
 describe("genericFamilyProbeTargets", () => {
   it("covers Common plus every requested script/generic cross product", () => {

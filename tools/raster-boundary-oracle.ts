@@ -17,7 +17,8 @@ function walk(elements: CapturedElement[], visit: (element: CapturedElement) => 
 function activated(tree: CapturedElement[], boundary: Boundary): boolean {
   let result = false;
   walk(tree, (element) => {
-    if (boundary === "replaced" && element.replacedSnapshot?.dataUri != null) result = true;
+    if (boundary === "replaced" && (element.replacedSnapshot?.dataUri != null
+      || (element.imageReplacement != null && element.transformSubtreeRaster?.dataUri != null))) result = true;
     if (boundary === "element-text" && element.elementRaster?.dataUri != null) result = true;
     if (boundary === "native-control" && element.nativeControlRaster?.dataUri != null) result = true;
     if (boundary === "backdrop" && element.backdropFilterRaster?.dataUri != null) result = true;

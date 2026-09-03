@@ -76,7 +76,19 @@ export function adjudicateNativeScrollbarReports(inputs: readonly unknown[], _en
     if (proposal.observationId === validation.observationId) blockers.push(`${platform}: proposal/validation observation ids are not independent`);
     if (proposal.provenance.bootId === validation.provenance.bootId) blockers.push(`${platform}: proposal/validation boot ids are not independent`);
     if (proposal.provenance.githubRunId !== validation.provenance.githubRunId || proposal.provenance.githubRunAttempt !== validation.provenance.githubRunAttempt || proposal.provenance.workflowRef !== validation.provenance.workflowRef) blockers.push(`${platform}: proposal/validation workflow provenance differs`);
-    if (proposal.provenance.runnerImage !== validation.provenance.runnerImage || proposal.provenance.runnerImageVersion !== validation.provenance.runnerImageVersion || proposal.host.architecture !== validation.host.architecture || proposal.host.release !== validation.host.release || proposal.chromiumVersion !== validation.chromiumVersion || proposal.chromiumExecutableSha256 !== validation.chromiumExecutableSha256 || proposal.playwrightVersion !== validation.playwrightVersion) blockers.push(`${platform}: proposal/validation environment fingerprints differ`);
+    // Hosted image patch revisions can roll between independent matrix jobs in
+    // one workflow (and macOS can cross a point release). Require the stable
+    // execution identity instead: image family, architecture, exact browser
+    // binary, and Playwright. The volatile image/version/release values remain
+    // retained provenance, while exact logical-row agreement proves the
+    // platform transition did not change scrollbar ownership.
+    if (proposal.provenance.runnerImage !== validation.provenance.runnerImage
+      || proposal.host.architecture !== validation.host.architecture
+      || proposal.chromiumVersion !== validation.chromiumVersion
+      || proposal.chromiumExecutableSha256 !== validation.chromiumExecutableSha256
+      || proposal.playwrightVersion !== validation.playwrightVersion) {
+      blockers.push(`${platform}: proposal/validation stable environment identities differ`);
+    }
     if (proposal.logicalRowsSha256 !== validation.logicalRowsSha256) blockers.push(`${platform}: proposal/validation logical rows disagree`);
   }
   const unique = [...new Set(blockers)];

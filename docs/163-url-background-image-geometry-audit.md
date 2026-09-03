@@ -5,7 +5,7 @@ kind: "evidence"
 status: "current"
 owners: ["images-media","layout","platform-release"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-2365","DM-2370","DM-2477","DM-2478","DM-2479","DM-2480"]
+tickets: ["DM-2365","DM-2370","DM-2477","DM-2478","DM-2479","DM-2480","DM-2668"]
 code: [".github/workflows/url-background-geometry-parity.yml","src/capture/background-image-sizing.ts","src/capture/script/walker/background-attachment.ts","src/capture/script/walker/fragmentation.ts","src/render/background-attachment.ts","src/render/image-pattern.ts"]
 aliases: ["docs/163-url-background-image-geometry-audit.md","doc-163"]
 ---
@@ -64,6 +64,13 @@ transformed phase, independent origin/clip, and cyclic lists. Fixed,
 transformed-fixed, local, and canvas positioning use independently captured
 inputs. Sliced and cloned fragments share the exact tile helper. The hard gate
 now runs this contract at DPR 1/2 on macOS, Linux, and Windows.
+
+The wrapped-inline cases make their text transparent while retaining the same
+font metrics and line fragmentation. Their oracle is grading URL background
+palette and geometry, so visible platform-font antialiasing is unrelated input:
+on Linux, text-edge blends can be closer to a marker color and manufacture a
+palette mismatch even when every captured fragment and background bound is
+exact. The independent transformed-text gates own visible text paint.
 
 ## Current information loss
 

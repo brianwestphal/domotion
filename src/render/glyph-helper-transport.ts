@@ -32,7 +32,7 @@ const HELPER_BINARIES: Partial<Record<NodeJS.Platform, string>> = {
 };
 
 // Resolve the helper binary for the running platform, in order:
-//   1. `DOMOTION_HELPER_PATH` override (verbatim — no download).
+//   1. `DOMOTION_HELPER_PATH` override (no download).
 //   2. The in-tree build (in-repo dev / unpacked source), if it exists.
 //   3. The on-demand download of the release asset into the user cache
 //      (DM-886) — what gives a *published* consumer a helper, since `tools/`
@@ -49,6 +49,19 @@ function resolveHelperPath(platform: NodeJS.Platform = hostPlatform()): string |
  *  `DOMOTION_HELPER_PATH` override. `undefined` for platforms with no helper. */
 export function __helperBinaryForPlatform(platform: NodeJS.Platform): string | undefined {
   return HELPER_BINARIES[platform];
+}
+
+/** Build a portable child-process invocation for a native helper or a Node
+ * protocol adapter. Windows cannot execute a `.js`/`.mjs` path directly, even
+ * when it has a Unix shebang; route those explicit adapters through the same
+ * Node executable that is running Domotion. */
+export function __helperInvocationForTest(
+  helper: string,
+  args: string[] = [],
+): { command: string; args: string[] } {
+  return /\.(?:cjs|mjs|js)$/i.test(helper)
+    ? { command: process.execPath, args: [helper, ...args] }
+    : { command: helper, args };
 }
 
 // Module-level helper-process state, memoized for the lifetime of the Node
@@ -143,7 +156,8 @@ function startPersistentViaPipe(bin: string): boolean {
   try {
     // stdin/stdout are unused on this path; stderr stays inherited so a helper
     // diagnostic still reaches the terminal.
-    proc = spawn(bin, ["--serve-pipe", name], { stdio: ["ignore", "ignore", "inherit"] });
+    const invocation = __helperInvocationForTest(bin, ["--serve-pipe", name]);
+    proc = spawn(invocation.command, invocation.args, { stdio: ["ignore", "ignore", "inherit"] });
   } catch {
     persistentDisabled = true;
     return false;
@@ -228,7 +242,8 @@ function startPersistent(bin: string): boolean {
   // what DM-1421 hit, but a NAMED pipe opened by path does.
   if (hostPlatform() === "win32") return startPersistentViaPipe(bin);
   try {
-    const proc = spawn(bin, ["--serve"], { stdio: ["pipe", "pipe", "inherit"] });
+    const invocation = __helperInvocationForTest(bin, ["--serve"]);
+    const proc = spawn(invocation.command, invocation.args, { stdio: ["pipe", "pipe", "inherit"] });
     const inFd = fdOf(proc.stdin);
     const outFd = fdOf(proc.stdout);
     // DM-1421: a Windows spawned pipe exposes fd `-1` (no real OS fd), so the
@@ -379,7 +394,8 @@ export function callGlyphHelper(request: HelperRequest): HelperResponse {
     return persistent;
   }
   // Fallback: original one-shot spawnSync.
-  const proc = spawnSync(bin, [], {
+  const invocation = __helperInvocationForTest(bin);
+  const proc = spawnSync(invocation.command, invocation.args, {
     input: JSON.stringify(request),
     encoding: "utf-8",
     maxBuffer: 64 * 1024 * 1024

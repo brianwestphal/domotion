@@ -1148,12 +1148,22 @@ function paintText(
       const shadowFillColor = colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 });
       const shifted: CapturedElement = {
         ...el,
+        styles: {
+          ...el.styles,
+          webkitTextStrokeColor: shadowFillColor,
+          textDecorationColor: shadowFillColor,
+        },
+        propagatedDecorations: el.propagatedDecorations?.map((decoration) => ({
+          ...decoration,
+          color: shadowFillColor,
+        })),
         x: el.x + sh.x,
         y: el.y + sh.y,
         textLeft: el.textLeft != null ? el.textLeft + sh.x : undefined,
         textTop: el.textTop != null ? el.textTop + sh.y : undefined,
         textSegments: el.textSegments?.map((s) => ({
           ...s,
+          color: shadowFillColor,
           x: s.x + sh.x,
           y: s.y + sh.y,
           xOffsets: s.xOffsets?.map((v) => v + sh.x),
@@ -1166,12 +1176,18 @@ function paintText(
           rasterGlyphs: undefined,
         })),
       };
-      let body = renderOneText(ctx, { el: shifted, idPrefix: ctx.idPrefix, clipId: cid, fillColor: shadowFillColor, affineMatrix }, emit);
+      // Patterned text decorations derive their local clip ids from `clipId`.
+      // A shadow is a second rendering of the same run, so reusing the main
+      // text id produces duplicate SVG ids; the first (shifted) shadow clip can
+      // then clip the foreground decoration. The shadow does not use the
+      // element overflow clip, so a unique token is sufficient here.
+      const shadowClipId = ctx.nextClipId("tsd");
+      let body = renderOneText(ctx, { el: shifted, idPrefix: ctx.idPrefix, clipId: shadowClipId, fillColor: shadowFillColor, affineMatrix }, emit);
       if (sh.blur > 0) {
         const stdDev = sh.blur / 2;
         const fid = ctx.nextClipId("tsh");
         ctx.defsParts.push(
-          `<filter id="${fid}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${r(stdDev)}"/></filter>`,
+          `<filter id="${fid}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur in="SourceAlpha" stdDeviation="${r(stdDev)}" result="blur"/><feFlood flood-color="${shadowFillColor}" result="color"/><feComposite in="color" in2="blur" operator="in"/></filter>`,
         );
         body = `<g filter="url(#${fid})">${body}</g>`;
       }
@@ -1198,6 +1214,7 @@ function paintText(
           const segShadowFill = colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 });
           const shiftedSeg: TextSegment = {
             ...seg,
+            color: segShadowFill,
             x: seg.x + sh.x,
             y: seg.y + sh.y,
             xOffsets: seg.xOffsets?.map((v) => v + sh.x),
@@ -1210,12 +1227,25 @@ function paintText(
             // a recolored gradient-pill rect underneath the shadow.
             pseudoBox: undefined,
           };
-          let segBody = wrapAffineTextPaint(affineMatrix, renderMultiSegmentText({ el, idPrefix: ctx.idPrefix, clipId: cid, fillColor: segShadowFill, emitPseudoBoxBgLayers: emit }, [shiftedSeg]));
+          const shadowEl: CapturedElement = {
+            ...el,
+            styles: {
+              ...el.styles,
+              webkitTextStrokeColor: segShadowFill,
+              textDecorationColor: segShadowFill,
+            },
+            propagatedDecorations: el.propagatedDecorations?.map((decoration) => ({
+              ...decoration,
+              color: segShadowFill,
+            })),
+          };
+          const shadowClipId = ctx.nextClipId("tsd");
+          let segBody = wrapAffineTextPaint(affineMatrix, renderMultiSegmentText({ el: shadowEl, idPrefix: ctx.idPrefix, clipId: shadowClipId, fillColor: segShadowFill, emitPseudoBoxBgLayers: emit }, [shiftedSeg]));
           if (sh.blur > 0) {
             const stdDev = sh.blur / 2;
             const fid = ctx.nextClipId("tssh");
             ctx.defsParts.push(
-              `<filter id="${fid}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${r(stdDev)}"/></filter>`,
+              `<filter id="${fid}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur in="SourceAlpha" stdDeviation="${r(stdDev)}" result="blur"/><feFlood flood-color="${segShadowFill}" result="color"/><feComposite in="color" in2="blur" operator="in"/></filter>`,
             );
             segBody = `<g filter="url(#${fid})">${segBody}</g>`;
           }
@@ -1927,7 +1957,12 @@ function emitBorderSide(
       .map(markup => markup.replace(" />", `${clipAttr} />`)));
     return;
   }
-  const phaseOffset = endpointInset > 0 ? offset + endpointInset : offset;
+  // The gap is selected from the full side, but Skia starts the dash phase at
+  // DrawLineWithStyle's already-inset endpoint. Rewinding by `endpointInset`
+  // invents a corner-centred dot and shifts every interior dot left/up; the
+  // mixed 6px bottom border visibly demonstrates that error. Keep only an
+  // explicit style-owned phase (currently zero for this branch).
+  const phaseOffset = offset;
   const dashAttrs = dash !== "" ? ` stroke-dasharray="${dash}"${phaseOffset !== 0 ? ` stroke-dashoffset="${r(phaseOffset)}"` : ""}` : "";
   ctx.svgParts.push(
     `${indent}<line x1="${r(drawX1)}" y1="${r(drawY1)}" x2="${r(drawX2)}" y2="${r(drawY2)}" stroke="${colorStr(side.color)}" stroke-width="${r(side.w)}"${dashAttrs}${linecap}${clipAttr} />`,

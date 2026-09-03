@@ -32,6 +32,9 @@ import type {
   CapturedPseudoTypography,
   CaptureWarning,
 } from "./types.js";
+import { capturedFontFamilyCss } from "../font-family-stack.js";
+import { selectedGlyphRasterSpans } from "../render/text-to-path.js";
+import { parseFontVariationSettings } from "../render/text.js";
 
 type PseudoName = "checkmark" | "before" | "after";
 
@@ -285,6 +288,7 @@ async function setupFrame(
                 fontStyle: style.fontStyle,
                 fontStretch: style.fontStretch,
                 fontVariant: style.fontVariant,
+                fontVariantEmoji: style.getPropertyValue("font-variant-emoji") || "normal",
                 fontFeatureSettings: style.fontFeatureSettings,
                 fontVariationSettings: style.fontVariationSettings,
                 fontKerning: style.fontKerning,
@@ -914,16 +918,20 @@ async function isolatePseudoSurface(
   candidate: Candidate,
   key: string,
   viewport: { x: number; y: number; width: number; height: number },
+  textOnly = false,
 ): Promise<NonNullable<CapturedPseudoFragmentSet["terminalRaster"]>> {
   const marker = `dm-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const styleId = `__domotionPseudoIsolation_${marker}`;
   const ancestorFrames = new Set<Frame>();
   for (let cursor: Frame | null = candidate.frame; cursor != null; cursor = cursor.parentFrame()) ancestorFrames.add(cursor);
   try {
-    await Promise.all(prepared.map(({ frame }) => frame.evaluate(({ styleId, marker, active, key, elementIndex, pseudo }) => {
+    await Promise.all(prepared.map(({ frame }) => frame.evaluate(({ styleId, marker, active, key, elementIndex, pseudo, textOnly }) => {
       const style = document.createElement("style");
       style.id = styleId;
-      style.textContent = `*{visibility:hidden!important}html[data-domotion-pseudo-ancestor="${marker}"],body[data-domotion-pseudo-ancestor="${marker}"],[data-domotion-pseudo-ancestor="${marker}"]{visibility:visible!important;background-color:transparent!important;background-image:none!important;border-color:transparent!important;box-shadow:none!important;outline-color:transparent!important}${active ? `[data-domotion-pseudo-target="${marker}"]::${pseudo}{visibility:visible!important}` : ""}`;
+      const textOnlyPaint = textOnly
+        ? ";background-color:transparent!important;background-image:none!important;border-color:transparent!important;box-shadow:none!important;outline-color:transparent!important;filter:none!important;opacity:1!important"
+        : "";
+      style.textContent = `*{visibility:hidden!important}html[data-domotion-pseudo-ancestor="${marker}"],body[data-domotion-pseudo-ancestor="${marker}"],[data-domotion-pseudo-ancestor="${marker}"]{visibility:visible!important;background-color:transparent!important;background-image:none!important;border-color:transparent!important;box-shadow:none!important;outline-color:transparent!important}${active ? `[data-domotion-pseudo-target="${marker}"]::${pseudo}{visibility:visible!important${textOnlyPaint}}` : ""}`;
       (document.head ?? document.documentElement).appendChild(style);
       if (active) {
         document.documentElement.setAttribute("data-domotion-pseudo-ancestor", marker);
@@ -938,6 +946,7 @@ async function isolatePseudoSurface(
       key,
       elementIndex: candidate.elementIndex,
       pseudo: candidate.pseudo,
+      textOnly,
     })));
     for (let cursor: Frame | null = candidate.frame; cursor.parentFrame() != null; cursor = cursor.parentFrame()!) {
       const handle = await cursor.frameElement();
@@ -965,6 +974,32 @@ async function isolatePseudoSurface(
       }
     }, { styleId, marker }).catch(() => undefined)));
   }
+}
+
+function pseudoBitmapRepresentations(record: CapturedPseudoFragmentSet): string[] {
+  if (record.status !== "exact" || record.contentItems.some((item) => item.kind === "image")) return [];
+  const typography = record.typography;
+  const representations = new Set<string>();
+  for (const fragment of record.fragments) {
+    if (fragment.kind !== "text" || fragment.text === "") continue;
+    const candidates = [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(fragment.text)]
+      .filter((part) => !/^\s+$/u.test(part.segment))
+      .map((part) => ({ start: part.index, end: part.index + part.segment.length }));
+    const variantEmoji = typography.fontVariantEmoji;
+    const spans = selectedGlyphRasterSpans(fragment.text, candidates, {
+      fontSize: typography.paintFontSize,
+      fontFamily: capturedFontFamilyCss(typography.fontFamily, typography.fontFamilyStack),
+      fontWeight: typography.fontWeight,
+      fontStyle: typography.fontStyle,
+      fontStretch: typography.fontStretch,
+      lang: typography.language,
+      variationSettings: parseFontVariationSettings(typography.fontVariationSettings),
+      fontVariantEmoji: variantEmoji === "text" || variantEmoji === "emoji" || variantEmoji === "unicode"
+        ? variantEmoji : undefined,
+    });
+    for (const span of spans) representations.add(span.representation);
+  }
+  return [...representations].sort();
 }
 
 async function installFacts(
@@ -1119,6 +1154,27 @@ export async function preparePseudoFragmentGeometry(
           fragments: [],
           terminalRaster,
         };
+      }
+      if (record.status === "exact") {
+        const representations = pseudoBitmapRepresentations(record);
+        if (representations.length > 0) {
+          try {
+            const raster = await isolatePseudoSurface(page, prepared, candidate, key, viewport, true);
+            record.bitmapTextRaster = {
+              ...raster,
+              source: "chromium-selected-bitmap-pseudo-text",
+              representations,
+            };
+          } catch (error) {
+            const reason = error instanceof Error ? error.message : String(error);
+            warnings.push({
+              selector: candidate.selector,
+              feature: "generated-pseudo-bitmap-text",
+              status: "unavailable",
+              detail: `unavailable: selected bitmap pseudo text could not be isolated (${reason}); retained source-owned outline-capable text only`,
+            });
+          }
+        }
       }
       if (activeBackdropFilter(candidate) && pseudoOwnsVisiblePaint(record)) {
         try {

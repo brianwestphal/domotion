@@ -119,6 +119,27 @@ async function targetEdges(png: Buffer): Promise<{ width: number; height: number
     const blue = decoded.data[index * channels + 2];
     if (red > 110 && blue > 75 && green < 115 && red + blue > green * 3) mask[index] = 1;
   }
+  // DirectWrite's LCD antialiasing can leave a single channel-fringe pixel
+  // inside the broad target-color predicate even when the source and SVG
+  // silhouettes agree. A one-pixel 8-connected component cannot describe an
+  // authored edge in this fixture (all target strokes are at least one CSS px
+  // wide), and treating it as geometry made the Windows DPR2 gate depend on
+  // terminal subpixel color order. Remove only those isolated classifications;
+  // connected one-device-pixel strokes and every real contour remain intact.
+  const isolated: number[] = [];
+  for (let y = 1; y < height - 1; y++) for (let x = 1; x < width - 1; x++) {
+    const index = y * width + x;
+    if (mask[index] === 0) continue;
+    let connected = false;
+    for (let dy = -1; dy <= 1 && !connected; dy++) for (let dx = -1; dx <= 1; dx++) {
+      if ((dx !== 0 || dy !== 0) && mask[(y + dy) * width + x + dx] !== 0) {
+        connected = true;
+        break;
+      }
+    }
+    if (!connected) isolated.push(index);
+  }
+  for (const index of isolated) mask[index] = 0;
   const edges = new Uint8Array(mask.length);
   let count = 0;
   for (let y = 1; y < height - 1; y++) for (let x = 1; x < width - 1; x++) {

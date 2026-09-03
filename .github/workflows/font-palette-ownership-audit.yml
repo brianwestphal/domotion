@@ -80,6 +80,19 @@ jobs:
       - name: Install Chromium
         if: runner.os != 'Linux'
         run: npx playwright install chromium
+      - name: Build macOS CoreText helper
+        if: runner.os == 'macOS'
+        run: bash tools/macos-glyph-extractor/build.sh
+      - name: Build Linux fontconfig helper
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev libfontconfig-dev
+          bash tools/linux-glyph-extractor/build.sh
+      - name: Build Windows DirectWrite helper
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: tools/win32-glyph-extractor/build.ps1
       - name: Validate source parsers and hostile mutations
         run: npx vitest run tests/font-palette-ownership-audit.test.ts tests/font-palette-paint-gate.test.ts tests/font-palette-dynamic-gate.test.ts tests/font-palette-ownership-workflow.test.ts
       - name: Run strict source-owned DPR1/2 static and dynamic COLRv0/COLRv1 paint gate

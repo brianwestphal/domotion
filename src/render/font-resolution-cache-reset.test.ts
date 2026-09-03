@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  __authorFamilyAvailableForTest,
   __primaryCutCacheSizesForTest,
   __familyAvailabilityCacheKeysForTest,
   __seedPrimaryCutCachesForTest,
@@ -106,8 +107,8 @@ describe("clearFontResolutionCaches (DM-1860)", () => {
 
   it("keys installed-family availability by platform, not query order", () => {
     clearFontResolutionCaches();
-    withHostPlatform("darwin", () => resolveFontKey("Menlo, Georgia"));
-    withHostPlatform("linux", () => resolveFontKey("Menlo, Georgia"));
+    withHostPlatform("darwin", () => __authorFamilyAvailableForTest("Menlo"));
+    withHostPlatform("linux", () => __authorFamilyAvailableForTest("Menlo"));
     expect(__familyAvailabilityCacheKeysForTest()).toEqual([
       "darwin\u0000Menlo",
       "linux\u0000Menlo",

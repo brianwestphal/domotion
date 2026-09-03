@@ -11,8 +11,14 @@ describe("DM-2351 generic preference workflow", () => {
     expect(workflow).toContain("windows-latest");
     expect(workflow).toContain("fail-fast: false");
     expect(workflow).toContain("playwright install --with-deps chromium chrome");
-    expect(workflow).toContain("playwright install chromium chrome");
+    expect(workflow).toContain("playwright install chromium");
+    expect(workflow).not.toContain("runner.os != 'Linux'\n        run: npx playwright install chromium chrome");
+    expect(workflow).toContain("npm run sources:materialize");
+    expect(workflow).toContain("tools/macos-glyph-extractor/build.sh");
+    expect(workflow).toContain("tools/linux-glyph-extractor/build.sh");
+    expect(workflow).toContain("tools/win32-glyph-extractor/build.ps1");
     expect(workflow).toContain("xvfb-run -a npm run fonts:generic-preferences");
+    expect(workflow.match(/--allow-headed-browser/g)).toHaveLength(2);
     expect(packageJson.scripts?.["fonts:generic-preferences"])
       .toBe("node --import tsx tools/generic-family-preference-oracle.ts");
     expect(workflow).not.toContain("--allow-missing-full-chrome");

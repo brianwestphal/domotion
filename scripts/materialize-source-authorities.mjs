@@ -36,6 +36,7 @@ export const DIRECT_SOURCE_FILES = Object.freeze([
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const INVENTORY = resolve(ROOT, "tools/semantic-coverage.json");
+const PARITY_PROGRAM = resolve(ROOT, "tools/parity-program.json");
 const FILE_EXTENSIONS = new Set([".cc", ".cpp", ".css", ".h", ".hh", ".html", ".pdl", ".txt"]);
 
 function checkedRelativePath(ref) {
@@ -48,11 +49,16 @@ function checkedRelativePath(ref) {
   return path;
 }
 
-export function sourceAuthorityPlan(inventory) {
-  const refs = inventory.transitions.flatMap((row) => Object.values(row)
+export function sourceAuthorityPlan(inventory, parityProgram = { areas: [] }) {
+  const semanticRefs = inventory.transitions.flatMap((row) => Object.values(row)
     .flatMap((value) => Array.isArray(value) ? value : []))
     .filter((ref) => typeof ref === "string")
-    .filter((ref) => ref.startsWith("external/"))
+    .filter((ref) => ref.startsWith("external/"));
+  const parityRefs = parityProgram.areas
+    .flatMap((area) => area.upstreamSources ?? [])
+    .filter((ref) => typeof ref === "string")
+    .filter((ref) => ref.startsWith("external/"));
+  const refs = [...semanticRefs, ...parityRefs]
     .map(checkedRelativePath);
   const files = new Set(DIRECT_SOURCE_FILES);
   const directories = new Set();
@@ -149,8 +155,11 @@ async function materializeFile(ref) {
 }
 
 export async function materializeSourceAuthorities({ concurrency = 4 } = {}) {
-  const inventory = JSON.parse(await readFile(INVENTORY, "utf8"));
-  const plan = sourceAuthorityPlan(inventory);
+  const [inventory, parityProgram] = await Promise.all([
+    readFile(INVENTORY, "utf8").then(JSON.parse),
+    readFile(PARITY_PROGRAM, "utf8").then(JSON.parse),
+  ]);
+  const plan = sourceAuthorityPlan(inventory, parityProgram);
   const manifestPath = resolve(ROOT, "external/.domotion-source-authorities.json");
   let trustedCache = false;
   if (existsSync(manifestPath)) {

@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   __resolveDarwinFontSpecForTest,
@@ -67,6 +67,8 @@ describe("font path table integrity (DM-1861)", () => {
       "playfair-display-bold",
       "playfair-display-italic",
       "playfair-display-bold-italic",
+      "u-noto-sans",
+      "u-noto-sans-kr",
     ] as const;
 
     for (const key of optionalKeys) {
@@ -79,9 +81,21 @@ describe("font path table integrity (DM-1861)", () => {
       expect(missingRequiredPaths([key], __resolveDarwinFontSpecForTest, () => false)).toEqual([]);
     }
 
+    const unmarkedAuthorPaths = platformFontKeys()
+      .map((key) => [key, __resolveDarwinFontSpecForTest(key)] as const)
+      .filter(([, spec]) => spec?.path.startsWith("/Library/Fonts/") && spec.optionalInstall !== true)
+      .map(([key]) => key);
+    expect(unmarkedAuthorPaths).toEqual([]);
+
     const required = __resolveDarwinFontSpecForTest("helvetica");
     expect(required?.optionalInstall).not.toBe(true);
     expect(missingRequiredPaths(["helvetica"], __resolveDarwinFontSpecForTest, () => false))
       .toEqual([`helvetica -> ${required?.path}`]);
+  });
+
+  it("keeps regenerated /Library font routes optional", () => {
+    const generator = readFileSync("tools/probe-983-genroutes-darwin.mjs", "utf8");
+    expect(generator).toContain('path.startsWith("/Library/Fonts/") ? ", optionalInstall: true"');
+    expect(generator).toContain("family: string; path: string;");
   });
 });

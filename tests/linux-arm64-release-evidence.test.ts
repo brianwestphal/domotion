@@ -4,6 +4,7 @@ import {
   buildFinalReport,
   decorationEvidenceErrors,
   parseElfIdentity,
+  pinnedGlyphProtocolForRelease,
   REQUIRED_OUTCOMES,
   sourceFingerprintErrors,
   stableFingerprint,
@@ -48,6 +49,11 @@ const exactAcquisition = {
 };
 
 describe("DM-2353 Linux arm64 release evidence", () => {
+  it("pins the helper protocol to the ratified release instead of the checkout", () => {
+    expect(pinnedGlyphProtocolForRelease("0.24.0")).toBe("domotion-glyph-paths (linux/freetype) 0.3.0");
+    expect(pinnedGlyphProtocolForRelease("0.26.3")).toBeNull();
+  });
+
   it("accepts only the native little-endian ELF64 AArch64 identity", () => {
     expect(parseElfIdentity(elf(183))).toMatchObject({
       valid: true,

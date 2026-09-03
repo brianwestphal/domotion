@@ -166,6 +166,17 @@ describe("visual-tests.yml provides the native glyph helper", () => {
     expect(jobs.aggregate).toContain('stage-evidence-$os.json');
   });
 
+  it("pins every upstream runtime used by the stage-evidence fingerprint", () => {
+    for (const [name, revision] of Object.entries({
+      DOMOTION_CHROMIUM_REVISION: "7d859f271cbda744098ac69f44978d4edfa62be3",
+      DOMOTION_HARFBUZZ_REVISION: "4de187dd0a915d13c976fa8bd474c084229f3aab",
+      DOMOTION_SKIA_REVISION: "62efacd37737505732dbe3d8daa62abd679626a1",
+      DOMOTION_ICU_SOURCE_REVISION: "d578f2e8b7bd5938e21cfb6bf15c079e0aa5b738",
+    })) {
+      expect(yaml).toContain(`${name}: ${revision}`);
+    }
+  });
+
   it("records provenance before fallible diagnostics and still runs every visual shard", () => {
     for (const name of ["test-macos", "test-linux", "test-windows"]) {
       const job = jobs[name];
@@ -253,7 +264,13 @@ describe("visual-tests.yml provides the native glyph helper", () => {
       // renderer's font/paint decisions. `DOMOTION_NO_NICE` disables the
       // harness's `nice` self-throttling, which is correct to force on a CI box
       // and is not an arm of anything.
-      const RUNNER_ENV = new Set(["DOMOTION_NO_NICE"]);
+      const RUNNER_ENV = new Set([
+        "DOMOTION_NO_NICE",
+        "DOMOTION_CHROMIUM_REVISION",
+        "DOMOTION_HARFBUZZ_REVISION",
+        "DOMOTION_SKIA_REVISION",
+        "DOMOTION_ICU_SOURCE_REVISION",
+      ]);
       const passed = [...yaml.matchAll(/^\s+(DOMOTION_[A-Z0-9_]+): (.*)$/gm)];
       expect(passed.length, "guard is vacuous — no DOMOTION_ envs found").toBeGreaterThan(0);
       for (const [, name, value] of passed) {

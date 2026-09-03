@@ -6,7 +6,7 @@ status: "current"
 owners: ["platform-release"]
 platforms: ["macos","linux","windows"]
 tickets: []
-code: [".github/workflows/composed-parity-corpus.yml","scripts/run-composed-parity.mjs","tests/composed-parity-corpus.e2e.test.ts","tests/composed-parity-fixtures.ts","tests/fixtures/html-test/36-composed-metamorphic-parity.html","tests/output/composed-parity-results.json","tools/html-test-parity-corpus.json"]
+code: [".github/workflows/composed-parity-corpus.yml","scripts/run-composed-parity.mjs","tests/composed-parity-corpus.e2e.test.ts","tests/composed-parity-fixtures.ts","tests/fixtures/html-test/36-composed-metamorphic-parity.html","tools/html-test-parity-corpus.json"]
 aliases: ["docs/183-composed-metamorphic-parity-corpus.md","doc-183"]
 ---
 

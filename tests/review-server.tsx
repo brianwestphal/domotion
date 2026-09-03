@@ -1084,10 +1084,6 @@ async function main(): Promise<void> {
       }
 
       if (req.method === "POST" && url.pathname === "/api/file-ticket") {
-        if (settings == null) {
-          sendJson(res, 503, { error: "Hot Sheet isn't configured (no port/secret found) — the 'file a ticket' button is unavailable. Browsing the diffs still works." });
-          return;
-        }
         const body = await readBody(req);
         const parsed = JSON.parse(body) as { source?: string; suite?: string; name?: string; classification?: unknown; comment?: string; regions?: unknown };
         const source = sourceById(parsed.source ?? defaultSource);
@@ -1104,6 +1100,13 @@ async function main(): Promise<void> {
         const match = manifest.tests.find((r) => r.name === name && r.suite === suite);
         if (match == null) {
           sendJson(res, 400, { error: `Unknown test: ${suite}/${name}` });
+          return;
+        }
+        // Reject malformed/unclassified requests before consulting the
+        // external ticket service. Otherwise the same bad request is a 400 on
+        // a configured workstation but a misleading 503 in clean CI.
+        if (settings == null) {
+          sendJson(res, 503, { error: "Hot Sheet isn't configured (no port/secret found) — the 'file a ticket' button is unavailable. Browsing the diffs still works." });
           return;
         }
         // Lead the title with the qualitative verdict (clean/trivial/minor/

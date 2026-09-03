@@ -38,6 +38,21 @@ describe("dynamic font-palette logical gate", () => {
     expect(adjudicateDynamicV0Row(row).pass).toBe(false);
   });
 
+  it("accepts one-level Windows raster fringes without accepting palette drift", () => {
+    const row = {
+      id: "mix-srgb-30" as const,
+      dpr: 1 as const,
+      computedPalette: "palette-mix(in srgb, --base3 70%, --base7)",
+      expectedComputedPalette: "palette-mix(in srgb, --base3 70%, --base7)",
+      expectedOpaqueColors: ["0,255,179,255", "0,255,77,255"].sort(),
+      observedOpaqueColors: ["0,255,178,255", "0,255,179,255", "0,255,77,255"].sort(),
+      pngSha256: hash("a"),
+    };
+    expect(adjudicateDynamicV0Row(row).pass).toBe(true);
+    row.observedOpaqueColors.push("0,255,175,255");
+    expect(adjudicateDynamicV0Row(row).pass).toBe(false);
+  });
+
   it.each(["computed", "opaque", "outside", "constant", "inert"])("rejects hostile COLRv1 %s evidence", (mutation) => {
     const row = {
       id: "mix-srgb-50" as const,

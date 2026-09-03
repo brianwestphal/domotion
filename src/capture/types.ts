@@ -516,6 +516,8 @@ export interface CapturedPseudoTypography {
   fontStyle: string;
   fontStretch: string;
   fontVariant: string;
+  /** Computed CSS Fonts 4 emoji presentation preference for pseudo text. */
+  fontVariantEmoji?: string;
   fontFeatureSettings: string;
   fontVariationSettings: string;
   fontKerning: string;
@@ -605,6 +607,19 @@ export interface CapturedPseudoFragmentSet {
     rect: { x: number; y: number; width: number; height: number };
     isolated: true;
     source: "chromium-prior-parent-device";
+  };
+  /**
+   * A source-owned Chromium text surface for an otherwise exact generated
+   * pseudo whose selected glyph representation is bitmap/color paint. The
+   * protocol record still owns box geometry and stacking; only its text paint
+   * is replaced, so no consumer-browser font fallback can drop the glyph.
+   */
+  bitmapTextRaster?: {
+    dataUri?: string;
+    rect: { x: number; y: number; width: number; height: number };
+    isolated: true;
+    source: "chromium-selected-bitmap-pseudo-text";
+    representations: string[];
   };
   terminalRaster?: {
     dataUri?: string;

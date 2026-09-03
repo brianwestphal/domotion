@@ -147,6 +147,10 @@ export function launchModeIds(): LaunchMode["id"][] {
   return MODES.map((mode) => mode.id);
 }
 
+export function selectedLaunchModeIds(args: string[]): LaunchMode["id"][] {
+  return selectedModes(args).map((mode) => mode.id);
+}
+
 export function logicalIdentity(
   browser: Pick<BrowserSystemUiFace, "postScriptName" | "familyName">,
   domotion: Pick<SystemUiFontFace, "postscriptName" | "familyName"> | null,
@@ -498,11 +502,18 @@ function fontInventory(): SystemUiPreferenceRouteReport["environment"]["fontInve
 
 function selectedModes(args: string[]): LaunchMode[] {
   const value = args.find((arg) => arg.startsWith("--modes="))?.slice("--modes=".length);
-  if (value == null || value === "") return MODES;
+  const allowHeaded = args.includes("--allow-headed-browser");
+  if (value == null || value === "") return allowHeaded ? MODES : MODES.filter((mode) => mode.headless);
   const ids = new Set(value.split(","));
   const selected = MODES.filter((mode) => ids.has(mode.id));
   const unknown = [...ids].filter((id) => !MODES.some((mode) => mode.id === id));
   if (unknown.length > 0) throw new Error(`unknown modes: ${unknown.join(", ")}`);
+  const headed = selected.filter((mode) => !mode.headless);
+  if (headed.length > 0 && !allowHeaded) {
+    throw new Error(
+      `headed browser modes require --allow-headed-browser: ${headed.map((mode) => mode.id).join(", ")}`,
+    );
+  }
   return selected;
 }
 

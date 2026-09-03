@@ -6,7 +6,7 @@ status: "current"
 owners: ["layout"]
 platforms: []
 tickets: []
-code: ["tests/output/real-world/results.json","tests/real-world.tsx"]
+code: ["tests/real-world.tsx"]
 aliases: ["docs/34-scroll-mode-per-chunk-diff.md","doc-34"]
 ---
 

@@ -66,11 +66,27 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
-      - run: npx playwright install chromium
+      - name: Install Chromium and Linux native dependencies
+        if: runner.os == 'Linux'
+        run: |
+          npx playwright install --with-deps chromium
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev libfontconfig-dev
+      - name: Install Chromium
+        if: runner.os != 'Linux'
+        run: npx playwright install chromium
+      - name: Build macOS CoreText helper
+        if: runner.os == 'macOS'
+        run: bash tools/macos-glyph-extractor/build.sh
+      - name: Build Linux fontconfig helper
+        if: runner.os == 'Linux'
+        run: bash tools/linux-glyph-extractor/build.sh
+      - name: Build Windows DirectWrite helper
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: tools/win32-glyph-extractor/build.ps1
       - name: Reject warning, route, palette, pattern, and geometry mutations
         run: npx vitest run tests/url-background-geometry-gate.test.ts
-      - name: Validate focused capture and renderer ownership
-        run: npx vitest run --config vitest.e2e.config.ts tests/background-image-geometry.e2e.test.ts
       - name: Create platform evidence directory
         run: node -e "require('node:fs').mkdirSync('tests/output/url-background/${{ runner.os }}',{recursive:true})"
       - name: Record immutable runner image identity
@@ -81,6 +97,8 @@ jobs:
           --dpr 1,2
           --json tests/output/url-background/${{ runner.os }}/report.json
           --artifacts tests/output/url-background/${{ runner.os }}/artifacts
+      - name: Validate focused capture and renderer ownership
+        run: npx vitest run --config vitest.e2e.config.ts tests/background-image-geometry.e2e.test.ts
       - name: Upload fingerprinted report and lossless row surfaces
         if: always()
         uses: actions/upload-artifact@v4

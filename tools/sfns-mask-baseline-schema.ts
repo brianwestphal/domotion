@@ -336,7 +336,6 @@ export function sfnsOutlineLogicalDigest(artifact: SfnsOracleArtifact): string {
       deviceScaleFactor: artifact.environment.deviceScaleFactor,
       chromiumVersion: artifact.environment.chromiumVersion,
       arch: artifact.environment.arch,
-      helper: artifact.environment.helper,
     },
     rows,
     mutationControlMoved: artifact.mutationControlMoved,

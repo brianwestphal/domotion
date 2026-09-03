@@ -122,3 +122,33 @@ describe("background-clip:text emits the -webkit-text-stroke pass", () => {
     });
   }
 });
+
+describe("text-shadow decoration paint", () => {
+  it("gives shadow and foreground decorations unique clip ids", () => {
+    const [el] = gradientStrokeTree();
+    el.styles = {
+      ...el.styles,
+      backgroundImage: "none",
+      backgroundClip: "border-box",
+      color: "rgb(21, 32, 48)",
+      webkitTextFillColor: "rgb(21, 32, 48)",
+      webkitTextStrokeWidth: "1px",
+      webkitTextStrokeColor: "rgb(192, 38, 211)",
+      textDecorationLine: "underline",
+      textDecorationStyle: "wavy",
+      textDecorationColor: "rgb(21, 32, 48)",
+      textDecorationThickness: "3px",
+      // Computed style serialization places the resolved color first.
+      textShadow: "rgb(57, 115, 219) 4px 3px 2px",
+    } as CapturedElement["styles"];
+
+    const svg = elementTreeToSvgInner([el], 500, 250);
+    const ids = [...svg.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
+    expect(new Set(ids).size).toBe(ids.length);
+
+    expect(svg).toContain('<g filter="url(#tsh');
+    expect(svg).toContain('<feGaussianBlur in="SourceAlpha" stdDeviation="1" result="blur"/>');
+    expect(svg).toContain('<feFlood flood-color="rgb(57,115,219)" result="color"/>');
+    expect(svg).toContain('<feComposite in="color" in2="blur" operator="in"/>');
+  });
+});

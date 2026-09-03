@@ -39,15 +39,21 @@ const REPO = "brianwestphal/domotion";
 // other.  A later Domotion release deliberately has to ratify new bytes here.
 const PINNED_ARM64_RELEASES: Record<string, {
   glyph: string;
+  glyphProtocol: string;
   icuExecutable: string;
   icuData: string;
 }> = {
   "0.24.0": {
     glyph: "68546de5c29a60efbe1bdb86e61d14d9ba10f00020c5b50583f5bc336718c250",
+    glyphProtocol: "domotion-glyph-paths (linux/freetype) 0.3.0",
     icuExecutable: "dcb7be05a66b98530d0eee0759bc79d8670fe383c338a73e873f0a346b13e6bf",
     icuData: "9f48c7f9c7c94d516a14870707e910ab94d75ae640ff6842c4af53276cd26ebe",
   },
 };
+
+export function pinnedGlyphProtocolForRelease(version: string): string | null {
+  return PINNED_ARM64_RELEASES[version]?.glyphProtocol ?? null;
+}
 
 export const REQUIRED_OUTCOMES = [
   "acquisition",
@@ -318,10 +324,10 @@ async function assetEvidence(
   return evidence;
 }
 
-function helperSmoke(helperPath: string): Record<string, unknown> {
+function helperSmoke(helperPath: string, expectedVersion: string): Record<string, unknown> {
   const version = runText(helperPath, ["--version"]);
-  if (version !== "domotion-glyph-paths (linux/freetype) 0.4.0") {
-    throw new Error(`unexpected glyph helper version: ${version}`);
+  if (version !== expectedVersion) {
+    throw new Error(`unexpected glyph helper version: ${version}; expected ${expectedVersion}`);
   }
   const fontconfigMode = runJson(helperPath, ["--fontconfig-mode"]) as { fontations?: boolean; configReady?: boolean };
   if (fontconfigMode.fontations !== true || fontconfigMode.configReady !== true) {
@@ -533,7 +539,7 @@ async function acquireEvidence(cacheRoot: string, version: string): Promise<Acqu
     }
   }
   if (Object.values(cacheReuse).some((value) => !value)) errors.push("second acquisition did not reuse byte-identical cache entries");
-  const smoke = { glyph: helperSmoke(glyphPath), icu: icuSmoke(icuPath) };
+  const smoke = { glyph: helperSmoke(glyphPath, pinned.glyphProtocol), icu: icuSmoke(icuPath) };
   const environment = await captureEnvironment(assets);
   errors.push(...sourceFingerprintErrors(environment));
   const report: AcquisitionReport = {

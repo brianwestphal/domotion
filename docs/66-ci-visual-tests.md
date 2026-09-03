@@ -27,11 +27,20 @@ be sharded. The unsharded integration suites have their own manual workflow,
 snapshot isolation, animate examples, and cached real-world captures on macOS,
 the pinned Linux Playwright image, and Windows. Each platform builds the native
 font helper and records `runner-image.txt` plus `run-env.json` before rendering.
+The workflow also supplies the reviewed Chromium, HarfBuzz, Skia, and ICU
+source revisions to every shard. Stage-evidence fingerprints therefore remain
+complete in a lean Actions checkout that does not carry those large source
+trees.
 
 `scripts/ci-run-fast-visuals.mjs` deliberately continues after an individual
 suite fails, writes `fast-visual-completeness.json`, and only then returns a
 failure. Actions therefore uploads every suite's expected/actual/diff PNGs and
 other output instead of losing the later evidence to the first red command.
+Each real-world capture remains bounded to six minutes. A timeout first
+quiesces in-flight HAR routes with Playwright's `ignoreErrors` teardown mode,
+then closes the browser context and records the fixture as errored; this keeps
+a slow public-page replay from crashing the whole suite through an unhandled
+redirect callback.
 Dispatch it from Actions as **Fast visual tests (all platforms)**, selecting one
 platform for focused work or `all` for a release/parity pass.
 

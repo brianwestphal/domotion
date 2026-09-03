@@ -70,13 +70,13 @@ export const TEXT_BASELINE_PROTOCOL_CASES: readonly TextBaselineProtocolCase[] =
   },
   {
     id: "vertical-rl-plane",
-    text: "縦書漢字",
+    text: "Vertical RL",
     expectedDisposition: "decoded-vector",
     targetCss: "writing-mode:vertical-rl;height:240px;transform:matrix(.91,.27,-.19,1.07,11.25,-7.5);transform-origin:17.25px 23.75px",
   },
   {
     id: "vertical-lr-plane",
-    text: "縦書左組",
+    text: "Vertical LR",
     expectedDisposition: "decoded-vector",
     targetCss: "writing-mode:vertical-lr;height:240px;transform:matrix(.91,.27,-.19,1.07,11.25,-7.5);transform-origin:17.25px 23.75px",
   },

@@ -16,12 +16,13 @@ export interface UnicodeFontEntry {
   path: string;
   postscriptName?: string;
   extractor?: "fontkit" | "native";
+  optionalInstall?: boolean;
 }
 
 export const UNICODE_FONT_PATHS: Record<string, UnicodeFontEntry> = {
   "u-sf-pro-text": { family: "SF Pro Text", path: "/System/Library/Fonts/SFNS.ttf" },
   "u-helvetica-neue": { family: "Helvetica Neue", path: "/System/Library/Fonts/Helvetica.ttc", postscriptName: "Helvetica" },
-  "u-noto-sans": { family: "Noto Sans", path: "/Library/Fonts/NotoSans-Regular.ttf" },
+  "u-noto-sans": { family: "Noto Sans", path: "/Library/Fonts/NotoSans-Regular.ttf", optionalInstall: true },
   "u-mshtakan": { family: "Mshtakan", path: "/System/Library/Fonts/Supplemental/Mshtakan.ttc", postscriptName: "Mshtakan" },
   "u-arial-unicode-ms": { family: "Arial Unicode MS", path: "/System/Library/Fonts/Supplemental/Arial Unicode.ttf" },
   "u-geeza-pro": { family: "Geeza Pro", path: "/System/Library/Fonts/GeezaPro.ttc", postscriptName: "GeezaPro" },
@@ -75,7 +76,7 @@ export const UNICODE_FONT_PATHS: Record<string, UnicodeFontEntry> = {
   "u-hiragino-sans-gb": { family: "Hiragino Sans GB", path: "/System/Library/Fonts/Hiragino Sans GB.ttc", postscriptName: "HiraginoSansGB-W3" },
   "u-heiti-sc": { family: "Heiti SC", path: "/System/Library/Fonts/STHeiti Light.ttc", postscriptName: "STHeitiSC-Light" },
   "u-hiragino-sans": { family: "Hiragino Sans", path: "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc", postscriptName: "HiraKakuProN-W3" },
-  "u-noto-sans-kr": { family: "Noto Sans KR", path: "/Library/Fonts/NotoSansKR-Regular.otf" },
+  "u-noto-sans-kr": { family: "Noto Sans KR", path: "/Library/Fonts/NotoSansKR-Regular.otf", optionalInstall: true },
   "u-noto-sans-yi": { family: "Noto Sans Yi", path: "/System/Library/Fonts/Supplemental/NotoSansYi-Regular.ttf" },
   "u-noto-sans-lisu": { family: "Noto Sans Lisu", path: "/System/Library/Fonts/Supplemental/NotoSansLisu-Regular.ttf" },
   "u-noto-sans-vai": { family: "Noto Sans Vai", path: "/System/Library/Fonts/Supplemental/NotoSansVai-Regular.ttf" },

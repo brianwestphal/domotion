@@ -157,4 +157,52 @@ describe("UTF-16 FragmentItem segment splitting", () => {
     expect(splitTextSegmentsOnFragmentSpans([transformed], wrong).failureReason)
       .toContain("crosses or ambiguously belongs");
   });
+
+  it("splits one-to-one source chunks across adjacent fallback FragmentItems", () => {
+    const mixed = mappedSegment("縦書Affine", "縦書Affine", 0);
+    mixed.sourceMapping!.renderedChunks = [{
+      renderedUtf16Span: [0, 8],
+      domUtf16Span: [0, 8],
+    }];
+    const joined = joinBlinkRangeFragmentsToContentQuads(0, [
+      range(0, [0, 2], 10, 10, 20, 40),
+      range(1, [2, 8], 10, 50, 20, 120),
+    ], [
+      quad(10, 10, 20, 40),
+      quad(10, 50, 20, 120),
+    ]).fragments!;
+
+    const split = splitTextSegmentsOnFragmentSpans([mixed], joined);
+    expect(split.failureReason).toBeUndefined();
+    expect(split.segments?.map((segment) => [
+      segment.text,
+      segment.sourceMapping?.domUtf16Span,
+      segment.sourceMapping?.renderedChunks,
+    ])).toEqual([
+      ["縦書", [0, 2], [{ renderedUtf16Span: [0, 2], domUtf16Span: [0, 2] }]],
+      ["Affine", [2, 8], [{ renderedUtf16Span: [0, 6], domUtf16Span: [2, 8] }]],
+    ]);
+  });
+
+  it("extends a sole protocol fragment over mapped glyphs hidden inside its Range AABB", () => {
+    const mixed = mappedSegment("縦書Affine", "縦書Affine", 0);
+    mixed.verticalWritingMode = "vertical-rl";
+    mixed.sourceMapping!.renderedChunks = Array.from(mixed.text, (_, index) => ({
+      renderedUtf16Span: [index, index + 1] as [number, number],
+      domUtf16Span: [index, index + 1] as [number, number],
+    }));
+    const joined = joinBlinkRangeFragmentsToContentQuads(0, [
+      range(0, [2, 8], 10, 10, 20, 120),
+    ], [quad(10, 10, 20, 120)]).fragments!;
+
+    const split = splitTextSegmentsOnFragmentSpans([mixed], joined);
+    expect(split.failureReason).toBeUndefined();
+    expect(split.sourceFragments).toHaveLength(1);
+    expect(split.sourceFragments[0].domUtf16Span).toEqual([0, 8]);
+    expect(split.segments?.map((segment) => [
+      segment.text,
+      segment.sourceText,
+      segment.sourceMapping?.domUtf16Span,
+    ])).toEqual([["縦書Affine", "縦書Affine", [0, 8]]]);
+  });
 });

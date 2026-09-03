@@ -158,6 +158,23 @@ describe("DM-2468 direct generated-pseudo paint", () => {
     expect(renderPseudoFragmentRecord(source)).toContain('data-domotion-pseudo-owner="source-fragments"');
   });
 
+  it("replaces only selected bitmap pseudo text with its isolated Chromium surface", () => {
+    const source = record();
+    source.bitmapTextRaster = {
+      dataUri: "data:image/png;base64,QklUTUFQ",
+      rect: { x: 94, y: 41, width: 26, height: 18 },
+      isolated: true,
+      source: "chromium-selected-bitmap-pseudo-text",
+      representations: ["colr"],
+    };
+    const markup = renderPseudoFragmentRecord(source);
+    expect(markup).toContain('data-domotion-pseudo-text-owner="chromium-selected-bitmap-pseudo-text"');
+    expect(markup).toContain('href="data:image/png;base64,QklUTUFQ"');
+    expect(markup).toContain('fill="rgb(240, 230, 220)"');
+    expect(markup).not.toContain('transform="matrix(1 0 0 1 95 54)"');
+    expect(markup.match(/data-domotion-pseudo-text-owner/g)).toHaveLength(1);
+  });
+
   it("fails closed for collapsed baselines/quads instead of reviving legacy anchors", () => {
     const collapsedBaseline = record();
     const text = collapsedBaseline.fragments[0];

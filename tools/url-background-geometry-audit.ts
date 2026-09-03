@@ -333,7 +333,7 @@ const CASES: AuditCase[] = [
     targetTag: "span",
     sceneCss: "width:104px;line-height:31px;font:24px/31px sans-serif",
     targetContent: "wide words wrap here",
-    targetCss: "box-decoration-break:clone;-webkit-box-decoration-break:clone;background-size:32px 20px;background-position:3px 4px;background-repeat:repeat;padding:2px 5px",
+    targetCss: "color:transparent;box-decoration-break:clone;-webkit-box-decoration-break:clone;background-size:32px 20px;background-position:3px 4px;background-repeat:repeat;padding:2px 5px",
   },
   {
     id: "wrapped-inline-slice",
@@ -342,7 +342,7 @@ const CASES: AuditCase[] = [
     targetTag: "span",
     sceneCss: "width:104px;line-height:31px;font:24px/31px sans-serif",
     targetContent: "wide words wrap here",
-    targetCss: "box-decoration-break:slice;-webkit-box-decoration-break:slice;background-size:32px 20px;background-position:3px 4px;background-repeat:repeat;padding:2px 5px",
+    targetCss: "color:transparent;box-decoration-break:slice;-webkit-box-decoration-break:slice;background-size:32px 20px;background-position:3px 4px;background-repeat:repeat;padding:2px 5px",
   },
   {
     id: "wrapped-inline-slice-rtl",
@@ -351,7 +351,7 @@ const CASES: AuditCase[] = [
     targetTag: "span",
     sceneCss: "width:104px;line-height:31px;font:24px/31px sans-serif;direction:rtl",
     targetContent: "wide words wrap here",
-    targetCss: "direction:rtl;box-decoration-break:slice;-webkit-box-decoration-break:slice;background-size:29px 17px;background-position:7px 3px;background-repeat:repeat;padding:2px 5px",
+    targetCss: "color:transparent;direction:rtl;box-decoration-break:slice;-webkit-box-decoration-break:slice;background-size:29px 17px;background-position:7px 3px;background-repeat:repeat;padding:2px 5px",
   },
   {
     id: "wrapped-inline-slice-origin-clip",
@@ -360,7 +360,7 @@ const CASES: AuditCase[] = [
     targetTag: "span",
     sceneCss: "width:104px;line-height:31px;font:24px/31px sans-serif",
     targetContent: "wide words wrap here",
-    targetCss: "box-decoration-break:slice;-webkit-box-decoration-break:slice;border:3px solid transparent;padding:4px 6px;background-origin:content-box;background-clip:padding-box;background-size:31px 19px;background-position:7px 5px;background-repeat:repeat",
+    targetCss: "color:transparent;box-decoration-break:slice;-webkit-box-decoration-break:slice;border:3px solid transparent;padding:4px 6px;background-origin:content-box;background-clip:padding-box;background-size:31px 19px;background-position:7px 5px;background-repeat:repeat",
   },
   {
     id: "wrapped-inline-slice-fixed",
@@ -369,7 +369,7 @@ const CASES: AuditCase[] = [
     targetTag: "span",
     sceneCss: "width:104px;line-height:31px;font:24px/31px sans-serif",
     targetContent: "wide words wrap here",
-    targetCss: "box-decoration-break:slice;-webkit-box-decoration-break:slice;background-attachment:fixed;background-size:31px 19px;background-position:7px 5px;background-repeat:repeat;padding:2px 5px",
+    targetCss: "color:transparent;box-decoration-break:slice;-webkit-box-decoration-break:slice;background-attachment:fixed;background-size:31px 19px;background-position:7px 5px;background-repeat:repeat;padding:2px 5px",
   },
   {
     id: "wrapped-inline-slice-vertical-rl",
@@ -378,7 +378,7 @@ const CASES: AuditCase[] = [
     targetTag: "span",
     sceneCss: "width:180px;height:104px;line-height:31px;font:24px/31px sans-serif;writing-mode:vertical-rl",
     targetContent: "wide words wrap here",
-    targetCss: "writing-mode:vertical-rl;box-decoration-break:slice;-webkit-box-decoration-break:slice;background-size:19px 29px;background-position:3px 7px;background-repeat:repeat;padding:5px 2px",
+    targetCss: "color:transparent;writing-mode:vertical-rl;box-decoration-break:slice;-webkit-box-decoration-break:slice;background-size:19px 29px;background-position:3px 7px;background-repeat:repeat;padding:5px 2px",
   },
   {
     id: "multicol-block-clone",

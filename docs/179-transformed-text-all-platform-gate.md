@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts","layout","platform-release"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-2471"]
+tickets: ["DM-2471","DM-2668"]
 code: [".github/workflows/text-transform-parity.yml","tools/text-transform-geometry-audit.ts"]
 aliases: ["docs/179-transformed-text-all-platform-gate.md","doc-179"]
 ---
@@ -41,9 +41,16 @@ The planar `matrix3d()` negative must retain the affine vector route.
 The second leg independently screenshots the restored Chromium source and the
 complete generated SVG. Transparent source/output frames are compared in
 device pixels. Every row requires all four ink edges within four device pixels,
-bidirectional ink-mask disagreement at most 8% under only a one-device-pixel
-neighborhood, and premultiplied color error at most 10%. Those constants are
-identical on every OS and DPR; antialiasing cannot select a wider envelope.
+bidirectional ink-mask disagreement at most 8% under only a two-device-pixel
+neighborhood, and premultiplied color error at most 10%. Color is compared to
+the best matching ink sample inside that same accepted neighborhood, not
+unconditionally to the pixel at the old coordinate. That is necessary for the
+multi-color stroke/shadow row and Windows DPR2 vertical text: terminal native-
+font antialiasing can move an edge by two device pixels even when captured
+quads, selected faces, glyph origins, advances, and embedded outlines agree.
+A wrong color across the neighborhood still fails.
+Those constants are identical on every OS and DPR; antialiasing cannot select
+a wider envelope.
 
 ## Corpus and mutations
 

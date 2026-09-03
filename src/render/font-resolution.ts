@@ -8521,7 +8521,7 @@ function fcPostConfigFamily(name: string): string | null {
   } catch { return null; }
 }
 
-function authorFamilyAvailable(name: string): boolean {
+export function __authorFamilyAvailableForTest(name: string): boolean {
   // Availability is an answer from a platform font environment, not a
   // property of the spelling alone. Tests and oracle replays can switch the
   // modeled host in-process; sharing a bare-name entry across those contexts
@@ -8542,6 +8542,8 @@ function authorFamilyAvailable(name: string): boolean {
   _famAvailCache.set(cacheKey, avail);
   return avail;
 }
+
+const authorFamilyAvailable = __authorFamilyAvailableForTest;
 
 /** Test-only view: availability memo identities, without exposing answers. */
 export function __familyAvailabilityCacheKeysForTest(): string[] {

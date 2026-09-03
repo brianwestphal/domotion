@@ -201,14 +201,15 @@ out += "// picks via CDP `CSS.getPlatformFontsForNode`. Consulted by\n";
 out += "// `darwinFallbackChain` as the final fallback when no hand-coded route\n";
 out += "// matches a given codepoint.\n";
 out += "\n";
-out += "export interface UnicodeFontEntry { path: string; postscriptName?: string }\n\n";
+out += "export interface UnicodeFontEntry { family: string; path: string; postscriptName?: string; optionalInstall?: boolean }\n\n";
 out += "export const UNICODE_FONT_PATHS: Record<string, UnicodeFontEntry> = {\n";
 const seenKeys = new Set();
 for (const r of ranges) {
   if (seenKeys.has(r.fontKey)) continue;
   seenKeys.add(r.fontKey);
   const psn = r.resolved.postscriptName != null ? `, postscriptName: ${JSON.stringify(r.resolved.postscriptName)}` : "";
-  out += `  ${JSON.stringify(r.fontKey)}: { path: ${JSON.stringify(r.resolved.path)}${psn} },\n`;
+  const optional = r.resolved.path.startsWith("/Library/Fonts/") ? ", optionalInstall: true" : "";
+  out += `  ${JSON.stringify(r.fontKey)}: { family: ${JSON.stringify(r.family)}, path: ${JSON.stringify(r.resolved.path)}${psn}${optional} },\n`;
 }
 out += "};\n\n";
 out += "/** [start, end, fontKey] tuples sorted by start. Probed by binary-searching for the matching range. */\n";
@@ -270,7 +271,7 @@ out += "// crash fontkit (\"invalid array length\" in ArrayPrototypeSplice durin
 out += "// GSUB shaping — verified per-font by spawnSync probe in the generator);\n";
 out += "// the renderer routes them through the macOS CoreText glyph-helper.\n";
 out += "\n";
-out += "export interface UnicodeFontEntry { path: string; postscriptName?: string; extractor?: \"fontkit\" | \"native\" }\n\n";
+out += "export interface UnicodeFontEntry { family: string; path: string; postscriptName?: string; extractor?: \"fontkit\" | \"native\"; optionalInstall?: boolean }\n\n";
 out += "export const UNICODE_FONT_PATHS: Record<string, UnicodeFontEntry> = {\n";
 seenKeys.clear();
 for (const r of ranges) {
@@ -282,7 +283,8 @@ for (const r of ranges) {
   // "Not a fixed size" in fontkit's restructure parser).
   const forceNative = fontkitCrashers.has(r.fontKey) || r.resolved.extractor === "native";
   const ext = forceNative ? `, extractor: "native" as const` : "";
-  out += `  ${JSON.stringify(r.fontKey)}: { path: ${JSON.stringify(r.resolved.path)}${psn}${ext} },\n`;
+  const optional = r.resolved.path.startsWith("/Library/Fonts/") ? ", optionalInstall: true" : "";
+  out += `  ${JSON.stringify(r.fontKey)}: { family: ${JSON.stringify(r.family)}, path: ${JSON.stringify(r.resolved.path)}${psn}${ext}${optional} },\n`;
 }
 out += "};\n\n";
 out += "/** [start, end, fontKey] tuples sorted by start. Probed by binary-searching for the matching range. */\n";

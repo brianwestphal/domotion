@@ -510,8 +510,10 @@ async function runCase(
         && glyph.domUtf16Span[0] >= run.domUtf16Span[0] && glyph.domUtf16Span[1] <= run.domUtf16Span[1]
         && [glyph.xAdvance, glyph.yAdvance, glyph.xOffset, glyph.yOffset].every(Number.isFinite))),
     fallbackFacesRemainDistinct: new Set(shapedRuns.flatMap((run) => run.selectedFontKeys).filter(Boolean)).size > 1,
-    browserSelectedPinnedLigatureFace: independent.platformFonts.some((font) =>
-      font.isCustomFont && font.postScriptName === "OpenSans-Regular" && font.glyphCount > 0),
+    browserSelectedPinnedLigatureFace: independent.platformFonts.some((font) => {
+      const family = `${font.familyName} ${font.postScriptName}`.toLowerCase().replace(/[^a-z0-9]/g, "");
+      return font.isCustomFont && family.includes("opensans") && font.glyphCount > 0;
+    }),
     browserSelectedFallbackFaces: independent.platformFonts.some((font) => !font.isCustomFont && font.glyphCount > 0),
     noTextFragmentFallbackWarning: captureResult.warnings.every((warning) => !/text-fragment|outer.*surface/i.test(warning.detail)),
   };

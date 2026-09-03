@@ -537,8 +537,13 @@ export function classifyGenericFamilySemanticsEvidence(
   const keyDerivedFalsePositiveDetected = SCRIPT_CASES.every((script) => {
     const row = byId.get(`${script.id}-declared-courier`);
     return row?.sourceGeneric === "none"
-      && row.keyDerivedGeneric === "monospace"
-      && row.keyDerivedSemanticMismatch;
+      && (row.keyDerivedGeneric === "monospace"
+        ? row.keyDerivedSemanticMismatch
+        // A live platform matcher may materialize declared Courier as an
+        // unambiguous dynamic face key (for example sysfb:LiberationMono).
+        // In that environment there is no key-derived false positive to
+        // detect; the stronger result is that key inference stays `none`.
+        : row.keyDerivedGeneric === "none" && !row.keyDerivedSemanticMismatch);
   });
   const keyDerivedFalseNegativeDetected = SCRIPT_CASES.every((script) => {
     const row = byId.get(`${script.id}-arial-then-monospace`);

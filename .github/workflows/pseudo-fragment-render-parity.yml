@@ -72,13 +72,31 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
-      - run: npx playwright install chromium
+      - name: Install Chromium and Linux native dependencies
+        if: runner.os == 'Linux'
+        run: |
+          npx playwright install --with-deps chromium
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev libfontconfig-dev
+      - name: Install Chromium
+        if: runner.os != 'Linux'
+        run: npx playwright install chromium
+      - name: Build macOS CoreText helper
+        if: runner.os == 'macOS'
+        run: bash tools/macos-glyph-extractor/build.sh
+      - name: Build Linux fontconfig helper
+        if: runner.os == 'Linux'
+        run: bash tools/linux-glyph-extractor/build.sh
+      - name: Build Windows DirectWrite helper
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: tools/win32-glyph-extractor/build.ps1
       - name: Validate direct-record ownership and fail-closed mutations
         run: npx vitest run src/render/pseudo-fragments.test.ts src/render/form-controls.test.ts
-      - name: Validate capture bypass and focused browser paint
-        run: npx vitest run --config vitest.e2e.config.ts tests/pseudo-fragment-capture.e2e.test.ts tests/pseudo-fragment-render-oracle.e2e.test.ts tests/checkable-pseudo-indicators.e2e.test.ts
       - name: Run DPR-1/2 Chromium-versus-SVG edge gate
         run: npm run pseudo:fragment-render-oracle -- --json tests/output/pseudo-fragment-render-${{ runner.os }}/report.json --artifact-dir tests/output/pseudo-fragment-render-${{ runner.os }}/artifacts
+      - name: Validate capture bypass and focused browser paint
+        run: npx vitest run --config vitest.e2e.config.ts tests/pseudo-fragment-capture.e2e.test.ts tests/pseudo-fragment-render-oracle.e2e.test.ts tests/checkable-pseudo-indicators.e2e.test.ts
       - name: Upload native source, SVG, rendered pixels, and report
         if: always()
         uses: actions/upload-artifact@v4

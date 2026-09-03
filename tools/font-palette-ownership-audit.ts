@@ -58,6 +58,31 @@ export interface PaletteSourceFacts {
 
 type PaletteOverride = Readonly<Record<number, RgbaColor>>;
 
+function parseOpaqueColor(value: string): [number, number, number, number] | null {
+  const channels = value.split(",").map(Number);
+  return channels.length === 4 && channels.every(Number.isFinite)
+    ? channels as [number, number, number, number]
+    : null;
+}
+
+/** Native raster backends can contribute one-level RGB fringes at an
+ * antialiased edge while preserving the exact source palette in the dominant
+ * pixels. Accept only those adjacent colors: every expected entry must remain
+ * present exactly, and every observed opaque color must be within `tolerance`
+ * of one expected entry in every channel. */
+export function opaquePaletteColorsWithinTolerance(
+  observed: readonly string[], expected: readonly string[], tolerance = 1,
+): boolean {
+  if (!expected.every((color) => observed.includes(color))) return false;
+  const expectedChannels = expected.map(parseOpaqueColor);
+  if (expectedChannels.some((color) => color == null)) return false;
+  return observed.every((value) => {
+    const actual = parseOpaqueColor(value);
+    return actual != null && expectedChannels.some((candidate) => candidate != null
+      && actual.every((channel, index) => Math.abs(channel - candidate[index]) <= tolerance));
+  });
+}
+
 export interface PaletteCase {
   id: string;
   value: string;
@@ -160,7 +185,7 @@ export function adjudicateNativePaletteRow(
   if (row.sourceGlyphId !== expectedGlyphId) blockers.push("source-gid");
   if (!row.isCustomFont) blockers.push("not-custom-font");
   if (row.paintedGlyphCount !== 1) blockers.push("glyph-count");
-  if (!same(row.observedOpaqueColors, row.expectedColors)) blockers.push("source-colors");
+  if (!opaquePaletteColorsWithinTolerance(row.observedOpaqueColors, row.expectedColors)) blockers.push("source-colors");
   if (row.expectedColors.some((color) => (row.observedColorCounts[color] ?? 0) === 0)) blockers.push("inert-color");
   if (spec.expectedRuleName == null
     ? row.cssomRule != null

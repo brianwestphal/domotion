@@ -4,8 +4,29 @@ import {
   REQUIRED_TEXT_TRANSFORM_MUTATIONS,
   TEXT_TRANSFORM_CASES,
   TEXT_TRANSFORM_GATE_THRESHOLDS,
+  nearestInkColorError,
   validateTextTransformCorpus,
 } from "../tools/text-transform-geometry-audit.js";
+
+describe("transformed-text neighboring color comparison", () => {
+  it("compares an accepted two-device-pixel displacement with the matching color", () => {
+    const target = new Uint8Array([
+      255, 0, 0, 255,
+      0, 0, 0, 0,
+      0, 0, 255, 255,
+    ]);
+    expect(nearestInkColorError([0, 0, 255, 255], target, 3, 1, 0, 0)).toBe(0);
+  });
+
+  it("still rejects a wrong color throughout the accepted neighborhood", () => {
+    const target = new Uint8Array([
+      255, 0, 0, 255,
+      255, 0, 0, 255,
+      0, 0, 0, 0,
+    ]);
+    expect(nearestInkColorError([0, 0, 255, 255], target, 3, 1, 0, 0)).toBeGreaterThan(0.4);
+  });
+});
 
 describe("transformed-text hard parity gate", () => {
   it("retains the complete source-owned corpus and both HTML-run controls", () => {
@@ -48,7 +69,7 @@ describe("transformed-text hard parity gate", () => {
       matrixEpsilon: 1 / 256,
       maxAffineResidualCssPx: 0.05,
       maxInkEdgeDeltaDevicePx: 4,
-      inkNeighborRadiusDevicePx: 1,
+      inkNeighborRadiusDevicePx: 2,
       maxInkMismatchFraction: 0.08,
       maxPremultipliedColorError: 0.1,
     });

@@ -45,6 +45,7 @@ import { composeScrollSvg } from "../src/scroll/composer.js";
 import { cullElementsOutsideViewBox } from "../src/tree-ops/viewbox-culling.js";
 import { comparePngs, type DiffVerdict } from "../src/review/compare-pngs.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
+import { closeTimedOutCaptureContext } from "./real-world-timeout.js";
 
 const TESTS_DIR = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = resolve(TESTS_DIR, "output/real-world");
@@ -466,7 +467,10 @@ async function runJob(
   let captureTimedOut = false;
   const captureWatchdog = setTimeout(() => {
     captureTimedOut = true;
-    void context.close().catch(() => {});
+    void closeTimedOutCaptureContext(
+      context,
+      `real-world capture exceeded ${CAPTURE_JOB_TIMEOUT_MS / 60_000}m`,
+    );
   }, CAPTURE_JOB_TIMEOUT_MS);
   captureWatchdog.unref();
 

@@ -138,17 +138,32 @@ describeBrowser("pixel content at Chromium-owned raster boundaries", () => {
     } finally { await page.close(); }
   }, 60_000);
 
-  it("captures color-glyph pixels while an adjacent text glyph remains vector-owned", async () => {
+  it("captures color-glyph pixels through the selected outline or bitmap ownership route", async () => {
     const page = await env!.browser.newPage({ viewport: { width: 260, height: 150 }, deviceScaleFactor: 1 });
     try {
       await page.setContent(`<div style="font:48px sans-serif">A😀B</div>`);
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 260, height: 150 });
       const segments = walk(tree).flatMap((node) =>
         node.textPaintGeometry?.neutral?.textSegments ?? node.textSegments ?? []);
-      const glyph = segments.flatMap((segment) => segment.rasterGlyphs ?? []).find((entry) => entry.dataUri != null);
-      expect(glyph?.dataUri).toMatch(/^data:image\/png;base64,/);
-      expect((await pixelSummary(glyph!.dataUri!)).opaque).toBeGreaterThan(100);
-      expect(segments.flatMap((segment) => segment.rasterGlyphs ?? []).filter((entry) => entry.dataUri != null)).toHaveLength(1);
+      const glyphs = segments.flatMap((segment) => segment.rasterGlyphs ?? []).filter((entry) => entry.dataUri != null);
+      const rasterSegments = segments.filter((segment) => segment.rasterDataUri != null);
+      // Outline-backed color glyphs (for example macOS sbix after calibrated
+      // isolation) retain adjacent letters as vector text and receive one
+      // per-glyph overlay. Linux Noto Color Emoji selects a CBDT strike whose
+      // ink can escape CSSOM Range bounds, so the production route correctly
+      // owns the complete line fragment instead. Both decisions are selected
+      // by authenticated glyph representation, never by platform name.
+      expect(glyphs.length + rasterSegments.length).toBe(1);
+      const dataUri = glyphs[0]?.dataUri ?? rasterSegments[0]?.rasterDataUri;
+      expect(dataUri).toMatch(/^data:image\/png;base64,/);
+      expect((await pixelSummary(dataUri!)).opaque).toBeGreaterThan(100);
+      if (rasterSegments.length === 1) {
+        expect(rasterSegments[0].colorGlyphIdentities?.some((identity) => identity.representation === "bitmap")).toBe(true);
+        expect(glyphs).toHaveLength(0);
+      } else {
+        expect(glyphs).toHaveLength(1);
+        expect(rasterSegments).toHaveLength(0);
+      }
       expect(segments.map((segment) => segment.text).join("")).toContain("A😀B");
     } finally { await page.close(); }
   }, 60_000);

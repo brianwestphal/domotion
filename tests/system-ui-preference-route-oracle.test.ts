@@ -4,6 +4,7 @@ import {
   chooseLinuxSystemFamilies,
   launchModeIds,
   logicalIdentity,
+  selectedLaunchModeIds,
   systemUiProbeCases,
 } from "../tools/system-ui-preference-route-oracle.js";
 
@@ -22,6 +23,20 @@ describe("DM-2504 system-ui preference route oracle contract", () => {
     expect(cases.map((row) => row.weight)).toContain(700);
     expect(cases.some((row) => row.italic)).toBe(true);
     expect(cases.map((row) => row.stretch)).toEqual(expect.arrayContaining([75, 125]));
+  });
+
+  it("defaults local automation to headless modes and requires explicit headed opt-in", () => {
+    expect(selectedLaunchModeIds([])).toEqual([
+      "pinned-headless",
+      "full-chrome-headless",
+    ]);
+    expect(selectedLaunchModeIds(["--allow-headed-browser"])).toEqual(launchModeIds());
+    expect(() => selectedLaunchModeIds(["--modes=full-chrome-headed"]))
+      .toThrow("headed browser modes require --allow-headed-browser");
+    expect(selectedLaunchModeIds([
+      "--allow-headed-browser",
+      "--modes=full-chrome-headed",
+    ])).toEqual(["full-chrome-headed"]);
   });
 
   it("joins PostScript identity when available and family identity only as the explicit fallback", () => {

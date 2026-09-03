@@ -65,6 +65,7 @@ jobs:
           echo "EVIDENCE_DIR=$EVIDENCE_DIR" >> "$GITHUB_ENV"
           mkdir -p "$EVIDENCE_DIR"
           node --import tsx tools/linux-arm64-release-evidence.ts acquire \
+            --glyph-version 0.24.0 \
             --cache-root "$CACHE_ROOT" \
             --json "$EVIDENCE_DIR/acquisition.json" \
             --run-env "$EVIDENCE_DIR/run-env.json" \

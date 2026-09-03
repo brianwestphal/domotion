@@ -72,6 +72,13 @@ env:
   NODE_VERSION: '22.21.0'
   # Keep in sync with the installed @playwright/test version (test-linux.yml too).
   PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright:v1.59.1-noble
+  # Stage evidence is collected from a lean checkout, so give every shard the
+  # exact upstream revisions instead of letting absent source trees degrade the
+  # shaping/layout fingerprint to `unavailable`.
+  DOMOTION_CHROMIUM_REVISION: 7d859f271cbda744098ac69f44978d4edfa62be3
+  DOMOTION_HARFBUZZ_REVISION: 4de187dd0a915d13c976fa8bd474c084229f3aab
+  DOMOTION_SKIA_REVISION: 62efacd37737505732dbe3d8daa62abd679626a1
+  DOMOTION_ICU_SOURCE_REVISION: d578f2e8b7bd5938e21cfb6bf15c079e0aa5b738
 
 concurrency:
   group: visual-tests-${{ github.ref_name }}-${{ inputs.os }}-${{ inputs.suite }}

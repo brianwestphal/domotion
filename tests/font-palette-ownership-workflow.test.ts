@@ -14,6 +14,9 @@ describe("DM-2510/DM-2534 cross-platform font-palette paint workflow", () => {
     expect(workflow).toContain("Run strict source-owned DPR1/2 static and dynamic COLRv0/COLRv1 paint gate");
     expect(workflow).toContain("tests/font-palette-dynamic-gate.test.ts");
     expect(workflow).toContain("tools/font-palette-dynamic-gate.ts");
+    expect(workflow).toContain("tools/macos-glyph-extractor/build.sh");
+    expect(workflow).toContain("tools/linux-glyph-extractor/build.sh");
+    expect(workflow).toContain("tools/win32-glyph-extractor/build.ps1");
     expect(workflow).toContain("if: always()");
     expect(workflow).toContain("if-no-files-found: error");
     expect(packageJson.scripts?.["fonts:palette-ownership-audit"])

@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts","paint-effects"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-2467","DM-2468","DM-2469","DM-2470","DM-2546","DM-2547"]
-code: ["src/capture/text-line-origin.test.ts","src/render/text-affine.test.ts","src/render/text-affine.ts","tests/text-affine-render.e2e.test.ts","tools/text-affine-baseline-protocol-oracle.ts"]
+tickets: ["DM-2467","DM-2468","DM-2469","DM-2470","DM-2546","DM-2547","DM-2668"]
+code: ["src/capture/text-line-origin.test.ts","src/render/element-tree-to-svg.ts","src/render/text-affine.test.ts","src/render/text-affine.ts","src/render/text-stroke-synthesis.test.ts","tests/text-affine-render.e2e.test.ts","tools/text-affine-baseline-protocol-oracle.ts"]
 aliases: ["docs/177-affine-text-paint-consumption.md","doc-177"]
 ---
 
@@ -67,6 +67,14 @@ text shadow, decoration, stroke, background-clip text, and the source-owned
 error boundary. Singular, non-finite, mixed-plane, uncorrelated, or projective
 facts fail closed to the existing outer Chromium raster owner; they never
 reactivate scalar placement.
+
+Text-shadow copies retain the complete source text paint shape: fill, author
+stroke, and every applied decoration are recolored to the shadow color before
+the residual transform. Each shadow copy receives its own decoration clip ids,
+so a shifted shadow cannot capture the foreground underline through a duplicate
+SVG id. A blurred shadow follows Blink's `DrawLooper`/mask-filter ownership by
+blurring `SourceAlpha` and applying the shadow color afterward; it does not
+blur the original fill and stroke colors as independent SVG channels.
 
 ## Explicit provenance boundaries
 

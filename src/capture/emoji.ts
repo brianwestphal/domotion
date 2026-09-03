@@ -409,6 +409,23 @@ export function scanInk(data: Buffer | Uint8Array, width: number, height: number
   return maxX >= 0 ? { minX, minY, maxX, maxY } : null;
 }
 
+export function screenshotInkBoundsInCssPixels(
+  ink: InkBox,
+  raster: { width: number; height: number },
+  clip: { x: number; y: number; width: number; height: number },
+): { x: number; y: number; width: number; height: number; scaleX: number; scaleY: number } {
+  const scaleX = raster.width / clip.width;
+  const scaleY = raster.height / clip.height;
+  return {
+    x: clip.x + ink.minX / scaleX,
+    y: clip.y + ink.minY / scaleY,
+    width: (ink.maxX - ink.minX + 1) / scaleX,
+    height: (ink.maxY - ink.minY + 1) / scaleY,
+    scaleX,
+    scaleY,
+  };
+}
+
 /**
  * DM-1728: self-calibrate each stamped sbix overlay against Chrome's ACTUAL
  * painted pixels.
@@ -487,10 +504,15 @@ async function calibrateSbixOverlays(
       // offset in practice.)
       const occClip = clipRectForScreenshot(g.rect, viewport);
       const clipX = occClip.x - viewport.x, clipY = occClip.y - viewport.y;
-      const targetX = clipX + chromeInk.minX;
-      const targetY = clipY + chromeInk.minY;
-      const targetW = chromeInk.maxX - chromeInk.minX + 1;
-      const targetH = chromeInk.maxY - chromeInk.minY + 1;
+      const cssInk = screenshotInkBoundsInCssPixels(
+        chromeInk,
+        { width: shot.w, height: shot.h },
+        { x: clipX, y: clipY, width: occClip.width, height: occClip.height },
+      );
+      const targetX = cssInk.x;
+      const targetY = cssInk.y;
+      const targetW = cssInk.width;
+      const targetH = cssInk.height;
 
       // Where the embedded ink currently lands through the destination rect.
       const sx = g.rect.width / embW, sy = g.rect.height / embH;
@@ -521,10 +543,11 @@ async function calibrateSbixOverlays(
 
       // Content check on the aligned geometry: resample the strike into the
       // screenshot's pixel grid and mean-diff the union of inked pixels.
-      const scaleW = Math.max(1, Math.round(rect.width));
-      const scaleH = Math.max(1, Math.round(rect.height));
+      const scaleW = Math.max(1, Math.round(rect.width * cssInk.scaleX));
+      const scaleH = Math.max(1, Math.round(rect.height * cssInk.scaleY));
       const resized = await sharp(strike.buf).resize(scaleW, scaleH, { fit: "fill" }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-      const offX = Math.round(rect.x - clipX), offY = Math.round(rect.y - clipY);
+      const offX = Math.round((rect.x - clipX) * cssInk.scaleX);
+      const offY = Math.round((rect.y - clipY) * cssInk.scaleY);
       let sum = 0, n = 0;
       for (let y = 0; y < shot.h; y++) {
         for (let x = 0; x < shot.w; x++) {

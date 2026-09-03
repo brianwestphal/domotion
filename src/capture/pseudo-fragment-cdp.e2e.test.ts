@@ -79,6 +79,14 @@ describe("DM-2467 source-owned pseudo fragment capture", () => {
         ]);
         expect(records.find((record) => record.contentItems.some((item) => item.kind === "image"))?.contentItems.map((item) => item.kind)).toEqual(["text", "image", "text"]);
         expect(records.flatMap((record) => record.fragments).some((fragment) => fragment.kind === "text" && fragment.text.includes("😀"))).toBe(true);
+        const astral = records.find((record) => record.fragments.some((fragment) =>
+          fragment.kind === "text" && fragment.text.includes("😀")));
+        expect(astral?.bitmapTextRaster).toMatchObject({
+          source: "chromium-selected-bitmap-pseudo-text",
+          isolated: true,
+        });
+        expect(astral?.bitmapTextRaster?.dataUri).toMatch(/^data:image\/png;base64,/);
+        expect(astral?.bitmapTextRaster?.representations.length).toBeGreaterThan(0);
         expect(records.filter((record) => record.fragments.some((fragment) => fragment.kind === "text"))
           .every((record) => record.typography.resolvedFonts.length > 0)).toBe(true);
         expect(records.find((record) => record.writingMode === "vertical-rl")?.fragments.some((fragment) => fragment.kind === "text" && fragment.baseline.origin.x === fragment.baseline.end.x)).toBe(true);

@@ -1840,6 +1840,15 @@ function outsideRegionsKey(tree: CapturedElement[], ids: ReadonlySet<string>): s
   return JSON.stringify(mask(tree));
 }
 
+function firstKeyDifference(a: string, b: string): string {
+  let index = 0;
+  while (index < a.length && index < b.length && a[index] === b[index]) index++;
+  const contextStart = Math.max(0, index - 48);
+  const contextEnd = index + 96;
+  const excerpt = (value: string): string => JSON.stringify(value.slice(contextStart, contextEnd));
+  return `first serialized difference at byte ${index} (round 0 ${excerpt(a)}, changed round ${excerpt(b)})`;
+}
+
 /**
  * Assemble the run's per-state trees from the per-round captures: the
  * non-region remainder from round 0, and each declared region's subtree from
@@ -1876,12 +1885,13 @@ export function assembleRegionStateTrees(
   }
   const baseKey = outsideRegionsKey(roundTrees[0], ids);
   for (let r = 1; r < roundTrees.length; r++) {
-    if (outsideRegionsKey(roundTrees[r], ids) !== baseKey) {
+    const roundKey = outsideRegionsKey(roundTrees[r], ids);
+    if (roundKey !== baseKey) {
       throw new Error(
         `animate: ${framePath} declares per-region timing (\`advances\`), but the page changed OUTSIDE the declared `
         + `regions between capture round 0 and round ${r} — each state's tree is assembled from the round holding each `
         + `region's own state, so anything that changes must live inside a declared region. Declare the changing element `
-        + `in \`regions\`, or drop \`advances\` to capture every state whole.`,
+        + `in \`regions\`, or drop \`advances\` to capture every state whole; ${firstKeyDifference(baseKey, roundKey)}.`,
       );
     }
   }

@@ -52,6 +52,14 @@ describe("native scrollbar six-role release adjudicator", () => {
     validation.logicalRowsSha256 = "e".repeat(64);
     expect(adjudicateNativeScrollbarReports(reports).blockers.join("\n")).toMatch(/observation ids|boot ids|logical rows disagree/);
   });
+  it("allows hosted image patch rollover only when stable identity and logical rows agree", () => {
+    const reports = complete(); const proposal = reports[0]; const validation = reports[1];
+    validation.provenance.runnerImageVersion = "20260901.2";
+    validation.host.release = "26.6.0";
+    expect(adjudicateNativeScrollbarReports(reports).ready).toBe(true);
+    validation.provenance.runnerImage = "different-image-family";
+    expect(adjudicateNativeScrollbarReports(reports).blockers.join("\n")).toMatch(/stable environment identities differ/);
+  });
   it("rejects observational schemas and inactive controls", () => {
     const reports = complete(); reports[0].controls.exact = false;
     const result = adjudicateNativeScrollbarReports([{}, ...reports]);

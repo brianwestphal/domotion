@@ -24,6 +24,14 @@ import { hostPlatform } from "./host-platform.js";
 
 afterEach(() => setSessionGenericFamilyOverrides(null));
 
+const sameResolvedPath = (left: string | undefined, right: string | undefined): boolean => {
+  const normalize = (value: string | undefined): string | undefined => {
+    const slashes = value?.replaceAll("\\", "/");
+    return hostPlatform() === "win32" ? slashes?.toLowerCase() : slashes;
+  };
+  return normalize(left) === normalize(right);
+};
+
 describe("setSessionGenericFamilyOverrides", () => {
   const installedTestFamily = hostPlatform() === "darwin"
     ? "Menlo"
@@ -50,13 +58,13 @@ describe("setSessionGenericFamilyOverrides", () => {
     // probed name goes back through the ordinary family matcher.)
     const expected = installedTestPath();
     setSessionGenericFamilyOverrides({ common: new Map([["monospace", installedTestFamily]]), byScript: new Map() });
-    expect(__resolveFontSpecForTest(resolveFontKey("monospace")!)?.path).toBe(expected);
+    expect(sameResolvedPath(__resolveFontSpecForTest(resolveFontKey("monospace")!)?.path, expected)).toBe(true);
   });
 
   it("routes the implicit standard-family terminal from the session", () => {
     const expected = installedTestPath();
     setSessionGenericFamilyOverrides({ common: new Map([["standard", installedTestFamily]]), byScript: new Map() });
-    expect(__resolveFontSpecForTest(resolveFontKey("DoesNotExist")!)?.path).toBe(expected);
+    expect(sameResolvedPath(__resolveFontSpecForTest(resolveFontKey("DoesNotExist")!)?.path, expected)).toBe(true);
   });
 
   it("routes a script-specific standard-family terminal from the session", () => {
@@ -64,7 +72,10 @@ describe("setSessionGenericFamilyOverrides", () => {
       common: new Map([["standard", "Times"]]),
       byScript: new Map([["ARABIC", new Map([["standard", installedTestFamily]])]]),
     });
-    expect(__resolveFontSpecForTest(resolveFontKey("DoesNotExist", "ar")!)?.path).toBe(installedTestPath());
+    expect(sameResolvedPath(
+      __resolveFontSpecForTest(resolveFontKey("DoesNotExist", "ar")!)?.path,
+      installedTestPath(),
+    )).toBe(true);
   });
 
   it("falls back to the static route when the probed family is unrecognized", () => {

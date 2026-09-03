@@ -105,6 +105,11 @@ pure adjudicator then requires:
 - matching workflow/run provenance but different role-bound jobs, native boot
   identities, and observation UUIDs (the hosted runner name is retained but is
   not treated as a unique physical-machine identifier);
+- matching stable execution identity (runner image family, architecture,
+  Playwright, Chromium version, and exact Chromium executable digest). Hosted
+  image patch versions and OS point releases remain recorded but may roll
+  between independent jobs; acceptance then still requires byte-authenticated
+  per-role artifacts and exact logical-row agreement;
 - recomputed canonical row, logical-row, and artifact-manifest hashes, with
   proposal/validation logical-row agreement;
 - the complete scenario/DPR/zoom product with no duplicate rows;
@@ -116,7 +121,7 @@ pure adjudicator then requires:
   RTL ownership, corner/resizer order, and rejection of a missing native hash.
 
 There is no common macOS/Linux/Windows color envelope. A reviewed exception
-cannot match after any platform or environment fingerprint changes.
+cannot match after any stable execution-identity change.
 
 ## Workflow and mutation controls
 

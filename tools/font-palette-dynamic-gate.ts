@@ -27,6 +27,7 @@ import {
 import {
   FONT_PALETTE_FIXTURE,
   FONT_PALETTE_SOURCE_PINS,
+  opaquePaletteColorsWithinTolerance,
   readPaletteSourceFacts,
   type PaletteSourceFacts,
 } from "./font-palette-ownership-audit.js";
@@ -153,7 +154,7 @@ export function adjudicateDynamicV0Row(
 ): DynamicV0Row {
   const blockers: string[] = [];
   if (row.computedPalette !== row.expectedComputedPalette) blockers.push("computed-palette");
-  if (JSON.stringify(row.observedOpaqueColors) !== JSON.stringify(row.expectedOpaqueColors)) blockers.push("source-colors");
+  if (!opaquePaletteColorsWithinTolerance(row.observedOpaqueColors, row.expectedOpaqueColors)) blockers.push("source-colors");
   return { ...row, pass: blockers.length === 0, blockers };
 }
 

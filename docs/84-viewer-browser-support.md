@@ -6,7 +6,7 @@ status: "current"
 owners: ["rendering"]
 platforms: ["macos"]
 tickets: ["DM-1507","DM-1511","DM-1512","DM-1514","DM-1517","DM-1529"]
-code: ["examples/output/stress-gallery.html","src/animation/composite.ts","src/post-processing/clip-transform-safety.ts"]
+code: ["src/animation/composite.ts","src/post-processing/clip-transform-safety.ts"]
 aliases: ["docs/84-viewer-browser-support.md","doc-84"]
 ---
 

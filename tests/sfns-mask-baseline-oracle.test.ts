@@ -173,6 +173,18 @@ describe("SFNS mask/baseline oracle integrity", () => {
     validation.observationId = "validation-observation";
     expect(validateSfnsProposalValidation(proposal, validation)).toEqual([]);
 
+    // Each arm independently compiles the same helper source. Mach-O build
+    // UUIDs make the file hashes differ even when every logical outline fact
+    // agrees, so helper lifecycle identity is validated per arm rather than
+    // participating in the cross-arm logical digest.
+    validation.environment.helper = {
+      available: true,
+      path: "/independently-built/helper",
+      sha256: "b".repeat(64),
+    };
+    validation.logicalDigest = sfnsOutlineLogicalDigest(validation);
+    expect(validateSfnsProposalValidation(proposal, validation)).toEqual([]);
+
     validation.observationId = proposal.observationId;
     validation.rows[0].pathCommandCounts.domotion[0] = 7;
     validation.logicalDigest = sfnsOutlineLogicalDigest(validation);

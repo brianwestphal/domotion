@@ -146,8 +146,11 @@ crops, uniform and asymmetric vector borders, mid-scroll ranges, RTL negative
 DPR 2, forced colors/dark preference, non-axis transform failure, and
 the hidden-scrollbar launch negative. The native oracle additionally compares
 each embedded PNG byte-for-byte with the supplied Chromium source crop and the
-final generated-SVG strip pixel-for-pixel at DPR 2, while a vector sentinel
-outside the crop remains vector.
+final generated-SVG strip pixel-for-pixel at DPR 2 outside the captured
+resizer-overlap rectangle. Blink paints that rectangle in the later resizer
+phase, whose independent vector oracle owns it; treating those pixels as still
+owned by the earlier strip would contradict the pinned paint order. A vector
+sentinel outside the crop remains vector.
 
 DM-2537 extends the same live marker/native-source protocol into every
 authenticated readable iframe. Each set now carries the exact Chromium

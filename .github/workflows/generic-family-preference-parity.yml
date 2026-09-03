@@ -61,20 +61,34 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
+      - run: npm run sources:materialize
       - name: Install pinned Chromium, full Chrome, and Linux display dependencies
         if: runner.os == 'Linux'
         run: npx playwright install --with-deps chromium chrome
-      - name: Install pinned Chromium and full Chrome
+      - name: Install pinned Chromium (full Chrome is preinstalled)
         if: runner.os != 'Linux'
-        run: npx playwright install chromium chrome
+        run: npx playwright install chromium
+      - name: Build macOS CoreText helper
+        if: runner.os == 'macOS'
+        run: bash tools/macos-glyph-extractor/build.sh
+      - name: Build Linux fontconfig helper
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev libfontconfig-dev
+          bash tools/linux-glyph-extractor/build.sh
+      - name: Build Windows DirectWrite helper
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: tools/win32-glyph-extractor/build.ps1
       - name: Validate logical ownership and workflow contract
         run: npx vitest run src/capture/generic-font-probe.test.ts src/render/session-generic-overrides.test.ts src/render/captured-generic-family-ownership.test.ts tests/generic-family-preference-oracle.test.ts tests/generic-family-preference-workflow.test.ts
-      - name: Run exact headless/headed/full-Chrome matrix under Xvfb
+      - name: Run explicit hosted headless/headed/full-Chrome matrix under Xvfb
         if: runner.os == 'Linux'
-        run: xvfb-run -a npm run fonts:generic-preferences -- --json generic-family-preference-${{ runner.os }}.json
-      - name: Run exact headless/headed/full-Chrome matrix
+        run: xvfb-run -a npm run fonts:generic-preferences -- --allow-headed-browser --json generic-family-preference-${{ runner.os }}.json
+      - name: Run explicit hosted headless/headed/full-Chrome matrix
         if: runner.os != 'Linux'
-        run: npm run fonts:generic-preferences -- --json generic-family-preference-${{ runner.os }}.json
+        run: npm run fonts:generic-preferences -- --allow-headed-browser --json generic-family-preference-${{ runner.os }}.json
       - name: Upload logical face, preference, source, and environment evidence
         if: always()
         uses: actions/upload-artifact@v4

@@ -394,15 +394,99 @@ export function splitTextSegmentsOnFragmentSpans(
         failureReason: "text segment source node has no Range FragmentItems" };
     }
 
-    const chunksByFragment = new Map<number, typeof mapping.renderedChunks>();
+    const normalizedChunks: typeof mapping.renderedChunks = [];
+    const ownedChunks: Array<{
+      chunk: (typeof mapping.renderedChunks)[number];
+      owner: { fragment: CapturedTextFragmentSourceSpan; sourceFragmentIndex: number };
+    }> = [];
     for (const chunk of mapping.renderedChunks) {
-      const containing = candidates.filter(({ fragment }) => spanContains(fragment.domUtf16Span, chunk.domUtf16Span));
-      const intersecting = candidates.filter(({ fragment }) => spansIntersect(fragment.domUtf16Span, chunk.domUtf16Span));
-      if (containing.length !== 1 || intersecting.length !== 1) {
-        return { segments: null, sourceFragments: finalSources, textSegmentIndexBySourceFragment,
-          failureReason: "a rendered source chunk crosses or ambiguously belongs to FragmentItem spans" };
+      let containing = candidates.filter(({ fragment }) => spanContains(fragment.domUtf16Span, chunk.domUtf16Span));
+      let intersecting = candidates.filter(({ fragment }) => spansIntersect(fragment.domUtf16Span, chunk.domUtf16Span));
+
+      // Range rectangles identify FragmentItem spans by the first prefix and
+      // last suffix that reproduce the full physical rectangle. A leading or
+      // trailing glyph that is wholly inside another glyph's AABB can therefore
+      // leave that rectangle unchanged (the hosted Linux vertical CJK + Latin
+      // case reports [2,8] for the one item that paints mapped source [0,8]).
+      // When this text node has exactly one protocol-backed source fragment and
+      // its role agrees, every painted source chunk has one possible owner.
+      // Extend only that sole owner's source envelope; multi-fragment and
+      // first-letter cases retain the exact intersection checks below.
+      if (containing.length === 0 && candidates.length === 1
+        && segment.verticalWritingMode != null
+        && candidates[0].fragment.cdpQuadIndex != null
+        && candidates[0].fragment.role === mapping.role
+        && spanContains(mapping.domUtf16Span, candidates[0].fragment.domUtf16Span)) {
+        const only = candidates[0].fragment;
+        only.domUtf16Span = [
+          Math.min(only.domUtf16Span[0], chunk.domUtf16Span[0]),
+          Math.max(only.domUtf16Span[1], chunk.domUtf16Span[1]),
+        ];
+        containing = [candidates[0]];
+        intersecting = [candidates[0]];
       }
-      const owner = containing[0];
+      if (containing.length === 1 && intersecting.length === 1) {
+        normalizedChunks.push(chunk);
+        ownedChunks.push({ chunk, owner: containing[0] });
+        continue;
+      }
+
+      // Capture's source mapper intentionally coalesces an unchanged text-node
+      // substring into one chunk. Blink may split that same substring into
+      // adjacent FragmentItems solely because fallback selected another font
+      // run (notably mixed Han/Latin vertical text on Linux). A one-to-one
+      // UTF-16 chunk has an exact inverse, so split it at the authenticated DOM
+      // boundaries. Length-changing text-transform chunks have no such inverse
+      // and continue to fail closed.
+      const renderedLength = chunk.renderedUtf16Span[1] - chunk.renderedUtf16Span[0];
+      const domLength = chunk.domUtf16Span[1] - chunk.domUtf16Span[0];
+      const ordered = [...intersecting].sort((left, right) =>
+        left.fragment.domUtf16Span[0] - right.fragment.domUtf16Span[0]);
+      let cursor = chunk.domUtf16Span[0];
+      const pieces: typeof ownedChunks = [];
+      if (renderedLength === domLength) {
+        for (const owner of ordered) {
+          const start = Math.max(cursor, owner.fragment.domUtf16Span[0]);
+          const end = Math.min(chunk.domUtf16Span[1], owner.fragment.domUtf16Span[1]);
+          if (start !== cursor || end <= start) break;
+          const renderedStart = chunk.renderedUtf16Span[0] + (start - chunk.domUtf16Span[0]);
+          pieces.push({
+            owner,
+            chunk: {
+              renderedUtf16Span: [renderedStart, renderedStart + (end - start)],
+              domUtf16Span: [start, end],
+            },
+          });
+          cursor = end;
+        }
+      }
+      if (cursor !== chunk.domUtf16Span[1] || pieces.length !== intersecting.length) {
+        const evidence = JSON.stringify({
+          chunk: {
+            renderedUtf16Span: chunk.renderedUtf16Span,
+            domUtf16Span: chunk.domUtf16Span,
+          },
+          candidates: candidates.map(({ fragment }) => ({
+            domUtf16Span: fragment.domUtf16Span,
+            physicalFragmentIndex: fragment.physicalFragmentIndex,
+            cdpQuadIndex: fragment.cdpQuadIndex,
+            role: fragment.role,
+          })),
+        });
+        return { segments: null, sourceFragments: finalSources, textSegmentIndexBySourceFragment,
+          failureReason: `a rendered source chunk crosses or ambiguously belongs to FragmentItem spans (${evidence})` };
+      }
+      for (const piece of pieces) {
+        normalizedChunks.push(piece.chunk);
+        ownedChunks.push(piece);
+      }
+    }
+
+    const normalizedSegment: TextSegment = normalizedChunks.length === mapping.renderedChunks.length
+      ? segment
+      : { ...segment, sourceMapping: { ...mapping, renderedChunks: normalizedChunks } };
+    const chunksByFragment = new Map<number, typeof mapping.renderedChunks>();
+    for (const { chunk, owner } of ownedChunks) {
       if (owner.fragment.role !== mapping.role) {
         // The ordinary body duplicate under a styled ::first-letter is
         // intentionally discarded; the dedicated first-letter segment owns it.
@@ -419,14 +503,14 @@ export function splitTextSegmentsOnFragmentSpans(
       left[1][0].renderedUtf16Span[0] - right[1][0].renderedUtf16Span[0])) {
       const renderedStart = chunks[0].renderedUtf16Span[0];
       const renderedEnd = chunks[chunks.length - 1].renderedUtf16Span[1];
-      const selected = mapping.renderedChunks.filter((chunk) =>
+      const selected = normalizedChunks.filter((chunk) =>
         chunk.renderedUtf16Span[0] >= renderedStart && chunk.renderedUtf16Span[1] <= renderedEnd);
       if (selected.length !== chunks.length) {
         return { segments: null, sourceFragments: finalSources, textSegmentIndexBySourceFragment,
           failureReason: "one FragmentItem maps to non-contiguous rendered text" };
       }
-      const source = joinedFragments[sourceFragmentIndex];
-      const sliced = sliceSegment(segment, renderedStart, renderedEnd, source, finalSources[sourceFragmentIndex].role);
+      const source = finalSources[sourceFragmentIndex];
+      const sliced = sliceSegment(normalizedSegment, renderedStart, renderedEnd, source, finalSources[sourceFragmentIndex].role);
       if (sliced.segment == null) {
         return { segments: null, sourceFragments: finalSources, textSegmentIndexBySourceFragment,
           failureReason: sliced.failureReason ?? "text segment could not be split on FragmentItem span" };

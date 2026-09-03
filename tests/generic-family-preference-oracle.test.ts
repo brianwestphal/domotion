@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildPreferenceMutation,
   logicalProbeTargets,
+  selectedLaunchModeIds,
+  settingsPreferenceRequestName,
   type BlinkPreferenceRow,
 } from "../tools/generic-family-preference-oracle.js";
 
@@ -14,6 +16,28 @@ const rows = (): BlinkPreferenceRow[] => logicalProbeTargets().map((target, inde
 }));
 
 describe("DM-2351 generic preference oracle contract", () => {
+  it("defaults local automation to headless modes and requires explicit headed opt-in", () => {
+    expect(selectedLaunchModeIds([])).toEqual([
+      "pinned-headless",
+      "full-chrome-headless",
+    ]);
+    expect(selectedLaunchModeIds(["--allow-headed-browser"])).toEqual([
+      "pinned-headless",
+      "pinned-headed",
+      "full-chrome-headless",
+      "full-chrome-headed",
+    ]);
+    expect(() => selectedLaunchModeIds(["--modes=pinned-headed"]))
+      .toThrow("headed browser modes require --allow-headed-browser");
+  });
+
+  it("uses DirectWrite family names for localized Windows preference mutations", () => {
+    const face = { familyName: "微軟正黑體", postScriptName: "MicrosoftJhengHeiRegular" };
+    expect(settingsPreferenceRequestName("win32", face)).toBe("微軟正黑體");
+    expect(settingsPreferenceRequestName("linux", face)).toBe("微軟正黑體");
+    expect(settingsPreferenceRequestName("darwin", face)).toBe("MicrosoftJhengHeiRegular");
+  });
+
   it("crosses Common and ten settings scripts with system-ui and quoted-literal controls", () => {
     const targets = logicalProbeTargets();
     expect(targets).toHaveLength(99);
@@ -29,6 +53,7 @@ describe("DM-2351 generic preference oracle contract", () => {
   it("derives every mutation from observed faces instead of an OS snapshot table", () => {
     const source = rows();
     const plan = buildPreferenceMutation(source);
+    expect(plan.unavailableScripts).toEqual([]);
     expect(Object.keys(plan.fontFamilies).sort()).toEqual([
       "cursive", "fantasy", "fixed", "math", "sansSerif", "serif", "standard",
     ]);
@@ -56,12 +81,16 @@ describe("DM-2351 generic preference oracle contract", () => {
       .every(([, value]) => value.startsWith("Hebrew"))).toBe(true);
   });
 
-  it("fails closed when a script has no proven non-inert alternate face", () => {
+  it("grades a single-face script's default route without inventing an inert mutation", () => {
     const source = rows();
     for (const row of source.filter((item) => item.script === "DEVANAGARI" && item.generic !== "system-ui" && item.generic !== "quoted-serif")) {
       row.familyName = "Only Devanagari Face";
       row.postScriptName = "OnlyDevanagariFace-Regular";
     }
-    expect(() => buildPreferenceMutation(source)).toThrow(/two distinct faces proven to paint DEVANAGARI/);
+    const plan = buildPreferenceMutation(source);
+    expect(plan.unavailableScripts).toEqual(["DEVANAGARI"]);
+    expect(plan.forScripts.some((entry) => entry.script === "deva")).toBe(false);
+    expect(Object.keys(plan.expectedFaceByTarget)
+      .some((key) => key.startsWith("DEVANAGARI/"))).toBe(false);
   });
 });

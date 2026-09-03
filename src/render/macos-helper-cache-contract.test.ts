@@ -7,6 +7,14 @@ const helperSource = readFileSync(resolve(
 ), "utf8");
 
 describe("macOS helper request-scoped font contract", () => {
+  it("stays inside the Swift 5.9 syntax accepted by the macOS 14 CI runner", () => {
+    // Newer Swift accepts a trailing comma in a call argument list; the Swift
+    // 5.9 compiler selected by macos-14 rejects it as an unexpected separator.
+    // Keep this source-level guard because a successful build on a current
+    // developer Mac cannot detect that compatibility break.
+    expect(helperSource).not.toMatch(/,\s*\)/);
+  });
+
   it("does not read or populate the persistent cache for a request-scoped base", () => {
     expect(helperSource).toContain("if !requestScoped, let cached = fontCache[key]");
     expect(helperSource).toContain("if !requestScoped { fontCache[key] = entry }");

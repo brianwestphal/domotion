@@ -7,6 +7,7 @@ import {
   adjudicateNativePaletteRow,
   classifyPaletteAudit,
   expectedPaletteColors,
+  opaquePaletteColorsWithinTolerance,
   readPaletteSourceFacts,
   type NativePaletteRow,
   type ProductionOrderEvidence,
@@ -75,6 +76,15 @@ describe("DM-2350 font-palette ownership audit", () => {
     if (kind === "rule") input.cssomRule!.name = "--other";
     if (kind === "rule-family") input.cssomRule!.fontFamily = "OtherFace";
     expect(adjudicateNativePaletteRow(input, FONT_PALETTE_CASES.find((row) => row.id === "named-base2")!, 35).pass).toBe(false);
+  });
+
+  it("accepts only one-level native antialias fringes around exact palette colors", () => {
+    const expected = ["255,255,0,255", "255,255,255,255"];
+    expect(opaquePaletteColorsWithinTolerance(
+      [...expected, "255,255,1,255", "255,255,254,255"], expected,
+    )).toBe(true);
+    expect(opaquePaletteColorsWithinTolerance(["255,255,1,255", "255,255,255,255"], expected)).toBe(false);
+    expect(opaquePaletteColorsWithinTolerance([...expected, "255,255,2,255"], expected)).toBe(false);
   });
 
   it("classifies order-dependent first-raster reuse as a confirmed gap", () => {

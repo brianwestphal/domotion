@@ -107,7 +107,7 @@ func systemUICSS(from spec: [String: Any]) -> SystemUICSS {
         weight: (spec["cssWeight"] as? NSNumber)?.doubleValue ?? kNormalWeightValue,
         slant: (spec["cssSlant"] as? NSNumber)?.doubleValue
             ?? (((spec["italic"] as? NSNumber)?.boolValue == true) ? 1.0 : kNormalSlopeValue),
-        width: (spec["cssWidth"] as? NSNumber)?.doubleValue ?? kNormalWidthValue,
+        width: (spec["cssWidth"] as? NSNumber)?.doubleValue ?? kNormalWidthValue
     )
 }
 

@@ -6,7 +6,7 @@ status: "current"
 owners: ["rendering"]
 platforms: []
 tickets: ["DM-1538","DM-1541","DM-1561","DM-1568"]
-code: ["src/templates/formats.ts","tools/scratch/dm1561/"]
+code: ["src/templates/formats.ts"]
 aliases: ["docs/95-adaptive-scaling-clamp-investigation.md","doc-95"]
 ---
 

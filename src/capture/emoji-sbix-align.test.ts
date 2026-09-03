@@ -1,7 +1,7 @@
 // DM-1728: pure pieces of the sbix overlay self-calibration.
 import { describe, expect, it } from "vitest";
 
-import { scanInk } from "./emoji.js";
+import { scanInk, screenshotInkBoundsInCssPixels } from "./emoji.js";
 
 function rgba(w: number, h: number, inked: Array<[number, number]>): Uint8Array {
   const buf = new Uint8Array(w * h * 4);
@@ -32,5 +32,15 @@ describe("scanInk", () => {
     const w = 3, h = 2;
     const buf = new Uint8Array(w * h * 4).fill(255);
     expect(scanInk(buf, w, h)).toEqual({ minX: 0, minY: 0, maxX: 2, maxY: 1 });
+  });
+});
+
+describe("screenshotInkBoundsInCssPixels", () => {
+  it("removes device scale from DPR-2 screenshot coordinates", () => {
+    expect(screenshotInkBoundsInCssPixels(
+      { minX: 8, minY: 10, maxX: 47, maxY: 49 },
+      { width: 60, height: 60 },
+      { x: 304, y: 130, width: 30, height: 30 },
+    )).toEqual({ x: 308, y: 135, width: 20, height: 20, scaleX: 2, scaleY: 2 });
   });
 });

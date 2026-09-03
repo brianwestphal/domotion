@@ -159,6 +159,26 @@ describe("the live session generic-family probe", () => {
     }
   });
 
+  it("keeps one Page preference authority across repeated animation-style captures", async () => {
+    const page = await context!.newPage();
+    await page.setContent("<!doctype html><body><span style='font:32px serif'>frame 0</span></body>");
+    try {
+      const records: unknown[] = [];
+      for (let frame = 0; frame < 4; frame++) {
+        await page.locator("span").evaluate((element, index) => {
+          element.textContent = `frame ${index}`;
+        }, frame);
+        const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 400, height: 120 });
+        records.push(tree[0]?.sessionGenericFamilies);
+        await page.waitForTimeout(25);
+      }
+      expect(records[0]).toBeDefined();
+      expect(records.slice(1)).toEqual([records[0], records[0], records[0]]);
+    } finally {
+      await page.close();
+    }
+  });
+
   it("retains Page authority through JSON and descendant promotion into a render root", async () => {
     const page = await context!.newPage();
     await page.setContent("<!doctype html><body><main><section><span style='font:32px serif'>promoted</span></section></main></body>");

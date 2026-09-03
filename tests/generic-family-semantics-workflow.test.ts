@@ -19,6 +19,9 @@ describe("generic-family semantic ownership workflow", () => {
     expect(workflow).toContain("src/render/cluster-fallback.ts");
     expect(workflow).toContain("src/render/skia-last-resort-routing.test.ts");
     expect(workflow).toContain("src/font-family-stack.ts");
+    expect(workflow).toContain("tools/macos-glyph-extractor/build.sh");
+    expect(workflow).toContain("tools/linux-glyph-extractor/build.sh");
+    expect(workflow).toContain("tools/win32-glyph-extractor/build.ps1");
     expect(workflow).toContain(
       "Gate source enum, platform route, raw terminal questions, terminal owners, and both cache orders",
     );

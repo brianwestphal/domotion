@@ -9,8 +9,9 @@
  * Matrix:
  *   - Playwright's pinned Chromium: headless + headed
  *   - installed full Chrome channel: headless + headed
- *   - each launch shape: observed default + a controlled Page.setFontFamilies
- *     mutation derived from that run's own installed/painted faces
+ *   - each launch shape: observed default + every non-inert controlled
+ *     Page.setFontFamilies mutation supported by that run's own
+ *     installed/painted faces
  *   - Common + ja/ko/zh-Hans/zh-Hant/ru/ar/el settings scripts
  *   - standard/serif/sans-serif/monospace/cursive/fantasy/math
  *   - system-ui as the settings-map separation control and quoted `"serif"`
@@ -33,6 +34,7 @@ import {
 } from "@playwright/test";
 import {
   ensureSessionGenericFamilyOverrides,
+  genericFamilyReplayName,
   genericFamilyProbeTargets,
   type SessionGenericFamilyProbe,
 } from "../src/capture/generic-font-probe.js";
@@ -76,6 +78,8 @@ export interface BlinkPreferenceRow extends LogicalProbeTarget {
 export interface PreferenceMutationPlan {
   fontFamilies: FontFamilies;
   forScripts: ScriptFontFamilies[];
+  /** Scripts whose observed defaults expose no second paint-capable face. */
+  unavailableScripts: string[];
   /** target id -> face identity expected after applying the family request. */
   expectedFaceByTarget: Record<string, string>;
 }
@@ -87,7 +91,11 @@ interface LogicalAgreementRow extends BlinkPreferenceRow {
 
 interface PreferenceStateReport {
   kind: "default" | "mutation";
-  requestedPreferences: { fontFamilies: FontFamilies; forScripts: ScriptFontFamilies[] } | null;
+  requestedPreferences: {
+    fontFamilies: FontFamilies;
+    forScripts: ScriptFontFamilies[];
+    unavailableScripts: string[];
+  } | null;
   observedPreferences: {
     common: Record<string, string>;
     byScript: Record<string, Record<string, string>>;
@@ -195,8 +203,14 @@ const MODES: LaunchMode[] = [
 
 let probeSequence = 0;
 const face = (row: BlinkPreferenceRow): string => row.postScriptName ?? row.familyName;
+export const settingsPreferenceRequestName = (
+  hostPlatform: NodeJS.Platform,
+  row: Pick<BlinkPreferenceRow, "familyName" | "postScriptName">,
+): string => hostPlatform === "darwin" && !/^[\x20-\x7e]+$/.test(row.familyName)
+  ? row.postScriptName || row.familyName
+  : row.familyName;
 const settingsRequestName = (row: BlinkPreferenceRow): string =>
-  /^[\x20-\x7e]+$/.test(row.familyName) ? row.familyName : face(row);
+  settingsPreferenceRequestName(process.platform, row);
 const normFace = (value: string | null | undefined): string => (value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
 const targetKey = (target: Pick<LogicalProbeTarget, "script" | "generic">): string => `${target.script ?? "COMMON"}/${target.generic}`;
 const isSettingsGeneric = (generic: GenericName): generic is SettingsGenericName =>
@@ -304,7 +318,7 @@ function probeMatchesRows(probe: SessionGenericFamilyProbe, rows: BlinkPreferenc
     const observed = row.script == null
       ? probe.common.get(row.generic)
       : probe.byScript.get(row.script)?.get(row.generic);
-    return normFace(observed) === normFace(face(row));
+    return normFace(observed) === normFace(genericFamilyReplayName(process.platform, row));
   });
 }
 
@@ -399,12 +413,24 @@ export function buildPreferenceMutation(defaultRows: BlinkPreferenceRow[]): Pref
     group.push(row);
   }
   const forScripts: ScriptFontFamilies[] = [];
+  const unavailableScripts: string[] = [];
   for (const [script, rows] of scriptGroups) {
     const protocolScript = SCRIPT_PROTOCOL_NAMES[script];
     if (protocolScript == null) throw new Error(`missing protocol script spelling for ${script}`);
     // A Common face may not cover this script's sample and would leave the
     // requested Settings mutation inert after fallback. Only select among
     // faces Blink has just proved can paint this exact script probe.
+    const distinctFaces = new Set(rows.map((row) => normFace(face(row))));
+    // A stock runner can legitimately expose only one face for a script (for
+    // example Devanagari on Windows or Japanese on a minimal Linux image).
+    // Its DEFAULT route is still graded exactly above; what cannot honestly be
+    // claimed is a non-inert preference mutation. Omit that script from the
+    // mutation envelope instead of making the whole four-launch oracle
+    // permanently unavailable for lack of a second installed face.
+    if (distinctFaces.size < 2) {
+      unavailableScripts.push(script);
+      continue;
+    }
     const scriptCandidates = candidatesFor(rows, script);
     const fontFamilies: FontFamilies = {};
     for (const row of rows) {
@@ -418,7 +444,7 @@ export function buildPreferenceMutation(defaultRows: BlinkPreferenceRow[]): Pref
     }
     forScripts.push({ script: protocolScript, fontFamilies });
   }
-  return { fontFamilies: common, forScripts, expectedFaceByTarget };
+  return { fontFamilies: common, forScripts, unavailableScripts, expectedFaceByTarget };
 }
 
 async function collectState(
@@ -466,7 +492,11 @@ async function collectState(
       kind,
       requestedPreferences: mutation == null
         ? null
-        : { fontFamilies: mutation.fontFamilies, forScripts: mutation.forScripts },
+        : {
+            fontFamilies: mutation.fontFamilies,
+            forScripts: mutation.forScripts,
+            unavailableScripts: mutation.unavailableScripts,
+          },
       observedPreferences: observedPreferences(productionProbe),
       productionProbeMatchesIndependentRows: productionMatches,
       productionProbeLeftPriorGlobalUntouched: globalUntouched,
@@ -561,9 +591,10 @@ async function runMode(mode: LaunchMode): Promise<ModeReport> {
       platform: globalThis.navigator.platform,
     }));
     await Promise.all([defaultCdp.detach(), mutationCdp.detach()]);
+    const mutationTargetCount = Object.keys(mutation.expectedFaceByTarget).length;
     const pass = defaultState.report.pass
       && mutationState.report.pass
-      && mutatedGenericRows === genericKeys.length
+      && mutatedGenericRows === mutationTargetCount
       && systemUiNegativeControlStable
       && quotedLiteralControlExact
       && legacyProcessGlobalContaminatedRows > 0
@@ -625,12 +656,23 @@ function fontInventory(): GenericFamilyPreferenceReport["environment"]["fontInve
 
 function selectedModes(args: string[]): LaunchMode[] {
   const value = args.find((arg) => arg.startsWith("--modes="))?.slice("--modes=".length);
-  if (value == null || value === "") return MODES;
+  const allowHeaded = args.includes("--allow-headed-browser");
+  if (value == null || value === "") return allowHeaded ? MODES : MODES.filter((mode) => mode.headless);
   const ids = new Set(value.split(","));
   const selected = MODES.filter((mode) => ids.has(mode.id));
   const unknown = [...ids].filter((id) => !MODES.some((mode) => mode.id === id));
   if (unknown.length > 0) throw new Error(`unknown modes: ${unknown.join(", ")}`);
+  const headed = selected.filter((mode) => !mode.headless);
+  if (headed.length > 0 && !allowHeaded) {
+    throw new Error(
+      `headed browser modes require --allow-headed-browser: ${headed.map((mode) => mode.id).join(", ")}`,
+    );
+  }
   return selected;
+}
+
+export function selectedLaunchModeIds(args: string[]): LaunchMode["id"][] {
+  return selectedModes(args).map((mode) => mode.id);
 }
 
 export async function runGenericFamilyPreferenceOracle(

@@ -57,6 +57,7 @@ describe("square mixed dashed/dotted border joints (DM-2429)", () => {
     expect(line).toContain('x1="13" y1="77" x2="107" y2="77"');
     expect(line).toContain('stroke-width="6"');
     expect(line).toContain('stroke-linecap="round"');
+    expect(line).not.toContain('stroke-dashoffset');
     expect(line).toContain('clip-path="url(#');
   });
 

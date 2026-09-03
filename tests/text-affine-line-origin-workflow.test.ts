@@ -15,6 +15,10 @@ describe("DM-2547 structured affine text line-origin workflow", () => {
   });
 
   it("runs and retains the pinned-source logical report", () => {
+    expect(workflow).toContain("npm run sources:materialize");
+    expect(workflow).toContain("tools/macos-glyph-extractor/build.sh");
+    expect(workflow).toContain("tools/linux-glyph-extractor/build.sh");
+    expect(workflow).toContain("tools/win32-glyph-extractor/build.ps1");
     expect(workflow).toContain("npm run transform:text-baseline-protocol -- --json tests/output/text-affine-line-origin-${{ runner.os }}.json");
     expect(workflow).toContain("tests/output/text-affine-line-origin-${{ runner.os }}.json");
     expect(workflow).toContain("tools/text-affine-baseline-protocol-oracle.ts");

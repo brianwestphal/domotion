@@ -388,9 +388,13 @@ script-keyed STANDARD family, matching Blink's `kFontFamily` iteration.
 > ahead of that platform ask.
 > `matchFamilyNameToKey` prefers the exact
 > probed script answer over the static `forScripts` transcription, then uses
-> the probed Common answer ahead of calibrated static routes. CDP PostScript
-> identity is preserved so a settings-selected face is not rematched to a
-> different curated family cut. `DOMOTION_GENERIC_PROBE=0` explicitly selects
+> the probed Common answer ahead of calibrated static routes. The replay name
+> follows the native matcher rather than assuming CDP's painted PostScript
+> identifier is a valid family query: CoreText retains the exact PostScript
+> member (including protected dot-prefixed faces), while fontconfig and
+> DirectWrite receive CDP's family display name. This keeps a Windows `ArialMT`
+> observation replayable as the `Arial` family instead of falling through to a
+> static generic route. `DOMOTION_GENERIC_PROBE=0` explicitly selects
 > the degraded static path; probe failure or a legacy tree otherwise falls back
 > safely. The source verdict and four-launch, three-platform logical gate are
 > in [doc 198](198-live-generic-family-preference-parity.md).

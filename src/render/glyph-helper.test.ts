@@ -13,6 +13,7 @@ import {
   measureOutlineOffsetY,
   OFFSET_PROBE_GLYPHS,
   resolveSystemFallbackFonts, __helperMetaForTest } from "./glyph-helper.js";
+import { __helperInvocationForTest } from "./glyph-helper-transport.js";
 
 describe("glyph-helper font-open envelope", () => {
   it("never asks CoreText to reopen a dot-prefixed Apple face by name", () => {
@@ -127,6 +128,16 @@ describe("platform-aware helper resolution", () => {
   it("returns no binary for a platform without a helper", () => {
     expect(__helperBinaryForPlatform("aix")).toBeUndefined();
     expect(__helperBinaryForPlatform("freebsd")).toBeUndefined();
+  });
+
+  it("runs JavaScript protocol adapters through Node on every platform", () => {
+    expect(__helperInvocationForTest("C:\\repo\\font-env-cassette.mjs", ["--serve"]))
+      .toEqual({
+        command: process.execPath,
+        args: ["C:\\repo\\font-env-cassette.mjs", "--serve"],
+      });
+    expect(__helperInvocationForTest("C:\\repo\\domotion-glyph-paths.exe"))
+      .toEqual({ command: "C:\\repo\\domotion-glyph-paths.exe", args: [] });
   });
 
   it("honors DOMOTION_HELPER_PATH as an override on any platform", () => {

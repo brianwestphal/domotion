@@ -168,9 +168,14 @@ function mirrorBidiBrackets(text: string, direction: "ltr" | "rtl"): string {
   return output;
 }
 
-function textOptions(record: CapturedPseudoFragmentSet, targetWidth?: number, visualOrder = false) {
+function textOptions(
+  record: CapturedPseudoFragmentSet,
+  targetWidth?: number,
+  visualOrder = false,
+): Parameters<typeof renderTextAsPath>[3] {
   const typography = record.typography;
   const unicodeBidi = record.paint.unicodeBidi;
+  const variantEmoji = typography.fontVariantEmoji;
   return {
     fontSize: typography.paintFontSize,
     fontFamily: capturedFontFamilyCss(typography.fontFamily, typography.fontFamilyStack),
@@ -184,6 +189,8 @@ function textOptions(record: CapturedPseudoFragmentSet, targetWidth?: number, vi
     features: fontFeatures(record),
     lang: typography.language,
     variationSettings: parseFontVariationSettings(typography.fontVariationSettings),
+    fontVariantEmoji: variantEmoji === "text" || variantEmoji === "emoji" || variantEmoji === "unicode"
+      ? variantEmoji : undefined,
     bidiOverride: visualOrder
       ? { direction: "ltr" as const, unicodeBidi: "bidi-override" }
       : { direction: record.direction, unicodeBidi },
@@ -540,10 +547,15 @@ export function renderPseudoFragmentRecord(
   }
   const vectorStart = pieces.length;
   pieces.push(...record.boxFragments.map((box, index) => renderBox(record, box, matrices[index], options)));
+  const bitmapText = record.bitmapTextRaster;
+  if (bitmapText?.dataUri != null && finiteRect(bitmapText.rect)) {
+    pieces.push(`<g data-domotion-pseudo-text-owner="${bitmapText.source}"><image href="${esc(bitmapText.dataUri)}" x="${r(bitmapText.rect.x)}" y="${r(bitmapText.rect.y)}" width="${r(bitmapText.rect.width)}" height="${r(bitmapText.rect.height)}" preserveAspectRatio="none"/></g>`);
+  }
   const fragments = [...record.fragments].sort((a, b) => a.visualOrder - b.visualOrder);
   for (const fragment of fragments) {
     const boxMatrix = matrices[fragment.boxFragmentIndex];
     if (fragment.kind === "text") {
+      if (bitmapText?.dataUri != null) continue;
       pieces.push(renderTextFragment(record, fragment, boxMatrix));
       continue;
     }

@@ -62,9 +62,9 @@ jobs:
           npx playwright install --with-deps chromium chrome
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev libfontconfig-dev
-      - name: Install pinned Chromium and full Chrome
+      - name: Install pinned Chromium (full Chrome is preinstalled)
         if: runner.os != 'Linux'
-        run: npx playwright install chromium chrome
+        run: npx playwright install chromium
       - name: Build macOS CoreText helper
         if: runner.os == 'macOS'
         run: bash tools/macos-glyph-extractor/build.sh
@@ -77,15 +77,15 @@ jobs:
         run: tools/win32-glyph-extractor/build.ps1
       - name: Validate exact logical contract and preference invalidation
         run: npx vitest run src/render/font-resolution-cache-reset.test.ts tests/system-ui-preference-route-oracle.test.ts tests/system-ui-preference-route-workflow.test.ts
-      - name: Run pinned/full headed/headless route matrix under Xvfb
+      - name: Run explicit hosted pinned/full headed/headless route matrix under Xvfb
         if: runner.os == 'Linux'
-        run: xvfb-run -a npm run fonts:system-ui-preferences -- --json system-ui-preference-route-${{ runner.os }}.json
-      - name: Run pinned/full headed/headless route matrix
+        run: xvfb-run -a npm run fonts:system-ui-preferences -- --allow-headed-browser --json system-ui-preference-route-${{ runner.os }}.json
+      - name: Run explicit hosted pinned/full headed/headless route matrix
         if: runner.os == 'macOS'
-        run: npm run fonts:system-ui-preferences -- --json system-ui-preference-route-${{ runner.os }}.json
+        run: npm run fonts:system-ui-preferences -- --allow-headed-browser --json system-ui-preference-route-${{ runner.os }}.json
       - name: Run Windows menu-font mutation matrix with guaranteed restoration
         if: runner.os == 'Windows'
-        run: npm run fonts:system-ui-preferences -- --allow-system-preference-mutation --json system-ui-preference-route-${{ runner.os }}.json
+        run: npm run fonts:system-ui-preferences -- --allow-headed-browser --allow-system-preference-mutation --json system-ui-preference-route-${{ runner.os }}.json
       - name: Upload logical face, preference, source, and inventory evidence
         if: always()
         uses: actions/upload-artifact@v4

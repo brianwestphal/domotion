@@ -9,6 +9,7 @@ describe("DM-2507 native arm64 source-priority workflow", () => {
     expect(workflow).toContain("runs-on: ubuntu-22.04-arm");
     expect(workflow).toContain("mcr.microsoft.com/playwright:v1.59.1-noble");
     expect(workflow).toContain("tools/linux-arm64-release-evidence.ts acquire");
+    expect(workflow).toContain("--glyph-version 0.24.0");
     expect(workflow).toContain("src/render/emoji-presentation-priority.ts");
     expect(workflow).toContain("src/render/emoji-presentation-priority.test.ts");
     expect(workflow).toContain("Validate source-priority intersection and exact arm64 face ownership");

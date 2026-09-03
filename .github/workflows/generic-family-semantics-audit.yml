@@ -6,6 +6,7 @@ on:
       - "src/font-family-stack.ts"
       - "src/render/cluster-fallback.ts"
       - "src/render/font-resolution.ts"
+      - "src/render/glyph-helper-transport.ts"
       - "src/render/skia-last-resort-routing.test.ts"
       - "src/render/win-font-fallback.ts"
       - "tools/generic-family-semantics-audit.ts"
@@ -23,6 +24,7 @@ on:
       - "src/font-family-stack.ts"
       - "src/render/cluster-fallback.ts"
       - "src/render/font-resolution.ts"
+      - "src/render/glyph-helper-transport.ts"
       - "src/render/skia-last-resort-routing.test.ts"
       - "src/render/win-font-fallback.ts"
       - "tools/generic-family-semantics-audit.ts"
@@ -69,6 +71,19 @@ jobs:
       - name: Install pinned Chromium
         if: runner.os != 'Linux'
         run: npx playwright install chromium
+      - name: Build macOS CoreText helper
+        if: runner.os == 'macOS'
+        run: bash tools/macos-glyph-extractor/build.sh
+      - name: Build Linux fontconfig helper
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev libfontconfig-dev
+          bash tools/linux-glyph-extractor/build.sh
+      - name: Build Windows DirectWrite helper
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: tools/win32-glyph-extractor/build.ps1
       - name: Validate logical adjudicator and workflow contract
         run: npx vitest run src/render/skia-last-resort-routing.test.ts tests/generic-family-semantics-audit.test.ts tests/generic-family-semantics-workflow.test.ts
       - name: Gate source enum, platform route, raw terminal questions, terminal owners, and both cache orders

@@ -236,7 +236,7 @@ export function buildCapturedTextPaintGeometry(
       textSegmentIndex,
       sourceTextNodeIndex: item.node.sourceTextNodeIndex,
       sourceFragmentIndex: item.sourceFragmentIndex,
-      domUtf16Span: [...item.sourceFragment.domUtf16Span],
+      domUtf16Span: [...split.sourceFragments[item.sourceFragmentIndex].domUtf16Span],
       physicalFragmentIndex: item.physicalFragmentIndex,
       neutralQuad: item.neutralQuad,
       paintQuad: item.paintQuad,

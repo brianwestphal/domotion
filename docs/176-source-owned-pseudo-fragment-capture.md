@@ -82,6 +82,17 @@ pinned `TextFragmentPainter`/`LineRelativeRect` transforms:
 
 No line-height/font-size fit or host baseline participates in that decision.
 
+Exact text-only records additionally classify the selected glyph
+representation through the same resolved-family fallback walk used by normal
+text. If any grapheme selects bitmap/color paint (`sbix`, `CBDT`, `COLR`, or
+OpenType SVG), capture records computed `font-variant-emoji` and takes one
+temporary text-only Chromium surface with pseudo background, border, shadow,
+filter, and opacity neutralized. The source-owned fragment record continues to
+own geometry and stacking; the narrow raster exists only so a consumer browser
+cannot drop a selected bitmap glyph that has no portable outline. Mixed
+text/image content remains on the ordered content-item route and is not folded
+into this text-only surface.
+
 ## Failure ownership
 
 An unavailable CDP session, uncorrelatable pseudo identity, invalid protocol

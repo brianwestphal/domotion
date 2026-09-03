@@ -94,7 +94,26 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
-      - run: npx playwright install chromium
+      - run: npm run sources:materialize
+      - name: Install Chromium and Linux native dependencies
+        if: runner.os == 'Linux'
+        run: |
+          npx playwright install --with-deps chromium
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential cmake pkg-config libfreetype-dev libfontconfig-dev
+      - name: Install Chromium
+        if: runner.os != 'Linux'
+        run: npx playwright install chromium
+      - name: Build macOS CoreText helper
+        if: runner.os == 'macOS'
+        run: bash tools/macos-glyph-extractor/build.sh
+      - name: Build Linux fontconfig helper
+        if: runner.os == 'Linux'
+        run: bash tools/linux-glyph-extractor/build.sh
+      - name: Build Windows DirectWrite helper
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: tools/win32-glyph-extractor/build.ps1
       - name: Validate hard-gate corpus and tolerances
         run: npx vitest run tests/text-transform-parity-gate.test.ts
       - name: Prove pinned-source line-origin semantics
@@ -102,7 +121,7 @@ jobs:
       - name: Prove exact FragmentItem UTF-16 and shaped-run ownership
         run: npm run transform:text-fragment-spans -- --json tests/output/text-fragment-spans-${{ runner.os }}.json
       - name: Run exact fragment and final-ink legs
-        run: npm run transform:text-parity-gate -- --dpr 1,2 --json tests/output/text-transform-parity-${{ runner.os }}.json
+        run: npm run transform:text-parity-gate -- --dpr 1,2 --json tests/output/text-transform-parity-${{ runner.os }}.json --artifact-dir tests/output/text-transform-parity-${{ runner.os }}-artifacts
       - name: Upload fingerprinted report
         if: always()
         uses: actions/upload-artifact@v4
@@ -110,6 +129,7 @@ jobs:
           name: transformed-text-${{ runner.os }}
           path: |
             tests/output/text-transform-parity-${{ runner.os }}.json
+            tests/output/text-transform-parity-${{ runner.os }}-artifacts/
             tests/output/text-affine-line-origin-${{ runner.os }}.json
             tests/output/text-fragment-spans-${{ runner.os }}.json
           if-no-files-found: error

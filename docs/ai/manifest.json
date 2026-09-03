@@ -33,8 +33,6 @@
         "tests/features.ts",
         "tests/html-test-suite.tsx",
         "tests/linux-target-strike-small-caps.e2e.test.ts",
-        "tests/output/html-test/index.html",
-        "tests/output/html-test/results.json",
         "tests/textarea-line-baseline.e2e.test.ts",
         "tools/linux-terminal-mask-oracle.ts"
       ],
@@ -655,7 +653,6 @@
       ],
       "platforms": [],
       "code": [
-        "tests/output/real-world/results.json",
         "tests/real-world.tsx"
       ],
       "file": "34-scroll-mode-per-chunk-diff.md"
@@ -972,9 +969,9 @@
         "src/render/glyph-helper.test.ts",
         "src/render/glyph-helper.ts",
         "src/render/helper-acquire.ts",
-        "tools/linux-glyph-extractor/domotion-glyph-paths",
-        "tools/macos-glyph-extractor/domotion-glyph-paths",
-        "tools/win32-glyph-extractor/domotion-glyph-paths.exe"
+        "tools/linux-glyph-extractor/",
+        "tools/macos-glyph-extractor/",
+        "tools/win32-glyph-extractor/"
       ],
       "file": "49-glyph-helper-dispatch.md"
     },
@@ -1526,8 +1523,7 @@
         "src/cli/composite-font-dedup.e2e.test.ts",
         "src/cli/composite.ts",
         "src/render/device-chrome.ts",
-        "src/templates/builtin/device-mockup.ts",
-        "tools/scratch/"
+        "src/templates/builtin/device-mockup.ts"
       ],
       "file": "77-nested-animated-compositing.md"
     },
@@ -1674,7 +1670,6 @@
         "macos"
       ],
       "code": [
-        "examples/output/stress-gallery.html",
         "src/animation/composite.ts",
         "src/post-processing/clip-transform-safety.ts"
       ],
@@ -1887,8 +1882,7 @@
       ],
       "platforms": [],
       "code": [
-        "src/templates/formats.ts",
-        "tools/scratch/dm1561/"
+        "src/templates/formats.ts"
       ],
       "file": "95-adaptive-scaling-clamp-investigation.md"
     },
@@ -1953,7 +1947,6 @@
         "src/review/glyph-compare.e2e.test.ts",
         "src/review/glyph-compare.test.ts",
         "src/review/glyph-compare.ts",
-        "tests/output/glyph-compare-calibration/results.json",
         "tools/glyph-compare-calibrate.ts"
       ],
       "file": "98-glyph-font-compare.md"
@@ -2200,7 +2193,6 @@
         "tests/font-conformance-synthetic-stacks.test.ts",
         "tests/font-conformance.test.ts",
         "tests/harvested-corpus-identity.test.ts",
-        "tests/output/font-conformance",
         "tests/variable-axis-fixture.test.ts",
         "tests/variable-axis-oracle-pair.e2e.test.ts",
         "tools/build-variable-axis-fixture.mjs",
@@ -2209,7 +2201,6 @@
         "tools/font-conformance-allowlist.json",
         "tools/font-conformance-rotation.mjs",
         "tools/font-conformance-stacks.darwin.json",
-        "tools/font-conformance-stacks.synthetic.json",
         "tools/font-conformance-synthetic-stacks.ts",
         "tools/font-conformance.ts",
         "tools/font-inventory.mjs",
@@ -2357,9 +2348,7 @@
         "src/render/skia-last-resort-routing.test.ts",
         "src/render/text-to-path.ts",
         "tests/features.ts",
-        "tests/output/cluster-conformance/",
-        "tools/cluster-conformance.ts",
-        "tools/scratch/"
+        "tools/cluster-conformance.ts"
       ],
       "file": "113-cluster-granularity-fallback.md"
     },
@@ -3592,8 +3581,10 @@
       ],
       "code": [
         "src/capture/text-line-origin.test.ts",
+        "src/render/element-tree-to-svg.ts",
         "src/render/text-affine.test.ts",
         "src/render/text-affine.ts",
+        "src/render/text-stroke-synthesis.test.ts",
         "tests/text-affine-render.e2e.test.ts",
         "tools/text-affine-baseline-protocol-oracle.ts"
       ],
@@ -3729,7 +3720,6 @@
         "tests/composed-parity-corpus.e2e.test.ts",
         "tests/composed-parity-fixtures.ts",
         "tests/fixtures/html-test/36-composed-metamorphic-parity.html",
-        "tests/output/composed-parity-results.json",
         "tools/html-test-parity-corpus.json"
       ],
       "file": "183-composed-metamorphic-parity-corpus.md"
@@ -3979,6 +3969,8 @@
       ],
       "code": [
         ".github/workflows/generic-family-preference-parity.yml",
+        "src/capture/generic-font-probe.ts",
+        "src/capture/generic-font-probe.test.ts",
         "src/render/synchronous-scope.ts",
         "src/render/synchronous-scope.test.ts"
       ],
