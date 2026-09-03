@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtkv4b2m1ku24bam",
+          "message": {
+            "text": "The browser launch is deliberately lazy and remains explicitly headless: an empty DPR list exercises only the source-pinned Chromium-roll discriminator and now records a not-launched producer marker, while the first real DPR still launches Chromium before any capture work. This changes no color-space model or non-empty evidence path; the pinned Blink FilterEffectBuilder transition behavior remains the authority.",
+            "markdown": "The browser launch is deliberately lazy and remains explicitly headless: an empty DPR list exercises only the source-pinned Chromium-roll discriminator and now records a not-launched producer marker, while the first real DPR still launches Chromium before any capture work. This changes no color-space model or non-empty evidence path; the pinned Blink FilterEffectBuilder transition behavior remains the authority."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/mixed-reference-color-space-oracle.ts"
+                },
+                "region": {
+                  "startLine": 483,
+                  "endLine": 498,
+                  "snippet": {
+                    "text": "  let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;\n  let chromiumVersion = MIXED_COLOR_SPACE_NO_BROWSER_VERSION;\n  const rows: MixedColorSpaceProbeRow[] = [];\n  const mutationRows: MixedColorSpaceMutationRow[] = [];\n  const boundaries: MixedColorSpaceBoundaryRow[] = [];\n  const warnings: string[] = [];\n  const structuralErrors: string[] = [];\n  const computedFilterLists: Record<string, string> = {};\n  let boundaryCaptured = false;\n\n  try {\n    for (const dpr of dprs) {\n      if (browser == null) {\n        browser = await chromium.launch({ headless: true });\n        chromiumVersion = browser.version();\n      }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/mixed-reference-color-space-oracle.test.ts"
+                },
+                "region": {
+                  "startLine": 30
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "external/chromium/third_party/blink/renderer/core/paint/filter_effect_builder.cc"
+                },
+                "region": {
+                  "startLine": 496
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2666"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "a4c6308b1278863f6cce95124afaa4cc"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "8ad53685f5a14dd98f00913ef676ac4d43e74a54",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

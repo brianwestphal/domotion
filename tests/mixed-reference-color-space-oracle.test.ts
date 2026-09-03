@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { MUTATION_MIN_CHANNEL_DISTANCE, STAGE_CHANNEL_TOLERANCE } from "../tools/blend-filter-pixel-stage-oracle.js";
 import {
   MIXED_CHANNEL_TRANSFER_FACTS,
+  MIXED_COLOR_SPACE_NO_BROWSER_VERSION,
   MIXED_COLOR_SPACE_SOURCE_PINS,
   MIXED_SOURCE,
   linearChannelToSrgb,
@@ -32,6 +33,7 @@ describe("DM-2535 pinned mixed reference color-space stages", () => {
     try {
       const { runMixedReferenceColorSpaceOracle } = await import("../tools/mixed-reference-color-space-oracle.js");
       const report = await runMixedReferenceColorSpaceOracle([]);
+      expect(report.producer.chromiumVersion).toBe(MIXED_COLOR_SPACE_NO_BROWSER_VERSION);
       expect(report.chromiumRollDiscriminator.pass).toBe(false);
       expect(report.structuralErrors).toContain("chromium-roll:future-unreviewed-revision");
       expect(report.verdict).toBe("unexpected-drift");

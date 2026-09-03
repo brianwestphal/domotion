@@ -37,6 +37,7 @@ export const MIXED_COLOR_SPACE_SOURCE_PINS = {
 
 export const MIXED_COLOR_SPACE_WIDTH = 760;
 export const MIXED_COLOR_SPACE_HEIGHT = 340;
+export const MIXED_COLOR_SPACE_NO_BROWSER_VERSION = "not-launched:no-dpr";
 
 export const MIXED_SOURCE: Rgba = {
   r: 52 / 255,
@@ -479,8 +480,8 @@ export async function runMixedReferenceColorSpaceOracle(
 ): Promise<MixedReferenceColorSpaceReport> {
   const fixture = mixedReferenceColorSpaceFixtureHtml();
   const expected = expectedPixels();
-  const browser = await chromium.launch({ headless: true });
-  const chromiumVersion = browser.version();
+  let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
+  let chromiumVersion = MIXED_COLOR_SPACE_NO_BROWSER_VERSION;
   const rows: MixedColorSpaceProbeRow[] = [];
   const mutationRows: MixedColorSpaceMutationRow[] = [];
   const boundaries: MixedColorSpaceBoundaryRow[] = [];
@@ -491,6 +492,10 @@ export async function runMixedReferenceColorSpaceOracle(
 
   try {
     for (const dpr of dprs) {
+      if (browser == null) {
+        browser = await chromium.launch({ headless: true });
+        chromiumVersion = browser.version();
+      }
       const context = await browser.newContext({
         viewport: { width: MIXED_COLOR_SPACE_WIDTH, height: MIXED_COLOR_SPACE_HEIGHT },
         deviceScaleFactor: dpr,
@@ -646,7 +651,7 @@ export async function runMixedReferenceColorSpaceOracle(
       await context.close();
     }
   } finally {
-    await browser.close();
+    await browser?.close();
   }
 
   const pinnedTerminal = tracePinnedMixedPipeline().at(-1)!.straight;
