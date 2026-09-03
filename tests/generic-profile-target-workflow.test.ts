@@ -11,6 +11,7 @@ describe("generic profile/target workflow", () => {
     expect(workflow).toContain("Get-WindowsCapability -Online");
     expect(workflow).toContain("Language.Fonts.Deva*");
     expect(workflow).toContain("Add-WindowsCapability -Online -Name $capability.Name");
+    expect(workflow).toContain("timeout-minutes: 30");
     // GitHub's native runner images already provide the system Chrome channel.
     // Reinstalling it deletes that known-good copy before making a network
     // download, which can turn transient CDN corruption into a red oracle.

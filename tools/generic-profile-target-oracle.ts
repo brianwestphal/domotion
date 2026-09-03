@@ -67,6 +67,15 @@ export interface SystemUiFaceRow {
   isCustomFont: boolean;
 }
 
+export interface MutationCandidateFaceRow {
+  script: Script;
+  requestedFamily: string;
+  familyName: string;
+  postScriptName: string | null;
+  glyphCount: number;
+  isCustomFont: boolean;
+}
+
 export interface PlaywrightOverlayField {
   script: Script;
   generic: Generic;
@@ -218,6 +227,7 @@ export interface GenericProfileTargetReport {
   };
   requestedProfile: ProfileFonts;
   mutation: MutationReport;
+  mutationCandidates: MutationCandidateFaceRow[];
   clean: { headed: ProfileFaceRow[]; headless: ProfileFaceRow[] };
   playwrightOverlay: PlaywrightOverlayMask;
   profileOrders: ProfileOrderReport[];
@@ -415,6 +425,59 @@ async function readRows(owner: Page | Frame, cdp: CDPSession): Promise<ProfileFa
   }
 }
 
+const WINDOWS_DEVANAGARI_CANDIDATES = [
+  "Aparajita",
+  "Kokila",
+  "Mangal",
+  "Sanskrit Text",
+  "Utsaah",
+] as const;
+
+/**
+ * Authenticate installed candidates through the same painted-face CDP signal
+ * as the generic rows. Windows maps every clean Devanagari generic to Nirmala
+ * UI even after the supplemental font capability is installed, so the clean
+ * generic rows alone cannot name a non-inert mutation. An explicit-family
+ * probe proves which supplemental faces are actually available; missing names
+ * simply paint as Nirmala and disappear during face-identity deduplication.
+ */
+async function readMutationCandidateRows(owner: Page | Frame, cdp: CDPSession): Promise<MutationCandidateFaceRow[]> {
+  const requested = platform() === "win32"
+    ? WINDOWS_DEVANAGARI_CANDIDATES.map((requestedFamily) => ({ script: "Deva" as const, requestedFamily }))
+    : [];
+  if (requested.length === 0) return [];
+  const id = `__domotion_mutation_candidates_${++probeSequence}`;
+  await owner.evaluate(({ id: rootId, rows }) => {
+    const root = document.createElement("div");
+    root.id = rootId;
+    root.style.cssText = "all:initial;position:absolute;left:0;top:0;display:block;pointer-events:none";
+    for (const [index, row] of rows.entries()) {
+      const span = document.createElement("span");
+      span.id = `${rootId}_${index}`;
+      span.lang = "hi";
+      span.style.cssText = "all:initial;display:block;font-size:32px;line-height:normal";
+      span.style.fontFamily = row.requestedFamily;
+      span.style.setProperty("-webkit-locale", '"hi"');
+      span.textContent = "अ";
+      root.appendChild(span);
+    }
+    document.documentElement.appendChild(root);
+  }, { id, rows: requested });
+  await paintBarrier(owner);
+  try {
+    const { root } = await cdp.send("DOM.getDocument", { depth: -1, pierce: true });
+    const rows: MutationCandidateFaceRow[] = [];
+    for (const [index, request] of requested.entries()) {
+      const found = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector: `#${id}_${index}` });
+      if (found.nodeId === 0) throw new Error(`lost mutation candidate probe ${request.script}/${request.requestedFamily}`);
+      rows.push({ ...request, ...await readFace(cdp, found.nodeId) });
+    }
+    return rows;
+  } finally {
+    await owner.evaluate((probeId) => document.getElementById(probeId)?.remove(), id).catch(() => undefined);
+  }
+}
+
 async function readSystemUiRows(owner: Page | Frame, cdp: CDPSession): Promise<SystemUiFaceRow[]> {
   const id = `__domotion_system_ui_${++probeSequence}`;
   await owner.evaluate(({ id: rootId, scripts }) => {
@@ -530,15 +593,25 @@ function validateRows(rows: ProfileFaceRow[], label: string): void {
   }
 }
 
-export function deriveNonInertProfile(rows: ProfileFaceRow[]): { profile: ProfileFonts; mutation: MutationReport } {
+export function deriveNonInertProfile(
+  rows: ProfileFaceRow[],
+  mutationCandidates: readonly MutationCandidateFaceRow[] = [],
+): { profile: ProfileFonts; mutation: MutationReport } {
   validateRows(rows, "mutation baseline");
   const profile = Object.fromEntries(GENERICS.map((generic) => [generic, {}])) as ProfileFonts;
   const fields: MutationField[] = [];
   const distinctRequestedFamiliesByScript = {} as Record<Script, number>;
   for (const script of SCRIPTS) {
     const scriptRows = rows.filter((row) => row.script === script);
-    const candidates = scriptRows.filter((row, index) =>
-      scriptRows.findIndex((other) => norm(face(other)) === norm(face(row))) === index);
+    const candidateRows = [
+      ...scriptRows,
+      ...mutationCandidates.filter((row) => row.script === script).map((row) => ({
+        ...row,
+        generic: scriptRows[0].generic,
+      })),
+    ];
+    const candidates = candidateRows.filter((row, index) =>
+      candidateRows.findIndex((other) => norm(face(other)) === norm(face(row))) === index);
     if (candidates.length < 2) throw new Error(`non-inert mutation needs two painted ${script} families`);
     for (const [index, generic] of GENERICS.entries()) {
       const before = scriptRows.find((row) => row.generic === generic)!;
@@ -766,6 +839,7 @@ function unavailableReport(errors: string[], sources: PlaywrightSources | null, 
     },
     requestedProfile: emptyProfile(),
     mutation: { fields: [], requiredFieldCount: REQUIRED_FIELDS, nonInertFieldCount: 0, distinctRequestedFamiliesByScript: { Zyyy: 0, Jpan: 0, Deva: 0 }, pass: false },
+    mutationCandidates: [],
     clean: { headed: [], headless: [] },
     playwrightOverlay: overlay ?? { platformKey: sourcePlatformKey(platform()), fields: [], sourceFieldCount: 0 },
     profileOrders: [],
@@ -800,12 +874,13 @@ export async function runGenericProfileTargetOracle(
     await closeCollected(cleanHeaded, opened);
     const cleanHeadless = await collectPersistent(dirs[1], true, "clean-headless", binary, opened);
     launches.push(cleanHeadless.authentication);
+    const mutationCandidates = await readMutationCandidateRows(cleanHeadless.page, cleanHeadless.cdp);
     await closeCollected(cleanHeadless, opened);
 
     // The explicitly created headless target carries Playwright's exact
     // source table. Its painted families are therefore known-good mutation
     // names for both CDP and the same installed full-Chrome profile route.
-    const derived = deriveNonInertProfile(cleanHeadless.rows);
+    const derived = deriveNonInertProfile(cleanHeadless.rows, mutationCandidates);
     const profileOrders: ProfileOrderReport[] = [];
     for (const [index, id] of (["headed-headless", "headless-headed"] as const).entries()) {
       const dir = dirs[index + 2];
@@ -868,6 +943,7 @@ export async function runGenericProfileTargetOracle(
       },
       requestedProfile: derived.profile,
       mutation: derived.mutation,
+      mutationCandidates,
       clean: { headed: cleanHeaded.rows, headless: cleanHeadless.rows },
       playwrightOverlay: overlay,
       profileOrders,

@@ -84,4 +84,36 @@ describe("authenticated generic profile/target adjudication", () => {
     expect(Object.values(derived.mutation.distinctRequestedFamiliesByScript).every((count) => count >= 2)).toBe(true);
     expect(derived.mutation.pass).toBe(true);
   });
+
+  it("uses an explicitly authenticated candidate when clean generics collapse to one face", () => {
+    const collapsed = rows("Clean").map((row) => row.script === "Deva"
+      ? { ...row, familyName: "Nirmala UI", postScriptName: "NirmalaUI" }
+      : row);
+    const derived = deriveNonInertProfile(collapsed, [
+      {
+        script: "Deva",
+        requestedFamily: "Aparajita",
+        familyName: "Aparajita",
+        postScriptName: "Aparajita",
+        glyphCount: 1,
+        isCustomFont: false,
+      },
+      {
+        script: "Deva",
+        requestedFamily: "Kokila",
+        familyName: "Kokila",
+        postScriptName: "Kokila",
+        glyphCount: 1,
+        isCustomFont: false,
+      },
+    ]);
+
+    expect(derived.mutation.fields.filter((field) => field.script === "Deva"))
+      .toHaveLength(GENERICS.length);
+    expect(derived.mutation.fields.filter((field) => field.script === "Deva")
+      .every((field) => field.before === "Nirmala UI"
+        && ["Aparajita", "Kokila"].includes(field.requested) && field.nonInert))
+      .toBe(true);
+    expect(derived.mutation.pass).toBe(true);
+  });
 });

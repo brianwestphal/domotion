@@ -24,6 +24,9 @@ describeHeadedBrowser("authenticated Chrome profile and OOPIF generic authority"
     expect(report.environment.sources.playwrightOverlaySha256).toMatch(/^[a-f0-9]{64}$/);
 
     expect(report.mutation).toMatchObject({ requiredFieldCount: 21, nonInertFieldCount: 21, pass: true });
+    if (process.platform === "win32") {
+      expect(report.mutationCandidates.some((row) => row.postScriptName !== "NirmalaUI")).toBe(true);
+    }
     expect(Object.values(report.mutation.distinctRequestedFamiliesByScript).every((count) => count >= 2)).toBe(true);
     expect(report.playwrightOverlay.sourceFieldCount).toBe(report.playwrightOverlay.fields.length);
     expect(report.playwrightOverlay.fields.length).toBeGreaterThan(0);
