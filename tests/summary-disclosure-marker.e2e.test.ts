@@ -135,9 +135,11 @@ describeBrowser("source-owned summary disclosure marker (DM-2457)", () => {
           const isolated = elementTreeToSvg([node], WIDTH, HEIGHT);
           if (node.transformSubtreeRaster?.dataUri != null) {
             // The affine text-fragment pipeline intentionally promotes
-            // sideways-lr to one Chromium-owned surface. That surface already
-            // contains the marker, so a second vector polygon would double-paint.
-            expect(id).toBe("slr");
+            // sideways-lr to one Chromium-owned surface. A Linux fallback can
+            // also make either leading-CJK vertical run ambiguous because CDP
+            // exposes only the following Latin FragmentItem. Each surface
+            // already contains the marker, so a second polygon would double-paint.
+            expect(["vrl", "vlr", "slr"]).toContain(id);
             expect(isolated, `${id}: terminal Chromium surface`).toContain("<image");
           } else {
             expect(isolated, `${id}: source-owned marker route`).toContain("<polygon");

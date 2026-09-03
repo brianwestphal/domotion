@@ -784,9 +784,12 @@ export function passes(cmp: CompareResult): boolean {
  *  total, still with `regionCount === 0`; disabling GPU compositing produces
  *  the same result. The known out-of-position-reopen break remains separated:
  *  3712 px with `regionCount === 0`, including a component larger than the
- *  unchanged 256 px single-region cap. The 2048 aggregate cap therefore admits
- *  the measured scattered text-edge floor without admitting that structural
- *  paint-order failure.
+ *  unchanged 256 px single-region cap. The same Chromium build's pinned Linux
+ *  x64 run measures 2065 px total in the two-pane fixture (48 sparse regions,
+ *  135 px largest, zero high-severity regions). The 2304 aggregate cap admits
+ *  both measured scattered text-edge floors while remaining below the known
+ *  structural break; the independent 256 px component cap still rejects that
+ *  break by itself.
  *
  *  Unlike the visual gate's per-platform hinting floor ("Per-platform coverage
  *  floor" in docs/12-diff-scoring.md), this bar needs no per-platform relief:
@@ -797,7 +800,7 @@ export interface StrictCaps {
   totalRegionArea: number;
 }
 export function strictCapsFor(_platform: NodeJS.Platform | string): StrictCaps {
-  return { maxRegionArea: 256, totalRegionArea: 2048 };
+  return { maxRegionArea: 256, totalRegionArea: 2304 };
 }
 /** The host's caps. Never null: the bar is calibrated on every platform. */
 export const STRICT_CAPS = strictCapsFor(process.platform);

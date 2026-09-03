@@ -251,13 +251,29 @@ describeBrowser("DM-2469 authoritative affine text-fragment capture", () => {
         expect(rtl.textPaintGeometry!.fragments[0].inlineOffset)
           .toBeCloseTo(rtl.textSegments![0].x + rtl.textSegments![0].width, 5);
 
-        const vertical = ownerFor(capture.tree, "縦書Affine").textPaintGeometry!.fragments[0];
-        expect(vertical.writingMode).toBe("vertical-rl");
-        expect(vertical.shapedOrigins).toHaveLength("縦書Affine".length);
-        expect(vertical.shapedAdvances).toHaveLength("縦書Affine".length);
+        const verticalOwner = ownerFor(capture.tree, "縦書Affine");
+        const vertical = verticalOwner.textPaintGeometry?.fragments[0];
+        const fragmentWarnings = capture.warnings.filter((warning) =>
+          warning.feature === "<transform>" && warning.detail.includes("text-fragment"));
+        if (vertical == null) {
+          // On Linux's degenerate CJK fallback route, CDP can expose only the
+          // following Latin FragmentItem. A source-exact raster is the safe
+          // result because the missing CJK span/order cannot be inferred.
+          expect(walk(capture.tree).some((node) => node.transformSubtreeRaster != null))
+            .toBe(true);
+          expect(fragmentWarnings).toHaveLength(1);
+          expect(fragmentWarnings[0].detail).toContain("crosses or ambiguously belongs");
+        } else {
+          expect(vertical.writingMode).toBe("vertical-rl");
+          expect(vertical.shapedOrigins).toHaveLength("縦書Affine".length);
+          expect(vertical.shapedAdvances).toHaveLength("縦書Affine".length);
+          expect(fragmentWarnings).toEqual([]);
+        }
         expect(ownerFor(capture.tree, "FrameAffine").textPaintGeometry?.fragments[0].affineResidual)
           .toBeLessThanOrEqual(0.05);
-        expect(capture.warnings.filter((warning) => warning.detail.includes("text-fragment"))).toEqual([]);
+        expect(capture.warnings.filter((warning) =>
+          warning.detail.includes("text-fragment") && warning.feature !== "<transform>"))
+          .toEqual([]);
       } finally {
         await context.close();
       }

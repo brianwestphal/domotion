@@ -184,7 +184,7 @@ describe("UTF-16 FragmentItem segment splitting", () => {
     ]);
   });
 
-  it("extends a sole protocol fragment over mapped glyphs hidden inside its Range AABB", () => {
+  it("fails closed when a sole protocol fragment does not authenticate leading glyph ownership", () => {
     const mixed = mappedSegment("縦書Affine", "縦書Affine", 0);
     mixed.verticalWritingMode = "vertical-rl";
     mixed.sourceMapping!.renderedChunks = Array.from(mixed.text, (_, index) => ({
@@ -196,13 +196,8 @@ describe("UTF-16 FragmentItem segment splitting", () => {
     ], [quad(10, 10, 20, 120)]).fragments!;
 
     const split = splitTextSegmentsOnFragmentSpans([mixed], joined);
-    expect(split.failureReason).toBeUndefined();
-    expect(split.sourceFragments).toHaveLength(1);
-    expect(split.sourceFragments[0].domUtf16Span).toEqual([0, 8]);
-    expect(split.segments?.map((segment) => [
-      segment.text,
-      segment.sourceText,
-      segment.sourceMapping?.domUtf16Span,
-    ])).toEqual([["縦書Affine", "縦書Affine", [0, 8]]]);
+    expect(split.segments).toBeNull();
+    expect(split.failureReason).toContain("crosses or ambiguously belongs");
+    expect(split.failureReason).toContain('"domUtf16Span":[2,8]');
   });
 });

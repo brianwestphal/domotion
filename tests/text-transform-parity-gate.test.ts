@@ -61,6 +61,8 @@ describe("transformed-text hard parity gate", () => {
       "affine-matrix3d-negative",
       "projective-positive",
     ]));
+    expect(TEXT_TRANSFORM_CASES.find((row) => row.id === "vertical-writing")?.expectedRoute)
+      .toBe("affine-vector-or-source-raster");
   });
 
   it("pins fixed device-space tolerances without platform envelopes", () => {

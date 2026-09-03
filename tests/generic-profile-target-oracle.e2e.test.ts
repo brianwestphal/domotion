@@ -1,9 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { runGenericProfileTargetOracle } from "../tools/generic-profile-target-oracle.js";
 
-describe("authenticated Chrome profile and OOPIF generic authority", () => {
+// This oracle deliberately compares headed and headless full-Chrome profile
+// persistence. Keep it out of the general local E2E sweep: it is exercised by
+// its disposable three-platform workflow, which opts in explicitly.
+const describeHeadedBrowser = process.env.DOMOTION_ALLOW_HEADED_BROWSER === "1"
+  ? describe
+  : describe.skip;
+
+describeHeadedBrowser("authenticated Chrome profile and OOPIF generic authority", () => {
   it("proves all profile fields and both mutation orders without pixels", async () => {
-    const report = await runGenericProfileTargetOracle();
+    const report = await runGenericProfileTargetOracle({ allowHeadedBrowser: true });
     expect(report.errors).toEqual([]);
     expect(report.environment.browserBinary).toMatchObject({
       requestedChannel: "chrome",

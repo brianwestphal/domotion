@@ -323,7 +323,11 @@ describe("format safe-area reflow (DM-1537)", () => {
     // than the ~1-per-column that survived before the capture exemption.
     const digitCells = (out.svg.match(/>[0-9]</g) ?? []).length;
     expect(digitCells).toBeGreaterThan(40);
-  }, 60_000);
+  // This intentionally retains and converts dozens of off-canvas animated
+  // digit cells. The exact Linux x64 helper path can take a little over one
+  // minute even in isolation; keep a finite ceiling without conflating that
+  // known cost with a functional failure (tracked separately as DM-2672).
+  }, 180_000);
 
   it("chart plots inside the safe rect at reel (9:16)", async () => {
     const p = validateTemplateParams(chartTemplate, {

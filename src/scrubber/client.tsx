@@ -622,12 +622,16 @@ async function loadSvg(text: string, name: string): Promise<void> {
   const tmp = document.createElement("div"); tmp.innerHTML = text;
   const svg = tmp.querySelector("svg");
   if (svg == null) { alert("No <svg> element found in the file."); return; }
+  // Loading is a transaction: the SVG can enter the host before its timing
+  // request completes, but controls must not accept actions that the eventual
+  // post-load reset would discard. This race is normally hidden by the fast
+  // local endpoint on macOS and is easy to hit on Linux or a loaded host.
+  svgLoaded.value = false;
   svgHost.replaceChildren(svg);
   svgEl = svg;
   // Render the SVG at its natural size; zoom transforms the host.
   const n = (() => { const vb = svg.viewBox?.baseVal; return vb && vb.width > 0 ? { w: vb.width, h: vb.height } : { w: 800, h: 600 }; })();
   svg.style.width = `${n.w}px`; svg.style.height = `${n.h}px`; svg.removeAttribute("width"); svg.removeAttribute("height");
-  svgLoaded.value = true;
   let dur = 0;
   try {
     const r = await fetch("/timing", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ svg: text }) });
@@ -640,6 +644,7 @@ async function loadSvg(text: string, name: string): Promise<void> {
   cropMode.value = false; cropRect.value = null; cropAspect.value = "free"; cropTick.value++; // DM-1104 / DM-1107: reset crop + ratio lock for the new SVG
   regionMode.value = false; regions.value = []; drawingRect.value = null; regionTick.value++; ticketStatus.value = { kind: "", msg: "" }; // DM-1445/DM-1449: reset review regions/status
   measureTrack();
+  svgLoaded.value = true;
 }
 
 // ── exports ─────────────────────────────────────────────────────────────────

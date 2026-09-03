@@ -400,31 +400,8 @@ export function splitTextSegmentsOnFragmentSpans(
       owner: { fragment: CapturedTextFragmentSourceSpan; sourceFragmentIndex: number };
     }> = [];
     for (const chunk of mapping.renderedChunks) {
-      let containing = candidates.filter(({ fragment }) => spanContains(fragment.domUtf16Span, chunk.domUtf16Span));
-      let intersecting = candidates.filter(({ fragment }) => spansIntersect(fragment.domUtf16Span, chunk.domUtf16Span));
-
-      // Range rectangles identify FragmentItem spans by the first prefix and
-      // last suffix that reproduce the full physical rectangle. A leading or
-      // trailing glyph that is wholly inside another glyph's AABB can therefore
-      // leave that rectangle unchanged (the hosted Linux vertical CJK + Latin
-      // case reports [2,8] for the one item that paints mapped source [0,8]).
-      // When this text node has exactly one protocol-backed source fragment and
-      // its role agrees, every painted source chunk has one possible owner.
-      // Extend only that sole owner's source envelope; multi-fragment and
-      // first-letter cases retain the exact intersection checks below.
-      if (containing.length === 0 && candidates.length === 1
-        && segment.verticalWritingMode != null
-        && candidates[0].fragment.cdpQuadIndex != null
-        && candidates[0].fragment.role === mapping.role
-        && spanContains(mapping.domUtf16Span, candidates[0].fragment.domUtf16Span)) {
-        const only = candidates[0].fragment;
-        only.domUtf16Span = [
-          Math.min(only.domUtf16Span[0], chunk.domUtf16Span[0]),
-          Math.max(only.domUtf16Span[1], chunk.domUtf16Span[1]),
-        ];
-        containing = [candidates[0]];
-        intersecting = [candidates[0]];
-      }
+      const containing = candidates.filter(({ fragment }) => spanContains(fragment.domUtf16Span, chunk.domUtf16Span));
+      const intersecting = candidates.filter(({ fragment }) => spansIntersect(fragment.domUtf16Span, chunk.domUtf16Span));
       if (containing.length === 1 && intersecting.length === 1) {
         normalizedChunks.push(chunk);
         ownedChunks.push({ chunk, owner: containing[0] });

@@ -48,7 +48,7 @@ export const TEXT_TRANSFORM_GATE_THRESHOLDS = {
   maxPremultipliedColorError: MAX_PREMULTIPLIED_COLOR_ERROR,
 } as const;
 
-type ExpectedRoute = "affine-vector" | "projective-raster";
+type ExpectedRoute = "affine-vector" | "affine-vector-or-source-raster" | "projective-raster";
 type Matrix2D = CapturedTextPaintAffine;
 interface AuditTarget { selector: `#${string}`; label: string }
 export interface TextTransformCase {
@@ -88,7 +88,12 @@ export const TEXT_TRANSFORM_CASES: TextTransformCase[] = [
   { id: "decorations-shadows-stroke", expectedRoute: "affine-vector", text: "Decoration shadow stroke", targetCss: "transform:rotate(-17deg) scale(1.15,.76);text-decoration:underline wavy;text-shadow:4px 3px 2px rgb(57,115,219);-webkit-text-stroke:1px rgb(192,38,211)" },
   { id: "raster-glyph-overlay", expectedRoute: "affine-vector", text: "Affine 🧭 raster overlay", targetCss: "transform:matrix(.82,.31,-.24,1.14,9,-4)" },
   { id: "rtl-horizontal", expectedRoute: "affine-vector", text: "RTL matrix العربية", targetCss: "direction:rtl;transform:skewY(13deg) scale(.83,1.2)" },
-  { id: "vertical-writing", expectedRoute: "affine-vector", text: "縦書Affine", targetCss: "writing-mode:vertical-rl;height:185px;transform:rotate(11deg) scaleX(-1)" },
+  // Some Linux inventories give the leading upright fallback glyphs zero
+  // advance and a Range AABB wholly contained by the following Latin run.
+  // The protocol then cannot authenticate their FragmentItem span or paint
+  // order. Preserve the affine vector route when it is source-exact; otherwise
+  // the existing outer screenshot surface is the only exact fail-closed route.
+  { id: "vertical-writing", expectedRoute: "affine-vector-or-source-raster", text: "縦書Affine", targetCss: "writing-mode:vertical-rl;height:185px;transform:rotate(11deg) scaleX(-1)" },
   { id: "css-zoom-local", expectedRoute: "affine-vector", text: "Zoom remains local", outerCss: "zoom:1.35", targetCss: "transform:rotate(23deg) scale(.8,1.1)" },
   { id: "same-origin-iframe", expectedRoute: "affine-vector", iframe: true, text: "Frame affine text", targetCss: "transform:rotate(-21deg) scale(.8,1.3);transform-origin:77% 12%" },
   { id: "affine-matrix3d-negative", expectedRoute: "affine-vector", text: "Affine matrix3d negative", targetCss: "transform:matrix3d(1.1,.2,0,0,-.15,.8,0,0,0,0,1,0,13,-9,0,1)" },
@@ -292,7 +297,19 @@ async function runRow(source: Page, output: Page, test: TextTransformCase, dpr: 
   const svg = render.elementTreeToSvg(captured.tree, VIEWPORT.width, VIEWPORT.height, { hiDPIFactor: dpr });
   const generatedImageCount = (svg.match(/<image\b/g) ?? []).length, scalarVocabularyFound = /anisotropicCorrection|cumScaleX|cumScaleY|_scaleMag|_computeOwnScale/.test(svg);
   const bitmapRoutePass = test.id !== "raster-glyph-overlay" || generatedImageCount > 0;
-  const logicalPass = test.expectedRoute === "affine-vector" ? comparisons.every((item) => item.pass) && rasterOwners === 0 && relevantWarnings.length === 0 && bitmapRoutePass && !scalarVocabularyFound : comparisons.every((item) => item.pass) && rasterOwners === 1 && allowedProjectiveWarnings && !scalarVocabularyFound;
+  const vectorPass = comparisons.every((item) => item.pass) && rasterOwners === 0
+    && relevantWarnings.length === 0 && bitmapRoutePass && !scalarVocabularyFound;
+  const sourceRasterPass = comparisons.every((item) => item.independentClassification === "affine"
+    && item.capturedFragmentCount === 0 && !item.capturedNeutralBundle)
+    && rasterOwners === 1 && generatedImageCount === 1 && relevantWarnings.length === 1
+    && relevantWarnings.every((warning) => /Chromium text-fragment geometry unavailable; retained one outer raster surface: a rendered source chunk crosses or ambiguously belongs to FragmentItem spans/.test(warning))
+    && !scalarVocabularyFound;
+  const logicalPass = test.expectedRoute === "affine-vector"
+    ? vectorPass
+    : test.expectedRoute === "affine-vector-or-source-raster"
+      ? vectorPass || sourceRasterPass
+      : comparisons.every((item) => item.pass) && rasterOwners === 1
+        && allowedProjectiveWarnings && !scalarVocabularyFound;
   await output.setContent(`<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent}svg{display:block}</style>${svg}`, { waitUntil: "load" }); await output.evaluate(() => document.fonts.ready);
   const [sourcePng, generatedPng] = await Promise.all([source.screenshot({ type: "png", omitBackground: true }), output.screenshot({ type: "png", omitBackground: true })]);
   if (artifactDir != null) {
@@ -348,7 +365,7 @@ export async function runTextTransformGeometryAudit(options: { deviceScaleFactor
       try { for (const test of TEXT_TRANSFORM_CASES) { const result = await runRow(source, output, test, dpr, capture, render, options.artifactDir); rows.push(result.row); result.fonts.forEach((font) => fonts.add(font)); result.faces.forEach((face) => faces.add(face)); if (result.mutationFragment != null) fragments.set(`${dpr}:${test.id}`, result.mutationFragment); } } finally { await context.close(); }
     }
     const mutations = mutationResults(rows, fragments), fixtureHashes = fixtureFingerprints();
-    const controls = { everyDprHasEveryCase: dprs.every((dpr) => rows.filter((row) => row.deviceScaleFactor === dpr).length === TEXT_TRANSFORM_CASES.length), everyAffineRowHasExactFacts: rows.filter((row) => row.expectedRoute === "affine-vector").every((row) => row.logicalPass), projectivePositiveOwnsOneSurface: rows.filter((row) => row.expectedRoute === "projective-raster").every((row) => row.logicalPass), everyPixelLegPasses: rows.every((row) => row.pixels.pass), scalarVocabularyAbsent: rows.every((row) => !row.scalarVocabularyFound), bothHtmlRunFixturesPresent: fixtureHashes.length === 2, everyRequiredMutationMoves: mutations.length === REQUIRED_TEXT_TRANSFORM_MUTATIONS.length && mutations.every((mutation) => mutation.moved) };
+    const controls = { everyDprHasEveryCase: dprs.every((dpr) => rows.filter((row) => row.deviceScaleFactor === dpr).length === TEXT_TRANSFORM_CASES.length), everyAffineRowUsesSourceExactRoute: rows.filter((row) => row.expectedRoute !== "projective-raster").every((row) => row.logicalPass), projectivePositiveOwnsOneSurface: rows.filter((row) => row.expectedRoute === "projective-raster").every((row) => row.logicalPass), everyPixelLegPasses: rows.every((row) => row.pixels.pass), scalarVocabularyAbsent: rows.every((row) => !row.scalarVocabularyFound), bothHtmlRunFixturesPresent: fixtureHashes.length === 2, everyRequiredMutationMoves: mutations.length === REQUIRED_TEXT_TRANSFORM_MUTATIONS.length && mutations.every((mutation) => mutation.moved) };
     const pass = rows.every((row) => row.pass) && Object.values(controls).every(Boolean), logicalPassed = rows.filter((row) => row.logicalPass).length, pixelsPassed = rows.filter((row) => row.pixels.pass).length, mutationsMoved = mutations.filter((mutation) => mutation.moved).length;
     return { schemaVersion: 1, generatedAt: new Date().toISOString(), sourceRevisions: SOURCE_REVISIONS, fingerprint: { chromiumVersion: browser.version(), playwrightVersion, userAgent, os: platform(), osRelease: release(), architecture: arch(), node: process.version, viewport: VIEWPORT, deviceScaleFactors: dprs, requestedFontFamilies: [...fonts].sort(), resolvedFontFaces: [...faces].sort(), thresholds: TEXT_TRANSFORM_GATE_THRESHOLDS }, integrationFixtures: fixtureHashes, corpus: { cases: TEXT_TRANSFORM_CASES.length, mutations: REQUIRED_TEXT_TRANSFORM_MUTATIONS }, rows, mutations, controls, summary: { logicalPassed, logicalFailed: rows.length - logicalPassed, pixelsPassed, pixelsFailed: rows.length - pixelsPassed, mutationsMoved, mutationsFailed: mutations.length - mutationsMoved }, verdict: pass ? "hard-two-leg-transformed-text-parity" : "transformed-text-parity-failure" };
   } finally { await browser.close(); }

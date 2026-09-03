@@ -775,7 +775,14 @@ function unavailableReport(errors: string[], sources: PlaywrightSources | null, 
   };
 }
 
-export async function runGenericProfileTargetOracle(): Promise<GenericProfileTargetReport> {
+export async function runGenericProfileTargetOracle(
+  options: { allowHeadedBrowser?: boolean } = {},
+): Promise<GenericProfileTargetReport> {
+  if (options.allowHeadedBrowser !== true) {
+    return unavailableReport([
+      "Error: headed Chrome is disabled; pass --allow-headed-browser only on an isolated validation host",
+    ], null, null);
+  }
   const dirs = Array.from({ length: 6 }, () => mkdtempSync(join(tmpdir(), "domotion-profile-authority-")));
   const opened = new Set<BrowserContext>();
   const launches: ChromeLaunchAuthentication[] = [];
@@ -886,7 +893,9 @@ export async function runGenericProfileTargetOracle(): Promise<GenericProfileTar
 }
 
 if (process.argv[1]?.endsWith("generic-profile-target-oracle.ts")) {
-  const report = await runGenericProfileTargetOracle();
+  const report = await runGenericProfileTargetOracle({
+    allowHeadedBrowser: process.argv.includes("--allow-headed-browser"),
+  });
   const at = process.argv.indexOf("--json");
   const json = `${JSON.stringify(report, null, 2)}\n`;
   if (at >= 0 && process.argv[at + 1]) writeFileSync(resolve(process.argv[at + 1]), json);

@@ -220,6 +220,10 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
           const left = Math.round(raster.x * 2);
           const top = Math.round(raster.y * 2);
           const resizer = set.resizerOverlap?.rect;
+          const laterOwnedRects: Array<{ x: number; y: number; width: number; height: number }> =
+            bar!.orientation === "horizontal"
+              ? [set.vertical?.nativeRaster, set.nativeCornerRaster].flatMap((owner) => owner == null ? [] : [owner])
+              : [set.nativeCornerRaster].flatMap((owner) => owner == null ? [] : [owner]);
           for (let y = 0; y < raster.pixelHeight; y++) {
             const sourceStart = ((top + y) * source.info.width + left) * 4;
             const outputStart = ((top + y) * output.info.width + left) * 4;
@@ -231,16 +235,38 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
               outputStart,
               outputStart + raster.pixelWidth * 4,
             ));
+            // The renderer follows ScrollableAreaPainter order: horizontal,
+            // vertical, corner, then resizer. The encoded strip itself was
+            // required byte-exact above. In the composed surface, compare only
+            // pixels that still belong to this strip after later native owners
+            // have painted their overlapping rectangles.
+            const absoluteY = top + y;
+            for (const owner of laterOwnedRects) {
+              const ownerLeft = Math.floor(owner.x * 2);
+              const ownerTop = Math.floor(owner.y * 2);
+              const ownerRight = Math.ceil((owner.x + owner.width) * 2);
+              const ownerBottom = Math.ceil((owner.y + owner.height) * 2);
+              if (absoluteY < ownerTop || absoluteY >= ownerBottom) continue;
+              for (let absoluteX = Math.max(left, ownerLeft);
+                absoluteX < Math.min(left + raster.pixelWidth, ownerRight);
+                absoluteX++) {
+                const offset = (absoluteX - left) * 4;
+                sourceRow.copy(outputRow, offset, offset, offset + 4);
+              }
+            }
             if (resizer != null) {
               // ScrollableAreaPainter deliberately paints the resizer after
               // both native strips and the corner. The strip's encoded crop is
               // still byte-exact above; exclude only those later-owned device
               // pixels when checking the composed SVG surface.
-              const absoluteY = top + y;
-              const resizerLeft = Math.floor(resizer.x * 2);
-              const resizerTop = Math.floor(resizer.y * 2);
-              const resizerRight = Math.ceil((resizer.x + resizer.width) * 2);
-              const resizerBottom = Math.ceil((resizer.y + resizer.height) * 2);
+              // The later-owned vector resizer antialiases one device pixel
+              // beyond its mathematical rect. Exclude that coverage fringe;
+              // the encoded strip itself was already required byte-exact
+              // above, so this does not relax native-raster fidelity.
+              const resizerLeft = Math.floor(resizer.x * 2) - 1;
+              const resizerTop = Math.floor(resizer.y * 2) - 1;
+              const resizerRight = Math.ceil((resizer.x + resizer.width) * 2) + 1;
+              const resizerBottom = Math.ceil((resizer.y + resizer.height) * 2) + 1;
               if (absoluteY >= resizerTop && absoluteY < resizerBottom) {
                 for (let absoluteX = Math.max(left, resizerLeft);
                   absoluteX < Math.min(left + raster.pixelWidth, resizerRight);
@@ -250,7 +276,10 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
                 }
               }
             }
-            expect(rgbaDifference(sourceRow, outputRow)).toEqual({
+            expect(
+              rgbaDifference(sourceRow, outputRow),
+              `${bar!.orientation} row ${y}; raster=${JSON.stringify(raster)}; resizer=${JSON.stringify(resizer)}`,
+            ).toEqual({
               changedPixels: 0,
               maxChannelDelta: 0,
               firstChangedByte: null,

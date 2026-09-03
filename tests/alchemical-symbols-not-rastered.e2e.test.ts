@@ -58,7 +58,7 @@ afterAll(async () => {
 
 const describeBrowser = env ? describe : describe.skip;
 
-interface RasterSeg { text?: string; rasterGlyphs?: unknown[]; rasterRect?: unknown }
+interface RasterSeg { text?: string; rasterGlyphs?: unknown[]; rasterRect?: unknown; rasterDataUri?: string }
 function findSegByCodepoint(tree: CapturedElement[], cp: number): RasterSeg | null {
   let hit: RasterSeg | null = null;
   const visit = (nodes: CapturedElement[]): void => {
@@ -97,8 +97,8 @@ describeBrowser("DM-1125: Alchemical Symbols block is path-rendered, not rastere
       const emoji = findSegByCodepoint(tree, EMOJI_CONTROL);
       expect(emoji, "captured a segment for the emoji control").toBeTruthy();
       expect(
-        (emoji!.rasterGlyphs?.length ?? 0) > 0,
-        "U+1F600 (color emoji) must still route to the raster overlay",
+        (emoji!.rasterGlyphs?.length ?? 0) > 0 || emoji!.rasterDataUri != null,
+        "U+1F600 (color emoji) must still use selected bitmap ownership",
       ).toBe(true);
     } finally {
       await page.close();

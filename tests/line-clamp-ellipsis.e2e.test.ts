@@ -8,6 +8,7 @@ import {
   type TextSegment,
 } from '../src/index.js';
 import { closeBrowserSafely } from '../src/test-support/close-browser-safely.js';
+import type { Page } from '@playwright/test';
 
 // DM-2417 browser matrix.  These are capture-contract assertions rather than
 // screenshot fixture coordinates: each row asks Chromium to lay out different
@@ -94,6 +95,23 @@ function allSegments(node: CapturedElement): TextSegment[] {
   ];
 }
 
+async function dominantPlatformFontFamily(page: Page, selector: string): Promise<string> {
+  const session = await page.context().newCDPSession(page);
+  try {
+    await session.send('DOM.enable');
+    await session.send('CSS.enable');
+    const { root } = await session.send('DOM.getDocument');
+    const { nodeId } = await session.send('DOM.querySelector', { nodeId: root.nodeId, selector });
+    const { fonts } = await session.send('CSS.getPlatformFontsForNode', { nodeId });
+    const dominant = fonts.reduce((best, font) =>
+      best == null || font.glyphCount > best.glyphCount ? font : best, null as (typeof fonts)[number] | null);
+    if (dominant == null) throw new Error(`no platform font for ${selector}`);
+    return dominant.familyName;
+  } finally {
+    await session.detach();
+  }
+}
+
 const browser = await launchChromium().catch(() => null);
 afterAll(async () => closeBrowserSafely(browser), 15_000);
 const describeBrowser = browser ? describe : describe.skip;
@@ -103,12 +121,19 @@ describeBrowser('DM-2417 generated line-clamp ellipsis capture', () => {
   let svg = '';
   let expectedPng: Buffer;
   let actualPng: Buffer;
+  let expectedClampFamily = '';
+  let oracleRects: Array<{ x: number; y: number; width: number; height: number }> = [];
   let captureWarnings: Array<{ feature: string }> = [];
 
   it('captures the matrix at DPR 2', async () => {
     const page = await browser!.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 2 });
     try {
       await page.setContent(HTML, { waitUntil: 'load' });
+      expectedClampFamily = await dominantPlatformFontFamily(page, '#c1');
+      oracleRects = await page.locator('.oracle').evaluateAll((elements) => elements.map((element) => {
+        const rect = element.getBoundingClientRect();
+        return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+      }));
       expectedPng = await page.screenshot({ clip: { x: 0, y: 0, width: W, height: H } });
       const captured = await captureElementTreeWithWarnings(page, 'body', { x: 0, y: 0, width: W, height: H });
       tree = captured.tree;
@@ -137,7 +162,8 @@ describeBrowser('DM-2417 generated line-clamp ellipsis capture', () => {
       fontWeight: '400',
       fontStyle: 'normal',
     });
-    expect(generated!.resolvedFontFace?.familyName).toBe('Arial');
+    expect(expectedClampFamily).toBeTruthy();
+    expect(generated!.resolvedFontFace?.familyName).toBe(expectedClampFamily);
     expect(generated!.resolvedFontFace?.postScriptName).toBeTruthy();
     expect(generated!.shapedWidth).toBeGreaterThan(0);
     expect(Number.isFinite(generated!.baseline)).toBe(true);
@@ -212,11 +238,19 @@ describeBrowser('DM-2417 generated line-clamp ellipsis capture', () => {
     const targets: Array<[number, number, number]> = [
       [224, 32, 32], [21, 153, 71], [36, 94, 232], [179, 42, 204],
     ];
-    const bounds = (decoded: Awaited<ReturnType<typeof decode>>, target: [number, number, number]) => {
+    const bounds = (
+      decoded: Awaited<ReturnType<typeof decode>>,
+      target: [number, number, number],
+      rect: { x: number; y: number; width: number; height: number },
+    ) => {
       let minX = Infinity, minY = Infinity, maxX = -1, maxY = -1, count = 0;
       const { data, info } = decoded;
-      for (let y = 0; y < info.height; y++) {
-        for (let x = 0; x < info.width; x++) {
+      const left = Math.max(0, Math.floor(rect.x * 2));
+      const top = Math.max(0, Math.floor(rect.y * 2));
+      const right = Math.min(info.width, Math.ceil((rect.x + rect.width) * 2));
+      const bottom = Math.min(info.height, Math.ceil((rect.y + rect.height) * 2));
+      for (let y = top; y < bottom; y++) {
+        for (let x = left; x < right; x++) {
           const i = (y * info.width + x) * info.channels;
           const distance = Math.abs(data[i] - target[0])
             + Math.abs(data[i + 1] - target[1])
@@ -229,9 +263,10 @@ describeBrowser('DM-2417 generated line-clamp ellipsis capture', () => {
       }
       return { minX, minY, maxX, maxY, count };
     };
-    for (const target of targets) {
-      const chrome = bounds(expected, target);
-      const rendered = bounds(actual, target);
+    expect(oracleRects).toHaveLength(targets.length);
+    for (const [index, target] of targets.entries()) {
+      const chrome = bounds(expected, target, oracleRects[index]);
+      const rendered = bounds(actual, target, oracleRects[index]);
       expect(chrome.count).toBeGreaterThan(4);
       expect(rendered.count).toBeGreaterThan(4);
       // DPR=2: tolerate two CSS pixels of independent glyph rasterisation,

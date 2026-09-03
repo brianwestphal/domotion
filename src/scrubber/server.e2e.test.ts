@@ -176,9 +176,24 @@ describe("svg-scrubber server (DM-1040)", () => {
     const s2 = await startScrubberServer({ launchBrowser: async () => b2, initialSvg: anim, initialName: "anim.svg" });
     const ctx = await b2.newContext({ viewport: { width: 900, height: 600 } });
     const page = await ctx.newPage();
+    let releaseTiming!: () => void;
+    const timingGate = new Promise<void>((resolve) => { releaseTiming = resolve; });
+    await page.route("**/timing", async (route) => {
+      await timingGate;
+      await route.continue();
+    });
     try {
       await page.goto(s2.url, { waitUntil: "load" });
       await page.waitForSelector(".svg-host svg", { timeout: 10_000 });
+      // The DOM insertion precedes the asynchronous timing response. Controls
+      // stay disabled until that transaction commits, so a slow Linux endpoint
+      // cannot accept an action that load completion immediately resets.
+      expect(await page.locator("button[data-action=play]").isDisabled()).toBe(true);
+      releaseTiming();
+      await expect.poll(
+        () => page.locator("button[data-action=play]").isEnabled(),
+        { timeout: 10_000 },
+      ).toBe(true);
       const label0 = await page.locator(".time").textContent();
       await page.locator("button[data-action=play]").click();
       await page.waitForTimeout(450); // let the play-toggle re-render + ResizeObserver-driven re-renders settle
@@ -292,9 +307,10 @@ describe("svg-scrubber server (DM-1040)", () => {
       await page.goto(s2.url, { waitUntil: "load" });
       await page.waitForSelector(".svg-host svg", { timeout: 10_000 });
 
-      const drop = page.getByRole("button", { name: /Drop an animated SVG here/ });
-      expect(await drop.count()).toBe(0); // hidden once the bootstrap SVG loads
       const center = page.getByRole("button", { name: "Add centered region" });
+      await expect.poll(() => center.isEnabled()).toBe(true);
+      const drop = page.getByRole("button", { name: /Drop an animated SVG here/ });
+      expect(await drop.count()).toBe(0); // hidden once the bootstrap transaction commits
       await center.focus();
       expect(await center.evaluate((el) => getComputedStyle(el).outlineStyle)).not.toBe("none");
       await page.keyboard.press("Enter");
@@ -305,6 +321,7 @@ describe("svg-scrubber server (DM-1040)", () => {
       // with no regions and drawing disarmed.
       await page.reload({ waitUntil: "load" });
       await page.waitForSelector(".svg-host svg", { timeout: 10_000 });
+      await expect.poll(() => page.getByRole("button", { name: "Add centered region" }).isEnabled()).toBe(true);
       await expect.poll(() => page.locator(".region-box").count()).toBe(0);
 
       const arm = page.locator('button[data-action="rv-region"]');

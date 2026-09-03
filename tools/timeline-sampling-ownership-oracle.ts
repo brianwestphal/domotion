@@ -847,16 +847,25 @@ async function runPreNavigationClock(browser: Browser, url: string): Promise<Pre
   const sessions: CDPSession[] = [];
   try {
     await page.clock.install({ time: 1_000_000 });
+    // Freeze before navigation. Leaving the installed clock ticking while the
+    // page and OOPIF targets are discovered makes a later fixed pause target
+    // retrograde on slower hosts (the Linux helper setup can exceed one real
+    // second), and weakens the pre-navigation ownership experiment.
+    await page.clock.pauseAt(1_001_000);
     await page.goto(url);
     const frames = await fixtureFrames(page);
     const target = await clockTargets(context, page, frames);
     sessions.push(...target.sessions);
-    await page.clock.pauseAt(1_001_000);
     const before = await readClockPair(frames);
     await delayRealTime(100);
     const afterRealDelay = await readClockPair(frames);
-    const targetLocalTimesExact = before.main.performanceNow === 1000
-      && before.oopif.performanceNow === 1000
+    // Each cross-origin target has its own performance time origin. With the
+    // clock frozen before navigation, navigation and OOPIF creation can
+    // therefore leave different (but deterministic) target-local values. The
+    // ownership invariant is that every target's exact value remains frozen,
+    // not that unrelated documents both happen to read 1000 ms.
+    const targetLocalTimesExact = Number.isFinite(before.main.performanceNow)
+      && Number.isFinite(before.oopif.performanceNow)
       && afterRealDelay.main.performanceNow === before.main.performanceNow
       && afterRealDelay.oopif.performanceNow === before.oopif.performanceNow;
     const countersFrozen = before.main.rafCount === afterRealDelay.main.rafCount
@@ -883,12 +892,12 @@ async function runPreNavigationClockEscapes(browser: Browser, url: string): Prom
   const sessions: CDPSession[] = [];
   try {
     await page.clock.install({ time: 1_000_000 });
+    await page.clock.pauseAt(1_001_000);
     await page.goto(`${url}?builtinEscape=1&workerEscape=1`);
     const frames = await fixtureFrames(page);
     const target = await clockTargets(context, page, frames);
     sessions.push(...target.sessions);
     await delayRealTime(100);
-    await page.clock.pauseAt(1_001_000);
     const afterPause = await readClockPair(frames);
     await delayRealTime(100);
     const afterRealDelay = await readClockPair(frames);
@@ -935,7 +944,10 @@ async function runLateClockEscape(browser: Browser, url: string): Promise<LateCl
     sessions.push(...target.sessions);
     await delayRealTime(50);
     await page.clock.install({ time: 2_000_000 });
-    await page.clock.pauseAt(2_000_001);
+    // Pause immediately after installation; the exact elapsed fake time is not
+    // part of this late-install discriminator, while allowing it to run before
+    // the pause makes the fixed target host-speed dependent.
+    await page.clock.pauseAt(2_001_000);
     const afterPause = await readClockPair(frames);
     await delayRealTime(100);
     const afterRealDelay = await readClockPair(frames);

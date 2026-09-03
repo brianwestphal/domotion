@@ -4,6 +4,7 @@ import {
   deriveNonInertProfile,
   derivePlaywrightOverlayMask,
   GENERICS,
+  runGenericProfileTargetOracle,
   SCRIPTS,
   type ProfileFaceRow,
 } from "../tools/generic-profile-target-oracle.js";
@@ -33,6 +34,15 @@ const sourceTable = {
 };
 
 describe("authenticated generic profile/target adjudication", () => {
+  it("refuses to launch headed Chrome without an explicit isolated-host opt-in", async () => {
+    const report = await runGenericProfileTargetOracle();
+    expect(report.verdict).toBe("unavailable");
+    expect(report.environment.launches).toEqual([]);
+    expect(report.errors).toEqual([
+      "Error: headed Chrome is disabled; pass --allow-headed-browser only on an isolated validation host",
+    ]);
+  });
+
   it("derives each OS overlay field from Playwright's source structure", () => {
     expect(derivePlaywrightOverlayMask("linux", sourceTable).fields.map(({ script, generic }) => `${script}/${generic}`))
       .toEqual(["Zyyy/standard", "Zyyy/fixed"]);

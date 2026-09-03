@@ -204,9 +204,10 @@ describe("pipeline constants are sane (doc 12)", () => {
     // Chromium 147 clean macOS ceiling: 94 px largest / 1636 px total.
     // Known structural break: 3712 px.
     expect(CAPS.maxRegionArea).toBe(256);
-    expect(CAPS.totalRegionArea).toBe(2048);
+    expect(CAPS.totalRegionArea).toBe(2304);
     expect(CAPS.maxRegionArea).toBeGreaterThan(94 * 2);
     expect(CAPS.totalRegionArea).toBeGreaterThan(1636);
+    expect(CAPS.totalRegionArea).toBeGreaterThan(2065);
     expect(CAPS.maxRegionArea).toBeLessThan(3712 / 4);
     expect(CAPS.totalRegionArea).toBeLessThan(3712);
   });

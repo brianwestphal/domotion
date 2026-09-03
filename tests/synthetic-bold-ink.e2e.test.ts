@@ -82,11 +82,19 @@ const TEXT = "Hamburgefonstiv";
  * `Weight() > 200 + typeface weight` (`skia/font_cache_skia.cc:333-339`), so
  * 800 synthesizes there.
  */
-const CANDIDATES: Array<{ family: string; weight: number }> = [
-  { family: "Papyrus", weight: 700 },
-  { family: "system-ui", weight: 800 },
-  { family: "Comic Sans MS", weight: 700 },
-];
+const CANDIDATES: Array<{ family: string; weight: number }> = process.platform === "linux"
+  ? [
+      // An unavailable author name can resolve differently in Chromium and
+      // Domotion even though both sides synthesize something. Start with the
+      // calibrated installed Linux face so this oracle compares one source.
+      { family: "WenQuanYi Zen Hei", weight: 800 },
+      { family: "system-ui", weight: 800 },
+    ]
+  : [
+      { family: "Papyrus", weight: 700 },
+      { family: "system-ui", weight: 800 },
+      { family: "Comic Sans MS", weight: 700 },
+    ];
 const SIZE = 100;
 const W = 1400, H = SIZE * 5, BASE_Y = SIZE * 3;
 
@@ -120,23 +128,44 @@ async function ink(buf: Buffer): Promise<{ mass: number; w: number; h: number }>
 }
 
 /** Binarized ink mask plus the ink box, for the shape metric paths mode uses. */
-async function inkMask(buf: Buffer): Promise<{ m: Uint8Array; w: number; h: number }> {
+async function inkMask(buf: Buffer): Promise<{
+  m: Uint8Array;
+  w: number;
+  h: number;
+  minX: number;
+  minY: number;
+}> {
   const { data, info } = await sharp(buf).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const m = new Uint8Array(info.width * info.height);
+  let minX = Infinity;
+  let minY = Infinity;
   for (let i = 0, p = 0; i < data.length; i += 4, p++) {
-    if ((255 - (data[i] + data[i + 1] + data[i + 2]) / 3) / 255 > 0.5) m[p] = 1;
+    if ((255 - (data[i] + data[i + 1] + data[i + 2]) / 3) / 255 > 0.5) {
+      m[p] = 1;
+      minX = Math.min(minX, p % info.width);
+      minY = Math.min(minY, Math.floor(p / info.width));
+    }
   }
-  return { m, w: info.width, h: info.height };
+  return { m, w: info.width, h: info.height, minX, minY };
 }
 
 /** Best intersection-over-union over integer shifts. The shift search is not a
  *  fudge: the two sides' baselines sit at different y (Chrome's is placed by
  *  line-height, ours by the passed baseline), and IoU without it would grade
  *  that offset rather than the glyph shapes. */
-function bestIoU(a: { m: Uint8Array; w: number; h: number }, b: { m: Uint8Array; w: number; h: number }): number {
+function bestIoU(
+  a: { m: Uint8Array; w: number; h: number; minX: number; minY: number },
+  b: { m: Uint8Array; w: number; h: number; minX: number; minY: number },
+): number {
   let best = 0;
-  for (let dx = -8; dx <= 8; dx++) {
-    for (let dy = -24; dy <= 24; dy++) {
+  // Center the search on the measured ink origins. Chromium positions ordinary
+  // HTML text from line-box metrics while our SVG control receives an explicit
+  // baseline. Their y origins differ by 34 px for the calibrated 100px Linux
+  // face, beyond the old macOS-only +/-24 search, even though the shapes match.
+  const originDx = b.minX - a.minX;
+  const originDy = b.minY - a.minY;
+  for (let dx = originDx - 8; dx <= originDx + 8; dx++) {
+    for (let dy = originDy - 8; dy <= originDy + 8; dy++) {
       let inter = 0, union = 0;
       for (let y = 0; y < a.h; y++) {
         for (let x = 0; x < a.w; x++) {
@@ -301,10 +330,13 @@ describeBrowser("synthetic bold matches Chrome's painted weight (DM-1970)", () =
     expect(lo, `paths mode rendered nothing for ${chosen.family}@400`).not.toBeNull();
     const hi700 = hi!.buf, lo400 = lo!.buf;
 
+    const [chromeBoldBuffer, chromePlainBuffer] = await Promise.all([
+      chromeShot(chosen.family, chosen.weight),
+      chromeShot(chosen.family, 400),
+    ]);
     const [oursBold, oursPlain, chromeBold, chromePlain] = await Promise.all([
       inkMask(hi700), inkMask(lo400),
-      chromeShot(chosen.family, chosen.weight).then(inkMask),
-      chromeShot(chosen.family, 400).then(inkMask),
+      inkMask(chromeBoldBuffer), inkMask(chromePlainBuffer),
     ]);
 
     // The three references. `plainVsBold` is literally what this shipped as

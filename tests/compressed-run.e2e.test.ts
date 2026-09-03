@@ -117,7 +117,12 @@ async function scanRegion(
         // amber: the colorize state's #fbbf24 "hole" tokens.
         const hit = args.mode === "light"
           ? r > 170 && g > 170 && b > 170
-          : r > 200 && g > 150 && g < 220 && b < 100;
+          // Include the amber glyph's antialiased edge coverage. At this
+          // 12.5px pinned strike Linux can have only one fully saturated core
+          // pixel even though the complete brace is visibly recolored. The
+          // hue-distance test rejects the dark background and every other
+          // syntax color while keeping partially covered #fbbf24 pixels.
+          : r > 80 && r - b > 40 && g - b > 30 && r > g;
         if (hit) {
           if (x + px < minX) minX = x + px;
           if (x + px > maxX) maxX = x + px;

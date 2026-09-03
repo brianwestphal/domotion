@@ -28,10 +28,10 @@ jobs:
       - run: npx playwright install chrome
       - name: Exact profile and target authority
         if: runner.os != 'Linux'
-        run: npm run fonts:generic-profile-target -- --json generic-profile-target.json
+        run: npm run fonts:generic-profile-target -- --allow-headed-browser --json generic-profile-target.json
       - name: Exact profile and target authority under Xvfb
         if: runner.os == 'Linux'
-        run: xvfb-run -a npm run fonts:generic-profile-target -- --json generic-profile-target.json
+        run: xvfb-run -a npm run fonts:generic-profile-target -- --allow-headed-browser --json generic-profile-target.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:

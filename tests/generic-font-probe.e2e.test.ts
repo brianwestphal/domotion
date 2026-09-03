@@ -60,6 +60,9 @@ describe("the live session generic-family probe", () => {
     const page = await context!.newPage();
     const families = await defaultCommonFamilyNames(context!, page);
     const before = await ensureSessionGenericFamilyOverrides(page);
+    const beforeJpan = before!.byScript.get("KATAKANA_OR_HIRAGANA")!;
+    const jpanMutationFamily = [...new Set(beforeJpan.values())]
+      .find((family) => family !== beforeJpan.get("serif"));
     const session = await context!.newCDPSession(page);
     try {
       await session.send("Page.setFontFamilies", {
@@ -72,9 +75,9 @@ describe("the live session generic-family probe", () => {
           fantasy: families.serif,
           math: families.sans,
         },
-        forScripts: [{
+        forScripts: jpanMutationFamily == null ? [] : [{
           script: "jpan",
-          fontFamilies: { standard: families.sans, serif: families.sans, sansSerif: families.serif, fixed: families.serif },
+          fontFamilies: { serif: jpanMutationFamily },
         }],
       });
       const result = await ensureSessionGenericFamilyOverrides(page);
@@ -82,8 +85,16 @@ describe("the live session generic-family probe", () => {
       expect(result!.common.get("serif")).not.toBe(before!.common.get("serif"));
       expect(result!.common.get("sans-serif")).not.toBe(before!.common.get("sans-serif"));
       expect(result!.common.get("monospace")).not.toBe(before!.common.get("monospace"));
-      expect(result!.byScript.get("KATAKANA_OR_HIRAGANA")!.get("serif"))
-        .not.toBe(before!.byScript.get("KATAKANA_OR_HIRAGANA")!.get("serif"));
+      if (jpanMutationFamily == null) {
+        // A limited host can paint every Japanese generic through one fallback
+        // face, leaving no non-inert installed mutation candidate. The Common
+        // mutations above remain mandatory and non-vacuous.
+        expect(result!.byScript.get("KATAKANA_OR_HIRAGANA")!.get("serif"))
+          .toBe(beforeJpan.get("serif"));
+      } else {
+        expect(result!.byScript.get("KATAKANA_OR_HIRAGANA")!.get("serif"))
+          .toBe(jpanMutationFamily);
+      }
     } finally {
       await session.detach();
       await page.close();
