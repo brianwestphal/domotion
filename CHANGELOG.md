@@ -2,6 +2,13 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.26.3] - 2026-09-03
+
+
+<!-- No user-facing changes in this release. -->
+
+There are no user-facing changes in `v0.26.2..HEAD` — the single commit only adjusts an internal font-path integrity test and adds a non-behavioral `optionalInstall` marker to font-table entries to support it. Nothing in the diff alters capture, rendering, animation, CLI flags, or output, so every template section is omitted.
+
 ## [0.26.2] - 2026-09-03
 
 
