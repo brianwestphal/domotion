@@ -9,6 +9,8 @@ describe("DM-2537 three-platform frame/scroll ownership gate", () => {
     expect(workflow).toContain("macos-latest");
     expect(workflow).toContain("ubuntu-latest");
     expect(workflow).toContain("windows-latest");
+    expect(workflow).toContain("name: ${{ matrix.os }} exact frame/scroll ownership");
+    expect(workflow).not.toContain("name: ${{ runner.os }} exact frame/scroll ownership");
     expect(workflow).toContain("src/scroll/frame-scroll-ownership.test.ts");
     expect(workflow).toContain("tests/cross-origin-frame-scroll-workflow.test.ts");
     expect(workflow).toContain("tests/cross-origin-iframe-recursion.e2e.test.ts");

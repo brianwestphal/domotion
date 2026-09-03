@@ -45,7 +45,7 @@ env:
 
 jobs:
   exact-logical-ownership:
-    name: ${{ runner.os }} exact frame/scroll ownership
+    name: ${{ matrix.os }} exact frame/scroll ownership
     strategy:
       fail-fast: false
       matrix:

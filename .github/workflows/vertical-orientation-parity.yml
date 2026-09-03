@@ -48,7 +48,7 @@ env:
 
 jobs:
   exact-logical-parity:
-    name: ${{ runner.os }} exact logical parity
+    name: ${{ matrix.os }} exact logical parity
     strategy:
       fail-fast: false
       matrix:

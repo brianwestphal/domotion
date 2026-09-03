@@ -31,6 +31,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
       - run: npm ci
+      - run: npm run check:workflow-contexts
       - run: npm run docs:index:check
       - run: npm run typecheck
 

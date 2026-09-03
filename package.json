@@ -184,6 +184,7 @@
     "check:parity-program": "node tools/check-parity-program.mjs",
     "check:semantic-coverage": "tsx tools/check-semantic-coverage.ts",
     "check:activation-coverage": "tsx tools/check-activation-coverage.ts",
+    "check:workflow-contexts": "node tools/check-github-workflows.mjs",
     "gate:parity-release": "tsx tools/check-parity-release.ts",
     "site:dev": "cd site && npm install && npm run dev",
     "site:build": "cd site && npm install && npm run build",
@@ -214,7 +215,8 @@
     "opentype.js": "^2.0.0",
     "tsx": "^4.23.1",
     "typescript": "^5.8.3",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "yaml": "^2.9.0"
   },
   "optionalDependencies": {
     "node-pty": "^1.1.0"

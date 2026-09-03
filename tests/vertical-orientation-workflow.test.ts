@@ -10,6 +10,8 @@ describe("DM-2525 three-platform vertical-orientation gate", () => {
     expect(workflow).toContain("d578f2e8b7bd5938e21cfb6bf15c079e0aa5b738");
     expect(workflow).toContain("source/data/unidata/ppucd.txt?format=TEXT");
     expect(workflow).toContain("acquireIcuCompanion");
+    expect(workflow).toContain("name: ${{ matrix.os }} exact logical parity");
+    expect(workflow).not.toContain("name: ${{ runner.os }} exact logical parity");
     expect(workflow).toContain("unicode:vertical-orientation:check");
     expect(workflow).toContain("unicode:vertical-orientation:oracle -- --require-source");
     expect(workflow).toContain("vertical-orientation-capture.e2e.test.ts");

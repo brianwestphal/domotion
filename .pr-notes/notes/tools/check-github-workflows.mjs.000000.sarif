@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtkuw5i6iu4u53ch",
+          "message": {
+            "text": "Workflow YAML is now parsed and pre-runner context references are checked before GitHub sees them. This catches runner.os in job metadata while still allowing runner context inside allocated steps. The focused regression suite passes 9/9 and the repository scan covers all 58 workflows; CI invokes the same checker after npm ci.",
+            "markdown": "Workflow YAML is now parsed and pre-runner context references are checked before GitHub sees them. This catches runner.os in job metadata while still allowing runner context inside allocated steps. The focused regression suite passes 9/9 and the repository scan covers all 58 workflows; CI invokes the same checker after npm ci."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tools/check-github-workflows.mjs"
+                },
+                "region": {
+                  "startLine": 22,
+                  "endLine": 37,
+                  "snippet": {
+                    "text": "// These fields are evaluated while GitHub expands/routes a job, before a runner\n// exists. Keep the sets aligned with the official context-availability table:\n// https://docs.github.com/actions/reference/workflows-and-actions/contexts#context-availability\nconst JOB_FIELD_CONTEXTS = new Map([\n  [\"concurrency\", new Set([\"github\", \"inputs\", \"matrix\", \"needs\", \"strategy\", \"vars\"])],\n  [\"continue-on-error\", new Set([\"github\", \"inputs\", \"matrix\", \"needs\", \"strategy\", \"vars\"])],\n  [\"defaults\", new Set([\"env\", \"github\", \"inputs\", \"matrix\", \"needs\", \"strategy\", \"vars\"])],\n  [\"env\", new Set([\"github\", \"inputs\", \"matrix\", \"needs\", \"secrets\", \"strategy\", \"vars\"])],\n  [\"if\", new Set([\"github\", \"inputs\", \"needs\", \"vars\"])],\n  [\"name\", new Set([\"github\", \"inputs\", \"matrix\", \"needs\", \"strategy\", \"vars\"])],\n  [\"runs-on\", new Set([\"github\", \"inputs\", \"matrix\", \"needs\", \"strategy\", \"vars\"])],\n  [\"secrets\", new Set([\"github\", \"inputs\", \"matrix\", \"needs\", \"secrets\", \"strategy\", \"vars\"])],\n  [\"strategy\", new Set([\"github\", \"inputs\", \"needs\", \"vars\"])],\n  [\"timeout-minutes\", new Set([\"github\", \"inputs\", \"matrix\", \"needs\", \"strategy\", \"vars\"])],\n  [\"with\", new Set([\"github\", \"inputs\", \"matrix\", \"needs\", \"strategy\", \"vars\"])],\n]);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/ci.yml"
+                },
+                "region": {
+                  "startLine": 34
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/github-workflow-contexts.test.ts"
+                },
+                "region": {
+                  "startLine": 10
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2665"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "58b468688a9788f56fb39787d84552bc"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c120f6da056bf1253fefcf9f50874dbd3992bdb7",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
