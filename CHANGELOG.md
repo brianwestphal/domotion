@@ -2,6 +2,11 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.26.2] - 2026-09-03
+
+
+<!-- No user-facing changes in this range: both commits are CI/test/tooling only (a GitHub Actions workflow context linter and an internal color-space oracle test tweak), which the template excludes. -->
+
 ## [0.26.1] - 2026-09-03
 
 
