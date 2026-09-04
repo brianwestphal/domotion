@@ -6,7 +6,9 @@ on:
       - "src/capture/generic-font-probe.ts"
       - "src/capture/index.ts"
       - "tools/generic-profile-target-oracle.ts"
-      - "tests/generic-profile-target-oracle*.test.ts"
+      - "scripts/install-windows-profile-fixture-fonts.ps1"
+      - "assets/fonts/fixture/DomotionProfileDevanagari*.ttf"
+      - "tests/generic-profile-target-*.test.ts"
       - "docs/219-authenticated-profile-oopif-generic-preferences.md"
       - ".github/workflows/generic-profile-target-parity.yml"
   workflow_dispatch:
@@ -25,17 +27,10 @@ jobs:
         with:
           node-version: 22.21.0
           cache: npm
-      - name: Install a non-inert Windows Devanagari comparison family
+      - name: Install deterministic Windows Devanagari comparison families
         if: runner.os == 'Windows'
         shell: pwsh
-        run: |
-          $capability = Get-WindowsCapability -Online |
-            Where-Object Name -Like 'Language.Fonts.Deva*' |
-            Select-Object -First 1
-          if ($null -eq $capability) { throw 'Windows Devanagari font capability is unavailable' }
-          if ($capability.State -ne 'Installed') {
-            Add-WindowsCapability -Online -Name $capability.Name
-          }
+        run: ./scripts/install-windows-profile-fixture-fonts.ps1
       - run: npm ci
       - name: Exact profile and target authority
         if: runner.os != 'Linux'

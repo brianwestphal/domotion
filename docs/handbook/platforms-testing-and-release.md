@@ -6,7 +6,7 @@ status: "current"
 owners: ["platform-release"]
 platforms: ["macos","linux","windows"]
 tickets: ["DM-2596","DM-2604","DM-2635","DM-2636","DM-2664"]
-code: [".github/workflows/","scripts/materialize-source-authorities.mjs","src/capture/debug-bundle.ts","tests/animate-debug.e2e.test.ts","tests/capture-debug-api.e2e.test.ts","tests/feature-coverage.ts","tests/release-helpers-workflow.test.ts","tests/release-workflow.test.ts","tools/parity-program.json","scripts/ci-run-fast-visuals.mjs"]
+code: [".github/workflows/","scripts/materialize-source-authorities.mjs","scripts/install-windows-profile-fixture-fonts.ps1","src/capture/debug-bundle.ts","tests/animate-debug.e2e.test.ts","tests/capture-debug-api.e2e.test.ts","tests/feature-coverage.ts","tests/release-helpers-workflow.test.ts","tests/release-workflow.test.ts","tools/parity-program.json","scripts/ci-run-fast-visuals.mjs"]
 aliases: ["docs/handbook/platforms-testing-and-release.md"]
 ---
 

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtmhk70cme1ud1nx",
+          "message": {
+            "text": "The installer uses the per-user registry plus a session-visible AddFontResourceExW call and WMFONTCHANGE broadcast because Chromium creates Skia DirectWrite font managers from the system collection after this step. FRPRIVATE would scope the font to PowerShell and make the later Chrome CDP authentication fail.",
+            "markdown": "The installer uses the per-user registry plus a session-visible AddFontResourceExW call and WM_FONTCHANGE broadcast because Chromium creates Skia DirectWrite font managers from the system collection after this step. FR_PRIVATE would scope the font to PowerShell and make the later Chrome CDP authentication fail."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "scripts/install-windows-profile-fixture-fonts.ps1"
+                },
+                "region": {
+                  "startLine": 37,
+                  "endLine": 58,
+                  "snippet": {
+                    "text": "  Copy-Item -LiteralPath $source -Destination $destination -Force\n  New-ItemProperty -Path $registryPath -Name \"$($font.Name) (TrueType)\" `\n    -Value $destination -PropertyType String -Force | Out-Null\n\n  # Zero flags makes the resource session-visible. FR_PRIVATE would expose it\n  # only to this short-lived PowerShell process, so Chrome could not authenticate\n  # it through DirectWrite's system collection after the step exits.\n  $added = [DomotionProfileFontInstaller]::AddFontResourceExW(\n    $destination, 0, [IntPtr]::Zero)\n  if ($added -eq 0) {\n    $errorCode = [Runtime.InteropServices.Marshal]::GetLastWin32Error()\n    throw \"AddFontResourceExW failed for $destination (Win32 error $errorCode)\"\n  }\n}\n\n$broadcast = [IntPtr]0xffff\n$fontChange = 0x001d\n$abortIfHung = 0x0002\n$result = [UIntPtr]::Zero\n[void][DomotionProfileFontInstaller]::SendMessageTimeoutW(\n  $broadcast, $fontChange, [UIntPtr]::Zero, [IntPtr]::Zero,\n  $abortIfHung, 5000, [ref]$result)"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.92
+          },
+          "rank": 85,
+          "workItemUris": [
+            "DM-2677"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "319178d45f98c741c8a63f5b5de08a68"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "4c776e83d67733cc5708d96b3a4f11566bc5a1da",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -5,8 +5,8 @@ kind: "reference"
 status: "current"
 owners: ["rendering"]
 platforms: ["macos","windows"]
-tickets: ["DM-2539"]
-code: [".github/workflows/generic-profile-target-parity.yml"]
+tickets: ["DM-2539","DM-2677"]
+code: [".github/workflows/generic-profile-target-parity.yml","scripts/install-windows-profile-fixture-fonts.ps1","tools/generic-profile-target-oracle.ts"]
 aliases: ["docs/219-authenticated-profile-oopif-generic-preferences.md","doc-219"]
 ---
 
@@ -62,6 +62,14 @@ the current browser and font inventory. For each of Common, Japanese, and
 Devanagari, every requested field differs from its own baseline and the script
 uses at least two distinct painted mutation families. That gives 21 non-inert
 fields without fitting code points to a known outcome.
+
+The Windows runner installs two tiny, deterministic generated Devanagari faces
+into its per-user platform font collection before Chrome starts. Each covers
+only the U+0905 discriminator. They are ordinary installed fonts rather than
+webfonts: the same `CSS.getPlatformFontsForNode` read used for every other row
+must report their distinct family identities with `isCustomFont: false` before
+either can participate in the mutation. This avoids provisioning the full
+Windows supplemental Devanagari capability while preserving the exact gate.
 
 Two profiles run in opposite orders: headed then headless, and headless then
 headed. Before launch and after each close, the gate reparses raw

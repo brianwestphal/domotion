@@ -425,7 +425,13 @@ async function readRows(owner: Page | Frame, cdp: CDPSession): Promise<ProfileFa
   }
 }
 
+export const WINDOWS_PROFILE_FIXTURE_FAMILIES = [
+  "Domotion Profile Devanagari One",
+  "Domotion Profile Devanagari Two",
+] as const;
+
 const WINDOWS_DEVANAGARI_CANDIDATES = [
+  ...WINDOWS_PROFILE_FIXTURE_FAMILIES,
   "Aparajita",
   "Kokila",
   "Mangal",

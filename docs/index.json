@@ -7107,10 +7107,13 @@
           "windows"
         ],
         "tickets": [
-          "DM-2539"
+          "DM-2539",
+          "DM-2677"
         ],
         "code": [
-          ".github/workflows/generic-profile-target-parity.yml"
+          ".github/workflows/generic-profile-target-parity.yml",
+          "scripts/install-windows-profile-fixture-fonts.ps1",
+          "tools/generic-profile-target-oracle.ts"
         ],
         "aliases": [
           "docs/219-authenticated-profile-oopif-generic-preferences.md",
@@ -7883,6 +7886,7 @@
         "code": [
           ".github/workflows/",
           "scripts/materialize-source-authorities.mjs",
+          "scripts/install-windows-profile-fixture-fonts.ps1",
           "src/capture/debug-bundle.ts",
           "tests/animate-debug.e2e.test.ts",
           "tests/capture-debug-api.e2e.test.ts",

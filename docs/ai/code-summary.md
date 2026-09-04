@@ -56,6 +56,8 @@ loading the historical documentation corpus.
   source ownership, stage gates, activation, platform coverage, and gaps.
 - `tools/*oracle*`, `tools/*gate*`, and `.github/workflows/` produce and
   adjudicate exact logical, native, and visual evidence.
+- `scripts/install-windows-profile-fixture-fonts.ps1` installs the generated
+  Devanagari comparison faces used by the native Windows profile/target gate.
 - `scripts/materialize-source-authorities.mjs` reconstructs the source subset
   required by clean-checkout CI from immutable Chromium, Chromium-pinned
   Skia/ICU, HarfBuzz, and html-test revisions. Release validation installs its
