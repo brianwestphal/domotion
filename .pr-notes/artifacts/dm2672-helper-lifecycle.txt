@@ -1,0 +1,71 @@
+DM-2672 native-helper lifecycle evidence
+========================================
+
+Local focused E2E (macOS arm64, Playwright headless shell)
+  command: DOMOTION_NO_OPEN=1 npx vitest run --config vitest.e2e.config.ts
+           src/templates/templates.e2e.test.ts -t "counter reel survives capture"
+  result: 1 passed / 13 skipped
+  test time: 3.32 s
+  process result: clean exit
+
+Linux Noble arm64 controlled render profile (headless)
+  fixture: counter to=128500, grouping=true, fontSize=200
+  persistent helper:
+    elapsed: 12,768.600 ms
+    helper envelopes: 11
+    helper time: 26.653 ms
+    text renders: 193 / 4,788.717 ms
+    SVG bytes: 88,210
+    retained digit cells: 192
+
+Interpretation
+  Persistent transport is the production-faithful lifecycle and removes about
+  74 ms of helper process overhead in this controlled profile, but it is not the
+  dominant runtime cost. Text rendering accounts for 4.79 s and the remaining
+  capture/serialization path for about 7.8 s. A qemu-emulated x64 run that took
+  more than two minutes was rejected as native-CI performance evidence.
+  one-shot control (DOMOTION_HELPER_NO_SERVE=1):
+    elapsed: 13,351.933 ms
+    helper envelopes: 11
+    helper time: 100.494 ms
+    text renders: 193 / 4,898.023 ms
+    SVG bytes: 88,210
+    retained digit cells: 192
+
+Complete macOS browser E2E fork pool (headless)
+  result: 166 files passed / 2 skipped; 543 tests passed / 3 skipped
+  duration: 550.15 s
+  process result: clean exit; no exit-144 helper-child leak
+
+Complete unit gate (uncontended, standard timeouts)
+  result: 469 files passed / 5 skipped; 5,151 tests passed / 38 skipped
+  duration: 145.88 s
+
+Static and generated-code gates
+  result: typecheck, lint, build, feature coverage, semantic coverage,
+          workflow-context validation, and git diff whitespace checks passed
+
+Native Linux x64 CI result
+  run: https://github.com/brianwestphal/domotion/actions/runs/33841826877
+  workflow: Linux fidelity (all 4 jobs passed)
+  counter reel: 28.298 s at the restored 60-second deadline
+  template file: 14/14 passed in 63.781 s
+  complete E2E pool: 162 files passed / 6 skipped;
+                     521 tests passed / 25 skipped
+  complete E2E duration: 698.49 s with clean process exit
+  visual suite, committed Linux baseline, terminal-mask gate,
+  helper activation, family matching, width probe, and helper build: passed
+  comparison: an earlier native full-pool run using one-shot transport recorded
+              the same fixture at 21.293 s; both are comfortably sub-60 and the
+              runner/pool difference does not support attributing a speedup to
+              helper persistence
+
+Source-lifetime audit
+  Chromium 7d859f271cbda744098ac69f44978d4edfa62be3:
+    Blink FontCache returns process-owned cached platform/font data, and
+    HarfBuzzFontCache::GetOrCreate memoizes shaped font state by unique id.
+  Skia ebf50520d720a1ce9d842d942d04c6c39c3fbc7b:
+    SkFontMgr_FCI owns request/typeface caches; SkTypeface_FreeType initializes
+    its FaceRec once. Reusing an opened face for same-key requests matches that
+    source lifecycle; per-request helper spawning is a diagnostic transport,
+    not Chromium/Skia behavior.

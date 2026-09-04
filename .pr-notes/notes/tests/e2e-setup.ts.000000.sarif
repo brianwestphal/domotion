@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtmk0ivtp6qehgjn",
+          "message": {
+            "text": "The E2E lane now uses the production persistent native-helper transport while owning its Vitest-fork lifecycle explicitly. Native Linux x64 keeps the retained 192-cell counter fixture below its restored 60-second deadline at 28.298 seconds and the complete headless pool exits cleanly. A prior native one-shot run was also sub-60, so the original overrun is attributed to qemu-emulated x64 timing and persistence is not claimed as the dominant speedup; the attached profile records that distinction and the residual capture/text costs.",
+            "markdown": "The E2E lane now uses the production persistent native-helper transport while owning its Vitest-fork lifecycle explicitly. Native Linux x64 keeps the retained 192-cell counter fixture below its restored 60-second deadline at 28.298 seconds and the complete headless pool exits cleanly. A prior native one-shot run was also sub-60, so the original overrun is attributed to qemu-emulated x64 timing and persistence is not claimed as the dominant speedup; the attached profile records that distinction and the residual capture/text costs."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/e2e-setup.ts"
+                },
+                "region": {
+                  "startLine": 9,
+                  "endLine": 13,
+                  "snippet": {
+                    "text": "// DM-2672: E2E must exercise the product's persistent native-helper transport.\n// Kill that unref'd helper at the end of each test file so Vitest workers have\n// an explicit lifecycle boundary without forcing every glyph query through a\n// fresh one-shot process.\nafterAll(() => clearGlyphHelperCache());"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "vitest.e2e.config.ts"
+                },
+                "region": {
+                  "startLine": 18
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/templates/templates.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 308
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2672"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "1fb6d4135c5ba086fd0318171188bf9c"
+          },
+          "attachments": [
+            {
+              "artifactLocation": {
+                "uri": ".pr-notes/artifacts/dm2672-helper-lifecycle.txt",
+                "properties": {
+                  "ext-sha256": "4e15f054cfe46e6a58f788c896c54d92034ab2c8fe713ee612dadb29cf05fa63"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "3300f5a6c02fa2ac8773c0d2a615ca7f8fe7fd5f",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

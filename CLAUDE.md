@@ -59,6 +59,14 @@ persistent channel itself. Do not remove the Vitest override to speed up the
 unit gate—use the channel in long-lived commands, where its lifecycle matches
 the host process.
 
+The browser E2E lane intentionally differs: `tests/e2e-setup.ts` closes the
+persistent helper explicitly in `afterAll`, so each test-file worker may exercise
+the production transport without leaking a child when Vitest reaps the fork.
+Do not set `DOMOTION_HELPER_NO_SERVE=1` globally in `vitest.e2e.config.ts`; the
+off-canvas counter-reel regression covers repeated native queries while retaining
+all animated cells (DM-2672). Do not use qemu-emulated x64 wall time as native-CI
+performance evidence; validate runtime claims on an actual x64 runner.
+
 `npm run test:linux-docker` runs the suite inside `mcr.microsoft.com/playwright:v<locked-version>-noble` — the same Linux image CI's `test` job uses. Because the font-fallback chain is calibrated to the host platform's system fonts, text-rendering tests take a different code path on Linux (no `/System/Library/Fonts/...` → glyph-path rendering falls back to `<text>`), so some failures only surface in CI. This reproduces them without pushing a tag. Pass a file/`-t` filter (`npm run test:linux-docker -- src/scroll/composer.test.ts`) or set `CMD=` to run any other command (e.g. `CMD="npm run typecheck"`) in the container. `node_modules` is isolated in a Docker volume so the container's Linux install never clobbers your host's.
 
 **A container run writes its results to `tests/output-linux/`, NOT `tests/output/`** (`DOMOTION_OUTPUT_DIR`, DM-1802 — so a Linux run can't overwrite the host's macOS results and have `demos:review` show them as "Local · macOS"). The script prints the path in its banner. This matters more than it sounds: anything reading `tests/output/features-results.json` after a container run gets the **host's stale file**, and it will look like a perfectly plausible result. Measured cost — a font A/B run in here read the stale path in *both* arms, reported "0 of 114 fixtures moved" for a mechanism that moves exactly one, concluded the mechanism was inert, and produced a bug report against this script. The script was correct throughout. If you need a container run's numbers, read `tests/output-linux/`, and check `generatedAt` in the JSON before trusting it. (Verified: run through this script, `text-font-stretch-underline` reports 0.703% pass with the Linux glyph helper built and 1.989% fail with `DOMOTION_DISABLE_HELPER=1` — matching the x64 CI runner exactly, so this script does reproduce CI.)
