@@ -2,6 +2,11 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.27.1] - 2026-09-05
+
+
+No user-facing changes in this range. Everything between v0.27.0 and HEAD is test-lane configuration, CI workflow tooling, fixture fonts for the Windows conformance gate, and documentation; the published package's capture, render, animation, and CLI behavior is unchanged.
+
 ## [0.27.0] - 2026-09-04
 
 
