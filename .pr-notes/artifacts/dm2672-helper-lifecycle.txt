@@ -1,0 +1,52 @@
+DM-2672 native-helper lifecycle evidence
+========================================
+
+Local focused E2E (macOS arm64, Playwright headless shell)
+  command: DOMOTION_NO_OPEN=1 npx vitest run --config vitest.e2e.config.ts
+           src/templates/templates.e2e.test.ts -t "counter reel survives capture"
+  result: 1 passed / 13 skipped
+  test time: 3.32 s
+  process result: clean exit
+
+Linux Noble arm64 controlled render profile (headless)
+  fixture: counter to=128500, grouping=true, fontSize=200
+  persistent helper:
+    elapsed: 12,768.600 ms
+    helper envelopes: 11
+    helper time: 26.653 ms
+    text renders: 193 / 4,788.717 ms
+    SVG bytes: 88,210
+    retained digit cells: 192
+  one-shot control (DOMOTION_HELPER_NO_SERVE=1):
+    elapsed: 13,351.933 ms
+    helper envelopes: 11
+    helper time: 100.494 ms
+    text renders: 193 / 4,898.023 ms
+    SVG bytes: 88,210
+    retained digit cells: 192
+
+Complete macOS browser E2E fork pool (headless)
+  result: 166 files passed / 2 skipped; 543 tests passed / 3 skipped
+  duration: 550.15 s
+  process result: clean exit; no exit-144 helper-child leak
+
+Complete unit gate (uncontended, standard timeouts)
+  result: 469 files passed / 5 skipped; 5,151 tests passed / 38 skipped
+  duration: 145.88 s
+
+Static and generated-code gates
+  result: typecheck, lint, build, feature coverage, semantic coverage,
+          workflow-context validation, and git diff whitespace checks passed
+
+Native Linux x64 CI result
+  Pending final validation-branch run.
+
+Source-lifetime audit
+  Chromium 7d859f271cbda744098ac69f44978d4edfa62be3:
+    Blink FontCache returns process-owned cached platform/font data, and
+    HarfBuzzFontCache::GetOrCreate memoizes shaped font state by unique id.
+  Skia ebf50520d720a1ce9d842d942d04c6c39c3fbc7b:
+    SkFontMgr_FCI owns request/typeface caches; SkTypeface_FreeType initializes
+    its FaceRec once. Reusing an opened face for same-key requests matches that
+    source lifecycle; per-request helper spawning is a diagnostic transport,
+    not Chromium/Skia behavior.

@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtmj77db2iawxavv",
+          "message": {
+            "text": "The E2E lane now uses the production persistent native-helper transport while owning its Vitest-fork lifecycle explicitly. The focused counter fixture keeps all 192 digit cells and passes its restored 60-second deadline; afterAll cleanup also let the complete 168-file headless E2E pool exit cleanly instead of repeating the historical exit-144 child leak. The attached profile records the transport A/B, complete E2E pool, and clean 5,151-test unit gate.",
+            "markdown": "The E2E lane now uses the production persistent native-helper transport while owning its Vitest-fork lifecycle explicitly. The focused counter fixture keeps all 192 digit cells and passes its restored 60-second deadline; afterAll cleanup also let the complete 168-file headless E2E pool exit cleanly instead of repeating the historical exit-144 child leak. The attached profile records the transport A/B, complete E2E pool, and clean 5,151-test unit gate."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/e2e-setup.ts"
+                },
+                "region": {
+                  "startLine": 9,
+                  "endLine": 13,
+                  "snippet": {
+                    "text": "// DM-2672: E2E must exercise the product's persistent native-helper transport.\n// Kill that unref'd helper at the end of each test file so Vitest workers have\n// an explicit lifecycle boundary without forcing every glyph query through a\n// fresh one-shot process.\nafterAll(() => clearGlyphHelperCache());"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "vitest.e2e.config.ts"
+                },
+                "region": {
+                  "startLine": 18
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/templates/templates.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 308
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2672"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "1fb6d4135c5ba086fd0318171188bf9c"
+          },
+          "attachments": [
+            {
+              "artifactLocation": {
+                "uri": ".pr-notes/artifacts/dm2672-helper-lifecycle.txt",
+                "properties": {
+                  "ext-sha256": "dba343120fa86d2b75d4ded89301ee805c89e60f291ad577d6f56fcd6ef462a5"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "229891d5def4edc3eaf74393d9ac21a8e239e7b2",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
