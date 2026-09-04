@@ -2,6 +2,22 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.27.0] - 2026-09-04
+
+
+**🚀 Features**
+
+- Emoji and other color/bitmap glyphs (sbix, CBDT, COLR, OpenType SVG) inside `::before` / `::after` / checkmark content now render through an isolated Chromium-painted surface that replaces only that text, instead of a monochrome outline; pseudo text also honors the computed `font-variant-emoji` preference.
+
+**🐛 Fixes**
+
+- `text-shadow` on text with `-webkit-text-stroke` or underline/line-through decorations now paints the stroke and decorations in the shadow color, and shadow and foreground decorations no longer share a clip id.
+- Mixed-script text that spans multiple fallback fonts (for example CJK plus Latin in vertical or transformed text) now maps correctly through the text-fragment geometry pipeline instead of failing the split.
+- Generic font families (`serif`, `sans-serif`, etc.) resolved from a live session are now replayed by family name on Linux and Windows and by PostScript name on macOS, matching what fontconfig, DirectWrite, and CoreText each accept.
+- macOS Unicode fallback routing now records which faces are optional installs (such as Noto Sans and Noto Sans KR) rather than assuming they are present on every machine.
+- `svg-scrubber` no longer accepts play/scrub actions while an SVG is still loading, so controls are not reset by the pending load on slower hosts.
+- The `animate` command's outside-region mismatch error now shows where the captured content first diverges, instead of only reporting that it differs.
+
 ## [0.26.3] - 2026-09-03
 
 
