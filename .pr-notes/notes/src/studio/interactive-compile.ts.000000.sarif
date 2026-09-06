@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpcu11oroubvyn6",
+          "message": {
+            "text": "A live scene keeps one Chromium page across every action so each state is captured from the actual cumulative DOM/CSS state. Target geometry is re-inspected immediately before its action, which is essential for controls revealed or repositioned by earlier steps.",
+            "markdown": "A live scene keeps one Chromium page across every action so each state is captured from the actual cumulative DOM/CSS state. Target geometry is re-inspected immediately before its action, which is essential for controls revealed or repositioned by earlier steps."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/interactive-compile.ts"
+                },
+                "region": {
+                  "startLine": 250,
+                  "endLine": 310,
+                  "snippet": {
+                    "text": "  const cap = scene.render.recipe.capture;\n  const projectDir = options.projectDir ?? process.cwd();\n  const input = cap.url ?? resolve(projectDir, cap.file!);\n  const plan = compileStudioSemanticTracks(scene.tracks ?? [], { path: `$.scenes[${sceneIndex}].tracks` });\n  const session = await openAnimateCaptureSession(browser, {\n    width: project.canvas.width,\n    height: project.canvas.height,\n    mobile: cap.mobile === true,\n    ...(cap.colorScheme != null ? { colorScheme: cap.colorScheme } : {}),\n  });\n  try {\n    const { page, tracker } = session;\n    await loadInputIntoPage(page, input);\n    await applyReadyWaits(page, { wait: cap.wait ?? 200, waitFor: cap.waitFor, fontsReady: true });\n    await discoverAndRegisterWebfonts(page, tracker.urls);\n    await runScenePhase(project, scene, sceneIndex, page, \"beforeCapture\", options.runSceneHook);\n\n    const selector = cap.selector ?? \"body\";\n    const states: CapturedState[] = [await captureState(page, selector, project.canvas.width, project.canvas.height, `studio-${scene.id}-s0-`)];\n    const evidence: StudioInteractionEvidence[] = [];\n    const cursorTargets: StudioCursorTargetEvidence[] = [];\n    for (const step of plan.steps) {\n      if (step.event.kind !== \"waitForState\" && step.event.kind !== \"scriptHook\") {\n        cursorTargets.push(...await inspectStudioCursorTargets(page, { steps: [step], durationMs: step.event.atMs + (step.event.durationMs ?? 0) }));\n      }\n      const observed = await observeStudioSemanticStep(page, step, () => runStudioSemanticStep(page, step, {\n        log: options.log,\n        runHook: options.runHook,\n      }));\n      evidence.push(observed);\n      await discoverAndRegisterWebfonts(page, tracker.urls);\n      states.push(await captureState(page, selector, project.canvas.width, project.canvas.height, `studio-${scene.id}-s${states.length}-`));\n    }\n    await runScenePhase(project, scene, sceneIndex, page, \"afterCapture\", options.runSceneHook);\n    const cursor = planStudioCursorChoreography(cursorTargets, { seed: scene.id, ...(options.cursor ?? {}) });\n    const groups = scheduledGroups(plan, cursor);\n    const authoredDuration = scene.render.recipe.duration ?? 0;\n    const { frames, durationMs } = buildFrames(\n      states,\n      groups,\n      evidence,\n      project.canvas.width,\n      project.canvas.height,\n      Math.max(authoredDuration, plan.durationMs + cursor.timeOffsetMs, cursor.durationMs + DEFAULT_STATE_TAIL_MS),\n    );\n    await runScenePhase(project, scene, sceneIndex, page, \"beforeCompile\", options.runSceneHook);\n    const svg = generateAnimatedSvg({\n      width: project.canvas.width,\n      height: project.canvas.height,\n      frames,\n      fontFaceCss: getEmbeddedFontFaceCss(),\n      cursorOverlay: cursor.overlay,\n      background: states[0].background,\n      title: scene.title,\n      desc: scene.description,\n    });\n    await runScenePhase(project, scene, sceneIndex, page, \"afterCompile\", options.runSceneHook);\n    options.log?.(`Generated interactive Studio segment \"${scene.id}\": ${states.length} captured states, ${durationMs}ms`);\n    return { svg, durationMs, evidence, cursor };\n  } finally {\n    await session.close();"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 96,
+          "workItemUris": [
+            "DM-2685"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "70e5dbad5ccc6d53685d2b976a019117"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpcu18aryq9nmkc",
+          "message": {
+            "text": "Generated SVG and evidence files are staged until the entire storyboard composes successfully. Stable scene-derived IDs replace only prior generated artifacts, preserving authored scenes, annotations, and unrelated artifacts while failed recaptures leave the last published segment intact.",
+            "markdown": "Generated SVG and evidence files are staged until the entire storyboard composes successfully. Stable scene-derived IDs replace only prior generated artifacts, preserving authored scenes, annotations, and unrelated artifacts while failed recaptures leave the last published segment intact."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/interactive-compile.ts"
+                },
+                "region": {
+                  "startLine": 336,
+                  "endLine": 414,
+                  "snippet": {
+                    "text": "  try {\n    for (let sceneIndex = 0; sceneIndex < project.scenes.length; sceneIndex++) {\n      const scene = project.scenes[sceneIndex];\n      if (!activeScene(scene)) continue;\n      const compiled = await compileLiveSegment(browser, project, scene, sceneIndex, options);\n      const stem = artifactStem(scene.id);\n      const stagedSvg = join(stageDir, `${stem}.segment.svg`);\n      const stagedEvidence = join(stageDir, `${stem}.evidence.json`);\n      const finalSvg = join(artifactDir, `${stem}.segment.svg`);\n      const finalEvidence = join(artifactDir, `${stem}.evidence.json`);\n      const evidenceText = `${JSON.stringify({\n        version: 1,\n        sceneId: scene.id,\n        sourceRevisionId: project.review.headRevisionId,\n        observations: compiled.evidence,\n        cursor: compiled.cursor,\n      }, null, 2)}\\n`;\n      writeFileSync(stagedSvg, compiled.svg, \"utf8\");\n      writeFileSync(stagedEvidence, evidenceText, \"utf8\");\n      publications.push({ staged: stagedSvg, final: finalSvg }, { staged: stagedEvidence, final: finalEvidence });\n\n      const segmentArtifactId = artifactId(scene.id, \"segment\");\n      const evidenceArtifactId = artifactId(scene.id, \"evidence\");\n      const svgSha256 = hash(compiled.svg);\n      const evidenceSha256 = hash(evidenceText);\n      const generator = { name: \"domotion-studio-interactive\", ...(options.generatorVersion == null ? {} : { version: options.generatorVersion }) };\n      artifacts.push({\n        id: evidenceArtifactId,\n        kind: \"capture-evidence\",\n        path: projectPath(projectDir, finalEvidence),\n        generatedAt,\n        generator,\n        sourceRevisionId: project.review.headRevisionId,\n        sceneIds: [scene.id],\n        sha256: evidenceSha256,\n        metadata: { durationMs: compiled.durationMs, eventIds: compiled.evidence.map((item) => item.eventId) },\n      }, {\n        id: segmentArtifactId,\n        kind: \"svg\",\n        path: projectPath(projectDir, finalSvg),\n        generatedAt,\n        generator,\n        sourceRevisionId: project.review.headRevisionId,\n        sceneIds: [scene.id],\n        derivedFromArtifactIds: [evidenceArtifactId],\n        sha256: svgSha256,\n        metadata: { durationMs: compiled.durationMs },\n      });\n      segments.push({\n        sceneId: scene.id,\n        artifactId: segmentArtifactId,\n        evidenceArtifactId,\n        path: finalSvg,\n        evidencePath: finalEvidence,\n        durationMs: compiled.durationMs,\n        sha256: svgSha256,\n        evidenceSha256,\n        evidence: compiled.evidence,\n        cursor: compiled.cursor,\n      });\n\n      const recipe = scene.render.kind === \"storyboard\" ? scene.render.recipe : undefined;\n      const override: StoryboardScene = {\n        svg: stagedSvg,\n        period: compiled.durationMs,\n        duration: compiled.durationMs,\n        ...(recipe?.fit != null ? { fit: recipe.fit } : {}),\n        ...(recipe?.transition != null ? { transition: recipe.transition } : {}),\n        ...(recipe?.overlays != null ? { overlays: recipe.overlays } : {}),\n      };\n      overrides.push({ sceneId: scene.id, recipe: override });\n    }\n\n    const updatedProject = replaceArtifacts(project, artifacts);\n    const svg = await compileStudioProjectWithSceneOverrides(browser, project, overrides, { projectDir, log: options.log });\n    for (const publication of publications) renameSync(publication.staged, publication.final);\n    return { svg, project: updatedProject, segments };\n  } finally {\n    rmSync(stageDir, { recursive: true, force: true });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 94,
+          "workItemUris": [
+            "DM-2685"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e583526d1ce0f6066fc28376216e3110"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "13166ec6754e018d75d2dffd641651f1c682a128",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

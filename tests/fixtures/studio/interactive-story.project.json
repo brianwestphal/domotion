@@ -1,0 +1,105 @@
+{
+  "$schema": "https://raw.githubusercontent.com/brianwestphal/domotion/main/schemas/domotion-studio-project.schema.json",
+  "format": "domotion-studio-project",
+  "version": 1,
+  "id": "interactive-story",
+  "createdAt": "2026-09-06T00:00:00.000Z",
+  "canvas": { "width": 480, "height": 270, "title": "Interactive Studio fixture" },
+  "narrative": {
+    "title": "Interactive Studio fixture",
+    "beats": [
+      { "id": "beat-live", "title": "Use the product", "sceneIds": ["scene-live"] },
+      { "id": "beat-finish", "title": "Finish", "sceneIds": ["scene-finish"] }
+    ]
+  },
+  "scenes": [
+    {
+      "id": "scene-live",
+      "title": "Live interaction",
+      "narrativeBeatIds": ["beat-live"],
+      "render": {
+        "kind": "storyboard",
+        "recipe": {
+          "capture": { "file": "interactive-page.html", "wait": 0 },
+          "duration": 4000,
+          "transition": { "type": "crossfade", "duration": 200 }
+        }
+      },
+      "tracks": [{
+        "id": "track-live",
+        "kind": "semantic-interactions",
+        "events": [
+          { "id": "event-open", "atMs": 0, "kind": "click", "target": { "role": "button", "name": "Open details" } },
+          { "id": "event-type", "atMs": 900, "kind": "type", "target": { "label": "Search" }, "text": "Ada" },
+          { "id": "event-expand", "atMs": 1800, "kind": "click", "target": { "role": "button", "name": "Expand details" } },
+          { "id": "event-hook", "atMs": 2250, "kind": "scriptHook", "hookId": "hook-semantic", "input": { "text": "Details hooked" } },
+          { "id": "event-scroll", "atMs": 2700, "kind": "scrollTo", "target": { "domId": "destination" }, "behavior": "instant" }
+        ]
+      }],
+      "scriptHooks": [
+        { "hookId": "hook-scene", "phase": "beforeCapture" },
+        { "hookId": "hook-scene", "phase": "afterCapture" },
+        { "hookId": "hook-scene", "phase": "beforeCompile" },
+        { "hookId": "hook-scene", "phase": "afterCompile" }
+      ]
+    },
+    {
+      "id": "scene-finish",
+      "title": "Finish",
+      "narrativeBeatIds": ["beat-finish"],
+      "render": { "kind": "storyboard", "recipe": { "svg": "interactive-followup.svg", "duration": 700 } }
+    }
+  ],
+  "scriptHooks": [
+    { "id": "hook-scene", "module": "./hooks/scene.ts", "export": "runSceneHook" },
+    { "id": "hook-semantic", "module": "./hooks/semantic.ts", "export": "runSemanticHook" }
+  ],
+  "review": {
+    "headRevisionId": "revision-1",
+    "revisions": [{
+      "id": "revision-1",
+      "createdAt": "2026-09-06T00:00:00.000Z",
+      "author": { "kind": "human", "name": "Fixture" },
+      "summary": "Authored the interactive story."
+    }],
+    "annotations": [{
+      "id": "annotation-open",
+      "status": "open",
+      "body": "Keep the open action readable.",
+      "author": { "kind": "human", "name": "Fixture" },
+      "createdAt": "2026-09-06T00:00:00.000Z",
+      "createdRevisionId": "revision-1",
+      "target": { "sceneId": "scene-live", "trackId": "track-live", "eventId": "event-open", "atMs": 0 },
+      "evidenceArtifactIds": ["artifact-scene-live-evidence"]
+    }]
+  },
+  "artifacts": [
+    {
+      "id": "artifact-scene-live-evidence",
+      "kind": "capture-evidence",
+      "path": "generated/old.evidence.json",
+      "generatedAt": "2026-09-06T00:00:00.000Z",
+      "generator": { "name": "old-generator" },
+      "sourceRevisionId": "revision-1",
+      "sceneIds": ["scene-live"]
+    },
+    {
+      "id": "artifact-scene-live-segment",
+      "kind": "svg",
+      "path": "generated/old.segment.svg",
+      "generatedAt": "2026-09-06T00:00:00.000Z",
+      "generator": { "name": "old-generator" },
+      "sourceRevisionId": "revision-1",
+      "sceneIds": ["scene-live"],
+      "derivedFromArtifactIds": ["artifact-scene-live-evidence"]
+    },
+    {
+      "id": "artifact-unrelated",
+      "kind": "other",
+      "path": "generated/keep.txt",
+      "generatedAt": "2026-09-06T00:00:00.000Z",
+      "generator": { "name": "fixture" },
+      "sourceRevisionId": "revision-1"
+    }
+  ]
+}

@@ -96,6 +96,12 @@ function assertStaticCompilerInputs(project: StudioProject): void {
   });
 }
 
+/** Internal bridge for compilers that have already materialized active scenes. */
+export interface StudioSceneRecipeOverride {
+  sceneId: string;
+  recipe: StoryboardScene;
+}
+
 /**
  * Compile Studio's static subset by lowering recursive compositions through the
  * current composite compositor, then sequencing every scene through the current
@@ -108,15 +114,53 @@ export async function compileStudioProject(
 ): Promise<string> {
   const project = validateStudioProject(raw);
   assertStaticCompilerInputs(project);
+  return compileValidatedStudioProject(browser, project, [], options);
+}
+
+/** Compose a validated project while replacing selected scenes with generated recipes. */
+export async function compileStudioProjectWithSceneOverrides(
+  browser: Browser,
+  raw: unknown,
+  overrides: readonly StudioSceneRecipeOverride[],
+  options: CompileStudioProjectOptions = {},
+): Promise<string> {
+  const project = validateStudioProject(raw);
+  const bySceneId = new Map(overrides.map((override) => [override.sceneId, override.recipe]));
+  for (const override of overrides) {
+    if (!project.scenes.some((scene) => scene.id === override.sceneId)) {
+      throw new StudioProjectCompileError("$.scenes", `generated recipe references unknown scene id "${override.sceneId}"`);
+    }
+  }
+  project.scenes.forEach((scene, sceneIndex) => {
+    const active = (scene.tracks ?? []).some((track) => track.events.length > 0) || (scene.scriptHooks?.length ?? 0) > 0;
+    if (active && !bySceneId.has(scene.id)) {
+      throw new StudioProjectCompileError(`$.scenes[${sceneIndex}]`, `active scene "${scene.id}" has no generated recipe override`);
+    }
+  });
+  return compileValidatedStudioProject(browser, project, overrides, options);
+}
+
+async function compileValidatedStudioProject(
+  browser: Browser,
+  project: StudioProject,
+  overrides: readonly StudioSceneRecipeOverride[],
+  options: CompileStudioProjectOptions,
+): Promise<string> {
   const projectDir = options.projectDir ?? process.cwd();
   const log = options.log ?? (() => {});
   const workDir = mkdtempSync(join(tmpdir(), "domotion-studio-compile-"));
   const ctx: MaterializeContext = { browser, projectDir, workDir, log, nextFile: 0 };
+  const bySceneId = new Map(overrides.map((override) => [override.sceneId, override.recipe]));
 
   try {
     const scenes: StoryboardScene[] = [];
     for (let index = 0; index < project.scenes.length; index++) {
       const scene = project.scenes[index];
+      const generated = bySceneId.get(scene.id);
+      if (generated != null) {
+        scenes.push(generated);
+        continue;
+      }
       if (scene.render.kind === "storyboard") {
         scenes.push(scene.render.recipe);
         continue;

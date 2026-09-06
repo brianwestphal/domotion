@@ -545,7 +545,7 @@ export const FEATURES: FeatureEntry[] = [
     id: "studio.semantic-interactions",
     behavior: "Validate and stable-merge scene-relative semantic interaction tracks, resolve accessibility-first targets exactly once, and execute click, hover, type, scroll, drag, waits, and explicitly authorized hooks through Playwright.",
     doc: "docs/241-studio-semantic-interactions.md",
-    exports: ["StudioInteractionError", "compileStudioSemanticTracks", "runStudioSemanticPlan", "runStudioSemanticTracks"],
+    exports: ["StudioInteractionError", "compileStudioSemanticTracks", "runStudioSemanticPlan", "runStudioSemanticStep", "runStudioSemanticTracks"],
     tests: ["src/studio/interactions.test.ts", "src/studio/interactions.e2e.test.ts"],
   },
   {
@@ -561,6 +561,13 @@ export const FEATURES: FeatureEntry[] = [
     doc: "docs/243-studio-interaction-observation.md",
     exports: ["StudioInteractionObservationError", "observeStudioInteraction", "observeStudioSemanticStep"],
     tests: ["src/studio/interaction-observer.e2e.test.ts"],
+  },
+  {
+    id: "studio.interactive-segments",
+    behavior: "Capture semantic actions and their observed DOM/CSS states in one live page, synthesize timed state transitions and cursor feedback into replaceable self-contained scene artifacts, preserve revision provenance, and compose them through the ordinary Studio storyboard path.",
+    doc: "docs/244-studio-interactive-segments.md",
+    exports: ["compileStudioInteractiveProject"],
+    tests: ["src/studio/interactive-compile.test.ts", "src/studio/interactive-compile.e2e.test.ts"],
   },
   {
     id: "studio.application-shell",

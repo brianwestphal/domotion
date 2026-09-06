@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpcu1ex1ju6ccz2",
+          "message": {
+            "text": "The focused real-Chromium test passed with five cumulative actions (including an explicit TypeScript hook), all four scene hook phases, a mixed live/pre-rendered storyboard, deterministic repeat capture, provenance preservation, and cleanup after an intentional target-resolution failure.",
+            "markdown": "The focused real-Chromium test passed with five cumulative actions (including an explicit TypeScript hook), all four scene hook phases, a mixed live/pre-rendered storyboard, deterministic repeat capture, provenance preservation, and cleanup after an intentional target-resolution failure."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/interactive-compile.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 18,
+                  "endLine": 103,
+                  "snippet": {
+                    "text": "  it(\"captures a live multi-action scene, embeds it with a pre-rendered scene, and recaptures only generated artifacts\", async () => {\n    try {\n      browser = await chromium.launch({ headless: true });\n    } catch {\n      return;\n    }\n    const artifactDir = mkdtempSync(join(tmpdir(), \"domotion-studio-interactive-e2e-\"));\n    try {\n      const authored = loadStudioProject(fixturePath);\n      const authoredScenes = structuredClone(authored.scenes);\n      const authoredAnnotations = structuredClone(authored.review.annotations);\n      const unrelated = structuredClone(authored.artifacts.find((artifact) => artifact.id === \"artifact-unrelated\"));\n      const scenePhases: string[] = [];\n      const runSceneHook = async ({ page, phase }: { page: import(\"@playwright/test\").Page; phase: string }) => {\n        scenePhases.push(phase);\n        if (phase === \"beforeCapture\") {\n          await page.locator(\"main\").evaluate((element) => element.setAttribute(\"data-scene-hook\", \"ready\"));\n        }\n      };\n      const runHook = async ({ page, input }: { page: import(\"@playwright/test\").Page; input?: Record<string, unknown> }) => {\n        await page.locator(\"#panel\").evaluate((element, text) => { element.textContent = String(text); }, input?.text);\n      };\n      const first = await compileStudioInteractiveProject(browser, authored, {\n        projectDir: fixtureDir,\n        artifactDir,\n        generatedAt,\n        generatorVersion: \"test\",\n        runSceneHook,\n        runHook,\n      });\n\n      expect(first.segments).toHaveLength(1);\n      expect(first.segments[0].sceneId).toBe(\"scene-live\");\n      expect(first.segments[0].evidence.map((item) => item.eventId)).toEqual([\n        \"event-open\", \"event-type\", \"event-expand\", \"event-hook\", \"event-scroll\",\n      ]);\n      expect(first.segments[0].evidence.every((item) => item.meaningful)).toBe(true);\n      expect(first.segments[0].cursor.interactions).toHaveLength(4);\n      expect(scenePhases).toEqual([\"beforeCapture\", \"afterCapture\", \"beforeCompile\", \"afterCompile\"]);\n      expect(readFileSync(first.segments[0].path, \"utf8\")).toContain('class=\"cursor-overlay\"');\n      expect(readFileSync(first.segments[0].path, \"utf8\")).toContain(\"Details hooked\");\n      expect(first.svg).toContain(\"interactive-followup-marker\");\n      expect(first.svg).toContain(\"Details hooked\");\n      expect(first.svg).toContain(\"sb0_cursor-overlay\");\n\n      expect(first.project.scenes).toEqual(authoredScenes);\n      expect(first.project.review.annotations).toEqual(authoredAnnotations);\n      expect(first.project.artifacts.find((artifact) => artifact.id === \"artifact-unrelated\")).toEqual(unrelated);\n      expect(first.project.artifacts.filter((artifact) => artifact.sceneIds?.includes(\"scene-live\"))).toHaveLength(2);\n      expect(first.project.artifacts.find((artifact) => artifact.id === \"artifact-scene-live-segment\")).toMatchObject({\n        sourceRevisionId: \"revision-1\",\n        derivedFromArtifactIds: [\"artifact-scene-live-evidence\"],\n        sha256: first.segments[0].sha256,\n      });\n      const persistedEvidence = JSON.parse(readFileSync(first.segments[0].evidencePath, \"utf8\")) as { sourceRevisionId: string; observations: unknown[] };\n      expect(persistedEvidence.sourceRevisionId).toBe(\"revision-1\");\n      expect(persistedEvidence.observations).toHaveLength(5);\n\n      scenePhases.length = 0;\n      const second = await compileStudioInteractiveProject(browser, first.project, {\n        projectDir: fixtureDir,\n        artifactDir,\n        generatedAt,\n        generatorVersion: \"test\",\n        runSceneHook,\n        runHook,\n      });\n      expect(second.segments[0].sha256).toBe(first.segments[0].sha256);\n      expect(scenePhases).toEqual([\"beforeCapture\", \"afterCapture\", \"beforeCompile\", \"afterCompile\"]);\n      expect(second.project.artifacts.map((artifact) => artifact.id).sort()).toEqual(first.project.artifacts.map((artifact) => artifact.id).sort());\n      expect(readdirSync(artifactDir).filter((name) => name.endsWith(\".svg\"))).toHaveLength(1);\n\n      const stableSegment = readFileSync(second.segments[0].path, \"utf8\");\n      const broken = structuredClone(authored);\n      const target = broken.scenes[0].tracks![0].events[0];\n      if (\"target\" in target && target.target != null) target.target = { role: \"button\", name: \"Missing action\" };\n      await expect(compileStudioInteractiveProject(browser, broken, {\n        projectDir: fixtureDir,\n        artifactDir,\n        generatedAt,\n        runSceneHook,\n        runHook,\n      })).rejects.toThrow(/Missing action.*matched no element/);\n      expect(readFileSync(second.segments[0].path, \"utf8\")).toBe(stableSegment);\n      expect(readdirSync(artifactDir).some((name) => name.startsWith(\".studio-stage-\"))).toBe(false);\n      expect(browser.contexts()).toHaveLength(0);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 98,
+          "workItemUris": [
+            "DM-2685"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "56ac394c659c98ee39b46dfac4eeefce"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "13166ec6754e018d75d2dffd641651f1c682a128",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

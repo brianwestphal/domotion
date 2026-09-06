@@ -57,6 +57,11 @@ Playwright APIs preserve authored options that the older action shape cannot
 carry, including click button/count, timed typing, semantic waits, smooth target
 scrolling, and drag destinations.
 
+`runStudioSemanticStep(page, step, options)` executes one compiled step
+immediately without timeline waiting. It is the integration boundary used by
+interactive segment capture to keep observation, state capture, and the exact
+semantic executor around the same live action.
+
 ## Event behavior
 
 - `click` preserves optional button and click count.

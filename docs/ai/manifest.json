@@ -4881,6 +4881,35 @@
       "file": "243-studio-interaction-observation.md"
     },
     {
+      "id": "requirements/studio-interactive-segments",
+      "title": "Domotion Studio interactive segment compilation",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "studio",
+        "capture",
+        "animation"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/studio/interactive-compile.ts",
+        "src/studio/interactive-compile.test.ts",
+        "src/studio/interactive-compile.e2e.test.ts",
+        "src/studio/compile.ts",
+        "src/studio/interactions.ts",
+        "src/studio/interaction-observer.ts",
+        "src/studio/cursor-choreography.ts",
+        "tests/fixtures/studio/interactive-story.project.json",
+        "tests/fixtures/studio/interactive-page.html",
+        "tests/fixtures/studio/interactive-followup.svg"
+      ],
+      "file": "244-studio-interactive-segments.md"
+    },
+    {
       "id": "handbook/animation-and-interaction",
       "title": "Animation and interaction handbook",
       "kind": "contract",

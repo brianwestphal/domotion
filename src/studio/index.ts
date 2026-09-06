@@ -47,13 +47,22 @@ export {
   type CompileStudioProjectOptions,
 } from "./compile.js";
 export {
+  compileStudioInteractiveProject,
+  type CompileStudioInteractiveProjectOptions,
+  type CompileStudioInteractiveProjectResult,
+  type StudioInteractiveSegment,
+  type StudioSceneHookContext,
+} from "./interactive-compile.js";
+export {
   StudioInteractionError,
   compileStudioSemanticTracks,
   resolveStudioSemanticTarget,
   runStudioSemanticPlan,
+  runStudioSemanticStep,
   runStudioSemanticTracks,
   type CompileStudioSemanticTracksOptions,
   type RunStudioSemanticPlanOptions,
+  type RunStudioSemanticStepOptions,
   type StudioScriptHookContext,
   type StudioSemanticPlan,
   type StudioSemanticStep,

@@ -159,6 +159,8 @@ export interface RunStudioSemanticPlanOptions {
   now?: () => number;
 }
 
+export type RunStudioSemanticStepOptions = Pick<RunStudioSemanticPlanOptions, "log" | "runHook">;
+
 async function runWaitForState(
   page: Page,
   target: MarkedTarget,
@@ -242,6 +244,30 @@ async function runTargetedEvent(
   }
 }
 
+/** Execute one already-compiled semantic step immediately, without timeline waiting. */
+export async function runStudioSemanticStep(
+  page: Page,
+  step: StudioSemanticStep,
+  options: RunStudioSemanticStepOptions = {},
+): Promise<void> {
+  const log = options.log ?? (() => {});
+  try {
+    if (step.event.kind === "scriptHook") {
+      if (options.runHook == null) {
+        throw new StudioInteractionError(step.path, `script hook "${step.event.hookId}" requires an explicit runHook handler`, step.event.id);
+      }
+      await options.runHook({ page, hookId: step.event.hookId, input: step.event.input, event: step.event, path: step.path });
+    } else if (step.event.kind === "scrollTo" && step.event.position != null) {
+      await runActions(page, [{ type: "scroll", x: step.event.position.x, y: step.event.position.y }], log);
+    } else {
+      await runTargetedEvent(page, step, log);
+    }
+  } catch (error) {
+    if (error instanceof StudioInteractionError) throw error;
+    throw new StudioInteractionError(step.path, error instanceof Error ? error.message : String(error), step.event.id, { cause: error });
+  }
+}
+
 /** Execute a compiled scene-relative plan against one live page, in timeline order. */
 export async function runStudioSemanticPlan(
   page: Page,
@@ -255,21 +281,7 @@ export async function runStudioSemanticPlan(
     const remaining = step.event.atMs - (now() - startedAt);
     if (remaining > 0) await runActions(page, [{ type: "wait", ms: remaining }], log);
     log(`Studio interaction ${step.event.id}: ${step.event.kind} at ${step.event.atMs}ms`);
-    try {
-      if (step.event.kind === "scriptHook") {
-        if (options.runHook == null) {
-          throw new StudioInteractionError(step.path, `script hook "${step.event.hookId}" requires an explicit runHook handler`, step.event.id);
-        }
-        await options.runHook({ page, hookId: step.event.hookId, input: step.event.input, event: step.event, path: step.path });
-      } else if (step.event.kind === "scrollTo" && step.event.position != null) {
-        await runActions(page, [{ type: "scroll", x: step.event.position.x, y: step.event.position.y }], log);
-      } else {
-        await runTargetedEvent(page, step, log);
-      }
-    } catch (error) {
-      if (error instanceof StudioInteractionError) throw error;
-      throw new StudioInteractionError(step.path, error instanceof Error ? error.message : String(error), step.event.id, { cause: error });
-    }
+    await runStudioSemanticStep(page, step, options);
   }
 }
 

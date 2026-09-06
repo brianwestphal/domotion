@@ -225,14 +225,16 @@ See `docs/239-studio-project-model.md`; the editor schema ships at
 | `observeStudioSemanticStep` | function | Resolve a compiled semantic step's target and related drag destination, then observe its caller-owned executor. |
 | `compileStudioProject` | function | Lower recursive static composition scenes through `composeCompositeConfig`, then sequence all scenes through `composeStoryboardConfig`. Accepts a caller-owned `Browser` and optional `{ projectDir, log }`. Rejects active semantic tracks/hooks rather than ignoring them. |
 | `compileStudioProjectFile` | function | Load and compile a project file, resolving source paths relative to the file's directory. |
+| `compileStudioInteractiveProject` | function | Capture active URL/file scenes in one live page, synthesize reusable animated SVG/evidence artifacts, then compose them with unchanged static and pre-rendered scenes. Returns the final SVG, provenance-updated project value, and generated segments. |
 | `StudioProjectValidationError` / `StudioProjectCompileError` / `StudioInteractionError` / `StudioInteractionObservationError` | class | Structured validation/compile/execution failures with exact JSON paths; interaction failures retain the event ID, and observation failures retain captured evidence. |
 | `buildStudioProjectJsonSchema` / `studioProjectJsonSchemaText` | function | Generate the draft-2020-12 editor schema from the runtime Zod source. |
 | `StudioProject`, `StudioScene`, `StudioSceneRender`, `StudioComposition`, `StudioLayer` | type | Main project, scene, render, and recursive-layer types. |
 | `StudioNarrative`, `StudioSemanticTarget`, `StudioSemanticEvent`, `StudioSemanticTrack`, `StudioScriptHook`, `StudioReviewHistory`, `StudioArtifact` | type | Narrative, intent, extension, review, and generated-artifact value types. |
 | `StudioSemanticPlan`, `StudioSemanticStep`, `StudioScriptHookContext` | type | Stable compiled timeline and the explicit context provided to a caller-authorized script hook. |
+| `CompileStudioInteractiveProjectResult`, `StudioInteractiveSegment`, `StudioSceneHookContext` | type | Interactive compile result, replaceable scene artifact/evidence record, and the explicit application-owned scene-hook boundary. |
 | `StudioCursorPoint`, `StudioCursorBox`, `StudioCursorTargetEvidence`, `StudioCursorEventOverride`, `StudioCursorInteractionTiming`, `StudioCursorChoreography` | type | Live target evidence, deterministic planner input/overrides, and renderer-ready choreography output. |
 | `StudioInteractionEvidence`, `StudioElementChange`, `StudioMutationEvidence`, `StudioInteractionSignal`, `StudioObservedElement` | type | Ordered live-page evidence and direct/effect/incidental classification returned by Studio interaction observation. |
-| `ImportStoryboardOptions` / `CompileStudioProjectOptions` / `CompileStudioSemanticTracksOptions` / `RunStudioSemanticPlanOptions` / `PlanStudioCursorChoreographyOptions` / `StudioProjectValidationIssue` | type | Options and structured diagnostic companion types. |
+| `ImportStoryboardOptions` / `CompileStudioProjectOptions` / `CompileStudioInteractiveProjectOptions` / `CompileStudioSemanticTracksOptions` / `RunStudioSemanticPlanOptions` / `RunStudioSemanticStepOptions` / `PlanStudioCursorChoreographyOptions` / `StudioProjectValidationIssue` | type | Options and structured diagnostic companion types. |
 
 ### Standalone Studio app
 
