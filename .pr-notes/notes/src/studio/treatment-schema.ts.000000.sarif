@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpgybgmixonak8n",
+          "message": {
+            "text": "The public preset vocabulary and lower-level primitives share one Zod authority. Studio files, in-process callers, generated JSON Schema, and future MCP/UI editors therefore consume the same defaults and bounds instead of translating between parallel treatment formats.",
+            "markdown": "The public preset vocabulary and lower-level primitives share one Zod authority. Studio files, in-process callers, generated JSON Schema, and future MCP/UI editors therefore consume the same defaults and bounds instead of translating between parallel treatment formats."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/treatment-schema.ts"
+                },
+                "region": {
+                  "startLine": 14,
+                  "endLine": 97,
+                  "snippet": {
+                    "text": "export const studioTreatmentTimingSchema = z.strictObject({\n  startMs: z.number().nonnegative().default(0),\n  durationMs: z.number().positive().default(500),\n  easing: z.string().trim().min(1).default(\"cubic-bezier(0.22,1,0.36,1)\"),\n});\n\nexport const studioTreatmentLayerPrimitiveSchema = z.strictObject({\n  id: z.string().trim().min(1),\n  opacity: z.number().min(0).max(1).default(1),\n  blendMode: z.enum([\"normal\", \"multiply\", \"screen\", \"overlay\"]).default(\"normal\"),\n});\n\nexport const studioTreatmentMaskPrimitiveSchema = z.strictObject({\n  region: regionSchema,\n  feather: z.number().nonnegative().default(0),\n  inverted: z.boolean().default(false),\n});\n\nexport const studioTreatmentTransformPrimitiveSchema = z.strictObject({\n  from: z.strictObject({ ...pointSchema.shape, scale: z.number().positive().default(1) }),\n  to: z.strictObject({ ...pointSchema.shape, scale: z.number().positive().default(1) }),\n  origin: pointSchema.optional(),\n});\n\nexport const studioTreatmentOverlayPrimitiveSchema = z.strictObject({\n  region: regionSchema,\n  fill: z.string().trim().min(1).optional(),\n  stroke: z.string().trim().min(1).optional(),\n  strokeWidth: z.number().positive().default(2),\n});\n\nconst timing = studioTreatmentTimingSchema.optional();\nconst chromeFields = {\n  label: z.string().optional(),\n  theme: z.enum(CHROME_THEMES).default(\"dark\"),\n};\n\nexport const studioTreatmentSchema = z.discriminatedUnion(\"kind\", [\n  z.strictObject({ kind: z.literal(\"device-frame\"), device: z.enum(DEVICE_CHROMES).default(\"phone\"), ...chromeFields }),\n  z.strictObject({ kind: z.literal(\"browser-chrome\"), ...chromeFields }),\n  z.strictObject({ kind: z.literal(\"terminal-chrome\"), title: z.string().default(\"Terminal\"), theme: z.enum(CHROME_THEMES).default(\"dark\") }),\n  z.strictObject({\n    kind: z.literal(\"zoom-pan\"),\n    transform: studioTreatmentTransformPrimitiveSchema,\n    timing,\n  }),\n  z.strictObject({\n    kind: z.literal(\"spotlight\"),\n    mask: studioTreatmentMaskPrimitiveSchema,\n    color: z.string().default(\"#000000\"),\n    opacity: z.number().min(0).max(1).default(0.68),\n    timing,\n  }),\n  z.strictObject({\n    kind: z.literal(\"callout\"),\n    text: z.string().trim().min(1),\n    anchor: pointSchema,\n    box: regionSchema,\n    fill: z.string().optional(),\n    color: z.string().optional(),\n    accent: z.string().optional(),\n    timing,\n  }),\n  z.strictObject({\n    kind: z.literal(\"title-card\"),\n    title: z.string().trim().min(1),\n    subtitle: z.string().trim().min(1).optional(),\n    align: z.enum([\"left\", \"center\"]).default(\"center\"),\n    background: z.string().optional(),\n    color: z.string().optional(),\n    accent: z.string().optional(),\n    timing,\n  }),\n  z.strictObject({\n    kind: z.literal(\"logo-reveal\"),\n    logo: z.string().trim().min(1).optional(),\n    position: pointSchema.optional(),\n    width: z.number().positive().optional(),\n    timing,\n  }),\n  z.strictObject({ kind: z.literal(\"scene-transition\"), transition: storyboardTransitionSchema }),\n]);\n\nexport const studioTreatmentsSchema = z.array(studioTreatmentSchema).max(32);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ]
+          },
+          "workItemUris": [
+            "DM-2691"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b6dc57870f8f6f164ec2300883d65b2a"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "15d766fb9c952064ad8b76f74d0dbc64d08bd211",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

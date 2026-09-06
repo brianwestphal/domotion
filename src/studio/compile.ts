@@ -14,6 +14,7 @@ import {
 } from "../cli/storyboard.js";
 import { loadStudioProject, validateStudioProject } from "./project.js";
 import type { StudioComposition, StudioProject } from "./project-schema.js";
+import { applyStudioTreatments, resolveStudioTreatmentPlan } from "./treatments.js";
 
 export interface CompileStudioProjectOptions {
   projectDir?: string;
@@ -157,27 +158,55 @@ async function compileValidatedStudioProject(
     for (let index = 0; index < project.scenes.length; index++) {
       const scene = project.scenes[index];
       const generated = bySceneId.get(scene.id);
+      let recipe: StoryboardScene;
       if (generated != null) {
-        scenes.push(generated);
-        continue;
+        recipe = generated;
+      } else if (scene.render.kind === "storyboard") {
+        recipe = scene.render.recipe;
+      } else {
+        const svg = await materializeComposition(
+          scene.render.composition,
+          `$.scenes[${index}].render.composition`,
+          ctx,
+        );
+        const svgPath = writeIntermediateSvg(ctx, svg);
+        recipe = {
+          svg: svgPath,
+          duration: scene.render.duration ?? scene.render.composition.duration,
+          ...(scene.render.fit != null ? { fit: scene.render.fit } : {}),
+          ...(scene.render.transition != null ? { transition: scene.render.transition } : {}),
+          ...(scene.render.overlays != null ? { overlays: scene.render.overlays } : {}),
+        };
       }
-      if (scene.render.kind === "storyboard") {
-        scenes.push(scene.render.recipe);
-        continue;
+
+      if ((scene.treatments?.length ?? 0) > 0) {
+        const plan = resolveStudioTreatmentPlan(scene.treatments, project.brand);
+        const visual = scene.treatments!.filter((treatment) => treatment.kind !== "scene-transition");
+        if (visual.length > 0) {
+          log(`Rendering ${scene.id} before applying ${visual.length} cinematic treatment(s)…`);
+          const isolated = await composeStoryboardConfig(browser, {
+            width: project.canvas.width,
+            height: project.canvas.height,
+            ...(project.canvas.background != null ? { background: project.canvas.background } : {}),
+            scenes: [{ ...recipe, transition: { type: "cut", duration: 0 } }],
+          }, projectDir, log);
+          const treated = applyStudioTreatments(isolated, visual, {
+            width: project.canvas.width,
+            height: project.canvas.height,
+            brand: project.brand,
+            assetDir: projectDir,
+          });
+          recipe = {
+            svg: writeIntermediateSvg(ctx, treated.svg),
+            ...(recipe.duration != null ? { duration: recipe.duration } : {}),
+            fit: "contain",
+            ...(plan.transition != null || recipe.transition != null ? { transition: plan.transition ?? recipe.transition } : {}),
+          };
+        } else if (plan.transition != null) {
+          recipe = { ...recipe, transition: plan.transition };
+        }
       }
-      const svg = await materializeComposition(
-        scene.render.composition,
-        `$.scenes[${index}].render.composition`,
-        ctx,
-      );
-      const svgPath = writeIntermediateSvg(ctx, svg);
-      scenes.push({
-        svg: svgPath,
-        duration: scene.render.duration ?? scene.render.composition.duration,
-        ...(scene.render.fit != null ? { fit: scene.render.fit } : {}),
-        ...(scene.render.transition != null ? { transition: scene.render.transition } : {}),
-        ...(scene.render.overlays != null ? { overlays: scene.render.overlays } : {}),
-      });
+      scenes.push(recipe);
     }
 
     const storyboard = validateStoryboardConfig({

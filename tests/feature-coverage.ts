@@ -589,6 +589,13 @@ export const FEATURES: FeatureEntry[] = [
     tests: ["src/studio/video-review.test.ts", "src/studio/video-review.e2e.test.ts"],
   },
   {
+    id: "studio.cinematic-treatments",
+    behavior: "Expand validated, brand-aware device/browser/terminal chrome, zoom/pan, spotlight, callout, title, logo, and scene-transition presets into composable layer/mask/transform/overlay/timing primitives and self-contained collision-safe SVG.",
+    doc: "docs/247-studio-cinematic-treatments.md",
+    exports: ["StudioTreatmentError", "applyStudioTreatments", "resolveStudioTreatmentPlan", "studioTreatmentLayerPrimitiveSchema", "studioTreatmentMaskPrimitiveSchema", "studioTreatmentOverlayPrimitiveSchema", "studioTreatmentSchema", "studioTreatmentTimingSchema", "studioTreatmentTransformPrimitiveSchema", "studioTreatmentsSchema"],
+    tests: ["src/studio/treatments.test.ts", "src/studio/treatments.e2e.test.ts", "src/studio/treatments.visual.e2e.test.ts"],
+  },
+  {
     id: "studio.application-shell",
     behavior: "Launch a separate workspace-bounded Studio app that creates, opens, edits, validates, atomically saves, and reopens versioned project JSON while surfacing narrative, ordered scenes, generation state, and actionable issues.",
     doc: "docs/240-studio-application-shell.md",

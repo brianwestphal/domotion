@@ -30,6 +30,7 @@ function comprehensiveProject(): unknown {
     id: "project-tour",
     createdAt: NOW,
     canvas: { width: 640, height: 360, background: "#05070d", title: "Tour" },
+    brand: { palette: { primary: "#7c3aed", text: "#ffffff" }, radius: 12 },
     narrative: {
       title: "Product tour",
       objective: "Explain the core workflow",
@@ -65,6 +66,7 @@ function comprehensiveProject(): unknown {
           }],
         },
       },
+      treatments: [{ kind: "spotlight", mask: { region: { x: 10, y: 10, width: 80, height: 40 } } }],
       tracks: [{
         id: "track-primary",
         kind: "semantic-interactions",
@@ -123,6 +125,8 @@ describe("Studio project validation", () => {
     expect(project.version).toBe(1);
     expect(project.scenes[0].id).toBe("scene-intro");
     expect(project.scenes[0].tracks?.[0].events.map((event) => event.id)).toEqual(["event-click", "event-hook"]);
+    expect(project.scenes[0].treatments?.[0].kind).toBe("spotlight");
+    expect(project.brand?.palette?.primary).toBe("#7c3aed");
     expect(project.review.annotations[0].target?.layerId).toBe("layer-title");
     expect(project.artifacts[0].sourceRevisionId).toBe("revision-1");
   });
@@ -205,6 +209,14 @@ describe("Studio project persistence and storyboard migration", () => {
     expect(a.scenes.map((scene) => scene.id)).toEqual(b.scenes.map((scene) => scene.id));
     expect(studioProjectToStoryboardConfig(a)).toEqual(storyboard);
     expect(a.exportTargets?.svgPath).toBe("tour.svg");
+  });
+
+  it("does not silently discard cinematic treatments during direct projection", () => {
+    const raw = comprehensiveProject() as Record<string, unknown>;
+    const scenes = raw.scenes as Array<Record<string, unknown>>;
+    scenes[0].render = { kind: "storyboard", recipe: { svg: "scene.svg", duration: 1000 } };
+    (raw.review as { annotations: unknown[] }).annotations = [];
+    expect(() => studioProjectToStoryboardConfig(raw)).toThrow(/treatments must be materialized by the Studio compiler/);
   });
 });
 

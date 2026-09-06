@@ -60,6 +60,29 @@ export {
   type StudioVideoReviewSeverity,
 } from "./video-review.js";
 export {
+  applyStudioTreatments,
+  resolveStudioTreatmentPlan,
+  StudioTreatmentError,
+  type AppliedStudioTreatments,
+  type ApplyStudioTreatmentsOptions,
+  type StudioTreatmentPlan,
+} from "./treatments.js";
+export {
+  studioTreatmentLayerPrimitiveSchema,
+  studioTreatmentMaskPrimitiveSchema,
+  studioTreatmentOverlayPrimitiveSchema,
+  studioTreatmentSchema,
+  studioTreatmentsSchema,
+  studioTreatmentTimingSchema,
+  studioTreatmentTransformPrimitiveSchema,
+  type StudioTreatment,
+  type StudioTreatmentLayerPrimitive,
+  type StudioTreatmentMaskPrimitive,
+  type StudioTreatmentOverlayPrimitive,
+  type StudioTreatmentTiming,
+  type StudioTreatmentTransformPrimitive,
+} from "./treatment-schema.js";
+export {
   StudioProjectValidationError,
   importStoryboardConfig,
   loadStudioProject,

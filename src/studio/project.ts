@@ -196,6 +196,9 @@ export function studioProjectToStoryboardConfig(raw: unknown): StoryboardConfig 
     if (scene.render.kind !== "storyboard") {
       throw new Error(`studio project: $.scenes[${index}].render is a composition and must be materialized before storyboard projection`);
     }
+    if ((scene.treatments?.length ?? 0) > 0) {
+      throw new Error(`studio project: $.scenes[${index}].treatments must be materialized by the Studio compiler before storyboard projection`);
+    }
     return scene.render.recipe;
   });
   return validateStoryboardConfig({

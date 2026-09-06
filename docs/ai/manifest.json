@@ -4959,6 +4959,34 @@
       "file": "246-studio-ai-video-review.md"
     },
     {
+      "id": "requirements/studio-cinematic-treatments",
+      "title": "Domotion Studio cinematic treatment library",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "studio",
+        "animation",
+        "templates"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/studio/treatment-schema.ts",
+        "src/studio/treatments.ts",
+        "src/studio/treatments.test.ts",
+        "src/studio/treatments.e2e.test.ts",
+        "src/studio/treatments.visual.e2e.test.ts",
+        "src/studio/compile.ts",
+        "src/studio/project-schema.ts",
+        "tests/fixtures/studio/treatments-showcase.project.json",
+        "tests/fixtures/studio/treatment-source.svg"
+      ],
+      "file": "247-studio-cinematic-treatments.md"
+    },
+    {
       "id": "handbook/animation-and-interaction",
       "title": "Animation and interaction handbook",
       "kind": "contract",

@@ -40,6 +40,10 @@ external runtime assets. macOS, Linux, and Windows are first-class platforms.
     brand/polish rubric, separate evidence from inference and recommendations,
     ground comments to project identities/space/time, and enter the same queue as
     human review. Material ambiguity pauses for clarification.
+11. Studio cinematic treatments are validated, ordered presets over inspectable
+    layer, mask, transform, overlay, timing, transition, template, chrome, and
+    compositor primitives. Presets are brand-aware and nest with deterministic
+    namespacing; they do not introduce a second renderer or external runtime.
 
 ## Current handbooks
 

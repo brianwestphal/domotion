@@ -10,6 +10,8 @@ import {
   type CompositeLayerConfig,
   type CompositeLayerPlacement,
 } from "../cli/composite.js";
+import { studioTreatmentsSchema, type StudioTreatment } from "./treatment-schema.js";
+import { brandSchema } from "../templates/brand.js";
 
 /** Durable file identity. The numeric version changes only through an explicit migration. */
 export const STUDIO_PROJECT_FORMAT = "domotion-studio-project" as const;
@@ -251,6 +253,7 @@ export const studioSceneSchema = z.strictObject({
   description: nonEmptyString.optional(),
   narrativeBeatIds: z.array(studioIdSchema).optional(),
   render: studioSceneRenderSchema,
+  treatments: studioTreatmentsSchema.optional(),
   tracks: z.array(studioSemanticTrackSchema).optional(),
   scriptHooks: z.array(sceneHookReferenceSchema).optional(),
   metadata: metadataSchema.optional(),
@@ -399,6 +402,7 @@ export const studioProjectSchema = z
     createdAt: timestampSchema,
     updatedAt: timestampSchema.optional(),
     canvas: canvasSchema,
+    brand: brandSchema.optional(),
     narrative: studioNarrativeSchema,
     scenes: z.array(studioSceneSchema).min(1),
     playback: z.strictObject({ cursor: storyboardCursorSchema.optional() }).optional(),
@@ -493,6 +497,7 @@ export const studioProjectSchema = z
 
 export type StudioSceneRender = z.infer<typeof studioSceneRenderSchema>;
 export type StudioScene = z.infer<typeof studioSceneSchema>;
+export type { StudioTreatment };
 export type StudioNarrative = z.infer<typeof studioNarrativeSchema>;
 export type StudioScriptHook = z.infer<typeof studioScriptHookSchema>;
 export type StudioReviewHistory = z.infer<typeof studioReviewHistorySchema>;

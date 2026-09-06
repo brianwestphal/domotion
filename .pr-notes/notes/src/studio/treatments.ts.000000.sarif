@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpgybtqxog40qk5",
+          "message": {
+            "text": "Ordered nesting is collision-safe because every step namespaces the entire document accumulated so far before adding the next wrapper. This rewrites source and earlier-treatment IDs, references, classes, keyframes, embedded-font families, and duration variables; the eight-scene integration test additionally proves the final composed document has no duplicate IDs.",
+            "markdown": "Ordered nesting is collision-safe because every step namespaces the entire document accumulated so far before adding the next wrapper. This rewrites source and earlier-treatment IDs, references, classes, keyframes, embedded-font families, and duration variables; the eight-scene integration test additionally proves the final composed document has no duplicate IDs."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/treatments.ts"
+                },
+                "region": {
+                  "startLine": 147,
+                  "endLine": 221,
+                  "snippet": {
+                    "text": "  plan.treatments.forEach((treatment, index) => {\n    if (treatment.kind === \"scene-transition\") return;\n    const token = `st${index}_`;\n    current = namespaceEmbeddedAnimatedSvg(current, token);\n    if (treatment.kind === \"device-frame\") {\n      const framed = wrapInDeviceChrome(current, treatment.device, width, height, { label: treatment.label, theme: treatment.theme });\n      current = framed.svg; width = framed.width; height = framed.height;\n      return;\n    }\n    if (treatment.kind === \"browser-chrome\") {\n      const framed = wrapInDeviceChrome(current, \"browser\", width, height, { label: treatment.label, theme: treatment.theme });\n      current = framed.svg; width = framed.width; height = framed.height;\n      return;\n    }\n    if (treatment.kind === \"terminal-chrome\") {\n      const framed = wrapInDeviceChrome(current, \"window\", width, height, { label: treatment.title, theme: treatment.theme });\n      current = framed.svg; width = framed.width; height = framed.height;\n      return;\n    }\n\n    const timing = treatment.timing ?? defaultTiming();\n    const nested = nestableSvg(current);\n    if (treatment.kind === \"zoom-pan\") {\n      const { from, to, origin } = treatment.transform;\n      const animation = `${token}zoom`;\n      const ox = origin?.x ?? width / 2;\n      const oy = origin?.y ?? height / 2;\n      const style = `@keyframes ${animation}{from{transform:translate(${from.x}px,${from.y}px) scale(${from.scale})}to{transform:translate(${to.x}px,${to.y}px) scale(${to.scale})}}`;\n      current = wrap(width, height, `<g style=\"transform-origin:${ox}px ${oy}px;${animationStyle(animation, timing)}\">${nested}</g>`, \"\", style);\n      return;\n    }\n    if (treatment.kind === \"spotlight\") {\n      const r = treatment.mask.region;\n      const animation = `${token}spotlight`;\n      const outer = `M0 0H${width}V${height}H0Z`;\n      const hole = `M${r.x} ${r.y}H${r.x + r.width}V${r.y + r.height}H${r.x}Z`;\n      const style = `@keyframes ${animation}{from{opacity:0}to{opacity:${treatment.opacity}}}`;\n      const overlay = `<path d=\"${outer}${hole}\" fill=\"${escapeXml(treatment.color)}\" fill-rule=\"evenodd\" clip-rule=\"evenodd\" style=\"${animationStyle(animation, timing)}\"/>`;\n      current = wrap(width, height, nested, overlay, style);\n      return;\n    }\n    if (treatment.kind === \"callout\") {\n      const animation = `${token}callout`;\n      const box = treatment.box;\n      const fill = treatment.fill ?? brand.palette?.background ?? \"#111827\";\n      const color = treatment.color ?? brand.palette?.text ?? \"#ffffff\";\n      const accent = treatment.accent ?? brand.palette?.accent ?? brand.palette?.primary ?? \"#7c3aed\";\n      const style = `@keyframes ${animation}{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}`;\n      const overlay = `<g style=\"${animationStyle(animation, timing)}\"><path d=\"M${treatment.anchor.x} ${treatment.anchor.y}L${box.x + box.width / 2} ${box.y + box.height / 2}\" stroke=\"${escapeXml(accent)}\" stroke-width=\"2\"/><rect x=\"${box.x}\" y=\"${box.y}\" width=\"${box.width}\" height=\"${box.height}\" rx=\"${box.radius ?? 12}\" fill=\"${escapeXml(fill)}\" stroke=\"${escapeXml(accent)}\" stroke-width=\"2\"/><text x=\"${box.x + 16}\" y=\"${box.y + box.height / 2}\" dominant-baseline=\"middle\" fill=\"${escapeXml(color)}\" font-family=\"system-ui,sans-serif\" font-size=\"16\">${escapeXml(treatment.text)}</text></g>`;\n      current = wrap(width, height, nested, overlay, style);\n      return;\n    }\n    if (treatment.kind === \"title-card\") {\n      const animation = `${token}title`;\n      const background = treatment.background ?? brand.background ?? brand.palette?.background ?? \"#0b1020\";\n      const backgroundPaint = svgPaint(background, token);\n      const color = treatment.color ?? brand.palette?.text ?? \"#ffffff\";\n      const accent = treatment.accent ?? brand.palette?.accent ?? brand.palette?.primary ?? \"#8b5cf6\";\n      const anchor = treatment.align === \"center\" ? \"middle\" : \"start\";\n      const x = treatment.align === \"center\" ? width / 2 : Math.max(40, width * 0.08);\n      const style = `@keyframes ${animation}{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}`;\n      const subtitle = treatment.subtitle == null ? \"\" : `<text x=\"${x}\" y=\"${height / 2 + 42}\" text-anchor=\"${anchor}\" fill=\"${escapeXml(color)}\" opacity=\".72\" font-family=\"system-ui,sans-serif\" font-size=\"22\">${escapeXml(treatment.subtitle)}</text>`;\n      const overlay = `<g style=\"${animationStyle(animation, timing)}\"><rect width=\"${width}\" height=\"${height}\" fill=\"${escapeXml(backgroundPaint.fill)}\"/><rect x=\"${x - (treatment.align === \"center\" ? 36 : 0)}\" y=\"${height / 2 - 54}\" width=\"72\" height=\"5\" rx=\"2.5\" fill=\"${escapeXml(accent)}\"/><text x=\"${x}\" y=\"${height / 2}\" text-anchor=\"${anchor}\" fill=\"${escapeXml(color)}\" font-family=\"system-ui,sans-serif\" font-size=\"44\" font-weight=\"700\">${escapeXml(treatment.title)}</text>${subtitle}</g>`;\n      current = wrap(width, height, nested, overlay, style, backgroundPaint.defs);\n      return;\n    }\n    const logoSource = treatment.logo ?? brand.logo;\n    if (logoSource == null) throw new StudioTreatmentError(\"logo-reveal needs `logo` or a brand logo\");\n    const href = embedLogo(logoSource, options.assetDir ?? process.cwd());\n    const logoWidth = treatment.width ?? Math.min(width * 0.28, 220);\n    const position = treatment.position ?? { x: width / 2 - logoWidth / 2, y: height / 2 - logoWidth / 4 };\n    const animation = `${token}logo`;\n    const style = `@keyframes ${animation}{from{opacity:0;transform:scale(.82)}to{opacity:1;transform:scale(1)}}`;\n    const overlay = `<image href=\"${escapeXml(href)}\" x=\"${position.x}\" y=\"${position.y}\" width=\"${logoWidth}\" height=\"${logoWidth}\" preserveAspectRatio=\"xMidYMid meet\" style=\"transform-origin:${position.x + logoWidth / 2}px ${position.y + logoWidth / 2}px;${animationStyle(animation, timing)}\"/>`;\n    current = wrap(width, height, nested, overlay, style);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ]
+          },
+          "workItemUris": [
+            "DM-2691"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4d8aa9df407a89d86f4b55030d71a15d"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "warning",
+          "guid": "mtpgyc097c52t0bb",
+          "message": {
+            "text": "Logo reveal deliberately rejects remote URLs. Local, inline-SVG, and data-URL assets are embedded into the output; accepting HTTP here would make an apparently valid Studio export depend on network availability and violate the self-contained SVG contract.",
+            "markdown": "Logo reveal deliberately rejects remote URLs. Local, inline-SVG, and data-URL assets are embedded into the output; accepting HTTP here would make an apparently valid Studio export depend on network availability and violate the self-contained SVG contract."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/treatments.ts"
+                },
+                "region": {
+                  "startLine": 110,
+                  "endLine": 130,
+                  "snippet": {
+                    "text": "function embedLogo(source: string, assetDir: string): string {\n  if (source.startsWith(\"data:\")) return source;\n  if (/^https?:\\/\\//i.test(source)) {\n    throw new StudioTreatmentError(\"logo-reveal requires an inline data URL or local asset so the output stays self-contained\");\n  }\n  if (source.trimStart().startsWith(\"<svg\")) {\n    return `data:image/svg+xml;base64,${Buffer.from(source).toString(\"base64\")}`;\n  }\n  const path = resolve(assetDir, source);\n  let bytes: Buffer;\n  try {\n    bytes = readFileSync(path);\n  } catch (error) {\n    throw new StudioTreatmentError(`logo-reveal could not read ${path}`, { cause: error });\n  }\n  const mime = extname(path).toLowerCase() === \".svg\" ? \"image/svg+xml\"\n    : extname(path).toLowerCase() === \".png\" ? \"image/png\"\n      : extname(path).toLowerCase() === \".webp\" ? \"image/webp\"\n        : extname(path).toLowerCase() === \".jpg\" || extname(path).toLowerCase() === \".jpeg\" ? \"image/jpeg\"\n          : \"application/octet-stream\";\n  return `data:${mime};base64,${bytes.toString(\"base64\")}`;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "risk"
+            ]
+          },
+          "workItemUris": [
+            "DM-2691"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "44bad3c3fda73f94cd9acf6937da3502"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "15d766fb9c952064ad8b76f74d0dbc64d08bd211",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -106,6 +106,69 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpgybn7fgn8ed48",
+          "message": {
+            "text": "Treatments are a thin post-render layer over existing scene ownership. Studio first renders the source and authored overlays through the production storyboard path, applies the ordered treatment stack, then returns the result to normal story composition; transition presets are handed back to the existing animator rather than reimplemented.",
+            "markdown": "Treatments are a thin post-render layer over existing scene ownership. Studio first renders the source and authored overlays through the production storyboard path, applies the ordered treatment stack, then returns the result to normal story composition; transition presets are handed back to the existing animator rather than reimplemented."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/compile.ts"
+                },
+                "region": {
+                  "startLine": 182,
+                  "endLine": 207,
+                  "snippet": {
+                    "text": "      if ((scene.treatments?.length ?? 0) > 0) {\n        const plan = resolveStudioTreatmentPlan(scene.treatments, project.brand);\n        const visual = scene.treatments!.filter((treatment) => treatment.kind !== \"scene-transition\");\n        if (visual.length > 0) {\n          log(`Rendering ${scene.id} before applying ${visual.length} cinematic treatment(s)…`);\n          const isolated = await composeStoryboardConfig(browser, {\n            width: project.canvas.width,\n            height: project.canvas.height,\n            ...(project.canvas.background != null ? { background: project.canvas.background } : {}),\n            scenes: [{ ...recipe, transition: { type: \"cut\", duration: 0 } }],\n          }, projectDir, log);\n          const treated = applyStudioTreatments(isolated, visual, {\n            width: project.canvas.width,\n            height: project.canvas.height,\n            brand: project.brand,\n            assetDir: projectDir,\n          });\n          recipe = {\n            svg: writeIntermediateSvg(ctx, treated.svg),\n            ...(recipe.duration != null ? { duration: recipe.duration } : {}),\n            fit: \"contain\",\n            ...(plan.transition != null || recipe.transition != null ? { transition: plan.transition ?? recipe.transition } : {}),\n          };\n        } else if (plan.transition != null) {\n          recipe = { ...recipe, transition: plan.transition };\n        }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ]
+          },
+          "workItemUris": [
+            "DM-2691"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "087c084a2fd3853cb940db03db72bfc5"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "15d766fb9c952064ad8b76f74d0dbc64d08bd211",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
