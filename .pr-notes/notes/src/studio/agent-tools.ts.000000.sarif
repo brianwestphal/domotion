@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpk2sdguf7s51g0",
+          "message": {
+            "text": "This strict, versioned request union deliberately reuses the Studio scene, render, semantic-track, annotation-target, and treatment schemas. MCP or CLI transports therefore project the same authoring source of truth instead of maintaining a second model; actor identity and executable adapters remain host-supplied.",
+            "markdown": "This strict, versioned request union deliberately reuses the Studio scene, render, semantic-track, annotation-target, and treatment schemas. MCP or CLI transports therefore project the same authoring source of truth instead of maintaining a second model; actor identity and executable adapters remain host-supplied."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/agent-tools.ts"
+                },
+                "region": {
+                  "startLine": 89,
+                  "endLine": 128,
+                  "snippet": {
+                    "text": "    include: z.enum([\"summary\", \"annotations\", \"project\"]).optional(),\n  }),\n  z.strictObject({\n    ...requestBase,\n    tool: z.literal(\"project.create\"),\n    title: nonEmpty,\n    width: z.number().int().positive().max(16_384).optional(),\n    height: z.number().int().positive().max(16_384).optional(),\n  }),\n  z.strictObject({\n    ...requestBase,\n    tool: z.literal(\"project.edit\"),\n    expectedProjectDigest: z.string().regex(/^[a-f0-9]{64}$/i),\n    changes: projectChangesSchema,\n    destructive: destructiveIntentSchema.optional(),\n  }),\n  z.strictObject({\n    ...requestBase,\n    tool: z.literal(\"capture.compile\"),\n    selection: selectionSchema.optional(),\n    artifactDir: pathField,\n    overwrite: z.boolean().optional(),\n  }),\n  z.strictObject({\n    ...requestBase,\n    tool: z.literal(\"render.preview\"),\n    selection: selectionSchema.optional(),\n    outputPath: pathField,\n    overwrite: z.boolean().optional(),\n  }),\n  z.strictObject({\n    ...requestBase,\n    tool: z.literal(\"render.video\"),\n    selection: selectionSchema.optional(),\n    inputSvgPath: pathField,\n    outputPath: pathField,\n    review: z.literal(\"required\"),\n    overwrite: z.boolean().optional(),\n  }),\n  z.strictObject({"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "rank": 94,
+          "workItemUris": [
+            "DM-2693"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "df0f92317884f6362eeb94c5fdd5b2c6"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "warning",
+          "guid": "mtpk2sj3nim1rver",
+          "message": {
+            "text": "Mutations use a project SHA-256 compare-and-swap token, stable-identity removals require both request intent and a separate host capability, and every artifact path is reconciled against the host workspace. Generation adapters receive mandatory AI healing/review policy, while ambiguity is returned as a typed clarification rather than guessed.",
+            "markdown": "Mutations use a project SHA-256 compare-and-swap token, stable-identity removals require both request intent and a separate host capability, and every artifact path is reconciled against the host workspace. Generation adapters receive mandatory AI healing/review policy, while ambiguity is returned as a typed clarification rather than guessed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/agent-tools.ts"
+                },
+                "region": {
+                  "startLine": 404,
+                  "endLine": 523,
+                  "snippet": {
+                    "text": "  const adapter = tool === \"capture.compile\" ? options.capture : options.preview;\n  if (adapter == null) throw new StudioAgentToolError(`${tool} requires a host generation adapter`);\n  const generated = await adapter({\n    project,\n    selection,\n    ...path,\n    overwrite,\n    aiPolicy: { healing: \"required\", review: \"required\" },\n  });\n  const next = generated.project == null ? project : validateStudioProject(generated.project);\n  return response(tool, \"ok\", tool === \"capture.compile\" ? \"Capture artifacts compiled.\" : \"Preview rendered.\", next, {\n    artifacts: ensureArtifacts(generated.artifacts, options.workspaceRoot),\n    ...(generated.evidence == null ? {} : { data: generated.evidence }),\n  });\n}\n\n/** Execute one versioned, MCP-shaped Studio request against an in-process project value. */\nexport async function runStudioAgentTool(\n  rawProject: StudioProject | null,\n  rawRequest: StudioAgentToolRequest,\n  options: RunStudioAgentToolOptions,\n): Promise<StudioAgentToolResponse> {\n  const request = studioAgentToolRequestSchema.parse(rawRequest);\n  if (request.tool === \"project.create\") {\n    if (rawProject != null) return permissionResponse(request.tool, validateStudioProject(rawProject), \"replaceProject\", \"Creating here would replace the loaded project; start with an empty tool session.\");\n    if (options.permissions?.editProject !== true) return permissionResponse(request.tool, undefined, \"editProject\", \"Project creation requires explicit editProject permission.\");\n    const actor = actorFor(options, request.tool);\n    const project = createStudioProjectDocument({ title: request.title, width: request.width, height: request.height, createdAt: options.timestamp?.() });\n    project.review.revisions[0].author = actor;\n    return response(request.tool, \"ok\", \"Studio project created.\", validateStudioProject(project), { data: compactInspection(project) });\n  }\n\n  const project = requireProject(rawProject, request.tool);\n  if (request.tool === \"project.inspect\") {\n    const include = request.include ?? \"summary\";\n    return response(request.tool, \"ok\", \"Studio project inspected.\", project, {\n      data: {\n        ...compactInspection(project),\n        ...(include === \"annotations\" ? { annotations: project.review.annotations } : {}),\n      },\n    }, include === \"project\");\n  }\n\n  if (request.tool === \"project.edit\" || request.tool === \"annotation.apply\") {\n    const actualDigest = studioAgentProjectDigest(project);\n    if (request.expectedProjectDigest !== actualDigest) {\n      return response(request.tool, \"conflict\", \"The project changed after this tool request was prepared.\", project, {\n        data: { expectedProjectDigest: request.expectedProjectDigest, actualProjectDigest: actualDigest },\n      });\n    }\n  }\n\n  if (request.tool === \"project.edit\") {\n    if (options.permissions?.editProject !== true) return permissionResponse(request.tool, project, \"editProject\", \"Project editing requires explicit editProject permission.\");\n    const proposed = applyProjectChanges(project, request.changes);\n    if (\"status\" in proposed) return proposed;\n    if (isDeepStrictEqual(project, proposed)) {\n      return response(request.tool, \"clarification\", \"The requested edit makes no project change.\", project, {\n        clarification: { question: \"What should change in the project?\", reason: \"Every supplied field already has the requested value.\" },\n      });\n    }\n    const removedIds = [...stableIds(project)].filter((id) => !stableIds(proposed).has(id));\n    if (removedIds.length > 0) {\n      if (request.destructive == null) return permissionResponse(request.tool, project, \"destructiveProjectEdits\", \"The edit removes stable project identities.\", removedIds);\n      if (request.destructive.expectedProjectDigest !== request.expectedProjectDigest) {\n        return response(request.tool, \"conflict\", \"Destructive confirmation was prepared for a different project digest.\", project);\n      }\n      if (options.permissions.destructiveProjectEdits !== true) return permissionResponse(request.tool, project, \"destructiveProjectEdits\", request.destructive.reason, removedIds);\n    }\n    const actor = actorFor(options, request.tool);\n    const createdAt = options.timestamp?.() ?? new Date().toISOString();\n    const revisionId = `revision-agent-${createHash(\"sha256\").update(JSON.stringify({ parent: project.review.headRevisionId, changes: request.changes, createdAt })).digest(\"hex\").slice(0, 16)}`;\n    proposed.review.revisions.push({\n      id: revisionId,\n      parentId: project.review.headRevisionId,\n      createdAt,\n      author: actor,\n      kind: \"content\",\n      summary: \"Applied a bounded Studio agent edit.\",\n      metadata: {\n        tool: {\n          version: STUDIO_AGENT_TOOL_VERSION,\n          name: request.tool,\n          changes: z.json().parse(JSON.parse(JSON.stringify(request.changes))),\n        },\n        ...(request.destructive == null ? {} : { destructive: { reason: request.destructive.reason, removedIds } }),\n      },\n    });\n    proposed.review.headRevisionId = revisionId;\n    proposed.updatedAt = createdAt;\n    const validated = validateStudioProject(proposed);\n    return response(request.tool, \"ok\", \"Studio project revised.\", validated, { data: { revisionId, removedIds } });\n  }\n\n  if (request.tool === \"annotation.apply\") {\n    if (options.permissions?.editProject !== true) return permissionResponse(request.tool, project, \"editProject\", \"Annotation changes require explicit editProject permission.\");\n    const actor = actorFor(options, request.tool);\n    const result = applyStudioAnnotationCommand(project, { ...request.command, author: actor, ...(request.command.kind === \"create\" ? { origin: { kind: \"studio\", data: { producer: \"studio-agent-tool\", version: STUDIO_AGENT_TOOL_VERSION } } } : {}) }, {\n      expectedHeadRevisionId: project.review.headRevisionId,\n      now: options.timestamp?.(),\n    });\n    return response(request.tool, \"ok\", \"Studio annotation updated.\", result.project, {\n      data: { annotationId: result.annotation.id, annotationStatus: result.annotation.status, revisionId: result.revision.id },\n    });\n  }\n\n  if (request.tool === \"capture.compile\" || request.tool === \"render.preview\") return runGeneration(request.tool, project, request, options);\n\n  if (options.permissions?.renderVideo !== true) return permissionResponse(request.tool, project, \"renderVideo\", \"Video rendering requires explicit renderVideo permission.\");\n  if (options.permissions.artifactWrites !== true) return permissionResponse(request.tool, project, \"artifactWrites\", \"Video rendering writes generated artifacts.\");\n  const overwrite = request.overwrite === true;\n  if (overwrite && options.permissions.overwriteArtifacts !== true) return permissionResponse(request.tool, project, \"overwriteArtifacts\", \"Video rendering requested replacement of an existing artifact.\");\n  const selection = resolveSelection(project, request.selection, request.tool);\n  if (\"status\" in selection) return selection;\n  const output = workspacePath(options.workspaceRoot, request.outputPath);\n  const input = workspacePath(options.workspaceRoot, request.inputSvgPath);\n  if (existsSync(output.absolutePath) && !overwrite) throw new StudioAgentToolError(`${output.workspacePath} already exists; request overwrite explicitly`);\n  if (options.video == null) throw new StudioAgentToolError(\"render.video requires a host video + required-AI-review adapter\");\n  const generated = await options.video({\n    project,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "risk"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 96,
+          "workItemUris": [
+            "DM-2693"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "d7f0ae606d9c7589cc36deb93b5fcdc7"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "64ff88e9f7198b0b4efdca085c654b50ad4a1c8e",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

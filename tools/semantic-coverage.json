@@ -2559,6 +2559,10 @@
     {
       "featureId": "bin.svg-scrubber",
       "reason": "Review-server interaction state, not a CSS/SVG rendering semantic."
+    },
+    {
+      "featureId": "studio.agent-tools",
+      "reason": "Studio tool transport and authorization lifecycle, not a Chromium CSS/SVG parity decision."
     }
   ]
 }

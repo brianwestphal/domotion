@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpkge22s4bkf711",
+          "message": {
+            "text": "The integration test runs the public protocol through create, canonical narrative/scene/track authoring, a capture adapter that persists actual DOM/computed-CSS evidence, preview artifact generation, grounded AI annotation, revision, and compact annotation-aware inspection. It also asserts both mandatory AI stages reach generation adapters.",
+            "markdown": "The integration test runs the public protocol through create, canonical narrative/scene/track authoring, a capture adapter that persists actual DOM/computed-CSS evidence, preview artifact generation, grounded AI annotation, revision, and compact annotation-aware inspection. It also asserts both mandatory AI stages reach generation adapters."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/agent-tools.test.ts"
+                },
+                "region": {
+                  "startLine": 54,
+                  "endLine": 219,
+                  "snippet": {
+                    "text": "            id: \"canonical-track\",\n            kind: \"semantic-interactions\",\n            events: [\n              { id: \"first\", kind: \"hover\", atMs: 100, durationMs: 200, target: { role: \"button\" } },\n              { id: \"overlap\", kind: \"click\", atMs: 200, target: { role: \"button\" } },\n            ],\n          }],\n        }],\n      },\n    }).success).toBe(false);\n  });\n\n  it(\"supports an agent create → capture → preview → annotate → revise workflow\", async () => {\n    workspace = mkdtempSync(join(tmpdir(), \"domotion-studio-agent-\"));\n    let tick = 0;\n    const now = (): string => `2026-09-06T03:${String(tick++).padStart(2, \"0\")}:00.000Z`;\n    const options: RunStudioAgentToolOptions = {\n      workspaceRoot: workspace,\n      actor: { kind: \"ai\", name: \"Demo Director\" },\n      permissions: {\n        editProject: true,\n        destructiveProjectEdits: true,\n        capture: true,\n        artifactWrites: true,\n        overwriteArtifacts: true,\n        renderVideo: true,\n      },\n      timestamp: now,\n      capture: async ({ project, absolutePath, workspacePath, selection, aiPolicy }) => {\n        expect(aiPolicy).toEqual({ healing: \"required\", review: \"required\" });\n        mkdirSync(absolutePath, { recursive: true });\n        const evidencePath = join(absolutePath, \"opening-dom.json\");\n        writeFileSync(evidencePath, JSON.stringify({ selector: \"button\", computedStyle: { color: \"rgb(255, 255, 255)\" } }));\n        const next = structuredClone(project);\n        next.artifacts.push({\n          id: \"artifact-dom-evidence\",\n          kind: \"capture-evidence\",\n          path: `${workspacePath}/opening-dom.json`,\n          generatedAt: T0,\n          generator: { name: \"proactive-dom-css-inspector\", version: \"1\" },\n          sourceRevisionId: project.review.headRevisionId,\n          sceneIds: [\"scene-opening\"],\n          metadata: { inspected: [\"dom\", \"computed-css\"] },\n        });\n        return {\n          project: next,\n          artifacts: [{\n            id: \"artifact-dom-evidence\",\n            kind: \"capture-evidence\",\n            path: evidencePath,\n            workspacePath: `${workspacePath}/opening-dom.json`,\n            sourceRevisionId: project.review.headRevisionId,\n            sceneIds: selection.kind === \"scenes\" ? selection.sceneIds : project.scenes.map((scene) => scene.id),\n          }],\n          evidence: { inspected: [\"dom\", \"computed-css\"], selectorCount: 1 },\n        };\n      },\n      preview: async ({ project, absolutePath, workspacePath, aiPolicy }): Promise<StudioAgentGenerationResult> => {\n        expect(aiPolicy).toEqual({ healing: \"required\", review: \"required\" });\n        mkdirSync(resolve(absolutePath, \"..\"), { recursive: true });\n        writeFileSync(absolutePath, '<svg xmlns=\"http://www.w3.org/2000/svg\"/>');\n        const next = structuredClone(project);\n        next.artifacts.push({\n          id: \"artifact-preview\",\n          kind: \"svg\",\n          path: workspacePath,\n          generatedAt: T0,\n          generator: { name: \"studio-preview\", version: \"1\" },\n          sourceRevisionId: project.review.headRevisionId,\n          sceneIds: [\"scene-opening\"],\n          derivedFromArtifactIds: [\"artifact-dom-evidence\"],\n        });\n        return {\n          project: next,\n          artifacts: [{ id: \"artifact-preview\", kind: \"svg\", path: absolutePath, workspacePath, sourceRevisionId: project.review.headRevisionId, sceneIds: [\"scene-opening\"] }],\n          evidence: { sourceArtifactIds: [\"artifact-dom-evidence\"] },\n        };\n      },\n    };\n\n    const created = await runStudioAgentTool(null, {\n      version: STUDIO_AGENT_TOOL_VERSION,\n      tool: \"project.create\",\n      title: \"Agent-authored tour\",\n    }, options);\n    let project = projectFrom(created);\n    expect(project.review.revisions[0].author).toEqual({ kind: \"ai\", name: \"Demo Director\" });\n\n    const authored = await runStudioAgentTool(project, {\n      version: STUDIO_AGENT_TOOL_VERSION,\n      tool: \"project.edit\",\n      expectedProjectDigest: studioAgentProjectDigest(project),\n      changes: {\n        narrative: { objective: \"Show the real checkout interaction.\" },\n        scenes: [{\n          sceneId: \"scene-opening\",\n          render: { kind: \"storyboard\", recipe: { capture: { url: \"https://example.test/checkout\", selector: \"main\" }, duration: 1800 } },\n          tracks: [{\n            id: \"track-checkout\",\n            kind: \"semantic-interactions\",\n            events: [{ id: \"action-buy\", kind: \"click\", atMs: 700, target: { role: \"button\", name: \"Buy now\" } }],\n          }],\n        }],\n      },\n    }, options);\n    project = projectFrom(authored);\n\n    const captured = await runStudioAgentTool(project, {\n      version: STUDIO_AGENT_TOOL_VERSION,\n      tool: \"capture.compile\",\n      selection: { kind: \"scenes\", sceneIds: [\"scene-opening\"] },\n      artifactDir: \"artifacts/capture\",\n    }, options);\n    project = projectFrom(captured);\n    expect(captured.artifacts).toEqual([expect.objectContaining({\n      path: join(workspace, \"artifacts/capture/opening-dom.json\"),\n      workspacePath: \"artifacts/capture/opening-dom.json\",\n    })]);\n    expect(captured.data).toMatchObject({ inspected: [\"dom\", \"computed-css\"] });\n\n    const previewed = await runStudioAgentTool(project, {\n      version: STUDIO_AGENT_TOOL_VERSION,\n      tool: \"render.preview\",\n      selection: { kind: \"project\" },\n      outputPath: \"artifacts/preview.svg\",\n    }, options);\n    project = projectFrom(previewed);\n    expect(previewed.artifacts?.[0]).toMatchObject({ path: join(workspace, \"artifacts/preview.svg\"), workspacePath: \"artifacts/preview.svg\" });\n\n    const annotated = await runStudioAgentTool(project, {\n      version: STUDIO_AGENT_TOOL_VERSION,\n      tool: \"annotation.apply\",\n      expectedProjectDigest: studioAgentProjectDigest(project),\n      command: {\n        kind: \"create\",\n        body: \"AI review: give the CTA another 300ms of dwell time.\",\n        target: {\n          scope: { kind: \"scene\", sceneId: \"scene-opening\" },\n          trackId: \"track-checkout\",\n          eventId: \"action-buy\",\n          time: { pointMs: 700, range: { startMs: 650, endMs: 1000 } },\n          domTarget: { role: \"button\", name: \"Buy now\" },\n          regions: [{ x: 640, y: 520, width: 180, height: 48, coordinateSpace: \"artifact-pixels\", artifactId: \"artifact-preview\" }],\n        },\n        evidenceArtifactIds: [\"artifact-preview\", \"artifact-dom-evidence\"],\n      },\n    }, options);\n    project = projectFrom(annotated);\n    expect(project.review.annotations[0]).toMatchObject({ author: { kind: \"ai\", name: \"Demo Director\" }, status: \"open\" });\n\n    const revised = await runStudioAgentTool(project, {\n      version: STUDIO_AGENT_TOOL_VERSION,\n      tool: \"project.edit\",\n      expectedProjectDigest: studioAgentProjectDigest(project),\n      changes: { narrative: { summary: \"Revised after grounded AI review.\" } },\n    }, options);\n    project = projectFrom(revised);\n    const inspected = await runStudioAgentTool(project, { version: STUDIO_AGENT_TOOL_VERSION, tool: \"project.inspect\", include: \"annotations\" }, options);\n    expect(inspected.data).toMatchObject({\n      title: \"Agent-authored tour\",\n      scenes: [{ id: \"scene-opening\", trackIds: [\"track-checkout\"], eventIds: [\"action-buy\"] }],\n      review: { openAnnotationIds: [project.review.annotations[0].id] },\n      annotations: [expect.objectContaining({ body: \"AI review: give the CTA another 300ms of dwell time.\" })],\n    });\n    expect(inspected.project).toBeUndefined();\n    expect(JSON.stringify(inspected.data).length).toBeLessThan(JSON.stringify(project).length);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 97,
+          "workItemUris": [
+            "DM-2693"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "eec110fffcb648d24cdd47cbc586d004"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "64ff88e9f7198b0b4efdca085c654b50ad4a1c8e",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

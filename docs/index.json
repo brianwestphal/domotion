@@ -8027,6 +8027,37 @@
       }
     },
     {
+      "file": "249-studio-agent-tools.md",
+      "metadata": {
+        "id": "requirements/studio-agent-tools",
+        "title": "Domotion Studio agent authoring and generation tools",
+        "kind": "contract",
+        "status": "current",
+        "owners": [
+          "studio",
+          "ai",
+          "product-tooling"
+        ],
+        "platforms": [
+          "macos",
+          "linux",
+          "windows"
+        ],
+        "tickets": [
+          "DM-2693"
+        ],
+        "code": [
+          "src/studio/agent-tools.ts",
+          "src/studio/agent-tools.test.ts",
+          "src/studio/index.ts"
+        ],
+        "aliases": [
+          "docs/249-studio-agent-tools.md",
+          "doc-249"
+        ]
+      }
+    },
+    {
       "file": "handbook/animation-and-interaction.md",
       "metadata": {
         "id": "handbook/animation-and-interaction",
@@ -9003,6 +9034,9 @@
     ],
     "248": [
       "requirements/studio-unified-review-annotations"
+    ],
+    "249": [
+      "requirements/studio-agent-tools"
     ],
     "01": [
       "requirements/fidelity"

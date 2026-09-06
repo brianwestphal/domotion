@@ -605,6 +605,19 @@ export const FEATURES: FeatureEntry[] = [
     tests: ["src/studio/annotations.test.ts", "src/studio/server.e2e.test.ts"],
   },
   {
+    id: "studio.agent-tools",
+    behavior: "Expose a versioned MCP-shaped tool protocol over the Studio project source for compact inspection, bounded narrative/scene/track edits, capture compilation, preview/video generation, and shared annotations, with trusted host authority, exact artifact paths, compare-and-swap conflicts, explicit permissions, required AI review, and clarification states.",
+    doc: "docs/249-studio-agent-tools.md",
+    exports: ["StudioAgentToolError", "buildStudioAgentToolRequestJsonSchema", "runStudioAgentTool", "studioAgentProjectDigest", "studioAgentToolArtifactSchema", "studioAgentToolRequestSchema", "studioAgentToolResponseSchema"],
+    tests: ["src/studio/agent-tools.test.ts"],
+    transition: "project create → authored capture recipe/semantic track → DOM/CSS-backed capture → preview → grounded AI annotation → revision, with stale/destructive/ambiguous operations stopped at explicit protocol states.",
+    transitionEvidence: [
+      { test: "src/studio/agent-tools.test.ts", title: "supports an agent create → capture → preview → annotate → revise workflow" },
+      { test: "src/studio/agent-tools.test.ts", title: "returns explicit clarification, conflict, and bounded permission states" },
+      { test: "src/studio/agent-tools.test.ts", title: "keeps artifact writes inside the workspace and makes required AI video review observable" },
+    ],
+  },
+  {
     id: "studio.application-shell",
     behavior: "Launch a separate workspace-bounded Studio app that creates, opens, edits, validates, atomically saves, and reopens versioned project JSON while surfacing narrative, ordered scenes, generation state, and actionable issues.",
     doc: "docs/240-studio-application-shell.md",

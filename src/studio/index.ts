@@ -198,3 +198,21 @@ export {
   buildStudioProjectJsonSchema,
   studioProjectJsonSchemaText,
 } from "./project-json-schema.js";
+export {
+  STUDIO_AGENT_TOOL_VERSION,
+  buildStudioAgentToolRequestJsonSchema,
+  runStudioAgentTool,
+  studioAgentProjectDigest,
+  studioAgentToolArtifactSchema,
+  studioAgentToolRequestSchema,
+  studioAgentToolResponseSchema,
+  StudioAgentToolError,
+  type RunStudioAgentToolOptions,
+  type StudioAgentGenerationInput,
+  type StudioAgentGenerationResult,
+  type StudioAgentSelection,
+  type StudioAgentToolArtifact,
+  type StudioAgentToolPermissions,
+  type StudioAgentToolRequest,
+  type StudioAgentToolResponse,
+} from "./agent-tools.js";
