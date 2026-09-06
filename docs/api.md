@@ -215,13 +215,16 @@ See `docs/239-studio-project-model.md`; the editor schema ships at
 | `loadStudioProject` / `saveStudioProject` | function | Synchronous file helpers with source/path-aware diagnostics and validated round trips. |
 | `importStoryboardConfig` | function | Migrate the current storyboard config into version 1 with deterministic project/scene/beat/revision IDs while preserving the underlying scene recipes and cursor. |
 | `studioProjectToStoryboardConfig` | function | Project the direct-storyboard subset back to the existing `StoryboardConfig`; composition scenes must first be materialized. |
+| `compileStudioSemanticTracks` | function | Validate semantic tracks, reject duplicate identities or invalid per-track timing, and stable-merge their scene-relative events into an executable plan. Accepts an optional authored JSON `path` for exact diagnostics. |
+| `runStudioSemanticPlan` / `runStudioSemanticTracks` | function | Execute semantic events against a caller-owned Playwright `Page`. Accessibility locators win over selector fallback; every target must resolve exactly once. Named hooks execute only through an explicit caller-supplied `runHook`. |
 | `compileStudioProject` | function | Lower recursive static composition scenes through `composeCompositeConfig`, then sequence all scenes through `composeStoryboardConfig`. Accepts a caller-owned `Browser` and optional `{ projectDir, log }`. Rejects active semantic tracks/hooks rather than ignoring them. |
 | `compileStudioProjectFile` | function | Load and compile a project file, resolving source paths relative to the file's directory. |
-| `StudioProjectValidationError` / `StudioProjectCompileError` | class | Structured validation/compile failures with exact JSON paths. |
+| `StudioProjectValidationError` / `StudioProjectCompileError` / `StudioInteractionError` | class | Structured validation/compile/execution failures with exact JSON paths; interaction failures also retain the event ID. |
 | `buildStudioProjectJsonSchema` / `studioProjectJsonSchemaText` | function | Generate the draft-2020-12 editor schema from the runtime Zod source. |
 | `StudioProject`, `StudioScene`, `StudioSceneRender`, `StudioComposition`, `StudioLayer` | type | Main project, scene, render, and recursive-layer types. |
 | `StudioNarrative`, `StudioSemanticTarget`, `StudioSemanticEvent`, `StudioSemanticTrack`, `StudioScriptHook`, `StudioReviewHistory`, `StudioArtifact` | type | Narrative, intent, extension, review, and generated-artifact value types. |
-| `ImportStoryboardOptions` / `CompileStudioProjectOptions` / `StudioProjectValidationIssue` | type | Options and structured diagnostic companion types. |
+| `StudioSemanticPlan`, `StudioSemanticStep`, `StudioScriptHookContext` | type | Stable compiled timeline and the explicit context provided to a caller-authorized script hook. |
+| `ImportStoryboardOptions` / `CompileStudioProjectOptions` / `CompileStudioSemanticTracksOptions` / `RunStudioSemanticPlanOptions` / `StudioProjectValidationIssue` | type | Options and structured diagnostic companion types. |
 
 ### Standalone Studio app
 

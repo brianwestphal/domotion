@@ -47,6 +47,17 @@ export {
   type CompileStudioProjectOptions,
 } from "./compile.js";
 export {
+  StudioInteractionError,
+  compileStudioSemanticTracks,
+  runStudioSemanticPlan,
+  runStudioSemanticTracks,
+  type CompileStudioSemanticTracksOptions,
+  type RunStudioSemanticPlanOptions,
+  type StudioScriptHookContext,
+  type StudioSemanticPlan,
+  type StudioSemanticStep,
+} from "./interactions.js";
+export {
   buildStudioProjectJsonSchema,
   studioProjectJsonSchemaText,
 } from "./project-json-schema.js";

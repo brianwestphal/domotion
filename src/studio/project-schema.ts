@@ -97,14 +97,19 @@ const dragEventSchema = z.strictObject({
   to: dragDestinationSchema,
 });
 
-const waitForStateEventSchema = z.strictObject({
-  ...semanticEventBase,
-  kind: z.literal("waitForState"),
-  target: studioSemanticTargetSchema,
-  state: z.enum(["attached", "detached", "visible", "hidden", "enabled", "disabled", "checked", "unchecked", "text"]),
-  value: z.string().optional(),
-  timeoutMs: z.number().positive().optional(),
-});
+const waitForStateEventSchema = z
+  .strictObject({
+    ...semanticEventBase,
+    kind: z.literal("waitForState"),
+    target: studioSemanticTargetSchema,
+    state: z.enum(["attached", "detached", "visible", "hidden", "enabled", "disabled", "checked", "unchecked", "text"]),
+    value: z.string().optional(),
+    timeoutMs: z.number().positive().optional(),
+  })
+  .refine((event) => event.state !== "text" || event.value != null, {
+    message: "a text wait requires `value`",
+    path: ["value"],
+  });
 
 const scriptHookEventSchema = z.strictObject({
   ...semanticEventBase,
@@ -124,12 +129,33 @@ export const studioSemanticEventSchema = z.discriminatedUnion("kind", [
   scriptHookEventSchema,
 ]);
 
-export const studioSemanticTrackSchema = z.strictObject({
-  id: studioIdSchema,
-  kind: z.literal("semantic-interactions"),
-  name: nonEmptyString.optional(),
-  events: z.array(studioSemanticEventSchema),
-});
+export const studioSemanticTrackSchema = z
+  .strictObject({
+    id: studioIdSchema,
+    kind: z.literal("semantic-interactions"),
+    name: nonEmptyString.optional(),
+    events: z.array(studioSemanticEventSchema),
+  })
+  .superRefine((track, ctx) => {
+    track.events.forEach((event, index) => {
+      if (index === 0) return;
+      const previous = track.events[index - 1];
+      if (event.atMs < previous.atMs) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["events", index, "atMs"],
+          message: `must be greater than or equal to the previous event time (${previous.atMs}ms)`,
+        });
+      }
+      if (previous.durationMs != null && previous.atMs + previous.durationMs > event.atMs) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["events", index, "atMs"],
+          message: `overlaps the previous event, which ends at ${previous.atMs + previous.durationMs}ms`,
+        });
+      }
+    });
+  });
 
 export type StudioSemanticTarget = z.infer<typeof studioSemanticTargetSchema>;
 export type StudioSemanticEvent = z.infer<typeof studioSemanticEventSchema>;

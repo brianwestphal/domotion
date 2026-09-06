@@ -7754,6 +7754,37 @@
       }
     },
     {
+      "file": "241-studio-semantic-interactions.md",
+      "metadata": {
+        "id": "requirements/studio-semantic-interactions",
+        "title": "Domotion Studio semantic interaction compilation",
+        "kind": "contract",
+        "status": "current",
+        "owners": [
+          "studio",
+          "animation"
+        ],
+        "platforms": [
+          "macos",
+          "linux",
+          "windows"
+        ],
+        "tickets": [
+          "DM-2683"
+        ],
+        "code": [
+          "src/studio/interactions.ts",
+          "src/studio/interactions.test.ts",
+          "src/studio/interactions.e2e.test.ts",
+          "src/studio/project-schema.ts"
+        ],
+        "aliases": [
+          "docs/241-studio-semantic-interactions.md",
+          "doc-241"
+        ]
+      }
+    },
+    {
       "file": "handbook/animation-and-interaction.md",
       "metadata": {
         "id": "handbook/animation-and-interaction",
@@ -8706,6 +8737,9 @@
     ],
     "240": [
       "requirements/studio-application-shell"
+    ],
+    "241": [
+      "requirements/studio-semantic-interactions"
     ],
     "01": [
       "requirements/fidelity"

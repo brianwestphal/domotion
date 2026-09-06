@@ -542,6 +542,13 @@ export const FEATURES: FeatureEntry[] = [
     ],
   },
   {
+    id: "studio.semantic-interactions",
+    behavior: "Validate and stable-merge scene-relative semantic interaction tracks, resolve accessibility-first targets exactly once, and execute click, hover, type, scroll, drag, waits, and explicitly authorized hooks through Playwright.",
+    doc: "docs/241-studio-semantic-interactions.md",
+    exports: ["StudioInteractionError", "compileStudioSemanticTracks", "runStudioSemanticPlan", "runStudioSemanticTracks"],
+    tests: ["src/studio/interactions.test.ts", "src/studio/interactions.e2e.test.ts"],
+  },
+  {
     id: "studio.application-shell",
     behavior: "Launch a separate workspace-bounded Studio app that creates, opens, edits, validates, atomically saves, and reopens versioned project JSON while surfacing narrative, ordered scenes, generation state, and actionable issues.",
     doc: "docs/240-studio-application-shell.md",

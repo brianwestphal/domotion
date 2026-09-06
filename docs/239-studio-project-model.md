@@ -71,10 +71,16 @@ Version 1 models `click`, `hover`, `type`, `scrollTo`, `drag`, `waitForState`, a
 `selector` is the explicit CSS fallback. Action-specific validation requires the
 relevant target, text, position, destination, state, or hook reference.
 
+Events in one track must be time-ordered and their declared durations may not
+overlap. The interactive compiler validates these constraints, rejects duplicate
+track or event IDs, then stable-merges independent tracks into one scene-relative
+plan. See [semantic interaction compilation](241-studio-semantic-interactions.md).
+
 These events remain intent-level authoring facts. The static compiler rejects a
-non-empty semantic track with its exact path instead of ignoring it or lowering
-it to brittle coordinates. Interactive action execution and evidence-driven
-capture use a separate compiler built on the existing Playwright action path.
+non-empty semantic track with its exact path instead of ignoring it. Interactive
+execution resolves the authored target against the live page, requires exactly
+one match, and temporarily bridges that element to the existing Playwright
+action runner without persisting generated coordinates or selectors.
 
 ### Layers and nested compositions
 

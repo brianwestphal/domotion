@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtp8mdqw9ns6gwwu",
+          "message": {
+            "text": "Resolve Studio targets through accessibility semantics before stable IDs or CSS, require exactly one live match, and add only a short-lived marker when bridging to the existing selector-shaped action runner. This keeps the project intent-level, produces actionable zero/ambiguous-match failures, and avoids persisting brittle generated selectors; DOM observation must filter the marker as Studio instrumentation.",
+            "markdown": "Resolve Studio targets through accessibility semantics before stable IDs or CSS, require exactly one live match, and add only a short-lived marker when bridging to the existing selector-shaped action runner. This keeps the project intent-level, produces actionable zero/ambiguous-match failures, and avoids persisting brittle generated selectors; DOM observation must filter the marker as Studio instrumentation."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/interactions.ts"
+                },
+                "region": {
+                  "startLine": 83,
+                  "endLine": 130,
+                  "snippet": {
+                    "text": "function locatorForTarget(page: Page, target: StudioSemanticTarget, path: string, eventId: string): Locator {\n  if (target.role != null) {\n    return page.getByRole(target.role as Parameters<Page[\"getByRole\"]>[0], {\n      ...(target.name == null ? {} : { name: target.name, exact: true }),\n    });\n  }\n  if (target.name != null) {\n    throw new StudioInteractionError(path, \"`name` requires `role`; use `label` or `text` for a standalone semantic locator\", eventId);\n  }\n  if (target.label != null) return page.getByLabel(target.label, { exact: true });\n  if (target.text != null) return page.getByText(target.text, { exact: true });\n  if (target.testId != null) return page.getByTestId(target.testId);\n  if (target.domId != null) return page.locator(`[id=${JSON.stringify(target.domId)}]`);\n  return page.locator(target.selector!);\n}\n\nconst MARKER_ATTRIBUTE = \"data-domotion-studio-target\";\nlet markerCounter = 0;\n\ninterface MarkedTarget {\n  locator: Locator;\n  selector: string;\n  cleanup: () => Promise<void>;\n}\n\nasync function markTarget(page: Page, target: StudioSemanticTarget, path: string, eventId: string): Promise<MarkedTarget> {\n  const locator = locatorForTarget(page, target, path, eventId);\n  let count: number;\n  try {\n    count = await locator.count();\n  } catch (error) {\n    throw new StudioInteractionError(path, `could not resolve ${targetDescription(target)}: ${error instanceof Error ? error.message : String(error)}`, eventId, { cause: error });\n  }\n  if (count === 0) throw new StudioInteractionError(path, `${targetDescription(target)} matched no element`, eventId);\n  if (count > 1) throw new StudioInteractionError(path, `${targetDescription(target)} is ambiguous (${count} matches)`, eventId);\n\n  const marker = `dm-${Date.now().toString(36)}-${markerCounter++}`;\n  await locator.evaluate((element, value) => element.setAttribute(\"data-domotion-studio-target\", value), marker);\n  const selector = `[${MARKER_ATTRIBUTE}=\"${marker}\"]`;\n  return {\n    locator,\n    selector,\n    cleanup: async () => {\n      await page.locator(selector).evaluateAll((elements) => {\n        elements.forEach((element) => element.removeAttribute(\"data-domotion-studio-target\"));\n      }).catch(() => {});\n    },\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "workItemUris": [
+            "DM-2683"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "5891733fb9ecfd92a6b7a7b0feaa0e88"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtp8mdxea802i54c",
+          "message": {
+            "text": "Keep scene timing anchored to one execution start so action latency does not accumulate into later authored timestamps. Script-hook events cross an explicit caller-owned runHook boundary and fail when no handler is supplied; the project model never imports or evaluates arbitrary source.",
+            "markdown": "Keep scene timing anchored to one execution start so action latency does not accumulate into later authored timestamps. Script-hook events cross an explicit caller-owned runHook boundary and fail when no handler is supplied; the project model never imports or evaluates arbitrary source."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/interactions.ts"
+                },
+                "region": {
+                  "startLine": 230,
+                  "endLine": 250,
+                  "snippet": {
+                    "text": "/** Execute a compiled scene-relative plan against one live page, in timeline order. */\nexport async function runStudioSemanticPlan(\n  page: Page,\n  plan: StudioSemanticPlan,\n  options: RunStudioSemanticPlanOptions = {},\n): Promise<void> {\n  const log = options.log ?? (() => {});\n  const now = options.now ?? Date.now;\n  const startedAt = now();\n  for (const step of plan.steps) {\n    const remaining = step.event.atMs - (now() - startedAt);\n    if (remaining > 0) await runActions(page, [{ type: \"wait\", ms: remaining }], log);\n    log(`Studio interaction ${step.event.id}: ${step.event.kind} at ${step.event.atMs}ms`);\n    try {\n      if (step.event.kind === \"scriptHook\") {\n        if (options.runHook == null) {\n          throw new StudioInteractionError(step.path, `script hook \"${step.event.hookId}\" requires an explicit runHook handler`, step.event.id);\n        }\n        await options.runHook({ page, hookId: step.event.hookId, input: step.event.input, event: step.event, path: step.path });\n      } else if (step.event.kind === \"scrollTo\" && step.event.position != null) {\n        await runActions(page, [{ type: \"scroll\", x: step.event.position.x, y: step.event.position.y }], log);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "workItemUris": [
+            "DM-2683"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "04adff7031ccc7e253fb62f3e18d0a09"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d95333e7e8c3d2d7a2d6d1f726cc25906c226809",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
