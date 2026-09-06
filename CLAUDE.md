@@ -462,7 +462,6 @@ When the user gives you work directly (not via the Hot Sheet channel or events),
 <!-- hotsheet:begin section=testing-philosophy v=2 -->
 ## Testing Philosophy
 
-- **Keep automated browser work headless**: tests, probes, visual validation, and agent review loops must use headless Playwright Chromium. Set `DOMOTION_NO_OPEN=1` (or pass `--no-open`) when a command can start SVG Scrubber, SVG Demo Test Review, or another local review server. Do not launch the user's desktop browser unless the user explicitly asks for a headed/interactive run.
 - **Double coverage**: every feature covered by both unit tests AND E2E tests. Unit = logic in isolation; E2E = real user flows through the running app with minimal mocking.
 - **Unit tests**: Mock external deps (filesystem, network), test real logic.
 - **E2E tests**: As much as possible, use test automation tools to run realistic, user-facing flows. Minimize mocks.
@@ -492,10 +491,10 @@ Keep human-readable requirements documents as the source of truth for what the p
 
 ### AI Summaries
 
-Maintain two thin routing docs an AI assistant reads at the start of a fresh session — keep them in sync with reality (source doc/code wins on conflict), and prefer small targeted edits over rewrites:
+Maintain two synthesis docs an AI assistant reads at the start of a fresh session — keep them in sync with reality (source doc/code wins on conflict), and prefer small targeted edits over rewrites:
 
 - A **codebase map** — directory tree, entry points, data schema, build, tests, settings, and a "where do I look for X" index. Update it in the same change when you add a file or directory, add a route/endpoint, change the schema, add a client module, or add a setting key.
-- A **requirements summary** — cross-cutting principles and routes into the six domain handbooks. The generated manifest and owner packets, not this hand-written page, carry the exhaustive current/partial inventory.
+- A **requirements summary** — a synthesized view of every requirements doc with status markers (e.g. Shipped / Partial / Design only / Deferred). Update it in the same change when you add a requirements doc, ship a design-only feature, or defer/regress a shipped one.
 
 <!-- hotsheet:begin specifics=requirements-documentation v=1 -->
 ### This project's docs layout
