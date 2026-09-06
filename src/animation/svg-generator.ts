@@ -55,6 +55,8 @@ export interface AnimationFrame {
    * `offsetEmbeddedAnimatedSvgTimeline`). Omit for ordinary captured frames.
    */
   embeddedAnimationPeriodMs?: number;
+  /** Start this embedded animation at a source-local offset (used by storyboard trim). */
+  embeddedAnimationOffsetMs?: number;
   /** Transition to the next frame. The type is derived from the canonical zod schema. */
   transition?: Transition;
   /**
@@ -1440,6 +1442,7 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
           periodMs: f.embeddedAnimationPeriodMs,
           startMs,
           masterMs: totalDuration,
+          contentOffsetMs: f.embeddedAnimationOffsetMs,
         }),
       };
     });

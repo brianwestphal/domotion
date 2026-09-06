@@ -251,6 +251,7 @@ export const studioSceneSchema = z.strictObject({
   id: studioIdSchema,
   title: nonEmptyString.optional(),
   description: nonEmptyString.optional(),
+  generationInstructions: nonEmptyString.optional(),
   narrativeBeatIds: z.array(studioIdSchema).optional(),
   render: studioSceneRenderSchema,
   treatments: studioTreatmentsSchema.optional(),

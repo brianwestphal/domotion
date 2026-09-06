@@ -221,6 +221,70 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "warning",
+          "guid": "mtpozmuth4onhnyq",
+          "message": {
+            "text": "Generation always delegates through the configured AI healing and review adapter, may return a clarification without mutating disk, preserves authored intent and provenance, and proves the requested current SVG can be previewed before saving.",
+            "markdown": "Generation always delegates through the configured AI healing and review adapter, may return a clarification without mutating disk, preserves authored intent and provenance, and proves the requested current SVG can be previewed before saving."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/server.ts"
+                },
+                "region": {
+                  "startLine": 357,
+                  "endLine": 401,
+                  "snippet": {
+                    "text": "      if (req.method === \"POST\" && url === \"/api/generate\") {\n        const body = await readJsonBody(req, generationBodySchema);\n        const current = openStudioProjectFile(workspaceRoot, body.path);\n        if (current.project.review.headRevisionId !== body.expectedHeadRevisionId) {\n          throw new StudioAuthoringError(`stale authoring change: expected review head ${body.expectedHeadRevisionId}, found ${current.project.review.headRevisionId}`);\n        }\n        if (inputs.generate == null) throw new StudioHttpError(501, \"Studio generation requires a configured AI healing and review adapter\");\n        const generated = await inputs.generate({\n          project: structuredClone(current.project),\n          selection: body.selection,\n          workspaceRoot,\n          projectPath: current.path,\n          aiPolicy: { healing: \"required\", review: \"required\" },\n        });\n        if (generated.status === \"clarification\") {\n          z.strictObject({ status: z.literal(\"clarification\"), question: z.string().trim().min(1), reason: z.string().trim().min(1) }).parse(generated);\n          sendJson(res, 200, { ...projectResponse(current), generationResult: generated });\n          return;\n        }\n        const ai = generationAiSchema.parse(generated.ai);\n        const next = validateStudioProject(generated.project);\n        const authored = ({ review: _review, artifacts: _artifacts, updatedAt: _updatedAt, ...value }: StudioProject): unknown => value;\n        if (!isDeepStrictEqual(authored(next), authored(current.project))) {\n          throw new StudioHttpError(400, \"generation adapters must preserve authored narrative, scenes, and settings\");\n        }\n        if (!isDeepStrictEqual(next.review.revisions.slice(0, current.project.review.revisions.length), current.project.review.revisions)\n          || !isDeepStrictEqual(next.review.annotations.slice(0, current.project.review.annotations.length), current.project.review.annotations)) {\n          throw new StudioHttpError(400, \"generation adapters must preserve existing review provenance\");\n        }\n        if (studioContentRevisionId(next) !== studioContentRevisionId(current.project)) {\n          throw new StudioHttpError(400, \"generation adapters cannot replace the saved authoring content revision\");\n        }\n        if (current.project.artifacts.some((artifact) => !next.artifacts.some((candidate) => isDeepStrictEqual(candidate, artifact)))) {\n          throw new StudioHttpError(400, \"generation adapters must preserve existing artifacts\");\n        }\n        const contentRevisionId = studioContentRevisionId(next);\n        const matches = next.artifacts.some((artifact) => artifact.kind === \"svg\"\n          && artifact.sourceRevisionId === contentRevisionId\n          && (body.selection.kind === \"story\"\n            ? artifact.sceneIds == null || artifact.sceneIds.length === 0\n            : artifact.sceneIds?.length === 1 && artifact.sceneIds[0] === body.selection.sceneId));\n        if (!matches) throw new StudioHttpError(400, \"generation adapter did not return a current SVG artifact for the requested selection\");\n        previewResponse(workspaceRoot, { ...current, project: next }, body.selection);\n        const saved = saveStudioProjectFile(workspaceRoot, body.path, next);\n        sendJson(res, 200, { ...projectResponse(saved), generationResult: { status: \"completed\", ai } });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "risk"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "workItemUris": [
+            "DM-2688"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "70168c502432cf1cabb0eceb45fb4fe4"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "7c4e579af55bdc3f834a87df13401c250ce3d0c0",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

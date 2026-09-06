@@ -6,8 +6,9 @@ import { chromium, type Browser, type BrowserContext, type Page } from "@playwri
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { closeSafely } from "../test-support/close-browser-safely.js";
 import { createStudioProjectFile, openStudioProjectFile, saveStudioProjectFile } from "./app-projects.js";
-import { startStudioServer, type StudioServerHandle } from "./server.js";
+import { startStudioServer, type StudioGenerationInput, type StudioGenerationResult, type StudioServerHandle } from "./server.js";
 import { htmlWrapper, seekTo, screenshot } from "../cli/svg-to-video-core.js";
+import { studioContentRevisionId } from "./authoring.js";
 
 const PREVIEW_TIME = "2026-09-06T04:00:00.000Z";
 
@@ -26,12 +27,46 @@ describe("Domotion Studio application shell (DM-2687)", () => {
   let context: BrowserContext | null = null;
   let page: Page | null = null;
   let server: StudioServerHandle | null = null;
+  const generationInputs: StudioGenerationInput[] = [];
+  let generationCount = 0;
+
+  const generate = async (input: StudioGenerationInput): Promise<StudioGenerationResult> => {
+    generationInputs.push(structuredClone(input));
+    const next = structuredClone(input.project);
+    const selectedSceneId = input.selection.kind === "scene" ? input.selection.sceneId : undefined;
+    const selectedScenes = selectedSceneId == null ? next.scenes : next.scenes.filter((scene) => scene.id === selectedSceneId);
+    const durationMs = selectedScenes.reduce((total, scene) => total + (scene.render.kind === "storyboard" ? scene.render.recipe.duration ?? 1600 : scene.render.duration ?? scene.render.composition.duration ?? 1600), 0);
+    const svg = animatedPreview(input.selection.kind === "story" ? "#7690ff" : "#f0a64a", durationMs, 48);
+    const token = `${input.selection.kind === "story" ? "story" : input.selection.sceneId}-${++generationCount}`;
+    const workspacePath = `generated/${token}.svg`;
+    mkdirSync(join(input.workspaceRoot, "generated"), { recursive: true });
+    writeFileSync(join(input.workspaceRoot, workspacePath), svg);
+    next.artifacts.push({
+      id: `artifact-${token}`,
+      kind: "svg",
+      path: workspacePath,
+      generatedAt: new Date(Date.parse(PREVIEW_TIME) + generationCount * 1000).toISOString(),
+      generator: { name: "studio-e2e-ai" },
+      sourceRevisionId: studioContentRevisionId(next),
+      ...(input.selection.kind === "scene" ? { sceneIds: [input.selection.sceneId] } : {}),
+      sha256: digest(svg),
+      metadata: { durationMs },
+    });
+    return {
+      status: "completed",
+      project: next,
+      ai: {
+        healing: { status: "accepted", summary: "Inspected live DOM/CSS evidence; no repair was required." },
+        review: { status: "accepted", summary: "Reviewed the rendered segment across the required visual dimensions." },
+      },
+    };
+  };
 
   beforeAll(async () => {
     root = mkdtempSync(join(tmpdir(), "domotion-studio-browser-"));
     try {
       browser = await chromium.launch({ headless: true });
-      server = await startStudioServer({ workspaceRoot: root });
+      server = await startStudioServer({ workspaceRoot: root, generate });
       context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
       page = await context.newPage();
     } catch {
@@ -81,6 +116,41 @@ describe("Domotion Studio application shell (DM-2687)", () => {
     expect(await testPage.locator('[data-field="narrative-title"]').inputValue()).toBe("Glassbox Reveal");
     expect(await testPage.getByLabel("Scene 1 title").inputValue()).toBe("Show the review loop");
 
+    await testPage.getByRole("button", { name: "Add beat" }).click();
+    const secondBeat = testPage.locator("[data-beat-id]").nth(1);
+    await secondBeat.getByLabel(/Beat .* title/).fill("Payoff");
+    await secondBeat.getByLabel(/Beat .* summary/).fill("Close on the generated result.");
+    await testPage.getByRole("button", { name: "Add scene" }).click();
+    const secondScene = testPage.locator("[data-scene-id]").nth(1);
+    await secondScene.getByLabel("Scene 2 title").fill("Generated payoff");
+    await secondScene.getByLabel("Scene 2 description").fill("Show the reviewed output.");
+    await secondScene.getByLabel("Scene 2 generation instructions").fill("Inspect the live DOM and computed CSS before capture, then keep the cursor deliberate.");
+    await secondScene.getByLabel("Scene 2 narrative beat").selectOption({ label: "Payoff" });
+    await secondScene.getByLabel("Scene 2 source type").selectOption("svg");
+    await testPage.locator("[data-scene-id]").nth(1).getByLabel("Scene 2 source", { exact: true }).fill("source/payoff.svg");
+    await testPage.locator("[data-scene-id]").nth(1).getByLabel("Scene 2 source", { exact: true }).press("Tab");
+    await secondScene.getByLabel("Scene 2 trim start").fill("200");
+    await secondScene.getByLabel("Scene 2 trim start").press("Tab");
+    await secondScene.getByLabel("Scene 2 trim end").fill("1200");
+    await secondScene.getByLabel("Scene 2 trim end").press("Tab");
+    await secondScene.getByLabel("Scene 2 fit").selectOption("cover");
+    await secondScene.getByLabel("Scene 2 transition", { exact: true }).selectOption("push-left");
+    await secondScene.getByLabel("Scene 2 cinematic preset").selectOption("browser-chrome");
+    await secondScene.getByRole("button", { name: "Regenerate scene" }).click();
+    await expect.poll(() => testPage.getByRole("status").textContent()).toContain("Generated glassbox.studio.json");
+    await testPage.frameLocator("[data-scrubber-frame]").locator(".svg-host svg").waitFor();
+    expect(generationInputs.at(-1)).toMatchObject({
+      selection: { kind: "scene" },
+      aiPolicy: { healing: "required", review: "required" },
+      project: { scenes: [{}, { title: "Generated payoff", generationInstructions: expect.stringContaining("computed CSS") }] },
+    });
+    await testPage.getByRole("button", { name: "Reopen", exact: true }).click();
+    await testPage.getByLabel("Scene 2 title").waitFor();
+    expect(await testPage.getByLabel("Scene 2 source", { exact: true }).inputValue()).toBe("source/payoff.svg");
+    expect(await testPage.getByLabel("Scene 2 duration").inputValue()).toBe("1000");
+    expect(await testPage.getByLabel("Scene 2 fit").inputValue()).toBe("cover");
+    expect(await testPage.getByLabel("Scene 2 cinematic preset").inputValue()).toBe("browser-chrome");
+
     await testPage.getByLabel("New review note").fill("Pause on the highlighted control.");
     await testPage.getByLabel("Annotation scope").selectOption("scene-opening");
     await testPage.getByLabel("Annotation start time").fill("420");
@@ -109,7 +179,16 @@ describe("Domotion Studio application shell (DM-2687)", () => {
 
     const persisted = openStudioProjectFile(root, "glassbox.studio.json").project;
     expect(persisted.narrative.title).toBe("Glassbox Reveal");
+    expect(persisted.scenes).toHaveLength(2);
     expect(persisted.scenes[0].title).toBe("Show the review loop");
+    expect(persisted.scenes[1]).toMatchObject({
+      title: "Generated payoff",
+      generationInstructions: expect.stringContaining("computed CSS"),
+      render: { kind: "storyboard", recipe: { svg: "source/payoff.svg", trimStart: 200, trimEnd: 1200, duration: 1000, fit: "cover", transition: { type: "push-left" } } },
+      treatments: [{ kind: "browser-chrome", theme: "dark" }],
+    });
+    expect(persisted.artifacts.some((artifact) => artifact.sceneIds?.includes(persisted.scenes[1].id))).toBe(true);
+    expect(persisted.review.revisions.some((revision) => revision.kind === "content")).toBe(true);
     expect(persisted.review.annotations).toHaveLength(1);
     expect(persisted.review.annotations[0]).toMatchObject({
       status: "resolved",

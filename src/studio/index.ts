@@ -60,6 +60,16 @@ export {
   type SvgReviewRegion,
 } from "./annotations.js";
 export {
+  applyStudioAuthoringCommand,
+  commitStudioAuthoringRevision,
+  studioContentRevisionId,
+  StudioAuthoringError,
+  type ApplyStudioAuthoringOptions,
+  type CommitStudioAuthoringOptions,
+  type StudioAuthoringCommand,
+  type StudioAuthoringResult,
+} from "./authoring.js";
+export {
   STUDIO_VIDEO_REVIEW_DIMENSIONS,
   renderAndReviewStudioVideo,
   resumeStudioVideoReview,

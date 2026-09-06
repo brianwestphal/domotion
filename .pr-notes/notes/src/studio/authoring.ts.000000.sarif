@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpozmoar3h84gwy",
+          "message": {
+            "text": "High-level Studio authoring is implemented as immutable commands with exact restore snapshots. Content saves use optimistic revision guards and keep review history plus generated artifacts server-owned.",
+            "markdown": "High-level Studio authoring is implemented as immutable commands with exact restore snapshots. Content saves use optimistic revision guards and keep review history plus generated artifacts server-owned."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/authoring.ts"
+                },
+                "region": {
+                  "startLine": 61,
+                  "endLine": 285,
+                  "snippet": {
+                    "text": "export function commitStudioAuthoringRevision(\n  rawCurrent: StudioProject,\n  rawProposed: StudioProject,\n  options: CommitStudioAuthoringOptions,\n): StudioProject {\n  const current = structuredClone(rawCurrent);\n  const proposed = structuredClone(rawProposed);\n  if (current.review.headRevisionId !== options.expectedHeadRevisionId) {\n    throw new StudioAuthoringError(`stale authoring change: expected review head ${options.expectedHeadRevisionId}, found ${current.review.headRevisionId}`);\n  }\n  if (JSON.stringify(proposed.review) !== JSON.stringify(current.review)) {\n    throw new StudioAuthoringError(\"review history must be changed through /api/annotation\");\n  }\n  if (JSON.stringify(proposed.artifacts) !== JSON.stringify(current.artifacts)) {\n    throw new StudioAuthoringError(\"generated artifacts must be changed through the generation API (/api/generate)\");\n  }\n  if (authoredJson(proposed) === authoredJson(current)) return current;\n  const now = options.now ?? new Date().toISOString();\n  const revisionId = options.revisionId ?? defaultId(\"revision-content\");\n  if (current.review.revisions.some((revision) => revision.id === revisionId)) {\n    throw new StudioAuthoringError(`revision id already exists: ${revisionId}`);\n  }\n  proposed.review = structuredClone(current.review);\n  proposed.artifacts = structuredClone(current.artifacts);\n  proposed.review.revisions.push({\n    id: revisionId,\n    parentId: current.review.headRevisionId,\n    createdAt: now,\n    author: { kind: \"human\" },\n    kind: \"content\",\n    summary: \"Saved Studio authoring changes.\",\n    metadata: { operation: \"studio.authoring.save\" },\n  });\n  proposed.review.headRevisionId = revisionId;\n  proposed.updatedAt = now;\n  return proposed;\n}\n\nfunction uniqueId(project: StudioProject, prefix: string, id: (prefix: string) => string): string {\n  const occupied = new Set<string>();\n  const layers = (values: readonly StudioLayer[]): void => values.forEach((layer) => {\n    occupied.add(layer.id);\n    if (layer.kind === \"composition\") layers(layer.composition.layers);\n  });\n  project.scenes.forEach((scene) => {\n    occupied.add(scene.id);\n    scene.tracks?.forEach((track) => {\n      occupied.add(track.id);\n      track.events.forEach((event) => occupied.add(event.id));\n    });\n    if (scene.render.kind === \"composition\") layers(scene.render.composition.layers);\n  });\n  project.narrative.beats.forEach((beat) => occupied.add(beat.id));\n  for (let attempt = 0; attempt < 100; attempt++) {\n    const candidate = id(prefix);\n    if (!occupied.has(candidate)) return candidate;\n  }\n  throw new StudioAuthoringError(`could not allocate a unique ${prefix} id`);\n}\n\nfunction sceneById(project: StudioProject, sceneId: string): StudioScene {\n  const scene = project.scenes.find((candidate) => candidate.id === sceneId);\n  if (scene == null) throw new StudioAuthoringError(`unknown scene id: ${sceneId}`);\n  return scene;\n}\n\nfunction annotationReferencesScene(annotation: StudioReviewAnnotation, scene: StudioScene): boolean {\n  const target = annotation.target;\n  if (target?.scope?.kind === \"scene\" && target.scope.sceneId === scene.id) return true;\n  if (target?.sceneId === scene.id) return true;\n  const trackIds = new Set(scene.tracks?.map((track) => track.id) ?? []);\n  const eventIds = new Set(scene.tracks?.flatMap((track) => track.events.map((event) => event.id)) ?? []);\n  const layerIds = new Set<string>();\n  const collect = (layers: readonly StudioLayer[]): void => layers.forEach((layer) => {\n    layerIds.add(layer.id);\n    if (layer.kind === \"composition\") collect(layer.composition.layers);\n  });\n  if (scene.render.kind === \"composition\") collect(scene.render.composition.layers);\n  return (target?.trackId != null && trackIds.has(target.trackId))\n    || (target?.eventId != null && eventIds.has(target.eventId))\n    || (target?.layerId != null && layerIds.has(target.layerId));\n}\n\nfunction duplicateScene(project: StudioProject, source: StudioScene, id: (prefix: string) => string): StudioScene {\n  const copy = structuredClone(source);\n  copy.id = uniqueId(project, \"scene\", id);\n  copy.title = `${source.title ?? \"Scene\"} copy`;\n  copy.tracks?.forEach((track) => {\n    track.id = uniqueId(project, \"track\", id);\n    track.events.forEach((event) => { event.id = uniqueId(project, \"event\", id); });\n  });\n  const remapLayers = (layers: StudioLayer[]): void => layers.forEach((layer) => {\n    layer.id = uniqueId(project, \"layer\", id);\n    if (layer.kind === \"composition\") remapLayers(layer.composition.layers);\n  });\n  if (copy.render.kind === \"composition\") remapLayers(copy.render.composition.layers);\n  return copy;\n}\n\nfunction defaultScene(project: StudioProject, id: (prefix: string) => string): StudioScene {\n  const sceneId = uniqueId(project, \"scene\", id);\n  const beatId = project.narrative.beats[0]?.id;\n  return {\n    id: sceneId,\n    title: \"New scene\",\n    ...(beatId == null ? {} : { narrativeBeatIds: [beatId] }),\n    render: {\n      kind: \"storyboard\",\n      recipe: { template: \"title-card\", params: { title: \"New scene\" }, duration: 1600 },\n    },\n  };\n}\n\n/** Apply one validated authoring operation without mutating its input. */\nexport function applyStudioAuthoringCommand(\n  rawProject: StudioProject,\n  command: StudioAuthoringCommand,\n  options: ApplyStudioAuthoringOptions = {},\n): StudioAuthoringResult {\n  const before = structuredClone(rawProject);\n  const next = command.kind === \"restore\"\n    ? structuredClone(command.project)\n    : structuredClone(before);\n  const id = options.id ?? defaultId;\n\n  if (command.kind === \"scene.add\") {\n    const scene = command.scene == null ? defaultScene(next, id) : structuredClone(command.scene);\n    if (next.scenes.some((candidate) => candidate.id === scene.id)) throw new StudioAuthoringError(`scene id already exists: ${scene.id}`);\n    const after = command.afterSceneId == null ? next.scenes.length - 1 : next.scenes.findIndex((candidate) => candidate.id === command.afterSceneId);\n    if (after < 0) throw new StudioAuthoringError(`unknown scene id: ${command.afterSceneId}`);\n    next.scenes.splice(after + 1, 0, scene);\n    for (const beatId of scene.narrativeBeatIds ?? []) {\n      const beat = next.narrative.beats.find((candidate) => candidate.id === beatId);\n      if (beat != null && !beat.sceneIds.includes(scene.id)) beat.sceneIds.push(scene.id);\n    }\n  } else if (command.kind === \"scene.duplicate\") {\n    const sourceIndex = next.scenes.findIndex((candidate) => candidate.id === command.sceneId);\n    if (sourceIndex < 0) throw new StudioAuthoringError(`unknown scene id: ${command.sceneId}`);\n    const copy = duplicateScene(next, next.scenes[sourceIndex], id);\n    next.scenes.splice(sourceIndex + 1, 0, copy);\n    next.narrative.beats.forEach((beat) => {\n      const at = beat.sceneIds.indexOf(command.sceneId);\n      if (at >= 0) beat.sceneIds.splice(at + 1, 0, copy.id);\n    });\n  } else if (command.kind === \"scene.remove\") {\n    if (next.scenes.length === 1) throw new StudioAuthoringError(\"a Studio project must keep at least one scene\");\n    const scene = sceneById(next, command.sceneId);\n    if (next.review.annotations.some((annotation) => annotationReferencesScene(annotation, scene))) {\n      throw new StudioAuthoringError(`scene ${scene.id} has review annotations; move or resolve their scope before removing it`);\n    }\n    next.scenes = next.scenes.filter((candidate) => candidate.id !== scene.id);\n    next.narrative.beats.forEach((beat) => { beat.sceneIds = beat.sceneIds.filter((sceneId) => sceneId !== scene.id); });\n    next.artifacts = next.artifacts.filter((artifact) => artifact.sceneIds?.includes(scene.id) !== true);\n  } else if (command.kind === \"scene.move\") {\n    const from = next.scenes.findIndex((candidate) => candidate.id === command.sceneId);\n    if (from < 0) throw new StudioAuthoringError(`unknown scene id: ${command.sceneId}`);\n    const to = Math.max(0, Math.min(next.scenes.length - 1, command.toIndex));\n    const [scene] = next.scenes.splice(from, 1);\n    next.scenes.splice(to, 0, scene);\n    next.narrative.beats.forEach((beat) => {\n      beat.sceneIds = next.scenes.filter((candidate) => beat.sceneIds.includes(candidate.id)).map((candidate) => candidate.id);\n    });\n  } else if (command.kind === \"scene.update\") {\n    Object.assign(sceneById(next, command.sceneId), structuredClone(command.patch));\n    next.narrative.beats.forEach((beat) => {\n      beat.sceneIds = beat.sceneIds.filter((sceneId) => sceneId !== command.sceneId);\n      if (command.patch.narrativeBeatIds?.includes(beat.id)) beat.sceneIds.push(command.sceneId);\n      beat.sceneIds = next.scenes.filter((scene) => beat.sceneIds.includes(scene.id)).map((scene) => scene.id);\n    });\n  } else if (command.kind === \"beat.add\") {\n    const beat = { id: uniqueId(next, \"beat\", id), title: command.title?.trim() || \"New beat\", sceneIds: [] as string[] };\n    const after = command.afterBeatId == null ? next.narrative.beats.length - 1 : next.narrative.beats.findIndex((candidate) => candidate.id === command.afterBeatId);\n    if (command.afterBeatId != null && after < 0) throw new StudioAuthoringError(`unknown narrative beat id: ${command.afterBeatId}`);\n    next.narrative.beats.splice(after + 1, 0, beat);\n  } else if (command.kind === \"beat.update\") {\n    const beat = next.narrative.beats.find((candidate) => candidate.id === command.beatId);\n    if (beat == null) throw new StudioAuthoringError(`unknown narrative beat id: ${command.beatId}`);\n    if (command.title != null) beat.title = command.title;\n    if (command.summary === null) delete beat.summary;\n    else if (command.summary !== undefined) beat.summary = command.summary;\n  } else if (command.kind === \"beat.remove\") {\n    const index = next.narrative.beats.findIndex((candidate) => candidate.id === command.beatId);\n    if (index < 0) throw new StudioAuthoringError(`unknown narrative beat id: ${command.beatId}`);\n    next.narrative.beats.splice(index, 1);\n    next.scenes.forEach((scene) => {\n      if (scene.narrativeBeatIds == null) return;\n      scene.narrativeBeatIds = scene.narrativeBeatIds.filter((beatId) => beatId !== command.beatId);\n      if (scene.narrativeBeatIds.length === 0) delete scene.narrativeBeatIds;\n    });\n  }\n\n  if (JSON.stringify(before) === JSON.stringify(next)) throw new StudioAuthoringError(\"the authoring command did not change the project\");\n  return { project: next, undo: { kind: \"restore\", project: before } };\n}\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "workItemUris": [
+            "DM-2688"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "08e94a6347ce6bd41938f8b407c3cba5"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "7c4e579af55bdc3f834a87df13401c250ce3d0c0",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

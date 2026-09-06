@@ -3108,7 +3108,8 @@
           "DM-1527",
           "DM-1552",
           "DM-1553",
-          "DM-1554"
+          "DM-1554",
+          "DM-2688"
         ],
         "code": [
           "examples/output/storyboard-demo.svg",
@@ -8094,6 +8095,41 @@
       }
     },
     {
+      "file": "251-studio-high-level-authoring.md",
+      "metadata": {
+        "id": "requirements/studio-high-level-authoring",
+        "title": "High-level scene and story authoring in Domotion Studio",
+        "kind": "contract",
+        "status": "current",
+        "owners": [
+          "studio",
+          "ui",
+          "ai"
+        ],
+        "platforms": [
+          "macos",
+          "linux",
+          "windows"
+        ],
+        "tickets": [
+          "DM-2688"
+        ],
+        "code": [
+          "src/studio/authoring.ts",
+          "src/studio/authoring.test.ts",
+          "src/studio/client.tsx",
+          "src/studio/server.ts",
+          "src/studio/server.e2e.test.ts",
+          "src/cli/storyboard.ts",
+          "src/animation/embed-timeline.ts"
+        ],
+        "aliases": [
+          "docs/251-studio-high-level-authoring.md",
+          "doc-251"
+        ]
+      }
+    },
+    {
       "file": "handbook/animation-and-interaction.md",
       "metadata": {
         "id": "handbook/animation-and-interaction",
@@ -9076,6 +9112,9 @@
     ],
     "250": [
       "requirements/studio-embedded-scrubber-preview"
+    ],
+    "251": [
+      "requirements/studio-high-level-authoring"
     ],
     "01": [
       "requirements/fidelity"

@@ -129,4 +129,19 @@ describe("offsetEmbeddedAnimatedSvgTimeline", () => {
     // The 1.06s animation doesn't match the 4s period — keyframe left intact.
     expect(out).toContain("@keyframes k{0%{opacity:0}100%{opacity:1}}");
   });
+
+  it("starts a trimmed source at its local offset without flattening browser interpolation", () => {
+    const out = offsetEmbeddedAnimatedSvgTimeline(castDoc(4), {
+      periodMs: 4000,
+      startMs: 2000,
+      masterMs: 10000,
+      contentOffsetMs: 1000,
+    });
+    expect(out).toContain("animation-delay:1s");
+    expect(out).toContain("animation-fill-mode:both");
+    const ln0 = /@keyframes ln0o \{([^@]*)\}\s*(?:@|<)/.exec(out + "<")?.[0] ?? "";
+    expect(ln0).toContain("20%");
+    expect(ln0).toContain("40%");
+    expect(ln0).not.toContain("60%");
+  });
 });

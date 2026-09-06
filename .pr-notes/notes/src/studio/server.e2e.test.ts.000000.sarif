@@ -65,6 +65,70 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpozn1eg1un1eke",
+          "message": {
+            "text": "Browser coverage authors and saves a multi-scene story, assigns narrative beats and capture guidance, trims and presents a scene, regenerates with required AI policy, previews the result, and verifies reopen persistence.",
+            "markdown": "Browser coverage authors and saves a multi-scene story, assigns narrative beats and capture guidance, trims and presents a scene, regenerates with required AI policy, previews the result, and verifies reopen persistence."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/server.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 113,
+                  "endLine": 165,
+                  "snippet": {
+                    "text": "    await testPage.getByText(\"Unsaved changes\").waitFor();\n    await testPage.getByRole(\"button\", { name: \"Reopen\" }).click();\n    await testPage.getByRole(\"heading\", { name: \"Glassbox Reveal\" }).waitFor();\n    expect(await testPage.locator('[data-field=\"narrative-title\"]').inputValue()).toBe(\"Glassbox Reveal\");\n    expect(await testPage.getByLabel(\"Scene 1 title\").inputValue()).toBe(\"Show the review loop\");\n\n    await testPage.getByRole(\"button\", { name: \"Add beat\" }).click();\n    const secondBeat = testPage.locator(\"[data-beat-id]\").nth(1);\n    await secondBeat.getByLabel(/Beat .* title/).fill(\"Payoff\");\n    await secondBeat.getByLabel(/Beat .* summary/).fill(\"Close on the generated result.\");\n    await testPage.getByRole(\"button\", { name: \"Add scene\" }).click();\n    const secondScene = testPage.locator(\"[data-scene-id]\").nth(1);\n    await secondScene.getByLabel(\"Scene 2 title\").fill(\"Generated payoff\");\n    await secondScene.getByLabel(\"Scene 2 description\").fill(\"Show the reviewed output.\");\n    await secondScene.getByLabel(\"Scene 2 generation instructions\").fill(\"Inspect the live DOM and computed CSS before capture, then keep the cursor deliberate.\");\n    await secondScene.getByLabel(\"Scene 2 narrative beat\").selectOption({ label: \"Payoff\" });\n    await secondScene.getByLabel(\"Scene 2 source type\").selectOption(\"svg\");\n    await testPage.locator(\"[data-scene-id]\").nth(1).getByLabel(\"Scene 2 source\", { exact: true }).fill(\"source/payoff.svg\");\n    await testPage.locator(\"[data-scene-id]\").nth(1).getByLabel(\"Scene 2 source\", { exact: true }).press(\"Tab\");\n    await secondScene.getByLabel(\"Scene 2 trim start\").fill(\"200\");\n    await secondScene.getByLabel(\"Scene 2 trim start\").press(\"Tab\");\n    await secondScene.getByLabel(\"Scene 2 trim end\").fill(\"1200\");\n    await secondScene.getByLabel(\"Scene 2 trim end\").press(\"Tab\");\n    await secondScene.getByLabel(\"Scene 2 fit\").selectOption(\"cover\");\n    await secondScene.getByLabel(\"Scene 2 transition\", { exact: true }).selectOption(\"push-left\");\n    await secondScene.getByLabel(\"Scene 2 cinematic preset\").selectOption(\"browser-chrome\");\n    await secondScene.getByRole(\"button\", { name: \"Regenerate scene\" }).click();\n    await expect.poll(() => testPage.getByRole(\"status\").textContent()).toContain(\"Generated glassbox.studio.json\");\n    await testPage.frameLocator(\"[data-scrubber-frame]\").locator(\".svg-host svg\").waitFor();\n    expect(generationInputs.at(-1)).toMatchObject({\n      selection: { kind: \"scene\" },\n      aiPolicy: { healing: \"required\", review: \"required\" },\n      project: { scenes: [{}, { title: \"Generated payoff\", generationInstructions: expect.stringContaining(\"computed CSS\") }] },\n    });\n    await testPage.getByRole(\"button\", { name: \"Reopen\", exact: true }).click();\n    await testPage.getByLabel(\"Scene 2 title\").waitFor();\n    expect(await testPage.getByLabel(\"Scene 2 source\", { exact: true }).inputValue()).toBe(\"source/payoff.svg\");\n    expect(await testPage.getByLabel(\"Scene 2 duration\").inputValue()).toBe(\"1000\");\n    expect(await testPage.getByLabel(\"Scene 2 fit\").inputValue()).toBe(\"cover\");\n    expect(await testPage.getByLabel(\"Scene 2 cinematic preset\").inputValue()).toBe(\"browser-chrome\");\n\n    await testPage.getByLabel(\"New review note\").fill(\"Pause on the highlighted control.\");\n    await testPage.getByLabel(\"Annotation scope\").selectOption(\"scene-opening\");\n    await testPage.getByLabel(\"Annotation start time\").fill(\"420\");\n    await testPage.getByLabel(\"Annotation end time\").fill(\"780\");\n    await testPage.getByLabel(\"Annotation region x\").fill(\"24\");\n    await testPage.getByLabel(\"Annotation region y\").fill(\"36\");\n    await testPage.getByLabel(\"Annotation region width\").fill(\"180\");\n    await testPage.getByLabel(\"Annotation region height\").fill(\"72\");\n    await testPage.getByRole(\"button\", { name: \"Add annotation\" }).click();\n    await expect.poll(() => testPage.getByRole(\"status\").textContent()).toContain(\"Added annotation\");\n    const annotation = testPage.locator(\"[data-annotation-id]\").first();\n    await annotation.getByText(\"Scene scene-opening · point 420ms · 420–780ms · 1 region\").waitFor();"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "workItemUris": [
+            "DM-2688"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "20db5273720bc96c3dcd1ad4f7529476"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "7c4e579af55bdc3f834a87df13401c250ce3d0c0",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -173,6 +173,8 @@ async function compileValidatedStudioProject(
         recipe = {
           svg: svgPath,
           duration: scene.render.duration ?? scene.render.composition.duration,
+          ...(scene.render.trimStart != null ? { trimStart: scene.render.trimStart } : {}),
+          ...(scene.render.trimEnd != null ? { trimEnd: scene.render.trimEnd } : {}),
           ...(scene.render.fit != null ? { fit: scene.render.fit } : {}),
           ...(scene.render.transition != null ? { transition: scene.render.transition } : {}),
           ...(scene.render.overlays != null ? { overlays: scene.render.overlays } : {}),

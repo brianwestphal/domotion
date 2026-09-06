@@ -631,6 +631,13 @@ export const FEATURES: FeatureEntry[] = [
     exports: ["isScrubberEmbedCommand", "isScrubberEmbedEvent", "normalizeScrubberEmbedViewState"],
     tests: ["src/scrubber/embed.test.ts", "src/studio/app-projects.test.ts", "src/studio/server.e2e.test.ts"],
   },
+  {
+    id: "studio.high-level-authoring",
+    behavior: "Author narrative beats and scene structure, sources, trim/duration, fit, transitions, generation instructions, cinematic presets, and annotations through a reversible immutable command layer; commit content revisions and regenerate only through required AI healing/review or an explicit clarification.",
+    doc: "docs/251-studio-high-level-authoring.md",
+    exports: ["StudioAuthoringError", "applyStudioAuthoringCommand", "commitStudioAuthoringRevision", "studioContentRevisionId"],
+    tests: ["src/studio/authoring.test.ts", "src/cli/storyboard.test.ts", "src/animation/embed-timeline.test.ts", "src/studio/app-projects.test.ts", "src/studio/server.e2e.test.ts"],
+  },
 
   // ── Templates ──────────────────────────────────────────────────────────
   {

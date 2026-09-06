@@ -8,6 +8,11 @@ import {
   type ScrubberEmbedCommand,
   type ScrubberEmbedViewState,
 } from "../scrubber/embed.js";
+import {
+  applyStudioAuthoringCommand,
+  studioContentRevisionId,
+  type StudioAuthoringCommand,
+} from "./authoring.js";
 import type { StudioProject, StudioScene } from "./project-schema.js";
 
 interface StudioIssue { path: string; message: string; code: string }
@@ -17,6 +22,7 @@ interface Bootstrap {
   project: StudioProject | null;
   issues: readonly StudioIssue[];
   error: string;
+  generationAvailable: boolean;
 }
 interface ProjectResponse {
   path: string;
@@ -25,6 +31,10 @@ interface ProjectResponse {
     artifactCount: number;
     scenes: Array<{ id: string; generated: boolean }>;
   };
+  generationResult?: {
+    status: "completed";
+    ai: { healing: { status: "accepted"; summary: string }; review: { status: "accepted"; summary: string } };
+  } | { status: "clarification"; question: string; reason: string };
 }
 interface PreviewResponse {
   sourceKey: string;
@@ -41,6 +51,7 @@ const bootstrap = window.__DOMOTION_STUDIO__ ?? {
   project: null,
   issues: [],
   error: "",
+  generationAvailable: false,
 };
 const projectPath = signal(bootstrap.path);
 const project = signal<StudioProject | null>(bootstrap.project);
@@ -57,7 +68,7 @@ const generation = signal<ProjectResponse["generation"] | null>(
         artifactCount: bootstrap.project.artifacts.length,
         scenes: bootstrap.project.scenes.map((scene) => ({
           id: scene.id,
-          generated: bootstrap.project!.artifacts.some((artifact) => artifact.sceneIds?.includes(scene.id) === true),
+          generated: bootstrap.project!.artifacts.some((artifact) => artifact.sourceRevisionId === studioContentRevisionId(bootstrap.project!) && artifact.sceneIds?.includes(scene.id) === true),
         })),
       },
 );
@@ -76,6 +87,7 @@ const previewBusy = signal(false);
 const scrubberReady = signal(false);
 const previewStates = new Map<string, ScrubberEmbedViewState>();
 let pendingPreview: PreviewResponse | null = null;
+const undoStack = signal<StudioProject[]>([]);
 
 const openAnnotations = computed(() => project.value?.review.annotations.filter((annotation) => annotation.status === "open").length ?? 0);
 
@@ -98,10 +110,10 @@ h1{font-size:17px;margin:0}.eyebrow{font-size:11px;letter-spacing:.13em;text-tra
 .notice{margin:0 0 18px;padding:12px 14px;border-radius:10px;border:1px solid #34415a;background:#111a2b;color:#c4cee0}.notice.error{border-color:#78404c;background:#351a22;color:#ffc5cd}.notice.success{border-color:#347153;background:#173426;color:#bcf6d0}
 .issues{margin:9px 0 0;padding-left:20px}.issues code{color:#ffb5c1}.grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(250px,.8fr);gap:18px;margin-bottom:18px}.panel h3{margin:0 0 16px;font-size:14px;letter-spacing:.02em}.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:13px}.wide{grid-column:1/-1}
 .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.metric{padding:13px;border:1px solid #29364e;border-radius:11px;background:#0c1320}.metric strong{display:block;font-size:22px}.metric span{font-size:11px;color:#8d9ab0;text-transform:uppercase;letter-spacing:.08em}
-.scene-list{display:flex;flex-direction:column;gap:11px}.scene{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:13px;align-items:start;border:1px solid #29364e;border-radius:12px;background:#0c1320;padding:13px}.scene-no{display:grid;place-items:center;width:32px;height:32px;border-radius:9px;background:#1b2942;color:#b9c9e7;font-weight:750}.scene-meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}.scene-id{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;color:#78869e}.scene-state{white-space:nowrap}
+.scene-list{display:flex;flex-direction:column;gap:11px}.scene{display:grid;grid-template-columns:40px minmax(0,1fr);gap:13px;align-items:start;border:1px solid #29364e;border-radius:12px;background:#0c1320;padding:13px}.scene-no{display:grid;place-items:center;width:32px;height:32px;border-radius:9px;background:#1b2942;color:#b9c9e7;font-weight:750}.scene-editor{min-width:0}.scene-head,.section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.scene-head .field{flex:1}.scene-controls{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.scene-controls .span2{grid-column:span 2}.scene-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}.scene-meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}.scene-id{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;color:#78869e}.scene-state{white-space:nowrap}.beat-list{display:grid;gap:10px}.beat{display:grid;grid-template-columns:minmax(140px,.7fr) minmax(200px,1.3fr) auto;gap:10px;align-items:end;border:1px solid #29364e;border-radius:11px;padding:11px;background:#0c1320}.help{font-size:12px;color:#8795ae;line-height:1.45}.danger{border-color:#6e3b49;color:#ffbdc8}
 .preview-panel{margin-top:18px}.preview-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}.preview-toolbar .spacer{flex:1}.preview-frame{display:block;width:100%;height:min(70vh,680px);min-height:420px;border:1px solid #29364e;border-radius:12px;background:#0e0f13}.preview-meta{margin:10px 0 0;color:#8795ae;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}.preview-empty{display:grid;place-items:center;min-height:240px;border:1px dashed #34415a;border-radius:12px;color:#8795ae;text-align:center;padding:24px}
 .review-panel{margin-top:18px}.review-compose{border:1px solid #29364e;border-radius:12px;background:#0c1320;padding:14px;margin-bottom:14px}.review-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px}.review-fields .body{grid-column:1/-1}.review-fields .scene-select{grid-column:span 2}.review-help{font-size:12px;color:#8795ae;margin:9px 0 0}.annotation-list{display:flex;flex-direction:column;gap:10px}.annotation{border:1px solid #29364e;border-radius:12px;background:#0c1320;padding:13px}.annotation-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}.annotation-author{font-size:12px;color:#aebbd0}.annotation-target{font-size:12px;color:#8290a8;margin:8px 0}.annotation-actions{display:flex;gap:8px;margin-top:9px}.empty-notes{color:#8795ae;font-size:13px;margin:0}
-@media(max-width:800px){.app{grid-template-columns:1fr}.rail{border-right:0;border-bottom:1px solid #263149}.main{padding:22px 18px 40px}.grid{grid-template-columns:1fr}.topbar{flex-direction:column}.formgrid,.review-fields{grid-template-columns:1fr}.wide,.review-fields .body,.review-fields .scene-select{grid-column:auto}}
+@media(max-width:800px){.app{grid-template-columns:1fr}.rail{border-right:0;border-bottom:1px solid #263149}.main{padding:22px 18px 40px}.grid{grid-template-columns:1fr}.topbar{flex-direction:column}.formgrid,.review-fields,.scene-controls{grid-template-columns:1fr}.wide,.review-fields .body,.review-fields .scene-select,.scene-controls .span2{grid-column:auto}.beat{grid-template-columns:1fr}}
 `;
 
 function sourceLabel(scene: StudioScene): string {
@@ -120,16 +132,118 @@ function durationLabel(scene: StudioScene): string {
   return duration == null ? "intrinsic timing" : `${(duration / 1000).toFixed(2)}s`;
 }
 
+type StoryboardRecipe = Extract<StudioScene["render"], { kind: "storyboard" }>["recipe"];
+type SceneSourceKind = "template" | "url" | "file" | "svg" | "cast";
+
+function storyboardRecipe(scene: StudioScene): StoryboardRecipe {
+  return scene.render.kind === "storyboard"
+    ? scene.render.recipe
+    : { template: "title-card", params: { title: scene.title ?? "Scene" }, duration: scene.render.duration ?? 1600 };
+}
+
+function scenePresentation(scene: StudioScene): Pick<StoryboardRecipe, "duration" | "trimStart" | "trimEnd" | "fit" | "transition"> {
+  return scene.render.kind === "storyboard" ? scene.render.recipe : scene.render;
+}
+
+function sourceKind(scene: StudioScene): SceneSourceKind {
+  const recipe = storyboardRecipe(scene);
+  if (recipe.capture?.url != null) return "url";
+  if (recipe.capture?.file != null) return "file";
+  if (recipe.svg != null) return "svg";
+  if (recipe.cast != null) return "cast";
+  return "template";
+}
+
+function sourceValue(scene: StudioScene): string {
+  const recipe = storyboardRecipe(scene);
+  return recipe.capture?.url ?? recipe.capture?.file ?? recipe.svg ?? recipe.cast ?? recipe.template ?? "";
+}
+
+function replaceSource(scene: StudioScene, kind: SceneSourceKind, value: string): StoryboardRecipe {
+  const previous = storyboardRecipe(scene);
+  const presentation = {
+    ...(previous.fit == null ? {} : { fit: previous.fit }),
+    ...(previous.duration == null ? {} : { duration: previous.duration }),
+    ...(previous.trimStart == null ? {} : { trimStart: previous.trimStart }),
+    ...(previous.trimEnd == null ? {} : { trimEnd: previous.trimEnd }),
+    ...(previous.transition == null ? {} : { transition: previous.transition }),
+    ...(previous.overlays == null ? {} : { overlays: previous.overlays }),
+  };
+  if (kind === "template") return { template: value, params: { title: scene.title ?? "Scene" }, ...presentation };
+  if (kind === "url") return { capture: { url: value, ...(previous.capture?.selector == null ? {} : { selector: previous.capture.selector }) }, ...presentation };
+  if (kind === "file") return { capture: { file: value, ...(previous.capture?.selector == null ? {} : { selector: previous.capture.selector }) }, ...presentation };
+  if (kind === "svg") return { svg: value, ...presentation };
+  return { cast: value, ...presentation };
+}
+
+function sourceDefault(kind: SceneSourceKind): string {
+  if (kind === "template") return "title-card";
+  if (kind === "url") return "https://example.com";
+  if (kind === "file") return "demo.html";
+  if (kind === "svg") return "scene.svg";
+  return "session.cast";
+}
+
+function cinematicPreset(scene: StudioScene): string {
+  const treatments = scene.treatments ?? [];
+  if (treatments.length === 0) return "none";
+  if (treatments.length === 1 && ["browser-chrome", "device-frame", "zoom-pan", "spotlight", "title-card"].includes(treatments[0].kind)) return treatments[0].kind;
+  return "custom";
+}
+
+function presetTreatments(scene: StudioScene, preset: string): StudioScene["treatments"] {
+  const current = project.value!;
+  if (preset === "none") return [];
+  if (preset === "browser-chrome") return [{ kind: "browser-chrome", theme: "dark" }];
+  if (preset === "device-frame") return [{ kind: "device-frame", device: "phone", theme: "dark" }];
+  if (preset === "zoom-pan") return [{ kind: "zoom-pan", transform: { from: { x: 0, y: 0, scale: 1 }, to: { x: 0, y: 0, scale: 1.18 }, origin: { x: current.canvas.width / 2, y: current.canvas.height / 2 } } }];
+  if (preset === "spotlight") return [{ kind: "spotlight", mask: { region: { x: current.canvas.width * .25, y: current.canvas.height * .25, width: current.canvas.width * .5, height: current.canvas.height * .5, radius: 18 } }, color: "#000000", opacity: .68 }];
+  return [{ kind: "title-card", title: scene.title ?? "Scene", align: "center" }];
+}
+
+function updateSceneRecipe(scene: StudioScene, patch: Partial<StoryboardRecipe>): StudioAuthoringCommand {
+  return { kind: "scene.update", sceneId: scene.id, patch: { render: { kind: "storyboard", recipe: { ...storyboardRecipe(scene), ...patch } } } };
+}
+
+function updateScenePresentation(scene: StudioScene, patch: Partial<Pick<StoryboardRecipe, "duration" | "trimStart" | "trimEnd" | "fit" | "transition">>): StudioAuthoringCommand {
+  if (scene.render.kind === "storyboard") return updateSceneRecipe(scene, patch);
+  return { kind: "scene.update", sceneId: scene.id, patch: { render: { ...scene.render, ...patch } } };
+}
+
+function replaceSceneRecipe(scene: StudioScene, recipe: StoryboardRecipe): StudioAuthoringCommand {
+  return { kind: "scene.update", sceneId: scene.id, patch: { render: { kind: "storyboard", recipe } } };
+}
+
+function applyAuthoring(command: StudioAuthoringCommand): void {
+  const current = project.value;
+  if (current == null) return;
+  try {
+    const result = applyStudioAuthoringCommand(current, command);
+    undoStack.value = [...undoStack.value, result.undo.project].slice(-50);
+    project.value = result.project;
+    dirty.value = true;
+    generation.value = { artifactCount: current.artifacts.length, scenes: result.project.scenes.map((scene) => ({ id: scene.id, generated: false })) };
+    issues.value = [];
+    message.value = "";
+  } catch (error) {
+    setFailure(error);
+  }
+}
+
 function isGenerated(sceneId: string): boolean {
-  return generation.value?.scenes.find((scene) => scene.id === sceneId)?.generated === true;
+  return !dirty.value && generation.value?.scenes.find((scene) => scene.id === sceneId)?.generated === true;
 }
 
 function hasScenePreview(sceneId: string): boolean {
-  return project.value?.artifacts.some((artifact) => artifact.kind === "svg" && artifact.sceneIds?.length === 1 && artifact.sceneIds[0] === sceneId) === true;
+  if (dirty.value || project.value == null) return false;
+  const revision = studioContentRevisionId(project.value);
+  return project.value.artifacts.some((artifact) => artifact.kind === "svg" && artifact.sourceRevisionId === revision && artifact.sceneIds?.length === 1 && artifact.sceneIds[0] === sceneId);
 }
 
 function hasStoryPreview(): boolean {
-  return project.value?.artifacts.some((artifact) => artifact.kind === "svg" && (artifact.sceneIds == null || artifact.sceneIds.length === 0)) === true;
+  if (dirty.value || project.value == null) return false;
+  const revision = studioContentRevisionId(project.value);
+  return project.value.artifacts.some((artifact) => artifact.kind === "svg" && artifact.sourceRevisionId === revision && (artifact.sceneIds == null || artifact.sceneIds.length === 0));
 }
 
 function previewKey(selection: NonNullable<typeof previewSelection.value>): string {
@@ -171,6 +285,7 @@ function render() {
           {current != null && <div class="actions">
             <button class="primary" data-action="save" disabled={busy.value || !dirty.value}>Save</button>
             <button data-action="reopen" disabled={busy.value}>Reopen</button>
+            <button data-action="undo" disabled={busy.value || undoStack.value.length === 0}>Undo</button>
           </div>}
           <p class="rail-note">Project JSON is the durable source. SVG and review video stay generated artifacts with revision provenance.</p>
         </aside>
@@ -212,20 +327,60 @@ function render() {
                     <div class="metric"><strong>{generation.value?.artifactCount ?? current.artifacts.length}</strong><span>Artifacts</span></div>
                     <div class="metric"><strong>{openAnnotations.value}</strong><span>Open notes</span></div>
                   </div>
+                  <div class="actions" style="margin-top:12px">
+                    <button class="primary" data-action="generate-story" disabled={busy.value || !bootstrap.generationAvailable}>Generate whole story</button>
+                  </div>
+                  <p class="help">{bootstrap.generationAvailable ? "Generation always runs required AI healing and AI review; ambiguity pauses for clarification." : "Connect an AI healing/review generation adapter to enable rendering."}</p>
                 </section>
               </div>
               <section class="panel">
-                <h3>Story scenes</h3>
+                <div class="section-head"><h3>Narrative beats</h3><button data-action="beat-add">Add beat</button></div>
+                <div class="beat-list">
+                  {current.narrative.beats.map((beat) => (
+                    <article class="beat" data-beat-id={beat.id}>
+                      <label class="field"><span>Beat title</span><input data-field="beat-title" value={beat.title} aria-label={`Beat ${beat.id} title`} /></label>
+                      <label class="field"><span>Beat summary</span><input data-field="beat-summary" value={beat.summary ?? ""} aria-label={`Beat ${beat.id} summary`} /></label>
+                      <button class="danger" data-action="beat-remove" disabled={current.narrative.beats.length === 1}>Remove</button>
+                    </article>
+                  ))}
+                </div>
+              </section>
+              <section class="panel preview-panel">
+                <div class="section-head"><h3>Story scenes</h3><button data-action="scene-add">Add scene</button></div>
                 <div class="scene-list">
                   {current.scenes.map((scene, index) => (
                     <article class="scene" data-scene-id={scene.id}>
                       <div class="scene-no">{index + 1}</div>
-                      <div>
-                        <label class="field"><span>Scene title</span><input data-field="scene-title" value={scene.title ?? ""} aria-label={`Scene ${index + 1} title`} /></label>
+                      <div class="scene-editor">
+                        <div class="scene-head">
+                          <label class="field"><span>Scene title</span><input data-field="scene-title" value={scene.title ?? ""} aria-label={`Scene ${index + 1} title`} /></label>
+                          <span class={`badge scene-state ${isGenerated(scene.id) ? "good" : "warn"}`}>{isGenerated(scene.id) ? "Generated" : "Needs generation"}</span>
+                        </div>
+                        <div class="scene-controls">
+                          <label class="field span2"><span>Description</span><textarea data-field="scene-description" aria-label={`Scene ${index + 1} description`}>{scene.description ?? ""}</textarea></label>
+                          <label class="field span2"><span>Generation instructions</span><textarea data-field="scene-generation" aria-label={`Scene ${index + 1} generation instructions`}>{scene.generationInstructions ?? ""}</textarea></label>
+                          <label class="field"><span>Narrative beat</span><select data-field="scene-beat" aria-label={`Scene ${index + 1} narrative beat`}><option value="">Unassigned</option>{current.narrative.beats.map((beat) => <option value={beat.id} selected={scene.narrativeBeatIds?.[0] === beat.id}>{beat.title}</option>)}</select></label>
+                          <label class="field"><span>Source type</span><select data-field="scene-source-kind" aria-label={`Scene ${index + 1} source type`} disabled={scene.render.kind === "composition"}>{scene.render.kind === "composition" ? <option selected>composition</option> : (["template", "url", "file", "svg", "cast"] as const).map((kind) => <option value={kind} selected={sourceKind(scene) === kind}>{kind}</option>)}</select></label>
+                          <label class="field span2"><span>Source</span><input data-field="scene-source-value" value={scene.render.kind === "composition" ? `${scene.render.composition.layers.length} authored layers` : sourceValue(scene)} aria-label={`Scene ${index + 1} source`} disabled={scene.render.kind === "composition"} /></label>
+                          {scene.render.kind === "storyboard" && (sourceKind(scene) === "url" || sourceKind(scene) === "file") && <label class="field"><span>Capture selector</span><input data-field="scene-selector" value={storyboardRecipe(scene).capture?.selector ?? "body"} aria-label={`Scene ${index + 1} capture selector`} /></label>}
+                          <label class="field"><span>Duration (ms)</span><input type="number" min="1" data-field="scene-duration" value={String(scenePresentation(scene).duration ?? "")} aria-label={`Scene ${index + 1} duration`} /></label>
+                          <label class="field"><span>Trim start (ms)</span><input type="number" min="0" data-field="scene-trim-start" value={String(scenePresentation(scene).trimStart ?? "")} aria-label={`Scene ${index + 1} trim start`} /></label>
+                          <label class="field"><span>Trim end (ms)</span><input type="number" min="1" data-field="scene-trim-end" value={String(scenePresentation(scene).trimEnd ?? "")} aria-label={`Scene ${index + 1} trim end`} /></label>
+                          <label class="field"><span>Fit</span><select data-field="scene-fit" aria-label={`Scene ${index + 1} fit`}>{(["center", "contain", "cover"] as const).map((fit) => <option value={fit} selected={(scenePresentation(scene).fit ?? "center") === fit}>{fit}</option>)}</select></label>
+                          <label class="field"><span>Transition</span><select data-field="scene-transition" aria-label={`Scene ${index + 1} transition`}>{(["cut", "crossfade", "push-left", "push-right", "push-up", "push-down", "wipe", "iris", "zoom-in", "zoom-out", "shine"] as const).map((transition) => <option value={transition} selected={(scenePresentation(scene).transition?.type ?? "crossfade") === transition}>{transition}</option>)}</select></label>
+                          <label class="field"><span>Transition duration (ms)</span><input type="number" min="0" data-field="scene-transition-duration" value={String(scenePresentation(scene).transition?.duration ?? 300)} aria-label={`Scene ${index + 1} transition duration`} /></label>
+                          <label class="field"><span>Cinematic preset</span><select data-field="scene-preset" aria-label={`Scene ${index + 1} cinematic preset`}><option value="none" selected={cinematicPreset(scene) === "none"}>None</option><option value="browser-chrome" selected={cinematicPreset(scene) === "browser-chrome"}>Browser chrome</option><option value="device-frame" selected={cinematicPreset(scene) === "device-frame"}>Phone frame</option><option value="zoom-pan" selected={cinematicPreset(scene) === "zoom-pan"}>Focus zoom</option><option value="spotlight" selected={cinematicPreset(scene) === "spotlight"}>Spotlight</option><option value="title-card" selected={cinematicPreset(scene) === "title-card"}>Title card</option>{cinematicPreset(scene) === "custom" && <option value="custom" selected disabled>Custom treatments</option>}</select></label>
+                        </div>
                         <div class="scene-meta"><span class="badge">{sourceLabel(scene)}</span><span class="badge">{durationLabel(scene)}</span></div>
                         <div class="scene-id">{scene.id}</div>
+                        <div class="scene-actions">
+                          <button data-action="scene-up" disabled={index === 0}>Move up</button>
+                          <button data-action="scene-down" disabled={index === current.scenes.length - 1}>Move down</button>
+                          <button data-action="scene-duplicate">Duplicate</button>
+                          <button class="danger" data-action="scene-remove" disabled={current.scenes.length === 1}>Remove</button>
+                          <button class="primary" data-action="generate-scene" disabled={busy.value || !bootstrap.generationAvailable}>Regenerate scene</button>
+                        </div>
                       </div>
-                      <span class={`badge scene-state ${isGenerated(scene.id) ? "good" : "warn"}`}>{isGenerated(scene.id) ? "Generated" : "Needs generation"}</span>
                     </article>
                   ))}
                 </div>
@@ -379,6 +534,7 @@ function acceptLoaded(result: ProjectResponse, action: string): void {
   issues.value = [];
   message.value = `${action} ${result.path}`;
   messageKind.value = "success";
+  undoStack.value = [];
   if (annotationScene.value !== "" && !result.project.scenes.some((scene) => scene.id === annotationScene.value)) {
     annotationScene.value = "";
   }
@@ -391,6 +547,28 @@ function acceptLoaded(result: ProjectResponse, action: string): void {
   } else if (selected != null) {
     void loadPreview(selected);
   }
+}
+
+async function generate(selection: { kind: "story" } | { kind: "scene"; sceneId: string }): Promise<void> {
+  let current = project.value;
+  if (current == null) return;
+  if (dirty.value) {
+    const saved = await post("/api/save", { path: projectPath.value, expectedHeadRevisionId: current.review.headRevisionId, project: current });
+    acceptLoaded(saved, "Saved");
+    current = saved.project;
+  }
+  const result = await post("/api/generate", {
+    path: projectPath.value,
+    expectedHeadRevisionId: current.review.headRevisionId,
+    selection,
+  });
+  acceptLoaded(result, result.generationResult?.status === "completed" ? "Generated" : "Generation paused for");
+  if (result.generationResult?.status === "clarification") {
+    message.value = `${result.generationResult.question} ${result.generationResult.reason}`;
+    messageKind.value = "info";
+    return;
+  }
+  await loadPreview(selection);
 }
 
 async function run(action: () => Promise<void>): Promise<void> {
@@ -406,11 +584,41 @@ async function run(action: () => Promise<void>): Promise<void> {
 
 void delegate(app, "click", "[data-action]", (_event, target) => {
   const action = (target as HTMLElement).dataset.action;
-  if (action === "preview-story") {
+  const sceneCard = (target as HTMLElement).closest<HTMLElement>("[data-scene-id]");
+  const sceneId = sceneCard?.dataset.sceneId;
+  const sceneIndex = project.value?.scenes.findIndex((scene) => scene.id === sceneId) ?? -1;
+  const beatId = (target as HTMLElement).closest<HTMLElement>("[data-beat-id]")?.dataset.beatId;
+  if (action === "undo") {
+    const previous = undoStack.value.at(-1);
+    if (previous != null) {
+      project.value = structuredClone(previous);
+      undoStack.value = undoStack.value.slice(0, -1);
+      dirty.value = true;
+      generation.value = { artifactCount: previous.artifacts.length, scenes: previous.scenes.map((scene) => ({ id: scene.id, generated: false })) };
+    }
+  } else if (action === "scene-add") {
+    applyAuthoring({ kind: "scene.add" });
+  } else if (action === "scene-duplicate" && sceneId != null) {
+    applyAuthoring({ kind: "scene.duplicate", sceneId });
+  } else if (action === "scene-up" && sceneId != null) {
+    applyAuthoring({ kind: "scene.move", sceneId, toIndex: sceneIndex - 1 });
+  } else if (action === "scene-down" && sceneId != null) {
+    applyAuthoring({ kind: "scene.move", sceneId, toIndex: sceneIndex + 1 });
+  } else if (action === "scene-remove" && sceneId != null && window.confirm("Remove this scene? Generated scene artifacts will no longer belong to the story.")) {
+    applyAuthoring({ kind: "scene.remove", sceneId });
+  } else if (action === "beat-add") {
+    applyAuthoring({ kind: "beat.add" });
+  } else if (action === "beat-remove" && beatId != null) {
+    applyAuthoring({ kind: "beat.remove", beatId });
+  } else if (action === "generate-story") {
+    void run(() => generate({ kind: "story" }));
+  } else if (action === "generate-scene" && sceneId != null) {
+    void run(() => generate({ kind: "scene", sceneId }));
+  } else if (action === "preview-story") {
     void loadPreview({ kind: "story" });
   } else if (action === "preview-scene") {
-    const sceneId = (target as HTMLElement).dataset.previewScene;
-    if (sceneId != null) void loadPreview({ kind: "scene", sceneId });
+    const previewSceneId = (target as HTMLElement).dataset.previewScene;
+    if (previewSceneId != null) void loadPreview({ kind: "scene", sceneId: previewSceneId });
   } else if (action === "preview-refresh" && previewSelection.value != null) {
     void loadPreview(previewSelection.value);
   } else if (action === "create") {
@@ -521,13 +729,79 @@ void delegate(app, "input", "[data-field]", (_event, target) => {
   else if (field === "narrative-objective") next.narrative.objective = control.value || undefined;
   else if (field === "narrative-audience") next.narrative.audience = control.value || undefined;
   else if (field === "narrative-tone") next.narrative.tone = control.value || undefined;
+  else if (field === "beat-title" || field === "beat-summary") {
+    const beatId = (control.closest("[data-beat-id]") as HTMLElement | null)?.dataset.beatId;
+    const beat = next.narrative.beats.find((candidate) => candidate.id === beatId);
+    if (beat == null) return;
+    if (field === "beat-title") beat.title = control.value;
+    else beat.summary = control.value || undefined;
+  }
   else if (field === "scene-title") {
     const sceneId = (control.closest("[data-scene-id]") as HTMLElement | null)?.dataset.sceneId;
     const scene = next.scenes.find((candidate) => candidate.id === sceneId);
     if (scene != null) scene.title = control.value || undefined;
+  } else if (field === "scene-description" || field === "scene-generation") {
+    const sceneId = (control.closest("[data-scene-id]") as HTMLElement | null)?.dataset.sceneId;
+    const scene = next.scenes.find((candidate) => candidate.id === sceneId);
+    if (scene == null) return;
+    if (field === "scene-description") scene.description = control.value || undefined;
+    else scene.generationInstructions = control.value || undefined;
   } else return;
   project.value = next;
   dirty.value = true;
+  generation.value = { artifactCount: next.artifacts.length, scenes: next.scenes.map((scene) => ({ id: scene.id, generated: false })) };
   issues.value = [];
   message.value = "";
+});
+
+void delegate(app, "change", "[data-field]", (_event, target) => {
+  const control = target as HTMLInputElement | HTMLSelectElement;
+  const field = control.dataset.field;
+  const current = project.value;
+  const sceneId = (control.closest("[data-scene-id]") as HTMLElement | null)?.dataset.sceneId;
+  const scene = current?.scenes.find((candidate) => candidate.id === sceneId);
+  if (current == null || scene == null) return;
+  if (field === "scene-beat") {
+    applyAuthoring({ kind: "scene.update", sceneId: scene.id, patch: { narrativeBeatIds: control.value === "" ? [] : [control.value] } });
+  } else if (field === "scene-source-kind") {
+    const kind = control.value as SceneSourceKind;
+    applyAuthoring(replaceSceneRecipe(scene, replaceSource(scene, kind, sourceDefault(kind))));
+  } else if (field === "scene-source-value") {
+    const value = control.value.trim();
+    if (value === "") { setFailure(new Error("A scene source is required.")); return; }
+    applyAuthoring(replaceSceneRecipe(scene, replaceSource(scene, sourceKind(scene), value)));
+  } else if (field === "scene-selector") {
+    const recipe = storyboardRecipe(scene);
+    if (recipe.capture == null) return;
+    applyAuthoring(updateSceneRecipe(scene, { capture: { ...recipe.capture, selector: control.value.trim() || "body" } }));
+  } else if (field === "scene-duration" || field === "scene-trim-start" || field === "scene-trim-end") {
+    const number = control.value.trim() === "" ? undefined : Number(control.value);
+    if (number != null && (!Number.isFinite(number) || number < (field === "scene-trim-start" ? 0 : 1))) {
+      setFailure(new Error(`${field === "scene-duration" ? "Duration" : "Trim"} is outside its valid range.`));
+      return;
+    }
+    const recipe = { ...scenePresentation(scene) };
+    if (field === "scene-duration") recipe.duration = number;
+    else if (field === "scene-trim-start") recipe.trimStart = number;
+    else recipe.trimEnd = number;
+    if (recipe.trimEnd != null && recipe.trimStart != null) {
+      if (recipe.trimEnd <= recipe.trimStart) { setFailure(new Error("Trim end must be after trim start.")); return; }
+      recipe.duration = recipe.trimEnd - recipe.trimStart;
+    }
+    applyAuthoring(updateScenePresentation(scene, recipe));
+  } else if (field === "scene-fit") {
+    applyAuthoring(updateScenePresentation(scene, { fit: control.value as StoryboardRecipe["fit"] }));
+  } else if (field === "scene-transition") {
+    const previous = scenePresentation(scene).transition;
+    const transition = { type: control.value, duration: previous?.duration ?? 300 } as StoryboardRecipe["transition"];
+    applyAuthoring(updateScenePresentation(scene, { transition }));
+  } else if (field === "scene-transition-duration") {
+    const duration = Number(control.value);
+    if (!Number.isFinite(duration) || duration < 0) { setFailure(new Error("Transition duration must be non-negative.")); return; }
+    const previous = scenePresentation(scene).transition;
+    const transition = previous == null ? { type: "crossfade" as const, duration } : { ...previous, duration };
+    applyAuthoring(updateScenePresentation(scene, { transition }));
+  } else if (field === "scene-preset" && control.value !== "custom") {
+    applyAuthoring({ kind: "scene.update", sceneId: scene.id, patch: { treatments: presetTreatments(scene, control.value) } });
+  }
 });

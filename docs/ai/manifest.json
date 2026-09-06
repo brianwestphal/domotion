@@ -5063,6 +5063,32 @@
       "file": "250-studio-embedded-scrubber-preview.md"
     },
     {
+      "id": "requirements/studio-high-level-authoring",
+      "title": "High-level scene and story authoring in Domotion Studio",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "studio",
+        "ui",
+        "ai"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/studio/authoring.ts",
+        "src/studio/authoring.test.ts",
+        "src/studio/client.tsx",
+        "src/studio/server.ts",
+        "src/studio/server.e2e.test.ts",
+        "src/cli/storyboard.ts",
+        "src/animation/embed-timeline.ts"
+      ],
+      "file": "251-studio-high-level-authoring.md"
+    },
+    {
       "id": "handbook/animation-and-interaction",
       "title": "Animation and interaction handbook",
       "kind": "contract",

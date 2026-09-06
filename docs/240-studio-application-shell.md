@@ -86,9 +86,9 @@ The shell deliberately starts at the high level. It shows:
   editable bodies, and resolve/reopen controls.
 
 Create, open, save, and reopen are working controls. Reopen discards unsaved
-client edits by reloading the validated file. There are no placeholder timeline,
-generation, or scene-structure controls: those arrive in their dedicated Studio
-tickets on the same project source of truth.
+client edits by reloading the validated file. High-level narrative beats, scene
+structure/source/timing/transition/treatment, undo, and required-AI generation
+controls are specified in `docs/251-studio-high-level-authoring.md`.
 
 The responsive two-column layout collapses to one column below 800 CSS pixels,
 all controls retain visible keyboard focus, status/errors use live regions, and

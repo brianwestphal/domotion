@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpozn81espe9jvr",
+          "message": {
+            "text": "Embedded animation trimming offsets keyframes from an arbitrary source time and shifts delay with fill-mode both so the master timeline begins on the exact trimmed frame while legacy zero-offset behavior stays unchanged.",
+            "markdown": "Embedded animation trimming offsets keyframes from an arbitrary source time and shifts delay with fill-mode both so the master timeline begins on the exact trimmed frame while legacy zero-offset behavior stays unchanged."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/animation/embed-timeline.ts"
+                },
+                "region": {
+                  "startLine": 185,
+                  "endLine": 253,
+                  "snippet": {
+                    "text": "  const contentOffsetMs = Math.max(0, opts.contentOffsetMs ?? 0);\n  // Duration match tolerance — generous enough to absorb the animator's 2- vs\n  // 3-decimal formatting, tight enough not to catch a distinct fixed period.\n  const tol = Math.max(0.02, periodSec * 0.01);\n\n  // `loop`: keep the content's own period; just delay its start to `startMs` and\n  // hold frame 0 until then (`animation-fill-mode: backwards`). It then repeats\n  // for the rest of the master loop. No keyframe remap.\n  if (mode === \"loop\") {\n    if (startMs <= 0) return svg; // already starts at the origin and loops\n    const delayCss = (css: string): string =>\n      css.replace(/animation:\\s*([^;}\"]+)/g, (full: string, value: string) => {\n        const isPeriodMatch = splitTopLevel(value).some((entry) =>\n          tokenizeEntry(entry).some((t) => {\n            const sec = parseTimeSec(t);\n            return sec != null && Math.abs(sec - periodSec) <= tol;\n          }),\n        );\n        return isPeriodMatch ? `${full};animation-delay:${fmt(startSec)}s;animation-fill-mode:backwards` : full;\n      });\n    return svg\n      .replace(/<style>([\\s\\S]*?)<\\/style>/g, (_full, css: string) => `<style>${delayCss(css)}</style>`)\n      .replace(/style=\"([^\"]*animation:[^\"]*)\"/g, (_full, css: string) => `style=\"${delayCss(css)}\"`);\n  }\n\n  // Nothing to do: content already starts at the origin and fills the loop.\n  if (contentOffsetMs <= 0 && offsetPct <= 1e-6 && Math.abs(scale - 1) <= 1e-6) return svg;\n\n  // Pass 1: retime matching animations + collect the keyframe names they drive.\n  // Untouched declarations (e.g. a fixed-period cursor blink) are returned\n  // byte-for-byte so only the retimed lines change. The set is shared across\n  // every `<style>` block AND inline `style` attribute — the caret track's\n  // shorthands live inline while its `@keyframes` live in its local `<style>`.\n  const retimed = new Set<string>();\n  const retimeCss = (css: string): string =>\n    css.replace(/animation:\\s*([^;}\"]+)/g, (full: string, value: string) => {\n      let changed = false;\n      const entries = splitTopLevel(value).map((entry) => {\n        const tokens = tokenizeEntry(entry);\n        for (let i = 0; i < tokens.length; i++) {\n          const sec = parseTimeSec(tokens[i]);\n          if (sec == null) continue;\n          if (Math.abs(sec - periodSec) <= tol) {\n            const name = tokens.find((t) => parseTimeSec(t) == null && /^[A-Za-z_-][\\w-]*$/.test(t) && !ANIM_KEYWORDS.has(t));\n            if (name != null) {\n              retimed.add(name);\n              tokens[i] = `${fmt(masterSec)}s`;\n              changed = true;\n            }\n          }\n          break; // the first <time> in a shorthand entry is its duration\n        }\n        return tokens.join(\" \");\n      });\n      if (!changed) return full;\n      const shiftedDelay = contentOffsetMs > 0\n        ? `;animation-delay:${fmt((startMs - contentOffsetMs) / 1000)}s;animation-fill-mode:both`\n        : \"\";\n      return `animation:${entries.join(\",\")}${shiftedDelay}`;\n    });\n  let out = svg\n    .replace(/<style>([\\s\\S]*?)<\\/style>/g, (_full, css: string) => `<style>${retimeCss(css)}</style>`)\n    .replace(/style=\"([^\"]*animation:[^\"]*)\"/g, (_full, css: string) => `style=\"${retimeCss(css)}\"`);\n  // Pass 2: remap the keyframes those animations drive.\n  out = out.replace(\n    /@keyframes\\s+([\\w-]+)\\s*\\{((?:[^{}]*\\{[^{}]*\\})*[^{}]*)\\}/g,\n    (full: string, name: string, inner: string) =>\n      retimed.has(name) ? `@keyframes ${name} { ${remapKeyframeBody(inner, contentOffsetMs > 0 ? 0 : offsetPct, scale)} }` : full,\n  );"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "workItemUris": [
+            "DM-2688"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "23586319b79423011e409b7ace907f9d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "7c4e579af55bdc3f834a87df13401c250ce3d0c0",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -64,6 +64,8 @@ export interface OffsetTimelineOptions {
   startMs: number;
   /** The master loop's total period (ms). */
   masterMs: number;
+  /** Begin at this source-local time while preserving browser interpolation. */
+  contentOffsetMs?: number;
   /**
    * Timeline mode (default `"hold"`). See {@link EmbeddedTimelineMode}.
    */
@@ -180,6 +182,7 @@ export function offsetEmbeddedAnimatedSvgTimeline(svg: string, opts: OffsetTimel
   const windowMs = mode === "stretch" ? (opts.windowMs ?? periodMs) : periodMs;
   const scale = windowMs / masterMs;
   const offsetPct = (startMs / masterMs) * 100;
+  const contentOffsetMs = Math.max(0, opts.contentOffsetMs ?? 0);
   // Duration match tolerance — generous enough to absorb the animator's 2- vs
   // 3-decimal formatting, tight enough not to catch a distinct fixed period.
   const tol = Math.max(0.02, periodSec * 0.01);
@@ -205,7 +208,7 @@ export function offsetEmbeddedAnimatedSvgTimeline(svg: string, opts: OffsetTimel
   }
 
   // Nothing to do: content already starts at the origin and fills the loop.
-  if (offsetPct <= 1e-6 && Math.abs(scale - 1) <= 1e-6) return svg;
+  if (contentOffsetMs <= 0 && offsetPct <= 1e-6 && Math.abs(scale - 1) <= 1e-6) return svg;
 
   // Pass 1: retime matching animations + collect the keyframe names they drive.
   // Untouched declarations (e.g. a fixed-period cursor blink) are returned
@@ -233,7 +236,11 @@ export function offsetEmbeddedAnimatedSvgTimeline(svg: string, opts: OffsetTimel
         }
         return tokens.join(" ");
       });
-      return changed ? `animation:${entries.join(",")}` : full;
+      if (!changed) return full;
+      const shiftedDelay = contentOffsetMs > 0
+        ? `;animation-delay:${fmt((startMs - contentOffsetMs) / 1000)}s;animation-fill-mode:both`
+        : "";
+      return `animation:${entries.join(",")}${shiftedDelay}`;
     });
   let out = svg
     .replace(/<style>([\s\S]*?)<\/style>/g, (_full, css: string) => `<style>${retimeCss(css)}</style>`)
@@ -242,7 +249,7 @@ export function offsetEmbeddedAnimatedSvgTimeline(svg: string, opts: OffsetTimel
   out = out.replace(
     /@keyframes\s+([\w-]+)\s*\{((?:[^{}]*\{[^{}]*\})*[^{}]*)\}/g,
     (full: string, name: string, inner: string) =>
-      retimed.has(name) ? `@keyframes ${name} { ${remapKeyframeBody(inner, offsetPct, scale)} }` : full,
+      retimed.has(name) ? `@keyframes ${name} { ${remapKeyframeBody(inner, contentOffsetMs > 0 ? 0 : offsetPct, scale)} }` : full,
   );
   return out;
 }

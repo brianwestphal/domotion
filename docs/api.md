@@ -246,6 +246,9 @@ See `docs/239-studio-project-model.md`; the editor schema ships at
 | `StudioNarrative`, `StudioSemanticTarget`, `StudioSemanticEvent`, `StudioSemanticTrack`, `StudioScriptHook`, `StudioReviewHistory`, `StudioReviewRevision`, `StudioReviewAnnotation`, `StudioAnnotationTarget`, `StudioAnnotationScope`, `StudioAnnotationTime`, `StudioAnnotationRegion`, `StudioArtifact` | type | Narrative, intent, extension, evidence-capable review, normalized grounding, and generated-artifact value types. |
 | `StudioAnnotationCommand`, `StudioAnnotationCreateCommand`, `StudioAnnotationCommandResult`, `ApplyStudioAnnotationCommandOptions`, `ImportSvgScrubberAnnotationOptions`, `ImportSvgReviewRegionsOptions`, `SvgReviewRegion` | type | Unified review transaction, migration, structured-region, result, and optimistic-concurrency companion types. |
 | `StudioAgentToolRequest`, `StudioAgentToolResponse`, `StudioAgentToolArtifact`, `StudioAgentSelection`, `StudioAgentToolPermissions`, `StudioAgentGenerationInput`, `StudioAgentGenerationResult`, `RunStudioAgentToolOptions` | type | Versioned tool transport, compact response, exact artifact reference, bounded host authority, and generation-adapter contracts for MCP or CLI hosts. |
+| `applyStudioAuthoringCommand` / `commitStudioAuthoringRevision` / `studioContentRevisionId` | function | Apply one immutable scene/beat command with an exact undo snapshot, commit a concurrency-checked human content revision while protecting review/artifact ownership, and resolve the latest content revision independently of later review-only changes. |
+| `StudioAuthoringError` | class | Structured high-level authoring, destructive-reference, stale-save, and ownership-boundary failures. |
+| `StudioAuthoringCommand`, `StudioAuthoringResult`, `ApplyStudioAuthoringOptions`, `CommitStudioAuthoringOptions` | type | Scene/beat edit vocabulary, undo result, deterministic-ID test seam, and optimistic content-commit options. |
 | `SCRUBBER_EMBED_CHANNEL` / `normalizeScrubberEmbedViewState` / `isScrubberEmbedCommand` / `isScrubberEmbedEvent` | const / function | Versioned same-origin Studio/Scrubber message boundary, bounded view-state restoration, and runtime guards for commands and events. |
 | `ScrubberEmbedViewState`, `ScrubberEmbedCommand`, `ScrubberEmbedEvent` | type | Embedded preview playhead, range, zoom/pan, speed, loop, load, readiness, state, and error values. |
 | `StudioSemanticPlan`, `StudioSemanticStep`, `StudioScriptHookContext` | type | Stable compiled timeline and the explicit context provided to a caller-authorized script hook. |
@@ -269,7 +272,9 @@ ordered scene, generation, and review state. Generated scene or whole-story SVG
 artifacts can be inspected through an embedded instance of the existing
 Scrubber playback engine, with context retained across regeneration. See
 `docs/240-studio-application-shell.md` and
-`docs/250-studio-embedded-scrubber-preview.md`.
+`docs/250-studio-embedded-scrubber-preview.md`. High-level beat, scene,
+source/timing/transition/treatment, undo, and required-AI generation controls are
+specified in `docs/251-studio-high-level-authoring.md`.
 
 ## Declarative animate pipeline
 

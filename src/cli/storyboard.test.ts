@@ -87,6 +87,13 @@ describe("storyboard config validation", () => {
     ).toThrow(/period/);
   });
 
+  it("validates an ordered source trim window", () => {
+    expect(validateStoryboardConfig({ width: 200, height: 100, scenes: [{ svg: "a.svg", trimStart: 200, trimEnd: 1200 }] }).scenes[0])
+      .toMatchObject({ trimStart: 200, trimEnd: 1200 });
+    expect(() => validateStoryboardConfig({ width: 200, height: 100, scenes: [{ svg: "a.svg", trimStart: 1200, trimEnd: 200 }] }))
+      .toThrow(/trimEnd/);
+  });
+
   it("rejects a `capture` scene without url or file", () => {
     expect(() =>
       validateStoryboardConfig({ width: 200, height: 100, scenes: [{ capture: {}, duration: 500 }] }),
@@ -194,6 +201,18 @@ describe("storyboard composition (svg scenes, no browser)", () => {
     );
     expect(svg).toContain("sb0_cc-rect");
     expect(logged).toMatch(/defaulted to the scene's play time: 2000ms/);
+  });
+
+  it("trims an animated SVG from a source-local offset and derives the visible duration", async () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, "trim.svg"), animatedSceneSvg("#0f0", "trim"));
+    const svg = await composeStoryboardConfig(
+      NO_BROWSER,
+      validateStoryboardConfig({ width: 200, height: 100, scenes: [{ svg: "trim.svg", trimStart: 500, trimEnd: 1500 }] }),
+      dir,
+    );
+    expect(svg).toContain("animation-delay:-0.5s");
+    expect(svg).toContain("animation-fill-mode:both");
   });
 
   it("errors when a static scene omits its required `duration`", async () => {

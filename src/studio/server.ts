@@ -5,7 +5,7 @@ import { isAbsolute, relative, resolve, sep } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
 import { startLocalServer } from "../utils/local-server.js";
-import { StudioProjectValidationError } from "./project.js";
+import { StudioProjectValidationError, validateStudioProject } from "./project.js";
 import {
   createStudioProjectFile,
   openStudioProjectFile,
@@ -17,6 +17,11 @@ import { STUDIO_CLIENT_JS } from "./client.bundle.generated.js";
 import { SCRUBBER_CLIENT_JS } from "../scrubber/client.bundle.generated.js";
 import { detectAnimationPeriodMs } from "../animation/svg-meta.js";
 import { applyStudioAnnotationCommand, StudioAnnotationError, studioAnnotationCommandSchema } from "./annotations.js";
+import {
+  commitStudioAuthoringRevision,
+  studioContentRevisionId,
+  StudioAuthoringError,
+} from "./authoring.js";
 import type { StudioArtifact, StudioProject } from "./project-schema.js";
 
 const pathField = z.string().trim().min(1, "project path is required").max(4096);
@@ -39,6 +44,15 @@ const previewBodySchema = z.strictObject({
     z.strictObject({ kind: z.literal("story") }),
     z.strictObject({ kind: z.literal("scene"), sceneId: z.string().min(1) }),
   ]),
+});
+const generationBodySchema = z.strictObject({
+  path: pathField,
+  expectedHeadRevisionId: z.string().min(1),
+  selection: previewBodySchema.shape.selection,
+});
+const generationAiSchema = z.strictObject({
+  healing: z.strictObject({ status: z.literal("accepted"), summary: z.string().trim().min(1) }),
+  review: z.strictObject({ status: z.literal("accepted"), summary: z.string().trim().min(1) }),
 });
 
 class StudioHttpError extends Error {
@@ -86,6 +100,7 @@ function sendJson(res: ServerResponse, status: number, value: unknown): void {
 }
 
 function projectResponse(file: StudioProjectFile): Record<string, unknown> {
+  const contentRevisionId = studioContentRevisionId(file.project);
   return {
     path: file.relativePath,
     project: file.project,
@@ -93,7 +108,7 @@ function projectResponse(file: StudioProjectFile): Record<string, unknown> {
       artifactCount: file.project.artifacts.length,
       scenes: file.project.scenes.map((scene) => ({
         id: scene.id,
-        generated: file.project.artifacts.some((artifact) => artifact.sceneIds?.includes(scene.id) === true),
+        generated: file.project.artifacts.some((artifact) => artifact.sourceRevisionId === contentRevisionId && artifact.sceneIds?.includes(scene.id) === true),
       })),
     },
   };
@@ -104,7 +119,7 @@ function previewArtifact(project: StudioProject, selection: z.infer<typeof previ
     throw new StudioHttpError(404, `scene does not exist: ${selection.sceneId}`);
   }
   const candidates = project.artifacts
-    .filter((artifact) => artifact.kind === "svg")
+    .filter((artifact) => artifact.kind === "svg" && artifact.sourceRevisionId === studioContentRevisionId(project))
     .filter((artifact) => selection.kind === "story"
       ? artifact.sceneIds == null || artifact.sceneIds.length === 0
       : artifact.sceneIds?.length === 1 && artifact.sceneIds[0] === selection.sceneId)
@@ -163,6 +178,7 @@ function previewResponse(workspaceRoot: string, file: StudioProjectFile, selecti
 function errorResponse(error: unknown): { status: number; body: Record<string, unknown> } {
   if (error instanceof StudioHttpError) return { status: error.status, body: { error: error.message } };
   if (error instanceof StudioAnnotationError) return { status: error.message.startsWith("stale annotation change:") ? 409 : 400, body: { error: error.message } };
+  if (error instanceof StudioAuthoringError) return { status: error.message.startsWith("stale authoring change:") ? 409 : 400, body: { error: error.message } };
   if (error instanceof StudioProjectValidationError) {
     return { status: 400, body: { error: error.message, issues: error.issues } };
   }
@@ -177,7 +193,31 @@ export interface StudioServerInputs {
   workspaceRoot?: string;
   initialProjectPath?: string;
   log?: (message: string) => void;
+  generate?: (input: StudioGenerationInput) => Promise<StudioGenerationResult>;
 }
+
+export type StudioGenerationSelection = z.infer<typeof previewBodySchema>["selection"];
+
+export interface StudioGenerationInput {
+  project: StudioProject;
+  selection: StudioGenerationSelection;
+  workspaceRoot: string;
+  projectPath: string;
+  aiPolicy: { healing: "required"; review: "required" };
+}
+
+export type StudioGenerationResult = {
+  status: "completed";
+  project: StudioProject;
+  ai: {
+    healing: { status: "accepted"; summary: string };
+    review: { status: "accepted"; summary: string };
+  };
+} | {
+  status: "clarification";
+  question: string;
+  reason: string;
+};
 
 export interface StudioServerHandle {
   url: string;
@@ -192,6 +232,7 @@ interface StudioBootstrap {
   project: StudioProjectFile["project"] | null;
   issues: readonly { path: string; message: string; code: string }[];
   error: string;
+  generationAvailable: boolean;
 }
 
 function scriptJson(value: unknown): string {
@@ -247,6 +288,7 @@ export async function startStudioServer(inputs: StudioServerInputs = {}): Promis
     project: initialFile?.project ?? null,
     issues: initialIssues,
     error: initialError,
+    generationAvailable: inputs.generate != null,
   };
   const html = shell(bootstrap);
 
@@ -285,10 +327,9 @@ export async function startStudioServer(inputs: StudioServerInputs = {}): Promis
         if (current.project.review.headRevisionId !== expectedHeadRevisionId) {
           throw new StudioAnnotationError(`stale annotation change: expected review head ${expectedHeadRevisionId}, found ${current.project.review.headRevisionId}`);
         }
-        if (!isDeepStrictEqual((project as { review?: unknown }).review, current.project.review)) {
-          throw new StudioHttpError(400, "review history must be changed through /api/annotation");
-        }
-        sendJson(res, 200, projectResponse(saveStudioProjectFile(workspaceRoot, path, project)));
+        const proposed = validateStudioProject(project);
+        const committed = validateStudioProject(commitStudioAuthoringRevision(current.project, proposed, { expectedHeadRevisionId }));
+        sendJson(res, 200, projectResponse(saveStudioProjectFile(workspaceRoot, path, committed)));
         return;
       }
       if (req.method === "POST" && url === "/api/annotation") {
@@ -311,6 +352,53 @@ export async function startStudioServer(inputs: StudioServerInputs = {}): Promis
         const body = await readJsonBody(req, previewBodySchema);
         const file = openStudioProjectFile(workspaceRoot, body.path);
         sendJson(res, 200, previewResponse(workspaceRoot, file, body.selection));
+        return;
+      }
+      if (req.method === "POST" && url === "/api/generate") {
+        const body = await readJsonBody(req, generationBodySchema);
+        const current = openStudioProjectFile(workspaceRoot, body.path);
+        if (current.project.review.headRevisionId !== body.expectedHeadRevisionId) {
+          throw new StudioAuthoringError(`stale authoring change: expected review head ${body.expectedHeadRevisionId}, found ${current.project.review.headRevisionId}`);
+        }
+        if (inputs.generate == null) throw new StudioHttpError(501, "Studio generation requires a configured AI healing and review adapter");
+        const generated = await inputs.generate({
+          project: structuredClone(current.project),
+          selection: body.selection,
+          workspaceRoot,
+          projectPath: current.path,
+          aiPolicy: { healing: "required", review: "required" },
+        });
+        if (generated.status === "clarification") {
+          z.strictObject({ status: z.literal("clarification"), question: z.string().trim().min(1), reason: z.string().trim().min(1) }).parse(generated);
+          sendJson(res, 200, { ...projectResponse(current), generationResult: generated });
+          return;
+        }
+        const ai = generationAiSchema.parse(generated.ai);
+        const next = validateStudioProject(generated.project);
+        const authored = ({ review: _review, artifacts: _artifacts, updatedAt: _updatedAt, ...value }: StudioProject): unknown => value;
+        if (!isDeepStrictEqual(authored(next), authored(current.project))) {
+          throw new StudioHttpError(400, "generation adapters must preserve authored narrative, scenes, and settings");
+        }
+        if (!isDeepStrictEqual(next.review.revisions.slice(0, current.project.review.revisions.length), current.project.review.revisions)
+          || !isDeepStrictEqual(next.review.annotations.slice(0, current.project.review.annotations.length), current.project.review.annotations)) {
+          throw new StudioHttpError(400, "generation adapters must preserve existing review provenance");
+        }
+        if (studioContentRevisionId(next) !== studioContentRevisionId(current.project)) {
+          throw new StudioHttpError(400, "generation adapters cannot replace the saved authoring content revision");
+        }
+        if (current.project.artifacts.some((artifact) => !next.artifacts.some((candidate) => isDeepStrictEqual(candidate, artifact)))) {
+          throw new StudioHttpError(400, "generation adapters must preserve existing artifacts");
+        }
+        const contentRevisionId = studioContentRevisionId(next);
+        const matches = next.artifacts.some((artifact) => artifact.kind === "svg"
+          && artifact.sourceRevisionId === contentRevisionId
+          && (body.selection.kind === "story"
+            ? artifact.sceneIds == null || artifact.sceneIds.length === 0
+            : artifact.sceneIds?.length === 1 && artifact.sceneIds[0] === body.selection.sceneId));
+        if (!matches) throw new StudioHttpError(400, "generation adapter did not return a current SVG artifact for the requested selection");
+        previewResponse(workspaceRoot, { ...current, project: next }, body.selection);
+        const saved = saveStudioProjectFile(workspaceRoot, body.path, next);
+        sendJson(res, 200, { ...projectResponse(saved), generationResult: { status: "completed", ai } });
         return;
       }
       res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });

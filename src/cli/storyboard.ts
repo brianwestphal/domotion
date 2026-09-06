@@ -124,6 +124,8 @@ export const storyboardCaptureSourceSchema = z
 export const storyboardScenePresentationSchema = z.object({
   fit: z.enum(["center", "contain", "cover"]).optional(),
   duration: z.number().positive().optional(),
+  trimStart: z.number().nonnegative().optional(),
+  trimEnd: z.number().positive().optional(),
   transition: transitionSchema.optional(),
   overlays: z.array(authoringOverlaySchema).optional(),
 });
@@ -156,6 +158,9 @@ export const storyboardSceneSchema = z
     }
     if (s.period != null && s.svg == null) {
       ctx.addIssue({ code: "custom", message: "`period` requires an `svg` scene" });
+    }
+    if (s.trimStart != null && s.trimEnd != null && s.trimEnd <= s.trimStart) {
+      ctx.addIssue({ code: "custom", path: ["trimEnd"], message: "`trimEnd` must be greater than `trimStart`" });
     }
   });
 
@@ -400,7 +405,17 @@ export async function composeStoryboardConfig(
 
     // Resolve the on-screen duration. An animated scene may inherit its own play
     // time; a static scene MUST carry an explicit `duration`.
-    let duration = scene.duration ?? 0;
+    const hasTrim = scene.trimStart != null || scene.trimEnd != null;
+    const trimStart = scene.trimStart ?? 0;
+    const trimEnd = scene.trimEnd ?? r.periodMs;
+    if (hasTrim && r.periodMs == null) {
+      throw new Error(`storyboard: scenes[${i}].trimStart: trimming requires an animated source with an intrinsic or declared period`);
+    }
+    if (r.periodMs != null && trimEnd != null && trimEnd > r.periodMs) {
+      throw new Error(`storyboard: scenes[${i}].trimEnd: ${trimEnd}ms exceeds the source period ${r.periodMs}ms`);
+    }
+    const trimDuration = !hasTrim || trimEnd == null ? undefined : trimEnd - trimStart;
+    let duration = scene.duration ?? trimDuration ?? 0;
     if (duration <= 0) {
       if (r.periodMs == null) {
         throw new Error(`storyboard: scenes[${i}].duration: this scene has no intrinsic play time (it's static) — set an explicit "duration"`);
@@ -409,6 +424,9 @@ export async function composeStoryboardConfig(
       log(`  duration defaulted to the scene's play time: ${duration}ms`);
     } else if (r.periodMs != null && duration < r.periodMs) {
       log(`  note: scene duration ${duration}ms < scene play time ${r.periodMs}ms — the scene will be cut off; size duration to ≈ ${r.periodMs}ms`);
+    }
+    if (trimDuration != null && duration > trimDuration) {
+      throw new Error(`storyboard: scenes[${i}].duration: ${duration}ms exceeds the trimmed play window ${trimDuration}ms`);
     }
 
     // Namespace the scene's document-global names (ids, font families, frame
@@ -444,6 +462,7 @@ export async function composeStoryboardConfig(
       // when THIS scene is shown (and hold before/after), rather than running on
       // the shared document origin. Static scenes carry no internal animation.
       ...(r.periodMs != null ? { embeddedAnimationPeriodMs: r.periodMs } : {}),
+      ...(trimStart > 0 ? { embeddedAnimationOffsetMs: trimStart } : {}),
     });
   }
 

@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["animation"]
 platforms: ["macos"]
-tickets: ["DM-1319","DM-1329","DM-1331","DM-1524","DM-1527","DM-1552","DM-1553","DM-1554"]
+tickets: ["DM-1319","DM-1329","DM-1331","DM-1524","DM-1527","DM-1552","DM-1553","DM-1554","DM-2688"]
 code: ["examples/output/storyboard-demo.svg","examples/storyboard-demo.ts","scripts/generate-storyboard-schema.ts","src/animation/animator.ts","src/animation/composite.ts","src/animation/embed-namespace.ts","src/cli/animate.ts","src/cli/storyboard-config-json-schema.ts","src/cli/storyboard.ts"]
 aliases: ["docs/89-storyboard-sequencing.md","doc-89"]
 ---
@@ -109,6 +109,15 @@ When a scene's intrinsic size differs from the canvas, `fit` places it (mirrors
 the `animate` template-frame policy): `center` (default; 1:1, oversized →
 clipped), `contain` (scale to fit, letterboxed), `cover` (scale to fill,
 cropped).
+
+### Source trim
+
+Animated scenes may set `trimStart` and/or `trimEnd` in milliseconds. The end
+must be after the start and within the detected or declared source period. When
+`duration` is omitted, the visible duration is the trim window; an explicit
+duration may shorten it but cannot run beyond `trimEnd`. The source-local offset
+uses the same master-clock retiming as nested animated SVGs, with a negative
+delay so the browser interpolates the exact state at a non-keyframe trim point.
 
 ### Transitions
 

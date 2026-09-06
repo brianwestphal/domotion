@@ -223,6 +223,14 @@
             "type": "number",
             "exclusiveMinimum": 0
           },
+          "trimStart": {
+            "type": "number",
+            "minimum": 0
+          },
+          "trimEnd": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
           "transition": {
             "anyOf": [
               {

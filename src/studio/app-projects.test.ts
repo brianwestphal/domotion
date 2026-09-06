@@ -142,4 +142,33 @@ describe("Studio project file operations", () => {
       rmSync(outside, { recursive: true, force: true });
     }
   });
+
+  it("requires AI healing/review generation and preserves the project when AI asks a clarification", async () => {
+    root = mkdtempSync(join(tmpdir(), "domotion-studio-generation-"));
+    const created = createStudioProjectFile(root, "generate.json", { title: "Clarify", createdAt: NOW });
+    let observedPolicy: unknown;
+    let server: StudioServerHandle | null = null;
+    try {
+      server = await startStudioServer({
+        workspaceRoot: root,
+        generate: async (input) => {
+          observedPolicy = input.aiPolicy;
+          return { status: "clarification", question: "Which account should the demo use?", reason: "Two authenticated accounts are available." };
+        },
+      });
+      const response = await fetch(new URL("/api/generate", server.url), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: "generate.json", expectedHeadRevisionId: created.project.review.headRevisionId, selection: { kind: "scene", sceneId: "scene-opening" } }),
+      });
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({
+        generationResult: { status: "clarification", question: "Which account should the demo use?" },
+      });
+      expect(observedPolicy).toEqual({ healing: "required", review: "required" });
+      expect(openStudioProjectFile(root, "generate.json").project).toEqual(created.project);
+    } finally {
+      await server?.close();
+    }
+  });
 });
