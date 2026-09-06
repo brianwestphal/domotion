@@ -96,3 +96,7 @@ imports a noise-reduced semantic scene through both AI stages, edits its timing
 with the normal authoring command, changes the fixture's DOM nesting, visual
 CSS, and button name, and replays it through `compileStudioInteractiveProject`
 using the AI-selected stable target.
+
+Imported semantic actions participate in the same detailed timeline as cursor,
+overlay, transition, treatment, annotation, and animation timing; see
+`docs/253-studio-detailed-multitrack-timeline.md`.

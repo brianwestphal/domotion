@@ -5,6 +5,7 @@ import { computed, delegate, mount, signal } from "kerfjs";
 import {
   SCRUBBER_EMBED_CHANNEL,
   isScrubberEmbedEvent,
+  normalizeScrubberEmbedViewState,
   type ScrubberEmbedCommand,
   type ScrubberEmbedViewState,
 } from "../scrubber/embed.js";
@@ -14,6 +15,13 @@ import {
   type StudioAuthoringCommand,
 } from "./authoring.js";
 import type { StudioProject, StudioScene } from "./project-schema.js";
+import {
+  buildStudioTimeline,
+  moveStudioTimelineItems,
+  resizeStudioTimelineItems,
+  type StudioTimelineCommand,
+  type StudioTimelineItem,
+} from "./timeline.js";
 
 interface StudioIssue { path: string; message: string; code: string }
 interface Bootstrap {
@@ -42,6 +50,7 @@ interface ProjectResponse {
     evidencePath: string;
     ai: { healing: { summary: string }; review: { summary: string } };
   } | { status: "clarification"; question: string; reason: string; phase: "healing" | "review" };
+  inverse?: StudioTimelineCommand;
 }
 interface PreviewResponse {
   sourceKey: string;
@@ -95,8 +104,14 @@ const previewBusy = signal(false);
 const scrubberReady = signal(false);
 const previewStates = new Map<string, ScrubberEmbedViewState>();
 let pendingPreview: PreviewResponse | null = null;
+let pendingPreviewSeekMs: number | undefined;
 const undoStack = signal<StudioProject[]>([]);
 const recordingJson = signal("");
+const timelineSelection = signal<string[]>([]);
+const timelineZoom = signal(1);
+const timelineSnapMs = signal(50);
+const timelineUndo = signal<StudioTimelineCommand[]>([]);
+const timelineRedo = signal<StudioTimelineCommand[]>([]);
 
 const openAnnotations = computed(() => project.value?.review.annotations.filter((annotation) => annotation.status === "open").length ?? 0);
 
@@ -123,6 +138,7 @@ h1{font-size:17px;margin:0}.eyebrow{font-size:11px;letter-spacing:.13em;text-tra
 .preview-panel{margin-top:18px}.preview-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}.preview-toolbar .spacer{flex:1}.preview-frame{display:block;width:100%;height:min(70vh,680px);min-height:420px;border:1px solid #29364e;border-radius:12px;background:#0e0f13}.preview-meta{margin:10px 0 0;color:#8795ae;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}.preview-empty{display:grid;place-items:center;min-height:240px;border:1px dashed #34415a;border-radius:12px;color:#8795ae;text-align:center;padding:24px}
 .review-panel{margin-top:18px}.review-compose{border:1px solid #29364e;border-radius:12px;background:#0c1320;padding:14px;margin-bottom:14px}.review-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px}.review-fields .body{grid-column:1/-1}.review-fields .scene-select{grid-column:span 2}.review-help{font-size:12px;color:#8795ae;margin:9px 0 0}.annotation-list{display:flex;flex-direction:column;gap:10px}.annotation{border:1px solid #29364e;border-radius:12px;background:#0c1320;padding:13px}.annotation-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}.annotation-author{font-size:12px;color:#aebbd0}.annotation-target{font-size:12px;color:#8290a8;margin:8px 0}.annotation-actions{display:flex;gap:8px;margin-top:9px}.empty-notes{color:#8795ae;font-size:13px;margin:0}
 .recording-panel{margin-top:18px}.recording-panel textarea{min-height:120px}.semantic-actions{display:grid;gap:7px;margin-top:10px}.semantic-action{display:grid;grid-template-columns:minmax(0,1fr) 130px;gap:10px;align-items:end;border-left:2px solid #536da8;padding-left:10px}.semantic-action code{font-size:11px;color:#aebbd0;overflow-wrap:anywhere}
+.timeline-panel{margin-top:18px}.timeline-toolbar{display:flex;align-items:end;gap:9px;flex-wrap:wrap;margin-bottom:13px}.timeline-toolbar .field{min-width:110px}.timeline-scroll{overflow:auto;border:1px solid #29364e;border-radius:12px;background:#090f1b}.timeline-canvas{min-width:900px}.timeline-ruler{height:30px;border-bottom:1px solid #29364e;position:relative;margin-left:150px;background:linear-gradient(90deg,#33415a 1px,transparent 1px);background-size:80px 100%}.timeline-row{display:grid;grid-template-columns:150px minmax(0,1fr);min-height:46px;border-bottom:1px solid #202b40}.timeline-row:last-child{border-bottom:0}.timeline-label{padding:12px 10px;font-size:11px;color:#aebbd0;border-right:1px solid #29364e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.timeline-lane{position:relative;min-height:45px;background:linear-gradient(90deg,#1d2940 1px,transparent 1px);background-size:80px 100%}.timeline-item{position:absolute;top:7px;height:31px;min-width:24px;padding:6px 10px;border:1px solid #5572b7;border-radius:7px;background:#233a68;color:#eff4ff;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:grab;text-align:left}.timeline-item[data-selected="true"]{outline:3px solid #a5b5ff;outline-offset:1px;background:#3d56a0}.timeline-item[data-kind="annotation"]{background:#6a4824;border-color:#b98546}.timeline-item[data-kind="transition"]{background:#4f326f;border-color:#8c65b0}.timeline-item[data-kind="scene"]{background:#24534e;border-color:#4f9188}.timeline-resize{position:absolute;right:0;top:0;width:9px;height:100%;cursor:ew-resize;border-left:1px solid #a5b5ff66}.timeline-summary{margin:9px 0 0;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:#8795ae}
 @media(max-width:800px){.app{grid-template-columns:1fr}.rail{border-right:0;border-bottom:1px solid #263149}.main{padding:22px 18px 40px}.grid{grid-template-columns:1fr}.topbar{flex-direction:column}.formgrid,.review-fields,.scene-controls{grid-template-columns:1fr}.wide,.review-fields .body,.review-fields .scene-select,.scene-controls .span2{grid-column:auto}.beat{grid-template-columns:1fr}}
 `;
 
@@ -289,6 +305,18 @@ function semanticTargetLabel(event: NonNullable<StudioScene["tracks"]>[number]["
   return target.text ?? target.selector ?? "target";
 }
 
+function timelineScale(): number {
+  return 0.08 * timelineZoom.value;
+}
+
+function timelineWidth(durationMs: number): number {
+  return Math.max(900, Math.ceil(durationMs * timelineScale()) + 40);
+}
+
+function timelineItemTitle(item: StudioTimelineItem): string {
+  return `${item.label}, ${Math.round(item.startMs)} to ${Math.round(item.endMs)} milliseconds`;
+}
+
 function render() {
   const current = project.value;
   return (
@@ -434,6 +462,45 @@ function render() {
                   </>
                 )}
               </section>
+              {(() => {
+                const timeline = buildStudioTimeline(current);
+                const scale = timelineScale();
+                const width = timelineWidth(timeline.durationMs);
+                return <section class="panel timeline-panel" aria-label="Multitrack timeline">
+                  <div class="section-head"><h3>Detailed timeline</h3><span class="badge">{timeline.rows.length} tracks</span></div>
+                  <div class="timeline-toolbar">
+                    <label class="field"><span>Zoom</span><input data-field="timeline-zoom" type="range" min="0.5" max="4" step="0.25" value={String(timelineZoom.value)} aria-label="Timeline zoom" /></label>
+                    <label class="field"><span>Snap</span><select data-field="timeline-snap" aria-label="Timeline snap">{[1, 10, 25, 50, 100, 250].map((value) => <option value={String(value)} selected={timelineSnapMs.value === value}>{value} ms</option>)}</select></label>
+                    <button data-action="timeline-earlier" disabled={busy.value || timelineSelection.value.length === 0}>Earlier</button>
+                    <button data-action="timeline-later" disabled={busy.value || timelineSelection.value.length === 0}>Later</button>
+                    <button data-action="timeline-shorter" disabled={busy.value || timelineSelection.value.length === 0}>Shorter</button>
+                    <button data-action="timeline-longer" disabled={busy.value || timelineSelection.value.length === 0}>Longer</button>
+                    <button data-action="timeline-undo" disabled={busy.value || timelineUndo.value.length === 0}>Undo timeline</button>
+                    <button data-action="timeline-redo" disabled={busy.value || timelineRedo.value.length === 0}>Redo timeline</button>
+                  </div>
+                  <div class="timeline-scroll">
+                    <div class="timeline-canvas" style={`width:${width + 150}px`}>
+                      <div class="timeline-ruler" style={`width:${width}px`} aria-hidden="true"></div>
+                      {timeline.rows.map((track) => <div class="timeline-row" data-timeline-row={track.id}>
+                        <div class="timeline-label" title={track.label}>{track.label}</div>
+                        <div class="timeline-lane" style={`width:${width}px`}>
+                          {track.items.map((item) => <button
+                            class="timeline-item"
+                            data-timeline-id={item.id}
+                            data-kind={item.kind}
+                            data-selected={String(timelineSelection.value.includes(item.id))}
+                            aria-pressed={timelineSelection.value.includes(item.id)}
+                            aria-label={timelineItemTitle(item)}
+                            title={`${timelineItemTitle(item)}. Arrow keys move; Alt+Arrow resizes.`}
+                            style={`left:${item.startMs * scale}px;width:${Math.max(8, (item.endMs - item.startMs) * scale)}px`}
+                          >{item.label}{item.resizable && <span class="timeline-resize" data-timeline-resize="end" aria-hidden="true"></span>}</button>)}
+                        </div>
+                      </div>)}
+                    </div>
+                  </div>
+                  <p class="timeline-summary">{Math.round(timeline.durationMs)}ms · click to select, Cmd/Ctrl-click for multiselect · arrows move by {timelineSnapMs.value}ms · Alt+arrows resize</p>
+                </section>;
+              })()}
               <section class="panel recording-panel">
                 <h3>Import a real interaction recording</h3>
                 <label class="field"><span>Redacted recording JSON</span><textarea data-field="recording-json" aria-label="Recorded interaction JSON" placeholder="Paste a domotion-studio-interaction-recording document">{recordingJson.value}</textarea></label>
@@ -488,12 +555,17 @@ const app = document.getElementById("app")!;
 if (app == null) throw new Error("Domotion Studio: missing #app");
 mount(app, render);
 
-function sendPreviewToScrubber(preview: PreviewResponse): void {
+function sendPreviewToScrubber(preview: PreviewResponse, seekMs?: number): void {
   const frame = app.querySelector<HTMLIFrameElement>("[data-scrubber-frame]");
   if (!scrubberReady.value || frame?.contentWindow == null) {
     pendingPreview = preview;
+    pendingPreviewSeekMs = seekMs;
     return;
   }
+  const previous = previewStates.get(preview.sourceKey);
+  const restoreState = seekMs == null
+    ? previous
+    : { ...normalizeScrubberEmbedViewState(previous, preview.durationMs), playheadMs: Math.max(0, Math.min(preview.durationMs, seekMs)) };
   const command: ScrubberEmbedCommand = {
     channel: SCRUBBER_EMBED_CHANNEL,
     type: "load",
@@ -501,10 +573,11 @@ function sendPreviewToScrubber(preview: PreviewResponse): void {
     svg: preview.svg,
     name: preview.name,
     durationMs: preview.durationMs,
-    ...(previewStates.has(preview.sourceKey) ? { restoreState: previewStates.get(preview.sourceKey)! } : {}),
+    ...(restoreState == null ? {} : { restoreState }),
   };
   frame.contentWindow.postMessage(command, location.origin);
   pendingPreview = null;
+  pendingPreviewSeekMs = undefined;
 }
 
 window.addEventListener("message", (event) => {
@@ -512,7 +585,7 @@ window.addEventListener("message", (event) => {
   if (event.origin !== location.origin || event.source !== frame?.contentWindow || !isScrubberEmbedEvent(event.data)) return;
   if (event.data.type === "ready") {
     scrubberReady.value = true;
-    if (pendingPreview != null) sendPreviewToScrubber(pendingPreview);
+    if (pendingPreview != null) sendPreviewToScrubber(pendingPreview, pendingPreviewSeekMs);
     return;
   }
   if (event.data.type === "error") {
@@ -523,7 +596,7 @@ window.addEventListener("message", (event) => {
   previewStates.set(event.data.sourceKey, event.data.state);
 });
 
-async function loadPreview(selection: { kind: "story" } | { kind: "scene"; sceneId: string }): Promise<void> {
+async function loadPreview(selection: { kind: "story" } | { kind: "scene"; sceneId: string }, seekMs?: number): Promise<void> {
   previewSelection.value = selection;
   previewBusy.value = true;
   try {
@@ -535,7 +608,7 @@ async function loadPreview(selection: { kind: "story" } | { kind: "scene"; scene
     const result = await response.json() as PreviewResponse & { error?: string };
     if (!response.ok) throw result;
     previewInfo.value = result;
-    sendPreviewToScrubber(result);
+    sendPreviewToScrubber(result, seekMs);
   } catch (error) {
     setFailure(error);
   } finally {
@@ -562,7 +635,7 @@ async function post(path: string, body: unknown): Promise<ProjectResponse> {
   return result;
 }
 
-function acceptLoaded(result: ProjectResponse, action: string): void {
+function acceptLoaded(result: ProjectResponse, action: string, preserveTimelineHistory = false): void {
   projectPath.value = result.path;
   project.value = result.project;
   generation.value = result.generation;
@@ -571,6 +644,12 @@ function acceptLoaded(result: ProjectResponse, action: string): void {
   message.value = `${action} ${result.path}`;
   messageKind.value = "success";
   undoStack.value = [];
+  if (!preserveTimelineHistory) {
+    timelineUndo.value = [];
+    timelineRedo.value = [];
+  }
+  const liveTimelineIds = new Set(buildStudioTimeline(result.project).items.map((item) => item.id));
+  timelineSelection.value = timelineSelection.value.filter((id) => liveTimelineIds.has(id));
   if (annotationScene.value !== "" && !result.project.scenes.some((scene) => scene.id === annotationScene.value)) {
     annotationScene.value = "";
   }
@@ -579,10 +658,60 @@ function acceptLoaded(result: ProjectResponse, action: string): void {
     previewSelection.value = null;
     previewInfo.value = null;
     pendingPreview = null;
+    pendingPreviewSeekMs = undefined;
     scrubberReady.value = false;
   } else if (selected != null) {
     void loadPreview(selected);
   }
+}
+
+async function seekTimelineItem(item: StudioTimelineItem): Promise<void> {
+  const current = project.value;
+  if (current == null) return;
+  if (hasStoryPreview()) {
+    await loadPreview({ kind: "story" }, item.startMs);
+    return;
+  }
+  if (item.sceneId != null && hasScenePreview(item.sceneId)) {
+    const sceneItem = buildStudioTimeline(current).items.find((candidate) => candidate.id === `scene:${item.sceneId}`);
+    await loadPreview({ kind: "scene", sceneId: item.sceneId }, item.startMs - (sceneItem?.startMs ?? 0));
+  }
+}
+
+async function applyTimeline(command: StudioTimelineCommand, mode: "edit" | "undo" | "redo" = "edit"): Promise<void> {
+  let current = project.value;
+  if (current == null) return;
+  if (dirty.value) {
+    const saved = await post("/api/save", { path: projectPath.value, expectedHeadRevisionId: current.review.headRevisionId, project: current });
+    acceptLoaded(saved, "Saved");
+    current = saved.project;
+  }
+  const result = await post("/api/timeline", {
+    path: projectPath.value,
+    expectedHeadRevisionId: current.review.headRevisionId,
+    command,
+  });
+  if (result.inverse == null) throw new Error("Timeline response did not include an inverse command.");
+  acceptLoaded(result, mode === "edit" ? "Updated timeline in" : mode === "undo" ? "Undid timeline change in" : "Redid timeline change in", true);
+  if (mode === "edit") {
+    timelineUndo.value = [...timelineUndo.value, result.inverse];
+    timelineRedo.value = [];
+  } else if (mode === "undo") {
+    timelineUndo.value = timelineUndo.value.slice(0, -1);
+    timelineRedo.value = [...timelineRedo.value, result.inverse];
+  } else {
+    timelineRedo.value = timelineRedo.value.slice(0, -1);
+    timelineUndo.value = [...timelineUndo.value, result.inverse];
+  }
+}
+
+function selectedTimelineCommand(operation: "move" | "resize", deltaMs: number): StudioTimelineCommand {
+  const current = project.value;
+  if (current == null) throw new Error("Open a Studio project first.");
+  const timeline = buildStudioTimeline(current);
+  return operation === "move"
+    ? moveStudioTimelineItems(timeline, timelineSelection.value, deltaMs, timelineSnapMs.value)
+    : resizeStudioTimelineItems(timeline, timelineSelection.value, "end", deltaMs, timelineSnapMs.value);
 }
 
 async function generate(selection: { kind: "story" } | { kind: "scene"; sceneId: string }): Promise<void> {
@@ -644,7 +773,17 @@ void delegate(app, "click", "[data-action]", (_event, target) => {
   const sceneId = sceneCard?.dataset.sceneId;
   const sceneIndex = project.value?.scenes.findIndex((scene) => scene.id === sceneId) ?? -1;
   const beatId = (target as HTMLElement).closest<HTMLElement>("[data-beat-id]")?.dataset.beatId;
-  if (action === "undo") {
+  if (action === "timeline-earlier" || action === "timeline-later" || action === "timeline-shorter" || action === "timeline-longer") {
+    const resize = action === "timeline-shorter" || action === "timeline-longer";
+    const delta = (action === "timeline-earlier" || action === "timeline-shorter" ? -1 : 1) * timelineSnapMs.value;
+    void run(() => applyTimeline(selectedTimelineCommand(resize ? "resize" : "move", delta)));
+  } else if (action === "timeline-undo") {
+    const command = timelineUndo.value.at(-1);
+    if (command != null) void run(() => applyTimeline(command, "undo"));
+  } else if (action === "timeline-redo") {
+    const command = timelineRedo.value.at(-1);
+    if (command != null) void run(() => applyTimeline(command, "redo"));
+  } else if (action === "undo") {
     const previous = undoStack.value.at(-1);
     if (previous != null) {
       project.value = structuredClone(previous);
@@ -761,6 +900,14 @@ void delegate(app, "click", "[data-action]", (_event, target) => {
 void delegate(app, "input", "[data-field]", (_event, target) => {
   const control = target as HTMLInputElement | HTMLTextAreaElement;
   const field = control.dataset.field;
+  if (field === "timeline-zoom") {
+    timelineZoom.value = Number(control.value);
+    return;
+  }
+  if (field === "timeline-snap") {
+    timelineSnapMs.value = Number(control.value);
+    return;
+  }
   if (field === "project-path") {
     projectPath.value = control.value;
     return;
@@ -874,4 +1021,48 @@ void delegate(app, "change", "[data-field]", (_event, target) => {
   } else if (field === "scene-preset" && control.value !== "custom") {
     applyAuthoring({ kind: "scene.update", sceneId: scene.id, patch: { treatments: presetTreatments(scene, control.value) } });
   }
+});
+
+void delegate(app, "click", "[data-timeline-id]", (event, target) => {
+  const itemId = (target as HTMLElement).dataset.timelineId;
+  if (itemId == null) return;
+  const mouse = event as MouseEvent;
+  if (mouse.metaKey || mouse.ctrlKey) {
+    timelineSelection.value = timelineSelection.value.includes(itemId)
+      ? timelineSelection.value.filter((id) => id !== itemId)
+      : [...timelineSelection.value, itemId];
+  } else if (!timelineSelection.value.includes(itemId)) {
+    timelineSelection.value = [itemId];
+  }
+  const item = project.value == null ? undefined : buildStudioTimeline(project.value).items.find((candidate) => candidate.id === itemId);
+  if (item != null) void seekTimelineItem(item);
+});
+
+let timelineDrag: { itemId: string; startX: number; operation: "move" | "resize" } | null = null;
+void delegate(app, "pointerdown", "[data-timeline-id]", (event, target) => {
+  const itemId = (target as HTMLElement).dataset.timelineId;
+  if (itemId == null) return;
+  const pointer = event as PointerEvent;
+  if (!timelineSelection.value.includes(itemId)) timelineSelection.value = [itemId];
+  const resizeHandle = (pointer.target as HTMLElement | null)?.closest("[data-timeline-resize]");
+  timelineDrag = { itemId, startX: pointer.clientX, operation: resizeHandle == null ? "move" : "resize" };
+  (target as HTMLElement).setPointerCapture?.(pointer.pointerId);
+});
+
+window.addEventListener("pointerup", (event) => {
+  if (timelineDrag == null) return;
+  const drag = timelineDrag;
+  timelineDrag = null;
+  const deltaMs = (event.clientX - drag.startX) / timelineScale();
+  if (Math.abs(deltaMs) < 1) return;
+  void run(() => applyTimeline(selectedTimelineCommand(drag.operation, deltaMs)));
+});
+
+void delegate(app, "keydown", "[data-timeline-id]", (event) => {
+  const keyboard = event as KeyboardEvent;
+  if (keyboard.key !== "ArrowLeft" && keyboard.key !== "ArrowRight") return;
+  keyboard.preventDefault();
+  const direction = keyboard.key === "ArrowLeft" ? -1 : 1;
+  const multiplier = keyboard.shiftKey ? 5 : 1;
+  void run(() => applyTimeline(selectedTimelineCommand(keyboard.altKey ? "resize" : "move", direction * multiplier * timelineSnapMs.value)));
 });

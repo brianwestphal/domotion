@@ -38,6 +38,8 @@ describe("SVG Scrubber embed protocol (DM-2689)", () => {
       name: "opening",
       durationMs: 1000,
     })).toBe(true);
+    expect(isScrubberEmbedCommand({ channel: SCRUBBER_EMBED_CHANNEL, type: "seek", sourceKey: "scene:opening", playheadMs: 250 })).toBe(true);
+    expect(isScrubberEmbedCommand({ channel: SCRUBBER_EMBED_CHANNEL, type: "seek", sourceKey: "scene:opening", playheadMs: -1 })).toBe(false);
     expect(isScrubberEmbedCommand({ channel: "domotion-svg-scrubber/v2", type: "request-state" })).toBe(false);
     expect(isScrubberEmbedCommand({ channel: SCRUBBER_EMBED_CHANNEL, type: "load", sourceKey: "x", svg: "oops", name: "x", durationMs: 0 })).toBe(false);
     expect(isScrubberEmbedEvent({ channel: SCRUBBER_EMBED_CHANNEL, type: "ready" })).toBe(true);

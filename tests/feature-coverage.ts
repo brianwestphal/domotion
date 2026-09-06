@@ -645,6 +645,13 @@ export const FEATURES: FeatureEntry[] = [
     exports: ["StudioRecordingError", "importStudioInteractionRecording", "persistStudioRecordingEvidence", "recordStudioInteractions", "studioInteractionRecordingSchema", "studioRecordedEventSchema", "studioRecordedTargetSchema"],
     tests: ["src/studio/recording.test.ts", "src/studio/recording.e2e.test.ts", "src/studio/app-projects.test.ts"],
   },
+  {
+    id: "studio.detailed-multitrack-timeline",
+    behavior: "Project scene, semantic action, cursor, overlay, transition, treatment, annotation, and layer-animation timing onto the production clock and edit it through one snapped, multiselect, pointer/keyboard/AI command with exact revisioned undo/redo and Scrubber selection sync.",
+    doc: "docs/253-studio-detailed-multitrack-timeline.md",
+    exports: ["STUDIO_TIMELINE_KINDS", "StudioTimelineError", "applyStudioTimelineCommand", "buildStudioTimeline", "moveStudioTimelineItems", "resizeStudioTimelineItems", "studioSceneDurationMs", "studioTimelineCommandSchema", "studioTimelineTimingChangeSchema"],
+    tests: ["src/studio/timeline.test.ts", "src/studio/timeline.e2e.test.ts", "src/scrubber/embed.test.ts"],
+  },
 
   // ── Templates ──────────────────────────────────────────────────────────
   {

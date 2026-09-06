@@ -232,6 +232,24 @@ export {
   studioProjectJsonSchemaText,
 } from "./project-json-schema.js";
 export {
+  STUDIO_TIMELINE_KINDS,
+  applyStudioTimelineCommand,
+  buildStudioTimeline,
+  moveStudioTimelineItems,
+  resizeStudioTimelineItems,
+  studioSceneDurationMs,
+  StudioTimelineError,
+  studioTimelineCommandSchema,
+  studioTimelineTimingChangeSchema,
+  type ApplyStudioTimelineOptions,
+  type StudioTimeline,
+  type StudioTimelineCommand,
+  type StudioTimelineItem,
+  type StudioTimelineKind,
+  type StudioTimelineResult,
+  type StudioTimelineRow,
+} from "./timeline.js";
+export {
   STUDIO_AGENT_TOOL_VERSION,
   buildStudioAgentToolRequestJsonSchema,
   runStudioAgentTool,

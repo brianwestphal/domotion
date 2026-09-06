@@ -84,3 +84,5 @@ Scrubber preview, and reopens the same persisted project.
 
 Real-user recording import extends this command surface with editable semantic
 tracks; see `docs/252-studio-real-interaction-import.md`.
+Detailed cross-track timing, selection, snapping, and undo/redo are specified in
+`docs/253-studio-detailed-multitrack-timeline.md`.

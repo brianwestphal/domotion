@@ -5115,6 +5115,33 @@
       "file": "252-studio-real-interaction-import.md"
     },
     {
+      "id": "requirements/studio-detailed-multitrack-timeline",
+      "title": "Detailed multitrack timeline editing in Domotion Studio",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "studio",
+        "ui",
+        "scrubber",
+        "ai"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/studio/timeline.ts",
+        "src/studio/timeline.test.ts",
+        "src/studio/timeline.e2e.test.ts",
+        "src/studio/client.tsx",
+        "src/studio/server.ts",
+        "src/scrubber/embed.ts",
+        "src/scrubber/client.tsx"
+      ],
+      "file": "253-studio-detailed-multitrack-timeline.md"
+    },
+    {
       "id": "handbook/animation-and-interaction",
       "title": "Animation and interaction handbook",
       "kind": "contract",

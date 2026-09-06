@@ -994,6 +994,21 @@ if (embeddedMode) {
       }
       return;
     }
+    if (event.data.type === "seek") {
+      if (embeddedSourceKey === event.data.sourceKey && svgLoaded.value) {
+        playing.value = false;
+        playhead.value = Math.max(0, Math.min(durationMs.value, event.data.playheadMs));
+        seekAll(playhead.value);
+        postEmbeddedEvent({
+          channel: SCRUBBER_EMBED_CHANNEL,
+          type: "state",
+          sourceKey: embeddedSourceKey,
+          durationMs: durationMs.value,
+          state: embeddedViewState(),
+        });
+      }
+      return;
+    }
     void loadSvg(event.data.svg, event.data.name, {
       durationMs: event.data.durationMs,
       restoreState: event.data.restoreState,

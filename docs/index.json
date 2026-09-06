@@ -8165,6 +8165,42 @@
       }
     },
     {
+      "file": "253-studio-detailed-multitrack-timeline.md",
+      "metadata": {
+        "id": "requirements/studio-detailed-multitrack-timeline",
+        "title": "Detailed multitrack timeline editing in Domotion Studio",
+        "kind": "contract",
+        "status": "current",
+        "owners": [
+          "studio",
+          "ui",
+          "scrubber",
+          "ai"
+        ],
+        "platforms": [
+          "macos",
+          "linux",
+          "windows"
+        ],
+        "tickets": [
+          "DM-2692"
+        ],
+        "code": [
+          "src/studio/timeline.ts",
+          "src/studio/timeline.test.ts",
+          "src/studio/timeline.e2e.test.ts",
+          "src/studio/client.tsx",
+          "src/studio/server.ts",
+          "src/scrubber/embed.ts",
+          "src/scrubber/client.tsx"
+        ],
+        "aliases": [
+          "docs/253-studio-detailed-multitrack-timeline.md",
+          "doc-253"
+        ]
+      }
+    },
+    {
       "file": "handbook/animation-and-interaction.md",
       "metadata": {
         "id": "handbook/animation-and-interaction",
@@ -9153,6 +9189,9 @@
     ],
     "252": [
       "requirements/studio-real-interaction-import"
+    ],
+    "253": [
+      "requirements/studio-detailed-multitrack-timeline"
     ],
     "01": [
       "requirements/fidelity"

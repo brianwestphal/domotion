@@ -22,6 +22,11 @@ export type ScrubberEmbedCommand = {
 } | {
   channel: typeof SCRUBBER_EMBED_CHANNEL;
   type: "request-state";
+} | {
+  channel: typeof SCRUBBER_EMBED_CHANNEL;
+  type: "seek";
+  sourceKey: string;
+  playheadMs: number;
 };
 
 export type ScrubberEmbedEvent = {
@@ -78,6 +83,13 @@ export function isScrubberEmbedCommand(value: unknown): value is ScrubberEmbedCo
   const command = value as Partial<ScrubberEmbedCommand> & Record<string, unknown>;
   if (command.channel !== SCRUBBER_EMBED_CHANNEL) return false;
   if (command.type === "request-state") return true;
+  if (command.type === "seek") {
+    return typeof command.sourceKey === "string"
+      && command.sourceKey.trim() !== ""
+      && typeof command.playheadMs === "number"
+      && Number.isFinite(command.playheadMs)
+      && command.playheadMs >= 0;
+  }
   return command.type === "load"
     && typeof command.sourceKey === "string"
     && command.sourceKey.trim() !== ""

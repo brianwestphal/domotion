@@ -66,6 +66,9 @@ JSON operations:
   the expected project revision, requires AI healing and AI review (or returns
   their clarification without mutation), writes workspace-bounded evidence,
   and appends the accepted ordinary semantic scene.
+- `POST /api/timeline` applies exact timing overrides through the shared UI/AI
+  command model, appends revision provenance, atomically validates/saves, and
+  returns the inverse command for undo/redo.
 
 Every body is size-bounded and strictly validated. Studio model failures return
 HTTP 400 with the exact structured `{ path, message, code }` issues produced by
@@ -95,6 +98,8 @@ structure/source/timing/transition/treatment, undo, and required-AI generation
 controls are specified in `docs/251-studio-high-level-authoring.md`.
 Real browser recording, redaction, AI semantic import, and editable action
 timing are specified in `docs/252-studio-real-interaction-import.md`.
+The zoomable, keyboard-accessible multitrack timing editor is specified in
+`docs/253-studio-detailed-multitrack-timeline.md`.
 
 The responsive two-column layout collapses to one column below 800 CSS pixels,
 all controls retain visible keyboard focus, status/errors use live regions, and

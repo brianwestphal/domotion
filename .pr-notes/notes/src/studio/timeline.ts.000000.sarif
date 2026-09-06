@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpsnswf3wyso06i",
+          "message": {
+            "text": "One absolute projection deliberately reuses frameAdvanceMs so Studio scene holds and outgoing transitions cannot drift from production composition. Every remaining authoring primitive is translated relative to that shared scene window, which is also why stable source identities stay on each projected item.",
+            "markdown": "One absolute projection deliberately reuses frameAdvanceMs so Studio scene holds and outgoing transitions cannot drift from production composition. Every remaining authoring primitive is translated relative to that shared scene window, which is also why stable source identities stay on each projected item."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/timeline.ts"
+                },
+                "region": {
+                  "startLine": 159,
+                  "endLine": 206,
+                  "snippet": {
+                    "text": "/** Project every authored timing primitive onto the compositor's absolute clock. */\nexport function buildStudioTimeline(rawProject: StudioProject): StudioTimeline {\n  const project = rawProject;\n  const rows = new Map<string, StudioTimelineRow>();\n  for (const kind of STUDIO_TIMELINE_KINDS) row(rows, kind, kind, kind.replace(\"-\", \" \"));\n  const sceneWindows = windows(project);\n\n  sceneWindows.forEach(({ scene, index, startMs, holdEndMs, endMs }) => {\n    add(rows, \"scene\", \"scene\", \"Scenes\", {\n      id: `scene:${scene.id}`, label: scene.title ?? `Scene ${index + 1}`,\n      startMs, endMs: holdEndMs, sceneId: scene.id, movable: false, resizable: true,\n    });\n    (scene.tracks ?? []).forEach((track) => track.events.forEach((event) => {\n      const eventStart = startMs + event.atMs;\n      add(rows, `semantic:${scene.id}:${track.id}`, \"semantic-action\", track.name ?? `Actions · ${scene.title ?? scene.id}`, {\n        id: `semantic:${scene.id}:${track.id}:${event.id}`,\n        label: event.kind,\n        startMs: eventStart,\n        endMs: eventStart + (event.durationMs ?? 1),\n        sceneId: scene.id,\n        trackId: track.id,\n        eventId: event.id,\n        movable: true,\n        resizable: true,\n      });\n    }));\n    (scenePresentation(scene).overlays ?? []).forEach((overlay, overlayIndex) => {\n      const overlayStart = startMs + (overlay.delay ?? 0);\n      add(rows, `overlay:${scene.id}`, \"overlay\", `Overlays · ${scene.title ?? scene.id}`, {\n        id: `overlay:${scene.id}:${overlayIndex}`,\n        label: overlayLabel(overlay, overlayIndex),\n        startMs: overlayStart,\n        endMs: startMs + (overlay.endAt ?? studioSceneDurationMs(scene)),\n        sceneId: scene.id,\n        movable: true,\n        resizable: true,\n      });\n    });\n    const transitionMs = endMs - holdEndMs;\n    add(rows, \"transition\", \"transition\", \"Transitions\", {\n      id: `transition:${scene.id}`,\n      label: `${scenePresentation(scene).transition?.type ?? \"crossfade\"} after ${scene.title ?? scene.id}`,\n      startMs: holdEndMs,\n      endMs,\n      sceneId: scene.id,\n      movable: false,\n      resizable: true,\n    });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/animation/frame-timeline.ts"
+                },
+                "region": {
+                  "startLine": 45
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2692"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "737ebe93688e7412d7391571201261d5"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpso80vor0mx838",
+          "message": {
+            "text": "The command captures exact pre-edit ranges before mutation and applies multi-item edits from latest to earliest absolute time. That descending order preserves each later item's original scene origin when an earlier scene or transition is resized in the same transaction; annotation-only edits remain review revisions while any rendered timing edit is content.",
+            "markdown": "The command captures exact pre-edit ranges before mutation and applies multi-item edits from latest to earliest absolute time. That descending order preserves each later item's original scene origin when an earlier scene or transition is resized in the same transaction; annotation-only edits remain review revisions while any rendered timing edit is content."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/timeline.ts"
+                },
+                "region": {
+                  "startLine": 379,
+                  "endLine": 435,
+                  "snippet": {
+                    "text": "/** Apply explicit timing overrides atomically, append provenance, and return an exact inverse. */\nexport function applyStudioTimelineCommand(\n  rawProject: StudioProject,\n  rawCommand: StudioTimelineCommand,\n  options: ApplyStudioTimelineOptions = {},\n): StudioTimelineResult {\n  const project = structuredClone(rawProject);\n  const command = studioTimelineCommandSchema.parse(rawCommand);\n  if (options.expectedHeadRevisionId != null && project.review.headRevisionId !== options.expectedHeadRevisionId) {\n    throw new StudioTimelineError(`stale timeline change: expected review head ${options.expectedHeadRevisionId}, found ${project.review.headRevisionId}`);\n  }\n  const timeline = buildStudioTimeline(project);\n  const byId = new Map(timeline.items.map((item) => [item.id, item]));\n  const duplicate = new Set<string>();\n  const revisionId = options.revisionId ?? `revision-timeline-${globalThis.crypto.randomUUID()}`;\n  const now = options.now ?? new Date().toISOString();\n  const inverse: StudioTimelineCommand = { kind: \"set-timing\", changes: [] };\n  const ordered = command.changes.map((change) => {\n    if (duplicate.has(change.itemId)) throw new StudioTimelineError(`duplicate timing override: ${change.itemId}`);\n    duplicate.add(change.itemId);\n    const item = byId.get(change.itemId);\n    if (item == null) throw new StudioTimelineError(`unknown timeline item: ${change.itemId}`);\n    inverse.changes.push({ itemId: item.id, startMs: item.startMs, endMs: item.endMs });\n    return { change, item };\n  });\n  // Later scene starts depend on earlier scene/transition sizes. Descending absolute order\n  // keeps each change's pre-command scene origin stable during a multiselect edit.\n  ordered.sort((left, right) => right.item.startMs - left.item.startMs)\n    .forEach(({ change, item }) => applyOne(project, item, change, revisionId, now));\n\n  const reviewOnly = ordered.every(({ item }) => item.kind === \"annotation\");\n  if (project.review.revisions.some((revision) => revision.id === revisionId)) throw new StudioTimelineError(`revision id already exists: ${revisionId}`);\n  project.review.revisions.push({\n    id: revisionId,\n    parentId: project.review.headRevisionId,\n    createdAt: now,\n    author: options.author ?? { kind: \"human\" },\n    kind: reviewOnly ? \"review\" : \"content\",\n    summary: `Adjusted ${command.changes.length} timeline item${command.changes.length === 1 ? \"\" : \"s\"}.`,\n    metadata: { operation: \"studio.timeline.set-timing\", itemIds: command.changes.map((change) => change.itemId) },\n  });\n  project.review.headRevisionId = revisionId;\n  project.updatedAt = now;\n  for (const scene of project.scenes) {\n    for (const track of scene.tracks ?? []) {\n      track.events.forEach((event, index) => {\n        const previous = track.events[index - 1];\n        if (event.atMs < 0 || (event.durationMs != null && !(event.durationMs > 0))) {\n          throw new StudioTimelineError(`timeline edit made ${event.id} timing invalid`);\n        }\n        if (previous != null && (event.atMs < previous.atMs || (previous.durationMs != null && previous.atMs + previous.durationMs > event.atMs))) {\n          throw new StudioTimelineError(`timeline edit makes ${event.id} overlap the previous action in ${track.id}`);\n        }\n      });\n    }\n  }\n  return { project, inverse, revisionId };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/server.ts"
+                },
+                "region": {
+                  "startLine": 370
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2692"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "d783dfa5eae9cdf4ba7de790e643ea68"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f136d9c1b5ec15abaa1a1da513e60d44eff8e539",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

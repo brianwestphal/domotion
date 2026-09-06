@@ -28,6 +28,13 @@ import {
   StudioRecordingError,
   type StudioRecordingAiAdapter,
 } from "./recording.js";
+import {
+  applyStudioTimelineCommand,
+  buildStudioTimeline,
+  studioSceneDurationMs,
+  StudioTimelineError,
+  studioTimelineCommandSchema,
+} from "./timeline.js";
 import type { StudioArtifact, StudioProject } from "./project-schema.js";
 
 const pathField = z.string().trim().min(1, "project path is required").max(4096);
@@ -60,6 +67,11 @@ const recordingImportBodySchema = z.strictObject({
   path: pathField,
   expectedHeadRevisionId: z.string().min(1),
   recording: z.unknown(),
+});
+const timelineBodySchema = z.strictObject({
+  path: pathField,
+  expectedHeadRevisionId: z.string().min(1),
+  command: studioTimelineCommandSchema,
 });
 const generationAiSchema = z.strictObject({
   healing: z.strictObject({ status: z.literal("accepted"), summary: z.string().trim().min(1) }),
@@ -144,12 +156,8 @@ function previewArtifact(project: StudioProject, selection: z.infer<typeof previ
 }
 
 function authoredDuration(project: StudioProject, selection: z.infer<typeof previewBodySchema>["selection"]): number {
-  const sceneDuration = (scene: StudioProject["scenes"][number]): number => {
-    if (scene.render.kind === "composition") return scene.render.duration ?? scene.render.composition.duration ?? 1000;
-    return scene.render.recipe.duration ?? 1000;
-  };
-  if (selection.kind === "scene") return sceneDuration(project.scenes.find((scene) => scene.id === selection.sceneId)!);
-  return project.scenes.reduce((total, scene) => total + sceneDuration(scene), 0);
+  if (selection.kind === "scene") return studioSceneDurationMs(project.scenes.find((scene) => scene.id === selection.sceneId)!);
+  return buildStudioTimeline(project).durationMs;
 }
 
 function previewResponse(workspaceRoot: string, file: StudioProjectFile, selection: z.infer<typeof previewBodySchema>["selection"]): Record<string, unknown> {
@@ -191,6 +199,7 @@ function errorResponse(error: unknown): { status: number; body: Record<string, u
   if (error instanceof StudioAnnotationError) return { status: error.message.startsWith("stale annotation change:") ? 409 : 400, body: { error: error.message } };
   if (error instanceof StudioAuthoringError) return { status: error.message.startsWith("stale authoring change:") ? 409 : 400, body: { error: error.message } };
   if (error instanceof StudioRecordingError) return { status: 400, body: { error: error.message } };
+  if (error instanceof StudioTimelineError) return { status: error.message.startsWith("stale timeline change:") ? 409 : 400, body: { error: error.message } };
   if (error instanceof StudioProjectValidationError) {
     return { status: 400, body: { error: error.message, issues: error.issues } };
   }
@@ -361,6 +370,17 @@ export async function startStudioServer(inputs: StudioServerInputs = {}): Promis
           expectedHeadRevisionId: body.expectedHeadRevisionId,
         });
         sendJson(res, 200, projectResponse(saveStudioProjectFile(workspaceRoot, body.path, result.project)));
+        return;
+      }
+      if (req.method === "POST" && url === "/api/timeline") {
+        const body = await readJsonBody(req, timelineBodySchema);
+        const current = openStudioProjectFile(workspaceRoot, body.path);
+        const result = applyStudioTimelineCommand(current.project, body.command, {
+          expectedHeadRevisionId: body.expectedHeadRevisionId,
+          author: { kind: "human" },
+        });
+        const saved = saveStudioProjectFile(workspaceRoot, body.path, result.project, result.project.updatedAt);
+        sendJson(res, 200, { ...projectResponse(saved), inverse: result.inverse });
         return;
       }
       if (req.method === "POST" && url === "/api/preview") {

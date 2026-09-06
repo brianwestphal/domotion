@@ -36,6 +36,11 @@ the last remembered view state. Scrubber reports `ready`, `loaded`, `state`, and
 normalization clamps it to the newly generated duration. Playback is
 intentionally not restored after regeneration.
 
+The protocol also accepts a bounded `seek` command for the currently loaded
+source. Studio's detailed timeline uses the same path to align block selection
+with whole-story absolute time or scene-local time; it does not reach into the
+iframe or implement a parallel playback clock.
+
 The embedded document is served from Studio's own loopback origin. Standalone
 Scrubber retains its file picker, crop/export tools, and existing URL contract;
 embedded mode only changes which controls are visible and how SVG is supplied.

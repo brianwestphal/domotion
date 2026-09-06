@@ -49,6 +49,10 @@ external runtime assets. macOS, Linux, and Windows are first-class platforms.
     timing, and state evidence. Required AI healing simplifies it into ordinary
     semantic Studio scenes; required AI review accepts or edits the candidate,
     and either stage pauses for clarification when intent is ambiguous.
+13. Studio projects expose one detailed absolute timeline over scenes, semantic
+    actions, cursor, overlays, transitions, treatments, annotations, and layer
+    animations. Pointer, keyboard, accessible controls, undo/redo, and AI use
+    the same explicit timing command; selection seeks the existing Scrubber.
 
 ## Current handbooks
 

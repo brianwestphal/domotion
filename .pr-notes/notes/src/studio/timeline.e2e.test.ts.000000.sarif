@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpsnswfap9zo7dv",
+          "message": {
+            "text": "The real Chromium workflow proves that selection seeks the embedded Scrubber, then keyboard move, pointer move, keyboard resize, undo, and redo all persist through the same timeline endpoint. The final revision count asserts that undo and redo are provenance-bearing project mutations rather than client-only state.",
+            "markdown": "The real Chromium workflow proves that selection seeks the embedded Scrubber, then keyboard move, pointer move, keyboard resize, undo, and redo all persist through the same timeline endpoint. The final revision count asserts that undo and redo are provenance-bearing project mutations rather than client-only state."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/timeline.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 65,
+                  "endLine": 109,
+                  "snippet": {
+                    "text": "  it(\"keeps selection in preview sync and commits pointer, keyboard, undo, and redo edits through one API\", async () => {\n    if (!available || page == null || server == null) return;\n    const errors: string[] = [];\n    page.on(\"pageerror\", (error) => errors.push(error.message));\n    await page.goto(server.url, { waitUntil: \"load\" });\n    await page.getByRole(\"heading\", { name: \"Timeline E2E\" }).waitFor();\n    await page.getByRole(\"region\", { name: \"Multitrack timeline\" }).waitFor();\n\n    const first = page.locator('[data-timeline-id=\"semantic:scene-opening:track-demo:event-start\"]');\n    await first.click();\n    const scrubber = page.frameLocator(\"[data-scrubber-frame]\");\n    await scrubber.locator(\".svg-host svg\").waitFor();\n    await expect.poll(() => scrubber.locator(\".time\").textContent()).toContain(\"0:00.10 / 0:01.20\");\n\n    const keyboardResponse = page.waitForResponse((response) => response.url().endsWith(\"/api/timeline\") && response.request().method() === \"POST\");\n    await first.press(\"ArrowRight\");\n    await keyboardResponse;\n    await expect.poll(() => openStudioProjectFile(root, \"timeline.studio.json\").project.scenes[0].tracks?.[0].events[0].atMs).toBe(150);\n    await expect.poll(() => page!.getByRole(\"button\", { name: \"Undo timeline\" }).isEnabled()).toBe(true);\n\n    const moved = page.locator('[data-timeline-id=\"semantic:scene-opening:track-demo:event-start\"]');\n    await moved.hover({ position: { x: 3, y: 15 } });\n    const box = await moved.boundingBox();\n    expect(box).not.toBeNull();\n    expect(box!.width).toBeGreaterThanOrEqual(24);\n    const pointerResponse = page.waitForResponse((response) => response.url().endsWith(\"/api/timeline\") && response.request().method() === \"POST\");\n    await page.mouse.down();\n    await page.mouse.move(box!.x + 11, box!.y + box!.height / 2);\n    await page.mouse.up();\n    await pointerResponse;\n    await expect.poll(() => openStudioProjectFile(root, \"timeline.studio.json\").project.scenes[0].tracks?.[0].events[0].atMs).toBe(250);\n    await expect.poll(() => page!.getByRole(\"button\", { name: \"Undo timeline\" }).isEnabled()).toBe(true);\n\n    const resized = page.locator('[data-timeline-id=\"semantic:scene-opening:track-demo:event-start\"]');\n    await resized.press(\"Alt+ArrowRight\");\n    await expect.poll(() => openStudioProjectFile(root, \"timeline.studio.json\").project.scenes[0].tracks?.[0].events[0].durationMs).toBe(150);\n\n    await page.getByRole(\"button\", { name: \"Undo timeline\" }).click();\n    await expect.poll(() => openStudioProjectFile(root, \"timeline.studio.json\").project.scenes[0].tracks?.[0].events[0].durationMs).toBe(100);\n    await page.getByRole(\"button\", { name: \"Redo timeline\" }).click();\n    await expect.poll(() => openStudioProjectFile(root, \"timeline.studio.json\").project.scenes[0].tracks?.[0].events[0].durationMs).toBe(150);\n\n    const persisted = openStudioProjectFile(root, \"timeline.studio.json\").project;\n    expect(persisted.review.revisions.filter((revision) => revision.metadata?.operation === \"studio.timeline.set-timing\")).toHaveLength(5);\n    expect(errors).toEqual([]);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/client.tsx"
+                },
+                "region": {
+                  "startLine": 465
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/scrubber/client.tsx"
+                },
+                "region": {
+                  "startLine": 1001
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2692"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "1046bc65e6efeee58a67e56ca8b3311b"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f136d9c1b5ec15abaa1a1da513e60d44eff8e539",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
