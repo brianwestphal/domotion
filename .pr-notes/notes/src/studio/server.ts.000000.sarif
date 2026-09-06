@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "warning",
+          "guid": "mtp7x7ukkoi95jvh",
+          "message": {
+            "text": "Project content is embedded in the initial HTML only after escaping every less-than sign and JavaScript line separator. A narrative title can legitimately contain closing-script text; emitting raw JSON here would let that data terminate the bootstrap script. The server test loads exactly that adversarial title and proves it remains escaped.",
+            "markdown": "Project content is embedded in the initial HTML only after escaping every less-than sign and JavaScript line separator. A narrative title can legitimately contain closing-script text; emitting raw JSON here would let that data terminate the bootstrap script. The server test loads exactly that adversarial title and proves it remains escaped."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/server.ts"
+                },
+                "region": {
+                  "startLine": 115,
+                  "endLine": 134,
+                  "snippet": {
+                    "text": "function scriptJson(value: unknown): string {\n  return JSON.stringify(value)\n    .replace(/</g, \"\\\\u003c\")\n    .replace(/\\u2028/g, \"\\\\u2028\")\n    .replace(/\\u2029/g, \"\\\\u2029\");\n}\n\nfunction shell(bootstrap: StudioBootstrap): string {\n  return `<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <meta name=\"color-scheme\" content=\"dark\">\n  <title>Domotion Studio</title>\n</head>\n<body>\n  <div id=\"app\"></div>\n  <script>window.__DOMOTION_STUDIO__=${scriptJson(bootstrap)};</script>\n  <script src=\"/client.js\"></script>"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "risk"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/app-projects.test.ts"
+                },
+                "region": {
+                  "startLine": 98
+                }
+              }
+            }
+          ],
+          "rank": 88,
+          "workItemUris": [
+            "DM-2687"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "d96d9c0abb39ac30dbb26975b83ec683"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "92407dac0b070486d20f7cb4d741636f1543417c",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

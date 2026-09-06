@@ -6,6 +6,7 @@
  *   domotion capture  <input> [options]   single-frame capture
  *   domotion animate  <config.json>       multi-frame animated capture
  *   domotion term     --cast <file>       terminal session → animated SVG (DM-1225)
+ *   domotion studio   [project.json]      standalone Studio authoring app
  *
  * `<input>` for `capture` may be:
  *   - a URL (`https://...`, `http://...`)
@@ -23,6 +24,7 @@ import { runTerm } from "./term.js";
 import { runTemplate } from "./template.js";
 import { runComposite } from "./composite.js";
 import { runStoryboard } from "./storyboard.js";
+import { runStudio } from "./studio.js";
 
 // Read the version from package.json at runtime rather than hardcoding it, so
 // `domotion --version` always matches the installed package (the literal had
@@ -41,6 +43,7 @@ Usage:
   domotion template <name> [--param …] -o out.svg
   domotion composite <config.json> [-o out.svg]
   domotion storyboard <config.json> [-o out.svg]
+  domotion studio [project.json] [--workspace <dir>]
   domotion --help | --version
 
 Commands:
@@ -59,6 +62,8 @@ Commands:
   storyboard Sequence distinct SCENES (template / capture / cast / svg) end-to-end
             into one animated SVG with an inter-scene transition between each
             (title card → demo → CTA). Run 'domotion storyboard --help'.
+  studio    Open the standalone Domotion Studio local app to create, inspect,
+            edit, validate, save, and reopen versioned Studio project files.
 
 capture options:
   -o, --output <path>      Output SVG path (default: stdout, or <input>.svg
@@ -317,6 +322,8 @@ async function main(): Promise<void> {
       await runComposite(rest);
     } else if (cmd === "storyboard") {
       await runStoryboard(rest);
+    } else if (cmd === "studio") {
+      await runStudio(rest);
     } else {
       process.stderr.write(`domotion: unknown command "${cmd}"\n\n`);
       process.stderr.write(HELP);

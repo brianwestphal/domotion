@@ -223,6 +223,16 @@ See `docs/239-studio-project-model.md`; the editor schema ships at
 | `StudioNarrative`, `StudioSemanticTarget`, `StudioSemanticEvent`, `StudioSemanticTrack`, `StudioScriptHook`, `StudioReviewHistory`, `StudioArtifact` | type | Narrative, intent, extension, review, and generated-artifact value types. |
 | `ImportStoryboardOptions` / `CompileStudioProjectOptions` / `StudioProjectValidationIssue` | type | Options and structured diagnostic companion types. |
 
+### Standalone Studio app
+
+`domotion-studio [project.json]` and `domotion studio [project.json]` launch the
+same dedicated local authoring application. `--workspace <dir>` bounds every
+file operation, `--port <n>` selects the loopback port, and `--no-open` leaves
+browser navigation to the caller. The app creates, validates, atomically saves,
+opens, and reopens versioned Studio JSON while showing high-level narrative,
+ordered scene, generation, and review state. See
+`docs/240-studio-application-shell.md`.
+
 ## Declarative animate pipeline
 
 The JSON-config-driven animation pipeline that powers the `domotion animate`

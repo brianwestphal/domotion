@@ -27,6 +27,9 @@ external runtime assets. macOS, Linux, and Windows are first-class platforms.
    narrative/scene/track/layer/review identities survive regeneration; SVG and
    review video are generated artifacts with revision provenance. Static Studio
    compilation lowers to the existing composite/storyboard pipelines.
+8. Domotion Studio is a separate local application. Its file UI is confined to
+   one workspace, validates before atomic saves, and presents exact model errors;
+   SVG Scrubber remains a focused, independently usable playback/review tool.
 
 ## Current handbooks
 
@@ -39,6 +42,8 @@ external runtime assets. macOS, Linux, and Windows are first-class platforms.
 
 Studio's cross-domain authoring contract is
 [the versioned Studio project model](../239-studio-project-model.md).
+Its first application surface is the
+[standalone Studio shell](../240-studio-application-shell.md).
 
 Use the generated [manifest](manifest.json) to retrieve records by stable ID or
 code path. Use [domain packets](packets/) for a bounded list of current and

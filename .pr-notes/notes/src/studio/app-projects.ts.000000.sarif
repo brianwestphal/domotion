@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtp7o4ob9kk88jju",
+          "message": {
+            "text": "Studio file paths are resolved beneath one server-owned workspace before any read or write. The injected path API makes the same escape rule testable under POSIX and Windows semantics; the client never supplies or widens the workspace root. Saves then validate and replace through a sibling temporary file so an invalid or interrupted write cannot truncate the last valid project.",
+            "markdown": "Studio file paths are resolved beneath one server-owned workspace before any read or write. The injected path API makes the same escape rule testable under POSIX and Windows semantics; the client never supplies or widens the workspace root. Saves then validate and replace through a sibling temporary file so an invalid or interrupted write cannot truncate the last valid project."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/app-projects.ts"
+                },
+                "region": {
+                  "startLine": 33,
+                  "endLine": 50,
+                  "snippet": {
+                    "text": "/** Resolve a UI-supplied project path without letting it escape the workspace. */\nexport function resolveStudioWorkspacePath(\n  workspaceRoot: string,\n  requestedPath: string,\n  pathApi: StudioPathApi = nativePath,\n): string {\n  const requested = requestedPath.trim();\n  if (requested === \"\") throw new Error(\"project path is required\");\n  const root = pathApi.resolve(workspaceRoot);\n  const resolved = pathApi.resolve(root, requested);\n  const relative = pathApi.relative(root, resolved);\n  if (relative === \"..\" || relative.startsWith(`..${pathApi.sep}`) || pathApi.isAbsolute(relative)) {\n    throw new Error(`project path must stay inside the Studio workspace: ${root}`);\n  }\n  if (pathApi.extname(resolved).toLowerCase() !== \".json\") {\n    throw new Error(\"Studio project files must use a .json extension\");\n  }\n  return resolved;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/app-projects.ts"
+                },
+                "region": {
+                  "startLine": 142
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/server.ts"
+                },
+                "region": {
+                  "startLine": 173
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2687"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "2463ef04ac3d5d58d59538059c95e339"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "92407dac0b070486d20f7cb4d741636f1543417c",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

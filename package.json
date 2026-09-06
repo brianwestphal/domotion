@@ -20,7 +20,8 @@
     "svg-to-video": "dist/cli/svg-to-video.js",
     "svg-to-image": "dist/cli/svg-to-image.js",
     "svg-review": "dist/cli/review.js",
-    "svg-scrubber": "dist/cli/scrubber.js"
+    "svg-scrubber": "dist/cli/scrubber.js",
+    "domotion-studio": "dist/cli/studio.js"
   },
   "files": [
     "dist",
@@ -36,6 +37,7 @@
     "build:capture-script": "node scripts/build-capture-script.mjs",
     "build:review-client": "node scripts/build-review-client.mjs",
     "build:scrubber-client": "node scripts/build-scrubber-client.mjs",
+    "build:studio-client": "node scripts/build-studio-client.mjs",
     "docs:index:generate": "node scripts/documentation-index.mjs --write",
     "docs:index:check": "node scripts/documentation-index.mjs",
     "build:animate-schema": "tsx scripts/generate-animate-schema.ts",
@@ -49,8 +51,8 @@
     "unicode:vertical-orientation:generate": "node tools/generate-vertical-orientation-ranges.mjs",
     "unicode:vertical-orientation:check": "node tools/generate-vertical-orientation-ranges.mjs --check",
     "unicode:vertical-orientation:oracle": "node --import tsx tools/vertical-orientation-oracle.ts",
-    "build": "npm run build:capture-script && npm run build:review-client && npm run build:scrubber-client && npm run build:animate-schema && npm run build:composite-schema && npm run build:storyboard-schema && npm run build:studio-project-schema && tsc -p tsconfig.build.json",
-    "typecheck": "npm run build:capture-script && npm run build:review-client && npm run build:scrubber-client && tsc --noEmit",
+    "build": "npm run build:capture-script && npm run build:review-client && npm run build:scrubber-client && npm run build:studio-client && npm run build:animate-schema && npm run build:composite-schema && npm run build:storyboard-schema && npm run build:studio-project-schema && tsc -p tsconfig.build.json",
+    "typecheck": "npm run build:capture-script && npm run build:review-client && npm run build:scrubber-client && npm run build:studio-client && tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
     "capture": "npm run build:capture-script && tsx src/cli/index.ts",
     "test": "npm run build:capture-script && vitest run",

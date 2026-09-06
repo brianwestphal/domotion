@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtp7oezh5o82ntb6",
+          "message": {
+            "text": "Studio launches as its own local application instead of extending SVG Scrubber. A supplied project narrows the default workspace to its directory, while both the dedicated binary and the main CLI subcommand enter this same server/client surface. Scrubber therefore remains independently usable and later preview integration can reuse it through an explicit boundary.",
+            "markdown": "Studio launches as its own local application instead of extending SVG Scrubber. A supplied project narrows the default workspace to its directory, while both the dedicated binary and the main CLI subcommand enter this same server/client surface. Scrubber therefore remains independently usable and later preview integration can reuse it through an explicit boundary."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/studio.ts"
+                },
+                "region": {
+                  "startLine": 41,
+                  "endLine": 52,
+                  "snippet": {
+                    "text": "  const suppliedProject = positionals[0] == null ? null : resolve(positionals[0]);\n  const workspaceRoot = resolve(values.workspace ?? (suppliedProject == null ? process.cwd() : dirname(suppliedProject)));\n  const initialProjectPath = suppliedProject == null ? undefined : basename(suppliedProject);\n  const server = await startStudioServer({\n    port: parsePort(values.port),\n    workspaceRoot,\n    initialProjectPath,\n    log: (message) => process.stderr.write(`${message}\\n`),\n  });\n\n  process.stdout.write(`\\n  Domotion Studio running at ${server.url}\\n  Workspace: ${server.workspaceRoot}\\n  Press Ctrl-C to stop.\\n\\n`);\n  if (!values[\"no-open\"]) await openInBrowser(server.url);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/client.tsx"
+                },
+                "region": {
+                  "startLine": 123
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/server.ts"
+                },
+                "region": {
+                  "startLine": 139
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2687"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "63727e3d08deadb124756771fd19884d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "92407dac0b070486d20f7cb4d741636f1543417c",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -137,6 +137,9 @@ and optional `{ projectDir, log }`; `compileStudioProjectFile` derives
 `projectDir` from the project path. Static direct scenes and recursive
 compositions compile to one SVG through the shipped storyboard compositor.
 
+The dedicated local authoring surface is specified by the
+[standalone Studio application shell](240-studio-application-shell.md).
+
 ## Published JSON Schema and tests
 
 `schemas/domotion-studio-project.schema.json` is generated from

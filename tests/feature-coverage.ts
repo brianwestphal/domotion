@@ -541,6 +541,13 @@ export const FEATURES: FeatureEntry[] = [
       "src/studio/project.e2e.test.ts",
     ],
   },
+  {
+    id: "studio.application-shell",
+    behavior: "Launch a separate workspace-bounded Studio app that creates, opens, edits, validates, atomically saves, and reopens versioned project JSON while surfacing narrative, ordered scenes, generation state, and actionable issues.",
+    doc: "docs/240-studio-application-shell.md",
+    verbs: ["domotion-studio"],
+    tests: ["src/studio/app-projects.test.ts", "src/studio/server.e2e.test.ts"],
+  },
 
   // ── Templates ──────────────────────────────────────────────────────────
   {

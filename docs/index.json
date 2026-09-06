@@ -7720,6 +7720,40 @@
       }
     },
     {
+      "file": "240-studio-application-shell.md",
+      "metadata": {
+        "id": "requirements/studio-application-shell",
+        "title": "Standalone Domotion Studio application shell",
+        "kind": "contract",
+        "status": "current",
+        "owners": [
+          "studio",
+          "ui"
+        ],
+        "platforms": [
+          "macos",
+          "linux",
+          "windows"
+        ],
+        "tickets": [
+          "DM-2687"
+        ],
+        "code": [
+          "src/cli/studio.ts",
+          "src/studio/app-projects.ts",
+          "src/studio/server.ts",
+          "src/studio/client.tsx",
+          "scripts/build-studio-client.mjs",
+          "src/studio/app-projects.test.ts",
+          "src/studio/server.e2e.test.ts"
+        ],
+        "aliases": [
+          "docs/240-studio-application-shell.md",
+          "doc-240"
+        ]
+      }
+    },
+    {
       "file": "handbook/animation-and-interaction.md",
       "metadata": {
         "id": "handbook/animation-and-interaction",
@@ -8669,6 +8703,9 @@
     ],
     "239": [
       "requirements/studio-project-model"
+    ],
+    "240": [
+      "requirements/studio-application-shell"
     ],
     "01": [
       "requirements/fidelity"
