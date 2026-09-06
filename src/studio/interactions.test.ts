@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { compileStudioSemanticTracks, StudioInteractionError } from "./interactions.js";
+import type { Locator, Page } from "@playwright/test";
+import { describe, expect, it, vi } from "vitest";
+import { compileStudioSemanticTracks, runStudioSemanticStep, StudioInteractionError, type StudioSemanticStep } from "./interactions.js";
 
 const click = (id: string, atMs: number) => ({
   id,
@@ -71,5 +72,42 @@ describe("Studio semantic interaction compilation (DM-2683)", () => {
       expect(error).toBeInstanceOf(StudioInteractionError);
       expect(error).toMatchObject({ path: "$.tracks[1].events[0].id", eventId: "same" });
     }
+  });
+
+  it.each([
+    { state: "attached" as const, initialCount: 0 },
+    { state: "detached" as const, initialCount: 1 },
+    { state: "detached" as const, initialCount: 0 },
+  ])("lets a $state lifecycle wait start with $initialCount matches", async ({ state, initialCount }) => {
+    const locator = {
+      count: vi.fn(async () => initialCount),
+      waitFor: vi.fn(async () => {}),
+    } as unknown as Locator;
+    const page = { locator: vi.fn(() => locator) } as unknown as Page;
+    const step: StudioSemanticStep = {
+      path: "$.scenes[0].tracks[0].events[0]",
+      trackId: "lifecycle",
+      event: { id: state, atMs: 0, kind: "waitForState", target: { domId: "target" }, state, timeoutMs: 250 },
+    };
+
+    await runStudioSemanticStep(page, step);
+
+    expect(locator.waitFor).toHaveBeenCalledWith({ state, timeout: 250 });
+  });
+
+  it("rejects an ambiguous lifecycle target at its authored target path", async () => {
+    const locator = { count: vi.fn(async () => 2) } as unknown as Locator;
+    const page = { locator: vi.fn(() => locator) } as unknown as Page;
+    const step: StudioSemanticStep = {
+      path: "$.scenes[4].tracks[1].events[2]",
+      trackId: "lifecycle",
+      event: { id: "ambiguous-attach", atMs: 0, kind: "waitForState", target: { selector: ".duplicate" }, state: "attached" },
+    };
+
+    await expect(runStudioSemanticStep(page, step)).rejects.toMatchObject({
+      path: "$.scenes[4].tracks[1].events[2].target",
+      eventId: "ambiguous-attach",
+      message: expect.stringContaining("ambiguous (2 matches)"),
+    });
   });
 });

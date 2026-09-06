@@ -550,7 +550,7 @@ export const FEATURES: FeatureEntry[] = [
   },
   {
     id: "studio.semantic-interactions",
-    behavior: "Validate and stable-merge scene-relative semantic interaction tracks, resolve accessibility-first targets exactly once, and execute click, hover, type, scroll, drag, waits, and explicitly authorized hooks through Playwright.",
+    behavior: "Validate and stable-merge scene-relative semantic interaction tracks, require exact accessibility-first targets for actions, observe zero-to-one and one-to-zero attachment lifecycle waits without weakening ambiguity failures, and execute click, hover, type, scroll, drag, waits, and explicitly authorized hooks through Playwright.",
     doc: "docs/241-studio-semantic-interactions.md",
     exports: ["StudioInteractionError", "compileStudioSemanticTracks", "runStudioSemanticPlan", "runStudioSemanticStep", "runStudioSemanticTracks"],
     tests: ["src/studio/interactions.test.ts", "src/studio/interactions.e2e.test.ts"],

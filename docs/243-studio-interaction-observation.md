@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["studio","capture"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-2684"]
+tickets: ["DM-2684","DM-2698"]
 code: ["src/studio/interaction-observer.ts","src/studio/interaction-observer.e2e.test.ts","src/studio/interactions.ts","src/cli/hover-detect.ts","src/cli/mutation-detect.ts"]
 aliases: ["docs/243-studio-interaction-observation.md","doc-243"]
 ---
@@ -23,7 +23,10 @@ state and does not prescribe an animation before seeing the page.
 runs the caller-owned action, waits for a bounded quiet window, samples two
 animation frames, and returns structured evidence. `observeStudioSemanticStep`
 adds accessibility-first resolution for a compiled Studio step and correlates a
-drag destination as a related target.
+drag destination as a related target. Attachment-lifecycle waits observe from
+the document root because the authored target may not exist before `attached`
+or may cease to exist during `detached`; the executor independently retains the
+strict semantic locator and rejects ambiguity.
 
 The observer reads the whole document and existing open shadow roots up to a
 configurable node limit. It records:
@@ -77,4 +80,5 @@ The Chromium E2E corpus covers CSS-only hover/pseudo/transition feedback,
 synchronous and asynchronous JavaScript changes, scrolling, layout shift,
 pre-existing ambient churn, no-op actions, marker filtering, cleanup,
 page-owned observer/event equivalence, and canonical stable references across
-repeat runs.
+repeat runs. Lifecycle coverage additionally proves initially absent attachment,
+existing-target detachment, mutation evidence, and complete observer cleanup.

@@ -104,6 +104,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtqgd7k7ond7azxf",
+          "message": {
+            "text": "Attachment lifecycle waits deliberately use a private cardinality exception and bypass temporary DOM marking. A missing node cannot be marked before attached, and a removed marker cannot identify detached; the authored Playwright locator owns the wait while the public resolver and locator strictness continue to reject ambiguity.",
+            "markdown": "Attachment lifecycle waits deliberately use a private cardinality exception and bypass temporary DOM marking. A missing node cannot be marked before attached, and a removed marker cannot identify detached; the authored Playwright locator owns the wait while the public resolver and locator strictness continue to reject ambiguity."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/interactions.ts"
+                },
+                "region": {
+                  "startLine": 212,
+                  "endLine": 221,
+                  "snippet": {
+                    "text": "  if (event.kind === \"waitForState\" && (event.state === \"attached\" || event.state === \"detached\")) {\n    const targetPath = `${step.path}.target`;\n    const locator = await resolveStudioSemanticTargetWithCardinality(page, eventTarget, targetPath, event.id, { allowMissing: true });\n    try {\n      await locator.waitFor({ state: event.state, timeout: event.timeoutMs ?? 5_000 });\n    } catch (error) {\n      throw new StudioInteractionError(targetPath, error instanceof Error ? error.message : String(error), event.id, { cause: error });\n    }\n    return;\n  }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/interaction-observer.ts"
+                },
+                "region": {
+                  "startLine": 511
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2698"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4fccc76b8d9e8ec2f42af4201f48174c"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c48e0001a4b94a6f1a65af46fecd59674ba197f8",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

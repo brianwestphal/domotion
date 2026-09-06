@@ -96,12 +96,12 @@ function locatorForTarget(page: Page, target: StudioSemanticTarget, path: string
   return page.locator(target.selector!);
 }
 
-/** Resolve one authored target against the live DOM and require one exact match. */
-export async function resolveStudioSemanticTarget(
+async function resolveStudioSemanticTargetWithCardinality(
   page: Page,
   target: StudioSemanticTarget,
   path: string,
   eventId: string,
+  options: { allowMissing?: boolean } = {},
 ): Promise<Locator> {
   const locator = locatorForTarget(page, target, path, eventId);
   let count: number;
@@ -110,13 +110,23 @@ export async function resolveStudioSemanticTarget(
   } catch (error) {
     throw new StudioInteractionError(path, `could not resolve ${targetDescription(target)}: ${error instanceof Error ? error.message : String(error)}`, eventId, { cause: error });
   }
-  if (count === 0) {
+  if (count === 0 && options.allowMissing !== true) {
     throw new StudioInteractionError(path, `${targetDescription(target)} matched no element; check the live accessible role/name or add an explicit selector fallback`, eventId);
   }
   if (count > 1) {
     throw new StudioInteractionError(path, `${targetDescription(target)} is ambiguous (${count} matches); add an exact accessible name or a unique stable identifier`, eventId);
   }
   return locator;
+}
+
+/** Resolve one authored target against the live DOM and require one exact match. */
+export async function resolveStudioSemanticTarget(
+  page: Page,
+  target: StudioSemanticTarget,
+  path: string,
+  eventId: string,
+): Promise<Locator> {
+  return resolveStudioSemanticTargetWithCardinality(page, target, path, eventId);
 }
 
 const MARKER_ATTRIBUTE = "data-domotion-studio-target";
@@ -198,6 +208,16 @@ async function runTargetedEvent(
   const eventTarget = event.target;
   if (eventTarget == null) {
     throw new StudioInteractionError(step.path, "internal plan error: positional scroll reached the targeted executor", event.id);
+  }
+  if (event.kind === "waitForState" && (event.state === "attached" || event.state === "detached")) {
+    const targetPath = `${step.path}.target`;
+    const locator = await resolveStudioSemanticTargetWithCardinality(page, eventTarget, targetPath, event.id, { allowMissing: true });
+    try {
+      await locator.waitFor({ state: event.state, timeout: event.timeoutMs ?? 5_000 });
+    } catch (error) {
+      throw new StudioInteractionError(targetPath, error instanceof Error ? error.message : String(error), event.id, { cause: error });
+    }
+    return;
   }
   const target = await markTarget(page, eventTarget, `${step.path}.target`, event.id);
   try {

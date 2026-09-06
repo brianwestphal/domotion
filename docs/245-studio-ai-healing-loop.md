@@ -90,6 +90,7 @@ state wait, ambiguous alternatives, clarification/resume, unrecoverable intent,
 successful recapture, generated artifact revision provenance, AI review, and
 final human handoff.
 
-`waitForState: attached` for an initially absent target remains a separate
-semantic executor defect tracked by DM-2698; this loop neither hides nor works
-around it.
+Attachment-lifecycle waits can begin without a live target and retain exact
+semantic ambiguity failures. Healing therefore receives a failure only when the
+authored locator remains unresolved through its timeout or becomes ambiguous,
+not merely because the target was absent at the start of the wait.

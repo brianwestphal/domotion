@@ -94,4 +94,43 @@ describe("Studio semantic interaction browser execution (DM-2683)", () => {
       events: [{ id: "script", atMs: 0, kind: "scriptHook", hookId: "unsafe" }],
     }])).rejects.toThrow('script hook "unsafe" requires an explicit runHook handler');
   });
+
+  it("waits across attachment lifecycle changes while preserving exact-match failures", async () => {
+    if (!available || page == null) return;
+    await page.setContent(`<!doctype html>
+      <div id="departing">Remove me</div>
+      <script>
+        setTimeout(() => {
+          const late = document.createElement("div");
+          late.id = "late";
+          late.textContent = "Ready";
+          document.body.append(late);
+        }, 40);
+        setTimeout(() => document.querySelector("#departing")?.remove(), 80);
+      </script>`);
+
+    await runStudioSemanticTracks(page, [{
+      id: "lifecycle",
+      kind: "semantic-interactions",
+      events: [
+        { id: "attach", atMs: 0, kind: "waitForState", target: { domId: "late" }, state: "attached", timeoutMs: 1_000 },
+        { id: "detach", atMs: 0, kind: "waitForState", target: { domId: "departing" }, state: "detached", timeoutMs: 1_000 },
+      ],
+    }], { path: "$.scenes[0].tracks" });
+
+    expect(await page.locator("#late").count()).toBe(1);
+    expect(await page.locator("#departing").count()).toBe(0);
+    expect(await page.locator("[data-domotion-studio-target]").count()).toBe(0);
+
+    await page.setContent('<div class="duplicate"></div><div class="duplicate"></div>');
+    await expect(runStudioSemanticTracks(page, [{
+      id: "ambiguous-lifecycle",
+      kind: "semantic-interactions",
+      events: [{ id: "attach", atMs: 0, kind: "waitForState", target: { selector: ".duplicate" }, state: "attached", timeoutMs: 50 }],
+    }], { path: "$.scenes[2].tracks" })).rejects.toMatchObject({
+      path: "$.scenes[2].tracks[0].events[0].target",
+      eventId: "attach",
+      message: expect.stringContaining("ambiguous (2 matches)"),
+    });
+  });
 });

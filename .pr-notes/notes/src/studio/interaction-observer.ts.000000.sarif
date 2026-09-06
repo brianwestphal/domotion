@@ -106,6 +106,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtqgbayjas63gfm4",
+          "message": {
+            "text": "Document-root observation spans both sides of the lifecycle transition without changing target execution semantics. Blink revision 7d859f271c notifies mutation observers during child removal before disconnection in external/chromium/thirdparty/blink/renderer/core/dom/containernode.cc; the observer therefore captures insertion/removal while the linked executor keeps exact authored targeting.",
+            "markdown": "Document-root observation spans both sides of the lifecycle transition without changing target execution semantics. Blink revision 7d859f271c notifies mutation observers during child removal before disconnection in external/chromium/third_party/blink/renderer/core/dom/container_node.cc; the observer therefore captures insertion/removal while the linked executor keeps exact authored targeting."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/interaction-observer.ts"
+                },
+                "region": {
+                  "startLine": 511,
+                  "endLine": 521,
+                  "snippet": {
+                    "text": "  const observesAttachmentLifecycle = event.kind === \"waitForState\" && (event.state === \"attached\" || event.state === \"detached\");\n  let target = page.locator(\"html\");\n  if (\"target\" in event && event.target != null) {\n    const resolved = await resolveStudioSemanticTarget(page, event.target, `${step.path}.target`, event.id, {\n      allowMissing: observesAttachmentLifecycle,\n    });\n    // An attachment wait cannot anchor observation to the target: it may not\n    // exist yet, and a detached target may disappear during the action. The\n    // document root keeps both lifecycle transitions inside one observer while\n    // the executor retains the authored locator and its strict cardinality.\n    if (!observesAttachmentLifecycle) target = resolved;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/interactions.ts"
+                },
+                "region": {
+                  "startLine": 203
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2698"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "5401c099698dd8cc49365d27fbaf67a5"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c48e0001a4b94a6f1a65af46fecd59674ba197f8",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

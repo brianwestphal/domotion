@@ -508,9 +508,15 @@ export async function observeStudioSemanticStep(
   options: Omit<ObserveStudioInteractionOptions, "eventId" | "path" | "target" | "relatedTargets"> = {},
 ): Promise<StudioInteractionEvidence> {
   const event = step.event;
-  const target = "target" in event && event.target != null
-    ? await resolveStudioSemanticTarget(page, event.target, `${step.path}.target`, event.id)
-    : page.locator("html");
+  const observesAttachmentLifecycle = event.kind === "waitForState" && (event.state === "attached" || event.state === "detached");
+  let target = page.locator("html");
+  if ("target" in event && event.target != null && !observesAttachmentLifecycle) {
+    target = await resolveStudioSemanticTarget(page, event.target, `${step.path}.target`, event.id);
+  }
+  // An attachment wait cannot anchor observation to the target: it may not
+  // exist yet, and a detached target may disappear during the action. The
+  // document root keeps both lifecycle transitions inside one observer while
+  // the executor retains the authored locator and its strict cardinality.
   const relatedTargets: Locator[] = [];
   if (event.kind === "drag" && "target" in event.to) {
     relatedTargets.push(await resolveStudioSemanticTarget(page, event.to.target, `${step.path}.to.target`, event.id));

@@ -1,6 +1,7 @@
 import { chromium, type Browser, type Page } from "@playwright/test";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { observeStudioInteraction, type StudioInteractionEvidence } from "./interaction-observer.js";
+import { observeStudioInteraction, observeStudioSemanticStep, type StudioInteractionEvidence } from "./interaction-observer.js";
+import { runStudioSemanticStep, type StudioSemanticStep } from "./interactions.js";
 
 const fixture = `<!doctype html><style>
   body{margin:0;font:16px sans-serif}.row{display:flex;gap:20px;padding:24px}
@@ -116,10 +117,14 @@ describe("Studio proactive interaction observation (DM-2684)", () => {
   it("preserves page-observed behavior and emits canonical stable references across runs", async () => {
     if (!available) return;
     const run = async (observed: boolean): Promise<{ audit: string[]; evidence?: StudioInteractionEvidence }> => {
-      // Canonical evidence assumes the same browser input state. Reset the
-      // real pointer away from the target before installing the new document.
-      await page!.mouse.move(799, 499);
+      // Canonical evidence assumes the same browser input state. Replacing the
+      // document under a stationary pointer can defer its synthetic mouseover
+      // until the next movement, so move within the new document and let that
+      // lifecycle settle before observation starts.
       await page!.setContent(fixture);
+      await page!.mouse.move(798, 499);
+      await page!.mouse.move(799, 499);
+      await page!.waitForTimeout(0);
       await page!.evaluate(() => {
         const state = window as unknown as { audit: string[] };
         state.audit = [];
@@ -147,5 +152,46 @@ describe("Studio proactive interaction observation (DM-2684)", () => {
       signals: evidence?.signals.map(({ phase, type, targetRef }) => ({ phase, type, targetRef })),
     });
     expect(canonical(first.evidence)).toEqual(canonical(second.evidence));
+  });
+
+  it("observes initially missing attachment targets and existing targets that detach", async () => {
+    if (!available || page == null) return;
+    const observeLifecycle = async (step: StudioSemanticStep): Promise<StudioInteractionEvidence> => observeStudioSemanticStep(
+      page!,
+      step,
+      () => runStudioSemanticStep(page!, step),
+      { baselineMs: 0, debounceMs: 20, settleMs: 300 },
+    );
+
+    await page.setContent(`<!doctype html><script>
+      setTimeout(() => {
+        const late = document.createElement("div");
+        late.id = "late";
+        late.textContent = "Ready";
+        document.body.append(late);
+      }, 40);
+    </script>`);
+    const attachStep: StudioSemanticStep = {
+      path: "$.scenes[0].tracks[0].events[0]",
+      trackId: "lifecycle",
+      event: { id: "attach", atMs: 0, kind: "waitForState", target: { domId: "late" }, state: "attached", timeoutMs: 1_000 },
+    };
+    const attached = await observeLifecycle(attachStep);
+    expect(attached.summary.addedNodes).toBeGreaterThan(0);
+    expect(attached.changes.some((change) => change.ref.includes("#late") && change.reasons.includes("added"))).toBe(true);
+
+    await page.setContent(`<!doctype html><div id="departing">Remove me</div><script>
+      setTimeout(() => document.querySelector("#departing")?.remove(), 40);
+    </script>`);
+    const detachStep: StudioSemanticStep = {
+      path: "$.scenes[0].tracks[0].events[1]",
+      trackId: "lifecycle",
+      event: { id: "detach", atMs: 0, kind: "waitForState", target: { domId: "departing" }, state: "detached", timeoutMs: 1_000 },
+    };
+    const detached = await observeLifecycle(detachStep);
+    expect(detached.summary.removedNodes).toBeGreaterThan(0);
+    expect(detached.changes.some((change) => change.ref.includes("#departing") && change.reasons.includes("removed"))).toBe(true);
+    expect(await page.locator("[data-domotion-studio-target]").count()).toBe(0);
+    expect(await page.evaluate(() => "__domotionStudioInteractionObserverV1" in globalThis)).toBe(false);
   });
 });

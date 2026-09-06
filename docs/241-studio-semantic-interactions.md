@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["studio","animation"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-2683"]
+tickets: ["DM-2683","DM-2698"]
 code: ["src/studio/interactions.ts","src/studio/interactions.test.ts","src/studio/interactions.e2e.test.ts","src/studio/project-schema.ts"]
 aliases: ["docs/241-studio-semantic-interactions.md","doc-241"]
 ---
@@ -43,10 +43,14 @@ Targets resolve in this priority order:
 
 When a target declares more than one strategy, the first applicable semantic
 strategy wins. A standalone `name` is invalid at execution because accessible
-names need a role; use `label` or `text` instead. Every target must resolve to
-exactly one live element. Zero matches, ambiguity, invalid selectors, hidden drag
-sources, schema failures, and Playwright failures become `StudioInteractionError`
-with the authored path and event ID.
+names need a role; use `label` or `text` instead. Actionable targets must resolve
+to exactly one live element. Attachment-lifecycle waits are the sole cardinality
+exception: `attached` may begin at zero matches, and `detached` treats zero as an
+already-satisfied state. Both still reject multiple matches before waiting, and
+Playwright's strict locator enforces the same rule if the DOM becomes ambiguous
+during the wait. Zero actionable matches, ambiguity, invalid selectors, hidden
+drag sources, schema failures, and Playwright failures become
+`StudioInteractionError` with the authored target path and event ID.
 
 For actions already represented by `AnimateAction`, execution reuses
 `runActions`. A unique element is temporarily stamped with
@@ -72,6 +76,9 @@ semantic executor around the same live action.
 - `drag` accepts a semantic destination or absolute pointer position.
 - `waitForState` supports attachment, visibility, enabled/disabled,
   checked/unchecked, and substring text states with an explicit timeout.
+  Attachment and detachment waits operate on the stable semantic locator rather
+  than a temporary marker, so they can span zero-to-one and one-to-zero DOM
+  transitions.
 - `scriptHook` never imports or evaluates project text. The caller must provide
   `runHook`; otherwise execution fails at the hook event path.
 
@@ -81,7 +88,9 @@ Unit tests cover stable merging, duration calculation, duplicate identities,
 out-of-order and overlapping timing, required text-wait values, and structured
 paths. The Chromium E2E executes every event kind against a real DOM, verifies
 accessibility-first targeting and authored overrides, exercises ambiguity and
-hook refusal, and asserts that temporary instrumentation is removed.
+hook refusal, waits for delayed attachment and detachment in real Chromium, and
+asserts that temporary instrumentation is removed. An ambiguous lifecycle wait
+retains its exact authored target path.
 
 This layer makes no independent layout, font, glyph, or paint decision. The
 browser remains the authority for DOM state, accessibility lookup, hit testing,

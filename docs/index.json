@@ -7771,7 +7771,8 @@
           "windows"
         ],
         "tickets": [
-          "DM-2683"
+          "DM-2683",
+          "DM-2698"
         ],
         "code": [
           "src/studio/interactions.ts",
@@ -7834,7 +7835,8 @@
           "windows"
         ],
         "tickets": [
-          "DM-2684"
+          "DM-2684",
+          "DM-2698"
         ],
         "code": [
           "src/studio/interaction-observer.ts",

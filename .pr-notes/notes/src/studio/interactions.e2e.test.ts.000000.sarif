@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtqgbbusn6i485vk",
+          "message": {
+            "text": "Real Chromium proves the full zero-to-one and one-to-zero sequence, rejects two initial matches at the exact target path, and leaves no target marker behind. The companion observer test verifies mutation evidence plus page-global cleanup.",
+            "markdown": "Real Chromium proves the full zero-to-one and one-to-zero sequence, rejects two initial matches at the exact target path, and leaves no target marker behind. The companion observer test verifies mutation evidence plus page-global cleanup."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/interactions.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 98,
+                  "endLine": 136,
+                  "snippet": {
+                    "text": "  it(\"waits across attachment lifecycle changes while preserving exact-match failures\", async () => {\n    if (!available || page == null) return;\n    await page.setContent(`<!doctype html>\n      <div id=\"departing\">Remove me</div>\n      <script>\n        setTimeout(() => {\n          const late = document.createElement(\"div\");\n          late.id = \"late\";\n          late.textContent = \"Ready\";\n          document.body.append(late);\n        }, 40);\n        setTimeout(() => document.querySelector(\"#departing\")?.remove(), 80);\n      </script>`);\n\n    await runStudioSemanticTracks(page, [{\n      id: \"lifecycle\",\n      kind: \"semantic-interactions\",\n      events: [\n        { id: \"attach\", atMs: 0, kind: \"waitForState\", target: { domId: \"late\" }, state: \"attached\", timeoutMs: 1_000 },\n        { id: \"detach\", atMs: 0, kind: \"waitForState\", target: { domId: \"departing\" }, state: \"detached\", timeoutMs: 1_000 },\n      ],\n    }], { path: \"$.scenes[0].tracks\" });\n\n    expect(await page.locator(\"#late\").count()).toBe(1);\n    expect(await page.locator(\"#departing\").count()).toBe(0);\n    expect(await page.locator(\"[data-domotion-studio-target]\").count()).toBe(0);\n\n    await page.setContent('<div class=\"duplicate\"></div><div class=\"duplicate\"></div>');\n    await expect(runStudioSemanticTracks(page, [{\n      id: \"ambiguous-lifecycle\",\n      kind: \"semantic-interactions\",\n      events: [{ id: \"attach\", atMs: 0, kind: \"waitForState\", target: { selector: \".duplicate\" }, state: \"attached\", timeoutMs: 50 }],\n    }], { path: \"$.scenes[2].tracks\" })).rejects.toMatchObject({\n      path: \"$.scenes[2].tracks[0].events[0].target\",\n      eventId: \"attach\",\n      message: expect.stringContaining(\"ambiguous (2 matches)\"),\n    });\n  });\n});"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/interaction-observer.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 153
+                }
+              }
+            }
+          ],
+          "rank": 85,
+          "workItemUris": [
+            "DM-2698"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "689b036d8f1ff158481a2b6c769280e1"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c48e0001a4b94a6f1a65af46fecd59674ba197f8",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

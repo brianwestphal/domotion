@@ -33,8 +33,10 @@ external runtime assets. macOS, Linux, and Windows are first-class platforms.
 9. Studio replay failures and generated candidates are always routed through
    explicit application-owned AI healing and review boundaries. Automatic edits
    append evidence-backed revisions; material ambiguity pauses for clarification,
-   and only an AI-accepted candidate proceeds to human review. This phase has no
-   user-facing iteration, time, token, or cost budget management.
+   and only an AI-accepted candidate proceeds to human review. Semantic attachment
+   waits may observe an initially absent target, while ambiguity remains an exact
+   authored-path failure. This phase has no user-facing iteration, time, token,
+   or cost budget management.
 10. Studio visual review operates on rendered video, not authored intent alone.
     AI findings cover the complete pacing/cursor/readability/transition/narrative/
     brand/polish rubric, separate evidence from inference and recommendations,
