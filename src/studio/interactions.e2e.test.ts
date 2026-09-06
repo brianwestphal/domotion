@@ -13,7 +13,7 @@ const fixture = `<!doctype html>
 <div class="spacer"></div><div data-testid="scroll-destination">Destination</div>
 <script>
   window.events=[];
-  document.querySelector('[aria-label="Launch demo"]').addEventListener('click',e=>window.events.push('click:'+e.button+':'+e.detail));
+  document.querySelector('[aria-label="Launch demo"]').addEventListener('auxclick',e=>window.events.push('auxclick:'+e.button+':'+e.detail));
   document.querySelector('#hover').addEventListener('mouseenter',()=>window.events.push('hover'));
   document.querySelector('#drop').addEventListener('dragover',e=>e.preventDefault());
   document.querySelector('#drop').addEventListener('drop',()=>window.events.push('drop'));
@@ -65,7 +65,8 @@ describe("Studio semantic interaction browser execution (DM-2683)", () => {
 
     expect(await testPage.locator("input").first().inputValue()).toBe("Ada Lovelace");
     expect(await testPage.evaluate(() => (window as unknown as { events: string[] }).events)).toEqual([
-      "click:2:2",
+      "auxclick:2:1",
+      "auxclick:2:2",
       "hover",
       "drop",
     ]);
