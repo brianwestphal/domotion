@@ -34,8 +34,10 @@ authoritative rubric:
 
 A report is rejected unless it covers every dimension. Each finding keeps
 observed evidence separate from inference, severity, and recommended change.
-It may target a scene, time range, region, semantic track/action, composition
-layer, and DOM identity. Studio preserves those targets on ordinary open review
+It may target a scene, independent point/range, multiple regions, semantic
+track/action, composition layer, and structured DOM identity. The shared
+annotation command normalizes legacy targeting fields before writing. Studio
+preserves those targets on ordinary open review
 annotations and links each annotation to both the reviewed video and the
 persisted JSON report.
 

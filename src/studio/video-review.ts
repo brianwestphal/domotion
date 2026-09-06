@@ -5,11 +5,11 @@ import type { Browser } from "@playwright/test";
 import { z } from "zod";
 import { launchChromium } from "../capture/index.js";
 import { runSvgToVideo } from "../cli/svg-to-video-core.js";
+import { applyStudioAnnotationCommand } from "./annotations.js";
 import { validateStudioProject } from "./project.js";
 import {
   studioAnnotationTargetSchema,
   studioIdSchema,
-  type StudioAnnotationTarget,
   type StudioProject,
 } from "./project-schema.js";
 
@@ -207,7 +207,7 @@ function applyReport(
   };
   const persistedText = `${JSON.stringify(persistedReport, null, 2)}\n`;
 
-  const project = clone(source);
+  let project = clone(source);
   project.artifacts.push({
     id: videoArtifactId,
     kind: "review-video",
@@ -234,6 +234,7 @@ function applyReport(
     parentId: project.review.headRevisionId,
     createdAt: now,
     author: { kind: "ai", name: aiName },
+    kind: "review",
     summary: report.summary,
     metadata: {
       automation: {
@@ -247,16 +248,21 @@ function applyReport(
   });
   project.review.headRevisionId = revisionId;
   for (const finding of report.findings) {
-    project.review.annotations.push({
-      id: `annotation-ai-${signature.slice(0, 10)}-${digest(finding.id).slice(0, 12)}`,
-      status: "open",
+    project = applyStudioAnnotationCommand(project, {
+      kind: "create",
       body: findingBody(finding),
       author: { kind: "ai", name: aiName },
-      createdAt: now,
-      createdRevisionId: revisionId,
-      ...(finding.target != null ? { target: finding.target as StudioAnnotationTarget } : {}),
+      ...(finding.target != null ? { target: finding.target } : {}),
       evidenceArtifactIds: [videoArtifactId, reportArtifactId],
-    });
+      origin: {
+        kind: "studio",
+        data: { producer: "ai-video-review", findingId: finding.id, dimension: finding.dimension },
+      },
+    }, {
+      now,
+      annotationId: `annotation-ai-${signature.slice(0, 10)}-${digest(finding.id).slice(0, 12)}`,
+      attachToHeadRevision: true,
+    }).project;
   }
   project.updatedAt = now;
   const validated = validateStudioProject(project);

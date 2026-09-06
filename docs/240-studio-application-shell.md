@@ -54,8 +54,12 @@ JSON operations:
 - `POST /api/create` with `{ path, title, width?, height? }` creates a valid
   version-1 project containing one narrative beat and one title-card scene.
 - `POST /api/open` with `{ path }` validates and returns a project.
-- `POST /api/save` with `{ path, project }` validates and atomically replaces an
-  existing project.
+- `POST /api/save` with `{ path, expectedHeadRevisionId, project }` validates and
+  atomically replaces an existing project without permitting review-history
+  changes; a stale review head returns HTTP 409.
+- `POST /api/annotation` applies one create/edit/status command through the
+  revision-provenanced annotation model and persists it atomically. This
+  browser-facing route always records a human author.
 
 Every body is size-bounded and strictly validated. Studio model failures return
 HTTP 400 with the exact structured `{ path, message, code }` issues produced by
@@ -75,7 +79,9 @@ The shell deliberately starts at the high level. It shows:
 - editable narrative title, summary, objective, audience, and tone;
 - ordered scene cards with stable IDs, editable titles, source/timing summaries,
   and per-scene generated/needs-generation status; and
-- aggregate scene, artifact, and open-annotation counts.
+- aggregate scene, artifact, and open-annotation counts; and
+- project/scene review notes with optional point/range and region grounding,
+  editable bodies, and resolve/reopen controls.
 
 Create, open, save, and reopen are working controls. Reopen discards unsaved
 client edits by reloading the validated file. There are no placeholder timeline,

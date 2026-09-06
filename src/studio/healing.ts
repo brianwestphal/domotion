@@ -302,6 +302,7 @@ function applyAiEdit(
         parentId,
         createdAt,
         author: { kind: "ai", name: options.aiName ?? "Studio AI" },
+        kind: "content",
         summary: decision.summary,
         metadata: { automation: { phase, evidence: decision.evidence, trigger, triggerDigest: hash(trigger), changes } },
       }],

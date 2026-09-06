@@ -79,6 +79,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpiptfhk15u9lq9",
+          "message": {
+            "text": "The browser boundary cannot impersonate an AI or overwrite review history through generic save. The server requires the expected review head, returns 409 on stale work, reserves review changes for the annotation transaction, and coerces every browser actor to human.",
+            "markdown": "The browser boundary cannot impersonate an AI or overwrite review history through generic save. The server requires the expected review head, returns 409 on stale work, reserves review changes for the annotation transaction, and coerces every browser actor to human."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/server.ts"
+                },
+                "region": {
+                  "startLine": 191,
+                  "endLine": 220,
+                  "snippet": {
+                    "text": "      if (req.method === \"POST\" && url === \"/api/save\") {\n        const { path, project, expectedHeadRevisionId } = await readJsonBody(req, saveBodySchema);\n        const current = openStudioProjectFile(workspaceRoot, path);\n        if (current.project.review.headRevisionId !== expectedHeadRevisionId) {\n          throw new StudioAnnotationError(`stale annotation change: expected review head ${expectedHeadRevisionId}, found ${current.project.review.headRevisionId}`);\n        }\n        if (!isDeepStrictEqual((project as { review?: unknown }).review, current.project.review)) {\n          throw new StudioHttpError(400, \"review history must be changed through /api/annotation\");\n        }\n        sendJson(res, 200, projectResponse(saveStudioProjectFile(workspaceRoot, path, project)));\n        return;\n      }\n      if (req.method === \"POST\" && url === \"/api/annotation\") {\n        const body = await readJsonBody(req, annotationBodySchema);\n        const current = openStudioProjectFile(workspaceRoot, body.path);\n        const command = studioAnnotationCommandSchema.parse({\n          ...body.command,\n          author: {\n            kind: \"human\",\n            ...(body.command.author.name == null ? {} : { name: body.command.author.name }),\n          },\n        });\n        const result = applyStudioAnnotationCommand(current.project, command, {\n          expectedHeadRevisionId: body.expectedHeadRevisionId,\n        });\n        sendJson(res, 200, projectResponse(saveStudioProjectFile(workspaceRoot, body.path, result.project)));\n        return;\n      }\n      res.writeHead(404, { \"content-type\": \"text/plain; charset=utf-8\" });\n      res.end(`not found: ${url}`);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/server.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 110
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2690"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "8c05415ea373d3194649e97522cd2001"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "56a5c6508b448767a9f1dd4df645e749600704e2",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

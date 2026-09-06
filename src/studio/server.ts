@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { resolve } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
 import { startLocalServer } from "../utils/local-server.js";
 import { StudioProjectValidationError } from "./project.js";
@@ -10,6 +11,7 @@ import {
   type StudioProjectFile,
 } from "./app-projects.js";
 import { STUDIO_CLIENT_JS } from "./client.bundle.generated.js";
+import { applyStudioAnnotationCommand, StudioAnnotationError, studioAnnotationCommandSchema } from "./annotations.js";
 
 const pathField = z.string().trim().min(1, "project path is required").max(4096);
 const openBodySchema = z.strictObject({ path: pathField });
@@ -19,7 +21,12 @@ const createBodySchema = z.strictObject({
   width: z.number().int().positive().max(16_384).optional(),
   height: z.number().int().positive().max(16_384).optional(),
 });
-const saveBodySchema = z.strictObject({ path: pathField, project: z.unknown() });
+const saveBodySchema = z.strictObject({ path: pathField, expectedHeadRevisionId: z.string().min(1), project: z.unknown() });
+const annotationBodySchema = z.strictObject({
+  path: pathField,
+  expectedHeadRevisionId: z.string().min(1),
+  command: studioAnnotationCommandSchema,
+});
 
 class StudioHttpError extends Error {
   constructor(public readonly status: number, message: string) {
@@ -81,6 +88,7 @@ function projectResponse(file: StudioProjectFile): Record<string, unknown> {
 
 function errorResponse(error: unknown): { status: number; body: Record<string, unknown> } {
   if (error instanceof StudioHttpError) return { status: error.status, body: { error: error.message } };
+  if (error instanceof StudioAnnotationError) return { status: error.message.startsWith("stale annotation change:") ? 409 : 400, body: { error: error.message } };
   if (error instanceof StudioProjectValidationError) {
     return { status: 400, body: { error: error.message, issues: error.issues } };
   }
@@ -181,8 +189,31 @@ export async function startStudioServer(inputs: StudioServerInputs = {}): Promis
         return;
       }
       if (req.method === "POST" && url === "/api/save") {
-        const { path, project } = await readJsonBody(req, saveBodySchema);
+        const { path, project, expectedHeadRevisionId } = await readJsonBody(req, saveBodySchema);
+        const current = openStudioProjectFile(workspaceRoot, path);
+        if (current.project.review.headRevisionId !== expectedHeadRevisionId) {
+          throw new StudioAnnotationError(`stale annotation change: expected review head ${expectedHeadRevisionId}, found ${current.project.review.headRevisionId}`);
+        }
+        if (!isDeepStrictEqual((project as { review?: unknown }).review, current.project.review)) {
+          throw new StudioHttpError(400, "review history must be changed through /api/annotation");
+        }
         sendJson(res, 200, projectResponse(saveStudioProjectFile(workspaceRoot, path, project)));
+        return;
+      }
+      if (req.method === "POST" && url === "/api/annotation") {
+        const body = await readJsonBody(req, annotationBodySchema);
+        const current = openStudioProjectFile(workspaceRoot, body.path);
+        const command = studioAnnotationCommandSchema.parse({
+          ...body.command,
+          author: {
+            kind: "human",
+            ...(body.command.author.name == null ? {} : { name: body.command.author.name }),
+          },
+        });
+        const result = applyStudioAnnotationCommand(current.project, command, {
+          expectedHeadRevisionId: body.expectedHeadRevisionId,
+        });
+        sendJson(res, 200, projectResponse(saveStudioProjectFile(workspaceRoot, body.path, result.project)));
         return;
       }
       res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });

@@ -120,6 +120,7 @@ export function createStudioProjectDocument(options: CreateStudioProjectOptions)
         id: revisionId,
         createdAt,
         author: { kind: "human" },
+        kind: "content",
         summary: "Created the Studio project.",
       }],
       annotations: [],

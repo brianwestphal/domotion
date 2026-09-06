@@ -520,7 +520,9 @@ export const FEATURES: FeatureEntry[] = [
       "serializeStudioProject",
       "studioArtifactSchema",
       "studioAnnotationRegionSchema",
+      "studioAnnotationScopeSchema",
       "studioAnnotationTargetSchema",
+      "studioAnnotationTimeSchema",
       "studioCompositionSchema",
       "studioIdSchema",
       "studioLayerSchema",
@@ -594,6 +596,13 @@ export const FEATURES: FeatureEntry[] = [
     doc: "docs/247-studio-cinematic-treatments.md",
     exports: ["StudioTreatmentError", "applyStudioTreatments", "resolveStudioTreatmentPlan", "studioTreatmentLayerPrimitiveSchema", "studioTreatmentMaskPrimitiveSchema", "studioTreatmentOverlayPrimitiveSchema", "studioTreatmentSchema", "studioTreatmentTimingSchema", "studioTreatmentTransformPrimitiveSchema", "studioTreatmentsSchema"],
     tests: ["src/studio/treatments.test.ts", "src/studio/treatments.e2e.test.ts", "src/studio/treatments.visual.e2e.test.ts"],
+  },
+  {
+    id: "studio.unified-review-annotations",
+    behavior: "Create, edit, resolve, reopen, supersede, round-trip, and migrate human or AI annotations through one revision-provenanced API with project/scene, independent point/range, multi-region, layer, semantic action, structured DOM, and evidence grounding.",
+    doc: "docs/248-studio-unified-review-annotations.md",
+    exports: ["StudioAnnotationError", "applyStudioAnnotationCommand", "importSvgReviewRegionsAnnotation", "importSvgScrubberReviewAnnotation", "normalizeStudioAnnotationTarget", "parseSvgReviewRegions", "studioAnnotationCommandSchema", "svgScrubberReviewTicketSchema"],
+    tests: ["src/studio/annotations.test.ts", "src/studio/server.e2e.test.ts"],
   },
   {
     id: "studio.application-shell",

@@ -293,6 +293,8 @@ export const studioReviewRevisionSchema = z.strictObject({
   parentId: studioIdSchema.optional(),
   createdAt: timestampSchema,
   author: studioReviewAuthorSchema,
+  /** Review-only revisions do not imply that rendered scene content changed. */
+  kind: z.enum(["content", "review"]).optional(),
   summary: nonEmptyString,
   metadata: metadataSchema.optional(),
 });
@@ -302,22 +304,77 @@ export const studioAnnotationRegionSchema = z.strictObject({
   y: z.number(),
   width: z.number().positive(),
   height: z.number().positive(),
+  coordinateSpace: z.enum(["studio-canvas", "scene", "svg-user-space", "css-pixels", "artifact-pixels"]).optional(),
+  artifactId: studioIdSchema.optional(),
+  sourceImage: nonEmptyString.optional(),
+  label: nonEmptyString.optional(),
+}).superRefine((region, ctx) => {
+  if (region.coordinateSpace === "artifact-pixels" && region.artifactId == null && region.sourceImage == null) {
+    ctx.addIssue({ code: "custom", path: ["artifactId"], message: "artifact-pixels require an artifactId or an imported sourceImage reference" });
+  }
 });
+
+export const studioAnnotationScopeSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("project") }),
+  z.strictObject({ kind: z.literal("scene"), sceneId: studioIdSchema }),
+]);
+
+export const studioAnnotationTimeSchema = z
+  .strictObject({
+    pointMs: z.number().nonnegative().optional(),
+    range: z.strictObject({
+      startMs: z.number().nonnegative(),
+      endMs: z.number().nonnegative(),
+    }).refine((range) => range.endMs >= range.startMs, {
+      message: "time range end must be greater than or equal to its start",
+      path: ["endMs"],
+    }).optional(),
+  })
+  .refine((time) => time.pointMs != null || time.range != null, {
+    message: "annotation time must declare a point, a range, or both",
+  });
 
 export const studioAnnotationTargetSchema = z
   .strictObject({
+    /** Normalized scope; legacy `sceneId` remains accepted below for v1 files. */
+    scope: studioAnnotationScopeSchema.optional(),
     sceneId: studioIdSchema.optional(),
     trackId: studioIdSchema.optional(),
     eventId: studioIdSchema.optional(),
     layerId: studioIdSchema.optional(),
+    /** Normalized timing can preserve an independent observation point + range. */
+    time: studioAnnotationTimeSchema.optional(),
+    /** Legacy v1 timing; new annotation APIs emit `time`. */
     atMs: z.number().nonnegative().optional(),
     endMs: z.number().nonnegative().optional(),
     regions: z.array(studioAnnotationRegionSchema).optional(),
+    /** Durable, accessibility-first DOM identity for newly authored annotations. */
+    domTarget: studioSemanticTargetSchema.optional(),
+    /** Legacy opaque identity retained for v1 compatibility. */
     domIdentity: nonEmptyString.optional(),
   })
   .refine((target) => target.endMs == null || (target.atMs != null && target.endMs >= target.atMs), {
     message: "`endMs` requires `atMs` and must be greater than or equal to it",
     path: ["endMs"],
+  })
+  .refine((target) => target.scope?.kind !== "project" || target.sceneId == null, {
+    message: "a project-scoped annotation cannot also declare legacy `sceneId`",
+    path: ["sceneId"],
+  })
+  .refine((target) => target.scope?.kind !== "scene" || target.sceneId == null || target.sceneId === target.scope.sceneId, {
+    message: "normalized and legacy scene scopes must reference the same scene",
+    path: ["sceneId"],
+  })
+  .refine((target) => target.time == null || (target.atMs == null && target.endMs == null), {
+    message: "use normalized `time` or legacy `atMs`/`endMs`, not both",
+    path: ["time"],
+  })
+  .refine((target) => Object.keys(target).length > 0, {
+    message: "omit `target` for a textual-only project annotation",
+  })
+  .refine((target) => target.regions == null || target.regions.length > 0, {
+    message: "omit `regions` instead of declaring an empty list",
+    path: ["regions"],
   });
 
 export const studioReviewAnnotationSchema = z.strictObject({
@@ -328,6 +385,10 @@ export const studioReviewAnnotationSchema = z.strictObject({
   createdAt: timestampSchema,
   updatedAt: timestampSchema.optional(),
   createdRevisionId: studioIdSchema,
+  /** Revision which last changed the annotation body, target, or evidence. */
+  updatedRevisionId: studioIdSchema.optional(),
+  /** Revision which last changed the annotation lifecycle status. */
+  statusRevisionId: studioIdSchema.optional(),
   resolvedRevisionId: studioIdSchema.optional(),
   target: studioAnnotationTargetSchema.optional(),
   evidenceArtifactIds: z.array(studioIdSchema).optional(),
@@ -385,11 +446,18 @@ function addDuplicateIssues(
   }
 }
 
-function collectLayerIds(layers: readonly StudioLayer[], path: PropertyKey[], out: { id: string; path: PropertyKey[] }[]): void {
+function collectLayerIds(
+  layers: readonly StudioLayer[],
+  path: PropertyKey[],
+  out: { id: string; path: PropertyKey[] }[],
+  sceneId?: string,
+  owners?: Map<string, string>,
+): void {
   layers.forEach((layer, index) => {
     const layerPath = [...path, index];
     out.push({ id: layer.id, path: [...layerPath, "id"] });
-    if (layer.kind === "composition") collectLayerIds(layer.composition.layers, [...layerPath, "composition", "layers"], out);
+    if (sceneId != null) owners?.set(layer.id, sceneId);
+    if (layer.kind === "composition") collectLayerIds(layer.composition.layers, [...layerPath, "composition", "layers"], out, sceneId, owners);
   });
 }
 
@@ -422,16 +490,23 @@ export const studioProjectSchema = z
     const trackIds: { id: string; path: PropertyKey[] }[] = [];
     const eventIds: { id: string; path: PropertyKey[] }[] = [];
     const layerIds: { id: string; path: PropertyKey[] }[] = [];
+    const trackScene = new Map<string, string>();
+    const eventScene = new Map<string, string>();
+    const eventTrack = new Map<string, string>();
+    const layerScene = new Map<string, string>();
 
     project.scenes.forEach((scene, sceneIndex) => {
       (scene.tracks ?? []).forEach((track, trackIndex) => {
         trackIds.push({ id: track.id, path: ["scenes", sceneIndex, "tracks", trackIndex, "id"] });
+        trackScene.set(track.id, scene.id);
         track.events.forEach((event, eventIndex) => {
           eventIds.push({ id: event.id, path: ["scenes", sceneIndex, "tracks", trackIndex, "events", eventIndex, "id"] });
+          eventScene.set(event.id, scene.id);
+          eventTrack.set(event.id, track.id);
         });
       });
       if (scene.render.kind === "composition") {
-        collectLayerIds(scene.render.composition.layers, ["scenes", sceneIndex, "render", "composition", "layers"], layerIds);
+        collectLayerIds(scene.render.composition.layers, ["scenes", sceneIndex, "render", "composition", "layers"], layerIds, scene.id, layerScene);
       }
     });
 
@@ -480,13 +555,38 @@ export const studioProjectSchema = z
     });
     project.review.annotations.forEach((annotation, index) => {
       requireRef(revisionSet, annotation.createdRevisionId, ["review", "annotations", index, "createdRevisionId"], "revision");
+      if (annotation.updatedRevisionId != null) requireRef(revisionSet, annotation.updatedRevisionId, ["review", "annotations", index, "updatedRevisionId"], "revision");
+      if (annotation.statusRevisionId != null) requireRef(revisionSet, annotation.statusRevisionId, ["review", "annotations", index, "statusRevisionId"], "revision");
       if (annotation.resolvedRevisionId != null) requireRef(revisionSet, annotation.resolvedRevisionId, ["review", "annotations", index, "resolvedRevisionId"], "revision");
       annotation.evidenceArtifactIds?.forEach((id, artifactIndex) => requireRef(artifactSet, id, ["review", "annotations", index, "evidenceArtifactIds", artifactIndex], "artifact"));
       const target = annotation.target;
+      if (target?.scope?.kind === "scene") requireRef(sceneSet, target.scope.sceneId, ["review", "annotations", index, "target", "scope", "sceneId"], "scene");
       if (target?.sceneId != null) requireRef(sceneSet, target.sceneId, ["review", "annotations", index, "target", "sceneId"], "scene");
       if (target?.trackId != null) requireRef(trackSet, target.trackId, ["review", "annotations", index, "target", "trackId"], "track");
       if (target?.eventId != null) requireRef(eventSet, target.eventId, ["review", "annotations", index, "target", "eventId"], "event");
       if (target?.layerId != null) requireRef(layerSet, target.layerId, ["review", "annotations", index, "target", "layerId"], "layer");
+      const targetSceneId = target?.scope?.kind === "scene" ? target.scope.sceneId : target?.sceneId;
+      if (target?.scope?.kind === "project" && (target.trackId != null || target.eventId != null || target.layerId != null)) {
+        ctx.addIssue({ code: "custom", path: ["review", "annotations", index, "target", "scope"], message: "project scope cannot contain scene-local track, action, or layer references" });
+      }
+      if (targetSceneId != null && target?.trackId != null && trackScene.get(target.trackId) != null && trackScene.get(target.trackId) !== targetSceneId) {
+        ctx.addIssue({ code: "custom", path: ["review", "annotations", index, "target", "trackId"], message: `track "${target.trackId}" does not belong to scene "${targetSceneId}"` });
+      }
+      if (targetSceneId != null && target?.eventId != null && eventScene.get(target.eventId) != null && eventScene.get(target.eventId) !== targetSceneId) {
+        ctx.addIssue({ code: "custom", path: ["review", "annotations", index, "target", "eventId"], message: `action "${target.eventId}" does not belong to scene "${targetSceneId}"` });
+      }
+      if (target?.trackId != null && target.eventId != null && eventTrack.get(target.eventId) != null && eventTrack.get(target.eventId) !== target.trackId) {
+        ctx.addIssue({ code: "custom", path: ["review", "annotations", index, "target", "eventId"], message: `action "${target.eventId}" does not belong to track "${target.trackId}"` });
+      }
+      if (targetSceneId != null && target?.layerId != null && layerScene.get(target.layerId) != null && layerScene.get(target.layerId) !== targetSceneId) {
+        ctx.addIssue({ code: "custom", path: ["review", "annotations", index, "target", "layerId"], message: `layer "${target.layerId}" does not belong to scene "${targetSceneId}"` });
+      }
+      target?.regions?.forEach((region, regionIndex) => {
+        if (region.artifactId != null) requireRef(artifactSet, region.artifactId, ["review", "annotations", index, "target", "regions", regionIndex, "artifactId"], "artifact");
+        if (region.artifactId != null && annotation.evidenceArtifactIds?.includes(region.artifactId) !== true) {
+          ctx.addIssue({ code: "custom", path: ["review", "annotations", index, "target", "regions", regionIndex, "artifactId"], message: "a region artifact must also appear in the annotation evidenceArtifactIds" });
+        }
+      });
     });
     project.artifacts.forEach((artifact, index) => {
       requireRef(revisionSet, artifact.sourceRevisionId, ["artifacts", index, "sourceRevisionId"], "revision");
@@ -504,6 +604,8 @@ export type StudioReviewHistory = z.infer<typeof studioReviewHistorySchema>;
 export type StudioReviewAuthor = z.infer<typeof studioReviewAuthorSchema>;
 export type StudioReviewRevision = z.infer<typeof studioReviewRevisionSchema>;
 export type StudioAnnotationRegion = z.infer<typeof studioAnnotationRegionSchema>;
+export type StudioAnnotationScope = z.infer<typeof studioAnnotationScopeSchema>;
+export type StudioAnnotationTime = z.infer<typeof studioAnnotationTimeSchema>;
 export type StudioAnnotationTarget = z.infer<typeof studioAnnotationTargetSchema>;
 export type StudioReviewAnnotation = z.infer<typeof studioReviewAnnotationSchema>;
 export type StudioArtifact = z.infer<typeof studioArtifactSchema>;

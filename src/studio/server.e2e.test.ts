@@ -69,9 +69,81 @@ describe("Domotion Studio application shell (DM-2687)", () => {
     expect(await testPage.locator('[data-field="narrative-title"]').inputValue()).toBe("Glassbox Reveal");
     expect(await testPage.getByLabel("Scene 1 title").inputValue()).toBe("Show the review loop");
 
+    await testPage.getByLabel("New review note").fill("Pause on the highlighted control.");
+    await testPage.getByLabel("Annotation scope").selectOption("scene-opening");
+    await testPage.getByLabel("Annotation start time").fill("420");
+    await testPage.getByLabel("Annotation end time").fill("780");
+    await testPage.getByLabel("Annotation region x").fill("24");
+    await testPage.getByLabel("Annotation region y").fill("36");
+    await testPage.getByLabel("Annotation region width").fill("180");
+    await testPage.getByLabel("Annotation region height").fill("72");
+    await testPage.getByRole("button", { name: "Add annotation" }).click();
+    await expect.poll(() => testPage.getByRole("status").textContent()).toContain("Added annotation");
+    const annotation = testPage.locator("[data-annotation-id]").first();
+    await annotation.getByText("Scene scene-opening · point 420ms · 420–780ms · 1 region").waitFor();
+    await annotation.locator("textarea").fill("Pause longer on the highlighted control.");
+    await annotation.getByRole("button", { name: "Save note" }).click();
+    await expect.poll(() => testPage.getByRole("status").textContent()).toContain("Updated annotation");
+    await annotation.locator("textarea").fill("Resolve this edited draft without losing it.");
+    await annotation.getByRole("button", { name: "Resolve", exact: true }).click();
+    await annotation.getByRole("button", { name: "Reopen note", exact: true }).waitFor();
+    await annotation.getByRole("button", { name: "Reopen note", exact: true }).click();
+    await annotation.getByRole("button", { name: "Resolve", exact: true }).waitFor();
+    await annotation.getByRole("button", { name: "Resolve", exact: true }).click();
+    await annotation.getByText("resolved", { exact: true }).waitFor();
+    await testPage.getByRole("button", { name: "Reopen", exact: true }).click();
+    await annotation.getByText("resolved", { exact: true }).waitFor();
+    expect(await annotation.locator("textarea").inputValue()).toBe("Resolve this edited draft without losing it.");
+
     const persisted = openStudioProjectFile(root, "glassbox.studio.json").project;
     expect(persisted.narrative.title).toBe("Glassbox Reveal");
     expect(persisted.scenes[0].title).toBe("Show the review loop");
+    expect(persisted.review.annotations).toHaveLength(1);
+    expect(persisted.review.annotations[0]).toMatchObject({
+      status: "resolved",
+      body: "Resolve this edited draft without losing it.",
+      author: { kind: "human", name: "Reviewer" },
+      target: {
+        scope: { kind: "scene", sceneId: "scene-opening" },
+        time: { pointMs: 420, range: { startMs: 420, endMs: 780 } },
+        regions: [{ x: 24, y: 36, width: 180, height: 72, coordinateSpace: "scene" }],
+      },
+    });
+    expect(persisted.review.annotations[0].resolvedRevisionId).toBe(persisted.review.annotations[0].statusRevisionId);
     expect(clientErrors).toEqual([]);
   }, 60_000);
+
+  it("forces browser-route authors to human and rejects stale or generic review overwrites", async () => {
+    if (!available || server == null) return;
+    const before = openStudioProjectFile(root, "glassbox.studio.json").project;
+    const createdResponse = await fetch(new URL("/api/annotation", server.url), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        path: "glassbox.studio.json",
+        expectedHeadRevisionId: before.review.headRevisionId,
+        command: { kind: "create", body: "Spoof attempt", author: { kind: "ai", name: "Browser caller" } },
+      }),
+    });
+    expect(createdResponse.status).toBe(200);
+    const created = await createdResponse.json() as { project: typeof before };
+    expect(created.project.review.annotations.at(-1)?.author).toEqual({ kind: "human", name: "Browser caller" });
+
+    const staleSave = await fetch(new URL("/api/save", server.url), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ path: "glassbox.studio.json", expectedHeadRevisionId: before.review.headRevisionId, project: before }),
+    });
+    expect(staleSave.status).toBe(409);
+
+    const tampered = structuredClone(created.project);
+    tampered.review.annotations[0].body = "Changed outside the annotation API";
+    const genericReviewSave = await fetch(new URL("/api/save", server.url), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ path: "glassbox.studio.json", expectedHeadRevisionId: created.project.review.headRevisionId, project: tampered }),
+    });
+    expect(genericReviewSave.status).toBe(400);
+    await expect(genericReviewSave.json()).resolves.toMatchObject({ error: expect.stringContaining("/api/annotation") });
+  });
 });

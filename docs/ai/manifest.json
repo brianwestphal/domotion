@@ -4987,6 +4987,33 @@
       "file": "247-studio-cinematic-treatments.md"
     },
     {
+      "id": "requirements/studio-unified-review-annotations",
+      "title": "Domotion Studio unified human and AI review annotations",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "studio",
+        "review",
+        "ai"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/studio/annotations.ts",
+        "src/studio/annotations.test.ts",
+        "src/studio/project-schema.ts",
+        "src/studio/client.tsx",
+        "src/studio/server.ts",
+        "src/studio/server.e2e.test.ts",
+        "src/studio/video-review.ts",
+        "src/utils/regions-parser.ts"
+      ],
+      "file": "248-studio-unified-review-annotations.md"
+    },
+    {
       "id": "handbook/animation-and-interaction",
       "title": "Animation and interaction handbook",
       "kind": "contract",

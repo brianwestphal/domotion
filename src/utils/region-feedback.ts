@@ -11,21 +11,8 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 import sharp from "sharp";
-
-export type Region = {
-  index: number;
-  image?: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  caption?: string;
-};
-
-export type ParseResult = {
-  regions: Region[];
-  warnings: string[];
-};
+import { parseRegionsBlock, type Region } from "./regions-parser.js";
+export { parseRegionsBlock, type ParseResult, type Region } from "./regions-parser.js";
 
 export type CropPlan = {
   region: Region;
@@ -34,59 +21,6 @@ export type CropPlan = {
   imageBasename: string;
 };
 
-const REGIONS_HEADER = /^REGIONS:\s*$/m;
-const ENTRY_LINE = /^-\s*(?:\[(\d+)\]\s*)?(?:image=(\S+?)\s+)?\(x=(-?\d+)\s+y=(-?\d+)\s+w=(-?\d+)\s+h=(-?\d+)\)(?:\s*[—-]+\s*(.+?))?\s*$/;
-
-export function parseRegionsBlock(noteBody: string): ParseResult {
-  const warnings: string[] = [];
-  const headerMatch = REGIONS_HEADER.exec(noteBody);
-  if (!headerMatch) return { regions: [], warnings };
-
-  const tail = noteBody.slice(headerMatch.index + headerMatch[0].length);
-  const lines = tail.split(/\r?\n/);
-  const regions: Region[] = [];
-  let positional = 0;
-
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-    if (line === "") {
-      if (regions.length > 0) break;
-      continue;
-    }
-    if (!line.startsWith("-")) break;
-
-    positional += 1;
-    const m = ENTRY_LINE.exec(line);
-    if (!m) {
-      warnings.push(`Skipped malformed REGIONS entry: ${line}`);
-      continue;
-    }
-
-    const [, idxStr, image, xStr, yStr, wStr, hStr, caption] = m;
-    const x = Number(xStr);
-    const y = Number(yStr);
-    const w = Number(wStr);
-    const h = Number(hStr);
-    if (w <= 0 || h <= 0 || x < 0 || y < 0) {
-      warnings.push(
-        `Skipped REGIONS entry with non-positive size or negative origin: ${line}`,
-      );
-      continue;
-    }
-
-    regions.push({
-      index: idxStr ? Number(idxStr) : positional,
-      ...(image ? { image } : {}),
-      x,
-      y,
-      w,
-      h,
-      ...(caption ? { caption: caption.trim() } : {}),
-    });
-  }
-
-  return { regions, warnings };
-}
 
 export type PlanOptions = {
   regions: Region[];

@@ -42,13 +42,13 @@
       "$ref": "#/$defs/__schema160"
     },
     "artifacts": {
-      "$ref": "#/$defs/__schema171"
+      "$ref": "#/$defs/__schema186"
     },
     "exportTargets": {
-      "$ref": "#/$defs/__schema172"
+      "$ref": "#/$defs/__schema187"
     },
     "metadata": {
-      "$ref": "#/$defs/__schema173"
+      "$ref": "#/$defs/__schema188"
     }
   },
   "required": [
@@ -3315,35 +3315,50 @@
               "createdRevisionId": {
                 "$ref": "#/$defs/__schema3"
               },
+              "updatedRevisionId": {
+                "$ref": "#/$defs/__schema3"
+              },
+              "statusRevisionId": {
+                "$ref": "#/$defs/__schema3"
+              },
               "resolvedRevisionId": {
                 "$ref": "#/$defs/__schema3"
               },
               "target": {
                 "type": "object",
                 "properties": {
-                  "sceneId": {
+                  "scope": {
                     "$ref": "#/$defs/__schema163"
                   },
-                  "trackId": {
+                  "sceneId": {
                     "$ref": "#/$defs/__schema164"
                   },
-                  "eventId": {
+                  "trackId": {
                     "$ref": "#/$defs/__schema165"
                   },
-                  "layerId": {
+                  "eventId": {
                     "$ref": "#/$defs/__schema166"
                   },
-                  "atMs": {
+                  "layerId": {
                     "$ref": "#/$defs/__schema167"
                   },
-                  "endMs": {
+                  "time": {
                     "$ref": "#/$defs/__schema168"
                   },
+                  "atMs": {
+                    "$ref": "#/$defs/__schema173"
+                  },
+                  "endMs": {
+                    "$ref": "#/$defs/__schema174"
+                  },
                   "regions": {
-                    "$ref": "#/$defs/__schema169"
+                    "$ref": "#/$defs/__schema175"
+                  },
+                  "domTarget": {
+                    "$ref": "#/$defs/__schema184"
                   },
                   "domIdentity": {
-                    "$ref": "#/$defs/__schema170"
+                    "$ref": "#/$defs/__schema185"
                   }
                 },
                 "additionalProperties": false
@@ -3389,6 +3404,13 @@
         "author": {
           "$ref": "#/$defs/__schema162"
         },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "content",
+            "review"
+          ]
+        },
         "summary": {
           "$ref": "#/$defs/__schema19"
         },
@@ -3425,7 +3447,38 @@
       "additionalProperties": false
     },
     "__schema163": {
-      "$ref": "#/$defs/__schema3"
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "project"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "scene"
+            },
+            "sceneId": {
+              "$ref": "#/$defs/__schema3"
+            }
+          },
+          "required": [
+            "kind",
+            "sceneId"
+          ],
+          "additionalProperties": false
+        }
+      ]
     },
     "__schema164": {
       "$ref": "#/$defs/__schema3"
@@ -3437,31 +3490,84 @@
       "$ref": "#/$defs/__schema3"
     },
     "__schema167": {
-      "type": "number",
-      "minimum": 0
+      "$ref": "#/$defs/__schema3"
     },
     "__schema168": {
+      "type": "object",
+      "properties": {
+        "pointMs": {
+          "$ref": "#/$defs/__schema169"
+        },
+        "range": {
+          "$ref": "#/$defs/__schema170"
+        }
+      },
+      "additionalProperties": false
+    },
+    "__schema169": {
       "type": "number",
       "minimum": 0
     },
-    "__schema169": {
+    "__schema170": {
+      "type": "object",
+      "properties": {
+        "startMs": {
+          "$ref": "#/$defs/__schema171"
+        },
+        "endMs": {
+          "$ref": "#/$defs/__schema172"
+        }
+      },
+      "required": [
+        "startMs",
+        "endMs"
+      ],
+      "additionalProperties": false
+    },
+    "__schema171": {
+      "type": "number",
+      "minimum": 0
+    },
+    "__schema172": {
+      "type": "number",
+      "minimum": 0
+    },
+    "__schema173": {
+      "type": "number",
+      "minimum": 0
+    },
+    "__schema174": {
+      "type": "number",
+      "minimum": 0
+    },
+    "__schema175": {
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
           "x": {
-            "type": "number"
+            "$ref": "#/$defs/__schema176"
           },
           "y": {
-            "type": "number"
+            "$ref": "#/$defs/__schema177"
           },
           "width": {
-            "type": "number",
-            "exclusiveMinimum": 0
+            "$ref": "#/$defs/__schema178"
           },
           "height": {
-            "type": "number",
-            "exclusiveMinimum": 0
+            "$ref": "#/$defs/__schema179"
+          },
+          "coordinateSpace": {
+            "$ref": "#/$defs/__schema180"
+          },
+          "artifactId": {
+            "$ref": "#/$defs/__schema181"
+          },
+          "sourceImage": {
+            "$ref": "#/$defs/__schema182"
+          },
+          "label": {
+            "$ref": "#/$defs/__schema183"
           }
         },
         "required": [
@@ -3473,10 +3579,46 @@
         "additionalProperties": false
       }
     },
-    "__schema170": {
+    "__schema176": {
+      "type": "number"
+    },
+    "__schema177": {
+      "type": "number"
+    },
+    "__schema178": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "__schema179": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "__schema180": {
+      "type": "string",
+      "enum": [
+        "studio-canvas",
+        "scene",
+        "svg-user-space",
+        "css-pixels",
+        "artifact-pixels"
+      ]
+    },
+    "__schema181": {
+      "$ref": "#/$defs/__schema3"
+    },
+    "__schema182": {
       "$ref": "#/$defs/__schema19"
     },
-    "__schema171": {
+    "__schema183": {
+      "$ref": "#/$defs/__schema19"
+    },
+    "__schema184": {
+      "$ref": "#/$defs/__schema130"
+    },
+    "__schema185": {
+      "$ref": "#/$defs/__schema19"
+    },
+    "__schema186": {
       "type": "array",
       "items": {
         "type": "object",
@@ -3549,7 +3691,7 @@
         "additionalProperties": false
       }
     },
-    "__schema172": {
+    "__schema187": {
       "type": "object",
       "properties": {
         "svgPath": {
@@ -3561,7 +3703,7 @@
       },
       "additionalProperties": false
     },
-    "__schema173": {
+    "__schema188": {
       "$ref": "#/$defs/__schema114"
     }
   },

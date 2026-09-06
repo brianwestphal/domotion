@@ -1,0 +1,201 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpipt28ow7fqnx5",
+          "message": {
+            "text": "All new human and AI writes converge on one normalized target shape while legacy v1 aliases remain readable. Owner inference rejects cross-scene track/action/layer combinations, and project-scoped DOM or scene-coordinate evidence fails rather than becoming ambiguous.",
+            "markdown": "All new human and AI writes converge on one normalized target shape while legacy v1 aliases remain readable. Owner inference rejects cross-scene track/action/layer combinations, and project-scoped DOM or scene-coordinate evidence fails rather than becoming ambiguous."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/annotations.ts"
+                },
+                "region": {
+                  "startLine": 134,
+                  "endLine": 169,
+                  "snippet": {
+                    "text": "export function normalizeStudioAnnotationTarget(project: StudioProject, rawTarget: StudioAnnotationTarget): StudioAnnotationTarget {\n  const target = studioAnnotationTargetSchema.parse(rawTarget);\n  const ownerScenes = new Set<string>();\n  if (target.sceneId != null) ownerScenes.add(target.sceneId);\n  if (target.trackId != null) {\n    const owner = project.scenes.find((scene) => scene.tracks?.some((track) => track.id === target.trackId));\n    if (owner != null) ownerScenes.add(owner.id);\n  }\n  if (target.eventId != null) {\n    const owner = project.scenes.find((scene) => scene.tracks?.some((track) => track.events.some((event) => event.id === target.eventId)));\n    if (owner != null) ownerScenes.add(owner.id);\n  }\n  if (target.layerId != null) {\n    const owner = layerOwner(project, target.layerId);\n    if (owner != null) ownerScenes.add(owner);\n  }\n  if (target.scope?.kind === \"scene\") ownerScenes.add(target.scope.sceneId);\n  if (ownerScenes.size > 1) throw new StudioAnnotationError(\"annotation target combines references from different scenes\");\n  const inferredScene = [...ownerScenes][0];\n  const scope = target.scope ?? (inferredScene == null ? { kind: \"project\" as const } : { kind: \"scene\" as const, sceneId: inferredScene });\n  if (scope.kind === \"project\" && (target.domTarget != null || target.domIdentity != null)) {\n    throw new StudioAnnotationError(\"a DOM-grounded annotation must declare or imply scene scope\");\n  }\n  if (scope.kind === \"project\" && target.regions?.some((region) => region.coordinateSpace === \"scene\")) {\n    throw new StudioAnnotationError(\"scene-coordinate regions require scene scope\");\n  }\n  const time = target.time ?? (target.atMs == null\n    ? undefined\n    : {\n        pointMs: target.atMs,\n        ...(target.endMs == null ? {} : { range: { startMs: target.atMs, endMs: target.endMs } }),\n      });\n  const { sceneId: _sceneId, atMs: _atMs, endMs: _endMs, ...normalized } = target;\n  return studioAnnotationTargetSchema.parse({\n    ...normalized,\n    scope,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/project-schema.ts"
+                },
+                "region": {
+                  "startLine": 302
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2690"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "924448c04bc76f76fa27b107a574bdff"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpipt8x1ynupzyb",
+          "message": {
+            "text": "The annotation transaction is bounded, immutable to its caller, optimistic-concurrency guarded, and revision-provenanced. Unit coverage proves shared human/AI creation, reversible before/after edit and lifecycle snapshots, stale/no-op rejection, resolution reopen, and terminal supersession.",
+            "markdown": "The annotation transaction is bounded, immutable to its caller, optimistic-concurrency guarded, and revision-provenanced. Unit coverage proves shared human/AI creation, reversible before/after edit and lifecycle snapshots, stale/no-op rejection, resolution reopen, and terminal supersession."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/annotations.ts"
+                },
+                "region": {
+                  "startLine": 175,
+                  "endLine": 278,
+                  "snippet": {
+                    "text": " * Apply exactly one review mutation, append its provenance revision, and return\n * a fully revalidated project. Human and AI authors use this same function.\n */\nexport function applyStudioAnnotationCommand(\n  rawProject: StudioProject,\n  rawCommand: StudioAnnotationCommand,\n  options: ApplyStudioAnnotationCommandOptions = {},\n): StudioAnnotationCommandResult {\n  const project = validateStudioProject(structuredClone(rawProject));\n  const command = studioAnnotationCommandSchema.parse(rawCommand);\n  if (options.expectedHeadRevisionId != null && project.review.headRevisionId !== options.expectedHeadRevisionId) {\n    throw new StudioAnnotationError(\n      `stale annotation change: expected review head ${options.expectedHeadRevisionId}, found ${project.review.headRevisionId}`,\n    );\n  }\n  const now = options.now ?? new Date().toISOString();\n  const revisionId = options.attachToHeadRevision\n    ? project.review.headRevisionId\n    : (options.revisionId ?? generatedId(\"revision-annotation\"));\n  let annotation: StudioReviewAnnotation;\n  let revision: StudioReviewRevision;\n\n  if (command.kind === \"create\") {\n    const annotationId = options.annotationId ?? generatedId(\"annotation\");\n    if (project.review.annotations.some((candidate) => candidate.id === annotationId)) {\n      throw new StudioAnnotationError(`annotation id already exists: ${annotationId}`);\n    }\n    const target = command.target == null ? undefined : normalizeStudioAnnotationTarget(project, command.target);\n    annotation = {\n      id: annotationId,\n      status: \"open\",\n      body: command.body,\n      author: command.author,\n      createdAt: now,\n      createdRevisionId: revisionId,\n      ...(target == null ? {} : { target }),\n      ...(command.evidenceArtifactIds == null ? {} : { evidenceArtifactIds: command.evidenceArtifactIds }),\n    };\n    if (options.attachToHeadRevision) {\n      revision = project.review.revisions.find((candidate) => candidate.id === project.review.headRevisionId)!;\n      if (revision.author.kind !== command.author.kind || revision.author.name !== command.author.name) {\n        throw new StudioAnnotationError(\"an annotation can attach to the head only when its author matches that revision\");\n      }\n    } else {\n      revision = appendRevision(project, revisionId, now, command.author, \"Created a review annotation.\", {\n        operation: \"studio.annotation.create\",\n        annotationId,\n        after: annotation,\n        ...(command.origin == null ? {} : { origin: command.origin }),\n        ...(command.evidenceArtifactIds == null ? {} : { evidenceArtifactIds: command.evidenceArtifactIds }),\n      });\n    }\n    project.review.annotations.push(annotation);\n  } else if (command.kind === \"edit\") {\n    annotation = annotationById(project, command.annotationId);\n    if (annotation.status !== \"open\") {\n      throw new StudioAnnotationError(`annotation ${annotation.id} must be open before it can be edited`);\n    }\n    const before = structuredClone(annotation);\n    if (command.body != null) annotation.body = command.body;\n    if (command.target === null) delete annotation.target;\n    else if (command.target !== undefined) annotation.target = normalizeStudioAnnotationTarget(project, command.target);\n    if (command.evidenceArtifactIds != null) annotation.evidenceArtifactIds = command.evidenceArtifactIds;\n    if (isDeepStrictEqual(before, annotation)) throw new StudioAnnotationError(`annotation ${annotation.id} edit did not change anything`);\n    annotation.updatedAt = now;\n    annotation.updatedRevisionId = revisionId;\n    revision = appendRevision(project, revisionId, now, command.author, \"Edited a review annotation.\", {\n      operation: \"studio.annotation.edit\",\n      annotationId: annotation.id,\n      changedFields: [\n        ...(command.body == null ? [] : [\"body\"]),\n        ...(command.target === undefined ? [] : [\"target\"]),\n        ...(command.evidenceArtifactIds == null ? [] : [\"evidenceArtifactIds\"]),\n      ],\n      before,\n      after: annotation,\n    });\n  } else {\n    annotation = annotationById(project, command.annotationId);\n    if (annotation.status === command.status) {\n      throw new StudioAnnotationError(`annotation ${annotation.id} is already ${command.status}`);\n    }\n    const previousStatus = annotation.status;\n    if (previousStatus === \"superseded\") throw new StudioAnnotationError(`annotation ${annotation.id} is superseded and cannot be reopened or resolved`);\n    if (previousStatus === \"resolved\" && command.status !== \"open\") {\n      throw new StudioAnnotationError(`annotation ${annotation.id} must be reopened before another lifecycle transition`);\n    }\n    const before = structuredClone(annotation);\n    annotation.status = command.status;\n    annotation.updatedAt = now;\n    annotation.statusRevisionId = revisionId;\n    if (command.status === \"resolved\") annotation.resolvedRevisionId = revisionId;\n    else delete annotation.resolvedRevisionId;\n    revision = appendRevision(project, revisionId, now, command.author, `Changed a review annotation to ${command.status}.`, {\n      operation: \"studio.annotation.set-status\",\n      annotationId: annotation.id,\n      previousStatus,\n      status: command.status,\n      before,\n      after: annotation,\n    });\n  }\n\n  project.updatedAt = now;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/annotations.test.ts"
+                },
+                "region": {
+                  "startLine": 50
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2690"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "49ae6672ee5f073826bf36379af85130"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpiptm6a3rrq63v",
+          "message": {
+            "text": "SVG review migration preserves an independent observed frame and selected range, prefers modern multiple regions, binds SVG user-unit coordinates only to a source SVG artifact, and drops absolute machine paths. The clipboard adapter reuses the canonical dependency-neutral REGIONS parser and converts syntax to structured data at the boundary.",
+            "markdown": "SVG review migration preserves an independent observed frame and selected range, prefers modern multiple regions, binds SVG user-unit coordinates only to a source SVG artifact, and drops absolute machine paths. The clipboard adapter reuses the canonical dependency-neutral REGIONS parser and converts syntax to structured data at the boundary."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/annotations.ts"
+                },
+                "region": {
+                  "startLine": 302,
+                  "endLine": 430,
+                  "snippet": {
+                    "text": "  frameTimeMs: z.number().nonnegative(),\n  range: z.strictObject({ startMs: z.number().nonnegative(), endMs: z.number().nonnegative() })\n    .refine((range) => range.endMs >= range.startMs, { message: \"range end must not be before its start\", path: [\"endMs\"] }),\n  regions: z.array(scrubberRegionSchema).optional(),\n  region: scrubberRegionSchema.nullable().optional(),\n  framePng: z.string().nullable().optional(),\n  note: z.string().optional(),\n}).passthrough();\n\nexport interface ImportSvgScrubberAnnotationOptions {\n  author: StudioReviewAuthor;\n  sceneId?: string;\n  layerId?: string;\n  /** Studio artifact containing the source SVG; region units bind to this. */\n  sourceArtifactId?: string;\n  /** Staged Studio artifact containing the optional frame snapshot evidence. */\n  frameArtifactId?: string;\n  /** Portable project-relative references after the caller stages source files. */\n  sourceReference?: string;\n  frameReference?: string;\n}\n\n/** Migrate SVG Scrubber review JSON into Studio's annotation command model. */\nexport function importSvgScrubberReviewAnnotation(\n  rawTicket: unknown,\n  options: ImportSvgScrubberAnnotationOptions,\n): StudioAnnotationCreateCommand {\n  const ticket = svgScrubberReviewTicketSchema.parse(rawTicket);\n  if (options.layerId != null && options.sceneId == null) throw new StudioAnnotationError(\"an imported layer requires sceneId\");\n  const sourceRegions = ticket.regions?.length ? ticket.regions : (ticket.region == null ? [] : [ticket.region]);\n  const evidenceArtifactIds = [options.sourceArtifactId, options.frameArtifactId].filter((id): id is string => id != null);\n  const sourceReference = options.sourceReference ?? (ticket.svg == null ? undefined : basename(ticket.svg));\n  const frameReference = options.frameReference ?? (ticket.framePng == null ? undefined : basename(ticket.framePng));\n  const sourceDigest = createHash(\"sha256\").update(JSON.stringify(ticket)).digest(\"hex\");\n  const target: StudioAnnotationTarget = {\n    scope: options.sceneId == null ? { kind: \"project\" } : { kind: \"scene\", sceneId: options.sceneId },\n    ...(options.layerId == null ? {} : { layerId: options.layerId }),\n    time: {\n      pointMs: ticket.frameTimeMs,\n      range: ticket.range,\n    },\n    ...(sourceRegions.length === 0 ? {} : {\n      regions: sourceRegions.map((region) => ({\n        x: region.x,\n        y: region.y,\n        width: region.w,\n        height: region.h,\n        coordinateSpace: \"svg-user-space\" as const,\n        ...(options.sourceArtifactId == null ? {} : { artifactId: options.sourceArtifactId }),\n      })),\n    }),\n  };\n  const note = ticket.note?.trim() ?? \"\";\n  return createCommandSchema.parse({\n    kind: \"create\",\n    body: note === \"\" ? ticket.title : `${ticket.title}\\n\\n${note}`,\n    author: options.author,\n    ...(Object.keys(target).length === 0 ? {} : { target }),\n    ...(evidenceArtifactIds.length === 0 ? {} : { evidenceArtifactIds }),\n    origin: {\n      kind: \"svg-scrubber\",\n      ...(sourceReference == null ? {} : { reference: sourceReference }),\n      data: {\n        svgName: ticket.svgName,\n        sourceCreatedAt: ticket.createdAt,\n        sourceDigest,\n        frameTimeMs: ticket.frameTimeMs,\n        range: ticket.range,\n        ...(frameReference == null ? {} : { frameReference }),\n      },\n    },\n  });\n}\n\nexport interface SvgReviewRegion extends StudioAnnotationRegion {\n  index: number;\n  image?: string;\n  caption?: string;\n}\n\n/** Parse the legacy review tool's `REGIONS:` clipboard block at the import boundary. */\nexport function parseSvgReviewRegions(text: string): SvgReviewRegion[] {\n  const parsed = parseRegionsBlock(text);\n  if (parsed.warnings.length > 0) throw new StudioAnnotationError(parsed.warnings.join(\"; \"));\n  const regions = parsed.regions.map((region) => ({\n    index: region.index,\n    ...(region.image == null ? {} : { image: region.image }),\n    x: region.x,\n    y: region.y,\n    width: region.w,\n    height: region.h,\n    ...(region.caption == null ? {} : { caption: region.caption }),\n  }));\n  if (regions.length === 0) throw new StudioAnnotationError(\"SVG review REGIONS: block is empty\");\n  return regions;\n}\n\nexport interface ImportSvgReviewRegionsOptions {\n  body: string;\n  author: StudioReviewAuthor;\n  target?: Omit<StudioAnnotationTarget, \"regions\">;\n}\n\n/** Migrate copied REGIONS data into Studio without retaining its text syntax as project format. */\nexport function importSvgReviewRegionsAnnotation(\n  text: string,\n  options: ImportSvgReviewRegionsOptions,\n): StudioAnnotationCreateCommand {\n  const regions = parseSvgReviewRegions(text);\n  return createCommandSchema.parse({\n    kind: \"create\",\n    body: options.body,\n    author: options.author,\n    target: {\n      ...options.target,\n      regions: regions.map(({ x, y, width, height, image, caption }) => ({\n        x,\n        y,\n        width,\n        height,\n        coordinateSpace: \"artifact-pixels\" as const,\n        ...(image == null ? {} : { sourceImage: image }),\n        ...(caption == null ? {} : { label: caption }),\n      })),\n    },\n    origin: {\n      kind: \"svg-review-regions\",\n      data: {\n        regionCount: regions.length,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/utils/regions-parser.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/annotations.test.ts"
+                },
+                "region": {
+                  "startLine": 175
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2690"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "feea8906f546a393d9f232243ee8ece2"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "56a5c6508b448767a9f1dd4df645e749600704e2",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

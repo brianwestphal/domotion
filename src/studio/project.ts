@@ -179,6 +179,7 @@ export function importStoryboardConfig(raw: unknown, options: ImportStoryboardOp
         id: revisionId,
         createdAt,
         author: { kind: "system", name: "Domotion storyboard importer" },
+        kind: "content",
         summary: "Imported the legacy storyboard recipe into Studio project version 1.",
       }],
       annotations: [],
