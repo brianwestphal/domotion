@@ -30,6 +30,11 @@ external runtime assets. macOS, Linux, and Windows are first-class platforms.
 8. Domotion Studio is a separate local application. Its file UI is confined to
    one workspace, validates before atomic saves, and presents exact model errors;
    SVG Scrubber remains a focused, independently usable playback/review tool.
+9. Studio replay failures and generated candidates are always routed through
+   explicit application-owned AI healing and review boundaries. Automatic edits
+   append evidence-backed revisions; material ambiguity pauses for clarification,
+   and only an AI-accepted candidate proceeds to human review. This phase has no
+   user-facing iteration, time, token, or cost budget management.
 
 ## Current handbooks
 

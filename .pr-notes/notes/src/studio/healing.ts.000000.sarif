@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpf5mdi7cewq99r",
+          "message": {
+            "text": "Every AI edit is applied to a validated proposal while review and artifact state remains orchestrator-owned, then recorded as exact JSON changes under a parent-linked AI revision with the actual failure or candidate hashes and a trigger digest. Stable identities, executable hook trust, and export destinations require prior clarification before material change.",
+            "markdown": "Every AI edit is applied to a validated proposal while review and artifact state remains orchestrator-owned, then recorded as exact JSON changes under a parent-linked AI revision with the actual failure or candidate hashes and a trigger digest. Stable identities, executable hook trust, and export destinations require prior clarification before material change."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/healing.ts"
+                },
+                "region": {
+                  "startLine": 269,
+                  "endLine": 310,
+                  "snippet": {
+                    "text": "function applyAiEdit(\n  current: StudioProject,\n  decision: StudioAiEditDecision,\n  phase: StudioAutomationPhase,\n  trigger: StudioJson,\n  allowMaterialChange: boolean,\n  options: RunStudioHealingLoopOptions,\n): StudioProject {\n  const proposed = validateStudioProject(decision.project, `AI ${phase} proposal`);\n  if (proposed.id !== current.id || proposed.format !== current.format || proposed.version !== current.version || proposed.createdAt !== current.createdAt) {\n    throw new StudioHealingError(`AI ${phase} proposal changed immutable project identity`);\n  }\n  if (!allowMaterialChange) {\n    const proposedIds = stableIds(proposed);\n    const removedIds = [...stableIds(current)].filter((id) => !proposedIds.has(id));\n    if (removedIds.length > 0) throw new StudioHealingError(`AI ${phase} proposal removed or renamed stable identities without clarification: ${removedIds.join(\", \")}`);\n    if (!sameJson(proposed.scriptHooks, current.scriptHooks)) throw new StudioHealingError(`AI ${phase} proposal changed the script-hook trust boundary without clarification`);\n    if (!sameJson(proposed.exportTargets, current.exportTargets)) throw new StudioHealingError(`AI ${phase} proposal changed export destinations without clarification`);\n  }\n  const content = validateStudioProject({ ...proposed, review: current.review, artifacts: current.artifacts }, `AI ${phase} proposal`);\n  const changes = diffJson(withoutGeneratedState(current), withoutGeneratedState(content));\n  if (changes.length === 0) throw new StudioHealingError(`AI ${phase} proposal made no authored change`);\n  const createdAt = options.revisionTimestamp?.() ?? new Date().toISOString();\n  const parentId = current.review.headRevisionId;\n  const id = `revision-ai-${hash({ parentId, phase, summary: decision.summary, changes }).slice(0, 16)}`;\n  return validateStudioProject({\n    ...content,\n    updatedAt: createdAt,\n    review: {\n      ...current.review,\n      headRevisionId: id,\n      revisions: [...current.review.revisions, {\n        id,\n        parentId,\n        createdAt,\n        author: { kind: \"ai\", name: options.aiName ?? \"Studio AI\" },\n        summary: decision.summary,\n        metadata: { automation: { phase, evidence: decision.evidence, trigger, triggerDigest: hash(trigger), changes } },\n      }],\n    },\n  }, `AI ${phase} revision`);\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 99,
+          "workItemUris": [
+            "DM-2695"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "cec30a6af786f0a925fd8ae00785472a"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpf5mjyv6scy0m1",
+          "message": {
+            "text": "Compilation success is never a terminal result: required AI review must accept before the candidate reaches human review. Callback inputs are clones, actionable failures alone reach healing, review edits replay from the beginning, and clarification checkpoints bind the complete unchanged project plus question and evidence to a verified digest.",
+            "markdown": "Compilation success is never a terminal result: required AI review must accept before the candidate reaches human review. Callback inputs are clones, actionable failures alone reach healing, review edits replay from the beginning, and clarification checkpoints bind the complete unchanged project plus question and evidence to a verified digest."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/healing.ts"
+                },
+                "region": {
+                  "startLine": 348,
+                  "endLine": 423,
+                  "snippet": {
+                    "text": "async function runLoop(\n  browser: Browser,\n  initial: StudioProject,\n  options: RunStudioHealingLoopOptions,\n  clarification?: StudioClarificationAnswer,\n): Promise<StudioHealingLoopResult> {\n  let project = initial;\n  let pendingClarification = clarification;\n  for (;;) {\n    assertNotAborted(options.signal);\n    let candidate: CompileStudioInteractiveProjectResult;\n    try {\n      candidate = await compileStudioInteractiveProject(browser, project, options);\n    } catch (error) {\n      if (!actionableReplayFailure(error)) throw error;\n      const failure = replayFailure(error);\n      const usedClarification = pendingClarification?.phase === \"heal\" ? pendingClarification : undefined;\n      const decision = validateAiDecision(healDecisionSchema, await options.heal({\n        project: structuredClone(project),\n        failure: structuredClone(failure),\n        ...(usedClarification == null ? {} : { clarification: usedClarification }),\n      }), \"heal\");\n      pendingClarification = undefined;\n      if (decision.kind === \"clarify\") return checkpoint(project, \"heal\", decision);\n      if (decision.kind === \"unrecoverable\") {\n        return { status: \"unrecoverable\", project, phase: \"heal\", reason: decision.reason, evidence: decision.evidence };\n      }\n      project = applyAiEdit(project, decision, \"heal\", asJson({ failure, clarification: usedClarification ?? null }), usedClarification != null, options);\n      continue;\n    }\n\n    const reviewedProject = validateStudioProject(structuredClone(candidate.project));\n    const usedClarification = pendingClarification?.phase === \"review\" ? pendingClarification : undefined;\n    const decision = validateAiDecision(reviewDecisionSchema, await options.review({\n      project: structuredClone(reviewedProject),\n      candidate: structuredClone(candidate),\n      ...(usedClarification == null ? {} : { clarification: usedClarification }),\n    }), \"review\");\n    pendingClarification = undefined;\n    if (decision.kind === \"accept\") {\n      return { status: \"human-review\", project: candidate.project, candidate, aiReview: decision, ...(usedClarification == null ? {} : { clarification: usedClarification }) };\n    }\n    if (decision.kind === \"clarify\") return checkpoint(candidate.project, \"review\", decision);\n    const reviewTrigger = asJson({\n      sourceRevisionId: reviewedProject.review.headRevisionId,\n      artifacts: reviewedProject.artifacts.map((artifact) => ({ id: artifact.id, kind: artifact.kind, sha256: artifact.sha256 ?? null })),\n      segments: candidate.segments.map((segment) => ({ sceneId: segment.sceneId, artifactId: segment.artifactId, sha256: segment.sha256, evidenceSha256: segment.evidenceSha256 })),\n    });\n    project = applyAiEdit(reviewedProject, decision, \"review\", asJson({ candidate: reviewTrigger, clarification: usedClarification ?? null }), usedClarification != null, options);\n  }\n}\n\n/** Replay, AI-heal, regenerate, and require AI acceptance before human handoff. */\nexport async function runStudioHealingLoop(\n  browser: Browser,\n  raw: unknown,\n  options: RunStudioHealingLoopOptions,\n): Promise<StudioHealingLoopResult> {\n  assertAiBoundaries(options);\n  return runLoop(browser, validateStudioProject(raw), options);\n}\n\n/** Resume a clarification checkpoint without mutating or replacing its project state. */\nexport async function resumeStudioHealingLoop(\n  browser: Browser,\n  checkpointValue: StudioHealingClarificationCheckpoint,\n  answer: string,\n  options: RunStudioHealingLoopOptions,\n): Promise<StudioHealingLoopResult> {\n  assertAiBoundaries(options);\n  if (checkpointValue.version !== 1 || answer.trim() === \"\") throw new StudioHealingError(\"a non-empty answer is required to resume Studio healing\");\n  const project = validateStudioProject(checkpointValue.project, \"Studio healing checkpoint\");\n  const projectDigest = hash(project);\n  const expectedId = `clarification-${hash({ ...checkpointValue, id: undefined, project, projectDigest }).slice(0, 16)}`;\n  if (checkpointValue.projectDigest !== projectDigest || checkpointValue.id !== expectedId) {\n    throw new StudioHealingError(\"Studio healing checkpoint was modified after it was created\");"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 99,
+          "workItemUris": [
+            "DM-2695"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b7d9dcb1b3f8c0d2091d249885563715"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a2dc98ddef3cb6fd680fe37d404eebf45bf92808",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

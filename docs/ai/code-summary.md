@@ -40,7 +40,10 @@ loading the historical documentation corpus.
   recursive composition lowering, and the static storyboard compile adapter.
   The generated editor schema is
   `schemas/domotion-studio-project.schema.json`; generated SVG/video remains
-  artifact provenance, never project state. The same directory owns the
+  artifact provenance, never project state. Its AI-led healing loop replays
+  exact semantic intent, records browser failure evidence and parent-linked AI
+  revisions, requires AI review, and pauses through tamper-checked clarification
+  checkpoints before a human handoff. The same directory owns the
   standalone local Studio server/Kerf client; `src/cli/studio.ts` exposes it as
   both `domotion-studio` and `domotion studio` without coupling it to Scrubber.
 - `src/post-processing/` exports the self-contained SVG to raster or video.

@@ -570,6 +570,13 @@ export const FEATURES: FeatureEntry[] = [
     tests: ["src/studio/interactive-compile.test.ts", "src/studio/interactive-compile.e2e.test.ts"],
   },
   {
+    id: "studio.ai-healing-loop",
+    behavior: "Route actionable replay failures with live browser evidence through required AI healing, record exact evidence-backed revisions, regenerate and require AI review, pause/resume ambiguous intent through digest-checked checkpoints, and hand only an AI-accepted candidate to a human.",
+    doc: "docs/245-studio-ai-healing-loop.md",
+    exports: ["StudioHealingError", "StudioInteractiveSceneError", "inspectStudioHealingPage", "resumeStudioHealingLoop", "runStudioHealingLoop"],
+    tests: ["src/studio/healing.test.ts", "src/studio/healing.e2e.test.ts"],
+  },
+  {
     id: "studio.application-shell",
     behavior: "Launch a separate workspace-bounded Studio app that creates, opens, edits, validates, atomically saves, and reopens versioned project JSON while surfacing narrative, ordered scenes, generation state, and actionable issues.",
     doc: "docs/240-studio-application-shell.md",

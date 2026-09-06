@@ -100,6 +100,8 @@ transition behavior therefore remains owned by the established compositors.
 ### Review and artifact provenance
 
 Review revisions form a parent-linked history with one `headRevisionId`.
+Their optional metadata records structured automation evidence and exact change
+provenance without requiring it for human-authored legacy revisions.
 Annotations may remain text-only or target a scene, track event, layer, DOM
 identity, instant/time range, and one or more rectangles. They record author,
 lifecycle (`open`, `resolved`, or `superseded`), creation/resolution revisions,

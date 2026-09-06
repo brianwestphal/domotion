@@ -92,3 +92,9 @@ state/evidence/cursor synthesis, storyboard embedding, stable repeat output,
 artifact upsert without authored-data loss, failed-recapture preservation,
 context cleanup, and staging cleanup. Browser-free coverage proves unchanged
 pre-rendered-scene compilation and both success/failure staging cleanup.
+
+On an actionable replay failure, the compiler also captures a bounded AI-mode
+ARIA snapshot, raw DOM author hints, live geometry, computed CSS, completed
+interaction evidence, and partial failed-action evidence before closing the
+page. The AI-led repair/review lifecycle that consumes this failure is specified
+by [the Studio healing loop](245-studio-ai-healing-loop.md).

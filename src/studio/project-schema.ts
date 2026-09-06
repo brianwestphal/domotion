@@ -291,6 +291,7 @@ const reviewRevisionSchema = z.strictObject({
   createdAt: timestampSchema,
   author: reviewAuthorSchema,
   summary: nonEmptyString,
+  metadata: metadataSchema.optional(),
 });
 
 const annotationRegionSchema = z.strictObject({
@@ -495,5 +496,6 @@ export type StudioScene = z.infer<typeof studioSceneSchema>;
 export type StudioNarrative = z.infer<typeof studioNarrativeSchema>;
 export type StudioScriptHook = z.infer<typeof studioScriptHookSchema>;
 export type StudioReviewHistory = z.infer<typeof studioReviewHistorySchema>;
+export type StudioReviewRevision = z.infer<typeof reviewRevisionSchema>;
 export type StudioArtifact = z.infer<typeof studioArtifactSchema>;
 export type StudioProject = z.infer<typeof studioProjectSchema>;

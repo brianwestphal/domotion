@@ -23,7 +23,11 @@ import {
   type StudioCursorChoreography,
   type StudioCursorTargetEvidence,
 } from "./cursor-choreography.js";
-import { observeStudioSemanticStep, type StudioInteractionEvidence } from "./interaction-observer.js";
+import {
+  observeStudioSemanticStep,
+  StudioInteractionObservationError,
+  type StudioInteractionEvidence,
+} from "./interaction-observer.js";
 import {
   compileStudioSemanticTracks,
   runStudioSemanticStep,
@@ -76,6 +80,57 @@ export interface CompileStudioInteractiveProjectResult {
   segments: readonly StudioInteractiveSegment[];
 }
 
+export interface StudioHealingDomCandidate {
+  selector: string;
+  tag: string;
+  roleAttribute?: string;
+  ariaLabelAttribute?: string;
+  labelText?: string;
+  text: string;
+  rect: { x: number; y: number; width: number; height: number };
+  styles: { display: string; visibility: string; opacity: string; cursor: string; pointerEvents: string; position: string };
+}
+
+export interface StudioHealingPageInspection {
+  url: string;
+  title: string;
+  ariaSnapshot: string;
+  viewport: { width: number; height: number } | null;
+  candidates: StudioHealingDomCandidate[];
+  truncated: boolean;
+}
+
+export class StudioInteractiveSceneError extends Error {
+  readonly sceneId: string;
+  readonly sceneIndex: number;
+  readonly eventId?: string;
+  readonly completedEventIds: readonly string[];
+  readonly completedEvidence: readonly StudioInteractionEvidence[];
+  readonly failedEvidence?: StudioInteractionEvidence;
+  readonly inspection: StudioHealingPageInspection;
+
+  constructor(
+    scene: StudioScene,
+    sceneIndex: number,
+    eventId: string | undefined,
+    completedEventIds: readonly string[],
+    completedEvidence: readonly StudioInteractionEvidence[],
+    failedEvidence: StudioInteractionEvidence | undefined,
+    inspection: StudioHealingPageInspection,
+    cause: unknown,
+  ) {
+    super(`Interactive Studio scene "${scene.id}" failed${eventId == null ? "" : ` at event "${eventId}"`}: ${cause instanceof Error ? cause.message : String(cause)}`, { cause });
+    this.name = "StudioInteractiveSceneError";
+    this.sceneId = scene.id;
+    this.sceneIndex = sceneIndex;
+    this.eventId = eventId;
+    this.completedEventIds = completedEventIds;
+    this.completedEvidence = completedEvidence;
+    this.failedEvidence = failedEvidence;
+    this.inspection = inspection;
+  }
+}
+
 interface CapturedState {
   tree: CapturedElement[];
   svgContent: string;
@@ -87,6 +142,72 @@ interface RenderGroup {
   atMs: number;
   stateIndex: number;
   evidenceIndexes: number[];
+}
+
+/** Capture browser-owned accessibility, geometry, and computed-style facts for AI repair. */
+export async function inspectStudioHealingPage(page: Page, maxCandidates = 250): Promise<StudioHealingPageInspection> {
+  if (!Number.isInteger(maxCandidates) || maxCandidates < 1) throw new RangeError("maxCandidates must be a positive integer");
+  const ariaSnapshot = await page.locator("body").ariaSnapshot({ mode: "ai", depth: 12 }).catch(() => "");
+  const raw = await page.locator("body *").evaluateAll((elements, limit) => {
+    const selector = (element: Element): string => {
+      if (element.id !== "") return `#${CSS.escape(element.id)}`;
+      const testId = element.getAttribute("data-testid");
+      if (testId != null) return `[data-testid=${JSON.stringify(testId)}]`;
+      const parts: string[] = [];
+      let current: Element | null = element;
+      while (current != null && current.tagName.toLowerCase() !== "body" && parts.length < 5) {
+        const tag = current.tagName.toLowerCase();
+        const siblings = current.parentElement == null ? [] : [...current.parentElement.children].filter((item) => item.tagName === current!.tagName);
+        parts.unshift(siblings.length > 1 ? `${tag}:nth-of-type(${siblings.indexOf(current) + 1})` : tag);
+        current = current.parentElement;
+      }
+      return `body > ${parts.join(" > ")}`;
+    };
+    const interesting = elements.filter((element) => {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      const tag = element.tagName.toLowerCase();
+      return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden"
+        && (element.hasAttribute("role") || element.hasAttribute("aria-label") || element.hasAttribute("data-testid") || element.id !== ""
+          || ["button", "a", "input", "select", "textarea", "label", "summary"].includes(tag));
+    });
+    const candidates = interesting.slice(0, limit).map((element) => {
+      const html = element as HTMLElement;
+      const control = element as HTMLInputElement;
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      const labels = "labels" in control && control.labels != null ? [...control.labels].map((label) => label.innerText.trim()).filter(Boolean) : [];
+      const roleAttribute = element.getAttribute("role") ?? undefined;
+      const ariaLabelAttribute = element.getAttribute("aria-label") ?? undefined;
+      const labelText = labels.join(" ") || undefined;
+      return {
+        selector: selector(element),
+        tag: element.tagName.toLowerCase(),
+        ...(roleAttribute == null ? {} : { roleAttribute }),
+        ...(ariaLabelAttribute == null ? {} : { ariaLabelAttribute }),
+        ...(labelText == null ? {} : { labelText }),
+        text: (html.innerText ?? element.textContent ?? "").trim().slice(0, 240),
+        rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+        styles: {
+          display: style.display,
+          visibility: style.visibility,
+          opacity: style.opacity,
+          cursor: style.cursor,
+          pointerEvents: style.pointerEvents,
+          position: style.position,
+        },
+      };
+    });
+    return { candidates, truncated: interesting.length > limit };
+  }, maxCandidates);
+  return {
+    url: page.url(),
+    title: await page.title(),
+    ariaSnapshot,
+    viewport: page.viewportSize(),
+    candidates: raw.candidates,
+    truncated: raw.truncated,
+  };
 }
 
 function hash(value: string): string {
@@ -257,6 +378,9 @@ async function compileLiveSegment(
     mobile: cap.mobile === true,
     ...(cap.colorScheme != null ? { colorScheme: cap.colorScheme } : {}),
   });
+  const completedEventIds: string[] = [];
+  const evidence: StudioInteractionEvidence[] = [];
+  let activeEventId: string | undefined;
   try {
     const { page, tracker } = session;
     await loadInputIntoPage(page, input);
@@ -266,9 +390,9 @@ async function compileLiveSegment(
 
     const selector = cap.selector ?? "body";
     const states: CapturedState[] = [await captureState(page, selector, project.canvas.width, project.canvas.height, `studio-${scene.id}-s0-`)];
-    const evidence: StudioInteractionEvidence[] = [];
     const cursorTargets: StudioCursorTargetEvidence[] = [];
     for (const step of plan.steps) {
+      activeEventId = step.event.id;
       if (step.event.kind !== "waitForState" && step.event.kind !== "scriptHook") {
         cursorTargets.push(...await inspectStudioCursorTargets(page, { steps: [step], durationMs: step.event.atMs + (step.event.durationMs ?? 0) }));
       }
@@ -277,6 +401,8 @@ async function compileLiveSegment(
         runHook: options.runHook,
       }));
       evidence.push(observed);
+      completedEventIds.push(step.event.id);
+      activeEventId = undefined;
       await discoverAndRegisterWebfonts(page, tracker.urls);
       states.push(await captureState(page, selector, project.canvas.width, project.canvas.height, `studio-${scene.id}-s${states.length}-`));
     }
@@ -306,6 +432,29 @@ async function compileLiveSegment(
     await runScenePhase(project, scene, sceneIndex, page, "afterCompile", options.runSceneHook);
     options.log?.(`Generated interactive Studio segment "${scene.id}": ${states.length} captured states, ${durationMs}ms`);
     return { svg, durationMs, evidence, cursor };
+  } catch (cause) {
+    // A short post-failure observation window lets delayed application state
+    // become visible to the AI without guessing how long the authored action
+    // should have waited.
+    await session.page.waitForTimeout(300).catch(() => {});
+    const inspection = await inspectStudioHealingPage(session.page).catch((): StudioHealingPageInspection => ({
+      url: session.page.url(),
+      title: "",
+      ariaSnapshot: "",
+      viewport: session.page.viewportSize(),
+      candidates: [],
+      truncated: false,
+    }));
+    throw new StudioInteractiveSceneError(
+      scene,
+      sceneIndex,
+      activeEventId,
+      completedEventIds,
+      evidence,
+      cause instanceof StudioInteractionObservationError ? cause.evidence : undefined,
+      inspection,
+      cause,
+    );
   } finally {
     await session.close();
   }

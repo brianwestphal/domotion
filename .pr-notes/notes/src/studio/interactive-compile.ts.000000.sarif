@@ -106,6 +106,111 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpef6bgaimclr3i",
+          "message": {
+            "text": "The ARIA snapshot remains the Chromium and Playwright semantic authority; DOM attributes and label text are deliberately named as raw hints rather than synthesized roles or accessible names. Geometry and computed CSS come from the live page APIs governed by external/chromium/thirdparty/blink/renderer/core/dom/element.cc and external/chromium/thirdparty/blink/renderer/core/css/csscomputedstyle_declaration.cc.",
+            "markdown": "The ARIA snapshot remains the Chromium and Playwright semantic authority; DOM attributes and label text are deliberately named as raw hints rather than synthesized roles or accessible names. Geometry and computed CSS come from the live page APIs governed by external/chromium/third_party/blink/renderer/core/dom/element.cc and external/chromium/third_party/blink/renderer/core/css/css_computed_style_declaration.cc."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/interactive-compile.ts"
+                },
+                "region": {
+                  "startLine": 147,
+                  "endLine": 208,
+                  "snippet": {
+                    "text": "/** Capture browser-owned accessibility, geometry, and computed-style facts for AI repair. */\nexport async function inspectStudioHealingPage(page: Page, maxCandidates = 250): Promise<StudioHealingPageInspection> {\n  const ariaSnapshot = await page.locator(\"body\").ariaSnapshot({ mode: \"ai\", depth: 12 }).catch(() => \"\");\n  const raw = await page.locator(\"body *\").evaluateAll((elements, limit) => {\n    const selector = (element: Element): string => {\n      if (element.id !== \"\") return `#${CSS.escape(element.id)}`;\n      const testId = element.getAttribute(\"data-testid\");\n      if (testId != null) return `[data-testid=${JSON.stringify(testId)}]`;\n      const parts: string[] = [];\n      let current: Element | null = element;\n      while (current != null && current.tagName.toLowerCase() !== \"body\" && parts.length < 5) {\n        const tag = current.tagName.toLowerCase();\n        const siblings = current.parentElement == null ? [] : [...current.parentElement.children].filter((item) => item.tagName === current!.tagName);\n        parts.unshift(siblings.length > 1 ? `${tag}:nth-of-type(${siblings.indexOf(current) + 1})` : tag);\n        current = current.parentElement;\n      }\n      return `body > ${parts.join(\" > \")}`;\n    };\n    const interesting = elements.filter((element) => {\n      const style = getComputedStyle(element);\n      const rect = element.getBoundingClientRect();\n      const tag = element.tagName.toLowerCase();\n      return rect.width > 0 && rect.height > 0 && style.display !== \"none\" && style.visibility !== \"hidden\"\n        && (element.hasAttribute(\"role\") || element.hasAttribute(\"aria-label\") || element.hasAttribute(\"data-testid\") || element.id !== \"\"\n          || [\"button\", \"a\", \"input\", \"select\", \"textarea\", \"label\", \"summary\"].includes(tag));\n    });\n    return interesting.slice(0, limit).map((element) => {\n      const html = element as HTMLElement;\n      const control = element as HTMLInputElement;\n      const rect = element.getBoundingClientRect();\n      const style = getComputedStyle(element);\n      const labels = \"labels\" in control && control.labels != null ? [...control.labels].map((label) => label.innerText.trim()).filter(Boolean) : [];\n      const roleAttribute = element.getAttribute(\"role\") ?? undefined;\n      const ariaLabelAttribute = element.getAttribute(\"aria-label\") ?? undefined;\n      const labelText = labels.join(\" \") || undefined;\n      return {\n        selector: selector(element),\n        tag: element.tagName.toLowerCase(),\n        ...(roleAttribute == null ? {} : { roleAttribute }),\n        ...(ariaLabelAttribute == null ? {} : { ariaLabelAttribute }),\n        ...(labelText == null ? {} : { labelText }),\n        text: (html.innerText ?? element.textContent ?? \"\").trim().slice(0, 240),\n        rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },\n        styles: {\n          display: style.display,\n          visibility: style.visibility,\n          opacity: style.opacity,\n          cursor: style.cursor,\n          pointerEvents: style.pointerEvents,\n          position: style.position,\n        },\n      };\n    });\n  }, maxCandidates);\n  return {\n    url: page.url(),\n    title: await page.title(),\n    ariaSnapshot,\n    viewport: page.viewportSize(),\n    candidates: raw,\n    truncated: raw.length >= maxCandidates,\n  };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 99,
+          "workItemUris": [
+            "DM-2695"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "6e53d5ed2a2338ad4a33736632ea412d"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpef6idcvfst0pd",
+          "message": {
+            "text": "Replay failure is captured before the page closes, including cumulative successful evidence, partial failed-action evidence, and a fresh browser inspection. This gives AI the real causal page state while preserving the compiler's guaranteed context cleanup.",
+            "markdown": "Replay failure is captured before the page closes, including cumulative successful evidence, partial failed-action evidence, and a fresh browser inspection. This gives AI the real causal page state while preserving the compiler's guaranteed context cleanup."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/interactive-compile.ts"
+                },
+                "region": {
+                  "startLine": 379,
+                  "endLine": 457,
+                  "snippet": {
+                    "text": "  const completedEventIds: string[] = [];\n  const evidence: StudioInteractionEvidence[] = [];\n  let activeEventId: string | undefined;\n  try {\n    const { page, tracker } = session;\n    await loadInputIntoPage(page, input);\n    await applyReadyWaits(page, { wait: cap.wait ?? 200, waitFor: cap.waitFor, fontsReady: true });\n    await discoverAndRegisterWebfonts(page, tracker.urls);\n    await runScenePhase(project, scene, sceneIndex, page, \"beforeCapture\", options.runSceneHook);\n\n    const selector = cap.selector ?? \"body\";\n    const states: CapturedState[] = [await captureState(page, selector, project.canvas.width, project.canvas.height, `studio-${scene.id}-s0-`)];\n    const cursorTargets: StudioCursorTargetEvidence[] = [];\n    for (const step of plan.steps) {\n      activeEventId = step.event.id;\n      if (step.event.kind !== \"waitForState\" && step.event.kind !== \"scriptHook\") {\n        cursorTargets.push(...await inspectStudioCursorTargets(page, { steps: [step], durationMs: step.event.atMs + (step.event.durationMs ?? 0) }));\n      }\n      const observed = await observeStudioSemanticStep(page, step, () => runStudioSemanticStep(page, step, {\n        log: options.log,\n        runHook: options.runHook,\n      }));\n      evidence.push(observed);\n      completedEventIds.push(step.event.id);\n      activeEventId = undefined;\n      await discoverAndRegisterWebfonts(page, tracker.urls);\n      states.push(await captureState(page, selector, project.canvas.width, project.canvas.height, `studio-${scene.id}-s${states.length}-`));\n    }\n    await runScenePhase(project, scene, sceneIndex, page, \"afterCapture\", options.runSceneHook);\n    const cursor = planStudioCursorChoreography(cursorTargets, { seed: scene.id, ...(options.cursor ?? {}) });\n    const groups = scheduledGroups(plan, cursor);\n    const authoredDuration = scene.render.recipe.duration ?? 0;\n    const { frames, durationMs } = buildFrames(\n      states,\n      groups,\n      evidence,\n      project.canvas.width,\n      project.canvas.height,\n      Math.max(authoredDuration, plan.durationMs + cursor.timeOffsetMs, cursor.durationMs + DEFAULT_STATE_TAIL_MS),\n    );\n    await runScenePhase(project, scene, sceneIndex, page, \"beforeCompile\", options.runSceneHook);\n    const svg = generateAnimatedSvg({\n      width: project.canvas.width,\n      height: project.canvas.height,\n      frames,\n      fontFaceCss: getEmbeddedFontFaceCss(),\n      cursorOverlay: cursor.overlay,\n      background: states[0].background,\n      title: scene.title,\n      desc: scene.description,\n    });\n    await runScenePhase(project, scene, sceneIndex, page, \"afterCompile\", options.runSceneHook);\n    options.log?.(`Generated interactive Studio segment \"${scene.id}\": ${states.length} captured states, ${durationMs}ms`);\n    return { svg, durationMs, evidence, cursor };\n  } catch (cause) {\n    // A short post-failure observation window lets delayed application state\n    // become visible to the AI without guessing how long the authored action\n    // should have waited.\n    await session.page.waitForTimeout(300).catch(() => {});\n    const inspection = await inspectStudioHealingPage(session.page).catch((): StudioHealingPageInspection => ({\n      url: session.page.url(),\n      title: \"\",\n      ariaSnapshot: \"\",\n      viewport: session.page.viewportSize(),\n      candidates: [],\n      truncated: false,\n    }));\n    throw new StudioInteractiveSceneError(\n      scene,\n      sceneIndex,\n      activeEventId,\n      completedEventIds,\n      evidence,\n      cause instanceof StudioInteractionObservationError ? cause.evidence : undefined,\n      inspection,\n      cause,\n    );\n  } finally {\n    await session.close();"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 96,
+          "workItemUris": [
+            "DM-2695"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "77e77d53d2761da2db4b71d8315899f5"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "a2dc98ddef3cb6fd680fe37d404eebf45bf92808",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

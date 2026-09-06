@@ -2895,6 +2895,9 @@
         },
         "summary": {
           "$ref": "#/$defs/__schema8"
+        },
+        "metadata": {
+          "$ref": "#/$defs/__schema102"
         }
       },
       "required": [

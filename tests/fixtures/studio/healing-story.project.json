@@ -1,0 +1,42 @@
+{
+  "$schema": "https://raw.githubusercontent.com/brianwestphal/domotion/main/schemas/domotion-studio-project.schema.json",
+  "format": "domotion-studio-project",
+  "version": 1,
+  "id": "healing-story",
+  "createdAt": "2026-09-06T00:00:00.000Z",
+  "canvas": { "width": 480, "height": 270, "title": "Healing fixture" },
+  "narrative": {
+    "title": "Healing fixture",
+    "beats": [{ "id": "beat-flow", "title": "Run the flow", "sceneIds": ["scene-flow"] }]
+  },
+  "scenes": [{
+    "id": "scene-flow",
+    "title": "Changed application",
+    "narrativeBeatIds": ["beat-flow"],
+    "render": {
+      "kind": "storyboard",
+      "recipe": { "capture": { "file": "healing-page.html", "wait": 0 }, "duration": 1400 }
+    },
+    "tracks": [{
+      "id": "track-flow",
+      "kind": "semantic-interactions",
+      "events": [
+        { "id": "event-name", "atMs": 0, "kind": "type", "target": { "label": "Project" }, "text": "Glassbox" },
+        { "id": "event-launch", "atMs": 300, "kind": "click", "target": { "role": "button", "name": "Launch tour" } },
+        { "id": "event-ready", "atMs": 700, "kind": "waitForState", "target": { "domId": "status" }, "state": "text", "value": "Ready", "timeoutMs": 100 },
+        { "id": "event-finish", "atMs": 900, "kind": "click", "target": { "role": "button", "name": "Finish" } }
+      ]
+    }]
+  }],
+  "review": {
+    "headRevisionId": "revision-1",
+    "revisions": [{
+      "id": "revision-1",
+      "createdAt": "2026-09-06T00:00:00.000Z",
+      "author": { "kind": "human", "name": "Fixture" },
+      "summary": "Authored against the old application label."
+    }],
+    "annotations": []
+  },
+  "artifacts": []
+}
