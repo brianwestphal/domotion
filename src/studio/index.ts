@@ -49,6 +49,7 @@ export {
 export {
   StudioInteractionError,
   compileStudioSemanticTracks,
+  resolveStudioSemanticTarget,
   runStudioSemanticPlan,
   runStudioSemanticTracks,
   type CompileStudioSemanticTracksOptions,
@@ -57,6 +58,18 @@ export {
   type StudioSemanticPlan,
   type StudioSemanticStep,
 } from "./interactions.js";
+export {
+  buildStudioCursorChoreography,
+  inspectStudioCursorTargets,
+  planStudioCursorChoreography,
+  type PlanStudioCursorChoreographyOptions,
+  type StudioCursorBox,
+  type StudioCursorChoreography,
+  type StudioCursorEventOverride,
+  type StudioCursorInteractionTiming,
+  type StudioCursorPoint,
+  type StudioCursorTargetEvidence,
+} from "./cursor-choreography.js";
 export {
   buildStudioProjectJsonSchema,
   studioProjectJsonSchemaText,

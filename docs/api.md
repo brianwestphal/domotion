@@ -217,6 +217,10 @@ See `docs/239-studio-project-model.md`; the editor schema ships at
 | `studioProjectToStoryboardConfig` | function | Project the direct-storyboard subset back to the existing `StoryboardConfig`; composition scenes must first be materialized. |
 | `compileStudioSemanticTracks` | function | Validate semantic tracks, reject duplicate identities or invalid per-track timing, and stable-merge their scene-relative events into an executable plan. Accepts an optional authored JSON `path` for exact diagnostics. |
 | `runStudioSemanticPlan` / `runStudioSemanticTracks` | function | Execute semantic events against a caller-owned Playwright `Page`. Accessibility locators win over selector fallback; every target must resolve exactly once. Named hooks execute only through an explicit caller-supplied `runHook`. |
+| `resolveStudioSemanticTarget` | function | Resolve one accessibility-first Studio target against a live page, requiring exactly one match with path/event-aware recovery diagnostics. |
+| `inspectStudioCursorTargets` | function | Proactively read each visual semantic event's actual live border box, viewport, drag destination, and computed CSS cursor from the page. |
+| `planStudioCursorChoreography` | function | Produce deterministic, seeded curved paths, variable-speed approaches, dwell/click timing, drag travel, and a renderer-ready `CursorOverlay` from inspected target evidence. Supports exact per-event overrides. |
+| `buildStudioCursorChoreography` | function | Inspect a caller-owned page and plan its semantic cursor choreography in one call. |
 | `compileStudioProject` | function | Lower recursive static composition scenes through `composeCompositeConfig`, then sequence all scenes through `composeStoryboardConfig`. Accepts a caller-owned `Browser` and optional `{ projectDir, log }`. Rejects active semantic tracks/hooks rather than ignoring them. |
 | `compileStudioProjectFile` | function | Load and compile a project file, resolving source paths relative to the file's directory. |
 | `StudioProjectValidationError` / `StudioProjectCompileError` / `StudioInteractionError` | class | Structured validation/compile/execution failures with exact JSON paths; interaction failures also retain the event ID. |
@@ -224,7 +228,8 @@ See `docs/239-studio-project-model.md`; the editor schema ships at
 | `StudioProject`, `StudioScene`, `StudioSceneRender`, `StudioComposition`, `StudioLayer` | type | Main project, scene, render, and recursive-layer types. |
 | `StudioNarrative`, `StudioSemanticTarget`, `StudioSemanticEvent`, `StudioSemanticTrack`, `StudioScriptHook`, `StudioReviewHistory`, `StudioArtifact` | type | Narrative, intent, extension, review, and generated-artifact value types. |
 | `StudioSemanticPlan`, `StudioSemanticStep`, `StudioScriptHookContext` | type | Stable compiled timeline and the explicit context provided to a caller-authorized script hook. |
-| `ImportStoryboardOptions` / `CompileStudioProjectOptions` / `CompileStudioSemanticTracksOptions` / `RunStudioSemanticPlanOptions` / `StudioProjectValidationIssue` | type | Options and structured diagnostic companion types. |
+| `StudioCursorPoint`, `StudioCursorBox`, `StudioCursorTargetEvidence`, `StudioCursorEventOverride`, `StudioCursorInteractionTiming`, `StudioCursorChoreography` | type | Live target evidence, deterministic planner input/overrides, and renderer-ready choreography output. |
+| `ImportStoryboardOptions` / `CompileStudioProjectOptions` / `CompileStudioSemanticTracksOptions` / `RunStudioSemanticPlanOptions` / `PlanStudioCursorChoreographyOptions` / `StudioProjectValidationIssue` | type | Options and structured diagnostic companion types. |
 
 ### Standalone Studio app
 

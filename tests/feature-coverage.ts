@@ -549,6 +549,13 @@ export const FEATURES: FeatureEntry[] = [
     tests: ["src/studio/interactions.test.ts", "src/studio/interactions.e2e.test.ts"],
   },
   {
+    id: "studio.cursor-choreography",
+    behavior: "Inspect semantic targets in the live DOM/CSS and turn their box, cursor, action, distance, viewport, and seeded variation into bounded curved CursorOverlay paths with exact endpoints, natural pacing, drag travel, and explicit overrides.",
+    doc: "docs/242-studio-cursor-choreography.md",
+    exports: ["buildStudioCursorChoreography", "inspectStudioCursorTargets", "planStudioCursorChoreography", "resolveStudioSemanticTarget"],
+    tests: ["src/studio/cursor-choreography.test.ts", "src/studio/cursor-choreography.e2e.test.ts"],
+  },
+  {
     id: "studio.application-shell",
     behavior: "Launch a separate workspace-bounded Studio app that creates, opens, edits, validates, atomically saves, and reopens versioned project JSON while surfacing narrative, ordered scenes, generation state, and actionable issues.",
     doc: "docs/240-studio-application-shell.md",

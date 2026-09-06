@@ -14,6 +14,9 @@ aliases: ["docs/13-cursor-overlay.md","doc-13"]
 
 Requirements for an opt-in animated cursor + click pulse layer that paints on top of a captured SVG. Origin: DM-277 (filed from DM-272). Automatic cursor-type matching added in DM-1106.
 
+Domotion Studio's seeded semantic-action planner feeds this same event and
+rendering model; see [Studio cursor choreography](242-studio-cursor-choreography.md).
+
 ## Cursor type — automatic, matching the browser (DM-1106)
 
 By default the overlay paints the **right cursor for whatever is under the pointer**, exactly as the browser showed it — the arrow over the page body, the hand over a link, the I-beam over text, resize arrows over a resizer, `grab`/`grabbing` hands over a draggable, and so on across the full CSS `cursor` value set. The glyph **switches the moment the pointer crosses an element boundary**, not on a coarse sample grid.

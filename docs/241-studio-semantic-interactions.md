@@ -81,3 +81,7 @@ hook refusal, and asserts that temporary instrumentation is removed.
 This layer makes no independent layout, font, glyph, or paint decision. The
 browser remains the authority for DOM state, accessibility lookup, hit testing,
 scrolling, and pointer behavior.
+
+The [Studio cursor choreography contract](242-studio-cursor-choreography.md)
+uses these compiled paths to inspect the real target DOM/CSS and feed natural
+pointer motion into the existing overlay renderer.

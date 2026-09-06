@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtp9cscro3jjn1vl",
+          "message": {
+            "text": "Cursor planning consumes live capture evidence rather than project guesses: resolve the same accessibility target as action execution, read its actual border box and computed CSS cursor, and inspect a semantic drag destination separately. Boxes are deliberately ephemeral because scrolling and responsive layout can invalidate them; callers re-inspect per live scene.",
+            "markdown": "Cursor planning consumes live capture evidence rather than project guesses: resolve the same accessibility target as action execution, read its actual border box and computed CSS cursor, and inspect a semantic drag destination separately. Boxes are deliberately ephemeral because scrolling and responsive layout can invalidate them; callers re-inspect per live scene."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/cursor-choreography.ts"
+                },
+                "region": {
+                  "startLine": 59,
+                  "endLine": 88,
+                  "snippet": {
+                    "text": "/** Read actual live DOM geometry and computed cursor CSS for every visual event. */\nexport async function inspectStudioCursorTargets(page: Page, plan: StudioSemanticPlan): Promise<StudioCursorTargetEvidence[]> {\n  const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));\n  const evidence: StudioCursorTargetEvidence[] = [];\n  for (const step of plan.steps) {\n    const event = step.event;\n    if (event.kind === \"waitForState\" || event.kind === \"scriptHook\") continue;\n    if (event.kind === \"scrollTo\" && event.target == null) {\n      evidence.push({ eventId: event.id, kind: event.kind, atMs: event.atMs, path: step.path, cursor: \"default\", viewport });\n      continue;\n    }\n    const target = event.target;\n    if (target == null) continue;\n    const locator = await resolveStudioSemanticTarget(page, target, `${step.path}.target`, event.id);\n    const [box, cursor] = await Promise.all([\n      inspectBox(page, locator, `${step.path}.target`, event.id),\n      locator.evaluate((element) => getComputedStyle(element).cursor || \"default\"),\n    ]);\n    let destinationBox: StudioCursorBox | undefined;\n    let destinationPoint: StudioCursorPoint | undefined;\n    if (event.kind === \"drag\") {\n      if (\"target\" in event.to) {\n        const destination = await resolveStudioSemanticTarget(page, event.to.target, `${step.path}.to.target`, event.id);\n        destinationBox = await inspectBox(page, destination, `${step.path}.to.target`, event.id);\n      } else destinationPoint = event.to.point;\n    }\n    evidence.push({ eventId: event.id, kind: event.kind, atMs: event.atMs, path: step.path, box, destinationBox, destinationPoint, cursor, viewport });\n  }\n  return evidence;\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "workItemUris": [
+            "DM-2686"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e081942e105630bf47ae0e46574f4dac"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtp9csje52br64pa",
+          "message": {
+            "text": "Generate natural motion as deterministic sampled quadratic curves in the existing CursorOverlay vocabulary. Travel distance and target area size duration, seeded central aiming avoids mechanical center hits, easing decelerates the approach, viewport clamping protects edges, dense actions serialize with an explicit presented-time map, and per-event overrides retain exact art direction without creating a second renderer.",
+            "markdown": "Generate natural motion as deterministic sampled quadratic curves in the existing CursorOverlay vocabulary. Travel distance and target area size duration, seeded central aiming avoids mechanical center hits, easing decelerates the approach, viewport clamping protects edges, dense actions serialize with an explicit presented-time map, and per-event overrides retain exact art direction without creating a second renderer."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/cursor-choreography.ts"
+                },
+                "region": {
+                  "startLine": 194,
+                  "endLine": 259,
+                  "snippet": {
+                    "text": "/** Convert inspected semantic targets into the existing CursorOverlay event model. */\nexport function planStudioCursorChoreography(\n  evidence: readonly StudioCursorTargetEvidence[],\n  options: PlanStudioCursorChoreographyOptions = {},\n): StudioCursorChoreography {\n  finiteNumber(options.leadInMs, \"leadInMs\");\n  finiteNumber(options.edgePadding, \"edgePadding\");\n  finitePoint(options.start, \"start\");\n  if (evidence.length === 0) return { overlay: { events: [] }, interactions: [], durationMs: 0, timeOffsetMs: options.leadInMs ?? 500 };\n  const random = randomSource(options.seed ?? evidence.map((item) => item.eventId).join(\"|\"));\n  const leadInMs = options.leadInMs ?? 500;\n  const padding = options.edgePadding ?? 12;\n  const first = evidence[0];\n  const firstAim = first.box == null\n    ? { x: first.viewport.width * 0.78, y: first.viewport.height * 0.62 }\n    : aimAtBox(first.box, random);\n  let current = bounded(options.start ?? { x: firstAim.x - Math.min(180, first.viewport.width * 0.22), y: firstAim.y + Math.min(90, first.viewport.height * 0.16) }, first.viewport, padding);\n  let occupiedUntil = 0;\n  const events: CursorEvent[] = [{ type: \"show\", t: 0, x: current.x, y: current.y }];\n  const interactions: StudioCursorInteractionTiming[] = [];\n\n  for (const item of evidence) {\n    const override = options.overrides?.[item.eventId];\n    finitePoint(override?.point, `override ${JSON.stringify(item.eventId)} point`);\n    finitePoint(override?.destinationPoint, `override ${JSON.stringify(item.eventId)} destinationPoint`);\n    finitePoint(override?.controlPoint, `override ${JSON.stringify(item.eventId)} controlPoint`);\n    finiteNumber(override?.durationMs, `override ${JSON.stringify(item.eventId)} durationMs`, 1);\n    finiteNumber(override?.dragDurationMs, `override ${JSON.stringify(item.eventId)} dragDurationMs`, 1);\n    finiteNumber(override?.dwellMs, `override ${JSON.stringify(item.eventId)} dwellMs`);\n    if (override?.samples != null && (!Number.isInteger(override.samples) || override.samples < 2 || override.samples > 32)) {\n      throw new Error(`Studio cursor choreography override ${JSON.stringify(item.eventId)} samples must be an integer from 2 to 32`);\n    }\n    const rawAim = override?.point ?? (item.box == null\n      ? { x: item.viewport.width * 0.78, y: item.viewport.height * (0.55 + random() * 0.16) }\n      : aimAtBox(item.box, random));\n    const aim = bounded(rawAim, item.viewport, padding);\n    const durationMs = override?.durationMs ?? defaultDuration(current, aim, item.box);\n    const dwellMs = override?.dwellMs ?? Math.round(70 + random() * 100);\n    const earliestHit = item.atMs + leadInMs;\n    const presentedAtMs = Math.max(earliestHit, occupiedUntil + durationMs + dwellMs);\n    const startAt = presentedAtMs - durationMs - dwellMs;\n    const control = bounded(override?.controlPoint ?? defaultControl(current, aim, random), item.viewport, padding);\n    const samples = override?.samples ?? 8;\n    addCurve(events, current, aim, startAt, durationMs, control, samples, item.cursor);\n\n    let destinationPoint: StudioCursorPoint | undefined;\n    if (item.kind === \"click\" || item.kind === \"type\") events.push({ type: \"click\", t: presentedAtMs });\n    if (item.kind === \"drag\") {\n      const rawDestination = override?.destinationPoint ?? item.destinationPoint ?? (item.destinationBox == null ? undefined : aimAtBox(item.destinationBox, random));\n      if (rawDestination != null) {\n        destinationPoint = bounded(rawDestination, item.viewport, padding);\n        const dragDuration = Math.max(240, override?.dragDurationMs ?? defaultDuration(aim, destinationPoint, item.destinationBox));\n        const dragControl = bounded(override?.controlPoint ?? defaultControl(aim, destinationPoint, random), item.viewport, padding);\n        addCurve(events, aim, destinationPoint, presentedAtMs, dragDuration, dragControl, samples, \"grabbing\");\n        occupiedUntil = presentedAtMs + dragDuration;\n        current = destinationPoint;\n      }\n    }\n    if (item.kind !== \"drag\" || destinationPoint == null) {\n      occupiedUntil = presentedAtMs;\n      current = aim;\n    }\n    interactions.push({ eventId: item.eventId, authoredAtMs: item.atMs, presentedAtMs, point: aim, destinationPoint });\n  }\n  return { overlay: { events }, interactions, durationMs: occupiedUntil, timeOffsetMs: leadInMs };\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "workItemUris": [
+            "DM-2686"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "31a00fb10dd4df5e2ca3e8b956efa05b"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "de48d036ab1661ac20df40187a06a2abf6bc5ea3",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

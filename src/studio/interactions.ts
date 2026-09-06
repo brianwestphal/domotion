@@ -96,16 +96,13 @@ function locatorForTarget(page: Page, target: StudioSemanticTarget, path: string
   return page.locator(target.selector!);
 }
 
-const MARKER_ATTRIBUTE = "data-domotion-studio-target";
-let markerCounter = 0;
-
-interface MarkedTarget {
-  locator: Locator;
-  selector: string;
-  cleanup: () => Promise<void>;
-}
-
-async function markTarget(page: Page, target: StudioSemanticTarget, path: string, eventId: string): Promise<MarkedTarget> {
+/** Resolve one authored target against the live DOM and require one exact match. */
+export async function resolveStudioSemanticTarget(
+  page: Page,
+  target: StudioSemanticTarget,
+  path: string,
+  eventId: string,
+): Promise<Locator> {
   const locator = locatorForTarget(page, target, path, eventId);
   let count: number;
   try {
@@ -119,6 +116,20 @@ async function markTarget(page: Page, target: StudioSemanticTarget, path: string
   if (count > 1) {
     throw new StudioInteractionError(path, `${targetDescription(target)} is ambiguous (${count} matches); add an exact accessible name or a unique stable identifier`, eventId);
   }
+  return locator;
+}
+
+const MARKER_ATTRIBUTE = "data-domotion-studio-target";
+let markerCounter = 0;
+
+interface MarkedTarget {
+  locator: Locator;
+  selector: string;
+  cleanup: () => Promise<void>;
+}
+
+async function markTarget(page: Page, target: StudioSemanticTarget, path: string, eventId: string): Promise<MarkedTarget> {
+  const locator = await resolveStudioSemanticTarget(page, target, path, eventId);
 
   const marker = `dm-${Date.now().toString(36)}-${markerCounter++}`;
   await locator.evaluate((element, value) => element.setAttribute("data-domotion-studio-target", value), marker);
