@@ -204,6 +204,7 @@ See `docs/239-studio-project-model.md`; the editor schema ships at
 | Export | Kind | Description |
 | --- | --- | --- |
 | `STUDIO_PROJECT_FORMAT` / `STUDIO_PROJECT_VERSION` / `STUDIO_PROJECT_SCHEMA_ID` | const | Stable file discriminator (`domotion-studio-project`), current numeric version (`1`), and published JSON Schema URL. |
+| `STUDIO_INTERACTION_RECORDING_FORMAT` / `STUDIO_INTERACTION_RECORDING_VERSION` / `STUDIO_REDACTED_VALUE` | const | Versioned raw browser-evidence discriminator and the literal persisted in place of sensitive input/key values. |
 | `studioProjectSchema` | schema | Strict runtime source of truth for the full project graph: canvas, narrative, ordered scenes, semantic tracks, recursive layers, hooks, review history, and artifact provenance. |
 | `studioIdSchema` | schema | Stable human-readable ID contract shared by every referenceable Studio entity. |
 | `studioSceneSchema` / `studioSceneRenderSchema` | schema | Ordered scene identity plus either the existing storyboard scene recipe or a recursive composition render. |
@@ -223,6 +224,10 @@ See `docs/239-studio-project-model.md`; the editor schema ships at
 | `buildStudioCursorChoreography` | function | Inspect a caller-owned page and plan its semantic cursor choreography in one call. |
 | `observeStudioInteraction` | function | Passively record and classify live DOM, computed-CSS, pseudo, geometry, animation, scroll, lifecycle, and transient-state evidence around one caller-owned action. |
 | `observeStudioSemanticStep` | function | Resolve a compiled semantic step's target and related drag destination, then observe its caller-owned executor. |
+| `recordStudioInteractions` | function | Record a caller-owned real Playwright flow as ordered pointer, keyboard, redacted input, scroll, navigation, DOM-feedback, live geometry/state, semantic-target, and computed-CSS evidence. Sensitive values are replaced inside the page before crossing the binding. |
+| `studioInteractionRecordingSchema` / `studioRecordedEventSchema` / `studioRecordedTargetSchema` | schema | Strict versioned raw-evidence contract with monotonic event ordering, exact redaction accounting, and browser-inspected target snapshots. |
+| `importStudioInteractionRecording` | function | Require AI healing to simplify a redacted recording into one normal semantic scene, require a separate AI review, pause either stage for clarification, and append accepted intent with AI revision plus evidence-artifact provenance. |
+| `persistStudioRecordingEvidence` | function | Atomically persist an importer's already-redacted raw evidence as non-overwriting mode-0600 JSON inside the Studio workspace. |
 | `compileStudioProject` | function | Lower recursive static composition scenes through `composeCompositeConfig`, then sequence all scenes through `composeStoryboardConfig`. Accepts a caller-owned `Browser` and optional `{ projectDir, log }`. Rejects active semantic tracks/hooks rather than ignoring them. |
 | `compileStudioProjectFile` | function | Load and compile a project file, resolving source paths relative to the file's directory. |
 | `compileStudioInteractiveProject` | function | Capture active URL/file scenes in one live page, synthesize reusable animated SVG/evidence artifacts, then compose them with unchanged static and pre-rendered scenes. Returns the final SVG, provenance-updated project value, and generated segments. |
@@ -240,7 +245,7 @@ See `docs/239-studio-project-model.md`; the editor schema ships at
 | `parseSvgReviewRegions` / `importSvgReviewRegionsAnnotation` | function | Parse the canonical clipboard `REGIONS:` block and map its rectangles, image tokens, and captions to structured Studio annotation fields. |
 | `applyStudioTreatments` / `resolveStudioTreatmentPlan` | function | Validate and expand ordered cinematic presets into composable primitives, then nest them around a self-contained SVG with deterministic namespacing and brand defaults. |
 | `studioTreatmentSchema` / `studioTreatmentsSchema` / `studioTreatmentLayerPrimitiveSchema` / `studioTreatmentMaskPrimitiveSchema` / `studioTreatmentTransformPrimitiveSchema` / `studioTreatmentOverlayPrimitiveSchema` / `studioTreatmentTimingSchema` | schema | Studio-file and programmatic contracts for device/browser/terminal chrome, zoom/pan, spotlight, callout, title, logo, standard transitions, and their lower-level primitives. |
-| `StudioProjectValidationError` / `StudioProjectCompileError` / `StudioInteractionError` / `StudioInteractionObservationError` / `StudioInteractiveSceneError` / `StudioHealingError` / `StudioTreatmentError` / `StudioVideoReviewError` / `StudioAnnotationError` / `StudioAgentToolError` | class | Structured validation, replay, evidence, healing, treatment, video-review, annotation, and agent-transport failures; actionable scene errors retain current-page browser evidence and the completed causal trail. |
+| `StudioProjectValidationError` / `StudioProjectCompileError` / `StudioInteractionError` / `StudioInteractionObservationError` / `StudioInteractiveSceneError` / `StudioHealingError` / `StudioRecordingError` / `StudioTreatmentError` / `StudioVideoReviewError` / `StudioAnnotationError` / `StudioAgentToolError` | class | Structured validation, replay, evidence, healing, recording/import, treatment, video-review, annotation, and agent-transport failures; actionable scene errors retain current-page browser evidence and the completed causal trail. |
 | `buildStudioProjectJsonSchema` / `studioProjectJsonSchemaText` | function | Generate the draft-2020-12 editor schema from the runtime Zod source. |
 | `StudioProject`, `StudioScene`, `StudioSceneRender`, `StudioComposition`, `StudioLayer` | type | Main project, scene, render, and recursive-layer types. |
 | `StudioNarrative`, `StudioSemanticTarget`, `StudioSemanticEvent`, `StudioSemanticTrack`, `StudioScriptHook`, `StudioReviewHistory`, `StudioReviewRevision`, `StudioReviewAnnotation`, `StudioAnnotationTarget`, `StudioAnnotationScope`, `StudioAnnotationTime`, `StudioAnnotationRegion`, `StudioArtifact` | type | Narrative, intent, extension, evidence-capable review, normalized grounding, and generated-artifact value types. |
@@ -259,6 +264,8 @@ See `docs/239-studio-project-model.md`; the editor schema ships at
 | `StudioTreatment`, `StudioTreatmentPlan`, `StudioTreatmentLayerPrimitive`, `StudioTreatmentMaskPrimitive`, `StudioTreatmentTransformPrimitive`, `StudioTreatmentOverlayPrimitive`, `StudioTreatmentTiming`, `AppliedStudioTreatments` | type | Validated cinematic presets, their inspectable primitive expansion, and the resulting nested self-contained SVG. |
 | `StudioCursorPoint`, `StudioCursorBox`, `StudioCursorTargetEvidence`, `StudioCursorEventOverride`, `StudioCursorInteractionTiming`, `StudioCursorChoreography` | type | Live target evidence, deterministic planner input/overrides, and renderer-ready choreography output. |
 | `StudioInteractionEvidence`, `StudioElementChange`, `StudioMutationEvidence`, `StudioInteractionSignal`, `StudioObservedElement` | type | Ordered live-page evidence and direct/effect/incidental classification returned by Studio interaction observation. |
+| `StudioInteractionRecording`, `StudioRecordedEvent`, `StudioRecordedTarget`, `StudioRecordingAiAdapter`, `StudioRecordingAiRequest`, `StudioRecordingReviewRequest`, `StudioRecordingHealDecision`, `StudioRecordingReviewDecision`, `StudioRecordingImportResult` | type | Redacted raw browser evidence, required AI healing/review boundaries, clarification states, and accepted semantic-scene import result. |
+| `RecordStudioInteractionsOptions`, `ImportStudioInteractionRecordingOptions` | type | Recorder throttling/redaction options and AI/evidence/provenance import controls. |
 | `ImportStoryboardOptions` / `CompileStudioProjectOptions` / `CompileStudioInteractiveProjectOptions` / `RunStudioHealingLoopOptions` / `CompileStudioSemanticTracksOptions` / `RunStudioSemanticPlanOptions` / `RunStudioSemanticStepOptions` / `PlanStudioCursorChoreographyOptions` / `StudioProjectValidationIssue` | type | Options and structured diagnostic companion types. |
 
 ### Standalone Studio app
@@ -274,7 +281,9 @@ Scrubber playback engine, with context retained across regeneration. See
 `docs/240-studio-application-shell.md` and
 `docs/250-studio-embedded-scrubber-preview.md`. High-level beat, scene,
 source/timing/transition/treatment, undo, and required-AI generation controls are
-specified in `docs/251-studio-high-level-authoring.md`.
+specified in `docs/251-studio-high-level-authoring.md`; redacted real-browser
+recording and required-AI semantic import are specified in
+`docs/252-studio-real-interaction-import.md`.
 
 ## Declarative animate pipeline
 

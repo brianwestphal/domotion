@@ -78,6 +78,7 @@ describe("Studio high-level authoring", () => {
           },
         },
         treatments: [{ kind: "browser-chrome", theme: "dark" }],
+        tracks: [{ id: "track-imported", kind: "semantic-interactions", events: [{ id: "event-imported", kind: "click", atMs: 640, target: { testId: "primary-action" } }] }],
       },
     });
     expect(sceneUpdated.project.scenes[0]).toMatchObject({
@@ -85,6 +86,7 @@ describe("Studio high-level authoring", () => {
       generationInstructions: expect.stringContaining("DOM/CSS"),
       narrativeBeatIds: [payoff.id],
       treatments: [{ kind: "browser-chrome", theme: "dark" }],
+      tracks: [{ events: [{ id: "event-imported", atMs: 640 }] }],
     });
     expect(sceneUpdated.project.narrative.beats[0].sceneIds).toEqual([]);
     expect(sceneUpdated.project.narrative.beats[1].sceneIds).toEqual(["scene-opening"]);

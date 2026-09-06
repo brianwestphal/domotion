@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpqvt070t951nme",
+          "message": {
+            "text": "Chromium evidence covers password and URL-secret redaction, pointer keyboard scroll navigation DOM mutation and computed CSS capture, two mandatory AI stages, immutable retiming, and ordinary interactive compilation after DOM nesting CSS and button text change.",
+            "markdown": "Chromium evidence covers password and URL-secret redaction, pointer keyboard scroll navigation DOM mutation and computed CSS capture, two mandatory AI stages, immutable retiming, and ordinary interactive compilation after DOM nesting CSS and button text change."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/recording.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 58,
+                  "endLine": 177,
+                  "snippet": {
+                    "text": "  it(\"records, redacts, imports, edits, and replays after a modest application change\", async () => {\n    try {\n      browser = await chromium.launch({ headless: true });\n    } catch {\n      return;\n    }\n    const root = mkdtempSync(join(tmpdir(), \"domotion-recording-e2e-\"));\n    const appPath = join(root, \"app.html\");\n    const artifactDir = join(root, \"generated\");\n    const page = await browser.newPage({ viewport: { width: 800, height: 520 } });\n    try {\n      writeFileSync(appPath, appHtml(1), \"utf8\");\n      await page.goto(pathToFileURL(appPath).href);\n      const recording = await recordStudioInteractions(page, async (recordedPage) => {\n        const password = recordedPage.getByLabel(\"Password\");\n        await password.click();\n        await password.pressSequentially(SECRET, { delay: 1 });\n        await recordedPage.getByTestId(\"create-action\").hover();\n        await recordedPage.getByTestId(\"create-action\").click();\n        await recordedPage.getByTestId(\"activity\").evaluate((element) => {\n          element.scrollTop = 64;\n          element.dispatchEvent(new Event(\"scroll\", { bubbles: true }));\n        });\n      }, { id: \"recording-real-flow\", settleMs: 120 });\n\n      const rawJson = JSON.stringify(recording);\n      expect(rawJson).not.toContain(SECRET);\n      expect(rawJson).not.toContain(URL_SECRET);\n      expect(recording.redactions).toBeGreaterThan(0);\n      expect(recording.events.some((event) => event.kind === \"input\" && event.value === STUDIO_REDACTED_VALUE)).toBe(true);\n      expect(recording.events.some((event) => event.kind === \"pointer\" && event.phase === \"click\")).toBe(true);\n      expect(recording.events.some((event) => event.kind === \"scroll\")).toBe(true);\n      expect(recording.events.some((event) => event.kind === \"navigation\" && event.navigationKind === \"push-state\")).toBe(true);\n      const feedback = recording.events.find((event) => event.kind === \"dom-feedback\");\n      expect(feedback).toBeDefined();\n      if (feedback?.kind === \"dom-feedback\") {\n        expect(feedback.mutations.some((mutation) => mutation.kind === \"childList\")).toBe(true);\n        expect(feedback.snapshots.some((snapshot) => Object.hasOwn(snapshot.styles, \"backgroundColor\"))).toBe(true);\n      }\n\n      const project = createStudioProjectDocument({ title: \"Recorded story\", width: 800, height: 520, createdAt: \"2026-09-06T06:00:00.000Z\" });\n      let requiredPolicyObserved = false;\n      const imported = await importStudioInteractionRecording(project, recording, {\n        ai: {\n          heal: async (request) => {\n            requiredPolicyObserved = JSON.stringify(request.aiPolicy) === JSON.stringify({ healing: \"required\", review: \"required\" });\n            return {\n              kind: \"candidate\",\n              summary: \"Removed pointer travel, key noise, feedback mutations, and navigation bookkeeping while retaining two intentional actions.\",\n              evidence: { summary: \"Selected the label for the field and data-testid for the action after reviewing live DOM, geometry, and computed CSS evidence.\" },\n              scene: {\n                id: \"scene-recorded-flow\",\n                title: \"Recorded flow\",\n                description: \"Editable semantic actions inferred from a real interaction.\",\n                narrativeBeatIds: [\"beat-opening\"],\n                render: { kind: \"storyboard\", recipe: { capture: { file: basename(appPath) }, duration: 1800 } },\n                tracks: [{\n                  id: \"track-recorded-flow\",\n                  kind: \"semantic-interactions\",\n                  events: [\n                    { id: \"event-enter-secret\", kind: \"type\", atMs: 180, durationMs: 300, target: { label: \"Password\" }, text: STUDIO_REDACTED_VALUE },\n                    { id: \"event-create\", kind: \"click\", atMs: 760, target: { testId: \"create-action\" } },\n                  ],\n                }],\n              },\n            };\n          },\n          review: async ({ candidate, aiPolicy }) => {\n            expect(aiPolicy).toEqual({ healing: \"required\", review: \"required\" });\n            expect(candidate.tracks?.[0].events).toHaveLength(2);\n            return { kind: \"accept\", summary: \"Accepted the stable targets, redaction, simplification, and naturalized pacing.\", evidence: { summary: \"The candidate is schema-valid and keeps editable intent.\" } };\n          },\n        },\n        now: \"2026-09-06T06:01:00.000Z\",\n      });\n      expect(requiredPolicyObserved).toBe(true);\n      expect(imported.status).toBe(\"imported\");\n      if (imported.status !== \"imported\") return;\n      persistStudioRecordingEvidence(root, imported);\n      expect(readFileSync(join(root, imported.evidencePath), \"utf8\")).not.toContain(SECRET);\n\n      const editedTracks = structuredClone(imported.scene.tracks!);\n      editedTracks[0].events[1].atMs = 900;\n      const edited = applyStudioAuthoringCommand(imported.project, {\n        kind: \"scene.update\",\n        sceneId: imported.scene.id,\n        patch: { title: \"Edited recorded flow\", tracks: editedTracks },\n      }).project;\n      expect(validateStudioProject(edited).scenes.at(-1)?.title).toBe(\"Edited recorded flow\");\n\n      // The app's DOM nesting, visual styling, and button name now differ. The\n      // AI-selected stable test id and label survive, so the ordinary interactive\n      // compiler can replay and capture the edited semantic scene.\n      writeFileSync(appPath, appHtml(2), \"utf8\");\n      const compiled = await compileStudioInteractiveProject(browser, edited, {\n        projectDir: root,\n        artifactDir,\n        generatedAt: () => \"2026-09-06T06:02:00.000Z\",\n        generatorVersion: \"test\",\n      });\n      const segment = compiled.segments.find((candidate) => candidate.sceneId === imported.scene.id);\n      expect(segment?.evidence.map((item) => item.eventId)).toEqual([\"event-enter-secret\", \"event-create\"]);\n      expect(segment?.durationMs).toBeGreaterThanOrEqual(1800);\n      expect(compiled.svg).toContain(\"Recorded result v2\");\n      expect(compiled.project.scenes.find((scene) => scene.id === imported.scene.id)?.title).toBe(\"Edited recorded flow\");\n    } finally {\n      await page.close().catch(() => {});\n      rmSync(root, { recursive: true, force: true });\n    }\n  }, 120_000);\n});\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "workItemUris": [
+            "DM-2696"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "708e89382a1c7cba316ecd5090b900ae"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "cd2debb878202d0451cc25cc3e5f713c27fc356b",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

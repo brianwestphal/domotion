@@ -62,6 +62,10 @@ JSON operations:
 - `POST /api/annotation` applies one create/edit/status command through the
   revision-provenanced annotation model and persists it atomically. This
   browser-facing route always records a human author.
+- `POST /api/recording/import` validates a redacted browser recording, checks
+  the expected project revision, requires AI healing and AI review (or returns
+  their clarification without mutation), writes workspace-bounded evidence,
+  and appends the accepted ordinary semantic scene.
 
 Every body is size-bounded and strictly validated. Studio model failures return
 HTTP 400 with the exact structured `{ path, message, code }` issues produced by
@@ -89,6 +93,8 @@ Create, open, save, and reopen are working controls. Reopen discards unsaved
 client edits by reloading the validated file. High-level narrative beats, scene
 structure/source/timing/transition/treatment, undo, and required-AI generation
 controls are specified in `docs/251-studio-high-level-authoring.md`.
+Real browser recording, redaction, AI semantic import, and editable action
+timing are specified in `docs/252-studio-real-interaction-import.md`.
 
 The responsive two-column layout collapses to one column below 800 CSS pixels,
 all controls retain visible keyboard focus, status/errors use live regions, and

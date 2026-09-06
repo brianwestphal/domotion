@@ -11,6 +11,7 @@ import {
   saveStudioProjectFile,
 } from "./app-projects.js";
 import { startStudioServer, type StudioServerHandle } from "./server.js";
+import { STUDIO_INTERACTION_RECORDING_FORMAT, STUDIO_INTERACTION_RECORDING_VERSION } from "./recording.js";
 
 const NOW = "2026-09-06T02:00:00.000Z";
 const LATER = "2026-09-06T02:05:00.000Z";
@@ -167,6 +168,66 @@ describe("Studio project file operations", () => {
       });
       expect(observedPolicy).toEqual({ healing: "required", review: "required" });
       expect(openStudioProjectFile(root, "generate.json").project).toEqual(created.project);
+    } finally {
+      await server?.close();
+    }
+  });
+
+  it("imports a redacted recording through required AI stages and persists its evidence", async () => {
+    root = mkdtempSync(join(tmpdir(), "domotion-studio-recording-import-"));
+    const created = createStudioProjectFile(root, "recording.json", { title: "Recorded", createdAt: NOW });
+    const recording = {
+      format: STUDIO_INTERACTION_RECORDING_FORMAT,
+      version: STUDIO_INTERACTION_RECORDING_VERSION,
+      id: "recording-server-flow",
+      startedAt: NOW,
+      durationMs: 10,
+      viewport: { width: 800, height: 600 },
+      sourceUrls: ["https://example.test/app"],
+      redactions: 0,
+      events: [{ sequence: 0, atMs: 10, url: "https://example.test/app", kind: "navigation", navigationKind: "initial" }],
+    };
+    let healed = false;
+    let reviewed = false;
+    let server: StudioServerHandle | null = null;
+    try {
+      server = await startStudioServer({
+        workspaceRoot: root,
+        recordingAi: {
+          heal: async ({ aiPolicy }) => {
+            healed = true;
+            expect(aiPolicy).toEqual({ healing: "required", review: "required" });
+            return {
+              kind: "candidate",
+              summary: "Inferred one stable action.",
+              evidence: { summary: "Used the stable test id." },
+              scene: {
+                id: "scene-imported",
+                title: "Imported",
+                render: { kind: "storyboard", recipe: { capture: { url: "https://example.test/app" }, duration: 1000 } },
+                tracks: [{ id: "track-imported", kind: "semantic-interactions", events: [{ id: "event-imported", kind: "click", atMs: 100, target: { testId: "continue" } }] }],
+              },
+            };
+          },
+          review: async () => {
+            reviewed = true;
+            return { kind: "accept", summary: "Accepted the editable semantic scene.", evidence: { summary: "Replay intent is explicit." } };
+          },
+        },
+      });
+      const response = await fetch(new URL("/api/recording/import", server.url), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: "recording.json", expectedHeadRevisionId: created.project.review.headRevisionId, recording }),
+      });
+      expect(response.status).toBe(200);
+      const body = await response.json() as { recordingImportResult: { status: string; evidencePath: string }; project: { scenes: unknown[] } };
+      expect(body.recordingImportResult.status).toBe("imported");
+      expect(body.project.scenes).toHaveLength(2);
+      expect(healed).toBe(true);
+      expect(reviewed).toBe(true);
+      expect(readFileSync(join(root, body.recordingImportResult.evidencePath), "utf8")).toContain(STUDIO_INTERACTION_RECORDING_FORMAT);
+      expect(openStudioProjectFile(root, "recording.json").project.scenes.at(-1)?.id).toBe("scene-imported");
     } finally {
       await server?.close();
     }

@@ -638,6 +638,13 @@ export const FEATURES: FeatureEntry[] = [
     exports: ["StudioAuthoringError", "applyStudioAuthoringCommand", "commitStudioAuthoringRevision", "studioContentRevisionId"],
     tests: ["src/studio/authoring.test.ts", "src/cli/storyboard.test.ts", "src/animation/embed-timeline.test.ts", "src/studio/app-projects.test.ts", "src/studio/server.e2e.test.ts"],
   },
+  {
+    id: "studio.real-interaction-import",
+    behavior: "Record real pointer, keyboard, input, scroll, navigation, DOM, geometry, state, and computed-CSS evidence with in-page secret redaction; require AI healing and review or clarification; preserve raw evidence; and import an ordinary editable semantic scene that survives modest application changes.",
+    doc: "docs/252-studio-real-interaction-import.md",
+    exports: ["StudioRecordingError", "importStudioInteractionRecording", "persistStudioRecordingEvidence", "recordStudioInteractions", "studioInteractionRecordingSchema", "studioRecordedEventSchema", "studioRecordedTargetSchema"],
+    tests: ["src/studio/recording.test.ts", "src/studio/recording.e2e.test.ts", "src/studio/app-projects.test.ts"],
+  },
 
   // ── Templates ──────────────────────────────────────────────────────────
   {

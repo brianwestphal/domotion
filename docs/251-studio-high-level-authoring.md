@@ -81,3 +81,6 @@ retiming. `src/studio/server.e2e.test.ts` authors and persists a multi-scene,
 multi-beat story in Chromium, edits source/timing/fit/transition/treatment and
 generation instructions, invokes required-AI scene generation, opens the real
 Scrubber preview, and reopens the same persisted project.
+
+Real-user recording import extends this command surface with editable semantic
+tracks; see `docs/252-studio-real-interaction-import.md`.

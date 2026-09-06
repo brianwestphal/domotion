@@ -10,7 +10,7 @@ export type StudioAuthoringCommand =
   | { kind: "scene.duplicate"; sceneId: string }
   | { kind: "scene.remove"; sceneId: string }
   | { kind: "scene.move"; sceneId: string; toIndex: number }
-  | { kind: "scene.update"; sceneId: string; patch: Partial<Pick<StudioScene, "title" | "description" | "generationInstructions" | "narrativeBeatIds" | "render" | "treatments">> }
+  | { kind: "scene.update"; sceneId: string; patch: Partial<Pick<StudioScene, "title" | "description" | "generationInstructions" | "narrativeBeatIds" | "render" | "treatments" | "tracks">> }
   | { kind: "beat.add"; afterBeatId?: string; title?: string }
   | { kind: "beat.update"; beatId: string; title?: string; summary?: string | null }
   | { kind: "beat.remove"; beatId: string }

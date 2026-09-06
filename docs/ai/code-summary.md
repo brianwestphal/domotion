@@ -50,6 +50,9 @@ loading the historical documentation corpus.
   story inspection share the standalone tool's playback engine. Its high-level
   authoring layer applies reversible scene/beat edits, commits explicit content
   revisions, and routes generation only through required AI healing/review.
+  Its real-interaction recorder redacts sensitive values inside the page,
+  retains browser DOM/CSS/navigation evidence, and requires AI healing plus AI
+  review before importing a normal editable semantic scene.
 - `src/post-processing/` exports the self-contained SVG to raster or video.
 - `src/review/` and `src/scrubber/` provide local review and timeline UIs.
 - `src/cli/` exposes capture, animate, template, terminal, review, and scrubber

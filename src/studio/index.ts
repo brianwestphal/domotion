@@ -205,6 +205,29 @@ export {
   type StudioObservedRect,
 } from "./interaction-observer.js";
 export {
+  STUDIO_INTERACTION_RECORDING_FORMAT,
+  STUDIO_INTERACTION_RECORDING_VERSION,
+  STUDIO_REDACTED_VALUE,
+  importStudioInteractionRecording,
+  persistStudioRecordingEvidence,
+  recordStudioInteractions,
+  studioInteractionRecordingSchema,
+  studioRecordedEventSchema,
+  studioRecordedTargetSchema,
+  StudioRecordingError,
+  type ImportStudioInteractionRecordingOptions,
+  type RecordStudioInteractionsOptions,
+  type StudioInteractionRecording,
+  type StudioRecordedEvent,
+  type StudioRecordedTarget,
+  type StudioRecordingAiAdapter,
+  type StudioRecordingAiRequest,
+  type StudioRecordingHealDecision,
+  type StudioRecordingImportResult,
+  type StudioRecordingReviewDecision,
+  type StudioRecordingReviewRequest,
+} from "./recording.js";
+export {
   buildStudioProjectJsonSchema,
   studioProjectJsonSchemaText,
 } from "./project-json-schema.js";

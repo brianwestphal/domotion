@@ -22,6 +22,12 @@ import {
   studioContentRevisionId,
   StudioAuthoringError,
 } from "./authoring.js";
+import {
+  importStudioInteractionRecording,
+  persistStudioRecordingEvidence,
+  StudioRecordingError,
+  type StudioRecordingAiAdapter,
+} from "./recording.js";
 import type { StudioArtifact, StudioProject } from "./project-schema.js";
 
 const pathField = z.string().trim().min(1, "project path is required").max(4096);
@@ -49,6 +55,11 @@ const generationBodySchema = z.strictObject({
   path: pathField,
   expectedHeadRevisionId: z.string().min(1),
   selection: previewBodySchema.shape.selection,
+});
+const recordingImportBodySchema = z.strictObject({
+  path: pathField,
+  expectedHeadRevisionId: z.string().min(1),
+  recording: z.unknown(),
 });
 const generationAiSchema = z.strictObject({
   healing: z.strictObject({ status: z.literal("accepted"), summary: z.string().trim().min(1) }),
@@ -179,6 +190,7 @@ function errorResponse(error: unknown): { status: number; body: Record<string, u
   if (error instanceof StudioHttpError) return { status: error.status, body: { error: error.message } };
   if (error instanceof StudioAnnotationError) return { status: error.message.startsWith("stale annotation change:") ? 409 : 400, body: { error: error.message } };
   if (error instanceof StudioAuthoringError) return { status: error.message.startsWith("stale authoring change:") ? 409 : 400, body: { error: error.message } };
+  if (error instanceof StudioRecordingError) return { status: 400, body: { error: error.message } };
   if (error instanceof StudioProjectValidationError) {
     return { status: 400, body: { error: error.message, issues: error.issues } };
   }
@@ -194,6 +206,7 @@ export interface StudioServerInputs {
   initialProjectPath?: string;
   log?: (message: string) => void;
   generate?: (input: StudioGenerationInput) => Promise<StudioGenerationResult>;
+  recordingAi?: StudioRecordingAiAdapter;
 }
 
 export type StudioGenerationSelection = z.infer<typeof previewBodySchema>["selection"];
@@ -233,6 +246,7 @@ interface StudioBootstrap {
   issues: readonly { path: string; message: string; code: string }[];
   error: string;
   generationAvailable: boolean;
+  recordingImportAvailable: boolean;
 }
 
 function scriptJson(value: unknown): string {
@@ -289,6 +303,7 @@ export async function startStudioServer(inputs: StudioServerInputs = {}): Promis
     issues: initialIssues,
     error: initialError,
     generationAvailable: inputs.generate != null,
+    recordingImportAvailable: inputs.recordingAi != null,
   };
   const html = shell(bootstrap);
 
@@ -352,6 +367,34 @@ export async function startStudioServer(inputs: StudioServerInputs = {}): Promis
         const body = await readJsonBody(req, previewBodySchema);
         const file = openStudioProjectFile(workspaceRoot, body.path);
         sendJson(res, 200, previewResponse(workspaceRoot, file, body.selection));
+        return;
+      }
+      if (req.method === "POST" && url === "/api/recording/import") {
+        const body = await readJsonBody(req, recordingImportBodySchema);
+        const current = openStudioProjectFile(workspaceRoot, body.path);
+        if (current.project.review.headRevisionId !== body.expectedHeadRevisionId) {
+          throw new StudioAuthoringError(`stale authoring change: expected review head ${body.expectedHeadRevisionId}, found ${current.project.review.headRevisionId}`);
+        }
+        if (inputs.recordingAi == null) throw new StudioHttpError(501, "Studio recording import requires configured AI healing and review adapters");
+        const imported = await importStudioInteractionRecording(current.project, body.recording, {
+          ai: inputs.recordingAi,
+          generatorVersion: "1",
+        });
+        if (imported.status === "clarification") {
+          sendJson(res, 200, { ...projectResponse(current), recordingImportResult: imported });
+          return;
+        }
+        persistStudioRecordingEvidence(workspaceRoot, imported);
+        const saved = saveStudioProjectFile(workspaceRoot, body.path, imported.project, imported.project.updatedAt);
+        sendJson(res, 200, {
+          ...projectResponse(saved),
+          recordingImportResult: {
+            status: "imported",
+            sceneId: imported.scene.id,
+            evidencePath: imported.evidencePath,
+            ai: imported.ai,
+          },
+        });
         return;
       }
       if (req.method === "POST" && url === "/api/generate") {

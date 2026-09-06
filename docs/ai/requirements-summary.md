@@ -44,6 +44,11 @@ external runtime assets. macOS, Linux, and Windows are first-class platforms.
     layer, mask, transform, overlay, timing, transition, template, chrome, and
     compositor primitives. Presets are brand-aware and nest with deterministic
     namespacing; they do not introduce a second renderer or external runtime.
+12. Real interaction recording is redacted in-page before persistence and keeps
+    raw pointer, keyboard, scroll, navigation, DOM, computed-style, geometry,
+    timing, and state evidence. Required AI healing simplifies it into ordinary
+    semantic Studio scenes; required AI review accepts or edits the candidate,
+    and either stage pauses for clarification when intent is ambiguous.
 
 ## Current handbooks
 

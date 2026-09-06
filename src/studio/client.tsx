@@ -23,6 +23,7 @@ interface Bootstrap {
   issues: readonly StudioIssue[];
   error: string;
   generationAvailable: boolean;
+  recordingImportAvailable: boolean;
 }
 interface ProjectResponse {
   path: string;
@@ -35,6 +36,12 @@ interface ProjectResponse {
     status: "completed";
     ai: { healing: { status: "accepted"; summary: string }; review: { status: "accepted"; summary: string } };
   } | { status: "clarification"; question: string; reason: string };
+  recordingImportResult?: {
+    status: "imported";
+    sceneId: string;
+    evidencePath: string;
+    ai: { healing: { summary: string }; review: { summary: string } };
+  } | { status: "clarification"; question: string; reason: string; phase: "healing" | "review" };
 }
 interface PreviewResponse {
   sourceKey: string;
@@ -52,6 +59,7 @@ const bootstrap = window.__DOMOTION_STUDIO__ ?? {
   issues: [],
   error: "",
   generationAvailable: false,
+  recordingImportAvailable: false,
 };
 const projectPath = signal(bootstrap.path);
 const project = signal<StudioProject | null>(bootstrap.project);
@@ -88,6 +96,7 @@ const scrubberReady = signal(false);
 const previewStates = new Map<string, ScrubberEmbedViewState>();
 let pendingPreview: PreviewResponse | null = null;
 const undoStack = signal<StudioProject[]>([]);
+const recordingJson = signal("");
 
 const openAnnotations = computed(() => project.value?.review.annotations.filter((annotation) => annotation.status === "open").length ?? 0);
 
@@ -113,6 +122,7 @@ h1{font-size:17px;margin:0}.eyebrow{font-size:11px;letter-spacing:.13em;text-tra
 .scene-list{display:flex;flex-direction:column;gap:11px}.scene{display:grid;grid-template-columns:40px minmax(0,1fr);gap:13px;align-items:start;border:1px solid #29364e;border-radius:12px;background:#0c1320;padding:13px}.scene-no{display:grid;place-items:center;width:32px;height:32px;border-radius:9px;background:#1b2942;color:#b9c9e7;font-weight:750}.scene-editor{min-width:0}.scene-head,.section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.scene-head .field{flex:1}.scene-controls{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.scene-controls .span2{grid-column:span 2}.scene-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}.scene-meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}.scene-id{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;color:#78869e}.scene-state{white-space:nowrap}.beat-list{display:grid;gap:10px}.beat{display:grid;grid-template-columns:minmax(140px,.7fr) minmax(200px,1.3fr) auto;gap:10px;align-items:end;border:1px solid #29364e;border-radius:11px;padding:11px;background:#0c1320}.help{font-size:12px;color:#8795ae;line-height:1.45}.danger{border-color:#6e3b49;color:#ffbdc8}
 .preview-panel{margin-top:18px}.preview-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}.preview-toolbar .spacer{flex:1}.preview-frame{display:block;width:100%;height:min(70vh,680px);min-height:420px;border:1px solid #29364e;border-radius:12px;background:#0e0f13}.preview-meta{margin:10px 0 0;color:#8795ae;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}.preview-empty{display:grid;place-items:center;min-height:240px;border:1px dashed #34415a;border-radius:12px;color:#8795ae;text-align:center;padding:24px}
 .review-panel{margin-top:18px}.review-compose{border:1px solid #29364e;border-radius:12px;background:#0c1320;padding:14px;margin-bottom:14px}.review-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px}.review-fields .body{grid-column:1/-1}.review-fields .scene-select{grid-column:span 2}.review-help{font-size:12px;color:#8795ae;margin:9px 0 0}.annotation-list{display:flex;flex-direction:column;gap:10px}.annotation{border:1px solid #29364e;border-radius:12px;background:#0c1320;padding:13px}.annotation-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}.annotation-author{font-size:12px;color:#aebbd0}.annotation-target{font-size:12px;color:#8290a8;margin:8px 0}.annotation-actions{display:flex;gap:8px;margin-top:9px}.empty-notes{color:#8795ae;font-size:13px;margin:0}
+.recording-panel{margin-top:18px}.recording-panel textarea{min-height:120px}.semantic-actions{display:grid;gap:7px;margin-top:10px}.semantic-action{display:grid;grid-template-columns:minmax(0,1fr) 130px;gap:10px;align-items:end;border-left:2px solid #536da8;padding-left:10px}.semantic-action code{font-size:11px;color:#aebbd0;overflow-wrap:anywhere}
 @media(max-width:800px){.app{grid-template-columns:1fr}.rail{border-right:0;border-bottom:1px solid #263149}.main{padding:22px 18px 40px}.grid{grid-template-columns:1fr}.topbar{flex-direction:column}.formgrid,.review-fields,.scene-controls{grid-template-columns:1fr}.wide,.review-fields .body,.review-fields .scene-select,.scene-controls .span2{grid-column:auto}.beat{grid-template-columns:1fr}}
 `;
 
@@ -267,6 +277,18 @@ function annotationTargetLabel(target: StudioProject["review"]["annotations"][nu
   return parts.join(" · ") || "Project-wide text note";
 }
 
+function semanticTargetLabel(event: NonNullable<StudioScene["tracks"]>[number]["events"][number]): string {
+  if (event.kind === "scriptHook") return `hook ${event.hookId}`;
+  if (event.kind === "scrollTo" && event.position != null) return `page ${event.position.x}, ${event.position.y}`;
+  const target = event.target;
+  if (target == null) return "page";
+  if (target.role != null) return `${target.role}${target.name == null ? "" : ` “${target.name}”`}`;
+  if (target.label != null) return `label “${target.label}”`;
+  if (target.testId != null) return `test id ${target.testId}`;
+  if (target.domId != null) return `id ${target.domId}`;
+  return target.text ?? target.selector ?? "target";
+}
+
 function render() {
   const current = project.value;
   return (
@@ -372,6 +394,14 @@ function render() {
                           <label class="field"><span>Cinematic preset</span><select data-field="scene-preset" aria-label={`Scene ${index + 1} cinematic preset`}><option value="none" selected={cinematicPreset(scene) === "none"}>None</option><option value="browser-chrome" selected={cinematicPreset(scene) === "browser-chrome"}>Browser chrome</option><option value="device-frame" selected={cinematicPreset(scene) === "device-frame"}>Phone frame</option><option value="zoom-pan" selected={cinematicPreset(scene) === "zoom-pan"}>Focus zoom</option><option value="spotlight" selected={cinematicPreset(scene) === "spotlight"}>Spotlight</option><option value="title-card" selected={cinematicPreset(scene) === "title-card"}>Title card</option>{cinematicPreset(scene) === "custom" && <option value="custom" selected disabled>Custom treatments</option>}</select></label>
                         </div>
                         <div class="scene-meta"><span class="badge">{sourceLabel(scene)}</span><span class="badge">{durationLabel(scene)}</span></div>
+                        {(scene.tracks?.some((track) => track.events.length > 0) ?? false) && <div class="semantic-actions">
+                          {scene.tracks!.flatMap((track) => track.events.map((event) => (
+                            <div class="semantic-action" data-track-id={track.id} data-event-id={event.id}>
+                              <code>{event.kind} · {semanticTargetLabel(event)}</code>
+                              <label class="field"><span>Action timing (ms)</span><input type="number" min="0" data-field="scene-action-at" value={String(event.atMs)} aria-label={`Action ${event.id} timing`} /></label>
+                            </div>
+                          )))}
+                        </div>}
                         <div class="scene-id">{scene.id}</div>
                         <div class="scene-actions">
                           <button data-action="scene-up" disabled={index === 0}>Move up</button>
@@ -403,6 +433,12 @@ function render() {
                     {previewInfo.value != null && <p class="preview-meta">{previewInfo.value.artifact.path} · {previewInfo.value.durationMs}ms · revision {previewInfo.value.artifact.sourceRevisionId}</p>}
                   </>
                 )}
+              </section>
+              <section class="panel recording-panel">
+                <h3>Import a real interaction recording</h3>
+                <label class="field"><span>Redacted recording JSON</span><textarea data-field="recording-json" aria-label="Recorded interaction JSON" placeholder="Paste a domotion-studio-interaction-recording document">{recordingJson.value}</textarea></label>
+                <div class="actions" style="margin-top:10px"><button class="primary" data-action="import-recording" disabled={busy.value || !bootstrap.recordingImportAvailable}>Import as editable scene</button></div>
+                <p class="help">{bootstrap.recordingImportAvailable ? "AI healing simplifies raw input into semantic actions; AI review accepts it or asks a clarifying question. Redacted raw evidence remains attached to the imported scene." : "Connect AI healing and review adapters to enable recording import."}</p>
               </section>
               <section class="panel review-panel">
                 <h3>Review annotations</h3>
@@ -571,6 +607,26 @@ async function generate(selection: { kind: "story" } | { kind: "scene"; sceneId:
   await loadPreview(selection);
 }
 
+async function importRecording(): Promise<void> {
+  let current = project.value;
+  if (current == null) return;
+  if (dirty.value) {
+    const saved = await post("/api/save", { path: projectPath.value, expectedHeadRevisionId: current.review.headRevisionId, project: current });
+    acceptLoaded(saved, "Saved");
+    current = saved.project;
+  }
+  let recording: unknown;
+  try { recording = JSON.parse(recordingJson.value); } catch { throw new Error("Recorded interaction JSON is invalid."); }
+  const result = await post("/api/recording/import", { path: projectPath.value, expectedHeadRevisionId: current.review.headRevisionId, recording });
+  acceptLoaded(result, result.recordingImportResult?.status === "imported" ? "Imported recording into" : "Recording import paused for");
+  if (result.recordingImportResult?.status === "clarification") {
+    message.value = `${result.recordingImportResult.question} ${result.recordingImportResult.reason}`;
+    messageKind.value = "info";
+  } else {
+    recordingJson.value = "";
+  }
+}
+
 async function run(action: () => Promise<void>): Promise<void> {
   busy.value = true;
   try {
@@ -614,6 +670,8 @@ void delegate(app, "click", "[data-action]", (_event, target) => {
     void run(() => generate({ kind: "story" }));
   } else if (action === "generate-scene" && sceneId != null) {
     void run(() => generate({ kind: "scene", sceneId }));
+  } else if (action === "import-recording") {
+    void run(importRecording);
   } else if (action === "preview-story") {
     void loadPreview({ kind: "story" });
   } else if (action === "preview-scene") {
@@ -721,6 +779,7 @@ void delegate(app, "input", "[data-field]", (_event, target) => {
   if (field === "annotation-region-width") { annotationRegionWidth.value = control.value; return; }
   if (field === "annotation-region-height") { annotationRegionHeight.value = control.value; return; }
   if (field === "annotation-existing-body") return;
+  if (field === "recording-json") { recordingJson.value = control.value; return; }
   const current = project.value;
   if (current == null) return;
   const next = structuredClone(current);
@@ -761,7 +820,18 @@ void delegate(app, "change", "[data-field]", (_event, target) => {
   const sceneId = (control.closest("[data-scene-id]") as HTMLElement | null)?.dataset.sceneId;
   const scene = current?.scenes.find((candidate) => candidate.id === sceneId);
   if (current == null || scene == null) return;
-  if (field === "scene-beat") {
+  if (field === "scene-action-at") {
+    const action = control.closest<HTMLElement>("[data-event-id]");
+    const trackId = action?.dataset.trackId;
+    const eventId = action?.dataset.eventId;
+    const atMs = Number(control.value);
+    if (!Number.isFinite(atMs) || atMs < 0) { setFailure(new Error("Action timing must be non-negative.")); return; }
+    const tracks = structuredClone(scene.tracks ?? []);
+    const event = tracks.find((track) => track.id === trackId)?.events.find((candidate) => candidate.id === eventId);
+    if (event == null) return;
+    event.atMs = atMs;
+    applyAuthoring({ kind: "scene.update", sceneId: scene.id, patch: { tracks } });
+  } else if (field === "scene-beat") {
     applyAuthoring({ kind: "scene.update", sceneId: scene.id, patch: { narrativeBeatIds: control.value === "" ? [] : [control.value] } });
   } else if (field === "scene-source-kind") {
     const kind = control.value as SceneSourceKind;

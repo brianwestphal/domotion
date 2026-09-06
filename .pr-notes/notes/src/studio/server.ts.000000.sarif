@@ -285,6 +285,70 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "warning",
+          "guid": "mtpqvt6sk7wpd3qb",
+          "message": {
+            "text": "The Studio import route applies optimistic concurrency, requires configured AI healing and review, returns clarification without disk changes, and persists workspace-bounded evidence before atomically saving the accepted semantic scene.",
+            "markdown": "The Studio import route applies optimistic concurrency, requires configured AI healing and review, returns clarification without disk changes, and persists workspace-bounded evidence before atomically saving the accepted semantic scene."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/server.ts"
+                },
+                "region": {
+                  "startLine": 372,
+                  "endLine": 406,
+                  "snippet": {
+                    "text": "      if (req.method === \"POST\" && url === \"/api/recording/import\") {\n        const body = await readJsonBody(req, recordingImportBodySchema);\n        const current = openStudioProjectFile(workspaceRoot, body.path);\n        if (current.project.review.headRevisionId !== body.expectedHeadRevisionId) {\n          throw new StudioAuthoringError(`stale authoring change: expected review head ${body.expectedHeadRevisionId}, found ${current.project.review.headRevisionId}`);\n        }\n        if (inputs.recordingAi == null) throw new StudioHttpError(501, \"Studio recording import requires configured AI healing and review adapters\");\n        const imported = await importStudioInteractionRecording(current.project, body.recording, {\n          ai: inputs.recordingAi,\n          generatorVersion: \"1\",\n        });\n        if (imported.status === \"clarification\") {\n          sendJson(res, 200, { ...projectResponse(current), recordingImportResult: imported });\n          return;\n        }\n        persistStudioRecordingEvidence(workspaceRoot, imported);\n        const saved = saveStudioProjectFile(workspaceRoot, body.path, imported.project, imported.project.updatedAt);\n        sendJson(res, 200, {\n          ...projectResponse(saved),\n          recordingImportResult: {\n            status: \"imported\",\n            sceneId: imported.scene.id,\n            evidencePath: imported.evidencePath,\n            ai: imported.ai,\n          },\n        });\n        return;\n      }\n      if (req.method === \"POST\" && url === \"/api/generate\") {\n        const body = await readJsonBody(req, generationBodySchema);\n        const current = openStudioProjectFile(workspaceRoot, body.path);\n        if (current.project.review.headRevisionId !== body.expectedHeadRevisionId) {\n          throw new StudioAuthoringError(`stale authoring change: expected review head ${body.expectedHeadRevisionId}, found ${current.project.review.headRevisionId}`);\n        }\n        if (inputs.generate == null) throw new StudioHttpError(501, \"Studio generation requires a configured AI healing and review adapter\");"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "risk"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "workItemUris": [
+            "DM-2696"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "5252a447a9b8cd9bc938e885b8e27fae"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "cd2debb878202d0451cc25cc3e5f713c27fc356b",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

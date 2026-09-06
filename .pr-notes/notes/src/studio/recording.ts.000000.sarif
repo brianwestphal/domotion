@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpqvsn30qajdkpu",
+          "message": {
+            "text": "The public recorder installs one self-contained Chromium document script for the session, captures browser-owned interaction plus DOM and computed-CSS facts across navigation, then removes future-document injection and returns a strictly ordered recording.",
+            "markdown": "The public recorder installs one self-contained Chromium document script for the session, captures browser-owned interaction plus DOM and computed-CSS facts across navigation, then removes future-document injection and returns a strictly ordered recording."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/recording.ts"
+                },
+                "region": {
+                  "startLine": 386,
+                  "endLine": 448,
+                  "snippet": {
+                    "text": "export async function recordStudioInteractions(\n  page: Page,\n  perform: (page: Page) => void | Promise<void>,\n  options: RecordStudioInteractionsOptions = {},\n): Promise<StudioInteractionRecording> {\n  const id = options.id ?? `recording-${randomUUID()}`;\n  const bindingName = `__domotionStudioRecord_${randomUUID().replaceAll(\"-\", \"\")}`;\n  const recorderKey = `${bindingName}State`;\n  const startedAt = options.startedAt ?? new Date().toISOString();\n  const startedEpochMs = Date.parse(startedAt);\n  const rawEvents: BrowserRawEvent[] = [];\n  let active = true;\n  await page.exposeBinding(bindingName, (_source, value: BrowserRawEvent) => {\n    if (active) rawEvents.push(structuredClone(value));\n  });\n  const installOptions: BrowserRecorderOptions = {\n    bindingName,\n    recorderKey,\n    redactSelectors: [...(options.redactSelectors ?? [])],\n    pointerMoveIntervalMs: options.pointerMoveIntervalMs ?? 80,\n  };\n  const cdp = await page.context().newCDPSession(page);\n  const source = `(${installStudioRecorderInPage.toString()})(${JSON.stringify(installOptions)})`;\n  const { identifier: initScriptId } = await cdp.send(\"Page.addScriptToEvaluateOnNewDocument\", { source }) as { identifier: string };\n  await page.evaluate(installStudioRecorderInPage, installOptions);\n  let failure: unknown;\n  try {\n    await perform(page);\n    await page.waitForTimeout(options.settleMs ?? 100);\n  } catch (error) {\n    failure = error;\n  } finally {\n    await page.evaluate(({ key }) => {\n      const value = (globalThis as unknown as Record<string, unknown>)[key] as { stop?: () => void } | undefined;\n      value?.stop?.();\n    }, { key: recorderKey }).catch(() => {});\n    await cdp.send(\"Page.removeScriptToEvaluateOnNewDocument\", { identifier: initScriptId }).catch(() => {});\n    await cdp.detach().catch(() => {});\n  }\n  await page.waitForTimeout(10).catch(() => {});\n  active = false;\n  if (failure != null) throw failure;\n\n  const ordered = rawEvents\n    .map((event, order) => ({ event, order }))\n    .sort((a, b) => a.event.atEpochMs - b.event.atEpochMs || a.order - b.order);\n  const events = ordered.map(({ event }, sequence) => {\n    const { atEpochMs, ...rest } = event;\n    return studioRecordedEventSchema.parse({ ...rest, sequence, atMs: Math.max(0, atEpochMs - startedEpochMs) });\n  });\n  const sourceUrls = [...new Set([sanitizeRecordedUrl(page.url()), ...events.map((event) => String(event.url))])];\n  const redactions = events.filter((event) => (event.kind === \"input\" || event.kind === \"keyboard\") && event.redacted === true).length;\n  return studioInteractionRecordingSchema.parse({\n    format: STUDIO_INTERACTION_RECORDING_FORMAT,\n    version: STUDIO_INTERACTION_RECORDING_VERSION,\n    id,\n    startedAt,\n    durationMs: events.at(-1)?.atMs ?? 0,\n    viewport: page.viewportSize(),\n    sourceUrls,\n    redactions,\n    events,\n  });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "workItemUris": [
+            "DM-2696"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "dd9f6372800d2514b304e4997060e86c"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "warning",
+          "guid": "mtpqvstqgdk94360",
+          "message": {
+            "text": "Recording import has no deterministic shortcut: required AI healing produces a normal semantic scene, required AI review accepts or edits it, either may clarify without mutation, and only validated redacted evidence is written atomically inside the workspace.",
+            "markdown": "Recording import has no deterministic shortcut: required AI healing produces a normal semantic scene, required AI review accepts or edits it, either may clarify without mutation, and only validated redacted evidence is written atomically inside the workspace."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/recording.ts"
+                },
+                "region": {
+                  "startLine": 531,
+                  "endLine": 625,
+                  "snippet": {
+                    "text": "export async function importStudioInteractionRecording(\n  rawProject: unknown,\n  rawRecording: unknown,\n  options: ImportStudioInteractionRecordingOptions,\n): Promise<StudioRecordingImportResult> {\n  const project = validateStudioProject(rawProject);\n  const recording = studioInteractionRecordingSchema.parse(rawRecording);\n  const request: StudioRecordingAiRequest = { project: structuredClone(project), recording: structuredClone(recording), aiPolicy: { healing: \"required\", review: \"required\" } };\n  const healed = healDecisionSchema.parse(await options.ai.heal(request));\n  if (healed.kind === \"clarify\") return { status: \"clarification\", project, question: healed.question, reason: healed.reason, phase: \"healing\" };\n  let scene = validateImportedScene(healed.scene, project, \"healing\");\n  const reviewed = reviewDecisionSchema.parse(await options.ai.review({ ...request, candidate: structuredClone(scene) }));\n  if (reviewed.kind === \"clarify\") return { status: \"clarification\", project, question: reviewed.question, reason: reviewed.reason, phase: \"review\" };\n  if (reviewed.kind === \"edit\") scene = validateImportedScene(reviewed.scene, project, \"review\");\n\n  const now = options.now ?? new Date().toISOString();\n  const evidenceText = `${JSON.stringify(recording, null, 2)}\\n`;\n  const token = digest(`${project.review.headRevisionId}:${recording.id}:${JSON.stringify(scene)}`).slice(0, 16);\n  const revisionId = `revision-recording-${token}`;\n  const artifactId = `artifact-recording-${token}`;\n  const evidencePath = options.evidencePath ?? `.domotion-studio/recordings/${recording.id}.json`;\n  const next = structuredClone(project);\n  next.scenes.push(scene);\n  for (const beatId of scene.narrativeBeatIds ?? []) {\n    const beat = next.narrative.beats.find((candidate) => candidate.id === beatId);\n    if (beat != null && !beat.sceneIds.includes(scene.id)) beat.sceneIds.push(scene.id);\n  }\n  next.review.revisions.push({\n    id: revisionId,\n    parentId: project.review.headRevisionId,\n    createdAt: now,\n    author: { kind: \"ai\", name: \"Studio recording import\" },\n    kind: \"content\",\n    summary: reviewed.summary,\n    metadata: {\n      operation: \"studio.recording.import\",\n      recordingId: recording.id,\n      healingSummary: healed.summary,\n      healingEvidence: healed.evidence,\n      reviewEvidence: reviewed.evidence,\n    },\n  });\n  next.review.headRevisionId = revisionId;\n  next.artifacts.push({\n    id: artifactId,\n    kind: \"capture-evidence\",\n    path: evidencePath,\n    generatedAt: now,\n    generator: { name: \"domotion-studio-recorder\", ...(options.generatorVersion == null ? {} : { version: options.generatorVersion }) },\n    sourceRevisionId: revisionId,\n    sceneIds: [scene.id],\n    sha256: digest(evidenceText),\n    metadata: {\n      format: recording.format,\n      version: recording.version,\n      eventCount: recording.events.length,\n      redactions: recording.redactions,\n      sourceUrls: recording.sourceUrls,\n    },\n  });\n  next.updatedAt = now;\n  return {\n    status: \"imported\",\n    project: validateStudioProject(next),\n    scene,\n    evidencePath,\n    evidenceText,\n    ai: { healing: { summary: healed.summary }, review: { summary: reviewed.summary } },\n  };\n}\n\n/** Atomically persist the already-redacted evidence returned by the importer inside a Studio workspace. */\nexport function persistStudioRecordingEvidence(workspaceRoot: string, result: Extract<StudioRecordingImportResult, { status: \"imported\" }>): string {\n  const root = resolve(workspaceRoot);\n  const destination = resolve(root, result.evidencePath);\n  const local = relative(root, destination);\n  if (local === \"..\" || local.startsWith(`..${sep}`) || isAbsolute(local)) throw new StudioRecordingError(`recording evidence path must stay inside the Studio workspace: ${root}`);\n  if (!destination.toLowerCase().endsWith(\".json\")) throw new StudioRecordingError(\"recording evidence files must use a .json extension\");\n  if (existsSync(destination)) {\n    if (readFileSync(destination, \"utf8\") === result.evidenceText) return destination;\n    throw new StudioRecordingError(`recording evidence already exists with different content: ${local}`);\n  }\n  mkdirSync(resolve(destination, \"..\"), { recursive: true });\n  const temporary = `${destination}.${process.pid}.${randomUUID()}.tmp`;\n  try {\n    writeFileSync(temporary, result.evidenceText, { encoding: \"utf8\", flag: \"wx\", mode: 0o600 });\n    renameSync(temporary, destination);\n  } finally {\n    rmSync(temporary, { force: true });\n  }\n  return destination;\n}\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "risk"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "workItemUris": [
+            "DM-2696"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "fac469f11508315c93487f6bccca5eff"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "cd2debb878202d0451cc25cc3e5f713c27fc356b",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
