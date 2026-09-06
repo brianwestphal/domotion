@@ -1,0 +1,145 @@
+{
+  "$schema": "../../schemas/domotion-studio-project.schema.json",
+  "format": "domotion-studio-project",
+  "version": 1,
+  "id": "glassbox-cinematic-demo",
+  "createdAt": "2026-09-06T00:00:00.000Z",
+  "canvas": {
+    "width": 1280,
+    "height": 800,
+    "background": "#080b11",
+    "title": "Glassbox — close the AI code review loop",
+    "desc": "A live product demonstration captured from the real Glassbox interface."
+  },
+  "brand": {
+    "palette": {
+      "primary": "#e8a87c",
+      "accent": "#79c0ff",
+      "background": "#0d1117",
+      "text": "#f0f4fa"
+    },
+    "background": "linear-gradient(180deg, #172033, #080b11)",
+    "radius": 14,
+    "logo": "../../../glassbox/assets/favicon.svg"
+  },
+  "narrative": {
+    "title": "Glassbox closes the AI code review loop",
+    "summary": "Launch locally, let AI triage risk, leave precise feedback, and hand a structured review back to the coding agent.",
+    "objective": "Show developers that Glassbox turns generated code into an inspectable, correctable collaboration loop without leaving their machine.",
+    "audience": "Developers and technical leads adopting AI-generated code",
+    "tone": "Confident, precise, cinematic, and grounded in the real product",
+    "beats": [
+      { "id": "beat-promise", "title": "Frame the promise", "sceneIds": ["scene-promise"] },
+      { "id": "beat-launch", "title": "Start where developers work", "sceneIds": ["scene-launch"] },
+      { "id": "beat-review", "title": "Inspect and direct the AI", "sceneIds": ["scene-live-review"] },
+      { "id": "beat-handoff", "title": "Close the loop", "sceneIds": ["scene-handoff", "scene-end"] }
+    ]
+  },
+  "scenes": [
+    {
+      "id": "scene-promise",
+      "title": "Review AI-generated code with evidence",
+      "description": "A concise brand-led opening establishes the product promise.",
+      "generationInstructions": "Lead with the review loop, not a generic feature list.",
+      "narrativeBeatIds": ["beat-promise"],
+      "render": { "kind": "storyboard", "recipe": { "svg": "base.svg", "duration": 1900 } },
+      "treatments": [
+        { "kind": "title-card", "title": "Trust AI code you can inspect", "subtitle": "Review locally. Annotate precisely. Send the reasoning back.", "timing": { "startMs": 80, "durationMs": 620, "easing": "cubic-bezier(0.22,1,0.36,1)" } },
+        { "kind": "scene-transition", "transition": { "type": "shine", "duration": 260 } }
+      ]
+    },
+    {
+      "id": "scene-launch",
+      "title": "Launch from the repository",
+      "description": "The workflow begins in a real developer context.",
+      "narrativeBeatIds": ["beat-launch"],
+      "render": { "kind": "storyboard", "recipe": { "capture": { "file": "launch.html", "wait": 100 }, "duration": 2700 } },
+      "treatments": [
+        { "kind": "terminal-chrome", "title": "demo-project — zsh", "theme": "dark" },
+        { "kind": "scene-transition", "transition": { "type": "crossfade", "duration": 240 } }
+      ]
+    },
+    {
+      "id": "scene-live-review",
+      "title": "Risk triage, precise feedback, and resolution",
+      "description": "A live Glassbox session captured from the actual DOM and computed CSS.",
+      "generationInstructions": "Keep the cursor purposeful, preserve readable holds, and let the UI demonstrate the product rather than covering it with copy.",
+      "narrativeBeatIds": ["beat-review"],
+      "render": { "kind": "storyboard", "recipe": { "capture": { "url": "http://127.0.0.1:4188", "wait": 600 }, "duration": 16600 } },
+      "treatments": [
+        { "kind": "browser-chrome", "label": "Glassbox — local AI code review", "theme": "dark" },
+        { "kind": "scene-transition", "transition": { "type": "crossfade", "duration": 260 } }
+      ],
+      "tracks": [{
+        "id": "track-review-loop",
+        "kind": "semantic-interactions",
+        "name": "Complete Glassbox review loop",
+        "events": [
+          { "id": "event-risk", "atMs": 800, "kind": "click", "target": { "role": "button", "name": "Sort files by AI risk score" }, "note": "AI triages the changed files." },
+          { "id": "event-analysis-ready", "atMs": 2550, "kind": "scriptHook", "hookId": "wait-for-analysis" },
+          { "id": "event-browse", "atMs": 3550, "kind": "click", "target": { "selector": ".file-name[title=\"src/db/redis.ts\"]" } },
+          { "id": "event-open-target", "atMs": 5000, "kind": "click", "target": { "selector": ".file-name[title=\"src/auth/session.ts\"]" } },
+          { "id": "event-scroll-line", "atMs": 6300, "kind": "scrollTo", "target": { "selector": ".diff-line.split-right[data-side=\"new\"][data-line=\"23\"]" } },
+          { "id": "event-open-note", "atMs": 7100, "kind": "click", "target": { "selector": ".diff-line.split-right[data-side=\"new\"][data-line=\"23\"]" } },
+          { "id": "event-type-note", "atMs": 7750, "durationMs": 2300, "kind": "type", "target": { "selector": ".annotation-form-container textarea" }, "text": "Sanitize the session id before building the Redis key." },
+          { "id": "event-save-note", "atMs": 10350, "kind": "click", "target": { "selector": ".annotation-form-container .annotation-save-btn" } },
+          { "id": "event-complete", "atMs": 11750, "kind": "click", "target": { "role": "button", "name": "Complete Review" } },
+          { "id": "event-export-ready", "atMs": 13000, "kind": "waitForState", "target": { "selector": "div.modal-copyable:first-of-type" }, "state": "visible", "timeoutMs": 8000 },
+          { "id": "event-dismiss", "atMs": 14100, "kind": "click", "target": { "role": "button", "name": "Done" } },
+          { "id": "event-apply-fix", "atMs": 15000, "kind": "scriptHook", "hookId": "apply-reviewed-fix" }
+        ]
+      }],
+      "scriptHooks": [{ "hookId": "prepare-glassbox", "phase": "beforeCapture" }]
+    },
+    {
+      "id": "scene-handoff",
+      "title": "The coding agent applies the review",
+      "description": "Structured feedback becomes an exact code change and a durable project rule.",
+      "narrativeBeatIds": ["beat-handoff"],
+      "render": { "kind": "storyboard", "recipe": { "capture": { "file": "handoff.html", "wait": 100 }, "duration": 3400 } },
+      "treatments": [
+        { "kind": "terminal-chrome", "title": "claude — demo-project — zsh", "theme": "dark" },
+        { "kind": "scene-transition", "transition": { "type": "crossfade", "duration": 260 } }
+      ]
+    },
+    {
+      "id": "scene-end",
+      "title": "Glassbox",
+      "description": "A clear branded close and installation prompt.",
+      "narrativeBeatIds": ["beat-handoff"],
+      "render": { "kind": "storyboard", "recipe": { "svg": "base.svg", "duration": 2600 } },
+      "treatments": [
+        { "kind": "title-card", "title": "Review the code. Keep the reasoning.", "subtitle": "$ npx glassbox", "timing": { "startMs": 80, "durationMs": 600, "easing": "cubic-bezier(0.22,1,0.36,1)" } },
+        { "kind": "logo-reveal", "position": { "x": 590, "y": 152 }, "width": 100, "timing": { "startMs": 120, "durationMs": 520, "easing": "cubic-bezier(0.22,1,0.36,1)" } },
+        { "kind": "scene-transition", "transition": { "type": "crossfade", "duration": 360 } }
+      ]
+    }
+  ],
+  "scriptHooks": [
+    { "id": "prepare-glassbox", "module": "./run.ts", "export": "prepareGlassbox" },
+    { "id": "wait-for-analysis", "module": "./run.ts", "export": "waitForAnalysis" },
+    { "id": "apply-reviewed-fix", "module": "./run.ts", "export": "applyReviewedFix" }
+  ],
+  "review": {
+    "headRevisionId": "revision-ai-concept-1",
+    "revisions": [{
+      "id": "revision-ai-concept-1",
+      "createdAt": "2026-09-06T00:00:00.000Z",
+      "author": { "kind": "ai", "name": "Codex product-story designer" },
+      "kind": "content",
+      "summary": "Created the Glassbox narrative from its local-first review purpose, product UI, and restrained dark brand.",
+      "metadata": { "source": "AI concept interview", "intent": "north-star acceptance benchmark" }
+    }],
+    "annotations": []
+  },
+  "artifacts": [],
+  "exportTargets": {
+    "svgPath": "../../../glassbox/assets/demo.svg",
+    "reviewVideoPath": "generated/glassbox-review.mp4"
+  },
+  "metadata": {
+    "benchmark": "glassbox",
+    "requiresSiblingRepository": "../../../glassbox",
+    "aiPolicy": { "healing": "required", "review": "required" }
+  }
+}

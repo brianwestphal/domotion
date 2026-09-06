@@ -53,6 +53,11 @@ external runtime assets. macOS, Linux, and Windows are first-class platforms.
     actions, cursor, overlays, transitions, treatments, annotations, and layer
     animations. Pointer, keyboard, accessible controls, undo/redo, and AI use
     the same explicit timing command; selection seeks the existing Scrubber.
+14. Glassbox is Studio's north-star integration benchmark. Its static JSON
+    storyboard and bounded TypeScript hooks drive the real product through the
+    complete local review loop; mandatory AI healing, candidate review, rendered-
+    video review, and a controlled accessible-name change produce revisioned
+    evidence before a self-contained SVG may be published for human review.
 
 ## Current handbooks
 
@@ -67,6 +72,8 @@ Studio's cross-domain authoring contract is
 [the versioned Studio project model](../239-studio-project-model.md).
 Its first application surface is the
 [standalone Studio shell](../240-studio-application-shell.md).
+The complete product acceptance path is
+[the Glassbox Studio benchmark](../254-glassbox-studio-acceptance-benchmark.md).
 
 Use the generated [manifest](manifest.json) to retrieve records by stable ID or
 code path. Use [domain packets](packets/) for a bounded list of current and

@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpz8zyxaffhx1oa",
+          "message": {
+            "text": "The benchmark heals a deliberately changed accessible name from captured ARIA, DOM geometry, and computed CSS evidence, then recaptures and requires AI review acceptance before publishing.",
+            "markdown": "The benchmark heals a deliberately changed accessible name from captured ARIA, DOM geometry, and computed CSS evidence, then recaptures and requires AI review acceptance before publishing."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "benchmarks/glassbox/run.ts"
+                },
+                "region": {
+                  "startLine": 172,
+                  "endLine": 172,
+                  "snippet": {
+                    "text": "export function glassboxBenchmarkHealDecision(request: Parameters<RunStudioHealingLoopOptions[\"heal\"]>[0]): StudioAiHealingDecision {"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "workItemUris": [
+            "DM-2697"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "66177bcfe0182b32ee1fd77df5bab204"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "warning",
+          "guid": "mtpz90t8n9ouxv0b",
+          "message": {
+            "text": "Self-containment checks reject external references, duplicate IDs, and dangling local references so an apparently valid Studio export cannot silently publish a broken hero asset.",
+            "markdown": "Self-containment checks reject external references, duplicate IDs, and dangling local references so an apparently valid Studio export cannot silently publish a broken hero asset."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "benchmarks/glassbox/run.ts"
+                },
+                "region": {
+                  "startLine": 284,
+                  "endLine": 284,
+                  "snippet": {
+                    "text": "function assertSelfContained(svg: string): void {"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "risk"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "workItemUris": [
+            "DM-2697"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "41587a8c51ce7a6e4ce6cc5dff316a1d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "557a3a55d06ced0986df5714d50474881e94e9a8",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

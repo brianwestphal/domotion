@@ -5142,6 +5142,35 @@
       "file": "253-studio-detailed-multitrack-timeline.md"
     },
     {
+      "id": "requirements/glassbox-studio-acceptance-benchmark",
+      "title": "Glassbox as the end-to-end cinematic Studio acceptance benchmark",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "studio",
+        "capture",
+        "animation",
+        "post-processing",
+        "ai"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "benchmarks/glassbox/glassbox.project.json",
+        "benchmarks/glassbox/run.ts",
+        "benchmarks/glassbox/launch.html",
+        "benchmarks/glassbox/handoff.html",
+        "benchmarks/glassbox/base.svg",
+        "src/animation/embed-namespace.ts",
+        "src/studio/interactive-compile.ts",
+        "tests/glassbox-studio-benchmark.test.ts"
+      ],
+      "file": "254-glassbox-studio-acceptance-benchmark.md"
+    },
+    {
       "id": "handbook/animation-and-interaction",
       "title": "Animation and interaction handbook",
       "kind": "contract",

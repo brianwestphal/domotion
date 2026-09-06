@@ -54,8 +54,14 @@ describe("Studio interactive segment compilation (DM-2685)", () => {
       expect(first.segments[0].evidence.every((item) => item.meaningful)).toBe(true);
       expect(first.segments[0].cursor.interactions).toHaveLength(4);
       expect(scenePhases).toEqual(["beforeCapture", "afterCapture", "beforeCompile", "afterCompile"]);
-      expect(readFileSync(first.segments[0].path, "utf8")).toContain('class="cursor-overlay"');
-      expect(readFileSync(first.segments[0].path, "utf8")).toContain("Details hooked");
+      const firstSegmentSvg = readFileSync(first.segments[0].path, "utf8");
+      expect(firstSegmentSvg).toContain('class="cursor-overlay"');
+      expect(firstSegmentSvg).toContain("Details hooked");
+      const ids = [...firstSegmentSvg.matchAll(/\sid="([^"]+)"/g)].map((match) => match[1]);
+      expect(new Set(ids).size, "live segment ids must be document-unique").toBe(ids.length);
+      const idSet = new Set(ids);
+      const localReferences = [...firstSegmentSvg.matchAll(/(?:href="|url\(#)([^"\)]+)["\)]/g)].map((match) => match[1].replace(/^#/, ""));
+      for (const reference of localReferences) expect(idSet, `missing local SVG reference ${reference}`).toContain(reference);
       expect(first.svg).toContain("interactive-followup-marker");
       expect(first.svg).toContain("Details hooked");
       expect(first.svg).toContain("sb0_cursor-overlay");

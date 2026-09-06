@@ -12,6 +12,8 @@
  *  - **embedded-font families** — `font-family:"dmf0"` in `@font-face` + the
  *    `<text font-family="dmf0">` attrs. A duplicate family name makes a later
  *    `@font-face` win, so text in OTHER frames reshapes to the wrong glyphs.
+ *    Already-composed input can carry a prior namespace such as `sb0_dmf0`;
+ *    nesting it again must namespace that whole family as one identifier.
  *  - **frame / animation classes** — `class="f f-0"`, `class="anim-…"` and their
  *    `.f` / `.f-0` / `.anim-…` style selectors.
  *  - **`@keyframes` names** — `fv-0`, the intra-frame `f0-…` names — and the
@@ -69,14 +71,16 @@ export function namespaceEmbeddedAnimatedSvg(svg: string, token: string, opts: N
       .replace(new RegExp(`((?:xlink:)?href=")#${e}(")`, "g"), `$1#${token}${id}$2`);
   }
 
-  // 2. Embedded-font families (`dmfN`). Only the `@font-face` declaration and the
+  // 2. Embedded-font families (`dmfN`, including already-prefixed families from a
+  //    previously composed SVG). Only the `@font-face` declaration and the
   //    `font-family` attr/decl contexts — never a bare global replace, since the
   //    base64 `src` payload could contain the same byte sequence. Skipped when the
   //    fonts are deferred to a shared outer builder (see NamespaceEmbedOptions).
   if (opts.namespaceFonts !== false) {
+    const embeddedFamily = "(?:[A-Za-z][A-Za-z0-9_-]*_)?dmf\\d+";
     out = out
-      .replace(/(font-family:\s*")(dmf\d+)(")/g, `$1${token}$2$3`)
-      .replace(/(font-family=")(dmf\d+)(")/g, `$1${token}$2$3`);
+      .replace(new RegExp(`(font-family:\\s*(?:"|&quot;))(${embeddedFamily})((?:"|&quot;))`, "g"), `$1${token}$2$3`)
+      .replace(new RegExp(`(font-family=")(${embeddedFamily})(")`, "g"), `$1${token}$2$3`);
   }
 
   // 3. `@keyframes` names + their `animation:` references. A keyframe name is a

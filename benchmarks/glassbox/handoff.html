@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Apply Glassbox feedback</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { width: 1280px; height: 800px; margin: 0; overflow: hidden; }
+    body { background: #0d1117; color: #c9d1d9; font: 22px/1.62 ui-monospace, "SF Mono", Menlo, monospace; padding: 58px 72px; }
+    .prompt { color: #d2a8ff; }
+    .tool { color: #79c0ff; }
+    .dim { color: #768390; }
+    .add { color: #56d364; }
+    .remove { color: #ff7b72; }
+    .panel { margin: 26px 0; padding: 22px 26px; border-left: 4px solid #79c0ff; background: #161b22; border-radius: 0 12px 12px 0; }
+    .success { display: inline-block; margin-top: 22px; padding: 10px 16px; border: 1px solid #2ea043; border-radius: 9px; background: rgba(46,160,67,.12); color: #56d364; }
+  </style>
+</head>
+<body>
+  <div><span class="prompt">/glassbox</span></div>
+  <div class="panel"><span class="tool">Read</span> .glassbox/latest-review.md<br><span class="dim">1 bug and 1 durable project rule</span></div>
+  <div><span class="remove">- await redis.set(`session:${id}`, value)</span></div>
+  <div><span class="add">+ await redis.set(`session:${encodeURIComponent(id)}`, value)</span></div>
+  <br>
+  <div><span class="tool">Update</span> CLAUDE.md</div>
+  <div class="dim">Persisted: session tokens must use a cryptographic RNG.</div>
+  <div class="success">Tests passed · review feedback applied</div>
+</body>
+</html>

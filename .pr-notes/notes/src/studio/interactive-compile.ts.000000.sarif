@@ -211,6 +211,70 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpz92jeh6c8ff9q",
+          "message": {
+            "text": "Interactive state captures share one hoisted glyph definition set instead of repeating definitions per state, eliminating duplicate SVG IDs while retaining local glyph references.",
+            "markdown": "Interactive state captures share one hoisted glyph definition set instead of repeating definitions per state, eliminating duplicate SVG IDs while retaining local glyph references."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/interactive-compile.ts"
+                },
+                "region": {
+                  "startLine": 394,
+                  "endLine": 394,
+                  "snippet": {
+                    "text": "    clearEmbeddedFonts();"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "workItemUris": [
+            "DM-2697"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "6b38952c600b5ab543165b60980f8aa9"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "557a3a55d06ced0986df5714d50474881e94e9a8",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

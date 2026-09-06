@@ -56,6 +56,12 @@ loading the historical documentation corpus.
   Its detailed timeline projects every authored timing primitive onto the
   production scene clock and applies pointer, keyboard, undo/redo, and AI edits
   through one explicit revisioned command before seeking the embedded Scrubber.
+- `benchmarks/glassbox/` is Studio's north-star product integration: a durable
+  AI-authored JSON storyboard, small explicit TypeScript hooks, and a live runner
+  against the sibling Glassbox checkout. It requires DOM/CSS-backed capture,
+  evidence-constrained AI healing, AI candidate review, production video review,
+  controlled-change recapture, self-containment checks, and optional publication
+  to Glassbox's README hero asset.
 - `src/post-processing/` exports the self-contained SVG to raster or video.
 - `src/review/` and `src/scrubber/` provide local review and timeline UIs.
 - `src/cli/` exposes capture, animate, template, terminal, review, and scrubber
@@ -69,6 +75,11 @@ loading the historical documentation corpus.
 - `domotion` — capture, animate, terminal, template, composite, and storyboard
 - `svg-to-video` and `svg-to-image` — export animated or static SVG output
 - `svg-review` and `svg-scrubber` — inspect static diffs or animated timelines
+
+The `npm run benchmark:glassbox` workflow exercises the complete Studio pipeline
+against Glassbox and publishes the accepted baseline asset;
+`benchmark:glassbox:quick` omits video and publication while retaining baseline
+plus controlled-healing browser passes.
 
 ## Correctness and evidence
 

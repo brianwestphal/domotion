@@ -36,6 +36,15 @@ describe("namespaceEmbeddedAnimatedSvg", () => {
     expect(out).toContain(`base64,AAAA`);
   });
 
+  it("prefixes already-namespaced embedded fonts when a composed SVG is nested again", () => {
+    const svg = `<svg><style>@font-face{font-family:&quot;sb0_dmf0&quot;;src:url(data:font/ttf;base64,AAAA)}</style>` +
+      `<text font-family="sb0_dmf0">nested</text></svg>`;
+    const out = namespaceEmbeddedAnimatedSvg(svg, "outer_");
+    expect(out).toContain(`font-family:&quot;outer_sb0_dmf0&quot;`);
+    expect(out).toContain(`font-family="outer_sb0_dmf0"`);
+    expect(out).not.toMatch(/font-family=(?:"|&quot;)sb0_dmf0/);
+  });
+
   it("prefixes frame/anim classes in both selectors and class attrs without mangling .f vs .f-0", () => {
     const svg = `<svg><style>.f { opacity: 0; } .f-0 { animation: fv-0 2s infinite; }` +
       `.anim-f0a0 { animation: f0-f0a0-0 2s; }</style>` +

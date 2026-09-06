@@ -8,7 +8,13 @@ import type { CapturedElement } from "../capture/types.js";
 import { openAnimateCaptureSession } from "../cli/animate-capture-session.js";
 import { applyReadyWaits, loadInputIntoPage } from "../cli/common.js";
 import type { StoryboardScene } from "../cli/storyboard.js";
-import { elementTreeToSvgInner, getEmbeddedFontFaceCss } from "../render/index.js";
+import {
+  clearEmbeddedFonts,
+  clearGlyphDefs,
+  elementTreeToSvgInner,
+  getEmbeddedFontFaceCss,
+  getGlyphDefs,
+} from "../render/index.js";
 import { cullElementsOutsideViewBox } from "../tree-ops/index.js";
 import {
   compileStudioProjectWithSceneOverrides,
@@ -245,7 +251,7 @@ async function captureState(
   const cull = cullElementsOutsideViewBox(tree, width, height, undefined, 0, 1);
   return {
     tree,
-    svgContent: elementTreeToSvgInner(tree, width, height, prefix, true, 2, false),
+    svgContent: elementTreeToSvgInner(tree, width, height, prefix, false, 2, false),
     cullCss: cull.css,
     background: tree[0]?.styles?.rootBgComputed,
   };
@@ -278,7 +284,7 @@ function magicMove(
       delete copy.sessionGenericFamilies;
       return copy;
     }),
-  }, width, height, idPrefix, true, 2, false), prefix);
+  }, width, height, idPrefix, false, 2, false), prefix);
 }
 
 function scheduledGroups(
@@ -382,6 +388,11 @@ async function compileLiveSegment(
   const evidence: StudioInteractionEvidence[] = [];
   let activeEventId: string | undefined;
   try {
+    // One live segment is one render-generation scope. Frame bodies reference
+    // these glyph paths, then the animator emits the accumulated definitions
+    // once at the top level instead of repeating identical ids in every state.
+    clearEmbeddedFonts();
+    clearGlyphDefs();
     const { page, tracker } = session;
     await loadInputIntoPage(page, input);
     await applyReadyWaits(page, { wait: cap.wait ?? 200, waitFor: cap.waitFor, fontsReady: true });
@@ -423,6 +434,7 @@ async function compileLiveSegment(
       width: project.canvas.width,
       height: project.canvas.height,
       frames,
+      sharedDefs: getGlyphDefs(),
       fontFaceCss: getEmbeddedFontFaceCss(),
       cursorOverlay: cursor.overlay,
       background: states[0].background,

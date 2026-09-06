@@ -8201,6 +8201,44 @@
       }
     },
     {
+      "file": "254-glassbox-studio-acceptance-benchmark.md",
+      "metadata": {
+        "id": "requirements/glassbox-studio-acceptance-benchmark",
+        "title": "Glassbox as the end-to-end cinematic Studio acceptance benchmark",
+        "kind": "contract",
+        "status": "current",
+        "owners": [
+          "studio",
+          "capture",
+          "animation",
+          "post-processing",
+          "ai"
+        ],
+        "platforms": [
+          "macos",
+          "linux",
+          "windows"
+        ],
+        "tickets": [
+          "DM-2697"
+        ],
+        "code": [
+          "benchmarks/glassbox/glassbox.project.json",
+          "benchmarks/glassbox/run.ts",
+          "benchmarks/glassbox/launch.html",
+          "benchmarks/glassbox/handoff.html",
+          "benchmarks/glassbox/base.svg",
+          "src/animation/embed-namespace.ts",
+          "src/studio/interactive-compile.ts",
+          "tests/glassbox-studio-benchmark.test.ts"
+        ],
+        "aliases": [
+          "docs/254-glassbox-studio-acceptance-benchmark.md",
+          "doc-254"
+        ]
+      }
+    },
+    {
       "file": "handbook/animation-and-interaction.md",
       "metadata": {
         "id": "handbook/animation-and-interaction",
@@ -9192,6 +9230,9 @@
     ],
     "253": [
       "requirements/studio-detailed-multitrack-timeline"
+    ],
+    "254": [
+      "requirements/glassbox-studio-acceptance-benchmark"
     ],
     "01": [
       "requirements/fidelity"

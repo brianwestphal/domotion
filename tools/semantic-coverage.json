@@ -2563,6 +2563,10 @@
     {
       "featureId": "studio.agent-tools",
       "reason": "Studio tool transport and authorization lifecycle, not a Chromium CSS/SVG parity decision."
+    },
+    {
+      "featureId": "studio.glassbox-acceptance-benchmark",
+      "reason": "Studio benchmark orchestration and review lifecycle, not a Chromium CSS/SVG parity decision."
     }
   ]
 }

@@ -652,6 +652,17 @@ export const FEATURES: FeatureEntry[] = [
     exports: ["STUDIO_TIMELINE_KINDS", "StudioTimelineError", "applyStudioTimelineCommand", "buildStudioTimeline", "moveStudioTimelineItems", "resizeStudioTimelineItems", "studioSceneDurationMs", "studioTimelineCommandSchema", "studioTimelineTimingChangeSchema"],
     tests: ["src/studio/timeline.test.ts", "src/studio/timeline.e2e.test.ts", "src/scrubber/embed.test.ts"],
   },
+  {
+    id: "studio.glassbox-acceptance-benchmark",
+    behavior: "Use a durable AI-authored Studio project and bounded hooks to capture Glassbox's real review loop, require evidence-backed AI revision and rendered-video review, prove controlled accessible-name healing and recapture, and publish only a self-contained accepted SVG.",
+    doc: "docs/254-glassbox-studio-acceptance-benchmark.md",
+    tests: ["tests/glassbox-studio-benchmark.test.ts", "benchmarks/glassbox/run.ts"],
+    transition: "baseline capture → AI review edit → recapture → AI acceptance → production video review → controlled accessible-name failure → DOM/CSS-evidenced AI heal → recapture → AI acceptance → human handoff/publication.",
+    transitionEvidence: [
+      { test: "tests/glassbox-studio-benchmark.test.ts", title: "heals the controlled accessible-name change from live DOM and computed-style evidence" },
+      { test: "tests/glassbox-studio-benchmark.test.ts", title: "revises persistent brand framing once, then accepts only a capture containing every causal beat" },
+    ],
+  },
 
   // ── Templates ──────────────────────────────────────────────────────────
   {
