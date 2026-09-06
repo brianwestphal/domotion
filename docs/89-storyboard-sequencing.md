@@ -229,6 +229,19 @@ JS/SMIL), rests at identity, cross-engine-safe (opacity / transform / clip).
 Programmatic entry point: `composeStoryboardConfig(browser, config, configDir,
 log?)` in `src/cli/storyboard.ts`.
 
+## Studio project boundary
+
+The storyboard config remains the compact render recipe described by this page.
+It is not the durable Domotion Studio authoring source. The versioned
+[Studio project model](239-studio-project-model.md) wraps each existing scene
+recipe with stable narrative/scene identity, semantic tracks, recursive layer
+compositions, review history, hook references, and artifact provenance.
+
+`importStoryboardConfig` migrates this config into a Studio project without
+changing the recipe. Static Studio compilation materializes nested composites,
+then projects the ordered scenes back through `composeStoryboardConfig`; there
+is no parallel sequencing renderer.
+
 ## MP4 / video export
 
 A storyboard is just an animated SVG, so it exports to video with the existing

@@ -194,6 +194,35 @@ string-out.
 | `hoistDuplicateImagePayloads` | function | Serialize each repeated raster payload once, into a top-level `<defs>` `<image>` that every occurrence references with `<use>`. Already applied by `wrapSvg`, `generateAnimatedSvg`, and the scroll composer — exposed for callers that assemble a multi-frame document themselves. Returns the input unchanged when nothing repeats. |
 | `HoistImagePayloadsOptions` | type | Options for the above (`minPayloadChars`). |
 
+## Domotion Studio project model
+
+The Studio API owns the durable, versioned JSON authoring source. It wraps the
+existing storyboard/composite recipes rather than replacing their render logic.
+See `docs/239-studio-project-model.md`; the editor schema ships at
+`schemas/domotion-studio-project.schema.json`.
+
+| Export | Kind | Description |
+| --- | --- | --- |
+| `STUDIO_PROJECT_FORMAT` / `STUDIO_PROJECT_VERSION` / `STUDIO_PROJECT_SCHEMA_ID` | const | Stable file discriminator (`domotion-studio-project`), current numeric version (`1`), and published JSON Schema URL. |
+| `studioProjectSchema` | schema | Strict runtime source of truth for the full project graph: canvas, narrative, ordered scenes, semantic tracks, recursive layers, hooks, review history, and artifact provenance. |
+| `studioIdSchema` | schema | Stable human-readable ID contract shared by every referenceable Studio entity. |
+| `studioSceneSchema` / `studioSceneRenderSchema` | schema | Ordered scene identity plus either the existing storyboard scene recipe or a recursive composition render. |
+| `studioCompositionSchema` / `studioLayerSchema` | schema | Recursive composition tree whose source leaves reuse `CompositeLayerConfig`. |
+| `studioSemanticTargetSchema` / `studioSemanticEventSchema` / `studioSemanticTrackSchema` | schema | Intent-level target and event model for click, hover, type, scroll, drag, wait-for-state, and named hook events. |
+| `studioNarrativeSchema` / `studioReviewHistorySchema` / `studioArtifactSchema` / `studioScriptHookSchema` | schema | Runtime contracts for narrative beats, revisions/annotations, generated-output provenance, and referenced (never inline) script hooks. |
+| `validateStudioProject` | function | Validate untrusted data as version 1. Throws `StudioProjectValidationError` with all available `{ path, message, code }` issues; unknown versions use `unsupported_version`. |
+| `parseStudioProjectJson` / `serializeStudioProject` | function | Parse or emit validated project JSON. Serialization uses stable two-space formatting and a trailing newline. |
+| `loadStudioProject` / `saveStudioProject` | function | Synchronous file helpers with source/path-aware diagnostics and validated round trips. |
+| `importStoryboardConfig` | function | Migrate the current storyboard config into version 1 with deterministic project/scene/beat/revision IDs while preserving the underlying scene recipes and cursor. |
+| `studioProjectToStoryboardConfig` | function | Project the direct-storyboard subset back to the existing `StoryboardConfig`; composition scenes must first be materialized. |
+| `compileStudioProject` | function | Lower recursive static composition scenes through `composeCompositeConfig`, then sequence all scenes through `composeStoryboardConfig`. Accepts a caller-owned `Browser` and optional `{ projectDir, log }`. Rejects active semantic tracks/hooks rather than ignoring them. |
+| `compileStudioProjectFile` | function | Load and compile a project file, resolving source paths relative to the file's directory. |
+| `StudioProjectValidationError` / `StudioProjectCompileError` | class | Structured validation/compile failures with exact JSON paths. |
+| `buildStudioProjectJsonSchema` / `studioProjectJsonSchemaText` | function | Generate the draft-2020-12 editor schema from the runtime Zod source. |
+| `StudioProject`, `StudioScene`, `StudioSceneRender`, `StudioComposition`, `StudioLayer` | type | Main project, scene, render, and recursive-layer types. |
+| `StudioNarrative`, `StudioSemanticTarget`, `StudioSemanticEvent`, `StudioSemanticTrack`, `StudioScriptHook`, `StudioReviewHistory`, `StudioArtifact` | type | Narrative, intent, extension, review, and generated-artifact value types. |
+| `ImportStoryboardOptions` / `CompileStudioProjectOptions` / `StudioProjectValidationIssue` | type | Options and structured diagnostic companion types. |
+
 ## Declarative animate pipeline
 
 The JSON-config-driven animation pipeline that powers the `domotion animate`

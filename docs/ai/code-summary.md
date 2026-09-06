@@ -35,6 +35,12 @@ loading the historical documentation corpus.
   composition itself enters through `src/cli/composite.ts`.
 - `src/terminal/` and `src/templates/` are authoring front ends that reuse the
   same render/animation pipeline.
+- `src/studio/` owns the versioned Studio project source of truth: strict schema,
+  stable cross-object identities, JSON persistence, legacy-storyboard import,
+  recursive composition lowering, and the static storyboard compile adapter.
+  The generated editor schema is
+  `schemas/domotion-studio-project.schema.json`; generated SVG/video remains
+  artifact provenance, never project state.
 - `src/post-processing/` exports the self-contained SVG to raster or video.
 - `src/review/` and `src/scrubber/` provide local review and timeline UIs.
 - `src/cli/` exposes capture, animate, template, terminal, review, and scrubber

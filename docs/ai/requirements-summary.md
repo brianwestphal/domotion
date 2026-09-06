@@ -23,6 +23,10 @@ external runtime assets. macOS, Linux, and Windows are first-class platforms.
 6. Output is deterministic under the same authenticated inputs. Animation,
    compositing, templates, terminal capture, and exports reuse the same capture
    and render contracts.
+7. A Domotion Studio project is the versioned durable authoring source. Stable
+   narrative/scene/track/layer/review identities survive regeneration; SVG and
+   review video are generated artifacts with revision provenance. Static Studio
+   compilation lowers to the existing composite/storyboard pipelines.
 
 ## Current handbooks
 
@@ -32,6 +36,9 @@ external runtime assets. macOS, Linux, and Windows are first-class platforms.
 - [Images, media, and embedding](../handbook/images-media-and-embedding.md)
 - [Animation and interaction](../handbook/animation-and-interaction.md)
 - [Platforms, testing, and release](../handbook/platforms-testing-and-release.md)
+
+Studio's cross-domain authoring contract is
+[the versioned Studio project model](../239-studio-project-model.md).
 
 Use the generated [manifest](manifest.json) to retrieve records by stable ID or
 code path. Use [domain packets](packets/) for a bounded list of current and

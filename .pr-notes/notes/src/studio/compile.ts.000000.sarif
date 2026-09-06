@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtp5vrl78z1k4scp",
+          "message": {
+            "text": "Studio is intentionally a durable authoring wrapper over the shipped render recipes. Recursive compositions materialize through the existing composite compositor, then ordered scenes compile through the existing storyboard compositor; temporary SVGs are generated artifacts and never become project state. This preserves current rendering behavior while Studio adds stable narrative, review, and provenance identities.",
+            "markdown": "Studio is intentionally a durable authoring wrapper over the shipped render recipes. Recursive compositions materialize through the existing composite compositor, then ordered scenes compile through the existing storyboard compositor; temporary SVGs are generated artifacts and never become project state. This preserves current rendering behavior while Studio adds stable narrative, review, and provenance identities."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/compile.ts"
+                },
+                "region": {
+                  "startLine": 104,
+                  "endLine": 149,
+                  "snippet": {
+                    "text": "export async function compileStudioProject(\n  browser: Browser,\n  raw: unknown,\n  options: CompileStudioProjectOptions = {},\n): Promise<string> {\n  const project = validateStudioProject(raw);\n  assertStaticCompilerInputs(project);\n  const projectDir = options.projectDir ?? process.cwd();\n  const log = options.log ?? (() => {});\n  const workDir = mkdtempSync(join(tmpdir(), \"domotion-studio-compile-\"));\n  const ctx: MaterializeContext = { browser, projectDir, workDir, log, nextFile: 0 };\n\n  try {\n    const scenes: StoryboardScene[] = [];\n    for (let index = 0; index < project.scenes.length; index++) {\n      const scene = project.scenes[index];\n      if (scene.render.kind === \"storyboard\") {\n        scenes.push(scene.render.recipe);\n        continue;\n      }\n      const svg = await materializeComposition(\n        scene.render.composition,\n        `$.scenes[${index}].render.composition`,\n        ctx,\n      );\n      const svgPath = writeIntermediateSvg(ctx, svg);\n      scenes.push({\n        svg: svgPath,\n        duration: scene.render.duration ?? scene.render.composition.duration,\n        ...(scene.render.fit != null ? { fit: scene.render.fit } : {}),\n        ...(scene.render.transition != null ? { transition: scene.render.transition } : {}),\n        ...(scene.render.overlays != null ? { overlays: scene.render.overlays } : {}),\n      });\n    }\n\n    const storyboard = validateStoryboardConfig({\n      width: project.canvas.width,\n      height: project.canvas.height,\n      ...(project.canvas.background != null ? { background: project.canvas.background } : {}),\n      ...(project.canvas.title != null ? { title: project.canvas.title } : {}),\n      ...(project.canvas.desc != null ? { desc: project.canvas.desc } : {}),\n      ...(project.playback?.cursor != null ? { cursor: project.playback.cursor } : {}),\n      scenes,\n    });\n    log(`Compiling Studio project \"${project.id}\" through the existing storyboard compositor…`);\n    return await composeStoryboardConfig(browser, storyboard, projectDir, log);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2682"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "f4222926dc776debe4d3006116225ad6"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "warning",
+          "guid": "mtp5vyqu5zklvo6w",
+          "message": {
+            "text": "The v1 static compiler fails closed when semantic events or scene hook bindings are active. Silently ignoring either would create a visually plausible but behaviorally false demo. Later interactive compilation should lower these intents first, leaving this boundary explicit and safe.",
+            "markdown": "The v1 static compiler fails closed when semantic events or scene hook bindings are active. Silently ignoring either would create a visually plausible but behaviorally false demo. Later interactive compilation should lower these intents first, leaving this boundary explicit and safe."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/compile.ts"
+                },
+                "region": {
+                  "startLine": 81,
+                  "endLine": 96,
+                  "snippet": {
+                    "text": "function assertStaticCompilerInputs(project: StudioProject): void {\n  project.scenes.forEach((scene, sceneIndex) => {\n    const trackIndex = scene.tracks?.findIndex((track) => track.events.length > 0) ?? -1;\n    if (trackIndex >= 0) {\n      throw new StudioProjectCompileError(\n        `$.scenes[${sceneIndex}].tracks[${trackIndex}]`,\n        \"the static compiler does not execute semantic interaction events; compile an already-generated scene recipe or use the interactive Studio compiler\",\n      );\n    }\n    if ((scene.scriptHooks?.length ?? 0) > 0) {\n      throw new StudioProjectCompileError(\n        `$.scenes[${sceneIndex}].scriptHooks`,\n        \"the static compiler never executes script hooks; lower the hook to a generated scene before compiling\",\n      );\n    }\n  });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "risk"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "rank": 85,
+          "workItemUris": [
+            "DM-2682"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "12cb01f1518f5f00221ca9d0d6785410"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "db8e5f9669b472e1c0f199ef57c79a508d42cccc",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

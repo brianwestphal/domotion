@@ -4764,6 +4764,30 @@
       "file": "238-programmatic-debug-capture-bundles.md"
     },
     {
+      "id": "requirements/studio-project-model",
+      "title": "Domotion Studio project model",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "studio",
+        "animation"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "schemas/domotion-studio-project.schema.json",
+        "scripts/generate-studio-project-schema.ts",
+        "src/studio/",
+        "src/cli/composite.ts",
+        "src/cli/storyboard.ts",
+        "tests/fixtures/studio/static-storyboard.project.json"
+      ],
+      "file": "239-studio-project-model.md"
+    },
+    {
       "id": "handbook/animation-and-interaction",
       "title": "Animation and interaction handbook",
       "kind": "contract",
@@ -4787,6 +4811,7 @@
         "src/cli/animate.ts",
         "src/cli/composite.ts",
         "src/cli/debug-bundle.ts",
+        "src/studio/",
         "tests/animate-debug.e2e.test.ts",
         "tests/animate-examples.tsx"
       ],

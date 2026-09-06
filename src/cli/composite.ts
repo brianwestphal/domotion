@@ -30,7 +30,7 @@ import { composeAnimatedLayers, type CompositeLayer } from "../animation/composi
 import { parseSvgIntrinsicSize, detectAnimationPeriodMs } from "../animation/svg-meta.js";
 import { cliFail } from "./common.js";
 
-const layerAnimationSchema = z.object({
+export const compositeLayerAnimationSchema = z.object({
   property: z.enum(["scale", "translateX", "translateY", "opacity", "transform", "clipScaleX", "clipScaleY"]),
   from: z.union([z.string(), z.number()]),
   to: z.union([z.string(), z.number()]),
@@ -40,13 +40,26 @@ const layerAnimationSchema = z.object({
   transformOrigin: z.string().optional(),
 });
 
-const chromeSchema = z.object({
+export const compositeLayerChromeSchema = z.object({
   device: z.enum(DEVICE_CHROMES).default("window"),
   label: z.string().optional(),
   theme: z.enum(CHROME_THEMES).default("dark"),
 });
 
-const layerSchema = z.object({
+export const compositeLayerPlacementSchema = z.object({
+  x: z.number().optional(),
+  y: z.number().optional(),
+  width: z.number().positive().optional(),
+  height: z.number().positive().optional(),
+  clip: z.boolean().optional(),
+  clipRadius: z.number().nonnegative().optional(),
+  start: z.number().nonnegative().optional(),
+  mode: z.enum(["hold", "stretch", "loop"]).optional(),
+  duration: z.number().positive().optional(),
+  animations: z.array(compositeLayerAnimationSchema).optional(),
+});
+
+export const compositeLayerSchema = z.object({
   // Exactly one source — enforced in the superRefine below.
   svg: z.string().optional().describe("Path to a pre-rendered SVG (static or animated)."),
   cast: z.string().optional().describe("Path to an asciinema v2 .cast (rendered as an animated terminal)."),
@@ -55,19 +68,9 @@ const layerSchema = z.object({
   term: z.record(z.string(), z.unknown()).optional().describe("Terminal options for a `cast` source."),
   // Period of an animated `svg` source (ms), when it can't be auto-detected.
   period: z.number().positive().optional(),
-  chrome: chromeSchema.optional(),
+  chrome: compositeLayerChromeSchema.optional(),
   // Placement.
-  x: z.number().optional(),
-  y: z.number().optional(),
-  width: z.number().positive().optional(),
-  height: z.number().positive().optional(),
-  clip: z.boolean().optional(),
-  clipRadius: z.number().nonnegative().optional(),
-  // Timeline of the layer's own animation.
-  start: z.number().nonnegative().optional(),
-  mode: z.enum(["hold", "stretch", "loop"]).optional(),
-  duration: z.number().positive().optional(),
-  animations: z.array(layerAnimationSchema).optional(),
+  ...compositeLayerPlacementSchema.shape,
 }).superRefine((l, ctx) => {
   const sources = [l.svg, l.cast, l.template].filter((s) => s != null);
   if (sources.length !== 1) {
@@ -81,10 +84,12 @@ export const compositeConfigSchema = z.object({
   output: z.string().optional(),
   background: z.string().optional(),
   duration: z.number().positive().optional(),
-  layers: z.array(layerSchema).min(1),
+  layers: z.array(compositeLayerSchema).min(1),
 });
 
 export type CompositeConfig = z.infer<typeof compositeConfigSchema>;
+export type CompositeLayerConfig = z.infer<typeof compositeLayerSchema>;
+export type CompositeLayerPlacement = z.infer<typeof compositeLayerPlacementSchema>;
 
 export function validateCompositeConfig(raw: unknown): CompositeConfig {
   const parsed = compositeConfigSchema.safeParse(raw);
@@ -98,7 +103,7 @@ export function validateCompositeConfig(raw: unknown): CompositeConfig {
 
 /** Render one layer's source to an animated SVG + intrinsic size + period. */
 async function renderLayerSource(
-  layer: z.infer<typeof layerSchema>,
+  layer: CompositeLayerConfig,
   browser: Browser,
   configDir: string,
   log: (m: string) => void,

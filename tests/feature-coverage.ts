@@ -502,6 +502,46 @@ export const FEATURES: FeatureEntry[] = [
     ],
   },
 
+  // ── Domotion Studio project source ────────────────────────────────────
+  {
+    id: "studio.project-model",
+    behavior: "Validate, persist, migrate, and statically compile the versioned Studio authoring graph while preserving stable narrative/scene/track/layer/review identities and generated-artifact provenance.",
+    doc: "docs/239-studio-project-model.md",
+    exports: [
+      "StudioProjectCompileError",
+      "StudioProjectValidationError",
+      "buildStudioProjectJsonSchema",
+      "compileStudioProject",
+      "compileStudioProjectFile",
+      "importStoryboardConfig",
+      "loadStudioProject",
+      "parseStudioProjectJson",
+      "saveStudioProject",
+      "serializeStudioProject",
+      "studioArtifactSchema",
+      "studioCompositionSchema",
+      "studioIdSchema",
+      "studioLayerSchema",
+      "studioNarrativeSchema",
+      "studioProjectJsonSchemaText",
+      "studioProjectSchema",
+      "studioProjectToStoryboardConfig",
+      "studioReviewHistorySchema",
+      "studioSceneRenderSchema",
+      "studioSceneSchema",
+      "studioScriptHookSchema",
+      "studioSemanticEventSchema",
+      "studioSemanticTargetSchema",
+      "studioSemanticTrackSchema",
+      "validateStudioProject",
+    ],
+    tests: [
+      "src/studio/project.test.ts",
+      "src/studio/project-json-schema.test.ts",
+      "src/studio/project.e2e.test.ts",
+    ],
+  },
+
   // ── Templates ──────────────────────────────────────────────────────────
   {
     id: "templates.registry",

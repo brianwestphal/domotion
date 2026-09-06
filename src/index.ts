@@ -138,6 +138,12 @@ export * from "./tree-ops/index.js";
 // ── Post-processing ────────────────────────────────────────────────────────
 export * from "./post-processing/index.js";
 
+// ── Domotion Studio project model ──────────────────────────────────────────
+// The durable, versioned authoring source. Static scenes and recursive layer
+// compositions lower onto the existing storyboard/composite render recipes;
+// generated SVG/video artifacts remain outputs with recorded provenance.
+export * from "./studio/index.js";
+
 // ── Declarative animate pipeline (DM-1130) ───────────────────────────────────
 // The JSON-config-driven animation pipeline that powers `domotion animate`,
 // exposed so library callers can run it in-process instead of shelling out to

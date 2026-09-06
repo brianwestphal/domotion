@@ -1,0 +1,85 @@
+{
+  "$schema": "../../../schemas/domotion-studio-project.schema.json",
+  "format": "domotion-studio-project",
+  "version": 1,
+  "id": "project-static-e2e",
+  "createdAt": "2026-09-06T01:00:00.000Z",
+  "canvas": {
+    "width": 320,
+    "height": 180,
+    "background": "#020617",
+    "title": "Static Studio fixture"
+  },
+  "narrative": {
+    "title": "Static storyboard",
+    "beats": [
+      { "id": "beat-one", "title": "Opening", "sceneIds": ["scene-one"] },
+      { "id": "beat-two", "title": "Layered close", "sceneIds": ["scene-two"] }
+    ]
+  },
+  "scenes": [
+    {
+      "id": "scene-one",
+      "narrativeBeatIds": ["beat-one"],
+      "render": {
+        "kind": "storyboard",
+        "recipe": {
+          "svg": "scene-one.svg",
+          "duration": 900,
+          "transition": { "type": "crossfade", "duration": 150 }
+        }
+      }
+    },
+    {
+      "id": "scene-two",
+      "narrativeBeatIds": ["beat-two"],
+      "render": {
+        "kind": "composition",
+        "duration": 900,
+        "transition": { "type": "cut", "duration": 0 },
+        "composition": {
+          "width": 320,
+          "height": 180,
+          "duration": 900,
+          "layers": [
+            {
+              "id": "layer-blue",
+              "kind": "source",
+              "source": { "svg": "layer-blue.svg" }
+            },
+            {
+              "id": "layer-nested",
+              "kind": "composition",
+              "placement": { "x": 120, "y": 60, "width": 80, "height": 60 },
+              "composition": {
+                "width": 80,
+                "height": 60,
+                "duration": 900,
+                "layers": [
+                  {
+                    "id": "layer-accent",
+                    "kind": "source",
+                    "source": { "svg": "layer-accent.svg" }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "review": {
+    "headRevisionId": "revision-fixture",
+    "revisions": [
+      {
+        "id": "revision-fixture",
+        "createdAt": "2026-09-06T01:00:00.000Z",
+        "author": { "kind": "system", "name": "Domotion test fixture" },
+        "summary": "Created the static end-to-end fixture."
+      }
+    ],
+    "annotations": []
+  },
+  "artifacts": []
+}

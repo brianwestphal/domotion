@@ -102,7 +102,7 @@ const MOBILE_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)";
 // needs NO new storyboard-side machinery — the enum just widens to pass it through.
 // `magic-move` stays out — it needs a per-frame element-tree bridge built from two
 // captured DOMs, which distinct opaque scenes don't share.
-const captureSourceSchema = z
+export const storyboardCaptureSourceSchema = z
   .object({
     url: z.string().optional().describe("A URL to capture (http/https)."),
     file: z.string().optional().describe("A local HTML file path to capture (relative to the config)."),
@@ -119,32 +119,29 @@ const captureSourceSchema = z
     }
   });
 
-const sceneSchema = z
+/** Source-independent placement, timing, transition, and overlay fields shared
+ * by storyboard scenes and richer authoring models that compile into them. */
+export const storyboardScenePresentationSchema = z.object({
+  fit: z.enum(["center", "contain", "cover"]).optional(),
+  duration: z.number().positive().optional(),
+  transition: transitionSchema.optional(),
+  overlays: z.array(authoringOverlaySchema).optional(),
+});
+
+export const storyboardSceneSchema = z
   .object({
     // Exactly one source — enforced in the superRefine below.
     template: z.string().optional().describe("A template name to render as this scene."),
     params: z.record(z.string(), z.unknown()).optional().describe("Params for a `template` scene."),
-    capture: captureSourceSchema.optional().describe("Capture a live url/file as this scene."),
+    capture: storyboardCaptureSourceSchema.optional().describe("Capture a live url/file as this scene."),
     cast: z.string().optional().describe("Path to an asciinema v2 .cast (rendered as an animated terminal scene)."),
     term: z.record(z.string(), z.unknown()).optional().describe("Terminal options for a `cast` scene."),
     svg: z.string().optional().describe("Path to a pre-rendered SVG (static or animated) as this scene."),
     // Play length of an animated `svg` scene (ms), when it can't be auto-detected.
     period: z.number().positive().optional(),
-    // Placement of a scene whose intrinsic size differs from the canvas.
-    fit: z.enum(["center", "contain", "cover"]).optional(),
-    // How long this scene is held on screen. Optional for an animated source
-    // (template / cast / animated svg) — it then inherits the scene's own play
-    // time. Required for a static source (a `capture` or a static `svg`).
-    duration: z.number().positive().optional(),
-    // Transition FROM this scene TO the next (the last scene's transition, if any,
-    // dissolves back to scene 0 on loop).
-    transition: transitionSchema.optional(),
-    // DM-1554: per-scene overlays (typing / tap / svg / blink / shine), reusing the
-    // `animate` authoring schema + render path verbatim — so a `capture` scene can
-    // show a typing / tap demo layered on top. Coordinates are in the CANVAS space
-    // (top-level, like `animate`'s embedded-frame overlays); a selector `anchor`
-    // can't resolve here (a scene retains no live DOM) and falls back to `x`/`y`.
-    overlays: z.array(authoringOverlaySchema).optional(),
+    // Placement, timing, transition, and overlays are shared with Studio's
+    // composition scenes so both compile through this exact storyboard contract.
+    ...storyboardScenePresentationSchema.shape,
   })
   .superRefine((s, ctx) => {
     const sources = [s.template, s.capture, s.cast, s.svg].filter((x) => x != null);
@@ -169,7 +166,7 @@ const sceneSchema = z
 // absolute `to` coordinates (`frame` = scene index, `at` = ms into that scene). A
 // `selector` can't resolve (a scene retains no live DOM), so it's rejected here;
 // there is no `"auto"` mode (a storyboard has no interaction actions to derive from).
-const storyboardCursorSchema = z
+export const storyboardCursorSchema = z
   .object({
     style: cursorStyleSchema.optional(),
     events: z.array(cursorEventSchema).min(1, "must be a non-empty array"),
@@ -197,11 +194,15 @@ export const storyboardConfigSchema = z.object({
   desc: z.string().optional(),
   /** DM-1554: an optional scene-spanning cursor track (explicit `to` events). */
   cursor: storyboardCursorSchema.optional(),
-  scenes: z.array(sceneSchema).min(1),
+  scenes: z.array(storyboardSceneSchema).min(1),
 });
 
 export type StoryboardConfig = z.infer<typeof storyboardConfigSchema>;
-type SceneCfg = z.infer<typeof sceneSchema>;
+export type StoryboardScene = z.infer<typeof storyboardSceneSchema>;
+export type StoryboardScenePresentation = z.infer<typeof storyboardScenePresentationSchema>;
+export type StoryboardCaptureSource = z.infer<typeof storyboardCaptureSourceSchema>;
+export type StoryboardCursor = z.infer<typeof storyboardCursorSchema>;
+type SceneCfg = StoryboardScene;
 
 export function validateStoryboardConfig(raw: unknown): StoryboardConfig {
   const parsed = storyboardConfigSchema.safeParse(raw);

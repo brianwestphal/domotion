@@ -7687,6 +7687,39 @@
       }
     },
     {
+      "file": "239-studio-project-model.md",
+      "metadata": {
+        "id": "requirements/studio-project-model",
+        "title": "Domotion Studio project model",
+        "kind": "contract",
+        "status": "current",
+        "owners": [
+          "studio",
+          "animation"
+        ],
+        "platforms": [
+          "macos",
+          "linux",
+          "windows"
+        ],
+        "tickets": [
+          "DM-2682"
+        ],
+        "code": [
+          "schemas/domotion-studio-project.schema.json",
+          "scripts/generate-studio-project-schema.ts",
+          "src/studio/",
+          "src/cli/composite.ts",
+          "src/cli/storyboard.ts",
+          "tests/fixtures/studio/static-storyboard.project.json"
+        ],
+        "aliases": [
+          "docs/239-studio-project-model.md",
+          "doc-239"
+        ]
+      }
+    },
+    {
       "file": "handbook/animation-and-interaction.md",
       "metadata": {
         "id": "handbook/animation-and-interaction",
@@ -7706,7 +7739,8 @@
           "DM-2636",
           "DM-2641",
           "DM-2648",
-          "DM-2681"
+          "DM-2681",
+          "DM-2682"
         ],
         "code": [
           "src/animation/",
@@ -7719,6 +7753,7 @@
           "src/cli/animate.ts",
           "src/cli/composite.ts",
           "src/cli/debug-bundle.ts",
+          "src/studio/",
           "tests/animate-debug.e2e.test.ts",
           "tests/animate-examples.tsx"
         ],
@@ -8631,6 +8666,9 @@
     ],
     "238": [
       "requirements/programmatic-debug-capture-bundles"
+    ],
+    "239": [
+      "requirements/studio-project-model"
     ],
     "01": [
       "requirements/fidelity"

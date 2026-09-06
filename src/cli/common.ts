@@ -13,7 +13,7 @@ import { basename, dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import type { Page } from "@playwright/test";
-import { gzipSvg } from "../index.js";
+import { gzipSvg } from "../post-processing/index.js";
 
 const execFileP = promisify(execFile);
 
