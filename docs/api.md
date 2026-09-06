@@ -221,14 +221,17 @@ See `docs/239-studio-project-model.md`; the editor schema ships at
 | `inspectStudioCursorTargets` | function | Proactively read each visual semantic event's actual live border box, viewport, drag destination, and computed CSS cursor from the page. |
 | `planStudioCursorChoreography` | function | Produce deterministic, seeded curved paths, variable-speed approaches, dwell/click timing, drag travel, and a renderer-ready `CursorOverlay` from inspected target evidence. Supports exact per-event overrides. |
 | `buildStudioCursorChoreography` | function | Inspect a caller-owned page and plan its semantic cursor choreography in one call. |
+| `observeStudioInteraction` | function | Passively record and classify live DOM, computed-CSS, pseudo, geometry, animation, scroll, lifecycle, and transient-state evidence around one caller-owned action. |
+| `observeStudioSemanticStep` | function | Resolve a compiled semantic step's target and related drag destination, then observe its caller-owned executor. |
 | `compileStudioProject` | function | Lower recursive static composition scenes through `composeCompositeConfig`, then sequence all scenes through `composeStoryboardConfig`. Accepts a caller-owned `Browser` and optional `{ projectDir, log }`. Rejects active semantic tracks/hooks rather than ignoring them. |
 | `compileStudioProjectFile` | function | Load and compile a project file, resolving source paths relative to the file's directory. |
-| `StudioProjectValidationError` / `StudioProjectCompileError` / `StudioInteractionError` | class | Structured validation/compile/execution failures with exact JSON paths; interaction failures also retain the event ID. |
+| `StudioProjectValidationError` / `StudioProjectCompileError` / `StudioInteractionError` / `StudioInteractionObservationError` | class | Structured validation/compile/execution failures with exact JSON paths; interaction failures retain the event ID, and observation failures retain captured evidence. |
 | `buildStudioProjectJsonSchema` / `studioProjectJsonSchemaText` | function | Generate the draft-2020-12 editor schema from the runtime Zod source. |
 | `StudioProject`, `StudioScene`, `StudioSceneRender`, `StudioComposition`, `StudioLayer` | type | Main project, scene, render, and recursive-layer types. |
 | `StudioNarrative`, `StudioSemanticTarget`, `StudioSemanticEvent`, `StudioSemanticTrack`, `StudioScriptHook`, `StudioReviewHistory`, `StudioArtifact` | type | Narrative, intent, extension, review, and generated-artifact value types. |
 | `StudioSemanticPlan`, `StudioSemanticStep`, `StudioScriptHookContext` | type | Stable compiled timeline and the explicit context provided to a caller-authorized script hook. |
 | `StudioCursorPoint`, `StudioCursorBox`, `StudioCursorTargetEvidence`, `StudioCursorEventOverride`, `StudioCursorInteractionTiming`, `StudioCursorChoreography` | type | Live target evidence, deterministic planner input/overrides, and renderer-ready choreography output. |
+| `StudioInteractionEvidence`, `StudioElementChange`, `StudioMutationEvidence`, `StudioInteractionSignal`, `StudioObservedElement` | type | Ordered live-page evidence and direct/effect/incidental classification returned by Studio interaction observation. |
 | `ImportStoryboardOptions` / `CompileStudioProjectOptions` / `CompileStudioSemanticTracksOptions` / `RunStudioSemanticPlanOptions` / `PlanStudioCursorChoreographyOptions` / `StudioProjectValidationIssue` | type | Options and structured diagnostic companion types. |
 
 ### Standalone Studio app

@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpbjm18d0h1vk7d",
+          "message": {
+            "text": "Ambient classification follows mutation provenance, not spatial proximity alone. A baseline-active root remains incidental when it replaces descendants during the action, while target state bookkeeping without a rendered or document effect stays evidence but does not turn a no-op meaningful.",
+            "markdown": "Ambient classification follows mutation provenance, not spatial proximity alone. A baseline-active root remains incidental when it replaces descendants during the action, while target state bookkeeping without a rendered or document effect stays evidence but does not turn a no-op meaningful."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/interaction-observer.ts"
+                },
+                "region": {
+                  "startLine": 140,
+                  "endLine": 180,
+                  "snippet": {
+                    "text": "function classifyRawObservation(raw: RawObservation, eventId: string, path: string): StudioInteractionEvidence {\n  const before = new Map(raw.before.map((item) => [item.ref, item]));\n  const after = new Map(raw.after.map((item) => [item.ref, item]));\n  const ambient = new Set(raw.ambientRefs);\n  const actionMutations = raw.mutations.filter((item) => item.phase === \"action\");\n  const actionMutationRefs = new Set(actionMutations.flatMap((item) => [item.targetRef, ...(item.addedRefs ?? []), ...(item.removedRefs ?? [])]));\n  const ambientActionRefs = new Set(actionMutations\n    .filter((item) => ambient.has(item.targetRef))\n    .flatMap((item) => [item.targetRef, ...(item.addedRefs ?? []), ...(item.removedRefs ?? [])]));\n  const refs = [...new Set([...before.keys(), ...after.keys(), ...actionMutationRefs])].sort();\n  const changes: StudioElementChange[] = [];\n  for (const ref of refs) {\n    const a = before.get(ref);\n    const b = after.get(ref);\n    const relation = b?.relation ?? a?.relation ?? \"other\";\n    const styleDeltas = deltaRecord(a?.styles ?? {}, b?.styles ?? {});\n    const pseudoDeltas = [...new Set([...Object.keys(a?.pseudos ?? {}), ...Object.keys(b?.pseudos ?? {})])]\n      .sort()\n      .flatMap((pseudo) => deltaRecord(a?.pseudos[pseudo] ?? {}, b?.pseudos[pseudo] ?? {}).map((delta) => ({ pseudo, ...delta })));\n    const geometryChanged = changedRecord(a?.rect, b?.rect);\n    const textChanged = a?.text !== b?.text;\n    const animationChanged = changedRecord(a?.animations, b?.animations);\n    const scrollChanged = changedRecord(a?.scroll, b?.scroll);\n    const stateChanged = changedRecord(a?.state, b?.state);\n    const addedOrRemoved = a == null || b == null;\n    if (!addedOrRemoved && styleDeltas.length === 0 && pseudoDeltas.length === 0 && !geometryChanged && !textChanged && !animationChanged && !scrollChanged && !stateChanged && !actionMutationRefs.has(ref)) continue;\n    const direct = relation !== \"other\";\n    const hasRenderedOrDocumentEffect = addedOrRemoved\n      || styleDeltas.length > 0\n      || pseudoDeltas.length > 0\n      || geometryChanged\n      || textChanged\n      || animationChanged\n      || scrollChanged\n      || actionMutationRefs.has(ref);\n    // Pointer movement necessarily changes :hover/:active bookkeeping even when\n    // the page renders no response. Keep that state as evidence, but do not\n    // promote a visually inert target into meaningful direct feedback.\n    const classification: StudioEvidenceClassification = !hasRenderedOrDocumentEffect || ambient.has(ref) || ambientActionRefs.has(ref)\n      ? \"incidental-churn\"\n      : direct ? \"direct-feedback\" : \"action-effect\";"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2684"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4f1016041d282d0cd0e609775bbc86e0"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpbjmcrm92g0t4q",
+          "message": {
+            "text": "Observation remains page-local and non-invasive: run-local WeakMap references avoid DOM annotations, passive listeners and MutationObservers retain browser behavior, exact ignored attributes prevent broad filtering of author data, and sequence numbers own order while elapsed milliseconds remain diagnostic.",
+            "markdown": "Observation remains page-local and non-invasive: run-local WeakMap references avoid DOM annotations, passive listeners and MutationObservers retain browser behavior, exact ignored attributes prevent broad filtering of author data, and sequence numbers own order while elapsed milliseconds remain diagnostic."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/interaction-observer.ts"
+                },
+                "region": {
+                  "startLine": 246,
+                  "endLine": 408,
+                  "snippet": {
+                    "text": "async function beginObservation(page: Page, target: ElementHandle<Element>, related: Array<ElementHandle<Element>>, options: Required<Pick<ObserveStudioInteractionOptions, \"baselineMs\" | \"maxNodes\">> & { ignoredAttributes: string[] }): Promise<void> {\n  await page.evaluate(async ({ target, related, options, key, properties }) => {\n    const root = globalThis as unknown as Record<string, unknown>;\n    if (root[key] != null) throw new Error(\"a Studio interaction observation is already active\");\n    const started = performance.now();\n    const references = new WeakMap<Node, string>();\n    const referenceNodes = new Map<string, Node>();\n    let referenceCounter = 0;\n    const relatedElements = new Set<Element>(related);\n    const relatedIds = new Set<string>();\n    for (const attribute of [\"aria-controls\", \"aria-describedby\", \"aria-details\", \"aria-owns\"]) {\n      for (const id of (target.getAttribute(attribute) ?? \"\").split(/\\s+/).filter(Boolean)) relatedIds.add(id);\n    }\n    const ignored = new Set(options.ignoredAttributes);\n    let sequence = 0;\n    let phase: \"baseline\" | \"action\" = \"baseline\";\n    let lastSignalAt = started;\n    let truncated = false;\n\n    const round = (value: number): number => Math.round(value * 1000) / 1000;\n    const domPath = (node: Node): string => {\n      if (node.nodeType === Node.TEXT_NODE) return `${domPath(node.parentNode ?? document.documentElement)}/text()`;\n      if (!(node instanceof Element)) return node.nodeName.toLowerCase();\n      if (node.id !== \"\" && [...document.querySelectorAll(\"[id]\")].filter((candidate) => candidate.id === node.id).length === 1) return `#${node.id}`;\n      const parts: string[] = [];\n      for (let element: Element | null = node; element != null && element !== document.documentElement; element = element.parentElement) {\n        const siblings = element.parentElement == null ? [] : [...element.parentElement.children].filter((item) => item.localName === element.localName);\n        parts.push(`${element.localName}:nth-of-type(${Math.max(1, siblings.indexOf(element) + 1)})`);\n      }\n      return `html/${parts.reverse().join(\"/\")}`;\n    };\n    const refFor = (node: Node): string => {\n      const known = references.get(node);\n      if (known != null) return known;\n      const ref = `n${String(referenceCounter++).padStart(6, \"0\")}:${domPath(node)}`;\n      references.set(node, ref);\n      referenceNodes.set(ref, node);\n      return ref;\n    };\n    const relationFor = (element: Element): \"target\" | \"descendant\" | \"ancestor\" | \"related\" | \"other\" => {\n      if (element === target) return \"target\";\n      if (target.contains(element)) return \"descendant\";\n      if (element.contains(target)) return \"ancestor\";\n      if (relatedElements.has(element) || (element.id !== \"\" && relatedIds.has(element.id))) return \"related\";\n      return \"other\";\n    };\n    const snapshotElement = (element: Element): StudioObservedElement => {\n      const style = getComputedStyle(element);\n      const styles: Record<string, string> = {};\n      for (const property of properties) styles[property] = (style as unknown as Record<string, string>)[property] ?? \"\";\n      const pseudos: Record<string, Record<string, string>> = {};\n      for (const pseudo of [\"::before\", \"::after\", \"::marker\", \"::placeholder\", \"::file-selector-button\"]) {\n        const value = getComputedStyle(element, pseudo);\n        if (value.content !== \"none\" || value.display !== \"none\") {\n          pseudos[pseudo] = { content: value.content, display: value.display, color: value.color, backgroundColor: value.backgroundColor, opacity: value.opacity, transform: value.transform };\n        }\n      }\n      const rect = element.getBoundingClientRect();\n      const animations = element.getAnimations().map((animation) => {\n        const timing = animation.effect?.getTiming();\n        const duration = timing?.duration;\n        const named = animation as Animation & { animationName?: string; transitionProperty?: string };\n        return {\n          type: animation.constructor.name,\n          ...(named.animationName == null ? {} : { name: named.animationName }),\n          ...(named.transitionProperty == null ? {} : { property: named.transitionProperty }),\n          playState: animation.playState,\n          duration: typeof duration === \"number\" || typeof duration === \"string\" ? duration : String(duration ?? 0),\n          delay: Number(timing?.delay ?? 0),\n          easing: timing?.easing ?? \"linear\",\n        };\n      }).sort((a, b) => `${a.type}:${a.name ?? \"\"}:${a.property ?? \"\"}`.localeCompare(`${b.type}:${b.name ?? \"\"}:${b.property ?? \"\"}`));\n      return {\n        ref: refFor(element),\n        relation: relationFor(element),\n        tag: element.localName,\n        text: (element.childNodes.length === 1 && element.firstChild?.nodeType === Node.TEXT_NODE ? element.textContent ?? \"\" : \"\").slice(0, 240),\n        rect: { x: round(rect.x), y: round(rect.y), width: round(rect.width), height: round(rect.height) },\n        styles,\n        pseudos,\n        animations,\n        scroll: { x: round(element.scrollLeft), y: round(element.scrollTop), width: element.scrollWidth, height: element.scrollHeight },\n        state: {\n          hover: element.matches(\":hover\"),\n          active: element.matches(\":active\"),\n          focus: element.matches(\":focus\"),\n          focusVisible: element.matches(\":focus-visible\"),\n          focusWithin: element.matches(\":focus-within\"),\n          ...(\"checked\" in element ? { checked: Boolean((element as HTMLInputElement).checked) } : {}),\n          ...(\"disabled\" in element ? { disabled: Boolean((element as HTMLInputElement).disabled) } : {}),\n          expanded: element.getAttribute(\"aria-expanded\"),\n        },\n      };\n    };\n    const collectElements = (): Element[] => {\n      const elements: Element[] = [];\n      const visit = (container: Document | ShadowRoot): void => {\n        for (const element of container.querySelectorAll(\"*\")) {\n          elements.push(element);\n          if (element.shadowRoot != null) visit(element.shadowRoot);\n        }\n      };\n      visit(document);\n      return elements;\n    };\n    const snapshotDocument = (): StudioObservedElement[] => {\n      const elements = collectElements();\n      if (elements.length > options.maxNodes) truncated = true;\n      return elements.slice(0, options.maxNodes).map((element) => snapshotElement(element)).sort((a, b) => a.ref.localeCompare(b.ref));\n    };\n    const before = snapshotDocument();\n    const mutations: StudioMutationEvidence[] = [];\n    const signals: StudioInteractionSignal[] = [];\n    const ambientRefs = new Set<string>();\n    const stamp = (): number => round(performance.now() - started);\n    const recordSignal = (type: string, node: EventTarget | null): void => {\n      // A mouseover can be synthesized merely because a new document appears\n      // beneath Chromium's last pointer position. Baseline DOM mutations are\n      // useful provenance; baseline input/lifecycle signals are not part of\n      // the caller-owned action and would make canonical evidence stateful.\n      if (phase === \"baseline\") return;\n      const element = node instanceof Node ? node : document.documentElement;\n      const ref = refFor(element);\n      signals.push({ sequence: sequence++, phase, atMs: stamp(), type, targetRef: ref, ...(element instanceof Element ? { sample: snapshotElement(element) } : {}) });\n      lastSignalAt = performance.now();\n    };\n    const consume = (records: MutationRecord[]): void => {\n      for (const record of records) {\n        if (record.type === \"attributes\" && record.attributeName != null && ignored.has(record.attributeName)) continue;\n        const targetRef = refFor(record.target);\n        if (phase === \"baseline\") {\n          ambientRefs.add(targetRef);\n          if (record.target.parentNode != null) ambientRefs.add(refFor(record.target.parentNode));\n        }\n        const addedRefs = record.type === \"childList\" ? [...record.addedNodes].map((node) => refFor(node)) : undefined;\n        const removedRefs = record.type === \"childList\" ? [...record.removedNodes].map((node) => refFor(node)) : undefined;\n        mutations.push({\n          sequence: sequence++, phase, atMs: stamp(), kind: record.type, targetRef,\n          ...(record.type === \"attributes\" ? { attribute: record.attributeName ?? undefined, oldValue: record.oldValue, newValue: (record.target as Element).getAttribute(record.attributeName ?? \"\") } : {}),\n          ...(record.type === \"characterData\" ? { oldValue: record.oldValue, newValue: record.target.textContent } : {}),\n          ...(addedRefs == null ? {} : { addedRefs }),\n          ...(removedRefs == null ? {} : { removedRefs }),\n        });\n        lastSignalAt = performance.now();\n      }\n    };\n    const observers: MutationObserver[] = [];\n    const observeRoot = (observationRoot: Node): void => {\n      const observer = new MutationObserver(consume);\n      observer.observe(observationRoot, { subtree: true, childList: true, attributes: true, attributeOldValue: true, characterData: true, characterDataOldValue: true });\n      observers.push(observer);\n    };\n    observeRoot(document.documentElement);\n    for (const element of collectElements()) if (element.shadowRoot != null) observeRoot(element.shadowRoot);\n    const eventTypes = [\"pointerdown\", \"pointerup\", \"click\", \"mouseover\", \"focusin\", \"focusout\", \"transitionrun\", \"transitionstart\", \"transitionend\", \"animationstart\", \"animationiteration\", \"animationend\", \"scroll\"];\n    const listener = (event: Event): void => recordSignal(event.type, event.target);\n    for (const type of eventTypes) document.addEventListener(type, listener, { capture: true, passive: true });\n    await new Promise<void>((resolve) => setTimeout(resolve, options.baselineMs));\n    for (const observer of observers) consume(observer.takeRecords());\n    phase = \"action\";\n    lastSignalAt = performance.now();\n    root[key] = { started, references, referenceNodes, before, mutations, signals, ambientRefs, observers, consume, snapshotDocument, eventTypes, listener, getLastSignalAt: () => lastSignalAt, getTruncated: () => truncated, targetRef: refFor(target) };\n  }, { target, related, options, key: OBSERVER_KEY, properties: [...OBSERVED_STYLE_PROPERTIES] });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.97
+          },
+          "rank": 88,
+          "workItemUris": [
+            "DM-2684"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "92a9897974a32400248664c55e31af0d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "3263f9a927b808fa9d8543f99548fb937a1a62e9",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

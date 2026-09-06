@@ -556,6 +556,13 @@ export const FEATURES: FeatureEntry[] = [
     tests: ["src/studio/cursor-choreography.test.ts", "src/studio/cursor-choreography.e2e.test.ts"],
   },
   {
+    id: "studio.interaction-observation",
+    behavior: "Passively inspect the live DOM and computed CSS before, during, and after a semantic action, retain deterministic target/related references and ordered lifecycle evidence, and separate direct feedback and action effects from pre-existing ambient churn.",
+    doc: "docs/243-studio-interaction-observation.md",
+    exports: ["StudioInteractionObservationError", "observeStudioInteraction", "observeStudioSemanticStep"],
+    tests: ["src/studio/interaction-observer.e2e.test.ts"],
+  },
+  {
     id: "studio.application-shell",
     behavior: "Launch a separate workspace-bounded Studio app that creates, opens, edits, validates, atomically saves, and reopens versioned project JSON while surfacing narrative, ordered scenes, generation state, and actionable issues.",
     doc: "docs/240-studio-application-shell.md",

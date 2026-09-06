@@ -71,6 +71,20 @@ export {
   type StudioCursorTargetEvidence,
 } from "./cursor-choreography.js";
 export {
+  StudioInteractionObservationError,
+  observeStudioInteraction,
+  observeStudioSemanticStep,
+  type ObserveStudioInteractionOptions,
+  type StudioElementChange,
+  type StudioEvidenceClassification,
+  type StudioInteractionEvidence,
+  type StudioInteractionSignal,
+  type StudioMutationEvidence,
+  type StudioObservationPhase,
+  type StudioObservedElement,
+  type StudioObservedRect,
+} from "./interaction-observer.js";
+export {
   buildStudioProjectJsonSchema,
   studioProjectJsonSchemaText,
 } from "./project-json-schema.js";

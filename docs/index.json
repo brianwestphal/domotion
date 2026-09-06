@@ -7817,6 +7817,38 @@
       }
     },
     {
+      "file": "243-studio-interaction-observation.md",
+      "metadata": {
+        "id": "requirements/studio-interaction-observation",
+        "title": "Domotion Studio proactive interaction observation",
+        "kind": "contract",
+        "status": "current",
+        "owners": [
+          "studio",
+          "capture"
+        ],
+        "platforms": [
+          "macos",
+          "linux",
+          "windows"
+        ],
+        "tickets": [
+          "DM-2684"
+        ],
+        "code": [
+          "src/studio/interaction-observer.ts",
+          "src/studio/interaction-observer.e2e.test.ts",
+          "src/studio/interactions.ts",
+          "src/cli/hover-detect.ts",
+          "src/cli/mutation-detect.ts"
+        ],
+        "aliases": [
+          "docs/243-studio-interaction-observation.md",
+          "doc-243"
+        ]
+      }
+    },
+    {
       "file": "handbook/animation-and-interaction.md",
       "metadata": {
         "id": "handbook/animation-and-interaction",
@@ -8775,6 +8807,9 @@
     ],
     "242": [
       "requirements/studio-cursor-choreography"
+    ],
+    "243": [
+      "requirements/studio-interaction-observation"
     ],
     "01": [
       "requirements/fidelity"

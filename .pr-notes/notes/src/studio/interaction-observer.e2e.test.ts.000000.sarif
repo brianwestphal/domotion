@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpbjmp0a5vl0uo1",
+          "message": {
+            "text": "Real Chromium coverage proves CSS-only pseudo and transition feedback, synchronous and delayed JavaScript mutation, scroll and layout shift, ambient/no-op separation, cleanup, page-observer equivalence, and canonical stable references. The suite was executed outside the macOS sandbox because sandboxed Chromium exits on Mach-port permission denial.",
+            "markdown": "Real Chromium coverage proves CSS-only pseudo and transition feedback, synchronous and delayed JavaScript mutation, scroll and layout shift, ambient/no-op separation, cleanup, page-observer equivalence, and canonical stable references. The suite was executed outside the macOS sandbox because sandboxed Chromium exits on Mach-port permission denial."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/interaction-observer.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 45,
+                  "endLine": 148,
+                  "snippet": {
+                    "text": "    return observeStudioInteraction(testPage, {\n      eventId: target.slice(1), path: `$.events.${target.slice(1)}`, target: testPage.locator(target),\n      settleMs: 500, debounceMs: 100, baselineMs: 0, ...extra,\n    }, () => action(testPage));\n  };\n\n  it(\"captures CSS-only hover, pseudo content, transition lifecycle, and transient state samples\", async () => {\n    if (!available) return;\n    const evidence = await observe(\"#css\", (testPage) => testPage.locator(\"#css\").hover());\n    expect(evidence.summary.addedNodes + evidence.summary.attributes).toBe(0);\n    expect(evidence.meaningful).toBe(true);\n    expect(evidence.suggestedSynthesis).toBe(\"paint\");\n    expect(evidence.changes.find((change) => change.relation === \"target\")?.pseudoDeltas.some((delta) => delta.property === \"content\")).toBe(true);\n    expect(evidence.signals.some((signal) => signal.type.startsWith(\"transition\"))).toBe(true);\n    expect(evidence.signals.some((signal) => signal.sample?.state.hover === true)).toBe(true);\n  });\n\n  it(\"correlates synchronous and async JS mutations with stable target/related references\", async () => {\n    if (!available) return;\n    const jsEvidence = await observe(\"#js\", (testPage) => testPage.locator(\"#js\").click(), { relatedTargets: [page!.locator(\"#menu\")] });\n    expect(jsEvidence.summary.addedNodes).toBeGreaterThan(0);\n    expect(jsEvidence.summary.attributes).toBeGreaterThanOrEqual(2);\n    expect(jsEvidence.changes.some((change) => change.relation === \"related\" && change.classification === \"direct-feedback\")).toBe(true);\n    expect(jsEvidence.mutations.map((item) => item.sequence)).toEqual([...jsEvidence.mutations.map((item) => item.sequence)].sort((a, b) => a - b));\n\n    await page!.setContent(fixture);\n    const asyncEvidence = await observe(\"#async\", (testPage) => testPage.locator(\"#async\").click());\n    expect(asyncEvidence.settleReason).toBe(\"settled\");\n    expect(asyncEvidence.changes.find((change) => change.relation === \"target\")?.reasons).toEqual(expect.arrayContaining([\"text\", \"dom-mutation\"]));\n  });\n\n  it(\"captures viewport scrolling and layout shifts without inventing a second action\", async () => {\n    if (!available) return;\n    const scrollEvidence = await observe(\"#bottom\", (testPage) => testPage.locator(\"#bottom\").scrollIntoViewIfNeeded());\n    expect(scrollEvidence.signals.some((signal) => signal.type === \"scroll\")).toBe(true);\n    expect(scrollEvidence.changes.some((change) => change.scrollChanged || change.geometryChanged)).toBe(true);\n\n    await page!.setContent(fixture);\n    const beforeX = await page!.locator(\"#sibling\").evaluate((element) => element.getBoundingClientRect().x);\n    const layoutEvidence = await observe(\"#grow\", (testPage) => testPage.locator(\"#grow\").click());\n    const afterX = await page!.locator(\"#sibling\").evaluate((element) => element.getBoundingClientRect().x);\n    expect(afterX).toBeGreaterThan(beforeX);\n    expect(layoutEvidence.changes.some((change) => change.ref.includes(\"#sibling\") && change.geometryChanged)).toBe(true);\n  });\n\n  it(\"classifies pre-existing ambient churn separately and keeps a no-op a no-op\", async () => {\n    if (!available) return;\n    await page!.evaluate(() => { (window as unknown as { ambientTimer?: number }).ambientTimer = window.setInterval(() => { const node = document.querySelector(\"#ambient\"); if (node != null) node.textContent = String(Number(node.textContent ?? \"0\") + 1); }, 10); });\n    const evidence = await observe(\"#noop\", (testPage) => testPage.locator(\"#noop\").click(), { baselineMs: 35, debounceMs: 60 });\n    await page!.evaluate(() => clearInterval((window as unknown as { ambientTimer?: number }).ambientTimer));\n    expect(evidence.changes.some((change) => change.classification === \"incidental-churn\")).toBe(true);\n    const nonIncidental = evidence.changes.filter((change) => change.classification !== \"incidental-churn\");\n    expect(nonIncidental, JSON.stringify(nonIncidental, null, 2)).toEqual([]);\n    expect(evidence.meaningful).toBe(false);\n  });\n\n  it(\"filters its known action-runner marker and leaves no DOM/global instrumentation\", async () => {\n    if (!available) return;\n    const before = await page!.content();\n    const evidence = await observe(\"#noop\", async (testPage) => {\n      await testPage.locator(\"#noop\").evaluate((element) => {\n        element.setAttribute(\"data-domotion-studio-target\", \"temporary\");\n        element.removeAttribute(\"data-domotion-studio-target\");\n      });\n    });\n    expect(evidence.meaningful).toBe(false);\n    expect(evidence.mutations.filter((mutation) => mutation.attribute === \"data-domotion-studio-target\")).toEqual([]);\n    expect(await page!.content()).toBe(before);\n    expect(await page!.evaluate(() => \"__domotionStudioInteractionObserverV1\" in globalThis)).toBe(false);\n  });\n\n  it(\"preserves page-observed behavior and emits canonical stable references across runs\", async () => {\n    if (!available) return;\n    const run = async (observed: boolean): Promise<{ audit: string[]; evidence?: StudioInteractionEvidence }> => {\n      // Canonical evidence assumes the same browser input state. Reset the\n      // real pointer away from the target before installing the new document.\n      await page!.mouse.move(799, 499);\n      await page!.setContent(fixture);\n      await page!.evaluate(() => {\n        const state = window as unknown as { audit: string[] };\n        state.audit = [];\n        const target = document.querySelector(\"#js\")!;\n        for (const type of [\"pointerdown\", \"pointerup\", \"click\"]) target.addEventListener(type, () => state.audit.push(type));\n        new MutationObserver((records) => records.forEach((record) => state.audit.push(`${record.type}:${record.attributeName ?? \"\"}`)))\n          .observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });\n      });\n      const evidence = observed\n        ? await observe(\"#js\", (testPage) => testPage.locator(\"#js\").click(), { relatedTargets: [page!.locator(\"#menu\")] })\n        : undefined;\n      if (!observed) await page!.locator(\"#js\").click();\n      await page!.waitForTimeout(0);\n      return { audit: await page!.evaluate(() => (window as unknown as { audit: string[] }).audit), evidence };\n    };\n    const plain = await run(false);\n    const first = await run(true);\n    const second = await run(true);\n    expect(first.audit).toEqual(plain.audit);\n    expect(second.audit).toEqual(plain.audit);\n    const canonical = (evidence: StudioInteractionEvidence | undefined): unknown => ({\n      targetRef: evidence?.targetRef,\n      changes: evidence?.changes.map(({ ref, relation, classification, reasons }) => ({ ref, relation, classification, reasons })),\n      mutations: evidence?.mutations.map(({ phase, kind, targetRef, attribute, oldValue, newValue, addedRefs, removedRefs }) => ({ phase, kind, targetRef, attribute, oldValue, newValue, addedRefs, removedRefs })),\n      signals: evidence?.signals.map(({ phase, type, targetRef }) => ({ phase, type, targetRef })),\n    });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "rank": 95,
+          "workItemUris": [
+            "DM-2684"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "9131fdb5837a85a65a457b6ee7a0d00a"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "3263f9a927b808fa9d8543f99548fb937a1a62e9",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
