@@ -15,6 +15,8 @@ aliases: ["docs/240-studio-application-shell.md","doc-240"]
 Status: **Shipped foundation.** Domotion Studio is a dedicated local
 application. SVG Scrubber remains an independently usable playback/review tool;
 Studio does not grow by placing unrelated authoring controls into Scrubber.
+Studio can, however, embed Scrubber as a bounded preview surface so both apps
+share one playback engine; see `docs/250-studio-embedded-scrubber-preview.md`.
 
 ## Entry points
 

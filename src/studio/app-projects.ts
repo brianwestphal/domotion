@@ -50,6 +50,24 @@ export function resolveStudioWorkspacePath(
   return resolved;
 }
 
+/** Resolve a project-owned generated SVG without trusting its persisted path. */
+export function resolveStudioWorkspaceSvgPath(
+  workspaceRoot: string,
+  requestedPath: string,
+  pathApi: StudioPathApi = nativePath,
+): string {
+  const requested = requestedPath.trim();
+  if (requested === "") throw new Error("artifact path is required");
+  const root = pathApi.resolve(workspaceRoot);
+  const resolved = pathApi.resolve(root, requested);
+  const relative = pathApi.relative(root, resolved);
+  if (relative === ".." || relative.startsWith(`..${pathApi.sep}`) || pathApi.isAbsolute(relative)) {
+    throw new Error(`artifact path must stay inside the Studio workspace: ${root}`);
+  }
+  if (pathApi.extname(resolved).toLowerCase() !== ".svg") throw new Error("Studio preview artifacts must use a .svg extension");
+  return resolved;
+}
+
 export function relativeStudioProjectPath(
   workspaceRoot: string,
   absolutePath: string,

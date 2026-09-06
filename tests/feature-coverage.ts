@@ -624,6 +624,13 @@ export const FEATURES: FeatureEntry[] = [
     verbs: ["domotion-studio"],
     tests: ["src/studio/app-projects.test.ts", "src/studio/server.e2e.test.ts"],
   },
+  {
+    id: "studio.scrubber-preview",
+    behavior: "Preview provenance-selected scene and whole-story SVG artifacts in Studio through the existing Scrubber playback engine, retaining bounded playhead, range, zoom/pan, speed, and loop context across regeneration while enforcing workspace, real-path, digest, and duration authority.",
+    doc: "docs/250-studio-embedded-scrubber-preview.md",
+    exports: ["isScrubberEmbedCommand", "isScrubberEmbedEvent", "normalizeScrubberEmbedViewState"],
+    tests: ["src/scrubber/embed.test.ts", "src/studio/app-projects.test.ts", "src/studio/server.e2e.test.ts"],
+  },
 
   // ── Templates ──────────────────────────────────────────────────────────
   {

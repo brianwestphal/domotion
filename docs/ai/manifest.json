@@ -5036,6 +5036,33 @@
       "file": "249-studio-agent-tools.md"
     },
     {
+      "id": "requirements/studio-embedded-scrubber-preview",
+      "title": "Embedded SVG Scrubber preview in Domotion Studio",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "studio",
+        "scrubber",
+        "ui"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/scrubber/embed.ts",
+        "src/scrubber/client.tsx",
+        "src/studio/app-projects.ts",
+        "src/studio/server.ts",
+        "src/studio/client.tsx",
+        "src/scrubber/embed.test.ts",
+        "src/studio/app-projects.test.ts",
+        "src/studio/server.e2e.test.ts"
+      ],
+      "file": "250-studio-embedded-scrubber-preview.md"
+    },
+    {
       "id": "handbook/animation-and-interaction",
       "title": "Animation and interaction handbook",
       "kind": "contract",

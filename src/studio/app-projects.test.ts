@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, posix, win32 } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -6,6 +6,7 @@ import {
   createStudioProjectDocument,
   createStudioProjectFile,
   openStudioProjectFile,
+  resolveStudioWorkspaceSvgPath,
   resolveStudioWorkspacePath,
   saveStudioProjectFile,
 } from "./app-projects.js";
@@ -26,6 +27,13 @@ describe("Studio workspace paths", () => {
     expect(() => resolveStudioWorkspacePath("C:\\work\\demo", "..\\secret.json", win32)).toThrow(/stay inside/);
     expect(() => resolveStudioWorkspacePath("C:\\work\\demo", "D:\\secret.json", win32)).toThrow(/stay inside/);
     expect(() => resolveStudioWorkspacePath("/work/demo", "tour.svg", posix)).toThrow(/\.json extension/);
+  });
+
+  it("resolves only workspace-contained SVG preview artifacts", () => {
+    expect(resolveStudioWorkspaceSvgPath("/work/demo", "generated/scene.svg", posix)).toBe("/work/demo/generated/scene.svg");
+    expect(resolveStudioWorkspaceSvgPath("C:\\work\\demo", "generated\\scene.svg", win32)).toBe("C:\\work\\demo\\generated\\scene.svg");
+    expect(() => resolveStudioWorkspaceSvgPath("/work/demo", "../secret.svg", posix)).toThrow(/stay inside/);
+    expect(() => resolveStudioWorkspaceSvgPath("/work/demo", "generated/scene.html", posix)).toThrow(/\.svg extension/);
   });
 });
 
@@ -99,6 +107,39 @@ describe("Studio project file operations", () => {
       expect(html).toContain("\\u003c/script>\\u003cscript>window.BAD=true\\u003c/script>");
     } finally {
       if (server != null) await server.close();
+    }
+  });
+
+  it("rejects preview artifacts that escape through a workspace symlink", async () => {
+    root = mkdtempSync(join(tmpdir(), "domotion-studio-preview-root-"));
+    const outside = mkdtempSync(join(tmpdir(), "domotion-studio-preview-outside-"));
+    writeFileSync(join(outside, "secret.svg"), '<svg xmlns="http://www.w3.org/2000/svg"/>');
+    symlinkSync(outside, join(root, "linked"));
+    const created = createStudioProjectFile(root, "preview.json", { title: "Safe preview", createdAt: NOW });
+    const project = structuredClone(created.project);
+    project.artifacts.push({
+      id: "artifact-escaped",
+      kind: "svg",
+      path: "linked/secret.svg",
+      generatedAt: NOW,
+      generator: { name: "test" },
+      sourceRevisionId: project.review.headRevisionId,
+      sceneIds: ["scene-opening"],
+    });
+    saveStudioProjectFile(root, "preview.json", project, LATER);
+    let server: StudioServerHandle | null = null;
+    try {
+      server = await startStudioServer({ workspaceRoot: root });
+      const response = await fetch(new URL("/api/preview", server.url), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: "preview.json", selection: { kind: "scene", sceneId: "scene-opening" } }),
+      });
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({ error: expect.stringContaining("outside the Studio workspace") });
+    } finally {
+      await server?.close();
+      rmSync(outside, { recursive: true, force: true });
     }
   });
 });

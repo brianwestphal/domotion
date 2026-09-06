@@ -157,6 +157,70 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "warning",
+          "guid": "mtpmmxrnyvrcmx6n",
+          "message": {
+            "text": "Preview bytes are selected only from project provenance, constrained lexically and by real path, size-checked before read, and SHA-256 verified so a persisted path, symlink, or stale artifact cannot escape or silently misrepresent the project.",
+            "markdown": "Preview bytes are selected only from project provenance, constrained lexically and by real path, size-checked before read, and SHA-256 verified so a persisted path, symlink, or stale artifact cannot escape or silently misrepresent the project."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/server.ts"
+                },
+                "region": {
+                  "startLine": 129,
+                  "endLine": 159,
+                  "snippet": {
+                    "text": "function previewResponse(workspaceRoot: string, file: StudioProjectFile, selection: z.infer<typeof previewBodySchema>[\"selection\"]): Record<string, unknown> {\n  const artifact = previewArtifact(file.project, selection);\n  const artifactPath = resolveStudioWorkspaceSvgPath(workspaceRoot, artifact.path);\n  const realRoot = realpathSync(workspaceRoot);\n  const realArtifactPath = realpathSync(artifactPath);\n  const realRelative = relative(realRoot, realArtifactPath);\n  if (realRelative === \"..\" || realRelative.startsWith(`..${sep}`) || isAbsolute(realRelative)) {\n    throw new StudioHttpError(400, `preview artifact resolves outside the Studio workspace: ${artifact.id}`);\n  }\n  if (statSync(realArtifactPath).size > 64 * 1024 * 1024) throw new StudioHttpError(413, \"preview artifact is too large\");\n  const svg = readFileSync(realArtifactPath, \"utf8\");\n  if (artifact.sha256 != null) {\n    const actual = createHash(\"sha256\").update(svg).digest(\"hex\");\n    if (actual !== artifact.sha256) throw new StudioHttpError(409, `preview artifact digest does not match project provenance: ${artifact.id}`);\n  }\n  const metadataDuration = artifact.metadata?.durationMs;\n  const durationMs = typeof metadataDuration === \"number\" && Number.isFinite(metadataDuration) && metadataDuration > 0\n    ? metadataDuration\n    : detectAnimationPeriodMs(svg) ?? authoredDuration(file.project, selection);\n  return {\n    sourceKey: selection.kind === \"story\" ? \"story\" : `scene:${selection.sceneId}`,\n    artifact: {\n      id: artifact.id,\n      path: artifact.path,\n      generatedAt: artifact.generatedAt,\n      sourceRevisionId: artifact.sourceRevisionId,\n      sha256: artifact.sha256 ?? createHash(\"sha256\").update(svg).digest(\"hex\"),\n    },\n    name: artifact.id,\n    durationMs,\n    svg,"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "risk"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "workItemUris": [
+            "DM-2689"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "19c6a419f899e31d9ed41ba625e9a222"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "36d9804ebab5dee3da1eef0948cc09a5c08df78c",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

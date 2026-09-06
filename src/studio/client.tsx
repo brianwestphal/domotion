@@ -2,6 +2,12 @@
 /** @jsxImportSource kerfjs */
 
 import { computed, delegate, mount, signal } from "kerfjs";
+import {
+  SCRUBBER_EMBED_CHANNEL,
+  isScrubberEmbedEvent,
+  type ScrubberEmbedCommand,
+  type ScrubberEmbedViewState,
+} from "../scrubber/embed.js";
 import type { StudioProject, StudioScene } from "./project-schema.js";
 
 interface StudioIssue { path: string; message: string; code: string }
@@ -19,6 +25,13 @@ interface ProjectResponse {
     artifactCount: number;
     scenes: Array<{ id: string; generated: boolean }>;
   };
+}
+interface PreviewResponse {
+  sourceKey: string;
+  artifact: { id: string; path: string; generatedAt: string; sourceRevisionId: string; sha256: string };
+  name: string;
+  durationMs: number;
+  svg: string;
 }
 declare global { interface Window { __DOMOTION_STUDIO__?: Bootstrap } }
 
@@ -57,6 +70,12 @@ const annotationRegionX = signal("");
 const annotationRegionY = signal("");
 const annotationRegionWidth = signal("");
 const annotationRegionHeight = signal("");
+const previewSelection = signal<{ kind: "story" } | { kind: "scene"; sceneId: string } | null>(null);
+const previewInfo = signal<PreviewResponse | null>(null);
+const previewBusy = signal(false);
+const scrubberReady = signal(false);
+const previewStates = new Map<string, ScrubberEmbedViewState>();
+let pendingPreview: PreviewResponse | null = null;
 
 const openAnnotations = computed(() => project.value?.review.annotations.filter((annotation) => annotation.status === "open").length ?? 0);
 
@@ -80,6 +99,7 @@ h1{font-size:17px;margin:0}.eyebrow{font-size:11px;letter-spacing:.13em;text-tra
 .issues{margin:9px 0 0;padding-left:20px}.issues code{color:#ffb5c1}.grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(250px,.8fr);gap:18px;margin-bottom:18px}.panel h3{margin:0 0 16px;font-size:14px;letter-spacing:.02em}.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:13px}.wide{grid-column:1/-1}
 .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.metric{padding:13px;border:1px solid #29364e;border-radius:11px;background:#0c1320}.metric strong{display:block;font-size:22px}.metric span{font-size:11px;color:#8d9ab0;text-transform:uppercase;letter-spacing:.08em}
 .scene-list{display:flex;flex-direction:column;gap:11px}.scene{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:13px;align-items:start;border:1px solid #29364e;border-radius:12px;background:#0c1320;padding:13px}.scene-no{display:grid;place-items:center;width:32px;height:32px;border-radius:9px;background:#1b2942;color:#b9c9e7;font-weight:750}.scene-meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}.scene-id{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;color:#78869e}.scene-state{white-space:nowrap}
+.preview-panel{margin-top:18px}.preview-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}.preview-toolbar .spacer{flex:1}.preview-frame{display:block;width:100%;height:min(70vh,680px);min-height:420px;border:1px solid #29364e;border-radius:12px;background:#0e0f13}.preview-meta{margin:10px 0 0;color:#8795ae;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}.preview-empty{display:grid;place-items:center;min-height:240px;border:1px dashed #34415a;border-radius:12px;color:#8795ae;text-align:center;padding:24px}
 .review-panel{margin-top:18px}.review-compose{border:1px solid #29364e;border-radius:12px;background:#0c1320;padding:14px;margin-bottom:14px}.review-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px}.review-fields .body{grid-column:1/-1}.review-fields .scene-select{grid-column:span 2}.review-help{font-size:12px;color:#8795ae;margin:9px 0 0}.annotation-list{display:flex;flex-direction:column;gap:10px}.annotation{border:1px solid #29364e;border-radius:12px;background:#0c1320;padding:13px}.annotation-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}.annotation-author{font-size:12px;color:#aebbd0}.annotation-target{font-size:12px;color:#8290a8;margin:8px 0}.annotation-actions{display:flex;gap:8px;margin-top:9px}.empty-notes{color:#8795ae;font-size:13px;margin:0}
 @media(max-width:800px){.app{grid-template-columns:1fr}.rail{border-right:0;border-bottom:1px solid #263149}.main{padding:22px 18px 40px}.grid{grid-template-columns:1fr}.topbar{flex-direction:column}.formgrid,.review-fields{grid-template-columns:1fr}.wide,.review-fields .body,.review-fields .scene-select{grid-column:auto}}
 `;
@@ -102,6 +122,18 @@ function durationLabel(scene: StudioScene): string {
 
 function isGenerated(sceneId: string): boolean {
   return generation.value?.scenes.find((scene) => scene.id === sceneId)?.generated === true;
+}
+
+function hasScenePreview(sceneId: string): boolean {
+  return project.value?.artifacts.some((artifact) => artifact.kind === "svg" && artifact.sceneIds?.length === 1 && artifact.sceneIds[0] === sceneId) === true;
+}
+
+function hasStoryPreview(): boolean {
+  return project.value?.artifacts.some((artifact) => artifact.kind === "svg" && (artifact.sceneIds == null || artifact.sceneIds.length === 0)) === true;
+}
+
+function previewKey(selection: NonNullable<typeof previewSelection.value>): string {
+  return selection.kind === "story" ? "story" : `scene:${selection.sceneId}`;
 }
 
 function annotationTargetLabel(target: StudioProject["review"]["annotations"][number]["target"]): string {
@@ -198,6 +230,25 @@ function render() {
                   ))}
                 </div>
               </section>
+              <section class="panel preview-panel">
+                <h3>Scrubber preview</h3>
+                <div class="preview-toolbar">
+                  <button data-action="preview-story" class={previewSelection.value?.kind === "story" ? "primary" : ""} disabled={previewBusy.value || !hasStoryPreview()}>Whole story</button>
+                  {current.scenes.map((scene, index) => (
+                    <button data-action="preview-scene" data-preview-scene={scene.id} class={previewSelection.value?.kind === "scene" && previewSelection.value.sceneId === scene.id ? "primary" : ""} disabled={previewBusy.value || !hasScenePreview(scene.id)}>Scene {index + 1}</button>
+                  ))}
+                  <span class="spacer"></span>
+                  <button data-action="preview-refresh" disabled={previewBusy.value || previewSelection.value == null}>{previewBusy.value ? "Refreshing…" : "Refresh preview"}</button>
+                </div>
+                {previewSelection.value == null ? (
+                  <div class="preview-empty">Choose a generated scene or whole-story artifact. Playback, seeking, frame steps, range inspection, zoom, and pan use the embedded SVG Scrubber.</div>
+                ) : (
+                  <>
+                    <iframe class="preview-frame" data-scrubber-frame data-morph-skip src="/scrubber" title="SVG Scrubber scene preview"></iframe>
+                    {previewInfo.value != null && <p class="preview-meta">{previewInfo.value.artifact.path} · {previewInfo.value.durationMs}ms · revision {previewInfo.value.artifact.sourceRevisionId}</p>}
+                  </>
+                )}
+              </section>
               <section class="panel review-panel">
                 <h3>Review annotations</h3>
                 <div class="review-compose">
@@ -242,9 +293,64 @@ function render() {
   );
 }
 
-const app = document.getElementById("app");
+const app = document.getElementById("app")!;
 if (app == null) throw new Error("Domotion Studio: missing #app");
 mount(app, render);
+
+function sendPreviewToScrubber(preview: PreviewResponse): void {
+  const frame = app.querySelector<HTMLIFrameElement>("[data-scrubber-frame]");
+  if (!scrubberReady.value || frame?.contentWindow == null) {
+    pendingPreview = preview;
+    return;
+  }
+  const command: ScrubberEmbedCommand = {
+    channel: SCRUBBER_EMBED_CHANNEL,
+    type: "load",
+    sourceKey: preview.sourceKey,
+    svg: preview.svg,
+    name: preview.name,
+    durationMs: preview.durationMs,
+    ...(previewStates.has(preview.sourceKey) ? { restoreState: previewStates.get(preview.sourceKey)! } : {}),
+  };
+  frame.contentWindow.postMessage(command, location.origin);
+  pendingPreview = null;
+}
+
+window.addEventListener("message", (event) => {
+  const frame = app.querySelector<HTMLIFrameElement>("[data-scrubber-frame]");
+  if (event.origin !== location.origin || event.source !== frame?.contentWindow || !isScrubberEmbedEvent(event.data)) return;
+  if (event.data.type === "ready") {
+    scrubberReady.value = true;
+    if (pendingPreview != null) sendPreviewToScrubber(pendingPreview);
+    return;
+  }
+  if (event.data.type === "error") {
+    message.value = event.data.message;
+    messageKind.value = "error";
+    return;
+  }
+  previewStates.set(event.data.sourceKey, event.data.state);
+});
+
+async function loadPreview(selection: { kind: "story" } | { kind: "scene"; sceneId: string }): Promise<void> {
+  previewSelection.value = selection;
+  previewBusy.value = true;
+  try {
+    const response = await fetch("/api/preview", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ path: projectPath.value, selection }),
+    });
+    const result = await response.json() as PreviewResponse & { error?: string };
+    if (!response.ok) throw result;
+    previewInfo.value = result;
+    sendPreviewToScrubber(result);
+  } catch (error) {
+    setFailure(error);
+  } finally {
+    previewBusy.value = false;
+  }
+}
 
 function setFailure(error: unknown): void {
   const fallback = error instanceof Error ? error.message : String(error);
@@ -276,6 +382,15 @@ function acceptLoaded(result: ProjectResponse, action: string): void {
   if (annotationScene.value !== "" && !result.project.scenes.some((scene) => scene.id === annotationScene.value)) {
     annotationScene.value = "";
   }
+  const selected = previewSelection.value;
+  if (selected?.kind === "scene" && !result.project.scenes.some((scene) => scene.id === selected.sceneId)) {
+    previewSelection.value = null;
+    previewInfo.value = null;
+    pendingPreview = null;
+    scrubberReady.value = false;
+  } else if (selected != null) {
+    void loadPreview(selected);
+  }
 }
 
 async function run(action: () => Promise<void>): Promise<void> {
@@ -291,7 +406,14 @@ async function run(action: () => Promise<void>): Promise<void> {
 
 void delegate(app, "click", "[data-action]", (_event, target) => {
   const action = (target as HTMLElement).dataset.action;
-  if (action === "create") {
+  if (action === "preview-story") {
+    void loadPreview({ kind: "story" });
+  } else if (action === "preview-scene") {
+    const sceneId = (target as HTMLElement).dataset.previewScene;
+    if (sceneId != null) void loadPreview({ kind: "scene", sceneId });
+  } else if (action === "preview-refresh" && previewSelection.value != null) {
+    void loadPreview(previewSelection.value);
+  } else if (action === "create") {
     void run(async () => acceptLoaded(await post("/api/create", { path: projectPath.value, title: newTitle.value }), "Created"));
   } else if (action === "open" || action === "reopen") {
     void run(async () => acceptLoaded(await post("/api/open", { path: projectPath.value }), action === "reopen" ? "Reopened" : "Opened"));

@@ -45,7 +45,9 @@ loading the historical documentation corpus.
   revisions, requires AI review, and pauses through tamper-checked clarification
   checkpoints before a human handoff. The same directory owns the
   standalone local Studio server/Kerf client; `src/cli/studio.ts` exposes it as
-  both `domotion-studio` and `domotion studio` without coupling it to Scrubber.
+  both `domotion-studio` and `domotion studio`. Studio embeds the existing
+  Scrubber client behind a versioned same-origin preview protocol, so scene and
+  story inspection share the standalone tool's playback engine.
 - `src/post-processing/` exports the self-contained SVG to raster or video.
 - `src/review/` and `src/scrubber/` provide local review and timeline UIs.
 - `src/cli/` exposes capture, animate, template, terminal, review, and scrubber

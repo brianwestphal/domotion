@@ -1,11 +1,23 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { closeSafely } from "../test-support/close-browser-safely.js";
-import { openStudioProjectFile } from "./app-projects.js";
+import { createStudioProjectFile, openStudioProjectFile, saveStudioProjectFile } from "./app-projects.js";
 import { startStudioServer, type StudioServerHandle } from "./server.js";
+import { htmlWrapper, seekTo, screenshot } from "../cli/svg-to-video-core.js";
+
+const PREVIEW_TIME = "2026-09-06T04:00:00.000Z";
+
+function animatedPreview(color: string, durationMs: number, distance: number): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 60" width="100" height="60"><style>:root{--scene-dur:${durationMs / 1000}s}@keyframes move{from{transform:translateX(0)}to{transform:translateX(${distance}px)}}.subject{animation:move ${durationMs / 1000}s linear infinite}</style><rect width="100" height="60" fill="#101522"/><rect class="subject" x="5" y="20" width="20" height="20" fill="${color}"/></svg>`;
+}
+
+function digest(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
 
 describe("Domotion Studio application shell (DM-2687)", () => {
   let available = true;
@@ -146,4 +158,152 @@ describe("Domotion Studio application shell (DM-2687)", () => {
     expect(genericReviewSave.status).toBe(400);
     await expect(genericReviewSave.json()).resolves.toMatchObject({ error: expect.stringContaining("/api/annotation") });
   });
+
+  it("switches scene/story previews, preserves scrub context after regeneration, and matches exported pixels", async () => {
+    if (!available || page == null || server == null || context == null) return;
+    const generatedDir = join(root, "generated");
+    mkdirSync(generatedDir, { recursive: true });
+    const opening = animatedPreview("#ff3355", 2000, 60);
+    const detail = animatedPreview("#33cc88", 1200, 40);
+    const story = animatedPreview("#6699ff", 3200, 70);
+    writeFileSync(join(generatedDir, "opening.svg"), opening);
+    writeFileSync(join(generatedDir, "detail.svg"), detail);
+    writeFileSync(join(generatedDir, "story.svg"), story);
+    const created = createStudioProjectFile(root, "previews.studio.json", { title: "Preview story", createdAt: PREVIEW_TIME });
+    const authored = structuredClone(created.project);
+    authored.scenes.push({
+      id: "scene-detail",
+      title: "Detail",
+      narrativeBeatIds: ["beat-opening"],
+      render: { kind: "storyboard", recipe: { template: "title-card", params: { title: "Detail" }, duration: 1200 } },
+    });
+    authored.narrative.beats[0].sceneIds.push("scene-detail");
+    const revision = authored.review.headRevisionId;
+    authored.artifacts.push(
+      { id: "artifact-opening", kind: "svg", path: "generated/opening.svg", generatedAt: PREVIEW_TIME, generator: { name: "test" }, sourceRevisionId: revision, sceneIds: ["scene-opening"], sha256: digest(opening), metadata: { durationMs: 2000 } },
+      { id: "artifact-detail", kind: "svg", path: "generated/detail.svg", generatedAt: PREVIEW_TIME, generator: { name: "test" }, sourceRevisionId: revision, sceneIds: ["scene-detail"], sha256: digest(detail), metadata: { durationMs: 1200 } },
+      { id: "artifact-story", kind: "svg", path: "generated/story.svg", generatedAt: PREVIEW_TIME, generator: { name: "test" }, sourceRevisionId: revision, sha256: digest(story), metadata: { durationMs: 3200 } },
+    );
+    saveStudioProjectFile(root, "previews.studio.json", authored, PREVIEW_TIME);
+
+    const testPage = page;
+    await testPage.goto(server.url, { waitUntil: "load" });
+    await testPage.getByLabel("Project file").fill("previews.studio.json");
+    await testPage.getByRole("button", { name: "Open", exact: true }).click();
+    await testPage.getByRole("heading", { name: "Preview story" }).waitFor();
+    await testPage.getByRole("button", { name: "Scene 1", exact: true }).click();
+    const scrubber = testPage.frameLocator("[data-scrubber-frame]");
+    await scrubber.locator(".svg-host svg").waitFor();
+    await expect.poll(() => scrubber.locator(".time").textContent()).toContain("/ 0:02.00");
+
+    await scrubber.locator("[data-action=scrub]").evaluate((element) => {
+      const input = element as HTMLInputElement;
+      input.value = "500";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await scrubber.locator("[data-action=inn]").evaluate((element) => {
+      const input = element as HTMLInputElement;
+      input.value = "0.25";
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await scrubber.locator("[data-action=outn]").evaluate((element) => {
+      const input = element as HTMLInputElement;
+      input.value = "1.50";
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await scrubber.locator("[data-action=zoompreset]").selectOption("1.5");
+    await expect.poll(() => scrubber.locator(".time").textContent()).toContain("0:01.00 / 0:02.00");
+    await testPage.waitForTimeout(150);
+
+    await testPage.getByRole("button", { name: "Scene 2", exact: true }).click();
+    await expect.poll(() => scrubber.locator(".time").textContent()).toContain("/ 0:01.20");
+    await scrubber.getByRole("button", { name: "Next frame" }).click();
+    await expect.poll(() => scrubber.locator(".time").textContent()).toContain("0:00.03");
+    await testPage.waitForTimeout(150);
+
+    await testPage.getByRole("button", { name: "Scene 1", exact: true }).click();
+    await expect.poll(() => scrubber.locator(".time").textContent()).toContain("0:01.00 / 0:02.00");
+    expect(await scrubber.locator("[data-action=inn]").inputValue()).toBe("0.25");
+    expect(await scrubber.locator("[data-action=outn]").inputValue()).toBe("1.50");
+    expect(await scrubber.locator("[data-action=zoompreset]").inputValue()).toBe("1.5");
+
+    const regenerated = animatedPreview("#ffaa22", 1200, 50);
+    writeFileSync(join(generatedDir, "opening.svg"), regenerated);
+    const latest = openStudioProjectFile(root, "previews.studio.json").project;
+    const openingArtifact = latest.artifacts.find((artifact) => artifact.id === "artifact-opening")!;
+    openingArtifact.generatedAt = "2026-09-06T04:05:00.000Z";
+    openingArtifact.sha256 = digest(regenerated);
+    openingArtifact.metadata = { durationMs: 1200 };
+    saveStudioProjectFile(root, "previews.studio.json", latest, "2026-09-06T04:05:00.000Z");
+    await testPage.getByRole("button", { name: "Reopen", exact: true }).click();
+    await expect.poll(() => scrubber.locator(".time").textContent()).toContain("0:01.00 / 0:01.20");
+    expect(await scrubber.locator("[data-action=outn]").inputValue()).toBe("1.20");
+
+    await testPage.getByRole("button", { name: "Whole story", exact: true }).click();
+    await expect.poll(() => scrubber.locator(".time").textContent()).toContain("/ 0:03.20");
+    const beforePlay = await scrubber.locator(".time").textContent();
+    await scrubber.getByRole("button", { name: "Play" }).click();
+    await testPage.waitForTimeout(180);
+    await scrubber.getByRole("button", { name: "Pause" }).click();
+    expect(await scrubber.locator(".time").textContent()).not.toBe(beforePlay);
+
+    await testPage.getByRole("button", { name: "Scene 1", exact: true }).click();
+    await expect.poll(() => scrubber.locator(".time").textContent()).toContain("/ 0:01.20");
+    await scrubber.locator("[data-action=zoompreset]").selectOption("1");
+    await scrubber.getByRole("button", { name: "center" }).click();
+    await scrubber.locator("[data-action=scrub]").evaluate((element) => {
+      const input = element as HTMLInputElement;
+      input.value = "500";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await expect.poll(() => scrubber.locator(".time").textContent()).toContain("0:00.60");
+    const embeddedSubjectX = await scrubber.locator(".subject").evaluate((element) => {
+      const subjectElement = element as SVGGraphicsElement;
+      const subject = subjectElement.getBoundingClientRect();
+      const svg = subjectElement.ownerSVGElement!.getBoundingClientRect();
+      return subject.x - svg.x;
+    });
+    await scrubber.locator(".svg-host").evaluate((host) => {
+      const element = host as HTMLElement;
+      element.style.position = "absolute";
+      element.style.inset = "0 auto auto 0";
+      element.style.width = "100px";
+      element.style.height = "60px";
+      element.style.display = "block";
+      element.style.transform = "none";
+    });
+    const embeddedPng = await scrubber.locator(".svg-host svg").screenshot({ omitBackground: true });
+    const exportPage = await context.newPage();
+    try {
+      await exportPage.setViewportSize({ width: 100, height: 60 });
+      await exportPage.setContent(htmlWrapper(regenerated, "transparent"), { waitUntil: "load" });
+      await seekTo(exportPage, 600);
+      const exportedSubjectX = await exportPage.locator(".subject").evaluate((element) => {
+        const subjectElement = element as SVGGraphicsElement;
+        const subject = subjectElement.getBoundingClientRect();
+        const svg = subjectElement.ownerSVGElement!.getBoundingClientRect();
+        return subject.x - svg.x;
+      });
+      const exportedPng = await screenshot(exportPage, true);
+      const sharp = (await import("sharp")).default;
+      const [embeddedPixels, exportedPixels] = await Promise.all([
+        sharp(embeddedPng).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
+        sharp(exportedPng).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
+      ]);
+      expect(embeddedPixels.info).toMatchObject({ width: 100, height: 60, channels: 4 });
+      expect(exportedPixels.info).toMatchObject({ width: 100, height: 60, channels: 4 });
+      let changedChannels = 0;
+      let maxDelta = 0;
+      for (let index = 0; index < embeddedPixels.data.length; index++) {
+        const delta = Math.abs(embeddedPixels.data[index] - exportedPixels.data[index]);
+        if (delta > 0) changedChannels++;
+        maxDelta = Math.max(maxDelta, delta);
+      }
+      expect(embeddedSubjectX).toBeCloseTo(exportedSubjectX, 4);
+      expect(changedChannels).toBeLessThan(100);
+      expect(maxDelta).toBeLessThanOrEqual(32);
+    } finally {
+      await exportPage.close();
+    }
+  }, 60_000);
 });

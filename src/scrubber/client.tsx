@@ -18,8 +18,15 @@
 
 import { signal, computed, effect, mount, delegate } from "kerfjs";
 import { fitRectToAspect, constrainResizeToAspect } from "./crop.js";
+import {
+  SCRUBBER_EMBED_CHANNEL,
+  isScrubberEmbedCommand,
+  normalizeScrubberEmbedViewState,
+  type ScrubberEmbedEvent,
+  type ScrubberEmbedViewState,
+} from "./embed.js";
 
-interface Bootstrap { svg: string | null; name: string | null; path?: string | null; review?: boolean }
+interface Bootstrap { svg: string | null; name: string | null; path?: string | null; review?: boolean; embedded?: boolean }
 declare global { interface Window { __SCRUBBER_BOOTSTRAP__?: Bootstrap } }
 
 const CSS = `
@@ -93,9 +100,12 @@ a.dl{display:none}
 .region-box{position:absolute;outline:2px solid #ff5b8a;background:rgba(255,91,138,.14);pointer-events:none}
 .region-box::after{content:"issue region";position:absolute;top:-18px;left:0;font-size:10px;color:#ff8fb0;font-weight:600;white-space:nowrap}
 .file-input{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+[data-scrubber-embedded] .drop,[data-scrubber-embedded] .file-input,[data-scrubber-embedded] .crop-controls,[data-scrubber-embedded] .export-wrap{display:none}
+[data-scrubber-embedded] .svg-host svg{filter:none}
+[data-scrubber-embedded] .bar{padding:8px 10px}
 @media (pointer:coarse){button,select,input[type=number],label{min-height:44px}.iconbtn{min-width:44px}.range-tick{width:44px;height:44px}}
 @media (max-width:640px){
-  .bar{padding:10px}.row:first-child{display:grid;grid-template-columns:auto auto 1fr}.row:first-child .scrub-wrap{grid-column:1/-1;grid-row:2}.row:first-child .time{grid-column:1/-1;min-width:0;text-align:left}
+  .bar{padding:10px}.row:first-child{display:grid;grid-template-columns:auto auto auto auto 1fr}.row:first-child .scrub-wrap{grid-column:1/-1;grid-row:2}.row:first-child .time{grid-column:1/-1;min-width:0;text-align:left}
   .row2{align-items:stretch}.tool-panel{width:100%;border-top:1px solid #2a2e38;padding-top:6px}.tool-panel summary{display:block;min-height:44px;line-height:44px}.tool-panel>.grp{flex-wrap:wrap;padding-bottom:6px}
   .row2>.grp{min-height:44px}.export-wrap{margin-left:auto}.review-panel>.review{border:0;padding:6px 0 0}
 }
@@ -162,6 +172,7 @@ const cropAspect = signal<string>("free");
 // the last save result.
 type Rect = { x: number; y: number; w: number; h: number };
 const reviewMode = window.__SCRUBBER_BOOTSTRAP__?.review === true;
+const embeddedMode = window.__SCRUBBER_BOOTSTRAP__?.embedded === true;
 const regionMode = signal(false);
 const regions = signal<Rect[]>([]);
 const drawingRect = signal<Rect | null>(null);
@@ -176,6 +187,9 @@ let svgName = "animation";
 let svgPath: string | null = window.__SCRUBBER_BOOTSTRAP__?.path ?? null;
 let lastTs = 0;
 let svgEl: SVGSVGElement | null = null;
+let embeddedSourceKey: string | null = null;
+
+if (embeddedMode) document.documentElement.dataset.scrubberEmbedded = "true";
 
 const head = document.createElement("style"); head.textContent = CSS; document.head.append(head);
 
@@ -234,7 +248,9 @@ function render() {
       </div>
       <div class="bar">
         <div class="row">
+          <button class="iconbtn" data-action="step-back" aria-label="Previous frame" title="previous frame" disabled={!svgLoaded.value}>←</button>
           <button class="play primary" data-action="play" aria-label={playing.value ? "Pause" : "Play"} disabled={!svgLoaded.value}>{playing.value ? ICON_PAUSE : ICON_PLAY}</button>
+          <button class="iconbtn" data-action="step-forward" aria-label="Next frame" title="next frame" disabled={!svgLoaded.value}>→</button>
           <select data-action="speed" disabled={!svgLoaded.value}>
             {["0.1", "0.25", "0.5", "1", "1.5", "2", "4"].map((v) => (
               <option value={v} selected={parseFloat(v) === speed.value}>{v}x</option>
@@ -281,7 +297,7 @@ function render() {
             <button class="iconbtn" data-action="center" title="reset pan to center" aria-label="center" disabled={!svgLoaded.value}>{ICON_DOT}</button>
             </div>
           </details>
-          <div class="grp">
+          <div class="grp crop-controls">
             <button class={cropMode.value ? "iconbtn active" : "iconbtn"} data-action="croptoggle" title="crop" aria-label="crop" aria-pressed={cropMode.value ? "true" : "false"} disabled={!svgLoaded.value}>{ICON_CROP}</button>
             {/* DM-1107: aspect-ratio lock for the crop rect. Only meaningful while
                 crop mode is on — disabled otherwise. */}
@@ -615,13 +631,47 @@ let zoomMode: "fit" | "fill" | "manual" = "fit";
 function fitZoomKeep(): void { if (zoomMode !== "manual" && svgEl != null) zoom.value = fitZoom(zoomMode); }
 function setZoom(z: number): void { zoom.value = Math.min(16, Math.max(0.02, z)); zoomMode = "manual"; }
 
+function embeddedViewState(): ScrubberEmbedViewState {
+  return {
+    playheadMs: playhead.value,
+    rangeStartMs: rangeStart.value,
+    rangeEndMs: rangeEnd.value,
+    zoom: zoom.value,
+    panX: panX.value,
+    panY: panY.value,
+    speed: speed.value,
+    loop: loop.value,
+  };
+}
+
+function postEmbeddedEvent(event: ScrubberEmbedEvent): void {
+  if (embeddedMode && window.parent !== window) window.parent.postMessage(event, location.origin);
+}
+
+let statePostTimer: number | null = null;
+effect(() => {
+  const state = embeddedViewState();
+  const sourceKey = embeddedSourceKey;
+  const duration = durationMs.value;
+  if (!embeddedMode || sourceKey == null || !svgLoaded.value) return;
+  if (statePostTimer != null) window.clearTimeout(statePostTimer);
+  statePostTimer = window.setTimeout(() => {
+    statePostTimer = null;
+    postEmbeddedEvent({ channel: SCRUBBER_EMBED_CHANNEL, type: "state", sourceKey, durationMs: duration, state });
+  }, 80);
+});
+
 // ── load ────────────────────────────────────────────────────────────────────
-async function loadSvg(text: string, name: string): Promise<void> {
+async function loadSvg(text: string, name: string, options: { durationMs?: number; restoreState?: ScrubberEmbedViewState; sourceKey?: string } = {}): Promise<void> {
   svgText = text;
   svgName = name.replace(/\.svg$/i, "") || "animation";
   const tmp = document.createElement("div"); tmp.innerHTML = text;
   const svg = tmp.querySelector("svg");
-  if (svg == null) { alert("No <svg> element found in the file."); return; }
+  if (svg == null) {
+    if (embeddedMode) postEmbeddedEvent({ channel: SCRUBBER_EMBED_CHANNEL, type: "error", sourceKey: options.sourceKey, message: "No <svg> element found in the preview artifact." });
+    else alert("No <svg> element found in the file.");
+    return;
+  }
   // Loading is a transaction: the SVG can enter the host before its timing
   // request completes, but controls must not accept actions that the eventual
   // post-load reset would discard. This race is normally hidden by the fast
@@ -632,19 +682,45 @@ async function loadSvg(text: string, name: string): Promise<void> {
   // Render the SVG at its natural size; zoom transforms the host.
   const n = (() => { const vb = svg.viewBox?.baseVal; return vb && vb.width > 0 ? { w: vb.width, h: vb.height } : { w: 800, h: 600 }; })();
   svg.style.width = `${n.w}px`; svg.style.height = `${n.h}px`; svg.removeAttribute("width"); svg.removeAttribute("height");
-  let dur = 0;
-  try {
-    const r = await fetch("/timing", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ svg: text }) });
-    dur = (await r.json() as { durationMs: number | null }).durationMs ?? localDuration();
-  } catch { dur = localDuration(); }
+  embeddedSourceKey = options.sourceKey ?? null;
+  let dur = options.durationMs ?? 0;
+  if (!(dur > 0)) {
+    try {
+      const r = await fetch("/timing", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ svg: text }) });
+      dur = (await r.json() as { durationMs: number | null }).durationMs ?? localDuration();
+    } catch { dur = localDuration(); }
+  }
   if (!(dur > 0)) dur = 1000;
-  durationMs.value = dur; playhead.value = 0; rangeStart.value = 0; rangeEnd.value = dur; playing.value = false;
-  seekAll(0);
-  zoomMode = "fit"; panX.value = 0; panY.value = 0; fitZoomKeep();
+  const restored = normalizeScrubberEmbedViewState(options.restoreState, dur);
+  durationMs.value = dur;
+  playhead.value = options.restoreState == null ? 0 : restored.playheadMs;
+  rangeStart.value = options.restoreState == null ? 0 : restored.rangeStartMs;
+  rangeEnd.value = options.restoreState == null ? dur : restored.rangeEndMs;
+  playing.value = false;
+  seekAll(playhead.value);
+  if (options.restoreState == null) {
+    zoomMode = "fit"; panX.value = 0; panY.value = 0; fitZoomKeep();
+  } else {
+    zoomMode = "manual";
+    zoom.value = restored.zoom;
+    panX.value = restored.panX;
+    panY.value = restored.panY;
+    speed.value = restored.speed;
+    loop.value = restored.loop;
+  }
   cropMode.value = false; cropRect.value = null; cropAspect.value = "free"; cropTick.value++; // DM-1104 / DM-1107: reset crop + ratio lock for the new SVG
   regionMode.value = false; regions.value = []; drawingRect.value = null; regionTick.value++; ticketStatus.value = { kind: "", msg: "" }; // DM-1445/DM-1449: reset review regions/status
   measureTrack();
   svgLoaded.value = true;
+  if (embeddedSourceKey != null) {
+    postEmbeddedEvent({
+      channel: SCRUBBER_EMBED_CHANNEL,
+      type: "loaded",
+      sourceKey: embeddedSourceKey,
+      durationMs: durationMs.value,
+      state: embeddedViewState(),
+    });
+  }
 }
 
 // ── exports ─────────────────────────────────────────────────────────────────
@@ -766,6 +842,8 @@ const stepFrame = (deltaMs: number): void => {
 
 const CLICK: Record<string, () => void> = {
   play: togglePlay,
+  "step-back": () => stepFrame(-1000 / 30),
+  "step-forward": () => stepFrame(1000 / 30),
   setin: () => { rangeStart.value = Math.min(playhead.value, rangeEnd.value); },
   setout: () => { rangeEnd.value = Math.max(playhead.value, rangeStart.value); },
   resetrange: () => { rangeStart.value = 0; rangeEnd.value = durationMs.value; },
@@ -900,6 +978,30 @@ window.addEventListener("keydown", (e) => {
   else if (e.code === "ArrowLeft") { stepFrame(-(e.shiftKey ? 1 : 1000 / 30)); }
   else if (e.code === "ArrowRight") { stepFrame(e.shiftKey ? 1 : 1000 / 30); }
 });
+
+if (embeddedMode) {
+  window.addEventListener("message", (event) => {
+    if (event.source !== window.parent || event.origin !== location.origin || !isScrubberEmbedCommand(event.data)) return;
+    if (event.data.type === "request-state") {
+      if (embeddedSourceKey != null && svgLoaded.value) {
+        postEmbeddedEvent({
+          channel: SCRUBBER_EMBED_CHANNEL,
+          type: "state",
+          sourceKey: embeddedSourceKey,
+          durationMs: durationMs.value,
+          state: embeddedViewState(),
+        });
+      }
+      return;
+    }
+    void loadSvg(event.data.svg, event.data.name, {
+      durationMs: event.data.durationMs,
+      restoreState: event.data.restoreState,
+      sourceKey: event.data.sourceKey,
+    });
+  });
+  postEmbeddedEvent({ channel: SCRUBBER_EMBED_CHANNEL, type: "ready" });
+}
 
 // Bootstrap (preloaded SVG from the CLI) + initial track measure.
 requestAnimationFrame(measureTrack);

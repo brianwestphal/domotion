@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpmn22jlt8xng8w",
+          "message": {
+            "text": "Studio uses a versioned same-origin message protocol and bounded serializable view state so the separate Studio app can reuse the exact Scrubber playback engine without duplicating timeline logic.",
+            "markdown": "Studio uses a versioned same-origin message protocol and bounded serializable view state so the separate Studio app can reuse the exact Scrubber playback engine without duplicating timeline logic."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/scrubber/embed.ts"
+                },
+                "region": {
+                  "startLine": 1,
+                  "endLine": 106,
+                  "snippet": {
+                    "text": "export const SCRUBBER_EMBED_CHANNEL = \"domotion-svg-scrubber/v1\" as const;\n\nexport interface ScrubberEmbedViewState {\n  playheadMs: number;\n  rangeStartMs: number;\n  rangeEndMs: number;\n  zoom: number;\n  panX: number;\n  panY: number;\n  speed: number;\n  loop: boolean;\n}\n\nexport type ScrubberEmbedCommand = {\n  channel: typeof SCRUBBER_EMBED_CHANNEL;\n  type: \"load\";\n  sourceKey: string;\n  svg: string;\n  name: string;\n  durationMs: number;\n  restoreState?: ScrubberEmbedViewState;\n} | {\n  channel: typeof SCRUBBER_EMBED_CHANNEL;\n  type: \"request-state\";\n};\n\nexport type ScrubberEmbedEvent = {\n  channel: typeof SCRUBBER_EMBED_CHANNEL;\n  type: \"ready\";\n} | {\n  channel: typeof SCRUBBER_EMBED_CHANNEL;\n  type: \"loaded\" | \"state\";\n  sourceKey: string;\n  durationMs: number;\n  state: ScrubberEmbedViewState;\n} | {\n  channel: typeof SCRUBBER_EMBED_CHANNEL;\n  type: \"error\";\n  sourceKey?: string;\n  message: string;\n};\n\nfunction finite(value: unknown, fallback: number): number {\n  return typeof value === \"number\" && Number.isFinite(value) ? value : fallback;\n}\n\nfunction isViewState(value: unknown): value is ScrubberEmbedViewState {\n  if (value == null || typeof value !== \"object\") return false;\n  const state = value as Partial<ScrubberEmbedViewState>;\n  return [state.playheadMs, state.rangeStartMs, state.rangeEndMs, state.zoom, state.panX, state.panY, state.speed]\n    .every((item) => typeof item === \"number\" && Number.isFinite(item))\n    && typeof state.loop === \"boolean\";\n}\n\n/** Clamp persisted UI context to a regenerated SVG's current duration. */\nexport function normalizeScrubberEmbedViewState(\n  value: Partial<ScrubberEmbedViewState> | undefined,\n  durationMs: number,\n): ScrubberEmbedViewState {\n  const duration = Math.max(1, finite(durationMs, 1000));\n  const clampTime = (candidate: unknown, fallback: number): number => Math.max(0, Math.min(duration, finite(candidate, fallback)));\n  const start = clampTime(value?.rangeStartMs, 0);\n  const end = Math.max(start, clampTime(value?.rangeEndMs, duration));\n  return {\n    playheadMs: clampTime(value?.playheadMs, start),\n    rangeStartMs: start,\n    rangeEndMs: end,\n    zoom: Math.max(0.02, Math.min(16, finite(value?.zoom, 1))),\n    panX: finite(value?.panX, 0),\n    panY: finite(value?.panY, 0),\n    speed: Math.max(0.1, Math.min(4, finite(value?.speed, 1))),\n    loop: value?.loop ?? true,\n  };\n}\n\nexport function isScrubberEmbedCommand(value: unknown): value is ScrubberEmbedCommand {\n  if (value == null || typeof value !== \"object\") return false;\n  const command = value as Partial<ScrubberEmbedCommand> & Record<string, unknown>;\n  if (command.channel !== SCRUBBER_EMBED_CHANNEL) return false;\n  if (command.type === \"request-state\") return true;\n  return command.type === \"load\"\n    && typeof command.sourceKey === \"string\"\n    && command.sourceKey.trim() !== \"\"\n    && typeof command.svg === \"string\"\n    && command.svg.includes(\"<svg\")\n    && typeof command.name === \"string\"\n    && typeof command.durationMs === \"number\"\n    && Number.isFinite(command.durationMs)\n    && command.durationMs > 0\n    && (command.restoreState == null || isViewState(command.restoreState));\n}\n\nexport function isScrubberEmbedEvent(value: unknown): value is ScrubberEmbedEvent {\n  if (value == null || typeof value !== \"object\") return false;\n  const event = value as Partial<ScrubberEmbedEvent> & Record<string, unknown>;\n  if (event.channel !== SCRUBBER_EMBED_CHANNEL) return false;\n  if (event.type === \"ready\") return true;\n  if (event.type === \"error\") return typeof event.message === \"string\";\n  return (event.type === \"loaded\" || event.type === \"state\")\n    && typeof event.sourceKey === \"string\"\n    && typeof event.durationMs === \"number\"\n    && Number.isFinite(event.durationMs)\n    && isViewState(event.state);\n}\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "workItemUris": [
+            "DM-2689"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "29f523a51e902b37f4862d094ef03c63"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "36d9804ebab5dee3da1eef0948cc09a5c08df78c",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

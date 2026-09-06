@@ -143,6 +143,7 @@ export * from "./post-processing/index.js";
 // compositions lower onto the existing storyboard/composite render recipes;
 // generated SVG/video artifacts remain outputs with recorded provenance.
 export * from "./studio/index.js";
+export * from "./scrubber/embed.js";
 
 // ── Declarative animate pipeline (DM-1130) ───────────────────────────────────
 // The JSON-config-driven animation pipeline that powers `domotion animate`,

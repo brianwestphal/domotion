@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpmmxy3vfd8iw9e",
+          "message": {
+            "text": "Chromium coverage switches scenes and story, scrubs, steps, edits range/zoom, regenerates and clamps retained context, plays transport, inspects live SVG geometry, and compares the embedded frame against the production exporter at the same timestamp.",
+            "markdown": "Chromium coverage switches scenes and story, scrubs, steps, edits range/zoom, regenerates and clamps retained context, plays transport, inspects live SVG geometry, and compares the embedded frame against the production exporter at the same timestamp."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/server.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 162,
+                  "endLine": 309,
+                  "snippet": {
+                    "text": "  it(\"switches scene/story previews, preserves scrub context after regeneration, and matches exported pixels\", async () => {\n    if (!available || page == null || server == null || context == null) return;\n    const generatedDir = join(root, \"generated\");\n    mkdirSync(generatedDir, { recursive: true });\n    const opening = animatedPreview(\"#ff3355\", 2000, 60);\n    const detail = animatedPreview(\"#33cc88\", 1200, 40);\n    const story = animatedPreview(\"#6699ff\", 3200, 70);\n    writeFileSync(join(generatedDir, \"opening.svg\"), opening);\n    writeFileSync(join(generatedDir, \"detail.svg\"), detail);\n    writeFileSync(join(generatedDir, \"story.svg\"), story);\n    const created = createStudioProjectFile(root, \"previews.studio.json\", { title: \"Preview story\", createdAt: PREVIEW_TIME });\n    const authored = structuredClone(created.project);\n    authored.scenes.push({\n      id: \"scene-detail\",\n      title: \"Detail\",\n      narrativeBeatIds: [\"beat-opening\"],\n      render: { kind: \"storyboard\", recipe: { template: \"title-card\", params: { title: \"Detail\" }, duration: 1200 } },\n    });\n    authored.narrative.beats[0].sceneIds.push(\"scene-detail\");\n    const revision = authored.review.headRevisionId;\n    authored.artifacts.push(\n      { id: \"artifact-opening\", kind: \"svg\", path: \"generated/opening.svg\", generatedAt: PREVIEW_TIME, generator: { name: \"test\" }, sourceRevisionId: revision, sceneIds: [\"scene-opening\"], sha256: digest(opening), metadata: { durationMs: 2000 } },\n      { id: \"artifact-detail\", kind: \"svg\", path: \"generated/detail.svg\", generatedAt: PREVIEW_TIME, generator: { name: \"test\" }, sourceRevisionId: revision, sceneIds: [\"scene-detail\"], sha256: digest(detail), metadata: { durationMs: 1200 } },\n      { id: \"artifact-story\", kind: \"svg\", path: \"generated/story.svg\", generatedAt: PREVIEW_TIME, generator: { name: \"test\" }, sourceRevisionId: revision, sha256: digest(story), metadata: { durationMs: 3200 } },\n    );\n    saveStudioProjectFile(root, \"previews.studio.json\", authored, PREVIEW_TIME);\n\n    const testPage = page;\n    await testPage.goto(server.url, { waitUntil: \"load\" });\n    await testPage.getByLabel(\"Project file\").fill(\"previews.studio.json\");\n    await testPage.getByRole(\"button\", { name: \"Open\", exact: true }).click();\n    await testPage.getByRole(\"heading\", { name: \"Preview story\" }).waitFor();\n    await testPage.getByRole(\"button\", { name: \"Scene 1\", exact: true }).click();\n    const scrubber = testPage.frameLocator(\"[data-scrubber-frame]\");\n    await scrubber.locator(\".svg-host svg\").waitFor();\n    await expect.poll(() => scrubber.locator(\".time\").textContent()).toContain(\"/ 0:02.00\");\n\n    await scrubber.locator(\"[data-action=scrub]\").evaluate((element) => {\n      const input = element as HTMLInputElement;\n      input.value = \"500\";\n      input.dispatchEvent(new Event(\"input\", { bubbles: true }));\n    });\n    await scrubber.locator(\"[data-action=inn]\").evaluate((element) => {\n      const input = element as HTMLInputElement;\n      input.value = \"0.25\";\n      input.dispatchEvent(new Event(\"change\", { bubbles: true }));\n    });\n    await scrubber.locator(\"[data-action=outn]\").evaluate((element) => {\n      const input = element as HTMLInputElement;\n      input.value = \"1.50\";\n      input.dispatchEvent(new Event(\"change\", { bubbles: true }));\n    });\n    await scrubber.locator(\"[data-action=zoompreset]\").selectOption(\"1.5\");\n    await expect.poll(() => scrubber.locator(\".time\").textContent()).toContain(\"0:01.00 / 0:02.00\");\n    await testPage.waitForTimeout(150);\n\n    await testPage.getByRole(\"button\", { name: \"Scene 2\", exact: true }).click();\n    await expect.poll(() => scrubber.locator(\".time\").textContent()).toContain(\"/ 0:01.20\");\n    await scrubber.getByRole(\"button\", { name: \"Next frame\" }).click();\n    await expect.poll(() => scrubber.locator(\".time\").textContent()).toContain(\"0:00.03\");\n    await testPage.waitForTimeout(150);\n\n    await testPage.getByRole(\"button\", { name: \"Scene 1\", exact: true }).click();\n    await expect.poll(() => scrubber.locator(\".time\").textContent()).toContain(\"0:01.00 / 0:02.00\");\n    expect(await scrubber.locator(\"[data-action=inn]\").inputValue()).toBe(\"0.25\");\n    expect(await scrubber.locator(\"[data-action=outn]\").inputValue()).toBe(\"1.50\");\n    expect(await scrubber.locator(\"[data-action=zoompreset]\").inputValue()).toBe(\"1.5\");\n\n    const regenerated = animatedPreview(\"#ffaa22\", 1200, 50);\n    writeFileSync(join(generatedDir, \"opening.svg\"), regenerated);\n    const latest = openStudioProjectFile(root, \"previews.studio.json\").project;\n    const openingArtifact = latest.artifacts.find((artifact) => artifact.id === \"artifact-opening\")!;\n    openingArtifact.generatedAt = \"2026-09-06T04:05:00.000Z\";\n    openingArtifact.sha256 = digest(regenerated);\n    openingArtifact.metadata = { durationMs: 1200 };\n    saveStudioProjectFile(root, \"previews.studio.json\", latest, \"2026-09-06T04:05:00.000Z\");\n    await testPage.getByRole(\"button\", { name: \"Reopen\", exact: true }).click();\n    await expect.poll(() => scrubber.locator(\".time\").textContent()).toContain(\"0:01.00 / 0:01.20\");\n    expect(await scrubber.locator(\"[data-action=outn]\").inputValue()).toBe(\"1.20\");\n\n    await testPage.getByRole(\"button\", { name: \"Whole story\", exact: true }).click();\n    await expect.poll(() => scrubber.locator(\".time\").textContent()).toContain(\"/ 0:03.20\");\n    const beforePlay = await scrubber.locator(\".time\").textContent();\n    await scrubber.getByRole(\"button\", { name: \"Play\" }).click();\n    await testPage.waitForTimeout(180);\n    await scrubber.getByRole(\"button\", { name: \"Pause\" }).click();\n    expect(await scrubber.locator(\".time\").textContent()).not.toBe(beforePlay);\n\n    await testPage.getByRole(\"button\", { name: \"Scene 1\", exact: true }).click();\n    await expect.poll(() => scrubber.locator(\".time\").textContent()).toContain(\"/ 0:01.20\");\n    await scrubber.locator(\"[data-action=zoompreset]\").selectOption(\"1\");\n    await scrubber.getByRole(\"button\", { name: \"center\" }).click();\n    await scrubber.locator(\"[data-action=scrub]\").evaluate((element) => {\n      const input = element as HTMLInputElement;\n      input.value = \"500\";\n      input.dispatchEvent(new Event(\"input\", { bubbles: true }));\n    });\n    await expect.poll(() => scrubber.locator(\".time\").textContent()).toContain(\"0:00.60\");\n    const embeddedSubjectX = await scrubber.locator(\".subject\").evaluate((element) => {\n      const subjectElement = element as SVGGraphicsElement;\n      const subject = subjectElement.getBoundingClientRect();\n      const svg = subjectElement.ownerSVGElement!.getBoundingClientRect();\n      return subject.x - svg.x;\n    });\n    await scrubber.locator(\".svg-host\").evaluate((host) => {\n      const element = host as HTMLElement;\n      element.style.position = \"absolute\";\n      element.style.inset = \"0 auto auto 0\";\n      element.style.width = \"100px\";\n      element.style.height = \"60px\";\n      element.style.display = \"block\";\n      element.style.transform = \"none\";\n    });\n    const embeddedPng = await scrubber.locator(\".svg-host svg\").screenshot({ omitBackground: true });\n    const exportPage = await context.newPage();\n    try {\n      await exportPage.setViewportSize({ width: 100, height: 60 });\n      await exportPage.setContent(htmlWrapper(regenerated, \"transparent\"), { waitUntil: \"load\" });\n      await seekTo(exportPage, 600);\n      const exportedSubjectX = await exportPage.locator(\".subject\").evaluate((element) => {\n        const subjectElement = element as SVGGraphicsElement;\n        const subject = subjectElement.getBoundingClientRect();\n        const svg = subjectElement.ownerSVGElement!.getBoundingClientRect();\n        return subject.x - svg.x;\n      });\n      const exportedPng = await screenshot(exportPage, true);\n      const sharp = (await import(\"sharp\")).default;\n      const [embeddedPixels, exportedPixels] = await Promise.all([\n        sharp(embeddedPng).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),\n        sharp(exportedPng).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),\n      ]);\n      expect(embeddedPixels.info).toMatchObject({ width: 100, height: 60, channels: 4 });\n      expect(exportedPixels.info).toMatchObject({ width: 100, height: 60, channels: 4 });\n      let changedChannels = 0;\n      let maxDelta = 0;\n      for (let index = 0; index < embeddedPixels.data.length; index++) {\n        const delta = Math.abs(embeddedPixels.data[index] - exportedPixels.data[index]);\n        if (delta > 0) changedChannels++;\n        maxDelta = Math.max(maxDelta, delta);\n      }\n      expect(embeddedSubjectX).toBeCloseTo(exportedSubjectX, 4);\n      expect(changedChannels).toBeLessThan(100);\n      expect(maxDelta).toBeLessThanOrEqual(32);\n    } finally {\n      await exportPage.close();\n    }\n  }, 60_000);\n});"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "workItemUris": [
+            "DM-2689"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "acf3f1dd7af6f024e32ba8be9f5ac4f2"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "36d9804ebab5dee3da1eef0948cc09a5c08df78c",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
