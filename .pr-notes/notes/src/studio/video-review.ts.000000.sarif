@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpfvdixgv1uu22o",
+          "message": {
+            "text": "The general visual-quality rubric remains authoritative even during revision comparison. Requiring at least one finding for every dimension prevents a favorable delta from hiding a current pacing, readability, narrative, brand, cursor, transition, or polish defect; duplicate finding IDs are rejected before queue insertion.",
+            "markdown": "The general visual-quality rubric remains authoritative even during revision comparison. Requiring at least one finding for every dimension prevents a favorable delta from hiding a current pacing, readability, narrative, brand, cursor, transition, or polish defect; duplicate finding IDs are rejected before queue insertion."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/video-review.ts"
+                },
+                "region": {
+                  "startLine": 46,
+                  "endLine": 68,
+                  "snippet": {
+                    "text": "export const studioVideoReviewReportSchema = z\n  .strictObject({\n    kind: z.literal(\"report\"),\n    summary: nonEmpty,\n    findings: z.array(studioVideoReviewFindingSchema).min(STUDIO_VIDEO_REVIEW_DIMENSIONS.length),\n    comparison: z.strictObject({\n      summary: nonEmpty,\n      improvements: z.array(nonEmpty),\n      regressions: z.array(nonEmpty),\n    }).optional(),\n  })\n  .superRefine((report, ctx) => {\n    const ids = new Set<string>();\n    report.findings.forEach((finding, index) => {\n      if (ids.has(finding.id)) ctx.addIssue({ code: \"custom\", path: [\"findings\", index, \"id\"], message: `duplicate finding id \"${finding.id}\"` });\n      ids.add(finding.id);\n    });\n    for (const dimension of STUDIO_VIDEO_REVIEW_DIMENSIONS) {\n      if (!report.findings.some((finding) => finding.dimension === dimension)) {\n        ctx.addIssue({ code: \"custom\", path: [\"findings\"], message: `missing authoritative rubric dimension \"${dimension}\"` });\n      }\n    }\n  });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ]
+          },
+          "workItemUris": [
+            "DM-2694"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "72cf9e555797cdd2a116d5c20a7ac687"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpfvdpjc5u3m4wd",
+          "message": {
+            "text": "AI findings use the existing review graph instead of a parallel automation inbox. The implementation appends one parent-linked AI revision, emits ordinary open annotations alongside preserved human notes, links both immutable evidence artifacts, validates the complete graph before persisting the report sidecar, and derives stable IDs from the parent/media/report content.",
+            "markdown": "AI findings use the existing review graph instead of a parallel automation inbox. The implementation appends one parent-linked AI revision, emits ordinary open annotations alongside preserved human notes, links both immutable evidence artifacts, validates the complete graph before persisting the report sidecar, and derives stable IDs from the parent/media/report content."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/video-review.ts"
+                },
+                "region": {
+                  "startLine": 184,
+                  "endLine": 264,
+                  "snippet": {
+                    "text": "function applyReport(\n  source: StudioProject,\n  media: StudioReviewMedia,\n  report: StudioVideoReviewReport,\n  projectDir: string,\n  aiName: string,\n  timestamp: () => string,\n): StudioProject {\n  const now = timestamp();\n  const signature = digest(JSON.stringify({ parent: source.review.headRevisionId, media: media.sha256, report }));\n  const revisionId = `revision-ai-video-${signature.slice(0, 16)}`;\n  if (source.review.revisions.some((revision) => revision.id === revisionId)) {\n    throw new StudioVideoReviewError(\"this exact AI video review is already present in the revision queue\");\n  }\n  const videoArtifactId = `artifact-review-video-${signature.slice(0, 16)}`;\n  const reportArtifactId = `artifact-review-report-${signature.slice(0, 16)}`;\n  const reportPath = `${media.path}.review.json`;\n  const persistedReport = {\n    version: 1,\n    reviewedArtifactId: videoArtifactId,\n    sourceRevisionId: media.sourceRevisionId,\n    rubric: STUDIO_VIDEO_REVIEW_DIMENSIONS,\n    ...report,\n  };\n  const persistedText = `${JSON.stringify(persistedReport, null, 2)}\\n`;\n\n  const project = clone(source);\n  project.artifacts.push({\n    id: videoArtifactId,\n    kind: \"review-video\",\n    path: artifactPath(projectDir, media.path),\n    generatedAt: now,\n    generator: { name: \"domotion-svg-to-video\" },\n    sourceRevisionId: media.sourceRevisionId,\n    sceneIds: project.scenes.map((scene) => scene.id),\n    sha256: media.sha256,\n    metadata: { width: media.width, height: media.height, mimeType: media.mimeType },\n  }, {\n    id: reportArtifactId,\n    kind: \"other\",\n    path: artifactPath(projectDir, reportPath),\n    generatedAt: now,\n    generator: { name: \"domotion-studio-ai-review\" },\n    sourceRevisionId: media.sourceRevisionId,\n    derivedFromArtifactIds: [videoArtifactId],\n    sha256: digest(persistedText),\n    metadata: { mediaType: \"application/json\", rubric: [...STUDIO_VIDEO_REVIEW_DIMENSIONS] },\n  });\n  project.review.revisions.push({\n    id: revisionId,\n    parentId: project.review.headRevisionId,\n    createdAt: now,\n    author: { kind: \"ai\", name: aiName },\n    summary: report.summary,\n    metadata: {\n      automation: {\n        phase: \"video-review\",\n        reviewedArtifactId: videoArtifactId,\n        reportArtifactId,\n        rubric: [...STUDIO_VIDEO_REVIEW_DIMENSIONS],\n        comparison: report.comparison ?? null,\n      },\n    },\n  });\n  project.review.headRevisionId = revisionId;\n  for (const finding of report.findings) {\n    project.review.annotations.push({\n      id: `annotation-ai-${signature.slice(0, 10)}-${digest(finding.id).slice(0, 12)}`,\n      status: \"open\",\n      body: findingBody(finding),\n      author: { kind: \"ai\", name: aiName },\n      createdAt: now,\n      createdRevisionId: revisionId,\n      ...(finding.target != null ? { target: finding.target as StudioAnnotationTarget } : {}),\n      evidenceArtifactIds: [videoArtifactId, reportArtifactId],\n    });\n  }\n  project.updatedAt = now;\n  const validated = validateStudioProject(project);\n  writeFileSync(reportPath, persistedText, \"utf8\");\n  return validated;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ]
+          },
+          "workItemUris": [
+            "DM-2694"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "adcfb44117b2bb82464ab42da0bd7761"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpfvdw4ekjm6zzo",
+          "message": {
+            "text": "The reviewer receives evidence from the real exported medium, not an SVG-only proxy. The default path delegates frame stepping and encoding to the shipped SVG-to-video pipeline, hashes the completed MP4, and only then invokes the application-owned AI boundary with a structured-cloned project and rubric.",
+            "markdown": "The reviewer receives evidence from the real exported medium, not an SVG-only proxy. The default path delegates frame stepping and encoding to the shipped SVG-to-video pipeline, hashes the completed MP4, and only then invokes the application-owned AI boundary with a structured-cloned project and rubric."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/video-review.ts"
+                },
+                "region": {
+                  "startLine": 299,
+                  "endLine": 338,
+                  "snippet": {
+                    "text": "/** Render the current SVG through the production video pipeline, then require structured AI review. */\nexport async function renderAndReviewStudioVideo(\n  raw: unknown,\n  options: RenderStudioReviewVideoOptions,\n): Promise<StudioVideoReviewResult> {\n  const project = validateStudioProject(raw);\n  const comparison = validateComparison(options.comparison);\n  const projectDir = resolve(options.projectDir ?? process.cwd());\n  const svgPath = resolve(projectDir, options.svgPath);\n  const outputPath = resolve(projectDir, options.outputPath ?? project.exportTargets?.reviewVideoPath ?? \"generated/studio-review.mp4\");\n  mkdirSync(dirname(outputPath), { recursive: true });\n  if (options.renderVideo != null) {\n    await options.renderVideo({ svgPath, outputPath, project: clone(project) });\n  } else {\n    await runSvgToVideo({\n      input: svgPath,\n      output: outputPath,\n      width: project.canvas.width,\n      height: project.canvas.height,\n      fps: options.fps ?? 30,\n      format: \"h264\",\n      scale: options.scale ?? 2,\n      background: project.canvas.background ?? \"#ffffff\",\n      burnCaptions: false,\n      ffmpegPath: options.ffmpegPath ?? \"ffmpeg\",\n      quiet: true,\n      log: options.log ?? (() => {}),\n      launchBrowser: options.launchBrowser ?? (() => launchChromium()),\n    });\n  }\n  if (!existsSync(outputPath)) throw new StudioVideoReviewError(`video renderer did not create ${outputPath}`);\n  const media: StudioReviewMedia = {\n    path: outputPath,\n    sha256: digest(readFileSync(outputPath)),\n    sourceRevisionId: project.review.headRevisionId,\n    width: project.canvas.width,\n    height: project.canvas.height,\n    mimeType: \"video/mp4\",\n  };\n  const decision = await decide(project, media, options.review, comparison);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ]
+          },
+          "workItemUris": [
+            "DM-2694"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e563c5d6be74d942303d17eec96ab9fa"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtpfve2s9ii93k1q",
+          "message": {
+            "text": "Clarification cannot silently switch the evidence being reviewed. Resume verifies a digest covering the whole checkpoint plus the project digest and on-disk video SHA-256 before returning the answer to AI, and a repeated clarification receives a newly signed checkpoint.",
+            "markdown": "Clarification cannot silently switch the evidence being reviewed. Resume verifies a digest covering the whole checkpoint plus the project digest and on-disk video SHA-256 before returning the answer to AI, and a repeated clarification receives a newly signed checkpoint."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/studio/video-review.ts"
+                },
+                "region": {
+                  "startLine": 368,
+                  "endLine": 405,
+                  "snippet": {
+                    "text": "/** Resume an AI-requested clarification without rerendering or accepting tampered evidence. */\nexport async function resumeStudioVideoReview(\n  checkpoint: StudioVideoReviewClarificationCheckpoint,\n  answer: string,\n  options: ResumeStudioVideoReviewOptions,\n): Promise<StudioVideoReviewResult> {\n  if (answer.trim() === \"\") throw new StudioVideoReviewError(\"clarification answer must not be empty\");\n  const project = validateStudioProject(checkpoint.project);\n  const { checkpointDigest: recordedDigest, ...checkpointBase } = checkpoint;\n  if (checkpoint.version !== 1 || projectDigest(project) !== checkpoint.projectDigest || checkpointDigest(checkpointBase) !== recordedDigest) {\n    throw new StudioVideoReviewError(\"video-review clarification checkpoint was modified\");\n  }\n  if (!existsSync(checkpoint.media.path) || digest(readFileSync(checkpoint.media.path)) !== checkpoint.media.sha256) {\n    throw new StudioVideoReviewError(\"review video changed after the clarification checkpoint was created\");\n  }\n  const decision = await decide(project, checkpoint.media, options.review, checkpoint.comparison, {\n    question: checkpoint.question,\n    answer,\n  });\n  if (decision.kind === \"clarify\") {\n    const nextBase: Omit<StudioVideoReviewClarificationCheckpoint, \"checkpointDigest\"> = {\n      ...checkpointBase,\n      question: decision.question,\n      reason: decision.reason,\n      evidence: decision.evidence,\n    };\n    return {\n      status: \"clarification\",\n      project,\n      checkpoint: {\n        ...nextBase,\n        checkpointDigest: checkpointDigest(nextBase),\n      },\n    };\n  }\n  return {\n    status: \"reviewed\",\n    project: applyReport(project, checkpoint.media, decision, resolve(checkpoint.projectDir), options.aiName ?? \"Studio AI\", options.timestamp ?? (() => new Date().toISOString())),"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ]
+          },
+          "workItemUris": [
+            "DM-2694"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e837ea9a1ae221b7851a57a823b77160"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c56e5f84b554d63832286bc67aaedca0ac7f9e0d",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

@@ -35,6 +35,11 @@ external runtime assets. macOS, Linux, and Windows are first-class platforms.
    append evidence-backed revisions; material ambiguity pauses for clarification,
    and only an AI-accepted candidate proceeds to human review. This phase has no
    user-facing iteration, time, token, or cost budget management.
+10. Studio visual review operates on rendered video, not authored intent alone.
+    AI findings cover the complete pacing/cursor/readability/transition/narrative/
+    brand/polish rubric, separate evidence from inference and recommendations,
+    ground comments to project identities/space/time, and enter the same queue as
+    human review. Material ambiguity pauses for clarification.
 
 ## Current handbooks
 

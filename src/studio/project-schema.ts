@@ -280,28 +280,28 @@ export const studioScriptHookSchema = z.strictObject({
   sha256: z.string().regex(/^[a-f0-9]{64}$/i, "must be a 64-character hexadecimal SHA-256 digest").optional(),
 });
 
-const reviewAuthorSchema = z.strictObject({
+export const studioReviewAuthorSchema = z.strictObject({
   kind: z.enum(["human", "ai", "system"]),
   name: nonEmptyString.optional(),
 });
 
-const reviewRevisionSchema = z.strictObject({
+export const studioReviewRevisionSchema = z.strictObject({
   id: studioIdSchema,
   parentId: studioIdSchema.optional(),
   createdAt: timestampSchema,
-  author: reviewAuthorSchema,
+  author: studioReviewAuthorSchema,
   summary: nonEmptyString,
   metadata: metadataSchema.optional(),
 });
 
-const annotationRegionSchema = z.strictObject({
+export const studioAnnotationRegionSchema = z.strictObject({
   x: z.number(),
   y: z.number(),
   width: z.number().positive(),
   height: z.number().positive(),
 });
 
-const annotationTargetSchema = z
+export const studioAnnotationTargetSchema = z
   .strictObject({
     sceneId: studioIdSchema.optional(),
     trackId: studioIdSchema.optional(),
@@ -309,7 +309,7 @@ const annotationTargetSchema = z
     layerId: studioIdSchema.optional(),
     atMs: z.number().nonnegative().optional(),
     endMs: z.number().nonnegative().optional(),
-    regions: z.array(annotationRegionSchema).optional(),
+    regions: z.array(studioAnnotationRegionSchema).optional(),
     domIdentity: nonEmptyString.optional(),
   })
   .refine((target) => target.endMs == null || (target.atMs != null && target.endMs >= target.atMs), {
@@ -317,23 +317,23 @@ const annotationTargetSchema = z
     path: ["endMs"],
   });
 
-const reviewAnnotationSchema = z.strictObject({
+export const studioReviewAnnotationSchema = z.strictObject({
   id: studioIdSchema,
   status: z.enum(["open", "resolved", "superseded"]),
   body: nonEmptyString,
-  author: reviewAuthorSchema,
+  author: studioReviewAuthorSchema,
   createdAt: timestampSchema,
   updatedAt: timestampSchema.optional(),
   createdRevisionId: studioIdSchema,
   resolvedRevisionId: studioIdSchema.optional(),
-  target: annotationTargetSchema.optional(),
+  target: studioAnnotationTargetSchema.optional(),
   evidenceArtifactIds: z.array(studioIdSchema).optional(),
 });
 
 export const studioReviewHistorySchema = z.strictObject({
   headRevisionId: studioIdSchema,
-  revisions: z.array(reviewRevisionSchema).min(1),
-  annotations: z.array(reviewAnnotationSchema),
+  revisions: z.array(studioReviewRevisionSchema).min(1),
+  annotations: z.array(studioReviewAnnotationSchema),
 });
 
 export const studioArtifactSchema = z.strictObject({
@@ -496,6 +496,10 @@ export type StudioScene = z.infer<typeof studioSceneSchema>;
 export type StudioNarrative = z.infer<typeof studioNarrativeSchema>;
 export type StudioScriptHook = z.infer<typeof studioScriptHookSchema>;
 export type StudioReviewHistory = z.infer<typeof studioReviewHistorySchema>;
-export type StudioReviewRevision = z.infer<typeof reviewRevisionSchema>;
+export type StudioReviewAuthor = z.infer<typeof studioReviewAuthorSchema>;
+export type StudioReviewRevision = z.infer<typeof studioReviewRevisionSchema>;
+export type StudioAnnotationRegion = z.infer<typeof studioAnnotationRegionSchema>;
+export type StudioAnnotationTarget = z.infer<typeof studioAnnotationTargetSchema>;
+export type StudioReviewAnnotation = z.infer<typeof studioReviewAnnotationSchema>;
 export type StudioArtifact = z.infer<typeof studioArtifactSchema>;
 export type StudioProject = z.infer<typeof studioProjectSchema>;
