@@ -1666,7 +1666,20 @@ async function buildCapturedFrame(
       cullElementsOutsideViewBox(seg.tree, scrollClip[2], scrollClip[3], undefined, 0, 1);
     }
     rootBg = segments[0]?.tree?.[0]?.styles?.rootBgComputed;
-    const composed = composeScrollSvg(segments, { viewportW: scrollClip[2], viewportH: scrollClip[3] });
+    // The scroll composer owns a complete nested document and starts its own
+    // generation, so isolate that reset from the outer animation's accumulated
+    // glyph/font registries. Otherwise a scroll frame after an ordinary capture
+    // rewinds gN/dmfN and replaces the earlier frame's addressing. Namespace the
+    // finished document too: Blink resolves local SVG IRIs through the shared
+    // TreeScope, so a nested <svg> is not an id boundary.
+    const outerGeneration = snapshotGeneration();
+    let composed: string;
+    try {
+      composed = composeScrollSvg(segments, { viewportW: scrollClip[2], viewportH: scrollClip[3] });
+    } finally {
+      restoreGeneration(outerGeneration);
+    }
+    composed = namespaceEmbeddedAnimatedSvg(composed, `sf${i}_`);
     // The composer emits a full `<?xml ...><svg>...</svg>` document. The
     // outer animator wraps `svgContent` in a `<g class="f f-N">`, which
     // happily contains a nested `<svg>` element — strip just the XML

@@ -584,6 +584,30 @@ describe("composeScrollSvg: renderText option", () => {
     const svg = composeScrollSvg([makeSeg(0, 0, 0)], { viewportW: 800, viewportH: 600, renderText: "embedded-font" });
     expect(svg).not.toContain("@font-face");
   });
+
+  it("emits each shared glyph definition once across multiple segments", () => {
+    const text = (value: string): CapturedElement => el({
+      tag: "div",
+      x: 10,
+      y: 10,
+      width: 120,
+      height: 24,
+      text: value,
+      textLeft: 10,
+      textTop: 10,
+      textWidth: 120,
+      textHeight: 24,
+      fontAscent: 18,
+    });
+    const svg = composeScrollSvg([
+      makeSeg(0, 0, 100, [text("FIRST ABCD")]),
+      makeSeg(80, 100, 200, [text("SCROLL ZYXW")]),
+    ], { viewportW: 320, viewportH: 200, renderText: "paths" });
+    const glyphIds = [...svg.matchAll(/\sid="(g\d+)"/g)].map((match) => match[1]);
+
+    expect(glyphIds.length, "fixture should exercise glyph-path definitions").toBeGreaterThan(0);
+    expect(new Set(glyphIds).size).toBe(glyphIds.length);
+  });
 });
 
 // ── Per-action easing → per-keyframe animation-timing-function (DM-1076) ─────

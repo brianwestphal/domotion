@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["animation"]
 platforms: ["windows"]
-tickets: ["DM-1050","DM-1134","DM-1140","DM-1287","DM-1292","DM-1319","DM-1320","DM-1322","DM-1323","DM-1324","DM-1516","DM-1518","DM-1555","DM-1557","DM-1558","DM-1562","DM-1563","DM-1566","DM-1742","DM-1749","DM-1750","DM-1757","DM-1761","DM-1763","DM-1767","DM-1768","DM-1770","DM-1771","DM-1772","DM-1796","DM-2641","DM-846","DM-853"]
+tickets: ["DM-1050","DM-1134","DM-1140","DM-1287","DM-1292","DM-1319","DM-1320","DM-1322","DM-1323","DM-1324","DM-1516","DM-1518","DM-1555","DM-1557","DM-1558","DM-1562","DM-1563","DM-1566","DM-1742","DM-1749","DM-1750","DM-1757","DM-1761","DM-1763","DM-1767","DM-1768","DM-1770","DM-1771","DM-1772","DM-1796","DM-2641","DM-2681","DM-846","DM-853"]
 code: ["examples/animate/","examples/animate/compressed-run/","examples/animate/editor-session/","examples/animate/form-fill/","examples/animate/hover-detect/","examples/animate/hover-reveal/","examples/animate/hover-state/","examples/animate/region-timing/","src/cli/animate-orchestrator.ts","src/cli/animate.ts"]
 aliases: ["docs/43-declarative-animate-config.md","doc-43"]
 ---
@@ -595,8 +595,8 @@ The composed document is **one outer `<svg>`** built by `generateAnimatedSvg` wi
 **Raw structure** (stable, but treat the seams above as the contract):
 
 - Each frame is a group `<g class="f f-N">` (N = frame index). Visibility/opacity over the master loop is driven by `@keyframes fv-N` (opacity/visibility) and, for the display-culling pass, `@keyframes fd-N`; the rule is `.f-N { animation: fv-N <totalSec>s infinite … }`.
-- A `cast` / `template` / `scroll` frame's content is a **nested `<svg>`** inside its frame group. To avoid document-global name clashes, that nested document's ids / classes / `@keyframes` / `--scene-dur` are prefixed per frame — `cfN_` for casts, `tfN_` for templates (`namespaceEmbeddedAnimatedSvg`, doc 73 / DM-1287 / DM-1292). A cast's nested timeline is additionally re-anchored to the frame's offset (DM-1319, `embeddedAnimationPeriodMs`).
-- Embedded fonts appear **once** as a top-level `@font-face` block (`dmfN` families); frames don't carry their own copies.
+- A `cast` / `template` / `scroll` frame's content is a **nested `<svg>`** inside its frame group. To avoid document-global name clashes, that nested document's ids / classes / `@keyframes` / `--scene-dur` are prefixed per frame — `cfN_` for casts, `tfN_` for templates, and `sfN_` for scroll composites (`namespaceEmbeddedAnimatedSvg`, doc 73 / DM-1287 / DM-1292). A cast's nested timeline is additionally re-anchored to the frame's offset (DM-1319, `embeddedAnimationPeriodMs`).
+- Ordinary capture and cast frames share one top-level `@font-face` block (`dmfN` families). Template and scroll frames are independently generated, self-contained nested documents; their font families and resource ids are namespaced before nesting. A scroll compose is generation-transactional: its internal reset is rolled back before the next outer frame renders, so placing it after a capture cannot replace that capture's `gN` or `dmfN` mapping.
 
 If you must hand-edit the markup (e.g. apple-fm's window chrome around a single cast frame), key off `<g class="f f-N">` and the `fv-N` keyframe — but expect those to evolve; the data-level seams won't.
 

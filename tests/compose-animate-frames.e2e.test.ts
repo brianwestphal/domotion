@@ -294,6 +294,62 @@ describeBrowser("composeAnimateFrames (DM-1137)", () => {
     }
   }, 90_000);
 
+  it("keeps a leading capture frame pixel-identical when a scroll frame follows it (DM-2681)", async () => {
+    const { browser } = env!;
+    const dir = mkdtempSync(path.join(tmpdir(), "scroll-frame-namespace-"));
+    try {
+      writeFileSync(path.join(dir, "page.html"),
+        `<!doctype html><html><head><meta charset="utf-8"><style>` +
+        `html,body{margin:0;width:320px;height:1200px;background:#fff}` +
+        `#word{margin:20px;font:700 32px Arial}.tail{margin-top:900px}` +
+        `</style></head><body><div id="word">FIRST ABCD</div><div class="tail">bottom</div></body></html>`);
+      const first = { input: "page.html", duration: 500, transition: { type: "cut", duration: 0 } };
+      const baseline = await composeAnimateConfig(browser, validateAnimateConfig({
+        width: 320,
+        height: 200,
+        frames: [first],
+      }), dir, () => {});
+      const mixed = await composeAnimateConfig(browser, validateAnimateConfig({
+        width: 320,
+        height: 200,
+        frames: [
+          first,
+          {
+            continue: true,
+            duration: 600,
+            transition: { type: "cut", duration: 0 },
+            actions: [{ type: "setText", selector: "#word", value: "SCROLL ZYXW" }],
+            scroll: { pattern: "down:bottom/300ms" },
+          },
+        ],
+      }), dir, () => {});
+
+      const renderAtStart = async (svg: string): Promise<Buffer> => {
+        const page = await browser.newPage({ viewport: { width: 320, height: 200 } });
+        try {
+          await page.setContent(svg);
+          await page.evaluate(async () => {
+            await document.fonts.ready;
+            for (const animation of document.getAnimations()) {
+              animation.pause();
+              animation.currentTime = 0;
+            }
+          });
+          return await page.screenshot();
+        } finally {
+          await page.close();
+        }
+      };
+
+      expect(mixed).toContain("sf1_");
+      const ids = [...mixed.matchAll(/\sid="([^"]+)"/g)].map((match) => match[1]);
+      expect(new Set(ids).size).toBe(ids.length);
+      expect((await renderAtStart(mixed)).equals(await renderAtStart(baseline))).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 120_000);
+
   // DM-1294: a template frame may omit `duration` — it's derived from the
   // template's own play time (here lower-third's `holdMs`).
   it("derives a template frame's duration from the template's play time when omitted", async () => {

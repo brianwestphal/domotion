@@ -33,6 +33,7 @@ import { isTransparentBackground } from "../utils/transparent-background.js";
 import {
   resetGeneration,
   getEmbeddedFontFaceCss,
+  getGlyphDefs,
   withRenderTextMode,
   type RenderTextMode,
 } from "../render/text-to-path.js";
@@ -300,7 +301,7 @@ function buildStickyOverlays(
     const visStartPct = (segments[o.firstSegmentIdx].segmentStartMs / totalMs) * 100;
     const visEndPct = (segments[o.lastSegmentIdx].segmentEndMs / totalMs) * 100;
     const alwaysVisible = visStartPct <= 0 && visEndPct >= 100;
-    const inner = elementTreeToSvgInner([o.subtree], W, VH, `stk${i}-`, true, hiDPIFactor, false);
+    const inner = elementTreeToSvgInner([o.subtree], W, VH, `stk${i}-`, false, hiDPIFactor, false);
     if (alwaysVisible) {
       markup.push(
         `\n  <g><svg x="0" y="0" width="${W}" height="${VH}" viewBox="0 0 ${W} ${VH}">${inner}</svg></g>`,
@@ -508,7 +509,7 @@ function composeScrollSvgBody(
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i];
     const offset = segOffsets[i];
-    const inner = elementTreeToSvgInner(strippedTrees[i], W, VH, `seg${i}-`, true, hiDPIFactor, false);
+    const inner = elementTreeToSvgInner(strippedTrees[i], W, VH, `seg${i}-`, false, hiDPIFactor, false);
     const tx = axis === "x" ? offset : 0;
     const ty = axis === "y" ? offset : 0;
     // Visibility window: visible while scroll-y is in the rasterisation
@@ -569,7 +570,7 @@ function composeScrollSvgBody(
     ? ""
     : `\n  <g>` +
         `<svg x="0" y="0" width="${W}" height="${VH}" viewBox="0 0 ${W} ${VH}">` +
-          elementTreeToSvgInner(fixedOverlay, W, VH, "fix-", true, hiDPIFactor, false) +
+          elementTreeToSvgInner(fixedOverlay, W, VH, "fix-", false, hiDPIFactor, false) +
         `</svg>` +
       `</g>`;
   const overlayMarkup = fixedMarkup + stickyMarkup.join("");
@@ -631,6 +632,13 @@ function composeScrollSvgBody(
   // collapse onto one rule. Restore the default render mode now that
   // all per-segment rendering has finished.
   const fontFaceCss = getEmbeddedFontFaceCss();
+  // Paths-mode definitions are generation-global for the same reason. Segment,
+  // fixed, and sticky renders deliberately omit their local copies above; emit
+  // the complete registry once in this document's outer defs. Besides reducing
+  // payload, this makes every id unique before the scroll document is nested in
+  // an animate frame (Blink resolves local SVG IRIs through the shared TreeScope,
+  // not through the nearest nested <svg> element).
+  const glyphDefs = getGlyphDefs();
 
   // ── Compose final SVG ──
   // Share each raster payload across the segments that show it (the `<image>`
@@ -641,7 +649,7 @@ function composeScrollSvgBody(
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${VH}" width="${W}" height="${VH}"${a11y.roleAttr}>${a11y.markup}
   <defs>
     <clipPath id="${animClass}-clip"><rect width="${W}" height="${VH}"/></clipPath>
-    <style>
+${glyphDefs !== "" ? `    ${glyphDefs}\n` : ""}    <style>
 ${fontFaceCss !== "" ? fontFaceCss + "\n" : ""}      .${animClass} { animation: ${animClass} ${totalSec.toFixed(3)}s linear infinite; will-change: transform; }
       @keyframes ${animClass} {
 ${keyframes}

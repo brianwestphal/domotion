@@ -103,7 +103,7 @@ describe("project conventions", () => {
       "createFontRendererSession", "withFontRendererSession", "FontRendererSession",
       "resetGeneration", "snapshotGeneration", "restoreGeneration",
       "glyphDefCount", "getGlyphDefsSince", "truncateGlyphDefs",
-      "getEmbeddedFontFaceCss", "withRenderTextMode", "RenderTextMode",
+      "getEmbeddedFontFaceCss", "getGlyphDefs", "withRenderTextMode", "RenderTextMode",
       "registerWebfont", "registerLocalFontAlias",
       // session generic-family overrides: the capture-side probe
       // (src/capture/generic-font-probe.ts, DOMOTION_GENERIC_PROBE=1) installs

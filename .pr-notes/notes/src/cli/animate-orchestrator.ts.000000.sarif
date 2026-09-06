@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtp1azrwiz1ugq8d",
+          "message": {
+            "text": "The scroll document must be both generation-transactional and namespaced. The snapshot preserves glyph and embedded-font mappings accumulated by earlier and later outer frames, while the namespace isolates the nested document itself; either half alone leaves one collision path open. Chromium 7d859f271c confirms local SVG IRI lookup uses the shared TreeScope in thirdparty/blink/renderer/core/svg/svguri_reference.cc:122-158. See also the single-def emission in src/scroll/composer.ts and the rendered boundary proof in tests/compose-animate-frames.e2e.test.ts.",
+            "markdown": "The scroll document must be both generation-transactional and namespaced. The snapshot preserves glyph and embedded-font mappings accumulated by earlier and later outer frames, while the namespace isolates the nested document itself; either half alone leaves one collision path open. Chromium 7d859f271c confirms local SVG IRI lookup uses the shared TreeScope in third_party/blink/renderer/core/svg/svg_uri_reference.cc:122-158. See also the single-def emission in src/scroll/composer.ts and the rendered boundary proof in tests/compose-animate-frames.e2e.test.ts."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/animate-orchestrator.ts"
+                },
+                "region": {
+                  "startLine": 1669,
+                  "endLine": 1682,
+                  "snippet": {
+                    "text": "    // The scroll composer owns a complete nested document and starts its own\n    // generation, so isolate that reset from the outer animation's accumulated\n    // glyph/font registries. Otherwise a scroll frame after an ordinary capture\n    // rewinds gN/dmfN and replaces the earlier frame's addressing. Namespace the\n    // finished document too: Blink resolves local SVG IRIs through the shared\n    // TreeScope, so a nested <svg> is not an id boundary.\n    const outerGeneration = snapshotGeneration();\n    let composed: string;\n    try {\n      composed = composeScrollSvg(segments, { viewportW: scrollClip[2], viewportH: scrollClip[3] });\n    } finally {\n      restoreGeneration(outerGeneration);\n    }\n    composed = namespaceEmbeddedAnimatedSvg(composed, `sf${i}_`);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/scroll/composer.ts"
+                },
+                "region": {
+                  "startLine": 635
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2681"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "759240c5c5cb19e858f93840b677654d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d5a5b46f8953a8fd9539983ffc0526a464d77f41",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

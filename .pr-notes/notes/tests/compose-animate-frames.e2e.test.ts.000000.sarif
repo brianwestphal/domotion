@@ -443,6 +443,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtp1b4cochqsc5k9",
+          "message": {
+            "text": "This regression reproduces the order-dependent corruption at the rendered-pixel boundary. Before the fix, adding the scroll frame changed the time-zero capture from FIRST ABCD to glyphs from SCROLL ZYXW; after isolation and sf1_ namespacing, the mixed animation is byte-identical at the pixel level to the no-scroll baseline and every element id is unique.",
+            "markdown": "This regression reproduces the order-dependent corruption at the rendered-pixel boundary. Before the fix, adding the scroll frame changed the time-zero capture from FIRST ABCD to glyphs from SCROLL ZYXW; after isolation and sf1_ namespacing, the mixed animation is byte-identical at the pixel level to the no-scroll baseline and every element id is unique."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/compose-animate-frames.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 297,
+                  "endLine": 347,
+                  "snippet": {
+                    "text": "  it(\"keeps a leading capture frame pixel-identical when a scroll frame follows it (DM-2681)\", async () => {\n    const { browser } = env!;\n    const dir = mkdtempSync(path.join(tmpdir(), \"scroll-frame-namespace-\"));\n    try {\n      writeFileSync(path.join(dir, \"page.html\"),\n        `<!doctype html><html><head><meta charset=\"utf-8\"><style>` +\n        `html,body{margin:0;width:320px;height:1200px;background:#fff}` +\n        `#word{margin:20px;font:700 32px Arial}.tail{margin-top:900px}` +\n        `</style></head><body><div id=\"word\">FIRST ABCD</div><div class=\"tail\">bottom</div></body></html>`);\n      const first = { input: \"page.html\", duration: 500, transition: { type: \"cut\", duration: 0 } };\n      const baseline = await composeAnimateConfig(browser, validateAnimateConfig({\n        width: 320,\n        height: 200,\n        frames: [first],\n      }), dir, () => {});\n      const mixed = await composeAnimateConfig(browser, validateAnimateConfig({\n        width: 320,\n        height: 200,\n        frames: [\n          first,\n          {\n            continue: true,\n            duration: 600,\n            transition: { type: \"cut\", duration: 0 },\n            actions: [{ type: \"setText\", selector: \"#word\", value: \"SCROLL ZYXW\" }],\n            scroll: { pattern: \"down:bottom/300ms\" },\n          },\n        ],\n      }), dir, () => {});\n\n      const renderAtStart = async (svg: string): Promise<Buffer> => {\n        const page = await browser.newPage({ viewport: { width: 320, height: 200 } });\n        try {\n          await page.setContent(svg);\n          await page.evaluate(async () => {\n            await document.fonts.ready;\n            for (const animation of document.getAnimations()) {\n              animation.pause();\n              animation.currentTime = 0;\n            }\n          });\n          return await page.screenshot();\n        } finally {\n          await page.close();\n        }\n      };\n\n      expect(mixed).toContain(\"sf1_\");\n      const ids = [...mixed.matchAll(/\\sid=\"([^\"]+)\"/g)].map((match) => match[1]);\n      expect(new Set(ids).size).toBe(ids.length);\n      expect((await renderAtStart(mixed)).equals(await renderAtStart(baseline))).toBe(true);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/animate-orchestrator.ts"
+                },
+                "region": {
+                  "startLine": 1669
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2681"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "d05853fe733779ac4f9f3d08483dc071"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d5a5b46f8953a8fd9539983ffc0526a464d77f41",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
