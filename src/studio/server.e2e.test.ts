@@ -39,34 +39,35 @@ describe("Domotion Studio application shell (DM-2687)", () => {
 
   it("creates, edits, saves, and reopens a project through the real browser UI", async () => {
     if (!available || page == null || server == null) return;
+    const testPage = page;
     const clientErrors: string[] = [];
-    page.on("pageerror", (error) => clientErrors.push(error.message));
-    await page.goto(server.url, { waitUntil: "load" });
+    testPage.on("pageerror", (error) => clientErrors.push(error.message));
+    await testPage.goto(server.url, { waitUntil: "load" });
 
-    await page.getByRole("heading", { name: "Create or open a Studio project" }).waitFor();
-    await page.getByLabel("Project file").fill("glassbox.studio.json");
-    await page.getByLabel("New project title").fill("Glassbox Story");
-    await page.getByRole("button", { name: "Create" }).click();
+    await testPage.getByRole("heading", { name: "Create or open a Studio project" }).waitFor();
+    await testPage.getByLabel("Project file").fill("glassbox.studio.json");
+    await testPage.getByLabel("New project title").fill("Glassbox Story");
+    await testPage.getByRole("button", { name: "Create" }).click();
 
-    await page.getByRole("heading", { name: "Glassbox Story" }).waitFor();
-    await page.getByText("Template · title-card").waitFor();
-    await page.getByText("Needs generation").waitFor();
-    await page.locator('[data-field="narrative-title"]').fill("Glassbox Reveal");
-    await page.getByLabel("Scene 1 title").fill("Show the review loop");
-    await page.getByText("Unsaved changes").waitFor();
+    await testPage.getByRole("heading", { name: "Glassbox Story" }).waitFor();
+    await testPage.getByText("Template · title-card").waitFor();
+    await testPage.getByText("Needs generation").waitFor();
+    await testPage.locator('[data-field="narrative-title"]').fill("Glassbox Reveal");
+    await testPage.getByLabel("Scene 1 title").fill("Show the review loop");
+    await testPage.getByText("Unsaved changes").waitFor();
 
-    const save = page.getByRole("button", { name: "Save" });
+    const save = testPage.getByRole("button", { name: "Save" });
     expect(await save.isEnabled()).toBe(true);
     await save.click();
-    await expect.poll(() => page.getByRole("status").textContent()).toContain("Saved glassbox.studio.json");
-    await page.getByText("Saved", { exact: true }).waitFor();
+    await expect.poll(() => testPage.getByRole("status").textContent()).toContain("Saved glassbox.studio.json");
+    await testPage.getByText("Saved", { exact: true }).waitFor();
 
-    await page.locator('[data-field="narrative-title"]').fill("Unsaved temporary title");
-    await page.getByText("Unsaved changes").waitFor();
-    await page.getByRole("button", { name: "Reopen" }).click();
-    await page.getByRole("heading", { name: "Glassbox Reveal" }).waitFor();
-    expect(await page.locator('[data-field="narrative-title"]').inputValue()).toBe("Glassbox Reveal");
-    expect(await page.getByLabel("Scene 1 title").inputValue()).toBe("Show the review loop");
+    await testPage.locator('[data-field="narrative-title"]').fill("Unsaved temporary title");
+    await testPage.getByText("Unsaved changes").waitFor();
+    await testPage.getByRole("button", { name: "Reopen" }).click();
+    await testPage.getByRole("heading", { name: "Glassbox Reveal" }).waitFor();
+    expect(await testPage.locator('[data-field="narrative-title"]').inputValue()).toBe("Glassbox Reveal");
+    expect(await testPage.getByLabel("Scene 1 title").inputValue()).toBe("Show the review loop");
 
     const persisted = openStudioProjectFile(root, "glassbox.studio.json").project;
     expect(persisted.narrative.title).toBe("Glassbox Reveal");
