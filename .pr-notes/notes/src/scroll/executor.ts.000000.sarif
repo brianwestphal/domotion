@@ -131,6 +131,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtqnlkm0g1cwwykw",
+          "message": {
+            "text": "An unchanged pause needs its own same-offset timeline endpoint; extending the prior capture would incorrectly stretch the motion that arrived there. Marking the fresh authenticated capture timeline-only preserves the exact pause duration and final output period while avoiding a second paint subtree for identical DOM.",
+            "markdown": "An unchanged pause needs its own same-offset timeline endpoint; extending the prior capture would incorrectly stretch the motion that arrived there. Marking the fresh authenticated capture timeline-only preserves the exact pause duration and final output period while avoiding a second paint subtree for identical DOM."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/scroll/executor.ts"
+                },
+                "region": {
+                  "startLine": 441,
+                  "endLine": 464,
+                  "snippet": {
+                    "text": "            nextCapture.scrollY,\n          ),\n        });\n        prevTree = nextTree;\n        log(`  captured frame ${captures.length} (DOM changed during pause)`);\n      } else {\n        captures.push({\n          scrollX: nextCapture.scrollX, scrollY: nextCapture.scrollY,\n          segmentStartMs: sceneTime - op.durationMs,\n          segmentEndMs: sceneTime,\n          tree: nextTree,\n          diffFromPrev: diff,\n          timelineOnly: true,\n          frameScrollState: nextCapture.frameScrollState,\n          captureWarnings: nextCapture.captureWarnings,\n          scrollOwnerId: nextCapture.scrollOwnerId,\n          scrollOwnerBindingSha256: capturedScrollOwnerBindingSha256(\n            nextCapture.frameScrollState,\n            nextCapture.scrollOwnerId,\n            nextCapture.scrollX,\n            nextCapture.scrollY,\n          ),\n        });\n        log(`  recorded hold through ${sceneTime} ms (DOM unchanged during pause)`);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/scroll/composer.ts"
+                },
+                "region": {
+                  "startLine": 517
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/scroll-inner-live.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 139
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2702"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b52d21e8f4cb414b31a3122d3db3af22"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "fd381a80a0108f1a82c319c5c56f20a032787363",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

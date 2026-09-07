@@ -5,7 +5,7 @@ kind: "reference"
 status: "current"
 owners: ["layout"]
 platforms: []
-tickets: ["DM-1076","DM-2701","DM-2703"]
+tickets: ["DM-1076","DM-2701","DM-2702","DM-2703"]
 code: ["src/cli/animate.ts","src/cli/animate-orchestrator.ts","src/cli/capture.ts","src/scroll/composer.ts","src/scroll/executor.ts","src/scroll/pattern.ts"]
 aliases: ["docs/37-scroll-pattern-grammar.md","doc-37"]
 ---
@@ -149,7 +149,7 @@ Cross-axis conflicts (e.g. `down:left + 200px` — vertical direction with horiz
 
 ## Other semantics
 
-- **Pauses.** A bare `<duration>` token (e.g. `2s`) is a pause. `pause:` is an optional decorative prefix — fine to use anywhere a pause appears, including mid-pattern, for stylistic alignment with `up:` / `down:`.
+- **Pauses.** A bare `<duration>` token (e.g. `2s`) is a pause. `pause:` is an optional decorative prefix — fine to use anywhere a pause appears, including mid-pattern, for stylistic alignment with `up:` / `down:`. After waiting, the executor always records the pause endpoint: a changed DOM becomes a normal paint capture, while an unchanged DOM becomes a non-painting same-offset timeline stop (DM-2702). The latter keeps the composer stationary for the full pause without duplicating identical SVG content; leading, middle, and trailing pauses therefore all contribute to the output period.
 
 - **Scroll speed (duration vs constant-speed).** Each scroll action has a duration. Resolution priority (first match wins):
   1. **`/<duration>` on the action** — the user pinned a wall-clock time. Speed becomes magnitude / duration.

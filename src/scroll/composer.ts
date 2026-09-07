@@ -514,6 +514,9 @@ function composeScrollSvgBody(
   // sensibly without a degenerate 0 s animation.
   const totalMs = Math.max(segments[segments.length - 1].segmentEndMs, 1);
   const totalSec = totalMs / 1000;
+  const paintSegments = segments
+    .map((segment, index) => ({ segment, index }))
+    .filter(({ segment }) => segment.timelineOnly !== true);
 
   // ── Compute composite dimensions ──
   // The composite spans the full scroll range. For axis=y, that's from min
@@ -541,7 +544,7 @@ function composeScrollSvgBody(
   // viewport-level overlay below.
   const fixedStripped: typeof segments[number]["tree"][] = [];
   const perSegFixed: typeof segments[number]["tree"][] = [];
-  for (const seg of segments) {
+  for (const { segment: seg } of paintSegments) {
     const { stripped, fixed } = extractFixedSubtrees(seg.tree);
     fixedStripped.push(stripped);
     perSegFixed.push(fixed);
@@ -578,10 +581,10 @@ function composeScrollSvgBody(
   // ── Render each capture's content at its position offset ──
   const captureGroups: string[] = [];
   const segmentCullCss: string[] = [];
-  for (let i = 0; i < segments.length; i++) {
-    const seg = segments[i];
-    const offset = segOffsets[i];
-    const inner = elementTreeToSvgInner(strippedTrees[i], W, VH, `seg${i}-`, false, hiDPIFactor, false);
+  for (let paintIndex = 0; paintIndex < paintSegments.length; paintIndex++) {
+    const { segment: seg, index: segmentIndex } = paintSegments[paintIndex];
+    const offset = segOffsets[segmentIndex];
+    const inner = elementTreeToSvgInner(strippedTrees[paintIndex], W, VH, `seg${segmentIndex}-`, false, hiDPIFactor, false);
     const tx = axis === "x" ? offset : 0;
     const ty = axis === "y" ? offset : 0;
     // Visibility window: visible while scroll-y is in the rasterisation
@@ -620,7 +623,7 @@ function composeScrollSvgBody(
         `</g>`,
       );
     } else {
-      const cls = `${animClass}-s${i}`;
+      const cls = `${animClass}-s${segmentIndex}`;
       // step-end so the segment snaps in/out at the boundary, no fractional
       // opacity that would force the browser to keep compositing it.
       segmentCullCss.push(buildVisibilityKeyframes(cls, enterPct, leavePct, totalSec));
@@ -635,7 +638,7 @@ function composeScrollSvgBody(
   }
   // ── Sticky overlay markup + visibility keyframes (DM-647) ──
   const { markup: stickyMarkup, cullCss: stickyCullCss } = buildStickyOverlays(
-    stickyOverlays, segments, totalMs, animClass, W, VH, hiDPIFactor,
+    stickyOverlays, paintSegments.map(({ segment }) => segment), totalMs, animClass, W, VH, hiDPIFactor,
   );
 
   const fixedMarkup = fixedOverlay.length === 0

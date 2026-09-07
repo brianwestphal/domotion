@@ -210,6 +210,24 @@ describe("composeScrollSvg: keyframe timing", () => {
   });
 });
 
+describe("composeScrollSvg: non-painting pause anchors (DM-2702)", () => {
+  it("holds the current offset without rendering a duplicate capture", () => {
+    const segments: ScrollSegmentCapture[] = [
+      makeSeg(0, 0, 0, [el({ tag: "div", x: 0, y: 0, text: "INITIAL" })]),
+      {
+        ...makeSeg(0, 0, 1000, [el({ tag: "div", x: 0, y: 0, text: "DO NOT PAINT" })]),
+        timelineOnly: true,
+      },
+      makeSeg(600, 1000, 2000, [el({ tag: "div", x: 0, y: 0, text: "FINAL" })]),
+    ];
+    const svg = composeScrollSvg(segments, { viewportW: 800, viewportH: 600 });
+
+    expect(svg).toMatch(/50\.000% \{ transform: translate3d\(0, -0\.000px, 0\)/);
+    expect(svg).toMatch(/100\.000% \{ transform: translate3d\(0, -600\.000px, 0\)/);
+    expect(svg).not.toContain("DO NOT PAINT");
+  });
+});
+
 // ── Min-offset normalisation ───────────────────────────────────────────────
 
 describe("composeScrollSvg: min-offset normalisation", () => {

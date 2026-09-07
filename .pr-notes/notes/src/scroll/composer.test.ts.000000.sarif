@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtqnlkt1a1drfidu",
+          "message": {
+            "text": "The compositor regression proves a timing-only capture contributes the 50 percent same-offset keyframe and final motion endpoint but its sentinel DOM is absent from SVG paint. The browser-level companion test verifies the executor emits 0–200 ms hold and 200–600 ms motion intervals from a real overflow-auto element.",
+            "markdown": "The compositor regression proves a timing-only capture contributes the 50 percent same-offset keyframe and final motion endpoint but its sentinel DOM is absent from SVG paint. The browser-level companion test verifies the executor emits 0–200 ms hold and 200–600 ms motion intervals from a real overflow-auto element."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/scroll/composer.test.ts"
+                },
+                "region": {
+                  "startLine": 213,
+                  "endLine": 229,
+                  "snippet": {
+                    "text": "describe(\"composeScrollSvg: non-painting pause anchors (DM-2702)\", () => {\n  it(\"holds the current offset without rendering a duplicate capture\", () => {\n    const segments: ScrollSegmentCapture[] = [\n      makeSeg(0, 0, 0, [el({ tag: \"div\", x: 0, y: 0, text: \"INITIAL\" })]),\n      {\n        ...makeSeg(0, 0, 1000, [el({ tag: \"div\", x: 0, y: 0, text: \"DO NOT PAINT\" })]),\n        timelineOnly: true,\n      },\n      makeSeg(600, 1000, 2000, [el({ tag: \"div\", x: 0, y: 0, text: \"FINAL\" })]),\n    ];\n    const svg = composeScrollSvg(segments, { viewportW: 800, viewportH: 600 });\n\n    expect(svg).toMatch(/50\\.000% \\{ transform: translate3d\\(0, -0\\.000px, 0\\)/);\n    expect(svg).toMatch(/100\\.000% \\{ transform: translate3d\\(0, -600\\.000px, 0\\)/);\n    expect(svg).not.toContain(\"DO NOT PAINT\");\n  });\n});"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/scroll-inner-live.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 115
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/scroll/executor.ts"
+                },
+                "region": {
+                  "startLine": 441
+                }
+              }
+            }
+          ],
+          "rank": 91,
+          "workItemUris": [
+            "DM-2702"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "6bd6b485a39d17324d330788304708d8"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "fd381a80a0108f1a82c319c5c56f20a032787363",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

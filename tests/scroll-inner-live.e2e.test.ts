@@ -112,4 +112,41 @@ describeBrowser("inner live-scroll capture", () => {
       await page.close();
     }
   }, 60_000);
+
+  it("records an unchanged leading pause as a same-offset timing anchor", async () => {
+    const page = await env!.browser.newPage({ viewport: { width: 320, height: 220 } });
+    try {
+      await page.setContent(`<!doctype html><style>
+        body{margin:0}#list{width:200px;height:100px;overflow:auto}.row{height:40px}
+      </style><div id="list">${Array.from({ length: 10 }, (_, i) => `<div class="row">ROW ${i}</div>`).join("")}</div>`);
+      const segments = await executeScrollPattern(
+        page,
+        parseScrollPattern("pause:200ms,down:80px/400ms"),
+        {
+          selector: "#list",
+          captureSelector: "#list",
+          captureViewport: { x: 0, y: 0, width: 200, height: 100 },
+          viewportW: 200,
+          viewportH: 100,
+          prescroll: false,
+        },
+      );
+
+      expect(segments.map((segment) => ({
+        scrollY: segment.scrollY,
+        start: segment.segmentStartMs,
+        end: segment.segmentEndMs,
+        timelineOnly: segment.timelineOnly === true,
+      }))).toEqual([
+        { scrollY: 0, start: 0, end: 0, timelineOnly: false },
+        { scrollY: 0, start: 0, end: 200, timelineOnly: true },
+        { scrollY: 80, start: 200, end: 600, timelineOnly: false },
+      ]);
+      const svg = composeScrollSvg(segments, { viewportW: 200, viewportH: 100 });
+      expect(svg).toMatch(/33\.333% \{ transform: translate3d\(0, -0\.000px, 0\)/);
+      expect(svg).toMatch(/100\.000% \{ transform: translate3d\(0, -80\.000px, 0\)/);
+    } finally {
+      await page.close();
+    }
+  }, 60_000);
 });

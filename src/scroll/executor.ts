@@ -90,6 +90,12 @@ export interface ScrollSegmentCapture {
   tree: CapturedElement[];
   /** Diff from the previous segment's capture. Null for the very first. */
   diffFromPrev: TreeDiff | null;
+  /**
+   * This capture contributes a same-offset timeline stop but no additional
+   * paint subtree. Used for pauses whose settled DOM is unchanged, so the
+   * composer holds position without duplicating identical scene content.
+   */
+  timelineOnly?: true;
   /** Exact Chromium FrameId/scroll-owner authority sampled with this tree. */
   frameScrollState?: CapturedFrameScrollState;
   /** Scroll owner whose raw offset drives this segment's composition anchor. */
@@ -323,8 +329,8 @@ export class ScrollExecutionError extends Error {
  *   3. Walk the pattern AST. For each scroll action: snapshot page state,
  *      resolve destination, scroll there, wait the action's duration plus a
  *      small settle, then capture and diff against previous.
- *   4. Pause actions just wait; they don't add a capture unless the DOM is
- *      observed to have changed (lazy-load fired during the pause).
+ *   4. Pause actions wait, then add either a changed-DOM capture or a
+ *      non-painting same-offset timeline stop when the DOM stayed unchanged.
  *   5. `until` loops re-resolve conditions each iteration. The grammar's
  *      "clamp on overshoot" rule is honored: the last iteration of a
  *      position-bounded loop has its scroll magnitude shrunk so the
@@ -437,6 +443,25 @@ export async function executeScrollPattern(
         });
         prevTree = nextTree;
         log(`  captured frame ${captures.length} (DOM changed during pause)`);
+      } else {
+        captures.push({
+          scrollX: nextCapture.scrollX, scrollY: nextCapture.scrollY,
+          segmentStartMs: sceneTime - op.durationMs,
+          segmentEndMs: sceneTime,
+          tree: nextTree,
+          diffFromPrev: diff,
+          timelineOnly: true,
+          frameScrollState: nextCapture.frameScrollState,
+          captureWarnings: nextCapture.captureWarnings,
+          scrollOwnerId: nextCapture.scrollOwnerId,
+          scrollOwnerBindingSha256: capturedScrollOwnerBindingSha256(
+            nextCapture.frameScrollState,
+            nextCapture.scrollOwnerId,
+            nextCapture.scrollX,
+            nextCapture.scrollY,
+          ),
+        });
+        log(`  recorded hold through ${sceneTime} ms (DOM unchanged during pause)`);
       }
       return;
     }
