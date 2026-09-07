@@ -25,8 +25,8 @@
           "level": "none",
           "guid": "mtqnfs3rn6bz1hh4",
           "message": {
-            "text": "The authenticated element owner is the only subtree that should consume its scroll offsets. Keeping the first surrounding capture static and feeding only that owner through the established offset stack makes the stack translation cancel at the owner's border box while captured child coordinates continue moving inside its native overflow clip; explicit owner-root captures still retain the list-strip contract.",
-            "markdown": "The authenticated element owner is the only subtree that should consume its scroll offsets. Keeping the first surrounding capture static and feeding only that owner through the established offset stack makes the stack translation cancel at the owner's border box while captured child coordinates continue moving inside its native overflow clip; explicit owner-root captures still retain the list-strip contract."
+            "text": "A fixed owner-border-box clip must enclose the globally translated capture stack. Each anchor already carries a native overflow clip, but that clip inherits both its segment placement and the master translation; an outer clip derived from the authenticated first owner keeps their union inside the DOM/CSS viewport while preserving the explicit owner-root strip contract.",
+            "markdown": "A fixed owner-border-box clip must enclose the globally translated capture stack. Each anchor already carries a native overflow clip, but that clip inherits both its segment placement and the master translation; an outer clip derived from the authenticated first owner keeps their union inside the DOM/CSS viewport while preserving the explicit owner-root strip contract."
           },
           "locations": [
             {
@@ -48,7 +48,7 @@
             "tags": [
               "rationale"
             ],
-            "ext-ai-tool-confidence": 0.96
+            "ext-ai-tool-confidence": 0.99
           },
           "relatedLocations": [
             {
@@ -74,7 +74,7 @@
               }
             }
           ],
-          "rank": 92,
+          "rank": 96,
           "workItemUris": [
             "DM-2703"
           ],
@@ -87,6 +87,84 @@
         {
           "repositoryUri": "git@github.com:brianwestphal/domotion.git",
           "revisionId": "83980246fdd3c37ddc4dc7d29e6608ff6181664e",
+          "branch": "main"
+        }
+      ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtqo7rk91xb9lvy2",
+          "message": {
+            "text": "Pinned-context text must render before the generation-global font and glyph snapshots are collected. The embedded-font renderer assigns PUA codepoints while rendering; taking the snapshot first produced valid-looking text references whose late codepoints were absent from the emitted subset cmap. The browser regression verifies cmap coverage for every emitted text character.",
+            "markdown": "Pinned-context text must render before the generation-global font and glyph snapshots are collected. The embedded-font renderer assigns PUA codepoints while rendering; taking the snapshot first produced valid-looking text references whose late codepoints were absent from the emitted subset cmap. The browser regression verifies cmap coverage for every emitted text character."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/scroll/composer.ts"
+                },
+                "region": {
+                  "startLine": 720,
+                  "endLine": 743,
+                  "snippet": {
+                    "text": "  // Render the pinned page context before taking the generation-global font /\n  // glyph snapshots. Its text can add PUA glyphs to the same subset registries\n  // as the moving owner captures; collecting first would leave those late\n  // glyph references absent from the emitted embedded fonts.\n  const staticMarkup = staticUnderlay == null\n    ? \"\"\n    : `\\n    <g data-scroll-static-context=\"true\"><svg x=\"0\" y=\"0\" width=\"${W}\" height=\"${VH}\" viewBox=\"0 0 ${W} ${VH}\">` +\n        elementTreeToSvgInner(staticUnderlay, W, VH, \"static-\", false, hiDPIFactor, false) +\n      `</svg></g>`;\n\n  // DM-652: collect every `@font-face` rule the embedded-font path\n  // registered during segment + overlay rendering above, into a single\n  // top-level <style> block. Each font appears once (registry is keyed\n  // per (family, weight, italic)) — segments referencing the same font\n  // collapse onto one rule. Restore the default render mode now that\n  // all per-segment rendering has finished.\n  const fontFaceCss = getEmbeddedFontFaceCss();\n  // Paths-mode definitions are generation-global for the same reason. Segment,\n  // fixed, and sticky renders deliberately omit their local copies above; emit\n  // the complete registry once in this document's outer defs. Besides reducing\n  // payload, this makes every id unique before the scroll document is nested in\n  // an animate frame (Blink resolves local SVG IRIs through the shared TreeScope,\n  // not through the nearest nested <svg> element).\n  const glyphDefs = getGlyphDefs();"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/scroll-inner-live.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 21
+                }
+              }
+            }
+          ],
+          "rank": 97,
+          "workItemUris": [
+            "DM-2703"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "1697a8af9e9c6a6fb89d79f26d926eaa"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "bbb129d507b19b103c81374f3a899eb7a831760f",
           "branch": "main"
         }
       ]

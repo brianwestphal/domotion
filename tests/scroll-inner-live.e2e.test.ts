@@ -5,6 +5,7 @@ import { composeScrollSvg } from "../src/scroll/composer.js";
 import { parseScrollPattern } from "../src/scroll/pattern.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import type { CapturedElement } from "../src/capture/types.js";
+import * as fontkit from "fontkit";
 
 async function setup() {
   try { return { browser: await launchChromium() }; } catch { return null; }
@@ -15,6 +16,23 @@ const describeBrowser = env ? describe : describe.skip;
 
 function allText(nodes: CapturedElement[]): string {
   return nodes.map((node) => `${node.text ?? ""} ${allText(node.children)}`).join(" ");
+}
+
+function expectEveryEmbeddedTextGlyphCovered(svg: string): void {
+  const faces = new Map([...svg.matchAll(
+    /@font-face\s*\{[^}]*font-family:\s*"([^"]+)"[^}]*?base64,([A-Za-z0-9+/=]+)/g,
+  )].map((match) => [match[1], fontkit.create(Buffer.from(match[2], "base64"))]));
+  for (const match of svg.matchAll(/<text[^>]*font-family="([^"]+)"[^>]*>([^<]*)<\/text>/g)) {
+    const face = faces.get(match[1]);
+    expect(face, `missing embedded face ${match[1]}`).toBeDefined();
+    for (const char of match[2]) {
+      const codePoint = char.codePointAt(0)!;
+      expect(
+        face!.hasGlyphForCodePoint(codePoint),
+        `${match[1]} does not cover U+${codePoint.toString(16).toUpperCase()}`,
+      ).toBe(true);
+    }
+  }
 }
 
 describeBrowser("inner live-scroll capture", () => {
@@ -85,8 +103,10 @@ describeBrowser("inner live-scroll capture", () => {
       });
       const svg = composeScrollSvg(segments, { viewportW: 360, viewportH: 260 });
       expect(svg).toContain('data-scroll-static-context="true"');
+      expect(svg).toMatch(/<clipPath id="scrl-[^"]+-owner-clip"><rect x="20" y="80" width="268" height="128"/);
       expect(svg).toContain("STATIC HEADER");
       expect(svg).toContain("STATIC FOOTER");
+      expectEveryEmbeddedTextGlyphCovered(svg);
 
       await renderPage.setContent(`<style>html,body{margin:0}</style>${svg.replace(/^<\?xml[^>]*>\s*/, "")}`);
       await renderPage.evaluate(async () => { await document.fonts.ready; });
@@ -104,8 +124,8 @@ describeBrowser("inner live-scroll capture", () => {
       expect(start.equals(middle)).toBe(false);
       // Sample the header's solid plate away from glyph antialiasing; it must
       // remain byte-identical while the inner owner's contents animate.
-      expect((await at(0, { x: 300, y: 10, width: 20, height: 20 })).equals(
-        await at(200, { x: 300, y: 10, width: 20, height: 20 }),
+      expect((await at(0, { x: 200, y: 10, width: 20, height: 20 })).equals(
+        await at(399, { x: 200, y: 10, width: 20, height: 20 }),
       )).toBe(true);
     } finally {
       await renderPage.close();

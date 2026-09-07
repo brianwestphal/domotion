@@ -25,8 +25,8 @@
           "level": "none",
           "guid": "mtqnfsb1ts2acvi3",
           "message": {
-            "text": "This browser test pins the real DOM/CSS distinction behind the defect: body is captured, but a 268 by 128 overflow-auto element owns scrollTop. The generated artifact retains both surrounding labels, visibly changes over the scroll interval, and keeps a solid header sample byte-identical, proving the page context is static while the inner owner animates.",
-            "markdown": "This browser test pins the real DOM/CSS distinction behind the defect: body is captured, but a 268 by 128 overflow-auto element owns scrollTop. The generated artifact retains both surrounding labels, visibly changes over the scroll interval, and keeps a solid header sample byte-identical, proving the page context is static while the inner owner animates."
+            "text": "The browser regression now proves all three failure surfaces from the demo review. It asserts the exact authenticated owner clip, checks every emitted PUA text codepoint against its embedded font cmap, and samples the static header at 399 ms—near maximum scroll displacement, where a translated per-segment clip previously leaked owner content over the page.",
+            "markdown": "The browser regression now proves all three failure surfaces from the demo review. It asserts the exact authenticated owner clip, checks every emitted PUA text codepoint against its embedded font cmap, and samples the static header at 399 ms—near maximum scroll displacement, where a translated per-segment clip previously leaked owner content over the page."
           },
           "locations": [
             {
@@ -63,7 +63,7 @@
               }
             }
           ],
-          "rank": 94,
+          "rank": 98,
           "workItemUris": [
             "DM-2703"
           ],

@@ -185,7 +185,11 @@ function findCapturedScrollOwner(
  */
 function isolateElementScrollOwner(
   segments: readonly ScrollSegmentCapture[],
-): { segments: ScrollSegmentCapture[]; staticUnderlay: CapturedElement[] } | null {
+): {
+  segments: ScrollSegmentCapture[];
+  staticUnderlay: CapturedElement[];
+  ownerClip: { x: number; y: number; width: number; height: number };
+} | null {
   const first = segments[0];
   if (first?.frameScrollState == null || first.scrollOwnerId == null) return null;
   const firstOwnerRecord = scrollOwner(first.frameScrollState, first.scrollOwnerId);
@@ -218,7 +222,16 @@ function isolateElementScrollOwner(
       }],
     };
   });
-  return { segments: isolated, staticUnderlay };
+  return {
+    segments: isolated,
+    staticUnderlay,
+    ownerClip: {
+      x: firstOwner.x,
+      y: firstOwner.y,
+      width: firstOwner.width,
+      height: firstOwner.height,
+    },
+  };
 }
 
 /**
@@ -433,6 +446,7 @@ export function composeScrollSvg(
       composeScrollSvgBody(composedSegments, opts, {
         axis, W, VH, bg, paintBg, hiDPIFactor, chunkSize,
         staticUnderlay: elementScroll?.staticUnderlay,
+        elementOwnerClip: elementScroll?.ownerClip,
       }),
     );
   } finally {
@@ -504,9 +518,12 @@ function composeScrollSvgBody(
     hiDPIFactor: number;
     chunkSize: number;
     staticUnderlay?: CapturedElement[];
+    elementOwnerClip?: { x: number; y: number; width: number; height: number };
   },
 ): string {
-  const { axis, W, VH, bg, paintBg, hiDPIFactor, chunkSize, staticUnderlay } = ctx;
+  const {
+    axis, W, VH, bg, paintBg, hiDPIFactor, chunkSize, staticUnderlay, elementOwnerClip,
+  } = ctx;
 
   // ── Total scene duration ──
   // The last segment's endMs is the cycle length. For a single-segment input,
@@ -700,6 +717,16 @@ function composeScrollSvgBody(
     chunks.push(`<g style="will-change: transform">\n${slice.join("\n")}\n      </g>`);
   }
 
+  // Render the pinned page context before taking the generation-global font /
+  // glyph snapshots. Its text can add PUA glyphs to the same subset registries
+  // as the moving owner captures; collecting first would leave those late
+  // glyph references absent from the emitted embedded fonts.
+  const staticMarkup = staticUnderlay == null
+    ? ""
+    : `\n    <g data-scroll-static-context="true"><svg x="0" y="0" width="${W}" height="${VH}" viewBox="0 0 ${W} ${VH}">` +
+        elementTreeToSvgInner(staticUnderlay, W, VH, "static-", false, hiDPIFactor, false) +
+      `</svg></g>`;
+
   // DM-652: collect every `@font-face` rule the embedded-font path
   // registered during segment + overlay rendering above, into a single
   // top-level <style> block. Each font appears once (registry is keyed
@@ -715,12 +742,6 @@ function composeScrollSvgBody(
   // not through the nearest nested <svg> element).
   const glyphDefs = getGlyphDefs();
 
-  const staticMarkup = staticUnderlay == null
-    ? ""
-    : `\n    <g data-scroll-static-context="true"><svg x="0" y="0" width="${W}" height="${VH}" viewBox="0 0 ${W} ${VH}">` +
-        elementTreeToSvgInner(staticUnderlay, W, VH, "static-", false, hiDPIFactor, false) +
-      `</svg></g>`;
-
   // ── Compose final SVG ──
   // Share each raster payload across the segments that show it (the `<image>`
   // emit is per-element, and a scroll composite repeats a sticky header /
@@ -730,7 +751,7 @@ function composeScrollSvgBody(
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${VH}" width="${W}" height="${VH}"${a11y.roleAttr}>${a11y.markup}
   <defs>
     <clipPath id="${animClass}-clip"><rect width="${W}" height="${VH}"/></clipPath>
-${glyphDefs !== "" ? `    ${glyphDefs}\n` : ""}    <style>
+${elementOwnerClip == null ? "" : `    <clipPath id="${animClass}-owner-clip"><rect x="${elementOwnerClip.x}" y="${elementOwnerClip.y}" width="${elementOwnerClip.width}" height="${elementOwnerClip.height}"/></clipPath>\n`}${glyphDefs !== "" ? `    ${glyphDefs}\n` : ""}    <style>
 ${fontFaceCss !== "" ? fontFaceCss + "\n" : ""}      .${animClass} { animation: ${animClass} ${totalSec.toFixed(3)}s linear infinite; will-change: transform; }
       @keyframes ${animClass} {
 ${keyframes}
@@ -744,11 +765,13 @@ ${stickyCullCss.join("\n")}
   </defs>
 ${paintBg ? `  <rect width="${W}" height="${VH}" fill="${bg}"/>\n` : ""}  <g clip-path="url(#${animClass}-clip)">
 ${staticMarkup}
+${elementOwnerClip == null ? "" : `    <g clip-path="url(#${animClass}-owner-clip)">\n`}
     <g class="${animClass}">
       <svg x="0" y="0" width="${compositeW}" height="${compositeH}" viewBox="0 0 ${compositeW} ${compositeH}">
 ${paintBg ? `        <rect width="${compositeW}" height="${compositeH}" fill="${bg}"/>\n` : ""}      ${chunks.join("\n      ")}
       </svg>
     </g>
+${elementOwnerClip == null ? "" : "    </g>\n"}
   </g>${overlayMarkup}
 </svg>`);
 }

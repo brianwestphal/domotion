@@ -61,9 +61,13 @@ When the capture selector includes page context around an element scroll owner
 capture's surrounding page as a static underlay. Only the authenticated
 scroller subtree is stacked and translated through its recorded offsets, so
 the element's border box stays at its captured DOM/CSS position while its live
-contents and scrollbar move inside it (DM-2703). Setting the capture selector
-to the scroller itself intentionally retains the list-only strip behavior shown
-above.
+contents and scrollbar move inside it. A single fixed clip matching that
+captured border box encloses the whole moving stack; per-anchor overflow clips
+therefore cannot translate across the surrounding page. The static underlay is
+rendered before the shared embedded-font snapshot is emitted, so its subset
+glyphs remain available alongside glyphs from every moving capture (DM-2703).
+Setting the capture selector to the scroller itself intentionally retains the
+list-only strip behavior shown above.
 
 The capture is live by construction: the executor performs an instant scroll,
 waits for layout/paint to settle, then invokes the normal DOM capture pipeline.
