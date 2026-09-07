@@ -5,7 +5,7 @@ kind: "reference"
 status: "current"
 owners: ["layout"]
 platforms: []
-tickets: ["DM-1076","DM-2701"]
+tickets: ["DM-1076","DM-2701","DM-2703"]
 code: ["src/cli/animate.ts","src/cli/animate-orchestrator.ts","src/cli/capture.ts","src/scroll/composer.ts","src/scroll/executor.ts","src/scroll/pattern.ts"]
 aliases: ["docs/37-scroll-pattern-grammar.md","doc-37"]
 ---
@@ -177,7 +177,10 @@ Cross-axis conflicts (e.g. `down:left + 200px` — vertical direction with horiz
   whose offset changes; `--selector` / the frame-level `selector` chooses the
   captured subtree; and `--clip` / `scroll.clip` chooses the page-space crop.
   The executor re-captures the live DOM after every anchor, so virtualized lists
-  whose rows are recycled on `scrollTop` changes are supported. See
+  whose rows are recycled on `scrollTop` changes are supported. When the
+  capture includes surrounding page context, that context stays static and the
+  authenticated element-owner subtree animates in place; explicitly selecting
+  the scroller as the capture root produces a list-only strip. See
   [doc 147](147-inner-live-scroll-capture.md) for the complete contract.
 
 - **Animate-frame timing.** A `scroll` frame is a nested animated SVG whose

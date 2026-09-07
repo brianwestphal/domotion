@@ -1283,7 +1283,8 @@
         "platforms": [],
         "tickets": [
           "DM-1076",
-          "DM-2701"
+          "DM-2701",
+          "DM-2703"
         ],
         "code": [
           "src/cli/animate.ts",
@@ -4932,8 +4933,13 @@
           "layout"
         ],
         "platforms": [],
-        "tickets": [],
-        "code": [],
+        "tickets": [
+          "DM-2703"
+        ],
+        "code": [
+          "src/scroll/composer.ts",
+          "src/scroll/executor.ts"
+        ],
         "aliases": [
           "docs/147-inner-live-scroll-capture.md",
           "doc-147"

@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["layout"]
 platforms: []
-tickets: []
-code: []
+tickets: ["DM-2703"]
+code: ["src/scroll/composer.ts","src/scroll/executor.ts"]
 aliases: ["docs/147-inner-live-scroll-capture.md","doc-147"]
 ---
 
@@ -55,6 +55,15 @@ optional page-space crop:
   }
 }
 ```
+
+When the capture selector includes page context around an element scroll owner
+(the default `body` capture is the common case), the composer keeps the first
+capture's surrounding page as a static underlay. Only the authenticated
+scroller subtree is stacked and translated through its recorded offsets, so
+the element's border box stays at its captured DOM/CSS position while its live
+contents and scrollbar move inside it (DM-2703). Setting the capture selector
+to the scroller itself intentionally retains the list-only strip behavior shown
+above.
 
 The capture is live by construction: the executor performs an instant scroll,
 waits for layout/paint to settle, then invokes the normal DOM capture pipeline.

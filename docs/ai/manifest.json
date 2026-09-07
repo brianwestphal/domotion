@@ -2949,7 +2949,10 @@
         "layout"
       ],
       "platforms": [],
-      "code": [],
+      "code": [
+        "src/scroll/composer.ts",
+        "src/scroll/executor.ts"
+      ],
       "file": "147-inner-live-scroll-capture.md"
     },
     {

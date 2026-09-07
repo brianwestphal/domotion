@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { launchChromium } from "../src/capture/index.js";
 import { executeScrollPattern } from "../src/scroll/executor.js";
+import { composeScrollSvg } from "../src/scroll/composer.js";
 import { parseScrollPattern } from "../src/scroll/pattern.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import type { CapturedElement } from "../src/capture/types.js";
@@ -47,6 +48,67 @@ describeBrowser("inner live-scroll capture", () => {
       expect(texts[2]).toContain("ROW 8");
       expect(await page.locator("#list .row").count()).toBe(6);
     } finally {
+      await page.close();
+    }
+  }, 60_000);
+
+  it("keeps the surrounding page static when an element owns the scroll", async () => {
+    const page = await env!.browser.newPage({ viewport: { width: 360, height: 260 } });
+    const renderPage = await env!.browser.newPage({ viewport: { width: 360, height: 260 } });
+    try {
+      await page.setContent(`<!doctype html><style>
+        body{margin:0;background:#eef2f8;font:16px sans-serif}.header{height:60px;background:#17324d;color:white}
+        .shell{padding:20px}#list{width:260px;height:120px;overflow:auto;background:white;border:4px solid #e5484d}
+        .row{height:40px;border-bottom:1px solid #ccd}
+      </style><div class="header">STATIC HEADER</div><main class="shell"><div id="list">
+        ${Array.from({ length: 12 }, (_, i) => `<div class="row">ROW ${i}</div>`).join("")}
+      </div><p>STATIC FOOTER</p></main>`);
+
+      // Pin the real ownership distinction which exposed DM-2703: this is a
+      // fixed-position element viewport inside a larger captured body.
+      expect(await page.locator("#list").evaluate((element) => {
+        const style = getComputedStyle(element);
+        const rect = element.getBoundingClientRect();
+        return {
+          rect: [rect.x, rect.y, rect.width, rect.height],
+          overflow: [style.overflowX, style.overflowY],
+        };
+      })).toEqual({ rect: [20, 80, 268, 128], overflow: ["auto", "auto"] });
+
+      const segments = await executeScrollPattern(page, parseScrollPattern("down:80px/400ms"), {
+        selector: "#list",
+        captureSelector: "body",
+        captureViewport: { x: 0, y: 0, width: 360, height: 260 },
+        viewportW: 360,
+        viewportH: 260,
+        prescroll: false,
+      });
+      const svg = composeScrollSvg(segments, { viewportW: 360, viewportH: 260 });
+      expect(svg).toContain('data-scroll-static-context="true"');
+      expect(svg).toContain("STATIC HEADER");
+      expect(svg).toContain("STATIC FOOTER");
+
+      await renderPage.setContent(`<style>html,body{margin:0}</style>${svg.replace(/^<\?xml[^>]*>\s*/, "")}`);
+      await renderPage.evaluate(async () => { await document.fonts.ready; });
+      const at = async (time: number, clip?: { x: number; y: number; width: number; height: number }) => {
+        await renderPage.evaluate((currentTime) => {
+          for (const animation of document.getAnimations()) {
+            animation.pause();
+            animation.currentTime = currentTime;
+          }
+        }, time);
+        return await renderPage.screenshot(clip == null ? {} : { clip });
+      };
+      const start = await at(0);
+      const middle = await at(200);
+      expect(start.equals(middle)).toBe(false);
+      // Sample the header's solid plate away from glyph antialiasing; it must
+      // remain byte-identical while the inner owner's contents animate.
+      expect((await at(0, { x: 300, y: 10, width: 20, height: 20 })).equals(
+        await at(200, { x: 300, y: 10, width: 20, height: 20 }),
+      )).toBe(true);
+    } finally {
+      await renderPage.close();
       await page.close();
     }
   }, 60_000);

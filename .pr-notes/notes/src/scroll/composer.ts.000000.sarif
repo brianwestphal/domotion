@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtqnfs3rn6bz1hh4",
+          "message": {
+            "text": "The authenticated element owner is the only subtree that should consume its scroll offsets. Keeping the first surrounding capture static and feeding only that owner through the established offset stack makes the stack translation cancel at the owner's border box while captured child coordinates continue moving inside its native overflow clip; explicit owner-root captures still retain the list-strip contract.",
+            "markdown": "The authenticated element owner is the only subtree that should consume its scroll offsets. Keeping the first surrounding capture static and feeding only that owner through the established offset stack makes the stack translation cancel at the owner's border box while captured child coordinates continue moving inside its native overflow clip; explicit owner-root captures still retain the list-strip contract."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/scroll/composer.ts"
+                },
+                "region": {
+                  "startLine": 186,
+                  "endLine": 226,
+                  "snippet": {
+                    "text": "function isolateElementScrollOwner(\n  segments: readonly ScrollSegmentCapture[],\n): { segments: ScrollSegmentCapture[]; staticUnderlay: CapturedElement[] } | null {\n  const first = segments[0];\n  if (first?.frameScrollState == null || first.scrollOwnerId == null) return null;\n  const firstOwnerRecord = scrollOwner(first.frameScrollState, first.scrollOwnerId);\n  if (firstOwnerRecord?.kind !== \"element\") return null;\n  const firstOwner = findCapturedScrollOwner(first.tree, first.scrollOwnerId);\n  // An explicitly owner-only capture (`--selector` / frame `selector`) keeps\n  // the established list-strip contract; there is no surrounding page to pin.\n  if (firstOwner == null || first.tree.includes(firstOwner)) return null;\n\n  const staticUnderlay = mapTreePruning(\n    first.tree,\n    (element) => element.scrollbars?.owner?.ownerId === first.scrollOwnerId,\n  );\n  const isolated = segments.map((segment, index): ScrollSegmentCapture => {\n    if (segment.frameScrollState == null || segment.scrollOwnerId == null) {\n      throw new Error(`composeScrollSvg: inner-scroll segment ${index} omitted its owner authority`);\n    }\n    const ownerRecord = scrollOwner(segment.frameScrollState, segment.scrollOwnerId);\n    const ownerElement = findCapturedScrollOwner(segment.tree, segment.scrollOwnerId);\n    if (ownerRecord?.kind !== \"element\" || ownerElement == null) {\n      throw new Error(`composeScrollSvg: inner-scroll segment ${index} changed or omitted its element owner`);\n    }\n    const sessionGenericFamilies = segment.tree.find((root) => root.sessionGenericFamilies != null)\n      ?.sessionGenericFamilies;\n    return {\n      ...segment,\n      tree: [{\n        ...ownerElement,\n        ...(sessionGenericFamilies == null ? {} : { sessionGenericFamilies }),\n      }],\n    };\n  });\n  return { segments: isolated, staticUnderlay };\n}\n\n/**\n * Fail closed before composition when frame/allowlist/offset authority is\n * omitted, stale, or assigned to a sibling Chromium frame."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.96
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/scroll-inner-live.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 55
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/147-inner-live-scroll-capture.md"
+                },
+                "region": {
+                  "startLine": 59
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2703"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "30dc1932642a061fe04105ced0a641f4"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "83980246fdd3c37ddc4dc7d29e6608ff6181664e",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

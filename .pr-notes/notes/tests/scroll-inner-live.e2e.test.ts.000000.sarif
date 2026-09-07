@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtqnfsb1ts2acvi3",
+          "message": {
+            "text": "This browser test pins the real DOM/CSS distinction behind the defect: body is captured, but a 268 by 128 overflow-auto element owns scrollTop. The generated artifact retains both surrounding labels, visibly changes over the scroll interval, and keeps a solid header sample byte-identical, proving the page context is static while the inner owner animates.",
+            "markdown": "This browser test pins the real DOM/CSS distinction behind the defect: body is captured, but a 268 by 128 overflow-auto element owns scrollTop. The generated artifact retains both surrounding labels, visibly changes over the scroll interval, and keeps a solid header sample byte-identical, proving the page context is static while the inner owner animates."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/scroll-inner-live.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 55,
+                  "endLine": 109,
+                  "snippet": {
+                    "text": "  it(\"keeps the surrounding page static when an element owns the scroll\", async () => {\n    const page = await env!.browser.newPage({ viewport: { width: 360, height: 260 } });\n    const renderPage = await env!.browser.newPage({ viewport: { width: 360, height: 260 } });\n    try {\n      await page.setContent(`<!doctype html><style>\n        body{margin:0;background:#eef2f8;font:16px sans-serif}.header{height:60px;background:#17324d;color:white}\n        .shell{padding:20px}#list{width:260px;height:120px;overflow:auto;background:white;border:4px solid #e5484d}\n        .row{height:40px;border-bottom:1px solid #ccd}\n      </style><div class=\"header\">STATIC HEADER</div><main class=\"shell\"><div id=\"list\">\n        ${Array.from({ length: 12 }, (_, i) => `<div class=\"row\">ROW ${i}</div>`).join(\"\")}\n      </div><p>STATIC FOOTER</p></main>`);\n\n      // Pin the real ownership distinction which exposed DM-2703: this is a\n      // fixed-position element viewport inside a larger captured body.\n      expect(await page.locator(\"#list\").evaluate((element) => {\n        const style = getComputedStyle(element);\n        const rect = element.getBoundingClientRect();\n        return {\n          rect: [rect.x, rect.y, rect.width, rect.height],\n          overflow: [style.overflowX, style.overflowY],\n        };\n      })).toEqual({ rect: [20, 80, 268, 128], overflow: [\"auto\", \"auto\"] });\n\n      const segments = await executeScrollPattern(page, parseScrollPattern(\"down:80px/400ms\"), {\n        selector: \"#list\",\n        captureSelector: \"body\",\n        captureViewport: { x: 0, y: 0, width: 360, height: 260 },\n        viewportW: 360,\n        viewportH: 260,\n        prescroll: false,\n      });\n      const svg = composeScrollSvg(segments, { viewportW: 360, viewportH: 260 });\n      expect(svg).toContain('data-scroll-static-context=\"true\"');\n      expect(svg).toContain(\"STATIC HEADER\");\n      expect(svg).toContain(\"STATIC FOOTER\");\n\n      await renderPage.setContent(`<style>html,body{margin:0}</style>${svg.replace(/^<\\?xml[^>]*>\\s*/, \"\")}`);\n      await renderPage.evaluate(async () => { await document.fonts.ready; });\n      const at = async (time: number, clip?: { x: number; y: number; width: number; height: number }) => {\n        await renderPage.evaluate((currentTime) => {\n          for (const animation of document.getAnimations()) {\n            animation.pause();\n            animation.currentTime = currentTime;\n          }\n        }, time);\n        return await renderPage.screenshot(clip == null ? {} : { clip });\n      };\n      const start = await at(0);\n      const middle = await at(200);\n      expect(start.equals(middle)).toBe(false);\n      // Sample the header's solid plate away from glyph antialiasing; it must\n      // remain byte-identical while the inner owner's contents animate.\n      expect((await at(0, { x: 300, y: 10, width: 20, height: 20 })).equals(\n        await at(200, { x: 300, y: 10, width: 20, height: 20 }),\n      )).toBe(true);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/scroll/composer.ts"
+                },
+                "region": {
+                  "startLine": 186
+                }
+              }
+            }
+          ],
+          "rank": 94,
+          "workItemUris": [
+            "DM-2703"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "b59886d123737f6d92db070d9d5b650d"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "83980246fdd3c37ddc4dc7d29e6608ff6181664e",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

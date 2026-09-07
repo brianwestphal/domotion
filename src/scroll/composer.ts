@@ -41,6 +41,7 @@ import { beginCharacterFallbackDocument, endCharacterFallbackDocument } from "..
 import { hoistDuplicateImagePayloads } from "../post-processing/hoist-image-payloads.js";
 import { extractFixedSubtrees, dedupeFixedAcrossSegments } from "./hoist-fixed.js";
 import { extractStickyWindows, type StickyOverlay } from "./hoist-sticky.js";
+import { mapTreePruning } from "../tree-ops/prune-tree.js";
 import type { Easing } from "./pattern.js";
 
 /**
@@ -161,6 +162,63 @@ function scrollOwner(
     if (owner != null) return owner;
   }
   return undefined;
+}
+
+function findCapturedScrollOwner(
+  tree: readonly CapturedElement[],
+  ownerId: string,
+): CapturedElement | undefined {
+  for (const element of tree) {
+    if (element.scrollbars?.owner?.ownerId === ownerId) return element;
+    const descendant = findCapturedScrollOwner(element.children ?? [], ownerId);
+    if (descendant != null) return descendant;
+  }
+  return undefined;
+}
+
+/**
+ * An element scroll owner moves its own clipped contents, not the page around
+ * it. Keep the first capture's surrounding page as a static underlay and feed
+ * only the authenticated owner subtree through the offset-stacking composer.
+ * The existing stack translation then cancels the owner's per-segment offset,
+ * leaving its border box in place while its captured children move inside it.
+ */
+function isolateElementScrollOwner(
+  segments: readonly ScrollSegmentCapture[],
+): { segments: ScrollSegmentCapture[]; staticUnderlay: CapturedElement[] } | null {
+  const first = segments[0];
+  if (first?.frameScrollState == null || first.scrollOwnerId == null) return null;
+  const firstOwnerRecord = scrollOwner(first.frameScrollState, first.scrollOwnerId);
+  if (firstOwnerRecord?.kind !== "element") return null;
+  const firstOwner = findCapturedScrollOwner(first.tree, first.scrollOwnerId);
+  // An explicitly owner-only capture (`--selector` / frame `selector`) keeps
+  // the established list-strip contract; there is no surrounding page to pin.
+  if (firstOwner == null || first.tree.includes(firstOwner)) return null;
+
+  const staticUnderlay = mapTreePruning(
+    first.tree,
+    (element) => element.scrollbars?.owner?.ownerId === first.scrollOwnerId,
+  );
+  const isolated = segments.map((segment, index): ScrollSegmentCapture => {
+    if (segment.frameScrollState == null || segment.scrollOwnerId == null) {
+      throw new Error(`composeScrollSvg: inner-scroll segment ${index} omitted its owner authority`);
+    }
+    const ownerRecord = scrollOwner(segment.frameScrollState, segment.scrollOwnerId);
+    const ownerElement = findCapturedScrollOwner(segment.tree, segment.scrollOwnerId);
+    if (ownerRecord?.kind !== "element" || ownerElement == null) {
+      throw new Error(`composeScrollSvg: inner-scroll segment ${index} changed or omitted its element owner`);
+    }
+    const sessionGenericFamilies = segment.tree.find((root) => root.sessionGenericFamilies != null)
+      ?.sessionGenericFamilies;
+    return {
+      ...segment,
+      tree: [{
+        ...ownerElement,
+        ...(sessionGenericFamilies == null ? {} : { sessionGenericFamilies }),
+      }],
+    };
+  });
+  return { segments: isolated, staticUnderlay };
 }
 
 /**
@@ -347,6 +405,8 @@ export function composeScrollSvg(
   if (chunkSize < 1 || !Number.isInteger(chunkSize)) {
     throw new Error(`composeScrollSvg: chunkSize must be a positive integer, got ${chunkSize}`);
   }
+  const elementScroll = isolateElementScrollOwner(segments);
+  const composedSegments = elementScroll?.segments ?? segments;
 
   // DM-652: arm the text-render lifecycle. Default is "embedded-font" —
   // the per-segment text renderer emits `<text>` runs against a single
@@ -370,7 +430,10 @@ export function composeScrollSvg(
   beginCharacterFallbackDocument();
   try {
     return withRenderTextMode(renderTextMode, () =>
-      composeScrollSvgBody(segments, opts, { axis, W, VH, bg, paintBg, hiDPIFactor, chunkSize }),
+      composeScrollSvgBody(composedSegments, opts, {
+        axis, W, VH, bg, paintBg, hiDPIFactor, chunkSize,
+        staticUnderlay: elementScroll?.staticUnderlay,
+      }),
     );
   } finally {
     endCharacterFallbackDocument();
@@ -432,9 +495,18 @@ function buildScrollVisibility(
 function composeScrollSvgBody(
   segments: ScrollSegmentCapture[],
   opts: ScrollComposerOptions,
-  ctx: { axis: "x" | "y"; W: number; VH: number; bg: string | undefined; paintBg: boolean; hiDPIFactor: number; chunkSize: number },
+  ctx: {
+    axis: "x" | "y";
+    W: number;
+    VH: number;
+    bg: string | undefined;
+    paintBg: boolean;
+    hiDPIFactor: number;
+    chunkSize: number;
+    staticUnderlay?: CapturedElement[];
+  },
 ): string {
-  const { axis, W, VH, bg, paintBg, hiDPIFactor, chunkSize } = ctx;
+  const { axis, W, VH, bg, paintBg, hiDPIFactor, chunkSize, staticUnderlay } = ctx;
 
   // ── Total scene duration ──
   // The last segment's endMs is the cycle length. For a single-segment input,
@@ -640,6 +712,12 @@ function composeScrollSvgBody(
   // not through the nearest nested <svg> element).
   const glyphDefs = getGlyphDefs();
 
+  const staticMarkup = staticUnderlay == null
+    ? ""
+    : `\n    <g data-scroll-static-context="true"><svg x="0" y="0" width="${W}" height="${VH}" viewBox="0 0 ${W} ${VH}">` +
+        elementTreeToSvgInner(staticUnderlay, W, VH, "static-", false, hiDPIFactor, false) +
+      `</svg></g>`;
+
   // ── Compose final SVG ──
   // Share each raster payload across the segments that show it (the `<image>`
   // emit is per-element, and a scroll composite repeats a sticky header /
@@ -662,6 +740,7 @@ ${stickyCullCss.join("\n")}
     </style>
   </defs>
 ${paintBg ? `  <rect width="${W}" height="${VH}" fill="${bg}"/>\n` : ""}  <g clip-path="url(#${animClass}-clip)">
+${staticMarkup}
     <g class="${animClass}">
       <svg x="0" y="0" width="${compositeW}" height="${compositeH}" viewBox="0 0 ${compositeW} ${compositeH}">
 ${paintBg ? `        <rect width="${compositeW}" height="${compositeH}" fill="${bg}"/>\n` : ""}      ${chunks.join("\n      ")}
