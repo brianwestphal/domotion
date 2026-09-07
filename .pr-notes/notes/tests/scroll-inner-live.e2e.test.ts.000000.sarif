@@ -79,6 +79,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtqsx7zbpuaiqgzo",
+          "message": {
+            "text": "The browser regression first inspects the actual DOM/CSS geometry, then proves capture anchors follow the 120 px element scrollport instead of the 260 px outer frame. Before the fix it failed with [0, 260, 360]; after the chunk-size decision (0) it records [0, 120, 240, 360], so every moving slice is contiguous.",
+            "markdown": "The browser regression first inspects the actual DOM/CSS geometry, then proves capture anchors follow the 120 px element scrollport instead of the 260 px outer frame. Before the fix it failed with [0, 260, 360]; after the [chunk-size decision](0) it records [0, 120, 240, 360], so every moving slice is contiguous."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/scroll-inner-live.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 74,
+                  "endLine": 101,
+                  "snippet": {
+                    "text": "  it(\"chunks a long element-owned scroll by the element scrollport\", async () => {\n    const page = await env!.browser.newPage({ viewport: { width: 360, height: 260 } });\n    try {\n      await page.setContent(`<!doctype html><style>\n        body{margin:0}#list{width:260px;height:120px;overflow:auto}.row{box-sizing:border-box;height:40px;border-bottom:1px solid #ccd}\n      </style><div id=\"list\">${Array.from({ length: 12 }, (_, i) => `<div class=\"row\">ROW ${i}</div>`).join(\"\")}</div>`);\n\n      // Inspect the live layout that governs each captured slice. The owner is\n      // shorter than the outer capture frame, which is the seam-producing case.\n      expect(await page.locator(\"#list\").evaluate((element) => {\n        const style = getComputedStyle(element);\n        return {\n          clientHeight: element.clientHeight,\n          scrollHeight: element.scrollHeight,\n          overflowY: style.overflowY,\n        };\n      })).toEqual({ clientHeight: 120, scrollHeight: 480, overflowY: \"auto\" });\n\n      const segments = await executeScrollPattern(page, parseScrollPattern(\"down:bottom/400ms\"), {\n        selector: \"#list\",\n        captureSelector: \"body\",\n        captureViewport: { x: 0, y: 0, width: 360, height: 260 },\n        viewportW: 360,\n        viewportH: 260,\n        prescroll: false,\n      });\n\n      expect(segments.map((segment) => segment.scrollY)).toEqual([0, 120, 240, 360]);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/scroll/executor.ts"
+                },
+                "region": {
+                  "startLine": 210
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2705"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "190dd73c2c315b35374dfa2574457d89"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c53705e00eac15f7d73bcce602f5cbbe165db149",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

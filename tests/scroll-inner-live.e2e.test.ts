@@ -71,6 +71,39 @@ describeBrowser("inner live-scroll capture", () => {
     }
   }, 60_000);
 
+  it("chunks a long element-owned scroll by the element scrollport", async () => {
+    const page = await env!.browser.newPage({ viewport: { width: 360, height: 260 } });
+    try {
+      await page.setContent(`<!doctype html><style>
+        body{margin:0}#list{width:260px;height:120px;overflow:auto}.row{box-sizing:border-box;height:40px;border-bottom:1px solid #ccd}
+      </style><div id="list">${Array.from({ length: 12 }, (_, i) => `<div class="row">ROW ${i}</div>`).join("")}</div>`);
+
+      // Inspect the live layout that governs each captured slice. The owner is
+      // shorter than the outer capture frame, which is the seam-producing case.
+      expect(await page.locator("#list").evaluate((element) => {
+        const style = getComputedStyle(element);
+        return {
+          clientHeight: element.clientHeight,
+          scrollHeight: element.scrollHeight,
+          overflowY: style.overflowY,
+        };
+      })).toEqual({ clientHeight: 120, scrollHeight: 480, overflowY: "auto" });
+
+      const segments = await executeScrollPattern(page, parseScrollPattern("down:bottom/400ms"), {
+        selector: "#list",
+        captureSelector: "body",
+        captureViewport: { x: 0, y: 0, width: 360, height: 260 },
+        viewportW: 360,
+        viewportH: 260,
+        prescroll: false,
+      });
+
+      expect(segments.map((segment) => segment.scrollY)).toEqual([0, 120, 240, 360]);
+    } finally {
+      await page.close();
+    }
+  }, 60_000);
+
   it("keeps the surrounding page static when an element owns the scroll", async () => {
     const page = await env!.browser.newPage({ viewport: { width: 360, height: 260 } });
     const renderPage = await env!.browser.newPage({ viewport: { width: 360, height: 260 } });

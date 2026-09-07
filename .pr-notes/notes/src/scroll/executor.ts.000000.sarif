@@ -220,6 +220,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtqt408byabggkge",
+          "message": {
+            "text": "Element-owned scroll captures must step by the live owner client box. The moving composite receives visible paint only inside that scrollport, so using a larger body/frame capture dimension leaves an uncaptured band; window-owned captures intentionally retain the configured output viewport. Optional client dimensions preserve compatibility with custom PageQuery snapshots, which fall back to the former output-viewport behavior. The browser regression (0) pins the real geometry and resulting anchors.",
+            "markdown": "Element-owned scroll captures must step by the live owner client box. The moving composite receives visible paint only inside that scrollport, so using a larger body/frame capture dimension leaves an uncaptured band; window-owned captures intentionally retain the configured output viewport. Optional client dimensions preserve compatibility with custom PageQuery snapshots, which fall back to the former output-viewport behavior. The [browser regression](0) pins the real geometry and resulting anchors."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/scroll/executor.ts"
+                },
+                "region": {
+                  "startLine": 202,
+                  "endLine": 222,
+                  "snippet": {
+                    "text": "/**\n * Size of one contiguous captured slice along the active scroll axis.\n *\n * Window-owned captures fill the configured output viewport. Element-owned\n * captures only fill the element's client box, even when a larger ancestor or\n * the whole body is captured around them. Stepping an element by the outer\n * frame size would therefore leave uncaptured bands in the moving stack.\n */\nexport function scrollCaptureChunkSize(\n  axis: ScrollAxis,\n  viewport: Pick<ScrollExecutorOptions, \"viewportW\" | \"viewportH\">,\n  snapshot: PageStateSnapshot,\n  elementOwned: boolean,\n): number {\n  const outputSize = axis === \"x\" ? viewport.viewportW : viewport.viewportH;\n  if (!elementOwned) return outputSize;\n  const ownerSize = axis === \"x\" ? snapshot.clientWidth : snapshot.clientHeight;\n  return typeof ownerSize === \"number\" && Number.isFinite(ownerSize) && ownerSize > 0\n    ? ownerSize\n    : outputSize;\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/scroll-inner-live.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 74
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2705"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ba6cc35fc53ed4a213dd8c9b9af0d2ae"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c53705e00eac15f7d73bcce602f5cbbe165db149",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

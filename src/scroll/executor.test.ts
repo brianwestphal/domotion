@@ -5,6 +5,7 @@ import {
   axisOfScroll,
   resolveAbsoluteTarget,
   resolveScrollAction,
+  scrollCaptureChunkSize,
   type PageQuery,
   type PageStateSnapshot,
 } from "./executor.js";
@@ -17,6 +18,8 @@ function fakePageQuery(opts: Partial<PageStateSnapshot> = {}, selectors: Record<
   const snap: PageStateSnapshot = {
     maxScrollX: opts.maxScrollX ?? 0,
     maxScrollY: opts.maxScrollY ?? 4000,
+    clientWidth: opts.clientWidth ?? 800,
+    clientHeight: opts.clientHeight ?? 600,
     scrollX: opts.scrollX ?? 0,
     scrollY: opts.scrollY ?? 0,
   };
@@ -68,6 +71,28 @@ describe("axisOfScroll", () => {
       target: { kind: "delta", signedLength: { sign: 1, value: 100, unit: "px" } },
     };
     expect(axisOfScroll(a)).toBe("y");
+  });
+});
+
+describe("scrollCaptureChunkSize", () => {
+  const { snap } = fakePageQuery({ clientWidth: 260, clientHeight: 120 });
+
+  it("uses the output viewport for window-owned scrolls", () => {
+    expect(scrollCaptureChunkSize("x", { viewportW: 360, viewportH: 260 }, snap, false)).toBe(360);
+    expect(scrollCaptureChunkSize("y", { viewportW: 360, viewportH: 260 }, snap, false)).toBe(260);
+  });
+
+  it("uses the element client box for element-owned scrolls", () => {
+    expect(scrollCaptureChunkSize("x", { viewportW: 360, viewportH: 260 }, snap, true)).toBe(260);
+    expect(scrollCaptureChunkSize("y", { viewportW: 360, viewportH: 260 }, snap, true)).toBe(120);
+  });
+
+  it("falls back to the output viewport for a zero-sized or legacy snapshot", () => {
+    const { snap: zero } = fakePageQuery({ clientWidth: 0, clientHeight: 0 });
+    const legacy: PageStateSnapshot = { maxScrollX: 0, maxScrollY: 4000, scrollX: 0, scrollY: 0 };
+    expect(scrollCaptureChunkSize("x", { viewportW: 360, viewportH: 260 }, zero, true)).toBe(360);
+    expect(scrollCaptureChunkSize("y", { viewportW: 360, viewportH: 260 }, zero, true)).toBe(260);
+    expect(scrollCaptureChunkSize("y", { viewportW: 360, viewportH: 260 }, legacy, true)).toBe(260);
   });
 });
 
@@ -278,7 +303,14 @@ describe("until <position> final-iteration clamp", () => {
   // becomes the new position), and snapshot() reflects it — so the until loop
   // makes real progress and re-resolves the condition each iteration.
   function statefulPage(maxScrollY: number): { query: PageQuery; state: PageStateSnapshot; destYs: number[] } {
-    const state: PageStateSnapshot = { maxScrollX: 0, maxScrollY, scrollX: 0, scrollY: 0 };
+    const state: PageStateSnapshot = {
+      maxScrollX: 0,
+      maxScrollY,
+      clientWidth: 800,
+      clientHeight: 600,
+      scrollX: 0,
+      scrollY: 0,
+    };
     const destYs: number[] = [];
     const query: PageQuery = {
       async snapshot() { return { ...state }; },

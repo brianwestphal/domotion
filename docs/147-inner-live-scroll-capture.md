@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["layout"]
 platforms: []
-tickets: ["DM-2703"]
+tickets: ["DM-2703","DM-2705"]
 code: ["src/scroll/composer.ts","src/scroll/executor.ts"]
 aliases: ["docs/147-inner-live-scroll-capture.md","doc-147"]
 ---
@@ -74,10 +74,15 @@ list-only strip behavior shown above.
 
 The capture is live by construction: the executor performs an instant scroll,
 waits for layout/paint to settle, then invokes the normal DOM capture pipeline.
-It repeats that sequence for every viewport-sized anchor. A virtual list must
-therefore update synchronously or within the normal settle window after its
-scroll event; applications with longer asynchronous updates should include an
-appropriate pause in the pattern.
+For a long action, it repeats that sequence at exact owner-scrollport intervals:
+`clientHeight` for vertical element scrolling and `clientWidth` for horizontal
+element scrolling. These intervals are independent of a larger body capture or
+output clip, because only the owner's client box contributes a new visible
+slice to the moving stack. The final interval clamps to the requested target
+and can overlap the preceding slice. A virtual list must therefore update
+synchronously or within the normal settle window after its scroll event;
+applications with longer asynchronous updates should include an appropriate
+pause in the pattern.
 
 Every anchor also carries an authenticated source record for the selected
 owner: Chromium `FrameId`, capture-local live-node owner ID, raw offset and the

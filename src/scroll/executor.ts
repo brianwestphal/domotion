@@ -176,6 +176,10 @@ export interface PageStateSnapshot {
   maxScrollY: number;
   /** Maximum scrollable x. */
   maxScrollX: number;
+  /** Width of the live scroll owner's content viewport, when available. */
+  clientWidth?: number;
+  /** Height of the live scroll owner's content viewport, when available. */
+  clientHeight?: number;
   /** Current scroll position. */
   scrollX: number;
   scrollY: number;
@@ -193,6 +197,28 @@ export interface PageQuery {
   snapshot(): Promise<PageStateSnapshot>;
   /** Bbox of an element matching the CSS selector, in document coordinates. */
   selectorBbox(css: string): Promise<SelectorBbox | null>;
+}
+
+/**
+ * Size of one contiguous captured slice along the active scroll axis.
+ *
+ * Window-owned captures fill the configured output viewport. Element-owned
+ * captures only fill the element's client box, even when a larger ancestor or
+ * the whole body is captured around them. Stepping an element by the outer
+ * frame size would therefore leave uncaptured bands in the moving stack.
+ */
+export function scrollCaptureChunkSize(
+  axis: ScrollAxis,
+  viewport: Pick<ScrollExecutorOptions, "viewportW" | "viewportH">,
+  snapshot: PageStateSnapshot,
+  elementOwned: boolean,
+): number {
+  const outputSize = axis === "x" ? viewport.viewportW : viewport.viewportH;
+  if (!elementOwned) return outputSize;
+  const ownerSize = axis === "x" ? snapshot.clientWidth : snapshot.clientHeight;
+  return typeof ownerSize === "number" && Number.isFinite(ownerSize) && ownerSize > 0
+    ? ownerSize
+    : outputSize;
 }
 
 /**
@@ -467,27 +493,26 @@ export async function executeScrollPattern(
     }
     // op.kind === "scroll"
     // DM-604 §4(a): for smooth-mode scrolls (single long action covering
-    // multiple viewport-heights), subdivide into viewport-height chunks so
-    // the composer has enough anchor points to stack contiguously. Without
-    // this, a `down:bottom/30s` action on a 10000-tall page produces only
-    // two captures (initial + post-scroll), and the composite ends up with
-    // 9400 px of empty space between them. ScrollPattern-mode scrolls with
-    // explicit per-token magnitudes ≤ viewport height naturally produce
-    // one chunk per token — no over-subdivision there.
+    // multiple visible slices), subdivide by the selected owner's captured
+    // scrollport so the composer has enough anchor points to stack
+    // contiguously. For the page owner that slice is the configured output
+    // viewport; for an element owner it is the element's client box, which can
+    // be much smaller than a surrounding body capture. Without this, a long
+    // action produces only its endpoints and the composite has an uncaptured
+    // band between them. ScrollPattern-mode scrolls with explicit per-token
+    // magnitudes ≤ one slice naturally produce one chunk per token.
     //
-    // DM-633: chunks MUST land at exact viewport-height multiples (not
-    // evenly-distributed fractions of totalDelta). Each segment's captured
-    // tree fills the entire viewport at its scrollY, so the composer stacks
-    // each VH-tall slice at composite y = scrollY. If consecutive scrollYs
-    // are closer than VH (e.g. 784 px increments when VH = 844), segments
-    // overlap by `VH - delta` and the upper segment's `position: fixed`
-    // header bleeds into the lower segment's tail — visible as a duplicate
-    // nav bar at the bottom of the viewport at t=0.
+    // DM-633: chunks MUST land at exact captured-slice multiples (not
+    // evenly-distributed fractions of totalDelta). Each segment contributes
+    // one visible owner slice at its scroll offset, so the composer stacks it
+    // at that coordinate. For window owners, closer-than-viewport anchors
+    // overlap and can duplicate fixed paint. For element owners, farther-than-
+    // client-box anchors leave a blank band between captured slices.
     const snap0 = await pageQuery.snapshot();
     const dx = op.destX - snap0.scrollX;
     const dy = op.destY - snap0.scrollY;
     const totalDelta = op.axis === "x" ? dx : dy;
-    const viewportSize = op.axis === "x" ? opts.viewportW : opts.viewportH;
+    const viewportSize = scrollCaptureChunkSize(op.axis, opts, snap0, selector != null);
     const numChunks = Math.max(1, Math.ceil(Math.abs(totalDelta) / viewportSize));
     const dir = totalDelta >= 0 ? 1 : -1;
     for (let ci = 1; ci <= numChunks; ci++) {
@@ -495,7 +520,7 @@ export async function executeScrollPattern(
       // tile contiguously (no overlap, no gap) in the composer. The final
       // chunk clamps to op.destX/op.destY so the scroll completes at the
       // intended target — that single clamped step may overlap the prior
-      // chunk by < VH, but it only affects the last animation frame and
+      // chunk by less than one slice, but it only affects the last frame and
       // never the much-more-common mid-scroll frames.
       const isLast = ci === numChunks;
       const chunkDestX = op.axis === "x"
@@ -742,16 +767,22 @@ function realPageQuery(page: Page, selector: string | null): PageQuery {
         return page.evaluate(() => ({
           maxScrollX: Math.max(0, document.documentElement.scrollWidth  - document.documentElement.clientWidth),
           maxScrollY: Math.max(0, document.documentElement.scrollHeight - document.documentElement.clientHeight),
+          clientWidth: document.documentElement.clientWidth,
+          clientHeight: document.documentElement.clientHeight,
           scrollX: window.scrollX,
           scrollY: window.scrollY,
         }));
       }
       return page.evaluate((sel) => {
         const el = document.querySelector(sel);
-        if (!(el instanceof HTMLElement)) return { maxScrollX: 0, maxScrollY: 0, scrollX: 0, scrollY: 0 };
+        if (!(el instanceof HTMLElement)) {
+          return { maxScrollX: 0, maxScrollY: 0, clientWidth: 0, clientHeight: 0, scrollX: 0, scrollY: 0 };
+        }
         return {
           maxScrollX: Math.max(0, el.scrollWidth  - el.clientWidth),
           maxScrollY: Math.max(0, el.scrollHeight - el.clientHeight),
+          clientWidth: el.clientWidth,
+          clientHeight: el.clientHeight,
           scrollX: el.scrollLeft,
           scrollY: el.scrollTop,
         };
