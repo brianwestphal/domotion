@@ -2,6 +2,14 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.28.1] - 2026-09-07
+
+
+**🐛 Fixes**
+
+- Long scroll animations owned by an inner scrollable element (via `selector`) are now captured in steps sized to that element's own client box instead of the outer capture viewport, so the stacked composite no longer shows blank, uncaptured bands between slices when the element is shorter than the surrounding capture.
+- Page state snapshots now report the live scroll owner's client width and height; custom `PageQuery` implementations that omit them keep the previous viewport-sized stepping.
+
 ## [0.28.0] - 2026-09-07
 
 
