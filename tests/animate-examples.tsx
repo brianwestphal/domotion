@@ -326,6 +326,22 @@ const EXAMPLES: Example[] = [
     },
   },
   {
+    name: "inner-element-scroll-foreground",
+    check: (svg) => {
+      const f: string[] = [];
+      if (!svg.includes(`viewBox="0 0 720 480"`)) f.push("missing viewBox 720x480");
+      if (count(svg, /class="f f-\d+"/g) !== 2) f.push("expected intro + inner-scroll frame groups");
+      if (!svg.includes(`data-scroll-static-context="true"`)) f.push("missing static page context around element owner");
+      if (!svg.includes(`data-scroll-static-foreground="true"`)) f.push("missing static foreground above element owner");
+      if (!/owner-clip-0"><rect x="205" y="174" width="302" height="285" rx="13"/.test(svg)) f.push("missing rounded ancestor mask around inner scroll");
+      if (!/sf1_scrl-[\w-]+ 7(?:\.000)?s linear infinite/.test(svg)) f.push("inner scroll is not re-anchored to the 7 s master loop");
+      if (!svg.includes("STATIC FOREGROUND")) f.push("missing static foreground card");
+      if (!svg.includes("SCROLLS BELOW")) f.push("missing layer-order legend");
+      if (!svg.includes("Demo ready to share")) f.push("missing final inner-scroll row");
+      return f;
+    },
+  },
+  {
     name: "svg-overlay",
     check: (svg) => {
       const f: string[] = [];

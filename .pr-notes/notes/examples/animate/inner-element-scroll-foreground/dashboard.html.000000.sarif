@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtqw1005vz7vhn76",
+          "message": {
+            "text": "This fixture makes the requested occlusion unambiguous: the card is a separate absolute sibling at z-index 20, positioned to overlap the 302 by 242 feed while extending into the adjacent guide. Playwright measured the card at (398,259) before and after scrollTop 320, and deterministic SVG frames at 0, 3500, and 6999 ms keep it fixed above changing rows.",
+            "markdown": "This fixture makes the requested occlusion unambiguous: the card is a separate absolute sibling at z-index 20, positioned to overlap the 302 by 242 feed while extending into the adjacent guide. Playwright measured the card at (398,259) before and after scrollTop 320, and deterministic SVG frames at 0, 3500, and 6999 ms keep it fixed above changing rows."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "examples/animate/inner-element-scroll-foreground/dashboard.html"
+                },
+                "region": {
+                  "startLine": 86,
+                  "endLine": 99,
+                  "snippet": {
+                    "text": "  .foreground-card {\n    position: absolute;\n    z-index: 20;\n    left: 194px;\n    top: 86px;\n    width: 176px;\n    min-height: 116px;\n    padding: 15px 16px 15px 19px;\n    overflow: hidden;\n    border: 1px solid rgba(255, 255, 255, 0.15);\n    border-radius: 16px;\n    background: #172033;\n    color: #ffffff;\n    box-shadow: 0 18px 38px rgba(23, 32, 51, 0.32);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "rank": 90,
+          "workItemUris": [
+            "DM-2706"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "2d8e9866e0888dd357ccf1a57a78485a"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f0aa6669b2d75ee4e9a2ed6e198ffa0c6fbc3b64",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}
