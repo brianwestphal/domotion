@@ -2,6 +2,13 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.28.2] - 2026-09-07
+
+
+**🐛 Fixes**
+
+- Element-owned scroll captures now keep positioned, higher-`z-index` siblings pinned above the moving content. Previously all static page context was drawn beneath the scrolling element, reversing CSS stacking wherever a foreground card overlapped it; static siblings that paint after the scroller are now emitted as separate foreground layers, each clipped only by the overflow clips it actually shares with the scroller (never by the scroller's own scrollport).
+
 ## [0.28.1] - 2026-09-07
 
 
