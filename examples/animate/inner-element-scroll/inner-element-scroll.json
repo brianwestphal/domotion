@@ -1,0 +1,22 @@
+{
+  "$schema": "https://raw.githubusercontent.com/brianwestphal/domotion/main/schemas/animate-config.schema.json",
+  "width": 720,
+  "height": 480,
+  "frames": [
+    {
+      "input": "./dashboard.html",
+      "duration": 1000,
+      "transition": { "type": "cut", "duration": 0 }
+    },
+    {
+      "continue": true,
+      "duration": 6000,
+      "transition": { "type": "cut", "duration": 0 },
+      "scroll": {
+        "selector": "#activity-feed",
+        "pattern": "pause:900ms,down:220px/900ms,pause:300ms,down:220px/900ms,pause:300ms,down:220px/900ms,pause:300ms,down:bottom/600ms,pause:900ms",
+        "prescroll": false
+      }
+    }
+  ]
+}

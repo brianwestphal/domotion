@@ -14,6 +14,7 @@ Open any `<name>.svg` in a browser to watch it loop.
 | `crossfade-cards/` | A **crossfade** transition between two full-bleed scenes. Each frame composites as a complete sub-SVG and dissolves by opacity. |
 | `slides-pushleft/` | A **`push-left`** transition across three slides — each slides in from the right while the previous slides off to the left. |
 | `scroll-feed/` | A **`scroll` block**: one tall page captured at multiple scroll positions via the pattern grammar (`down:bottom/6s`) and composed into one scrolling SVG. The sticky header stays put while the feed scrolls. |
+| `inner-element-scroll/` | An element-owned **`scroll.selector`** inside a static dashboard: leading/trailing pauses remain real holds, the feed scrolls in place, and its nested timeline starts with the second frame rather than the document clock. |
 | `svg-overlay/` | A **`kind: "svg"` overlay** — a separately-authored `badge.svg` inlined into the frame (its ids namespaced to avoid collisions) and slid in from the bottom with the `enter` sugar. |
 | `typing-search/` | A single frame with a **`typing` overlay** revealing a query into a docs-style search bar; the overlay is anchored over the input's empty text slot. (Gallery demo — see `docs/64-demo-gallery.md`.) |
 | `tab-switcher/` | Three **`continue` frames driven by `click` actions** (`.tab-2`, `.tab-3`) on a live page, composited with **crossfade** — a real interaction recorded frame by frame. |
