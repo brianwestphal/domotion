@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CapturedElement } from "../capture/types.js";
-import { elementTreeToSvgInner } from "./element-tree-to-svg.js";
+import { childOverflowClipGeometry, elementTreeToSvgInner } from "./element-tree-to-svg.js";
 
 const BASE_STYLES = {
   backgroundColor: "rgba(0,0,0,0)", backgroundImage: "none", backgroundSize: "auto",
@@ -58,6 +58,23 @@ const ASYMMETRIC_BOX = {
 } satisfies Partial<CapturedElement["styles"]>;
 
 describe("overflow-clip-margin renderer wiring (DM-2419)", () => {
+  it("exposes the same rounded padding-box geometry used by compound renderers", () => {
+    const [element] = tree({
+      overflowX: "hidden", overflowY: "hidden",
+      borderTopWidth: "4px", borderRightWidth: "4px", borderBottomWidth: "4px", borderLeftWidth: "4px",
+      borderTopLeftRadius: "20px", borderTopRightRadius: "20px",
+      borderBottomRightRadius: "20px", borderBottomLeftRadius: "20px",
+    });
+    const geometry = childOverflowClipGeometry(element)!;
+    expect({ x: geometry.x, y: geometry.y, width: geometry.width, height: geometry.height }).toEqual({
+      x: 14.4, y: 24.6, width: 92.3, height: 52.4,
+    });
+    expect(geometry.corners).toMatchObject({
+      tl: { h: 16, v: 16 }, tr: { h: 16, v: 16 },
+      br: { h: 16, v: 16 }, bl: { h: 16, v: 16 }, uniform: true,
+    });
+  });
+
   it.each([
     ["padding-box 5px", { x: 7, y: 18, width: 105, height: 64 }],
     ["border-box", { x: 10.8, y: 20.8, width: 99.8, height: 60.5 }],

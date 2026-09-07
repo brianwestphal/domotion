@@ -25,8 +25,8 @@
           "level": "none",
           "guid": "mtqnfs3rn6bz1hh4",
           "message": {
-            "text": "A fixed owner-border-box clip must enclose the globally translated capture stack. Each anchor already carries a native overflow clip, but that clip inherits both its segment placement and the master translation; an outer clip derived from the authenticated first owner keeps their union inside the DOM/CSS viewport while preserving the explicit owner-root strip contract.",
-            "markdown": "A fixed owner-border-box clip must enclose the globally translated capture stack. Each anchor already carries a native overflow clip, but that clip inherits both its segment placement and the master translation; an outer clip derived from the authenticated first owner keeps their union inside the DOM/CSS viewport while preserving the explicit owner-root strip contract."
+            "text": "Detaching an authenticated scroll owner must not detach its ancestors’ overflow semantics. The compositor records every effective overflow/containment clip along the captured root-to-owner path and nests those fixed page-space clips around the translated stack; SVG nesting computes the required intersection, preserving rounded panel corners as well as the owner viewport.",
+            "markdown": "Detaching an authenticated scroll owner must not detach its ancestors’ overflow semantics. The compositor records every effective overflow/containment clip along the captured root-to-owner path and nests those fixed page-space clips around the translated stack; SVG nesting computes the required intersection, preserving rounded panel corners as well as the owner viewport."
           },
           "locations": [
             {
@@ -74,9 +74,9 @@
               }
             }
           ],
-          "rank": 96,
+          "rank": 98,
           "workItemUris": [
-            "DM-2703"
+            "DM-2704"
           ],
           "partialFingerprints": {
             "prNoteAnchor/v1": "30dc1932642a061fe04105ced0a641f4"

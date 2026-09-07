@@ -25,8 +25,8 @@
           "level": "none",
           "guid": "mtqnfsb1ts2acvi3",
           "message": {
-            "text": "The browser regression now proves all three failure surfaces from the demo review. It asserts the exact authenticated owner clip, checks every emitted PUA text codepoint against its embedded font cmap, and samples the static header at 399 ms—near maximum scroll displacement, where a translated per-segment clip previously leaked owner content over the page.",
-            "markdown": "The browser regression now proves all three failure surfaces from the demo review. It asserts the exact authenticated owner clip, checks every emitted PUA text codepoint against its embedded font cmap, and samples the static header at 399 ms—near maximum scroll displacement, where a translated per-segment clip previously leaked owner content over the page."
+            "text": "The browser regression uses the reported DOM/CSS shape: a rectangular overflow-auto list nested at the bottom of a 20 px rounded, overflow-hidden panel. It asserts both emitted clips (16 px inner ancestor radius and sharp owner), validates embedded cmap coverage, and samples the red rounded border ring at 399 ms; without the ancestor clip the moving white row overwrites that exact pixel.",
+            "markdown": "The browser regression uses the reported DOM/CSS shape: a rectangular overflow-auto list nested at the bottom of a 20 px rounded, overflow-hidden panel. It asserts both emitted clips (16 px inner ancestor radius and sharp owner), validates embedded cmap coverage, and samples the red rounded border ring at 399 ms; without the ancestor clip the moving white row overwrites that exact pixel."
           },
           "locations": [
             {
@@ -63,9 +63,9 @@
               }
             }
           ],
-          "rank": 98,
+          "rank": 99,
           "workItemUris": [
-            "DM-2703"
+            "DM-2704"
           ],
           "partialFingerprints": {
             "prNoteAnchor/v1": "b59886d123737f6d92db070d9d5b650d"

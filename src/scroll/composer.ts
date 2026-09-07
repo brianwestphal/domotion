@@ -27,7 +27,12 @@ import {
   validateCapturedFrameScrollState,
 } from "../capture/frame-scroll-state.js";
 import type { CapturedElement, CapturedFrameScrollState } from "../capture/types.js";
-import { elementTreeToSvgInner } from "../render/element-tree-to-svg.js";
+import {
+  childOverflowClipGeometry,
+  elementTreeToSvgInner,
+  type ChildOverflowClipGeometry,
+} from "../render/element-tree-to-svg.js";
+import { roundedRectSvg } from "../render/borders.js";
 import { rootSvgA11y } from "../render/format.js";
 import { isTransparentBackground } from "../utils/transparent-background.js";
 import {
@@ -164,13 +169,15 @@ function scrollOwner(
   return undefined;
 }
 
-function findCapturedScrollOwner(
+function findCapturedScrollOwnerPath(
   tree: readonly CapturedElement[],
   ownerId: string,
-): CapturedElement | undefined {
+  ancestors: readonly CapturedElement[] = [],
+): CapturedElement[] | undefined {
   for (const element of tree) {
-    if (element.scrollbars?.owner?.ownerId === ownerId) return element;
-    const descendant = findCapturedScrollOwner(element.children ?? [], ownerId);
+    const path = [...ancestors, element];
+    if (element.scrollbars?.owner?.ownerId === ownerId) return path;
+    const descendant = findCapturedScrollOwnerPath(element.children ?? [], ownerId, path);
     if (descendant != null) return descendant;
   }
   return undefined;
@@ -188,16 +195,17 @@ function isolateElementScrollOwner(
 ): {
   segments: ScrollSegmentCapture[];
   staticUnderlay: CapturedElement[];
-  ownerClip: { x: number; y: number; width: number; height: number };
+  ownerClips: ChildOverflowClipGeometry[];
 } | null {
   const first = segments[0];
   if (first?.frameScrollState == null || first.scrollOwnerId == null) return null;
   const firstOwnerRecord = scrollOwner(first.frameScrollState, first.scrollOwnerId);
   if (firstOwnerRecord?.kind !== "element") return null;
-  const firstOwner = findCapturedScrollOwner(first.tree, first.scrollOwnerId);
+  const firstOwnerPath = findCapturedScrollOwnerPath(first.tree, first.scrollOwnerId);
+  const firstOwner = firstOwnerPath?.at(-1);
   // An explicitly owner-only capture (`--selector` / frame `selector`) keeps
   // the established list-strip contract; there is no surrounding page to pin.
-  if (firstOwner == null || first.tree.includes(firstOwner)) return null;
+  if (firstOwnerPath == null || firstOwner == null || first.tree.includes(firstOwner)) return null;
 
   const staticUnderlay = mapTreePruning(
     first.tree,
@@ -208,7 +216,7 @@ function isolateElementScrollOwner(
       throw new Error(`composeScrollSvg: inner-scroll segment ${index} omitted its owner authority`);
     }
     const ownerRecord = scrollOwner(segment.frameScrollState, segment.scrollOwnerId);
-    const ownerElement = findCapturedScrollOwner(segment.tree, segment.scrollOwnerId);
+    const ownerElement = findCapturedScrollOwnerPath(segment.tree, segment.scrollOwnerId)?.at(-1);
     if (ownerRecord?.kind !== "element" || ownerElement == null) {
       throw new Error(`composeScrollSvg: inner-scroll segment ${index} changed or omitted its element owner`);
     }
@@ -225,12 +233,9 @@ function isolateElementScrollOwner(
   return {
     segments: isolated,
     staticUnderlay,
-    ownerClip: {
-      x: firstOwner.x,
-      y: firstOwner.y,
-      width: firstOwner.width,
-      height: firstOwner.height,
-    },
+    ownerClips: firstOwnerPath.map((element) => childOverflowClipGeometry(element)).filter(
+      (clip): clip is ChildOverflowClipGeometry => clip != null,
+    ),
   };
 }
 
@@ -446,7 +451,7 @@ export function composeScrollSvg(
       composeScrollSvgBody(composedSegments, opts, {
         axis, W, VH, bg, paintBg, hiDPIFactor, chunkSize,
         staticUnderlay: elementScroll?.staticUnderlay,
-        elementOwnerClip: elementScroll?.ownerClip,
+        elementOwnerClips: elementScroll?.ownerClips,
       }),
     );
   } finally {
@@ -518,11 +523,11 @@ function composeScrollSvgBody(
     hiDPIFactor: number;
     chunkSize: number;
     staticUnderlay?: CapturedElement[];
-    elementOwnerClip?: { x: number; y: number; width: number; height: number };
+    elementOwnerClips?: ChildOverflowClipGeometry[];
   },
 ): string {
   const {
-    axis, W, VH, bg, paintBg, hiDPIFactor, chunkSize, staticUnderlay, elementOwnerClip,
+    axis, W, VH, bg, paintBg, hiDPIFactor, chunkSize, staticUnderlay, elementOwnerClips,
   } = ctx;
 
   // ── Total scene duration ──
@@ -741,6 +746,15 @@ function composeScrollSvgBody(
   // an animate frame (Blink resolves local SVG IRIs through the shared TreeScope,
   // not through the nearest nested <svg> element).
   const glyphDefs = getGlyphDefs();
+  const ownerClipDefs = (elementOwnerClips ?? []).map((clip, index) =>
+    `    <clipPath id="${animClass}-owner-clip-${index}">${roundedRectSvg(
+      clip.x, clip.y, clip.width, clip.height, clip.corners, "",
+    )}</clipPath>`,
+  ).join("\n");
+  const ownerClipOpen = (elementOwnerClips ?? []).map((_clip, index) =>
+    `    <g clip-path="url(#${animClass}-owner-clip-${index})">`,
+  ).join("\n");
+  const ownerClipClose = (elementOwnerClips ?? []).map(() => "    </g>").join("\n");
 
   // ── Compose final SVG ──
   // Share each raster payload across the segments that show it (the `<image>`
@@ -751,7 +765,7 @@ function composeScrollSvgBody(
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${VH}" width="${W}" height="${VH}"${a11y.roleAttr}>${a11y.markup}
   <defs>
     <clipPath id="${animClass}-clip"><rect width="${W}" height="${VH}"/></clipPath>
-${elementOwnerClip == null ? "" : `    <clipPath id="${animClass}-owner-clip"><rect x="${elementOwnerClip.x}" y="${elementOwnerClip.y}" width="${elementOwnerClip.width}" height="${elementOwnerClip.height}"/></clipPath>\n`}${glyphDefs !== "" ? `    ${glyphDefs}\n` : ""}    <style>
+${ownerClipDefs === "" ? "" : ownerClipDefs + "\n"}${glyphDefs !== "" ? `    ${glyphDefs}\n` : ""}    <style>
 ${fontFaceCss !== "" ? fontFaceCss + "\n" : ""}      .${animClass} { animation: ${animClass} ${totalSec.toFixed(3)}s linear infinite; will-change: transform; }
       @keyframes ${animClass} {
 ${keyframes}
@@ -765,13 +779,13 @@ ${stickyCullCss.join("\n")}
   </defs>
 ${paintBg ? `  <rect width="${W}" height="${VH}" fill="${bg}"/>\n` : ""}  <g clip-path="url(#${animClass}-clip)">
 ${staticMarkup}
-${elementOwnerClip == null ? "" : `    <g clip-path="url(#${animClass}-owner-clip)">\n`}
+${ownerClipOpen === "" ? "" : ownerClipOpen + "\n"}
     <g class="${animClass}">
       <svg x="0" y="0" width="${compositeW}" height="${compositeH}" viewBox="0 0 ${compositeW} ${compositeH}">
 ${paintBg ? `        <rect width="${compositeW}" height="${compositeH}" fill="${bg}"/>\n` : ""}      ${chunks.join("\n      ")}
       </svg>
     </g>
-${elementOwnerClip == null ? "" : "    </g>\n"}
+${ownerClipClose === "" ? "" : ownerClipClose + "\n"}
   </g>${overlayMarkup}
 </svg>`);
 }

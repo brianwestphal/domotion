@@ -2477,6 +2477,95 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtqp050t12kuj9sj",
+          "message": {
+            "text": "Compound renderers reuse the ordinary renderer’s resolved child-overflow geometry instead of approximating it. This keeps border insets, corner radii and shapes, paint containment, overflow-clip-margin, fieldset legends, body propagation, and one-axis clipping governed by one function; the scroll compositor consumes the result at the captured ancestor chain.",
+            "markdown": "Compound renderers reuse the ordinary renderer’s resolved child-overflow geometry instead of approximating it. This keeps border insets, corner radii and shapes, paint containment, overflow-clip-margin, fieldset legends, body propagation, and one-axis clipping governed by one function; the scroll compositor consumes the result at the captured ancestor chain."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/element-tree-to-svg.ts"
+                },
+                "region": {
+                  "startLine": 5220,
+                  "endLine": 5277,
+                  "snippet": {
+                    "text": "/**\n * Resolve the fixed page-space clip applied to an element's descendants.\n * Keeping this geometry separate from emission lets compound renderers retain\n * an ancestor clip after detaching a descendant, without duplicating the CSS\n * padding-edge, containment, radius, and overflow-clip-margin rules.\n */\nexport function childOverflowClipGeometry(\n  el: CapturedElement,\n  corners: CornerRadii = parseCornerRadii(el.styles, el.width, el.height),\n): ChildOverflowClipGeometry | null {\n  const ox = el.styles.overflowX;\n  const oy = el.styles.overflowY;\n  const containVal = el.styles.contain;\n  const containClips = containVal != null && containVal !== \"\" && containVal !== \"none\"\n    && /\\b(?:paint|strict|content)\\b/i.test(containVal);\n  const clipsOverflow = (ox != null && ox !== \"visible\") || (oy != null && oy !== \"visible\") || containClips;\n  // Body overflow propagates to the viewport instead of clipping body itself.\n  if (!clipsOverflow || el.tag === \"body\" || el.children.length === 0) return null;\n\n  // CSS overflow clips descendants to the padding edge, whose inner corner\n  // radii are the captured outer radii inset by the adjacent border widths.\n  const top = parseFloat(el.styles.borderTopWidth ?? \"0\") || 0;\n  const right = parseFloat(el.styles.borderRightWidth ?? \"0\") || 0;\n  const bottom = parseFloat(el.styles.borderBottomWidth ?? \"0\") || 0;\n  const left = parseFloat(el.styles.borderLeftWidth ?? \"0\") || 0;\n  let clipCorners = insetCornerRadii(corners, top, right, bottom, left);\n  let x = el.x + left;\n  let y = el.y + top;\n  let width = Math.max(0, el.width - left - right);\n  let height = Math.max(0, el.height - top - bottom);\n  // An active overflow-clip-margin replaces the ordinary padding-box contour.\n  const marginGeometry = resolvedOverflowClipMarginGeometry(el, corners);\n  if (marginGeometry != null) {\n    x = marginGeometry.x;\n    y = marginGeometry.y;\n    width = marginGeometry.width;\n    height = marginGeometry.height;\n    clipCorners = marginGeometry.corners;\n  }\n  if (el.fieldsetLegendNotch != null) {\n    // A rendered legend belongs to the fieldset border, not its scrollport.\n    const protrude = y - el.fieldsetLegendNotch.y;\n    if (protrude > 0) { y -= protrude; height += protrude; }\n  }\n  const unbounded = 100000;\n  // SVG has one clip shape, so model a visible axis by extending it beyond any\n  // plausible paint area while retaining the other axis's authored clip.\n  if (!containClips && ox === \"visible\" && oy === \"clip\") {\n    x = el.x - unbounded;\n    width = el.width + unbounded * 2;\n  }\n  if (!containClips && oy === \"visible\" && ox === \"clip\") {\n    y = el.y - unbounded;\n    height = el.height + unbounded * 2;\n  }\n  return { x, y, width, height, corners: clipCorners };\n}\n"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/scroll/composer.ts"
+                },
+                "region": {
+                  "startLine": 236
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/scroll-inner-live.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 108
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2704"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "9a8279962136edc0cf92b1eea05afb53"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "ede278988c57ab86bd517a471341d6a35cbd4447",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

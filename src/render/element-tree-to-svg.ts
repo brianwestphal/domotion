@@ -5209,6 +5209,72 @@ function openChildOverflowClip(
   return id;
 }
 
+export interface ChildOverflowClipGeometry {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  corners: CornerRadii;
+}
+
+/**
+ * Resolve the fixed page-space clip applied to an element's descendants.
+ * Keeping this geometry separate from emission lets compound renderers retain
+ * an ancestor clip after detaching a descendant, without duplicating the CSS
+ * padding-edge, containment, radius, and overflow-clip-margin rules.
+ */
+export function childOverflowClipGeometry(
+  el: CapturedElement,
+  corners: CornerRadii = parseCornerRadii(el.styles, el.width, el.height),
+): ChildOverflowClipGeometry | null {
+  const ox = el.styles.overflowX;
+  const oy = el.styles.overflowY;
+  const containVal = el.styles.contain;
+  const containClips = containVal != null && containVal !== "" && containVal !== "none"
+    && /\b(?:paint|strict|content)\b/i.test(containVal);
+  const clipsOverflow = (ox != null && ox !== "visible") || (oy != null && oy !== "visible") || containClips;
+  // Body overflow propagates to the viewport instead of clipping body itself.
+  if (!clipsOverflow || el.tag === "body" || el.children.length === 0) return null;
+
+  // CSS overflow clips descendants to the padding edge, whose inner corner
+  // radii are the captured outer radii inset by the adjacent border widths.
+  const top = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
+  const right = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
+  const bottom = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
+  const left = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
+  let clipCorners = insetCornerRadii(corners, top, right, bottom, left);
+  let x = el.x + left;
+  let y = el.y + top;
+  let width = Math.max(0, el.width - left - right);
+  let height = Math.max(0, el.height - top - bottom);
+  // An active overflow-clip-margin replaces the ordinary padding-box contour.
+  const marginGeometry = resolvedOverflowClipMarginGeometry(el, corners);
+  if (marginGeometry != null) {
+    x = marginGeometry.x;
+    y = marginGeometry.y;
+    width = marginGeometry.width;
+    height = marginGeometry.height;
+    clipCorners = marginGeometry.corners;
+  }
+  if (el.fieldsetLegendNotch != null) {
+    // A rendered legend belongs to the fieldset border, not its scrollport.
+    const protrude = y - el.fieldsetLegendNotch.y;
+    if (protrude > 0) { y -= protrude; height += protrude; }
+  }
+  const unbounded = 100000;
+  // SVG has one clip shape, so model a visible axis by extending it beyond any
+  // plausible paint area while retaining the other axis's authored clip.
+  if (!containClips && ox === "visible" && oy === "clip") {
+    x = el.x - unbounded;
+    width = el.width + unbounded * 2;
+  }
+  if (!containClips && oy === "visible" && ox === "clip") {
+    y = el.y - unbounded;
+    height = el.height + unbounded * 2;
+  }
+  return { x, y, width, height, corners: clipCorners };
+}
+
 /**
  * Mint (once) the `<clipPath>` that clips `el`'s children to its overflow
  * region, and return its id — or null when the element doesn't clip.
@@ -5227,107 +5293,13 @@ function ensureChildOverflowClipId(
   const { defsParts, paintCtx, overflowClipPathIds } = state;
   const memoized = overflowClipPathIds.get(el);
   if (memoized != null) return memoized;
-  // Overflow clipping: when a parent has overflow != visible (hidden/scroll/
-  // auto/clip on either axis), its children must be clipped to its box.
-  // We wrap just the child recursion in a <g clip-path="..."> so the element's
-  // own bg/border/text render unclipped.
-  //
-  // CSS spec (DM-363): overflow clips to the **padding edge**, not the
-  // border-box edge. If we clip to the border-box, child fills extending to
-  // the bottom of the box paint OVER the bottom border stroke and the
-  // border disappears from the rendered output (e.g. 13-pos-sticky:
-  // Section B's `.filler` rect was hiding the scroller's `border-bottom`).
-  // Inset the clip rect by the per-side border widths so the border stroke
-  // remains visible above the clipped children.
-  const ox = el.styles.overflowX;
-  const oy = el.styles.overflowY;
-  // DM-522: `contain: paint | strict | content` clips descendants to the
-  // principal (padding) box per the CSS Containment spec — same effective
-  // clip as overflow:hidden, so route it through the same machinery. Without
-  // this, a `contain:paint` ancestor lets descendants overflow visually
-  // (regression observable on `13-deep-stacking-context-creators`'s
-  // contain:paint stage: the blue inner z:9999 box paints past the dashed
-  // ancestor instead of being trapped). The `containClips` test deliberately
-  // excludes `contain: layout` / `size` / `inline-size` since those don't
-  // imply paint clipping.
-  const containVal = el.styles.contain;
-  const containClips = containVal != null && containVal !== "" && containVal !== "none"
-    && /\b(?:paint|strict|content)\b/i.test(containVal);
-  const clipsOverflow = (ox != null && ox !== "visible") || (oy != null && oy !== "visible") || containClips;
-  // DM-650: same body-overflow-propagation rule as the earlier clip-path
-  // emission — when body has non-visible overflow it propagates to the
-  // viewport rather than clipping body itself; skip the children-overflow
-  // clip too so descendants positioned outside body's bbox (e.g. NYT
-  // desktop's content wrapper, which extends below body's height: 100vh
-  // box) stay visible after the document scroll moves body off-viewport.
-  const isBodyOverflowPropagatedHere = el.tag === "body";
+  const geometry = childOverflowClipGeometry(el, corners);
   let overflowClipId: string | null = null;
-  if (clipsOverflow && !isBodyOverflowPropagatedHere && el.children.length > 0) {
+  if (geometry != null) {
     overflowClipId = paintCtx.nextClipId("ov");
-    const cbt = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
-    const cbr = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
-    const cbb = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
-    const cbl = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
-    // DM-698: overflow clips to the inner border-radius (per CSS Backgrounds 3
-    // — the rounded clip on the padding box uses radii inset by each side's
-    // border width, clamped to zero). Previously we passed the OUTER `corners`
-    // which made the clip too generous near each corner, exposing a sliver of
-    // the parent's background between the border and the clipped child.
-    // (e.g. `18-deep-radius-overflow` `.card` border-radius:32 / border:4 +
-    // child `position:absolute inset:0`: 4 px gradient sliver visible inside
-    // each rounded corner.)
-    let overflowCorners = insetCornerRadii(corners, cbt, cbr, cbb, cbl);
-    // Default clip = padding box (border-inset). DM-2419: for an active
-    // overflow-clip-margin, Blink instead starts from a PIXEL-SNAPPED inner
-    // border, applies the physical reference-box/margin outsets, and grows or
-    // contracts every corner with FloatRoundedRect's coverage correction.
-    // Reference-box-only zero values remain active; a negative CSS length is
-    // invalid and never reaches this branch.
-    let ocX = el.x + cbl;
-    let ocY = el.y + cbt;
-    let ocW = Math.max(0, el.width - cbl - cbr);
-    let ocH = Math.max(0, el.height - cbt - cbb);
-    const ocmGeometry = resolvedOverflowClipMarginGeometry(el, corners);
-    if (ocmGeometry != null) {
-      ocX = ocmGeometry.x;
-      ocY = ocmGeometry.y;
-      ocW = ocmGeometry.width;
-      ocH = ocmGeometry.height;
-      overflowCorners = ocmGeometry.corners;
-    }
-    // DM-1264: a <fieldset>'s rendered <legend> is part of the block-start BORDER,
-    // not the scrollport — per Blink `fieldset_layout_algorithm.cc`: "the rendered
-    // legend shouldn't be part of the scrollport; the legend is essentially a part
-    // of the block-start border ... scrollbars are handled by the anonymous child
-    // box." So a `fieldset { overflow: auto }` (resize needs overflow != visible)
-    // must NOT clip the legend, which straddles the border line and protrudes above
-    // the padding box. Raise the clip's top edge to clear the legend (the block-
-    // start border strip holds nothing else that could leak out).
-    if (el.fieldsetLegendNotch != null) {
-      const protrude = ocY - el.fieldsetLegendNotch.y;
-      if (protrude > 0) { ocY -= protrude; ocH += protrude; }
-    }
-    // DM-787: CSS Overflow 3 allows mixing `overflow-x: clip; overflow-y:
-    // visible` (only `clip` permits this — `hidden + visible` coerces to
-    // `auto + hidden`). Chrome clips only the clipped axis; content can
-    // still escape on the visible axis. The SVG clipPath is a single rect,
-    // so to NOT clip on an axis we extend that axis past any plausible
-    // paint area with `±UNBOUNDED`. Such a one-axis combination is also an
-    // explicit negative activation control for overflow-clip-margin.
-    const UNBOUNDED = 100000;
-    // Paint containment supplies its own both-axis overflow clip edge, so an
-    // authored visible axis does not punch through that containment clip.
-    const xVisible = !containClips && ox === "visible" && oy === "clip";
-    const yVisible = !containClips && oy === "visible" && ox === "clip";
-    if (xVisible) {
-      ocX = el.x - UNBOUNDED;
-      ocW = el.width + UNBOUNDED * 2;
-    }
-    if (yVisible) {
-      ocY = el.y - UNBOUNDED;
-      ocH = el.height + UNBOUNDED * 2;
-    }
-    defsParts.push(`<clipPath id="${overflowClipId}">${roundedRectSvg(ocX, ocY, ocW, ocH, overflowCorners, "")}</clipPath>`);
+    defsParts.push(`<clipPath id="${overflowClipId}">${roundedRectSvg(
+      geometry.x, geometry.y, geometry.width, geometry.height, geometry.corners, "",
+    )}</clipPath>`);
     // DM-673: stash the clip-path id so hoisted descendants of this
     // overflow scroller can re-wrap their emission in the same clip.
     overflowClipPathIds.set(el, overflowClipId);

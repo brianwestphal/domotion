@@ -6,6 +6,7 @@ import { parseScrollPattern } from "../src/scroll/pattern.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import * as fontkit from "fontkit";
+import sharp from "sharp";
 
 async function setup() {
   try { return { browser: await launchChromium() }; } catch { return null; }
@@ -76,14 +77,15 @@ describeBrowser("inner live-scroll capture", () => {
     try {
       await page.setContent(`<!doctype html><style>
         body{margin:0;background:#eef2f8;font:16px sans-serif}.header{height:60px;background:#17324d;color:white}
-        .shell{padding:20px}#list{width:260px;height:120px;overflow:auto;background:white;border:4px solid #e5484d}
+        .shell{padding:20px}.panel{box-sizing:border-box;width:268px;border:4px solid #e5484d;border-radius:20px;overflow:hidden}
+        .panel-title{height:30px;background:#17324d;color:white}#list{width:260px;height:120px;overflow:auto;background:white}
         .row{height:40px;border-bottom:1px solid #ccd}
-      </style><div class="header">STATIC HEADER</div><main class="shell"><div id="list">
+      </style><div class="header">STATIC HEADER</div><main class="shell"><section class="panel"><div class="panel-title">ROUNDED PANEL</div><div id="list">
         ${Array.from({ length: 12 }, (_, i) => `<div class="row">ROW ${i}</div>`).join("")}
-      </div><p>STATIC FOOTER</p></main>`);
+      </div></section><p>STATIC FOOTER</p></main>`);
 
-      // Pin the real ownership distinction which exposed DM-2703: this is a
-      // fixed-position element viewport inside a larger captured body.
+      // Pin the real ownership distinction which exposed DM-2703: this is an
+      // element viewport at a stable page position inside a larger body capture.
       expect(await page.locator("#list").evaluate((element) => {
         const style = getComputedStyle(element);
         const rect = element.getBoundingClientRect();
@@ -91,7 +93,7 @@ describeBrowser("inner live-scroll capture", () => {
           rect: [rect.x, rect.y, rect.width, rect.height],
           overflow: [style.overflowX, style.overflowY],
         };
-      })).toEqual({ rect: [20, 80, 268, 128], overflow: ["auto", "auto"] });
+      })).toEqual({ rect: [24, 114, 260, 120], overflow: ["auto", "auto"] });
 
       const segments = await executeScrollPattern(page, parseScrollPattern("down:80px/400ms"), {
         selector: "#list",
@@ -103,7 +105,8 @@ describeBrowser("inner live-scroll capture", () => {
       });
       const svg = composeScrollSvg(segments, { viewportW: 360, viewportH: 260 });
       expect(svg).toContain('data-scroll-static-context="true"');
-      expect(svg).toMatch(/<clipPath id="scrl-[^"]+-owner-clip"><rect x="20" y="80" width="268" height="128"/);
+      expect(svg).toMatch(/owner-clip-0"><rect x="24" y="84" width="260" height="150" rx="16"/);
+      expect(svg).toMatch(/owner-clip-1"><rect x="24" y="114" width="260" height="120" rx="0"/);
       expect(svg).toContain("STATIC HEADER");
       expect(svg).toContain("STATIC FOOTER");
       expectEveryEmbeddedTextGlyphCovered(svg);
@@ -127,6 +130,9 @@ describeBrowser("inner live-scroll capture", () => {
       expect((await at(0, { x: 200, y: 10, width: 20, height: 20 })).equals(
         await at(399, { x: 200, y: 10, width: 20, height: 20 }),
       )).toBe(true);
+      const roundedCorner = await sharp(await at(399, { x: 27, y: 231, width: 1, height: 1 }))
+        .removeAlpha().raw().toBuffer();
+      expect([...roundedCorner]).toEqual([229, 72, 77]);
     } finally {
       await renderPage.close();
       await page.close();
