@@ -23,6 +23,11 @@ Focused local validation after the change
 - 2 files passed, 8 tests passed.
 - 26 recorded comparisons: strict total max 1826, strict component max 166, primary region count 0.
 
+Final hosted validation after the change
+- Workflow run 34075710413 passed every job, including visual-macos and the complete browser E2E suite.
+- The uploaded metric stream contains all 68 compressor comparisons.
+- Hosted maxima: strict total 1826, strict component 166, primary-region rows 0.
+
 Negative control and selected bounds
 - Deliberately broken z-order discriminator: one 3712-pixel component.
 - Selected component cap: 256 (above observed clean 171; below broken 3712).
