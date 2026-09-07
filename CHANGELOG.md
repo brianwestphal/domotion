@@ -2,6 +2,31 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.27.2] - 2026-09-07
+
+
+**🚀 Features**
+
+(Domotion Studio is a very early preview concept and isn't really ready for normal use yet)
+
+- **Domotion Studio**: a new `domotion-studio` CLI (also `domotion studio [project.json]`) opens a local visual workspace for authoring animated demos. `--workspace <dir>` scopes the directory its file browser may access.
+- **Versioned Studio project format**: projects are durable `domotion-studio-project` JSON files with a published JSON Schema (`schemas/domotion-studio-project.schema.json`). Existing storyboard configs can be imported, and static scenes and nested layer compositions compile through the current storyboard and composite pipelines.
+- **Semantic interaction tracks**: describe clicks, hovers, typing, scrolling, and drags by target role and accessible name instead of selectors; Studio compiles them to capture actions, plans natural cursor choreography for the cursor overlay, and observes hover/mutation evidence for each step.
+- **Interactive scene compilation with AI healing**: interactive segments capture the live page while replaying semantic tracks, and a healing loop re-inspects the page and repairs broken targets across revisions.
+- **Structured AI video review and unified annotations**: render a project to video, collect per-dimension review findings, and store human and AI annotations (including imported `svg-review` regions and `svg-scrubber` review notes) in one annotation model with revision history.
+- **Cinematic treatment library**: reusable presets (device chrome, masks, overlays, transitions, brand-aware layers) applied to scenes at compile time.
+- **Embedded SVG Scrubber preview and multitrack timeline**: Studio embeds the scrubber via a postMessage protocol that preserves playhead, range, zoom, pan, and speed across regenerations, and adds a detailed timeline for moving and resizing scene, action, cursor, overlay, transition, treatment, annotation, and animation items.
+- **Real interaction recording import**: record a real browser session and import it as semantic Studio tracks, with typed secret values redacted before persistence.
+- **Agent tool protocol**: a versioned, schema-described request/response interface for AI agents to author scenes, tracks, and annotations and trigger generation.
+- **Storyboard scene trimming**: scenes accept `trimStart` / `trimEnd` (ms) so an embedded animated SVG starts at a source-local offset while keeping the browser's native interpolation.
+- **New public exports**: the Studio API (project, compile, interactions, healing, review, treatments, timeline, agent tools) and the scrubber embed protocol are exported from the package index; `compositeLayerAnimationSchema` and `storyboardCaptureSourceSchema` are now exported for reuse.
+
+**🐛 Fixes**
+
+- **Scroll frames following a capture frame no longer corrupt earlier text**: the nested scroll document keeps the outer animation's glyph and font generation, is namespaced as a whole, and its glyph definitions are emitted once at the document root, so the leading capture frame stays pixel-identical.
+- **Re-nesting an already-composed animated SVG** now prefixes the existing embedded-font family name as one identifier (for example `sb0_dmf0` → `outer_sb0_dmf0`) instead of splitting it, preventing text in other frames from reshaping with the wrong font.
+- **Scroll composer emits each shared glyph definition once** across multiple segments rather than duplicating it per segment.
+
 ## [0.27.1] - 2026-09-05
 
 
