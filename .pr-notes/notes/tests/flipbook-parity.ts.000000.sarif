@@ -64,6 +64,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtqksb4yw1tgwbfc",
+          "message": {
+            "text": "Failed parity assertions expose primary-region geometry as well as strict aggregates. This lets a CI-only raster change be distinguished from a dense compositor break before any gate is recalibrated.",
+            "markdown": "Failed parity assertions expose primary-region geometry as well as strict aggregates. This lets a CI-only raster change be distinguished from a dense compositor break before any gate is recalibrated."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/flipbook-parity.ts"
+                },
+                "region": {
+                  "startLine": 113,
+                  "endLine": 117,
+                  "snippet": {
+                    "text": "  const detail = `strict ${cmp.strictRegionCount} region(s), ${cmp.strictRegionArea} px total, `\n    + `${cmp.strictMaxRegionArea} px largest (regions ${cmp.regionCount}, nonAa ${cmp.nonAaPixels}, `\n    + `primaryArea ${cmp.totalChangedArea}, primaryMaxSeverity ${cmp.maxRegionSeverity.toFixed(1)}%, `\n    + `shifted ${cmp.shiftedPixels}, verdict ${cmp.verdict}, `\n    + `primaryRegions ${JSON.stringify(cmp.regions)})`;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/ci.yml"
+                },
+                "region": {
+                  "startLine": 184
+                }
+              }
+            }
+          ],
+          "rank": 85,
+          "workItemUris": [
+            "DM-2700"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "e113a5a883f01d05526c3a5010b19052"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "93b0acf11a78fc48258fa181eb3c18f872f05f02",
+          "branch": "dm-2700-macos-parity"
+        }
+      ]
     }
   ]
 }

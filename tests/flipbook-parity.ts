@@ -112,7 +112,9 @@ export function expectFlipbookParity(cmp: CompareResult, label: string): void {
   recordMetrics(cmp, label);
   const detail = `strict ${cmp.strictRegionCount} region(s), ${cmp.strictRegionArea} px total, `
     + `${cmp.strictMaxRegionArea} px largest (regions ${cmp.regionCount}, nonAa ${cmp.nonAaPixels}, `
-    + `shifted ${cmp.shiftedPixels}, verdict ${cmp.verdict})`;
+    + `primaryArea ${cmp.totalChangedArea}, primaryMaxSeverity ${cmp.maxRegionSeverity.toFixed(1)}%, `
+    + `shifted ${cmp.shiftedPixels}, verdict ${cmp.verdict}, `
+    + `primaryRegions ${JSON.stringify(cmp.regions)})`;
   expect(cmp.regionCount, `${label}: ${detail}`).toBe(0);
   // A single block-sized component that the default gate suppressed: content
   // moved, or two elements swapped paint order.
