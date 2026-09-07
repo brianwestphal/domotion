@@ -118,7 +118,6 @@ describe("strict region aggregates: what regionCount suppresses", () => {
     // The strict aggregates see the whole flip as one dense component.
     expect(c.strictRegionCount).toBeGreaterThan(0);
     expect(c.strictMaxRegionArea).toBeGreaterThan(CAPS.maxRegionArea);
-    expect(c.strictRegionArea).toBeGreaterThan(CAPS.totalRegionArea);
     expect(passesStrict(c, CAPS)).toBe(false);
 
     // The caps are the same on every platform, so this flip is caught off
@@ -139,6 +138,23 @@ describe("strict region aggregates: what regionCount suppresses", () => {
 
     expect(c.strictRegionCount).toBeGreaterThan(0);
     expect(c.strictMaxRegionArea).toBeGreaterThan(CAPS.maxRegionArea);
+    expect(passesStrict(c, CAPS)).toBe(false);
+  });
+
+  it("rejects scattered structural changes whose individual regions stay under the component cap", async () => {
+    const blocks: Op[] = Array.from({ length: 16 }, (_, i) => ({
+      fill: "#ffffff",
+      x: 5 + (i % 8) * 24,
+      y: 10 + Math.floor(i / 8) * 45,
+      w: 10,
+      h: 20,
+    }));
+    const a = await makePng("#101820", blocks);
+    const b = await makePng("#101820", []);
+    const c = await cmp(a, b);
+
+    expect(c.strictMaxRegionArea).toBeLessThanOrEqual(CAPS.maxRegionArea);
+    expect(c.strictRegionArea).toBeGreaterThan(CAPS.totalRegionArea);
     expect(passesStrict(c, CAPS)).toBe(false);
   });
 

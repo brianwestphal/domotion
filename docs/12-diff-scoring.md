@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-1783","DM-1784","DM-262","DM-281","DM-379","DM-383","DM-715","DM-884"]
+tickets: ["DM-1783","DM-1784","DM-262","DM-2700","DM-281","DM-379","DM-383","DM-715","DM-884"]
 code: ["src/review/compare-pngs.test.ts","src/review/compare-pngs.ts","tests/fixture-fonts.ts","tests/flipbook-parity.ts","tests/html-test-suite.tsx","tests/real-world.tsx","tests/runner.tsx"]
 aliases: ["docs/12-diff-scoring.md","doc-12"]
 ---
@@ -101,33 +101,35 @@ the primary numbers:
 | `strictRegionArea` | their total diff-pixel area. Exactly `totalChangedArea + shiftyRegionArea`. |
 | `strictMaxRegionArea` | area of the largest single one (0 when there are none). |
 
-`passesStrict(cmp, caps?)` is `passes(cmp)` plus `strictMaxRegionArea <=
-caps.maxRegionArea` and `strictRegionArea <= caps.totalRegionArea`. It is a
-**bounded** bar, not a zero bar. `caps` defaults to the host's, via
+`passesStrict(cmp, caps?)` requires `strictMaxRegionArea <= caps.maxRegionArea`
+and `strictRegionArea <= caps.totalRegionArea`. It deliberately does not also
+require `passes(cmp)`: the strict aggregates already include both the primary
+and suppressed region buckets, while which bucket owns a sparse glyph-edge
+component can change with host rasterization. Passing `null` explicitly retains
+the old opt-out behavior and delegates to `passes(cmp)`. It is a **bounded** bar,
+not a zero bar. `caps` defaults to the host's, via
 `strictCapsFor(process.platform)`, which returns `{ maxRegionArea: 256,
-totalRegionArea: 512 }` on **every** platform — sized from measurement rather
+totalRegionArea: 3072 }` on **every** platform — sized from measurement rather
 than taste:
 
 - **Clean ceiling.** Across the compressor e2e suite's parity checks on a
-  correct build: 71 px largest single strict region and 206 px total on macOS,
-  a flat **0 px** on Linux, and **58 px largest / 93 px total** on Windows
-  (`windows-latest`, win32, 68 checks — measured directly, not inferred). The
-  macOS residual is sparse glyph-edge drift on one text-heavy fixture (max
-  per-pixel severity 34.5%, zero high-severity pixels, ~5–11% fill density
-  inside each bounding box), confined to the states whose insertion lands off
-  the pixel grid; every other fixture scores 0. Windows lands inside the macOS
-  ceiling because the fixtures launch with `--disable-lcd-text`, the same
-  subpixel-text mechanism ClearType would otherwise trip.
+  correct build, the previous measured ceilings were 1636 px total / 94 px
+  largest on macOS, 2065 px / 135 px on pinned Linux x64, and 93 px / 58 px on
+  Windows. GitHub's move from macOS 26.5.2 / runner image 20260728.0273.1 to
+  macOS 26.6.2 / 20260831.0337.3 moved one correct text-heavy state to 2835 px
+  total / 171 px largest. Five of its 52 sparse glyph-edge components also
+  crossed layer 4's 15% high-severity-fraction classification, demonstrating
+  why the strict bar must consume the severity-inclusive aggregates rather than
+  separately require `regionCount === 0`.
 - **Known break.** The z-order flip above is a single *dense* component —
   measured at 3712 px on macOS, 3718 px in the Linux container, and 3712 px on
   Windows, with `regionCount === 0` on all three, so the caps are the only thing
   that catches it.
 
-So the caps sit ~3.6x above the clean ceiling and ~7–14x below the known break.
-`strictMaxRegionArea` is the sharper of the two — glyph drift splits into many
-small edge-following components while a moved element produces one component the
-size of the element — and the total is the backstop for a bug that scatters
-mid-sized components instead of making one big one.
+The 256 px single-component cap remains the primary separator: it is above the
+171 px clean ceiling and far below the 3712 px known break. The 3072 px total cap
+is the backstop for a bug that scatters mid-sized components instead of making
+one big one, while retaining measured headroom above the 2835 px runner floor.
 
 ### One cap set for every platform — and what the fixtures owe it
 

@@ -786,10 +786,11 @@ export function passes(cmp: CompareResult): boolean {
  *  3712 px with `regionCount === 0`, including a component larger than the
  *  unchanged 256 px single-region cap. The same Chromium build's pinned Linux
  *  x64 run measures 2065 px total in the two-pane fixture (48 sparse regions,
- *  135 px largest, zero high-severity regions). The 2304 aggregate cap admits
- *  both measured scattered text-edge floors while remaining below the known
- *  structural break; the independent 256 px component cap still rejects that
- *  break by itself.
+ *  135 px largest, zero high-severity regions). GitHub's macOS 26.6.2 runner
+ *  image moved the clean ceiling to 2835 px total / 171 px largest, with five
+ *  edge components crossing the default high-severity classification. The 3072
+ *  aggregate cap admits those measured scattered text-edge floors while the
+ *  independent 256 px component cap still rejects the known structural break.
  *
  *  Unlike the visual gate's per-platform hinting floor ("Per-platform coverage
  *  floor" in docs/12-diff-scoring.md), this bar needs no per-platform relief:
@@ -800,15 +801,17 @@ export interface StrictCaps {
   totalRegionArea: number;
 }
 export function strictCapsFor(_platform: NodeJS.Platform | string): StrictCaps {
-  return { maxRegionArea: 256, totalRegionArea: 2304 };
+  return { maxRegionArea: 256, totalRegionArea: 3072 };
 }
 /** The host's caps. Never null: the bar is calibrated on every platform. */
 export const STRICT_CAPS = strictCapsFor(process.platform);
 
-/** The no-motion pass criterion: `passes()` PLUS "nothing block-sized moved or
- *  swapped paint order". Lifts the high-severity-fraction gate that keeps
- *  low-severity components out of `regionCount`, then bounds what is left by
- *  area (see `strictCapsFor` for the measured sizing).
+/** The no-motion pass criterion: "nothing block-sized moved or swapped paint
+ *  order". Lifts the high-severity-fraction gate that splits components between
+ *  `regionCount` and `shiftyRegionCount`, then bounds ALL of them by area (see
+ *  `strictCapsFor` for the measured sizing). Requiring `passes()` as well would
+ *  put that raster-sensitive severity split back into the strict gate even
+ *  though the strict aggregates already contain both buckets.
  *
  *  Use this ONLY where both images are known to depict the same content at the
  *  same positions — e.g. the frame-sequence compressor's flipbook-parity
@@ -822,8 +825,7 @@ export const STRICT_CAPS = strictCapsFor(process.platform);
  *  Pass an explicit set to score a result against different numbers; passing
  *  `null` deliberately degrades the bar to plain `passes()`. */
 export function passesStrict(cmp: CompareResult, caps: StrictCaps | null = STRICT_CAPS): boolean {
-  if (!passes(cmp)) return false;
-  if (caps == null) return true;
+  if (caps == null) return passes(cmp);
   return cmp.strictMaxRegionArea <= caps.maxRegionArea
     && cmp.strictRegionArea <= caps.totalRegionArea;
 }

@@ -180,6 +180,10 @@ jobs:
         # never once run because the step above it was permanently red, and its
         # 13 failures read as green-by-absence.
         if: always()
+        env:
+          # Preserve every compressor comparison, including passing states, so
+          # runner-image recalibration is based on the whole measured corpus.
+          FLIPBOOK_METRICS: tests/output/flipbook-parity-metrics.jsonl
         run: npm run test:e2e
       - name: Upload visual and browser-E2E results
         if: always()
@@ -189,6 +193,7 @@ jobs:
           path: |
             tests/output/features-results.json
             tests/output/run-env.json
+            tests/output/flipbook-parity-metrics.jsonl
             tests/output/compressed-run-e2e/
             tests/output/region-timing-e2e/
             tests/output/two-pane-regions-e2e/

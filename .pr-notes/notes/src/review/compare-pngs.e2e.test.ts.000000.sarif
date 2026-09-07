@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtqltty8468p8c0i",
+          "message": {
+            "text": "Both structural bounds have independent browser-level negative controls. A single moved or reordered block exceeds the 256-pixel component cap, while sixteen separated 200-pixel blocks stay below that cap individually and exceed the 3,072-pixel aggregate cap; both remain rejected after removing the raster-sensitive regionCount veto.",
+            "markdown": "Both structural bounds have independent browser-level negative controls. A single moved or reordered block exceeds the 256-pixel component cap, while sixteen separated 200-pixel blocks stay below that cap individually and exceed the 3,072-pixel aggregate cap; both remain rejected after removing the raster-sensitive regionCount veto."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/review/compare-pngs.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 118,
+                  "endLine": 158,
+                  "snippet": {
+                    "text": "    // The strict aggregates see the whole flip as one dense component.\n    expect(c.strictRegionCount).toBeGreaterThan(0);\n    expect(c.strictMaxRegionArea).toBeGreaterThan(CAPS.maxRegionArea);\n    expect(passesStrict(c, CAPS)).toBe(false);\n\n    // The caps are the same on every platform, so this flip is caught off\n    // macOS too — the hole that made the bar darwin-only.\n    expect(passesStrict(c, strictCapsFor(\"linux\"))).toBe(false);\n    expect(passesStrict(c, strictCapsFor(\"win32\"))).toBe(false);\n    // ...while explicitly opting out of caps still degrades to the default gate\n    // rather than inventing a threshold. Pinned so that stays visible.\n    expect(passesStrict(c, null)).toBe(true);\n  });\n\n  it(\"a pure translation beyond the shift-match radius is counted\", async () => {\n    // Same block, moved 12 px right — well past SHIFT_MATCH_RADIUS (2), so the\n    // per-pixel shift pre-filter cannot absorb it.\n    const a = await makePng(\"#101820\", [{ fill: GREEN, x: 20, y: 30, w: 100, h: 40 }]);\n    const b = await makePng(\"#101820\", [{ fill: GREEN, x: 32, y: 30, w: 100, h: 40 }]);\n    const c = await cmp(a, b);\n\n    expect(c.strictRegionCount).toBeGreaterThan(0);\n    expect(c.strictMaxRegionArea).toBeGreaterThan(CAPS.maxRegionArea);\n    expect(passesStrict(c, CAPS)).toBe(false);\n  });\n\n  it(\"rejects scattered structural changes whose individual regions stay under the component cap\", async () => {\n    const blocks: Op[] = Array.from({ length: 16 }, (_, i) => ({\n      fill: \"#ffffff\",\n      x: 5 + (i % 8) * 24,\n      y: 10 + Math.floor(i / 8) * 45,\n      w: 10,\n      h: 20,\n    }));\n    const a = await makePng(\"#101820\", blocks);\n    const b = await makePng(\"#101820\", []);\n    const c = await cmp(a, b);\n\n    expect(c.strictMaxRegionArea).toBeLessThanOrEqual(CAPS.maxRegionArea);\n    expect(c.strictRegionArea).toBeGreaterThan(CAPS.totalRegionArea);\n    expect(passesStrict(c, CAPS)).toBe(false);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "proof"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/review/compare-pngs.ts"
+                },
+                "region": {
+                  "startLine": 827
+                }
+              }
+            }
+          ],
+          "rank": 92,
+          "workItemUris": [
+            "DM-2700"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "75b320c4fec51f934dea9d2d759d693f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "b73172798e9b5d5ca15ae2ca55e023fda6e22d07",
+          "branch": "dm-2700-macos-parity"
+        }
+      ]
+    }
+  ]
+}

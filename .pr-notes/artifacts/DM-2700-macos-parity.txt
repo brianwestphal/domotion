@@ -1,0 +1,30 @@
+DM-2700 macOS compressor-parity calibration evidence
+
+Source revisions consulted
+- Chromium 7d859f271c (2026-06-27)
+- Skia ebf5052 (2026-07-31)
+- HarfBuzz 4de187dd0 (2026-07-31)
+
+Runner transition
+- Last passing pre-transition job 100883480839: macOS 26.5.2 (25F84), image 20260728.0273.1
+- Failing jobs below: macOS 26.6.2 (25G83), image 20260831.0337.3
+
+Repeated failing fingerprints from job logs
+- Run 34068726827, region timing state 1: strict total 2835, max 171, primary regions 5, non-AA 2944, shifted 17724
+- Run 34067943335, region timing state 2: strict total 2741, max 171, primary regions 5, non-AA 2840, shifted 17150
+- Run 34067682785, discriminator state 3: strict total 2780, max 171, primary regions 5, non-AA 2872, shifted 17223
+
+Same-image passing sample
+- Diagnostic run 34073902682 passed on macOS 26.6.2 / image 20260831.0337.3.
+- Reanalysis of all 48 uploaded expected/actual pairs: strict total max 1826, strict component max 166, primary region count 0.
+- The hosted passing PNGs reproduce the local metrics exactly.
+
+Focused local validation after the change
+- 2 files passed, 8 tests passed.
+- 26 recorded comparisons: strict total max 1826, strict component max 166, primary region count 0.
+
+Negative control and selected bounds
+- Deliberately broken z-order discriminator: one 3712-pixel component.
+- Selected component cap: 256 (above observed clean 171; below broken 3712).
+- Selected total cap: 3072 (above observed clean 2835; below broken 3712).
+- The strict aggregates include both primary and severity-suppressed regions, so separately requiring regionCount == 0 only reintroduces the raster-sensitive severity classification.

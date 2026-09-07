@@ -120,9 +120,15 @@ describe("passesStrict(): the no-motion bar (doc 12)", () => {
     strictRegionCount: 1, strictRegionArea: 3712, strictMaxRegionArea: 3712,
   };
 
-  it("agrees with passes() when nothing was suppressed", () => {
+  it("uses severity-inclusive bounds instead of the raster-sensitive default bucket", () => {
     expect(passesStrict(clean, CAPS)).toBe(true);
-    expect(passesStrict({ ...clean, regionCount: 1 }, CAPS)).toBe(false); // still subsumes passes()
+    // A runner-image update moved five sparse glyph-edge components across the
+    // default gate's high-severity fraction. They remain below both structural
+    // caps, so their bucket assignment must not decide strict parity.
+    expect(passesStrict({
+      ...clean, regionCount: 1,
+      strictRegionCount: 1, strictRegionArea: 171, strictMaxRegionArea: 171,
+    }, CAPS)).toBe(true);
   });
 
   it("fails the case the default gate calls clean: one block-sized suppressed region", () => {
@@ -204,10 +210,11 @@ describe("pipeline constants are sane (doc 12)", () => {
     // Chromium 147 clean macOS ceiling: 94 px largest / 1636 px total.
     // Known structural break: 3712 px.
     expect(CAPS.maxRegionArea).toBe(256);
-    expect(CAPS.totalRegionArea).toBe(2304);
+    expect(CAPS.totalRegionArea).toBe(3072);
     expect(CAPS.maxRegionArea).toBeGreaterThan(94 * 2);
     expect(CAPS.totalRegionArea).toBeGreaterThan(1636);
     expect(CAPS.totalRegionArea).toBeGreaterThan(2065);
+    expect(CAPS.totalRegionArea).toBeGreaterThan(2835);
     expect(CAPS.maxRegionArea).toBeLessThan(3712 / 4);
     expect(CAPS.totalRegionArea).toBeLessThan(3712);
   });

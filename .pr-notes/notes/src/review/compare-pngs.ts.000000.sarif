@@ -337,6 +337,105 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtqlreors00k7ukw",
+          "message": {
+            "text": "Strict parity now gates the severity-inclusive component bounds, so an operating-system raster change cannot fail merely by moving sparse edges between the primary and suppressed buckets. The independent 256-pixel component bound still rejects the 3,712-pixel paint-order discriminator. Chromium 7d859f271c defines disable-lcd-text in content/public/common/contentswitches.cc, and Skia ebf5052 delegates macOS glyph-mask generation through CoreGraphics in src/ports/SkScalerContextmac_ct.cpp; that source boundary is why host raster classification is evidence, not semantic truth.",
+            "markdown": "Strict parity now gates the severity-inclusive component bounds, so an operating-system raster change cannot fail merely by moving sparse edges between the primary and suppressed buckets. The independent 256-pixel component bound still rejects the 3,712-pixel paint-order discriminator. Chromium 7d859f271c defines disable-lcd-text in content/public/common/content_switches.cc, and Skia ebf5052 delegates macOS glyph-mask generation through CoreGraphics in src/ports/SkScalerContext_mac_ct.cpp; that source boundary is why host raster classification is evidence, not semantic truth."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/review/compare-pngs.ts"
+                },
+                "region": {
+                  "startLine": 803,
+                  "endLine": 830,
+                  "snippet": {
+                    "text": "export function strictCapsFor(_platform: NodeJS.Platform | string): StrictCaps {\n  return { maxRegionArea: 256, totalRegionArea: 3072 };\n}\n/** The host's caps. Never null: the bar is calibrated on every platform. */\nexport const STRICT_CAPS = strictCapsFor(process.platform);\n\n/** The no-motion pass criterion: \"nothing block-sized moved or swapped paint\n *  order\". Lifts the high-severity-fraction gate that splits components between\n *  `regionCount` and `shiftyRegionCount`, then bounds ALL of them by area (see\n *  `strictCapsFor` for the measured sizing). Requiring `passes()` as well would\n *  put that raster-sensitive severity split back into the strict gate even\n *  though the strict aggregates already contain both buckets.\n *\n *  Use this ONLY where both images are known to depict the same content at the\n *  same positions — e.g. the frame-sequence compressor's flipbook-parity\n *  checks, where both PNGs come out of our own renderer and layout snaps at\n *  state boundaries. The fidelity sweeps must keep using `passes()`: there the\n *  two images come from different rasterizers, low-severity suppression is what\n *  keeps every paragraph of text from reading as structural change, and these\n *  caps would fail essentially every text-bearing fixture.\n *\n *  `caps` defaults to the host's, which are now the same on every platform.\n *  Pass an explicit set to score a result against different numbers; passing\n *  `null` deliberately degrades the bar to plain `passes()`. */\nexport function passesStrict(cmp: CompareResult, caps: StrictCaps | null = STRICT_CAPS): boolean {\n  if (caps == null) return passes(cmp);\n  return cmp.strictMaxRegionArea <= caps.maxRegionArea\n    && cmp.strictRegionArea <= caps.totalRegionArea;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.94
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/flipbook-parity.ts"
+                },
+                "region": {
+                  "startLine": 118
+                }
+              }
+            },
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/12-diff-scoring.md"
+                },
+                "region": {
+                  "startLine": 104
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2700"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ec494c6cb2acb8ba84d8e4f502ee82eb"
+          },
+          "attachments": [
+            {
+              "artifactLocation": {
+                "uri": ".pr-notes/artifacts/DM-2700-macos-parity.txt",
+                "properties": {
+                  "ext-sha256": "7f10ee61a63824fbac43809f78af01bf506664eefe5a5c03fc48e72bdb1ec405"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "b73172798e9b5d5ca15ae2ca55e023fda6e22d07",
+          "branch": "dm-2700-macos-parity"
+        }
+      ]
     }
   ]
 }
