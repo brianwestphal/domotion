@@ -79,6 +79,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtqn3mkrx0k1kz5r",
+          "message": {
+            "text": "Use the executor's final segment end as the embedded period because composeScrollSvg derives the nested CSS loop from the same boundary. This keeps metadata and rendered timing identical while letting generateAnimatedSvg perform the established master-timeline re-anchoring.",
+            "markdown": "Use the executor's final segment end as the embedded period because composeScrollSvg derives the nested CSS loop from the same boundary. This keeps metadata and rendered timing identical while letting generateAnimatedSvg perform the established master-timeline re-anchoring."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/animate-orchestrator.ts"
+                },
+                "region": {
+                  "startLine": 1683,
+                  "endLine": 1687,
+                  "snippet": {
+                    "text": "    embeddedAnimationPeriodMs = Math.max(segments[segments.length - 1]?.segmentEndMs ?? 0, 1);\n    if (fc.duration < embeddedAnimationPeriodMs) {\n      log(`  note: frame duration ${fc.duration}ms < scroll play time ${embeddedAnimationPeriodMs}ms — the scroll will be cut off; size duration to ≈ ${embeddedAnimationPeriodMs}ms`);\n    }\n    // The composer emits a full `<?xml ...><svg>...</svg>` document. The"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/scroll/composer.ts"
+                },
+                "region": {
+                  "startLine": 118
+                }
+              }
+            }
+          ],
+          "rank": 85,
+          "workItemUris": [
+            "DM-2701"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "4b41a52e19517c16dd913cc8e9c7a50b"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "0b6afcb1e6e7c192cc971f028dc673b38c9b47ff",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

@@ -5,8 +5,8 @@ kind: "reference"
 status: "current"
 owners: ["layout"]
 platforms: []
-tickets: ["DM-1076"]
-code: ["src/cli/animate.ts","src/cli/capture.ts","src/scroll/composer.ts","src/scroll/executor.ts","src/scroll/pattern.ts"]
+tickets: ["DM-1076","DM-2701"]
+code: ["src/cli/animate.ts","src/cli/animate-orchestrator.ts","src/cli/capture.ts","src/scroll/composer.ts","src/scroll/executor.ts","src/scroll/pattern.ts"]
 aliases: ["docs/37-scroll-pattern-grammar.md","doc-37"]
 ---
 
@@ -179,6 +179,14 @@ Cross-axis conflicts (e.g. `down:left + 200px` — vertical direction with horiz
   The executor re-captures the live DOM after every anchor, so virtualized lists
   whose rows are recycled on `scrollTop` changes are supported. See
   [doc 147](147-inner-live-scroll-capture.md) for the complete contract.
+
+- **Animate-frame timing.** A `scroll` frame is a nested animated SVG whose
+  local period ends at the executor's final segment. `domotion animate` records
+  that period and re-anchors the nested keyframes to the containing frame's
+  start on the master loop (DM-2701). Before that window the scroll holds its
+  first state; after its local period it holds its last state until the frame
+  ends. If the frame duration is shorter than the scroll period, the final part
+  is intentionally cut off and the CLI emits a sizing note.
 
 - **Frame-local ownership.** Every production segment seals the selected
   top-frame viewport/element owner and its raw `scrollLeft`/`scrollTop` against

@@ -1579,9 +1579,10 @@ async function buildCapturedFrame(
   // can diff it against the next frame's. `null` for scroll-block frames
   // (no single tree) — magic-move then falls back to crossfade.
   let frameTree: CapturedElement[] | null = null;
-  // DM-1556: a `typeResample` frame nests a per-keystroke animated SVG with its
-  // own internal timeline; set so the animator re-anchors it to this frame's
-  // master-loop offset (same as a `cast` / animated-`template` frame).
+  // Timed nested frames (`typeResample`, `jsReveal`, `states`, and `scroll`)
+  // carry their own animated SVG. Record its period so the animator re-anchors
+  // that document-global timeline to this frame's master-loop offset (the same
+  // contract used by a `cast` / animated-`template` frame).
   let embeddedAnimationPeriodMs: number | undefined;
   // DM-1767 (docs/104): overlays a `states` run's individual states carried,
   // already anchor-resolved per state and re-based onto this frame's timeline.
@@ -1643,9 +1644,8 @@ async function buildCapturedFrame(
     // page, cull each segment's tree (DM-603), compose into one
     // animated SVG, and use as this frame's svgContent. The composed
     // SVG carries its own internal keyframes loop (animation-duration =
-    // pattern's total scroll time) — caller is expected to size the
-    // frame's `duration` to match so the outer scene cycle aligns with
-    // the inner scroll loop.
+    // pattern's total scroll time). Record that period below so the animator
+    // re-anchors the nested loop to this frame's master-timeline window.
     log(`  scroll pattern: ${fc.scroll.pattern}`);
     const scrollPattern = parseScrollPattern(fc.scroll.pattern);
     const scrollClip = fc.scroll.clip ?? [0, 0, cfg.width, cfg.height];
@@ -1680,6 +1680,10 @@ async function buildCapturedFrame(
       restoreGeneration(outerGeneration);
     }
     composed = namespaceEmbeddedAnimatedSvg(composed, `sf${i}_`);
+    embeddedAnimationPeriodMs = Math.max(segments[segments.length - 1]?.segmentEndMs ?? 0, 1);
+    if (fc.duration < embeddedAnimationPeriodMs) {
+      log(`  note: frame duration ${fc.duration}ms < scroll play time ${embeddedAnimationPeriodMs}ms — the scroll will be cut off; size duration to ≈ ${embeddedAnimationPeriodMs}ms`);
+    }
     // The composer emits a full `<?xml ...><svg>...</svg>` document. The
     // outer animator wraps `svgContent` in a `<g class="f f-N">`, which
     // happily contains a nested `<svg>` element — strip just the XML

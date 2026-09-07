@@ -309,7 +309,7 @@ describeBrowser("composeAnimateFrames (DM-1137)", () => {
         height: 200,
         frames: [first],
       }), dir, () => {});
-      const mixed = await composeAnimateConfig(browser, validateAnimateConfig({
+      const mixedFrames = await composeAnimateFrames(browser, validateAnimateConfig({
         width: 320,
         height: 200,
         frames: [
@@ -323,6 +323,8 @@ describeBrowser("composeAnimateFrames (DM-1137)", () => {
           },
         ],
       }), dir, () => {});
+      expect(mixedFrames.frames[1].embeddedAnimationPeriodMs).toBe(300);
+      const mixed = generateAnimatedSvg(mixedFrames);
 
       const renderAtStart = async (svg: string): Promise<Buffer> => {
         const page = await browser.newPage({ viewport: { width: 320, height: 200 } });
@@ -342,6 +344,10 @@ describeBrowser("composeAnimateFrames (DM-1137)", () => {
       };
 
       expect(mixed).toContain("sf1_");
+      // The nested scroll rule uses the 1.1 s MASTER duration, rather than its
+      // original 0.3 s document-origin loop. Its keyframes are therefore
+      // re-anchored to the second frame's [500, 800] ms window.
+      expect(mixed).toMatch(/\.sf1_sf1_(scrl-[\w-]+) \{ animation:sf1_\1 1\.1s linear infinite/);
       const ids = [...mixed.matchAll(/\sid="([^"]+)"/g)].map((match) => match[1]);
       expect(new Set(ids).size).toBe(ids.length);
       expect((await renderAtStart(mixed)).equals(await renderAtStart(baseline))).toBe(true);

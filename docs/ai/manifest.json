@@ -703,6 +703,7 @@
       "platforms": [],
       "code": [
         "src/cli/animate.ts",
+        "src/cli/animate-orchestrator.ts",
         "src/cli/capture.ts",
         "src/scroll/composer.ts",
         "src/scroll/executor.ts",

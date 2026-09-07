@@ -521,6 +521,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtqn3ms5v64jnjes",
+          "message": {
+            "text": "This browser regression proves both halves of the contract: the scroll frame reports a 300 ms local period, and its nested animation is rewritten onto the 1.1 s master cycle at the second frame's offset. The pre-existing screenshot assertion also guards the preceding capture from scroll-composition side effects.",
+            "markdown": "This browser regression proves both halves of the contract: the scroll frame reports a 300 ms local period, and its nested animation is rewritten onto the 1.1 s master cycle at the second frame's offset. The pre-existing screenshot assertion also guards the preceding capture from scroll-composition side effects."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/compose-animate-frames.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 326,
+                  "endLine": 350,
+                  "snippet": {
+                    "text": "      expect(mixedFrames.frames[1].embeddedAnimationPeriodMs).toBe(300);\n      const mixed = generateAnimatedSvg(mixedFrames);\n\n      const renderAtStart = async (svg: string): Promise<Buffer> => {\n        const page = await browser.newPage({ viewport: { width: 320, height: 200 } });\n        try {\n          await page.setContent(svg);\n          await page.evaluate(async () => {\n            await document.fonts.ready;\n            for (const animation of document.getAnimations()) {\n              animation.pause();\n              animation.currentTime = 0;\n            }\n          });\n          return await page.screenshot();\n        } finally {\n          await page.close();\n        }\n      };\n\n      expect(mixed).toContain(\"sf1_\");\n      // The nested scroll rule uses the 1.1 s MASTER duration, rather than its\n      // original 0.3 s document-origin loop. Its keyframes are therefore\n      // re-anchored to the second frame's [500, 800] ms window.\n      expect(mixed).toMatch(/\\.sf1_sf1_(scrl-[\\w-]+) \\{ animation:sf1_\\1 1\\.1s linear infinite/);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/animate-orchestrator.ts"
+                },
+                "region": {
+                  "startLine": 1683
+                }
+              }
+            }
+          ],
+          "rank": 90,
+          "workItemUris": [
+            "DM-2701"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "dec354d66df5a936fb7e316d4024f430"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "0b6afcb1e6e7c192cc971f028dc673b38c9b47ff",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
