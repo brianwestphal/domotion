@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["layout"]
 platforms: []
-tickets: ["DM-2703","DM-2705"]
+tickets: ["DM-2703","DM-2705","DM-2707"]
 code: ["src/scroll/composer.ts","src/scroll/executor.ts"]
 aliases: ["docs/147-inner-live-scroll-capture.md","doc-147"]
 ---
@@ -71,6 +71,15 @@ is emitted, so its subset glyphs remain available alongside glyphs from every
 moving capture (DM-2703, DM-2704).
 Setting the capture selector to the scroller itself intentionally retains the
 list-only strip behavior shown above.
+
+Static context keeps its captured paint position on both sides of the moving
+owner. At every ancestor boundary on the owner path, siblings that paint before
+the owner branch remain in the static underlay, while siblings that paint after
+it are emitted once as static foreground layers above the moving captures.
+Each foreground layer retains the overflow clips shared with its owner branch,
+but never inherits the owner's own scrollport clip. A positioned, higher
+`z-index` card can therefore overlap an inner feed and remain stationary and
+fully above every row throughout playback.
 
 The capture is live by construction: the executor performs an instant scroll,
 waits for layout/paint to settle, then invokes the normal DOM capture pipeline.

@@ -24,8 +24,8 @@ aliases: ["docs/handbook/layout-and-fragmentation.md"]
    keeps source fragment order and physical placement. No fragment may be
    synthesized from a union box when Chromium exposes distinct fragments.
 4. Scroll capture composes authenticated chunks, sticky ownership, and nested
-   scrolling without duplicating fixed/sticky paint or leaking outside the
-   output viewBox.
+   scrolling without duplicating fixed/sticky paint, flattening static
+   foreground stacking, or leaking outside the output viewBox.
 
 ## Verified implementation map
 

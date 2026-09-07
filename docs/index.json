@@ -4936,7 +4936,8 @@
         "platforms": [],
         "tickets": [
           "DM-2703",
-          "DM-2705"
+          "DM-2705",
+          "DM-2707"
         ],
         "code": [
           "src/scroll/composer.ts",

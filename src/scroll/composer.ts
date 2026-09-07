@@ -47,6 +47,7 @@ import { hoistDuplicateImagePayloads } from "../post-processing/hoist-image-payl
 import { extractFixedSubtrees, dedupeFixedAcrossSegments } from "./hoist-fixed.js";
 import { extractStickyWindows, type StickyOverlay } from "./hoist-sticky.js";
 import { mapTreePruning } from "../tree-ops/prune-tree.js";
+import { sortChildrenByPaintOrder } from "../render/stacking.js";
 import type { Easing } from "./pattern.js";
 
 /**
@@ -183,6 +184,59 @@ function findCapturedScrollOwnerPath(
   return undefined;
 }
 
+export interface ElementScrollStaticLayers {
+  underlay: CapturedElement[];
+  foregroundLayers: Array<{
+    elements: CapturedElement[];
+    clips: ChildOverflowClipGeometry[];
+  }>;
+}
+
+/**
+ * Split the static context around an element scroll owner's paint slot at each
+ * ancestor level. Siblings which paint after the owner branch must remain
+ * stationary but render above its moving captures; leaving them in one
+ * wholesale underlay reverses CSS z-order wherever the two overlap.
+ */
+export function splitElementScrollStaticLayers(
+  tree: CapturedElement[],
+  ownerId: string,
+): ElementScrollStaticLayers | null {
+  const ownerPath = findCapturedScrollOwnerPath(tree, ownerId);
+  const owner = ownerPath?.at(-1);
+  if (ownerPath == null || owner == null || ownerPath.length < 2) return null;
+
+  const foregroundLayers: ElementScrollStaticLayers["foregroundLayers"] = [];
+  const foregroundSet = new Set<CapturedElement>();
+  for (let branchIndex = ownerPath.length - 1; branchIndex >= 1; branchIndex--) {
+    const parent = ownerPath[branchIndex - 1];
+    const branch = ownerPath[branchIndex];
+    const paintOrderedSiblings = sortChildrenByPaintOrder(
+      parent.children,
+      parent.styles.display,
+      parent.styles.flexDirection,
+    );
+    const branchPaintIndex = paintOrderedSiblings.indexOf(branch);
+    if (branchPaintIndex < 0) return null;
+    const elements = paintOrderedSiblings.slice(branchPaintIndex + 1);
+    if (elements.length === 0) continue;
+    for (const element of elements) foregroundSet.add(element);
+    foregroundLayers.push({
+      elements,
+      // A sibling shares the branch's clip ancestors but is not a descendant
+      // of the branch's own overflow clip.
+      clips: ownerPath.slice(0, branchIndex).map(
+        (element) => childOverflowClipGeometry(element),
+      ).filter((clip): clip is ChildOverflowClipGeometry => clip != null),
+    });
+  }
+  const underlay = mapTreePruning(
+    tree,
+    (element) => element === owner || foregroundSet.has(element),
+  );
+  return { underlay, foregroundLayers };
+}
+
 /**
  * An element scroll owner moves its own clipped contents, not the page around
  * it. Keep the first capture's surrounding page as a static underlay and feed
@@ -195,6 +249,7 @@ function isolateElementScrollOwner(
 ): {
   segments: ScrollSegmentCapture[];
   staticUnderlay: CapturedElement[];
+  staticForegroundLayers: ElementScrollStaticLayers["foregroundLayers"];
   ownerClips: ChildOverflowClipGeometry[];
 } | null {
   const first = segments[0];
@@ -207,10 +262,8 @@ function isolateElementScrollOwner(
   // the established list-strip contract; there is no surrounding page to pin.
   if (firstOwnerPath == null || firstOwner == null || first.tree.includes(firstOwner)) return null;
 
-  const staticUnderlay = mapTreePruning(
-    first.tree,
-    (element) => element.scrollbars?.owner?.ownerId === first.scrollOwnerId,
-  );
+  const staticLayers = splitElementScrollStaticLayers(first.tree, first.scrollOwnerId);
+  if (staticLayers == null) return null;
   const isolated = segments.map((segment, index): ScrollSegmentCapture => {
     if (segment.frameScrollState == null || segment.scrollOwnerId == null) {
       throw new Error(`composeScrollSvg: inner-scroll segment ${index} omitted its owner authority`);
@@ -232,7 +285,8 @@ function isolateElementScrollOwner(
   });
   return {
     segments: isolated,
-    staticUnderlay,
+    staticUnderlay: staticLayers.underlay,
+    staticForegroundLayers: staticLayers.foregroundLayers,
     ownerClips: firstOwnerPath.map((element) => childOverflowClipGeometry(element)).filter(
       (clip): clip is ChildOverflowClipGeometry => clip != null,
     ),
@@ -451,6 +505,7 @@ export function composeScrollSvg(
       composeScrollSvgBody(composedSegments, opts, {
         axis, W, VH, bg, paintBg, hiDPIFactor, chunkSize,
         staticUnderlay: elementScroll?.staticUnderlay,
+        staticForegroundLayers: elementScroll?.staticForegroundLayers,
         elementOwnerClips: elementScroll?.ownerClips,
       }),
     );
@@ -523,11 +578,13 @@ function composeScrollSvgBody(
     hiDPIFactor: number;
     chunkSize: number;
     staticUnderlay?: CapturedElement[];
+    staticForegroundLayers?: ElementScrollStaticLayers["foregroundLayers"];
     elementOwnerClips?: ChildOverflowClipGeometry[];
   },
 ): string {
   const {
-    axis, W, VH, bg, paintBg, hiDPIFactor, chunkSize, staticUnderlay, elementOwnerClips,
+    axis, W, VH, bg, paintBg, hiDPIFactor, chunkSize,
+    staticUnderlay, staticForegroundLayers, elementOwnerClips,
   } = ctx;
 
   // ── Total scene duration ──
@@ -731,6 +788,16 @@ function composeScrollSvgBody(
     : `\n    <g data-scroll-static-context="true"><svg x="0" y="0" width="${W}" height="${VH}" viewBox="0 0 ${W} ${VH}">` +
         elementTreeToSvgInner(staticUnderlay, W, VH, "static-", false, hiDPIFactor, false) +
       `</svg></g>`;
+  const staticForegroundMarkup = (staticForegroundLayers ?? []).map((layer, layerIndex) => {
+    const clipOpen = layer.clips.map((_clip, clipIndex) =>
+      `    <g clip-path="url(#${animClass}-foreground-${layerIndex}-clip-${clipIndex})">`,
+    ).join("\n");
+    const clipClose = layer.clips.map(() => "    </g>").join("\n");
+    const markup = `<g data-scroll-static-foreground="true"><svg x="0" y="0" width="${W}" height="${VH}" viewBox="0 0 ${W} ${VH}">` +
+      elementTreeToSvgInner(layer.elements, W, VH, `static-foreground-${layerIndex}-`, false, hiDPIFactor, false) +
+      `</svg></g>`;
+    return `${clipOpen === "" ? "" : clipOpen + "\n"}    ${markup}\n${clipClose}`;
+  }).join("\n");
 
   // DM-652: collect every `@font-face` rule the embedded-font path
   // registered during segment + overlay rendering above, into a single
@@ -755,6 +822,13 @@ function composeScrollSvgBody(
     `    <g clip-path="url(#${animClass}-owner-clip-${index})">`,
   ).join("\n");
   const ownerClipClose = (elementOwnerClips ?? []).map(() => "    </g>").join("\n");
+  const foregroundClipDefs = (staticForegroundLayers ?? []).flatMap((layer, layerIndex) =>
+    layer.clips.map((clip, clipIndex) =>
+      `    <clipPath id="${animClass}-foreground-${layerIndex}-clip-${clipIndex}">${roundedRectSvg(
+        clip.x, clip.y, clip.width, clip.height, clip.corners, "",
+      )}</clipPath>`,
+    ),
+  ).join("\n");
 
   // ── Compose final SVG ──
   // Share each raster payload across the segments that show it (the `<image>`
@@ -765,7 +839,7 @@ function composeScrollSvgBody(
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${VH}" width="${W}" height="${VH}"${a11y.roleAttr}>${a11y.markup}
   <defs>
     <clipPath id="${animClass}-clip"><rect width="${W}" height="${VH}"/></clipPath>
-${ownerClipDefs === "" ? "" : ownerClipDefs + "\n"}${glyphDefs !== "" ? `    ${glyphDefs}\n` : ""}    <style>
+${ownerClipDefs === "" ? "" : ownerClipDefs + "\n"}${foregroundClipDefs === "" ? "" : foregroundClipDefs + "\n"}${glyphDefs !== "" ? `    ${glyphDefs}\n` : ""}    <style>
 ${fontFaceCss !== "" ? fontFaceCss + "\n" : ""}      .${animClass} { animation: ${animClass} ${totalSec.toFixed(3)}s linear infinite; will-change: transform; }
       @keyframes ${animClass} {
 ${keyframes}
@@ -786,6 +860,7 @@ ${paintBg ? `        <rect width="${compositeW}" height="${compositeH}" fill="${
       </svg>
     </g>
 ${ownerClipClose === "" ? "" : ownerClipClose + "\n"}
+${staticForegroundMarkup === "" ? "" : staticForegroundMarkup + "\n"}
   </g>${overlayMarkup}
 </svg>`);
 }

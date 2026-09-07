@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { CapturedElement } from "../capture/types.js";
 import type { ScrollSegmentCapture } from "./executor.js";
-import { composeScrollSvg } from "./composer.js";
+import { composeScrollSvg, splitElementScrollStaticLayers } from "./composer.js";
 import type { Easing } from "./pattern.js";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -63,6 +63,53 @@ function makeSeg(scrollY: number, segStartMs: number, segEndMs: number, content?
     diffFromPrev: null,
   };
 }
+
+describe("splitElementScrollStaticLayers", () => {
+  it("keeps later-painted siblings above the owner across ancestor boundaries", () => {
+    const below = el({
+      tag: "div", x: 20, y: 20, text: "BELOW",
+      styles: { position: "absolute", zIndex: "-1" } as CapturedElement["styles"],
+    });
+    const foreground = el({
+      tag: "div", x: 80, y: 60, text: "FOREGROUND",
+      styles: { position: "absolute", zIndex: "20" } as CapturedElement["styles"],
+    });
+    const owner = el({
+      tag: "div", x: 20, y: 40, text: "OWNER",
+      styles: { overflowX: "auto", overflowY: "auto" } as CapturedElement["styles"],
+      scrollbars: { owner: { frameId: "frame-1", ownerId: "frame-1:3" } } as CapturedElement["scrollbars"],
+    });
+    const parent = el({
+      tag: "section", x: 10, y: 10, width: 240, height: 180,
+      children: [foreground, below, owner],
+      styles: {
+        position: "relative", zIndex: "1", overflowX: "hidden", overflowY: "hidden",
+      } as CapturedElement["styles"],
+    });
+    const outerForeground = el({
+      tag: "aside", x: 160, y: 70, text: "OUTER FOREGROUND",
+      styles: { position: "absolute", zIndex: "30" } as CapturedElement["styles"],
+    });
+    const tree = [el({
+      tag: "main", x: 0, y: 0, width: 320, height: 220,
+      children: [outerForeground, parent],
+      styles: { position: "relative", isolation: "isolate" } as CapturedElement["styles"],
+    })];
+
+    const layers = splitElementScrollStaticLayers(tree, "frame-1:3");
+
+    expect(layers).not.toBeNull();
+    expect(layers!.foregroundLayers.map((layer) => layer.elements)).toEqual([
+      [foreground],
+      [outerForeground],
+    ]);
+    expect(layers!.underlay[0].children[0].children).toEqual([below]);
+    expect(layers!.underlay[0].children).toHaveLength(1);
+    expect(layers!.foregroundLayers[0].clips).toHaveLength(1);
+    expect(layers!.foregroundLayers[0].clips[0]).toMatchObject({ x: 10, y: 10, width: 240, height: 180 });
+    expect(layers!.foregroundLayers[1].clips).toEqual([]);
+  });
+});
 
 // ── Basic shape ─────────────────────────────────────────────────────────────
 

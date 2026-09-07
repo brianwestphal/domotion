@@ -110,12 +110,13 @@ describeBrowser("inner live-scroll capture", () => {
     try {
       await page.setContent(`<!doctype html><style>
         body{margin:0;background:#eef2f8;font:16px sans-serif}.header{height:60px;background:#17324d;color:white}
-        .shell{padding:20px}.panel{box-sizing:border-box;width:268px;border:4px solid #e5484d;border-radius:20px;overflow:hidden}
+        .shell{padding:20px}.panel{box-sizing:border-box;position:relative;width:268px;border:4px solid #e5484d;border-radius:20px;overflow:hidden}
         .panel-title{height:30px;background:#17324d;color:white}#list{width:260px;height:120px;overflow:auto;background:white}
         .row{height:40px;border-bottom:1px solid #ccd}
+        .foreground{position:absolute;z-index:20;left:100px;top:74px;width:120px;height:52px;background:rgb(17,34,51);color:white}
       </style><div class="header">STATIC HEADER</div><main class="shell"><section class="panel"><div class="panel-title">ROUNDED PANEL</div><div id="list">
         ${Array.from({ length: 12 }, (_, i) => `<div class="row">ROW ${i}</div>`).join("")}
-      </div></section><p>STATIC FOOTER</p></main>`);
+      </div><div class="foreground">PINNED ABOVE</div></section><p>STATIC FOOTER</p></main>`);
 
       // Pin the real ownership distinction which exposed DM-2703: this is an
       // element viewport at a stable page position inside a larger body capture.
@@ -127,6 +128,16 @@ describeBrowser("inner live-scroll capture", () => {
           overflow: [style.overflowX, style.overflowY],
         };
       })).toEqual({ rect: [24, 114, 260, 120], overflow: ["auto", "auto"] });
+      expect(await page.locator(".foreground").evaluate((element) => {
+        const style = getComputedStyle(element);
+        const rect = element.getBoundingClientRect();
+        return {
+          rect: [rect.x, rect.y, rect.width, rect.height],
+          position: style.position,
+          zIndex: style.zIndex,
+          topAtCenter: document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2) === element,
+        };
+      })).toEqual({ rect: [124, 158, 120, 52], position: "absolute", zIndex: "20", topAtCenter: true });
 
       const segments = await executeScrollPattern(page, parseScrollPattern("down:80px/400ms"), {
         selector: "#list",
@@ -138,8 +149,10 @@ describeBrowser("inner live-scroll capture", () => {
       });
       const svg = composeScrollSvg(segments, { viewportW: 360, viewportH: 260 });
       expect(svg).toContain('data-scroll-static-context="true"');
+      expect(svg).toContain('data-scroll-static-foreground="true"');
       expect(svg).toMatch(/owner-clip-0"><rect x="24" y="84" width="260" height="150" rx="16"/);
       expect(svg).toMatch(/owner-clip-1"><rect x="24" y="114" width="260" height="120" rx="0"/);
+      expect(svg).toMatch(/foreground-0-clip-0"><rect x="24" y="84" width="260" height="150" rx="16"/);
       expect(svg).toContain("STATIC HEADER");
       expect(svg).toContain("STATIC FOOTER");
       expectEveryEmbeddedTextGlyphCovered(svg);
@@ -166,6 +179,11 @@ describeBrowser("inner live-scroll capture", () => {
       const roundedCorner = await sharp(await at(399, { x: 27, y: 231, width: 1, height: 1 }))
         .removeAlpha().raw().toBuffer();
       expect([...roundedCorner]).toEqual([229, 72, 77]);
+      for (const time of [0, 200, 399]) {
+        const foregroundPixel = await sharp(await at(time, { x: 180, y: 180, width: 1, height: 1 }))
+          .removeAlpha().raw().toBuffer();
+        expect([...foregroundPixel]).toEqual([17, 34, 51]);
+      }
     } finally {
       await renderPage.close();
       await page.close();

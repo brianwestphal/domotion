@@ -168,6 +168,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtqw1005j3ma2v41",
+          "message": {
+            "text": "Element-scroll isolation must preserve every ancestor-level paint boundary around the moving owner. Walking outward from the owner keeps later-painted siblings in inner-to-outer foreground layers, while each layer inherits only its shared ancestor clips; applying the owner's own scrollport clip would incorrectly cut a sibling that merely overlaps it. The browser regression (0) proves the foreground remains above the moving rows.",
+            "markdown": "Element-scroll isolation must preserve every ancestor-level paint boundary around the moving owner. Walking outward from the owner keeps later-painted siblings in inner-to-outer foreground layers, while each layer inherits only its shared ancestor clips; applying the owner's own scrollport clip would incorrectly cut a sibling that merely overlaps it. The [browser regression](0) proves the foreground remains above the moving rows."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/scroll/composer.ts"
+                },
+                "region": {
+                  "startLine": 195,
+                  "endLine": 237,
+                  "snippet": {
+                    "text": "/**\n * Split the static context around an element scroll owner's paint slot at each\n * ancestor level. Siblings which paint after the owner branch must remain\n * stationary but render above its moving captures; leaving them in one\n * wholesale underlay reverses CSS z-order wherever the two overlap.\n */\nexport function splitElementScrollStaticLayers(\n  tree: CapturedElement[],\n  ownerId: string,\n): ElementScrollStaticLayers | null {\n  const ownerPath = findCapturedScrollOwnerPath(tree, ownerId);\n  const owner = ownerPath?.at(-1);\n  if (ownerPath == null || owner == null || ownerPath.length < 2) return null;\n\n  const foregroundLayers: ElementScrollStaticLayers[\"foregroundLayers\"] = [];\n  const foregroundSet = new Set<CapturedElement>();\n  for (let branchIndex = ownerPath.length - 1; branchIndex >= 1; branchIndex--) {\n    const parent = ownerPath[branchIndex - 1];\n    const branch = ownerPath[branchIndex];\n    const paintOrderedSiblings = sortChildrenByPaintOrder(\n      parent.children,\n      parent.styles.display,\n      parent.styles.flexDirection,\n    );\n    const branchPaintIndex = paintOrderedSiblings.indexOf(branch);\n    if (branchPaintIndex < 0) return null;\n    const elements = paintOrderedSiblings.slice(branchPaintIndex + 1);\n    if (elements.length === 0) continue;\n    for (const element of elements) foregroundSet.add(element);\n    foregroundLayers.push({\n      elements,\n      // A sibling shares the branch's clip ancestors but is not a descendant\n      // of the branch's own overflow clip.\n      clips: ownerPath.slice(0, branchIndex).map(\n        (element) => childOverflowClipGeometry(element),\n      ).filter((clip): clip is ChildOverflowClipGeometry => clip != null),\n    });\n  }\n  const underlay = mapTreePruning(\n    tree,\n    (element) => element === owner || foregroundSet.has(element),\n  );\n  return { underlay, foregroundLayers };"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/scroll-inner-live.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 112
+                }
+              }
+            }
+          ],
+          "rank": 95,
+          "workItemUris": [
+            "DM-2707"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "622d54bd492ac4d7823570b2b8d634fb"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "f0aa6669b2d75ee4e9a2ed6e198ffa0c6fbc3b64",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
