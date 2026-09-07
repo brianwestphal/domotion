@@ -2,6 +2,22 @@
 
 All notable changes to **Domotion** are documented in this file.
 
+## [0.28.0] - 2026-09-07
+
+
+**🚀 Features**
+
+- Element-owned scroll captures (`scroll.selector` / `--selector` with a page-level capture) now keep the surrounding page static and animate only the scroller's contents in place, instead of translating the whole captured page. Selecting the scroller itself as the capture root still produces the list-only strip.
+- `domotion animate` re-anchors a `scroll` frame's nested timeline to that frame's offset on the master loop, the same way `cast` and animated `template` frames already work. The scroll holds its first state before its window and its last state after it, and the CLI logs a sizing note when the frame `duration` is shorter than the scroll's play time.
+- Pauses in a scroll pattern now always contribute to the output period. An unchanged DOM during a pause becomes a non-painting hold at the same offset (new optional `timelineOnly` marker on scroll segments), so leading, middle, and trailing pauses are honored without duplicating identical content in the SVG.
+- New `inner-element-scroll` animate example: a dashboard whose activity feed scrolls in place while the shell, metrics, and guide stay fixed.
+
+**🐛 Fixes**
+
+- Inner scrollers nested inside an `overflow: hidden` ancestor with rounded corners no longer square off those corners while scrolling. The composer now nests every clipping ancestor's padding-box clip, including per-corner radii and `overflow-clip-margin`, around the moving stack.
+- Pause durations in scroll patterns are no longer lost or stretched into the preceding motion when the DOM does not change during the pause.
+- The strict no-motion parity check (`passesStrict` in the PNG comparison module) no longer fails on sparse glyph-edge components that host rasterization moves across the default gate's severity threshold. It now bounds the severity-inclusive region aggregates only, with the total-area cap raised to 3072 px while the 256 px single-component cap still rejects genuine paint-order or position changes. Passing `null` caps still falls back to the default gate.
+
 ## [0.27.2] - 2026-09-07
 
 
