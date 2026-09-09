@@ -35,6 +35,30 @@ export type {
   CaptureElementTreeDebugResult,
   CaptureElementTreeResult,
 } from "./capture/index.js";
+export {
+  PAGED_CAPTURE_BUNDLE_SCHEMA_VERSION,
+  PAGED_CAPTURE_BUNDLE_ABI,
+  PAGED_CAPTURE_HELPER_ABI,
+  PAGED_CAPTURE_SKIA_REVISION,
+  PAGED_CAPTURE_HELPER_PATCH_SHA256,
+  pagedCaptureBundleManifestSchema,
+  pagedCaptureBundleDigest,
+  buildAuthenticatedPagedCaptureBundleManifest,
+  parsePagedCaptureBundleManifest,
+  verifyPagedCaptureBundleAssets,
+} from "./capture/paged-capture-bundle.js";
+export type {
+  PagedCaptureBundleManifest,
+  AuthenticatedPagedCaptureBundleManifest,
+  UnavailablePagedCaptureBundleManifest,
+  AuthenticatedPagedCaptureBundleInput,
+  PagedCaptureBundleAssetReader,
+} from "./capture/paged-capture-bundle.js";
+export {
+  PAGED_CAPTURE_BUNDLE_SCHEMA_ID,
+  buildPagedCaptureBundleJsonSchema,
+  pagedCaptureBundleJsonSchemaText,
+} from "./capture/paged-capture-bundle-json-schema.js";
 export { assembleCaptureDebugBundle } from "./capture/debug-bundle.js";
 export type {
   AssembleCaptureDebugBundleOptions,

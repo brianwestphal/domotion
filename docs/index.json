@@ -8280,6 +8280,9 @@
           "DM-2713"
         ],
         "code": [
+          "src/capture/paged-capture-bundle.ts",
+          "src/capture/paged-capture-bundle-json-schema.ts",
+          "schemas/paged-capture-bundle.schema.json",
           "src/capture/paged-collapsed-table-record.ts",
           "tools/chromium-paged-table-evidence/renderer-helper.patch",
           "tools/paged-table-renderer-evidence-collector.ts"

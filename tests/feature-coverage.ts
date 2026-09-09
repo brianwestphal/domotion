@@ -84,6 +84,21 @@ export const FEATURES: FeatureEntry[] = [
     tests: ["src/capture/debug-bundle.test.ts", "tests/capture-debug-api.e2e.test.ts"],
   },
   {
+    id: "capture.paged-bundle-manifest",
+    behavior: "Validate and canonically hash authenticated/unavailable paged-capture manifests, enforce deterministic ordered page assets and source/helper ownership, publish the editor schema, and reverify every declared SVG's presence, bytes, digest, document shape, and self-containment without promoting unavailable records.",
+    doc: "docs/255-paged-media-capture-bundle.md",
+    exports: [
+      "buildAuthenticatedPagedCaptureBundleManifest",
+      "buildPagedCaptureBundleJsonSchema",
+      "pagedCaptureBundleDigest",
+      "pagedCaptureBundleJsonSchemaText",
+      "pagedCaptureBundleManifestSchema",
+      "parsePagedCaptureBundleManifest",
+      "verifyPagedCaptureBundleAssets",
+    ],
+    tests: ["src/capture/paged-capture-bundle.test.ts"],
+  },
+  {
     id: "capture.iframe-recursion",
     behavior: "A same-origin <iframe> recurses into native SVG; a cross-origin frame stays raster unless allowlisted.",
     doc: "docs/81-iframe-recursion.md",

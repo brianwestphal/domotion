@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mttumrbrurvvtj6k",
+          "message": {
+            "text": "The generated JSON Schema carries the branch shapes, but these cross-record checks deliberately remain in the runtime authority: page order, human numbering, deterministic asset paths, uniqueness, and the canonical manifest digest depend on sibling values. Keeping them together makes reorder, omission, and substitution mutations fail before any page asset is trusted. See docs/255-paged-media-capture-bundle.md.",
+            "markdown": "The generated JSON Schema carries the branch shapes, but these cross-record checks deliberately remain in the runtime authority: page order, human numbering, deterministic asset paths, uniqueness, and the canonical manifest digest depend on sibling values. Keeping them together makes reorder, omission, and substitution mutations fail before any page asset is trusted. See docs/255-paged-media-capture-bundle.md."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/paged-capture-bundle.ts"
+                },
+                "region": {
+                  "startLine": 176,
+                  "endLine": 234,
+                  "snippet": {
+                    "text": "export const pagedCaptureBundleManifestSchema = z.discriminatedUnion(\"status\", [\n  authenticatedManifestSchema,\n  unavailableManifestSchema,\n]).superRefine((manifest, context) => {\n  if (manifest.status === \"unavailable\") {\n    if (new Set(manifest.missingCapabilities).size !== manifest.missingCapabilities.length) {\n      context.addIssue({\n        code: \"custom\",\n        path: [\"missingCapabilities\"],\n        message: \"missing capabilities must be unique\",\n      });\n    }\n    return;\n  }\n\n  const seenPaths = new Set<string>();\n  for (let index = 0; index < manifest.pages.length; index++) {\n    const page = manifest.pages[index];\n    if (page.pageIndex !== index) {\n      context.addIssue({\n        code: \"custom\",\n        path: [\"pages\", index, \"pageIndex\"],\n        message: `expected consecutive page index ${index}`,\n      });\n    }\n    if (page.pageNumber !== page.pageIndex + 1) {\n      context.addIssue({\n        code: \"custom\",\n        path: [\"pages\", index, \"pageNumber\"],\n        message: \"pageNumber must be pageIndex + 1\",\n      });\n    }\n    const expectedPath = `${manifest.bundleStem}.pages/page-${String(page.pageNumber).padStart(4, \"0\")}.svg`;\n    if (page.svg.path !== expectedPath) {\n      context.addIssue({\n        code: \"custom\",\n        path: [\"pages\", index, \"svg\", \"path\"],\n        message: `expected deterministic page path ${expectedPath}`,\n      });\n    }\n    if (seenPaths.has(page.svg.path)) {\n      context.addIssue({\n        code: \"custom\",\n        path: [\"pages\", index, \"svg\", \"path\"],\n        message: \"page SVG paths must be unique\",\n      });\n    }\n    seenPaths.add(page.svg.path);\n  }\n\n  const { bundleSha256: _bundleSha256, ...digestInput } = manifest;\n  if (manifest.bundleSha256 !== pagedCaptureBundleDigest(digestInput)) {\n    context.addIssue({\n      code: \"custom\",\n      path: [\"bundleSha256\"],\n      message: \"bundle digest does not match authenticated manifest content\",\n    });\n  }\n});"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/255-paged-media-capture-bundle.md"
+                },
+                "region": {
+                  "startLine": 98
+                }
+              }
+            }
+          ],
+          "workItemUris": [
+            "DM-2708"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c5c2242129055686c57df3bf0ec45516"
+          }
+        },
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "warning",
+          "guid": "mttumzr54los0p1j",
+          "message": {
+            "text": "Asset verification is intentionally caller-I/O-neutral so both future CLI atomic writes and library consumers use the same trust boundary. An authenticated manifest is insufficient by itself: every declared SVG must exist, reproduce its byte count and SHA-256, parse as an SVG document, and contain only fragment or data-backed runtime references. Unavailable manifests read no assets and cannot be promoted by filesystem leftovers.",
+            "markdown": "Asset verification is intentionally caller-I/O-neutral so both future CLI atomic writes and library consumers use the same trust boundary. An authenticated manifest is insufficient by itself: every declared SVG must exist, reproduce its byte count and SHA-256, parse as an SVG document, and contain only fragment or data-backed runtime references. Unavailable manifests read no assets and cannot be promoted by filesystem leftovers."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/paged-capture-bundle.ts"
+                },
+                "region": {
+                  "startLine": 280,
+                  "endLine": 322,
+                  "snippet": {
+                    "text": "/** Verify that every declared SVG exists, re-hashes, and is self-contained. */\nexport async function verifyPagedCaptureBundleAssets(\n  input: unknown,\n  readAsset: PagedCaptureBundleAssetReader,\n): Promise<string[]> {\n  const parsed = pagedCaptureBundleManifestSchema.safeParse(input);\n  if (!parsed.success) {\n    return parsed.error.issues.map((issue) =>\n      `${issue.path.length === 0 ? \"$\" : issue.path.join(\".\")}: ${issue.message}`);\n  }\n  if (parsed.data.status === \"unavailable\") return [];\n\n  const errors: string[] = [];\n  for (const page of parsed.data.pages) {\n    let asset: Uint8Array | string | null | undefined;\n    try {\n      asset = await readAsset(page.svg.path);\n    } catch (error) {\n      errors.push(`${page.svg.path}: asset read failed: ${error instanceof Error ? error.message : String(error)}`);\n      continue;\n    }\n    if (asset == null) {\n      errors.push(`${page.svg.path}: declared page SVG is missing`);\n      continue;\n    }\n    const bytes = typeof asset === \"string\" ? Buffer.from(asset, \"utf8\") : asset;\n    if (bytes.byteLength !== page.svg.byteLength) {\n      errors.push(`${page.svg.path}: byte length mismatch`);\n    }\n    if (sha256(bytes) !== page.svg.sha256) {\n      errors.push(`${page.svg.path}: SHA-256 mismatch`);\n    }\n    const svg = typeof asset === \"string\" ? asset : Buffer.from(asset).toString(\"utf8\");\n    if (!/^\\s*(?:<\\?xml[\\s\\S]*?\\?>\\s*)?<svg(?:\\s|>)/i.test(svg)) {\n      errors.push(`${page.svg.path}: asset is not an SVG document`);\n    }\n    const external = externalSvgReferences(svg);\n    if (external.length > 0) {\n      errors.push(`${page.svg.path}: external runtime references are forbidden (${external.join(\", \")})`);\n    }\n  }\n  return errors;\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "risk"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/255-paged-media-capture-bundle.md"
+                },
+                "region": {
+                  "startLine": 76
+                }
+              }
+            }
+          ],
+          "workItemUris": [
+            "DM-2708"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "c23124bad9a4e622f44ad07dad64bd8e"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "4875a9c7fe8986d96d5ab0575938eb67417a56ea",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

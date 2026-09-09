@@ -6,7 +6,7 @@ status: "partial"
 owners: ["layout", "cli"]
 platforms: ["macos","linux","windows"]
 tickets: ["DM-2325","DM-2573","DM-2708","DM-2709","DM-2710","DM-2711","DM-2712","DM-2713"]
-code: ["src/capture/paged-collapsed-table-record.ts","tools/chromium-paged-table-evidence/renderer-helper.patch","tools/paged-table-renderer-evidence-collector.ts"]
+code: ["src/capture/paged-capture-bundle.ts","src/capture/paged-capture-bundle-json-schema.ts","schemas/paged-capture-bundle.schema.json","src/capture/paged-collapsed-table-record.ts","tools/chromium-paged-table-evidence/renderer-helper.patch","tools/paged-table-renderer-evidence-collector.ts"]
 aliases: ["docs/255-paged-media-capture-bundle.md","doc-255"]
 ---
 

@@ -1,0 +1,619 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/brianwestphal/domotion/main/schemas/paged-capture-bundle.schema.json",
+  "title": "Domotion paged-capture bundle manifest",
+  "description": "Versioned authenticated/unavailable manifest for an opt-in paged-media capture bundle. Runtime validation additionally enforces consecutive pages, deterministic relative SVG paths, and content digests.",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "$schema": {
+          "type": "string"
+        },
+        "schemaVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "abi": {
+          "type": "string",
+          "const": "domotion-paged-capture-bundle-v1"
+        },
+        "bundleStem": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?$"
+        },
+        "source": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "minLength": 1
+            },
+            "root": {
+              "type": "object",
+              "properties": {
+                "selector": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "identitySha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "selector",
+                "identitySha256"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "url",
+            "root"
+          ],
+          "additionalProperties": false
+        },
+        "request": {
+          "type": "object",
+          "properties": {
+            "paper": {
+              "type": "object",
+              "properties": {
+                "widthInches": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "heightInches": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "landscape": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "widthInches",
+                "heightInches",
+                "landscape"
+              ],
+              "additionalProperties": false
+            },
+            "marginInches": {
+              "type": "object",
+              "properties": {
+                "top": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "right": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "bottom": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "left": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "top",
+                "right",
+                "bottom",
+                "left"
+              ],
+              "additionalProperties": false
+            },
+            "pageRanges": {
+              "type": "string"
+            },
+            "scale": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "displayHeaderFooter": {
+              "type": "boolean",
+              "const": false
+            },
+            "printBackground": {
+              "type": "boolean",
+              "const": true
+            },
+            "preferCSSPageSize": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "paper",
+            "marginInches",
+            "pageRanges",
+            "scale",
+            "displayHeaderFooter",
+            "printBackground",
+            "preferCSSPageSize"
+          ],
+          "additionalProperties": false
+        },
+        "sourcePins": {
+          "type": "object",
+          "properties": {
+            "chromiumRevision": {
+              "type": "string",
+              "const": "7d859f271cbda744098ac69f44978d4edfa62be3"
+            },
+            "skiaRevision": {
+              "type": "string",
+              "const": "62efacd37737505732dbe3d8daa62abd679626a1"
+            },
+            "helperAbi": {
+              "type": "string",
+              "const": "domotion-paged-capture-physical-fragment-v1"
+            },
+            "helperPatchSha256": {
+              "type": "string",
+              "const": "c842e3dbe44037722e4ea3fd26f026addd8cdec083af922d7ecd785f1bb42512"
+            }
+          },
+          "required": [
+            "chromiumRevision",
+            "skiaRevision",
+            "helperAbi",
+            "helperPatchSha256"
+          ],
+          "additionalProperties": false
+        },
+        "status": {
+          "type": "string",
+          "const": "authenticated"
+        },
+        "helper": {
+          "type": "object",
+          "properties": {
+            "bundleManifestSha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "executableSha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "runtimeDependenciesSha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "browserProcessId": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "rendererProcessId": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "browserVersion": {
+              "type": "string",
+              "minLength": 1
+            },
+            "protocolVersion": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "bundleManifestSha256",
+            "executableSha256",
+            "runtimeDependenciesSha256",
+            "browserProcessId",
+            "rendererProcessId",
+            "browserVersion",
+            "protocolVersion"
+          ],
+          "additionalProperties": false
+        },
+        "printEpoch": {
+          "type": "object",
+          "properties": {
+            "epochId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "frameId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "documentLoaderId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "printParametersSha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "lifecycle": {
+              "type": "string",
+              "const": "PrintBegin-to-PrintEnd"
+            },
+            "logicalTransport": {
+              "type": "string",
+              "const": "blink-private-paged-capture-physical-fragment-tree-v1"
+            },
+            "logicalFactsDerivedFromPdfVectorOrRaster": {
+              "type": "boolean",
+              "const": false
+            },
+            "sourceRestoredExactly": {
+              "type": "boolean",
+              "const": true
+            }
+          },
+          "required": [
+            "epochId",
+            "frameId",
+            "documentLoaderId",
+            "printParametersSha256",
+            "lifecycle",
+            "logicalTransport",
+            "logicalFactsDerivedFromPdfVectorOrRaster",
+            "sourceRestoredExactly"
+          ],
+          "additionalProperties": false
+        },
+        "pages": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "pageIndex": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "pageNumber": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "pageName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "emptyKind": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "forced-blank",
+                  "terminal-empty"
+                ]
+              },
+              "media": {
+                "type": "string",
+                "const": "print"
+              },
+              "widthCssPx": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "heightCssPx": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "pageRecordSha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "svg": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?\\.pages\\/page-[0-9]{4,}\\.svg$"
+                  },
+                  "byteLength": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "selfContained": {
+                    "type": "boolean",
+                    "const": true
+                  }
+                },
+                "required": [
+                  "path",
+                  "byteLength",
+                  "sha256",
+                  "selfContained"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "pageIndex",
+              "pageNumber",
+              "pageName",
+              "emptyKind",
+              "media",
+              "widthCssPx",
+              "heightCssPx",
+              "pageRecordSha256",
+              "svg"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "bundleSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "abi",
+        "bundleStem",
+        "source",
+        "request",
+        "sourcePins",
+        "status",
+        "helper",
+        "printEpoch",
+        "pages",
+        "bundleSha256"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "$schema": {
+          "type": "string"
+        },
+        "schemaVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "abi": {
+          "type": "string",
+          "const": "domotion-paged-capture-bundle-v1"
+        },
+        "bundleStem": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?$"
+        },
+        "source": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "minLength": 1
+            },
+            "root": {
+              "type": "object",
+              "properties": {
+                "selector": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "identitySha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "selector",
+                "identitySha256"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "url",
+            "root"
+          ],
+          "additionalProperties": false
+        },
+        "request": {
+          "type": "object",
+          "properties": {
+            "paper": {
+              "type": "object",
+              "properties": {
+                "widthInches": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "heightInches": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "landscape": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "widthInches",
+                "heightInches",
+                "landscape"
+              ],
+              "additionalProperties": false
+            },
+            "marginInches": {
+              "type": "object",
+              "properties": {
+                "top": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "right": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "bottom": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "left": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "top",
+                "right",
+                "bottom",
+                "left"
+              ],
+              "additionalProperties": false
+            },
+            "pageRanges": {
+              "type": "string"
+            },
+            "scale": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "displayHeaderFooter": {
+              "type": "boolean",
+              "const": false
+            },
+            "printBackground": {
+              "type": "boolean",
+              "const": true
+            },
+            "preferCSSPageSize": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "paper",
+            "marginInches",
+            "pageRanges",
+            "scale",
+            "displayHeaderFooter",
+            "printBackground",
+            "preferCSSPageSize"
+          ],
+          "additionalProperties": false
+        },
+        "sourcePins": {
+          "type": "object",
+          "properties": {
+            "chromiumRevision": {
+              "type": "string",
+              "const": "7d859f271cbda744098ac69f44978d4edfa62be3"
+            },
+            "skiaRevision": {
+              "type": "string",
+              "const": "62efacd37737505732dbe3d8daa62abd679626a1"
+            },
+            "helperAbi": {
+              "type": "string",
+              "const": "domotion-paged-capture-physical-fragment-v1"
+            },
+            "helperPatchSha256": {
+              "type": "string",
+              "const": "c842e3dbe44037722e4ea3fd26f026addd8cdec083af922d7ecd785f1bb42512"
+            }
+          },
+          "required": [
+            "chromiumRevision",
+            "skiaRevision",
+            "helperAbi",
+            "helperPatchSha256"
+          ],
+          "additionalProperties": false
+        },
+        "status": {
+          "type": "string",
+          "const": "unavailable"
+        },
+        "reasonCode": {
+          "type": "string",
+          "enum": [
+            "stock-chromium",
+            "helper-mismatch",
+            "sidecar-invalid",
+            "page-records-unavailable",
+            "source-restoration-failed",
+            "unsupported-paint"
+          ]
+        },
+        "detail": {
+          "type": "string",
+          "minLength": 1
+        },
+        "missingCapabilities": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "observedRuntime": {
+          "type": "object",
+          "properties": {
+            "product": {
+              "type": "string",
+              "minLength": 1
+            },
+            "revision": {
+              "type": "string",
+              "minLength": 1
+            },
+            "protocolVersion": {
+              "type": "string",
+              "minLength": 1
+            },
+            "helperAbi": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "product",
+            "revision",
+            "protocolVersion",
+            "helperAbi"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "abi",
+        "bundleStem",
+        "source",
+        "request",
+        "sourcePins",
+        "status",
+        "reasonCode",
+        "detail",
+        "missingCapabilities"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}
