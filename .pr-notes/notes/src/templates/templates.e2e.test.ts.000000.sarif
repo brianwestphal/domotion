@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mttpnnwgv4sshmsp",
+          "message": {
+            "text": "The exact counter template now crosses the cache-reset boundary and must reproduce one byte-identical SVG with the same digit-cell count. The local before/after probe independently produced SHA-256 c55de7c076cbea2032eccbf526c4b60ee050742fc0fd2f1f0e9774094b30c6b1, 84,650 bytes, and 192 digit cells on both sides of the memo change; related location 0 pins why the cache is semantics-neutral.",
+            "markdown": "The exact counter template now crosses the cache-reset boundary and must reproduce one byte-identical SVG with the same digit-cell count. The local before/after probe independently produced SHA-256 c55de7c076cbea2032eccbf526c4b60ee050742fc0fd2f1f0e9774094b30c6b1, 84,650 bytes, and 192 digit cells on both sides of the memo change; related location 0 pins why the cache is semantics-neutral."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/templates/templates.e2e.test.ts"
+                },
+                "region": {
+                  "startLine": 309,
+                  "endLine": 333,
+                  "snippet": {
+                    "text": "  it(\"counter reel survives capture — off-canvas digit cells are kept (DM-1532 capture fix)\", async () => {\n    // The odometer strip is taller than the canvas; its off-canvas digit cells\n    // roll into view during the animation. Capture must NOT drop them (they live\n    // in a data-domotion-anim subtree). Pre-fix only ~1 digit/column survived and\n    // the reels rendered blank mid-roll.\n    const out = await renderTemplateToSvg(\n      counterTemplate,\n      { to: 128500, grouping: true, fontSize: 200 },\n      { browser: await getBrowser() },\n    );\n    clearFontResolutionCaches();\n    const coldAgain = await renderTemplateToSvg(\n      counterTemplate,\n      { to: 128500, grouping: true, fontSize: 200 },\n      { browser: await getBrowser() },\n    );\n    expect(coldAgain.svg).toBe(out.svg);\n    expect(out.svg).toMatch(/@keyframes/);\n    // Every reel animation rests at identity (translateY(0)) — the Domotion-safe\n    // shape that avoids the double-transform. (No `translateY(-…)` resting.)\n    expect(out.svg).toMatch(/translateY\\(0/);\n    // Many digit cells present (6 reels, several rolling multiple turns) — far more\n    // than the ~1-per-column that survived before the capture exemption.\n    const digitCells = (out.svg.match(/>[0-9]</g) ?? []).length;\n    expect((coldAgain.svg.match(/>[0-9]</g) ?? []).length).toBe(digitCells);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "test-evidence"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 2335
+                }
+              }
+            }
+          ],
+          "rank": 96,
+          "workItemUris": [
+            "DM-2679"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "256bff5d98fa1a6014f54eef138419d6"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c62f2b909b5a6801f28e8cea2d38fee1fdf8eecc",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

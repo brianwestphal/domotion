@@ -14,6 +14,7 @@ import { chartTemplate, buildChartHtml, planChart } from "./builtin/chart.js";
 import { chatTemplate } from "./builtin/chat.js";
 import { subscribeTemplate } from "./builtin/subscribe.js";
 import { counterTemplate } from "./builtin/counter.js";
+import { clearFontResolutionCaches } from "../render/font-resolution.js";
 
 /**
  * DM-1276: end-to-end render of both built-in templates through the real
@@ -315,6 +316,13 @@ describe("format safe-area reflow (DM-1537)", () => {
       { to: 128500, grouping: true, fontSize: 200 },
       { browser: await getBrowser() },
     );
+    clearFontResolutionCaches();
+    const coldAgain = await renderTemplateToSvg(
+      counterTemplate,
+      { to: 128500, grouping: true, fontSize: 200 },
+      { browser: await getBrowser() },
+    );
+    expect(coldAgain.svg).toBe(out.svg);
     expect(out.svg).toMatch(/@keyframes/);
     // Every reel animation rests at identity (translateY(0)) — the Domotion-safe
     // shape that avoids the double-transform. (No `translateY(-…)` resting.)
@@ -322,6 +330,7 @@ describe("format safe-area reflow (DM-1537)", () => {
     // Many digit cells present (6 reels, several rolling multiple turns) — far more
     // than the ~1-per-column that survived before the capture exemption.
     const digitCells = (out.svg.match(/>[0-9]</g) ?? []).length;
+    expect((coldAgain.svg.match(/>[0-9]</g) ?? []).length).toBe(digitCells);
     expect(digitCells).toBeGreaterThan(40);
   }, 60_000);
 

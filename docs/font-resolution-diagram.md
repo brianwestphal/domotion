@@ -3033,7 +3033,7 @@ see the two-mode table above.
 
 | Cache / registry | Scope | Bounded-memory trim | Font-environment invalidation |
 |---|---|---|---|
-| `fontInstanceCache`; `resolvedSpecCache` | process | `clearFontResolutionCaches` † | yes (invalidation starts with the trim) |
+| `fontInstanceCache`; `resolvedSpecCache`; Linux `fcMatchCache` (exact fontconfig pattern, including misses/errors) | process | `clearFontResolutionCaches` † | yes (invalidation starts with the trim) |
 | `systemFallbackKeyCache`; `fallbackFamilyCutCache`; `fallbackBaseCache` | process, partly per codepoint | `clearFontResolutionCaches` † | yes |
 | `darwinPrimaryCutCache`; `linuxPrimaryCutCache`; `win32PrimaryCutCache`; `win32FamilyKeyCache` | process, family/style | `clearFontResolutionCaches` † | yes |
 | `fileFaceInfoCache`; `_famAvailCache`; `darwinHandleAxesMap` | process, face/inventory | `clearFontResolutionCaches` † | yes |

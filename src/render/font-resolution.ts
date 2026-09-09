@@ -2332,6 +2332,13 @@ const WIN32_FONT_PATHS: Record<string, FontPath> = {
 // fc-match shell-out on Linux is the main thing this avoids repeating.
 const resolvedSpecCache = new Map<string, FontPath | null>();
 
+// `fc-match` is a synchronous process boundary and the same exact fontconfig
+// pattern is reached through multiple logical font keys and render passes. Its
+// answer is a pure function of the pattern for the lifetime of one font
+// environment, so retain successes and misses alike until the normal font-
+// resolution cache boundary clears them.
+const fcMatchCache = new Map<string, { path: string; postscriptName?: string } | null>();
+
 /**
  * Run `fc-match` for a fontconfig pattern and return the resolved file plus
  * its postscript name (for picking the right TTC member). Returns null when
@@ -2339,19 +2346,28 @@ const resolvedSpecCache = new Map<string, FontPath | null>();
  * Only ever called on Linux.
  */
 function fcMatch(pattern: string): { path: string; postscriptName?: string } | null {
+  const cached = fcMatchCache.get(pattern);
+  if (cached !== undefined) return cached;
+
+  let result: { path: string; postscriptName?: string } | null = null;
   try {
     const out = execFileSync("fc-match", ["-f", "%{file}\t%{postscriptname}", pattern], {
       encoding: "utf8",
       timeout: 3000,
       stdio: ["ignore", "pipe", "ignore"],
     }).trim();
-    if (out === "") return null;
-    const [file, postscriptName] = out.split("\t");
-    if (file == null || file === "" || !existsSync(file)) return null;
-    return { path: file, postscriptName: postscriptName || undefined };
+    if (out !== "") {
+      const [file, postscriptName] = out.split("\t");
+      if (file != null && file !== "" && existsSync(file)) {
+        result = { path: file, postscriptName: postscriptName || undefined };
+      }
+    }
   } catch {
-    return null;
+    // A missing/timed-out fontconfig executable is a stable miss for this
+    // process environment, just like an empty or unusable answer.
   }
+  fcMatchCache.set(pattern, result);
+  return result;
 }
 
 function resolveLinuxSpec(key: string): FontPath | null {
@@ -9662,6 +9678,7 @@ export function getGlyphDefsSince(startCount: number): string {
 export function clearFontResolutionCaches(): void {
   fontInstanceCache.clear();
   resolvedSpecCache.clear();
+  fcMatchCache.clear();
   systemFallbackKeyCache.clear();
   fallbackFamilyCutCache.clear();
   fallbackBaseCache.clear();

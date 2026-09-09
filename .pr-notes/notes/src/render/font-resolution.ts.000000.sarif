@@ -2808,6 +2808,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mttpncqp7wnez23b",
+          "message": {
+            "text": "The memo belongs at the literal fc-match pattern boundary, not at a renderer entry point. Multiple logical keys and prepass/final-render paths can issue the same request; caching the parsed success or null there removes duplicate synchronous processes without changing family selection. It is cleared with the surrounding font-resolution memos, and the regression at related location 0 exercises successful, empty, and thrown answers across distinct logical keys.",
+            "markdown": "The memo belongs at the literal fc-match pattern boundary, not at a renderer entry point. Multiple logical keys and prepass/final-render paths can issue the same request; caching the parsed success or null there removes duplicate synchronous processes without changing family selection. It is cleared with the surrounding font-resolution memos, and the regression at related location 0 exercises successful, empty, and thrown answers across distinct logical keys."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/font-resolution.ts"
+                },
+                "region": {
+                  "startLine": 2335,
+                  "endLine": 2370,
+                  "snippet": {
+                    "text": "// `fc-match` is a synchronous process boundary and the same exact fontconfig\n// pattern is reached through multiple logical font keys and render passes. Its\n// answer is a pure function of the pattern for the lifetime of one font\n// environment, so retain successes and misses alike until the normal font-\n// resolution cache boundary clears them.\nconst fcMatchCache = new Map<string, { path: string; postscriptName?: string } | null>();\n\n/**\n * Run `fc-match` for a fontconfig pattern and return the resolved file plus\n * its postscript name (for picking the right TTC member). Returns null when\n * fc-match is missing, errors, or resolves to a file that doesn't exist.\n * Only ever called on Linux.\n */\nfunction fcMatch(pattern: string): { path: string; postscriptName?: string } | null {\n  const cached = fcMatchCache.get(pattern);\n  if (cached !== undefined) return cached;\n\n  let result: { path: string; postscriptName?: string } | null = null;\n  try {\n    const out = execFileSync(\"fc-match\", [\"-f\", \"%{file}\\t%{postscriptname}\", pattern], {\n      encoding: \"utf8\",\n      timeout: 3000,\n      stdio: [\"ignore\", \"pipe\", \"ignore\"],\n    }).trim();\n    if (out !== \"\") {\n      const [file, postscriptName] = out.split(\"\\t\");\n      if (file != null && file !== \"\" && existsSync(file)) {\n        result = { path: file, postscriptName: postscriptName || undefined };\n      }\n    }\n  } catch {\n    // A missing/timed-out fontconfig executable is a stable miss for this\n    // process environment, just like an empty or unusable answer.\n  }\n  fcMatchCache.set(pattern, result);\n  return result;"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/fontconfig-pattern-cache.test.ts"
+                },
+                "region": {
+                  "startLine": 32
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2679"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "2e4f8268a5cc43fc8322b50420b98184"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "c62f2b909b5a6801f28e8cea2d38fee1fdf8eecc",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }
