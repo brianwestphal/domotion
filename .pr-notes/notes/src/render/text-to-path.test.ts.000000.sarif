@@ -439,6 +439,83 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mttrj8k6tg2l9abk",
+          "message": {
+            "text": "These explicit negative probes turn the accepted residual into a durable scope boundary. Chromium 7d859f27 derives 36/25 and 72/50 through lroundf(size times 0.7), while Chromium-pinned Skia 62efacd3 maps slight hinting to FTLOADTARGET_LIGHT; the remaining differences are raster and grid-fit surfaces, not wrong logical sizes. Both members of each mixed run stay unadmitted so a future family-level allowlist expansion cannot silently absorb them.",
+            "markdown": "These explicit negative probes turn the accepted residual into a durable scope boundary. Chromium 7d859f27 derives 36/25 and 72/50 through lroundf(size times 0.7), while Chromium-pinned Skia 62efacd3 maps slight hinting to FT_LOAD_TARGET_LIGHT; the remaining differences are raster and grid-fit surfaces, not wrong logical sizes. Both members of each mixed run stay unadmitted so a future family-level allowlist expansion cannot silently absorb them."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/render/text-to-path.test.ts"
+                },
+                "region": {
+                  "startLine": 105,
+                  "endLine": 124,
+                  "snippet": {
+                    "text": "  it(\"keeps the larger 36/25 and 72/50 probe pairs on the ordinary subset route\", () => {\n    // Blink 7d859f27 simple_font_data.cc rounds computed-size × 0.7 before\n    // constructing the synthesized-small-caps font. These two source-derived\n    // pairs are deliberate negative controls: none of their four exact strikes\n    // has independent admission evidence, so the all-or-nothing planner must\n    // not partially apply target geometry to either mixed run.\n    for (const [fullSize, smallSize] of [[36, 25], [72, 50]] as const) {\n      const smallCapsScale = smallSize / fullSize;\n      expect(effectiveGlyphFontSize(fullSize, smallCapsScale)).toBe(smallSize);\n      expect(embeddedLinuxTargetStrikeEnabled(\n        \"linux\", \"LiberationSerif\", fullSize, 400, 0, 100,\n      )).toBe(false);\n      expect(embeddedLinuxTargetStrikeEnabled(\n        \"linux\", \"LiberationSerif\", smallSize, 400, 0, 100,\n      )).toBe(false);\n      expect(embeddedLinuxTargetStrikeSizes(\n        \"linux\", \"LiberationSerif\", fullSize, [1, smallCapsScale], 400, 0, 100,\n      )).toBeNull();\n    }\n  });"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.95
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/99-hinted-embedded-subset.md"
+                },
+                "region": {
+                  "startLine": 215
+                }
+              }
+            }
+          ],
+          "workItemUris": [
+            "DM-2663"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "d7909172b2be1652e6601d94516b0638"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "4aed447090f60ad6575a8fae93dcc184f8e5a323",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

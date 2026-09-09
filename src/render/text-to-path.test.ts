@@ -102,6 +102,27 @@ describe("embedded system-font terminal rendering (DM-2623)", () => {
     )).toBeNull();
   });
 
+  it("keeps the larger 36/25 and 72/50 probe pairs on the ordinary subset route", () => {
+    // Blink 7d859f27 simple_font_data.cc rounds computed-size × 0.7 before
+    // constructing the synthesized-small-caps font. These two source-derived
+    // pairs are deliberate negative controls: none of their four exact strikes
+    // has independent admission evidence, so the all-or-nothing planner must
+    // not partially apply target geometry to either mixed run.
+    for (const [fullSize, smallSize] of [[36, 25], [72, 50]] as const) {
+      const smallCapsScale = smallSize / fullSize;
+      expect(effectiveGlyphFontSize(fullSize, smallCapsScale)).toBe(smallSize);
+      expect(embeddedLinuxTargetStrikeEnabled(
+        "linux", "LiberationSerif", fullSize, 400, 0, 100,
+      )).toBe(false);
+      expect(embeddedLinuxTargetStrikeEnabled(
+        "linux", "LiberationSerif", smallSize, 400, 0, 100,
+      )).toBe(false);
+      expect(embeddedLinuxTargetStrikeSizes(
+        "linux", "LiberationSerif", fullSize, [1, smallCapsScale], 400, 0, 100,
+      )).toBeNull();
+    }
+  });
+
   it("takes y from the target strike while retaining scaled design x and rejects topology drift", () => {
     const design = [
       { command: "moveTo", args: [10, 20] },
