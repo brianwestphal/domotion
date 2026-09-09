@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mttu9fgwz2tdmmrf",
+          "message": {
+            "text": "This separation is the product decision, not merely packaging. Public Chromium 7d859f271cbd cannot return the print fragment tree; making paged capture a distinct manifest plus opt-in helper prevents ordinary screen capture from silently acquiring a patched-browser dependency or treating downstream PDF output as layout evidence. The delivery slices at lines 197-214 preserve that boundary across schema, runtime, transport, rendering, interface, and release proof.",
+            "markdown": "This separation is the product decision, not merely packaging. Public Chromium 7d859f271cbd cannot return the print fragment tree; making paged capture a distinct manifest plus opt-in helper prevents ordinary screen capture from silently acquiring a patched-browser dependency or treating downstream PDF output as layout evidence. The delivery slices at lines 197-214 preserve that boundary across schema, runtime, transport, rendering, interface, and release proof."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/255-paged-media-capture-bundle.md"
+                },
+                "region": {
+                  "startLine": 15,
+                  "endLine": 31,
+                  "snippet": {
+                    "text": "## Decision\n\nPaged capture is an explicit product surface, separate from ordinary viewport\ncapture. Its durable output is a static JSON manifest plus one deterministic,\nself-contained SVG for every selected physical page. PDF is a downstream\nconversion of those SVGs; neither PDF operators nor raster pixels may provide\nlayout or paint facts.\n\nThe source of page-local geometry is an opt-in, separately distributed Chromium\nhelper pinned to the exact source revision understood by Domotion. Stock\nPlaywright Chromium remains the default for screen capture. It does not become\neligible for paged capture merely because it implements `Page.printToPDF`.\n\nThis contract records the maintainer's DM-2325 decision. Delivery is split into\nthe bounded DM-2708 through DM-2713 slices so the data model, authenticated\nruntime, Blink transport, SVG renderer, public interface, and release evidence\ncan each fail independently."
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/230-paged-table-private-fragment-transport.md"
+                },
+                "region": {
+                  "startLine": 20
+                }
+              }
+            }
+          ],
+          "workItemUris": [
+            "DM-2325"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "6dca82c1114ae7ac078bc2b2074d825f"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "eefbaba05a39c27898cfcefaf3da63c3728c1196",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

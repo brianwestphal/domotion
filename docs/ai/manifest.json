@@ -5175,6 +5175,27 @@
       "file": "254-glassbox-studio-acceptance-benchmark.md"
     },
     {
+      "id": "requirements/paged-media-capture-bundle",
+      "title": "Paged-media capture bundles",
+      "kind": "contract",
+      "status": "partial",
+      "owners": [
+        "layout",
+        "cli"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/capture/paged-collapsed-table-record.ts",
+        "tools/chromium-paged-table-evidence/renderer-helper.patch",
+        "tools/paged-table-renderer-evidence-collector.ts"
+      ],
+      "file": "255-paged-media-capture-bundle.md"
+    },
+    {
       "id": "handbook/animation-and-interaction",
       "title": "Animation and interaction handbook",
       "kind": "contract",
