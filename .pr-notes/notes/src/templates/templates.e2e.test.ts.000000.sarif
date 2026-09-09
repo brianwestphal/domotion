@@ -23,10 +23,10 @@
           "ruleIndex": 0,
           "kind": "informational",
           "level": "none",
-          "guid": "mttpnnwgv4sshmsp",
+          "guid": "mttr74g6js7pspvb",
           "message": {
-            "text": "The exact counter template now crosses the cache-reset boundary and must reproduce one byte-identical SVG with the same digit-cell count. The local before/after probe independently produced SHA-256 c55de7c076cbea2032eccbf526c4b60ee050742fc0fd2f1f0e9774094b30c6b1, 84,650 bytes, and 192 digit cells on both sides of the memo change; related location 0 pins why the cache is semantics-neutral.",
-            "markdown": "The exact counter template now crosses the cache-reset boundary and must reproduce one byte-identical SVG with the same digit-cell count. The local before/after probe independently produced SHA-256 c55de7c076cbea2032eccbf526c4b60ee050742fc0fd2f1f0e9774094b30c6b1, 84,650 bytes, and 192 digit cells on both sides of the memo change; related location 0 pins why the cache is semantics-neutral."
+            "text": "The exact counter fixture is byte-stable across the fontconfig memo boundary. Local cache-reset capture retained SHA-256 c55de7c076cbea2032eccbf526c4b60ee050742fc0fd2f1f0e9774094b30c6b1, 84,650 bytes, and 192 digit cells. The attached native Linux x64 evidence compares the pre-change and candidate refs on the same Noble runner: production medians fell from 20.613s to 3.862s cold and from 20.613s to 3.770s warm, while the Linux SVG remained identical at SHA-256 39f796e8271992d72b4d233c8b43ff1c35eb20121d831466d34e429564e8a50f, 88,210 bytes, and 192 digit cells. The instrumented alternating-order pass reduced fc-match launches from 1,742 to 8 cold and from 1,737 to 0 warm.",
+            "markdown": "The exact counter fixture is byte-stable across the fontconfig memo boundary. Local cache-reset capture retained SHA-256 c55de7c076cbea2032eccbf526c4b60ee050742fc0fd2f1f0e9774094b30c6b1, 84,650 bytes, and 192 digit cells. The attached native Linux x64 evidence compares the pre-change and candidate refs on the same Noble runner: production medians fell from 20.613s to 3.862s cold and from 20.613s to 3.770s warm, while the Linux SVG remained identical at SHA-256 39f796e8271992d72b4d233c8b43ff1c35eb20121d831466d34e429564e8a50f, 88,210 bytes, and 192 digit cells. The instrumented alternating-order pass reduced fc-match launches from 1,742 to 8 cold and from 1,737 to 0 warm."
           },
           "locations": [
             {
@@ -63,19 +63,29 @@
               }
             }
           ],
-          "rank": 96,
+          "rank": 99,
           "workItemUris": [
             "DM-2679"
           ],
           "partialFingerprints": {
             "prNoteAnchor/v1": "256bff5d98fa1a6014f54eef138419d6"
-          }
+          },
+          "attachments": [
+            {
+              "artifactLocation": {
+                "uri": ".pr-notes/artifacts/dm2679-native-linux-x64.json",
+                "properties": {
+                  "ext-sha256": "0e9d03ac520e0f525cd955df1785e6213d6af811df2195f8662e1c8586e1f9e9"
+                }
+              }
+            }
+          ]
         }
       ],
       "versionControlProvenance": [
         {
           "repositoryUri": "git@github.com:brianwestphal/domotion.git",
-          "revisionId": "c62f2b909b5a6801f28e8cea2d38fee1fdf8eecc",
+          "revisionId": "b6af2811a71b19b8fc88601351737077d398cd1a",
           "branch": "main"
         }
       ]

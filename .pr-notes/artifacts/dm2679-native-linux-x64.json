@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "ticket": "DM-2679",
+  "measuredAt": "2026-09-09",
+  "environment": {
+    "platform": "linux",
+    "architecture": "x64",
+    "node": "v24.14.1",
+    "runner": "GitHub Actions ubuntu-latest",
+    "container": "mcr.microsoft.com/playwright:v1.59.1-noble"
+  },
+  "refs": {
+    "baseline": "c62f2b909b5a6801f28e8cea2d38fee1fdf8eecc",
+    "candidate": "b6af2811a71b19b8fc88601351737077d398cd1a"
+  },
+  "processCountEvidence": {
+    "runUrl": "https://github.com/brianwestphal/domotion/actions/runs/34320471614",
+    "method": "fc-match PATH wrapper counting launches, two five-sample pairs in alternating baseline/candidate order",
+    "baselineA": {
+      "coldMedianMs": 26138.428144,
+      "warmMedianMs": 26597.802523,
+      "coldMedianFcMatchLaunches": 1742,
+      "warmMedianFcMatchLaunches": 1737
+    },
+    "candidateA": {
+      "coldMedianMs": 4147.764134,
+      "warmMedianMs": 3913.890704,
+      "coldMedianFcMatchLaunches": 8,
+      "warmMedianFcMatchLaunches": 0
+    },
+    "candidateB": {
+      "coldMedianMs": 4167.156548,
+      "warmMedianMs": 3938.558518,
+      "coldMedianFcMatchLaunches": 8,
+      "warmMedianFcMatchLaunches": 0
+    },
+    "baselineB": {
+      "coldMedianMs": 25348.758225,
+      "warmMedianMs": 25496.192069,
+      "coldMedianFcMatchLaunches": 1742,
+      "warmMedianFcMatchLaunches": 1737
+    }
+  },
+  "productionTimingEvidence": {
+    "runUrl": "https://github.com/brianwestphal/domotion/actions/runs/34321605201",
+    "method": "uninstrumented candidate-first run, three cache-reset cold and same-session warm samples per ref",
+    "baseline": {
+      "coldMs": [20272.473215, 20613.208757, 20972.466166],
+      "warmMs": [20317.593025, 20612.621642, 20630.58083],
+      "coldMedianMs": 20613.208757,
+      "warmMedianMs": 20612.621642
+    },
+    "candidate": {
+      "coldMs": [5354.672997, 3861.979876, 3853.095231],
+      "warmMs": [3770.904727, 3770.099464, 3615.91217],
+      "coldMedianMs": 3861.979876,
+      "warmMedianMs": 3770.099464
+    },
+    "comparison": {
+      "coldSpeedup": 5.337472,
+      "coldReductionPercent": 81.264538,
+      "warmSpeedup": 5.467395,
+      "warmReductionPercent": 81.709753
+    }
+  },
+  "semanticIdentity": {
+    "sha256": "39f796e8271992d72b4d233c8b43ff1c35eb20121d831466d34e429564e8a50f",
+    "bytes": 88210,
+    "digitCells": 192,
+    "stableAcrossRefsColdWarmAndSamples": true
+  }
+}
