@@ -1,0 +1,46 @@
+diff --git a/include/svg/SkSVGCanvas.h b/include/svg/SkSVGCanvas.h
+index 87ebf7b..c8a09be 100644
+--- a/include/svg/SkSVGCanvas.h
++++ b/include/svg/SkSVGCanvas.h
+@@ -16,0 +17 @@ class SkCanvas;
++class SkTextBlob;
+@@ -56,0 +58,3 @@ public:
++
++    /** Returns whether text-to-path SVG playback supports every run in `blob`. */
++    static bool CanConvertTextBlobToPaths(const SkTextBlob& blob);
+diff --git a/src/svg/SkSVGCanvas.cpp b/src/svg/SkSVGCanvas.cpp
+index f0f7d9b..f2fa665 100644
+--- a/src/svg/SkSVGCanvas.cpp
++++ b/src/svg/SkSVGCanvas.cpp
+@@ -12,0 +13 @@
++#include "src/core/SkTextBlobPriv.h"
+@@ -18,0 +20,9 @@
++bool SkSVGCanvas::CanConvertTextBlobToPaths(const SkTextBlob& blob) {
++    for (SkTextBlobRunIterator iterator(&blob); !iterator.done(); iterator.next()) {
++        if (iterator.positioning() == SkTextBlobRunIterator::kRSXform_Positioning) {
++            return false;
++        }
++    }
++    return true;
++}
++
+diff --git a/src/svg/SkSVGDevice.cpp b/src/svg/SkSVGDevice.cpp
+index a9c15ad..183844f 100644
+--- a/src/svg/SkSVGDevice.cpp
++++ b/src/svg/SkSVGDevice.cpp
+@@ -811,0 +812,2 @@ SkSVGDevice::SkSVGDevice(const SkISize& size,
++    fRootElement->addAttribute(
++            "viewBox", SkStringPrintf("0 0 %d %d", size.width(), size.height()));
+@@ -847 +849,5 @@ void SkSVGDevice::syncClipStack(const SkClipStack& cs) {
+-        const auto cid = SkStringPrintf("cl_%x", e->getGenID());
++        // Clip generation IDs are process-global and therefore make otherwise
++        // identical SVG documents differ across repeated captures. Use an
++        // output-local sequence for serialized resource IDs; retain the
++        // generation ID only for internal clip-stack identity comparisons.
++        const auto cid = SkStringPrintf("cl_%u", fNextClipId++);
+diff --git a/src/svg/SkSVGDevice.h b/src/svg/SkSVGDevice.h
+index 577afb2..4d9b3d3 100644
+--- a/src/svg/SkSVGDevice.h
++++ b/src/svg/SkSVGDevice.h
+@@ -96,0 +97 @@ private:
++    uint32_t fNextClipId = 0;

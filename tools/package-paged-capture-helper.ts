@@ -30,6 +30,7 @@ import {
   PAGED_CAPTURE_HELPER_BUNDLE_SCHEMA_VERSION,
   PAGED_CAPTURE_HELPER_DEPOT_TOOLS_REVISION,
   PAGED_CAPTURE_HELPER_MAX_SIDECAR_BYTES,
+  PAGED_CAPTURE_HELPER_PAGE_SVG_CAPABILITY,
   PAGED_CAPTURE_HELPER_RUNTIME_ABI,
   PAGED_CAPTURE_HELPER_TABLE_OWNERSHIP_CAPABILITY,
   PAGED_CAPTURE_HELPER_TRANSPORT_ABI,
@@ -42,6 +43,7 @@ import {
 } from "../src/capture/paged-capture-helper.js";
 import {
   PAGED_CAPTURE_HELPER_PATCH_SHA256,
+  PAGED_CAPTURE_HELPER_SKIA_PATCH_SHA256,
   PAGED_CAPTURE_SKIA_REVISION,
 } from "../src/capture/paged-capture-bundle.js";
 import { PAGED_COLLAPSED_TABLE_CHROMIUM_REVISION } from "../src/capture/paged-collapsed-table-record.js";
@@ -70,7 +72,8 @@ const config: PackageConfig = packageConfigSchema.parse(JSON.parse(readFileSync(
 const sourceRoot = realpathSync(resolve(config.sourceRoot));
 const outDirectory = realpathSync(resolve(config.outDirectory));
 const bundleDirectory = resolve(config.bundleDirectory);
-const patchPath = resolve(projectRoot, "tools/chromium-paged-table-evidence/renderer-helper.patch");
+const patchPath = resolve(projectRoot, "tools/chromium-paged-page-record/renderer-page-record.patch");
+const skiaPatchPath = resolve(projectRoot, "tools/chromium-paged-page-record/skia-deterministic-svg.patch");
 const retainedBuildEvidencePath = resolve(
   projectRoot,
   ".pr-notes/artifacts/dm2573-paged-table-renderer-evidence.json",
@@ -115,7 +118,12 @@ function assertPinnedSource(): void {
   if (fileSha256(patchPath) !== PAGED_CAPTURE_HELPER_PATCH_SHA256) {
     throw new Error("paged helper retained patch digest drifted");
   }
+  if (fileSha256(skiaPatchPath) !== PAGED_CAPTURE_HELPER_SKIA_PATCH_SHA256) {
+    throw new Error("paged helper retained Skia patch digest drifted");
+  }
   const expectedPaths = [...readFileSync(patchPath, "utf8").matchAll(/^diff --git a\/(.+?) b\//gm)]
+    .map((match) => match[1]).sort();
+  const expectedSkiaPaths = [...readFileSync(skiaPatchPath, "utf8").matchAll(/^diff --git a\/(.+?) b\//gm)]
     .map((match) => match[1]).sort();
   const actualPaths = execFileSync(
     "git", ["-C", sourceRoot, "status", "--porcelain=v1", "-z"], { encoding: "utf8" },
@@ -123,16 +131,27 @@ function assertPinnedSource(): void {
   if (canonicalJson(actualPaths) !== canonicalJson(expectedPaths)) {
     throw new Error("paged helper Chromium dirty paths differ from the retained patch");
   }
-  for (const checkout of [resolve(sourceRoot, "third_party/skia"), depotTools]) {
-    if (execFileSync("git", ["-C", checkout, "status", "--porcelain=v1"], { encoding: "utf8" }).trim() !== "") {
-      throw new Error(`paged helper nested source checkout is dirty: ${checkout}`);
-    }
+  const skiaRoot = resolve(sourceRoot, "third_party/skia");
+  const actualSkiaPaths = execFileSync(
+    "git", ["-C", skiaRoot, "status", "--porcelain=v1", "-z"], { encoding: "utf8" },
+  ).split("\0").filter(Boolean).map((line) => line.slice(3)).sort();
+  if (canonicalJson(actualSkiaPaths) !== canonicalJson(expectedSkiaPaths)) {
+    throw new Error("paged helper Skia dirty paths differ from the retained patch");
   }
-  const installedDelta = execFileSync("git", ["-C", sourceRoot, "diff", "--binary", "HEAD"], {
+  if (execFileSync("git", ["-C", depotTools, "status", "--porcelain=v1"], { encoding: "utf8" }).trim() !== "") {
+    throw new Error(`paged helper nested source checkout is dirty: ${depotTools}`);
+  }
+  const installedDelta = execFileSync("git", ["-C", sourceRoot, "diff", "--binary", "--unified=0", "HEAD"], {
     maxBuffer: 32 * 1024 * 1024,
   });
   if (!installedDelta.equals(readFileSync(patchPath))) {
     throw new Error("paged helper Chromium source delta differs from the retained patch");
+  }
+  const installedSkiaDelta = execFileSync("git", ["-C", skiaRoot, "diff", "--binary", "--unified=0", "HEAD"], {
+    maxBuffer: 4 * 1024 * 1024,
+  });
+  if (!installedSkiaDelta.equals(readFileSync(skiaPatchPath))) {
+    throw new Error("paged helper Skia source delta differs from the retained patch");
   }
 }
 
@@ -384,6 +403,7 @@ async function main(): Promise<void> {
     skiaRevision: PAGED_CAPTURE_SKIA_REVISION,
     depotToolsRevision: PAGED_CAPTURE_HELPER_DEPOT_TOOLS_REVISION,
     patchSha256: PAGED_CAPTURE_HELPER_PATCH_SHA256,
+    skiaPatchSha256: PAGED_CAPTURE_HELPER_SKIA_PATCH_SHA256,
     target: "//headless:headless_shell",
   };
   const receipts: Array<[string, string | Uint8Array]> = [
@@ -391,6 +411,7 @@ async function main(): Promise<void> {
     ["domotion/build-evidence.json", retainedBuildEvidence],
     ["domotion/protocol.json", `${JSON.stringify(protocol, null, 2)}\n`],
     ["domotion/renderer-helper.patch", readFileSync(patchPath)],
+    ["domotion/skia-deterministic-svg.patch", readFileSync(skiaPatchPath)],
     ["domotion/runtime_deps.txt", runtimeDepsReceipt],
     ["domotion/source.json", `${JSON.stringify(sourceReceipt, null, 2)}\n`],
   ];
@@ -431,13 +452,17 @@ async function main(): Promise<void> {
     schemaVersion: PAGED_CAPTURE_HELPER_BUNDLE_SCHEMA_VERSION,
     runtimeAbi: PAGED_CAPTURE_HELPER_RUNTIME_ABI,
     transportAbi: PAGED_CAPTURE_HELPER_TRANSPORT_ABI,
-    capabilities: [PAGED_CAPTURE_HELPER_TABLE_OWNERSHIP_CAPABILITY],
+    capabilities: [
+      PAGED_CAPTURE_HELPER_TABLE_OWNERSHIP_CAPABILITY,
+      PAGED_CAPTURE_HELPER_PAGE_SVG_CAPABILITY,
+    ],
     platform: platformRecord(resolve(bundleDirectory, executableRelativePath), members),
     source: {
       chromiumRevision: sourceReceipt.chromiumRevision,
       skiaRevision: sourceReceipt.skiaRevision,
       depotToolsRevision: sourceReceipt.depotToolsRevision,
       patchSha256: sourceReceipt.patchSha256,
+      skiaPatchSha256: sourceReceipt.skiaPatchSha256,
     },
     protocol,
     runtime: {

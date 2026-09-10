@@ -23,39 +23,42 @@ external runtime assets. macOS, Linux, and Windows are first-class platforms.
 6. Output is deterministic under the same authenticated inputs. Animation,
    compositing, templates, terminal capture, and exports reuse the same capture
    and render contracts.
-7. A Domotion Studio project is the versioned durable authoring source. Stable
+7. Paged SVG capture accepts only a live-authenticated, all-pages helper
+   transaction, preserves each pinned Skia SVG byte-for-byte, audits exact raw
+   collapsed-border logical geometry, and keeps PDF strictly downstream.
+8. A Domotion Studio project is the versioned durable authoring source. Stable
    narrative/scene/track/layer/review identities survive regeneration; SVG and
    review video are generated artifacts with revision provenance. Static Studio
    compilation lowers to the existing composite/storyboard pipelines.
-8. Domotion Studio is a separate local application. Its file UI is confined to
+9. Domotion Studio is a separate local application. Its file UI is confined to
    one workspace, validates before atomic saves, and presents exact model errors;
    SVG Scrubber remains a focused, independently usable playback/review tool.
-9. Studio replay failures and generated candidates are always routed through
+10. Studio replay failures and generated candidates are always routed through
    explicit application-owned AI healing and review boundaries. Automatic edits
    append evidence-backed revisions; material ambiguity pauses for clarification,
    and only an AI-accepted candidate proceeds to human review. Semantic attachment
    waits may observe an initially absent target, while ambiguity remains an exact
    authored-path failure. This phase has no user-facing iteration, time, token,
    or cost budget management.
-10. Studio visual review operates on rendered video, not authored intent alone.
+11. Studio visual review operates on rendered video, not authored intent alone.
     AI findings cover the complete pacing/cursor/readability/transition/narrative/
     brand/polish rubric, separate evidence from inference and recommendations,
     ground comments to project identities/space/time, and enter the same queue as
     human review. Material ambiguity pauses for clarification.
-11. Studio cinematic treatments are validated, ordered presets over inspectable
+12. Studio cinematic treatments are validated, ordered presets over inspectable
     layer, mask, transform, overlay, timing, transition, template, chrome, and
     compositor primitives. Presets are brand-aware and nest with deterministic
     namespacing; they do not introduce a second renderer or external runtime.
-12. Real interaction recording is redacted in-page before persistence and keeps
+13. Real interaction recording is redacted in-page before persistence and keeps
     raw pointer, keyboard, scroll, navigation, DOM, computed-style, geometry,
     timing, and state evidence. Required AI healing simplifies it into ordinary
     semantic Studio scenes; required AI review accepts or edits the candidate,
     and either stage pauses for clarification when intent is ambiguous.
-13. Studio projects expose one detailed absolute timeline over scenes, semantic
+14. Studio projects expose one detailed absolute timeline over scenes, semantic
     actions, cursor, overlays, transitions, treatments, annotations, and layer
     animations. Pointer, keyboard, accessible controls, undo/redo, and AI use
     the same explicit timing command; selection seeks the existing Scrubber.
-14. Glassbox is Studio's north-star integration benchmark. Its static JSON
+15. Glassbox is Studio's north-star integration benchmark. Its static JSON
     storyboard and bounded TypeScript hooks drive the real product through the
     complete local review loop; mandatory AI healing, candidate review, rendered-
     video review, and a controlled accessible-name change produce revisioned

@@ -26,6 +26,9 @@ loading the historical documentation corpus.
   strikes live in `glyph-helper-transport.ts`, `glyph-helper-protocol.ts`,
   `glyph-helper-outline.ts`, `glyph-helper-font.ts`, and
   `linux-target-strike.ts`, respectively.
+  Authenticated paged capture lives in `capture/paged-capture-helper.ts` and
+  `capture/paged-page-record.ts`; `render/paged-page-svg.ts` passes the pinned
+  Skia page SVG through byte-for-byte after a live-only logical consistency audit.
 - `src/animation/`, `src/tree-ops/`, and `src/scroll/` compose and transform
   static captures into timed frames, nested scenes, and scrolling outputs.
   `animation/animator.ts` is the stable facade; `svg-generator.ts` and

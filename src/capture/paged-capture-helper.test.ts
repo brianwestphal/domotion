@@ -19,8 +19,10 @@ import {
   PAGED_CAPTURE_HELPER_DEPOT_TOOLS_REVISION,
   PAGED_CAPTURE_HELPER_MAX_SIDECAR_BYTES,
   PAGED_CAPTURE_HELPER_RUNTIME_ABI,
+  PAGED_CAPTURE_HELPER_PAGE_SVG_CAPABILITY,
   PAGED_CAPTURE_HELPER_TABLE_OWNERSHIP_CAPABILITY,
   PAGED_CAPTURE_HELPER_TRANSPORT_ABI,
+  PAGED_CAPTURE_HELPER_TABLE_TRANSPORT_ABI,
   authenticatePagedCaptureHelperProcessesForTest,
   authenticatePagedCaptureHelperTransportForTest,
   pagedCaptureHelperLaunchEnvironmentForTest,
@@ -32,6 +34,7 @@ import {
 } from "./paged-capture-helper.js";
 import {
   PAGED_CAPTURE_HELPER_PATCH_SHA256,
+  PAGED_CAPTURE_HELPER_SKIA_PATCH_SHA256,
   PAGED_CAPTURE_SKIA_REVISION,
 } from "./paged-capture-bundle.js";
 import { PAGED_COLLAPSED_TABLE_CHROMIUM_REVISION } from "./paged-collapsed-table-record.js";
@@ -113,13 +116,17 @@ async function fixture(): Promise<{
     schemaVersion: PAGED_CAPTURE_HELPER_BUNDLE_SCHEMA_VERSION,
     runtimeAbi: PAGED_CAPTURE_HELPER_RUNTIME_ABI,
     transportAbi: PAGED_CAPTURE_HELPER_TRANSPORT_ABI,
-    capabilities: [PAGED_CAPTURE_HELPER_TABLE_OWNERSHIP_CAPABILITY],
+    capabilities: [
+      PAGED_CAPTURE_HELPER_TABLE_OWNERSHIP_CAPABILITY,
+      PAGED_CAPTURE_HELPER_PAGE_SVG_CAPABILITY,
+    ],
     platform,
     source: {
       chromiumRevision: PAGED_COLLAPSED_TABLE_CHROMIUM_REVISION,
       skiaRevision: PAGED_CAPTURE_SKIA_REVISION,
       depotToolsRevision: PAGED_CAPTURE_HELPER_DEPOT_TOOLS_REVISION,
       patchSha256: PAGED_CAPTURE_HELPER_PATCH_SHA256,
+      skiaPatchSha256: PAGED_CAPTURE_HELPER_SKIA_PATCH_SHA256,
     },
     protocol: {
       product: "HeadlessChrome/140.0.0.0",
@@ -343,13 +350,14 @@ describe("paged-capture helper bundle", () => {
       expectedManifestSha256: input.manifestSha256,
     }, { platform: process.platform, architecture: process.arch });
     const sidecar = JSON.stringify({
-      helperAbi: PAGED_CAPTURE_HELPER_TRANSPORT_ABI,
+      helperAbi: PAGED_CAPTURE_HELPER_TABLE_TRANSPORT_ABI,
       sourceRevision: PAGED_COLLAPSED_TABLE_CHROMIUM_REVISION,
       capturePhase: "after-PrintBegin-before-PrintEnd",
       logicalFactsDerivedFromPdfVectorOrRaster: false,
       frameToken: "frame-token",
       documentToken: "document-token",
       documentUrl: "about:blank",
+      printCaptureId: "11111111-1111-4111-8111-111111111111",
       printParameters: {
         printableArea: { x: 0, y: 0, width: 240, height: 240 },
         defaultPage: {
@@ -371,6 +379,7 @@ describe("paged-capture helper bundle", () => {
         usePaginatedLayout: true,
         printingInternalHeadersAndFooters: false,
         pagesPerSheet: 1,
+        shouldPrintBackgrounds: true,
       },
       pages: [{
         pageIndex: 0,
@@ -407,6 +416,35 @@ describe("paged-capture helper bundle", () => {
           }],
           captionOccurrences: [],
           spanningCells: [],
+          resolvedCollapsedEdgeGrid: [{
+            sourceEdgeIndex: 0,
+            axis: "block",
+            globalRowBoundary: 0,
+            globalColumnBoundary: 0,
+            doNotFill: false,
+            winner: { widthCssPx: 2, style: "solid", boxOrder: 0 },
+          }, {
+            sourceEdgeIndex: 1,
+            axis: "inline",
+            globalRowBoundary: 0,
+            globalColumnBoundary: 0,
+            doNotFill: false,
+            winner: null,
+          }, {
+            sourceEdgeIndex: 2,
+            axis: "block",
+            globalRowBoundary: 0,
+            globalColumnBoundary: 1,
+            doNotFill: false,
+            winner: null,
+          }, {
+            sourceEdgeIndex: 5,
+            axis: "inline",
+            globalRowBoundary: 1,
+            globalColumnBoundary: 0,
+            doNotFill: false,
+            winner: null,
+          }],
           collapsedEdges: [{
             sourceEdgeIndex: 0,
             decisionOrder: 0,
@@ -414,7 +452,9 @@ describe("paged-capture helper bundle", () => {
             axis: "block",
             globalRowBoundary: 0,
             globalColumnBoundary: 0,
+            winner: { widthCssPx: 2, style: "solid", boxOrder: 0 },
             disposition: "paint-full",
+            logicalRectRaw: { inlineStart: -64, blockStart: 0, inlineSize: 128, blockSize: 1280 },
             startJoint: {
               precedence: ["after", "under", "before", "over"],
               winner: "self",
@@ -441,6 +481,12 @@ describe("paged-capture helper bundle", () => {
             : {
               stream: "active-stream",
               domotionPagedTableEvidence: sidecar,
+              domotionPagedPageRecord: JSON.stringify({
+                helperAbi: "domotion-paged-page-record-v1",
+                sourceRevision: PAGED_COLLAPSED_TABLE_CHROMIUM_REVISION,
+                printCaptureId: "11111111-1111-4111-8111-111111111111",
+                pages: [{ status: "authenticated", vectorPaintSvg: '<svg width="240" height="240"/>' }],
+              }),
               domotionBrowserProcessId: 10,
               domotionRendererProcessId: 20,
               domotionSourceRestoredExactly: true,

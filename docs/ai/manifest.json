@@ -5220,10 +5220,33 @@
         "src/capture/paged-page-record.ts",
         "src/capture/paged-page-record.test.ts",
         "tools/chromium-paged-page-record/renderer-page-record.patch",
+        "tools/chromium-paged-page-record/skia-deterministic-svg.patch",
         "tools/verify-paged-page-record-patch.mjs",
         "tools/paged-page-record-smoke.mjs"
       ],
       "file": "256-paged-page-print-record.md"
+    },
+    {
+      "id": "requirements/authenticated-paged-page-svg",
+      "title": "Authenticated per-page SVG rendering",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "layout",
+        "render"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/render/paged-page-svg.ts",
+        "src/render/paged-page-svg.test.ts",
+        "src/capture/script/walker/collapsed-border.ts",
+        "src/capture/paged-page-record.ts"
+      ],
+      "file": "257-authenticated-paged-page-svg.md"
     },
     {
       "id": "handbook/animation-and-interaction",

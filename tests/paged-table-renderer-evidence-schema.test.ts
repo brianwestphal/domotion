@@ -33,6 +33,7 @@ import {
 const joint = {
   precedence: PAGED_COLLAPSED_JOINT_PRECEDENCE,
   winner: "self" as const,
+  suppressedAtFragmentBoundary: false,
 };
 
 function authenticated(): AuthenticatedPagedCollapsedTableRecord {
@@ -41,6 +42,10 @@ function authenticated(): AuthenticatedPagedCollapsedTableRecord {
     printEpoch: {
       epochId: "epoch-1",
       documentLoaderId: "loader-1",
+      frameToken: "frame-1",
+      documentToken: "document-1",
+      documentUrl: "https://example.test/",
+      printCaptureId: "11111111-1111-4111-8111-111111111111",
       browserVersion: "Chrome/140.0.0.0",
       protocolVersion: "1.3",
       printParametersSha256: "a".repeat(64),
@@ -84,6 +89,19 @@ function authenticated(): AuthenticatedPagedCollapsedTableRecord {
         }],
         captionOccurrences: [],
         spanningCells: [],
+        resolvedCollapsedEdgeGrid: [{
+          sourceEdgeIndex: 0, axis: "block", globalRowBoundary: 0, globalColumnBoundary: 0,
+          doNotFill: false, winner: { widthCssPx: 2, style: "solid", boxOrder: 0 },
+        }, {
+          sourceEdgeIndex: 1, axis: "inline", globalRowBoundary: 0, globalColumnBoundary: 0,
+          doNotFill: false, winner: { widthCssPx: 2, style: "solid", boxOrder: 0 },
+        }, {
+          sourceEdgeIndex: 2, axis: "block", globalRowBoundary: 0, globalColumnBoundary: 1,
+          doNotFill: false, winner: null,
+        }, {
+          sourceEdgeIndex: 5, axis: "inline", globalRowBoundary: 1, globalColumnBoundary: 0,
+          doNotFill: false, winner: null,
+        }],
         collapsedEdges: [{
           sourceEdgeIndex: 0,
           decisionOrder: 0,
@@ -91,7 +109,9 @@ function authenticated(): AuthenticatedPagedCollapsedTableRecord {
           axis: "block",
           globalRowBoundary: 0,
           globalColumnBoundary: 0,
+          winner: { widthCssPx: 2, style: "solid", boxOrder: 0 },
           disposition: "paint-full",
+          logicalRectRaw: { inlineStart: -64, blockStart: -64, inlineSize: 128, blockSize: 2624 },
           startJoint: joint,
           endJoint: joint,
         }, {
@@ -101,7 +121,9 @@ function authenticated(): AuthenticatedPagedCollapsedTableRecord {
           axis: "inline",
           globalRowBoundary: 0,
           globalColumnBoundary: 0,
+          winner: { widthCssPx: 2, style: "solid", boxOrder: 0 },
           disposition: "paint-full",
+          logicalRectRaw: { inlineStart: -64, blockStart: -64, inlineSize: 6464, blockSize: 128 },
           startJoint: joint,
           endJoint: joint,
         }],
@@ -134,6 +156,7 @@ function printParameters(): PagedTableRendererPrintParameters {
     usePaginatedLayout: true,
     printingInternalHeadersAndFooters: false,
     pagesPerSheet: 1,
+    shouldPrintBackgrounds: true,
   };
 }
 
@@ -208,6 +231,28 @@ function addMatrixFacts(
       globalColumnEndExclusive: 2,
       interiorCollapsedEdgeIndices: [2],
     });
+    table.resolvedCollapsedEdgeGrid = [{
+      sourceEdgeIndex: 0, axis: "block", globalRowBoundary: 0, globalColumnBoundary: 0,
+      doNotFill: false, winner: { widthCssPx: 2, style: "solid", boxOrder: 0 },
+    }, {
+      sourceEdgeIndex: 1, axis: "inline", globalRowBoundary: 0, globalColumnBoundary: 0,
+      doNotFill: false, winner: { widthCssPx: 2, style: "solid", boxOrder: 0 },
+    }, {
+      sourceEdgeIndex: 2, axis: "block", globalRowBoundary: 0, globalColumnBoundary: 1,
+      doNotFill: true, winner: null,
+    }, {
+      sourceEdgeIndex: 3, axis: "inline", globalRowBoundary: 0, globalColumnBoundary: 1,
+      doNotFill: false, winner: null,
+    }, {
+      sourceEdgeIndex: 4, axis: "block", globalRowBoundary: 0, globalColumnBoundary: 2,
+      doNotFill: false, winner: null,
+    }, {
+      sourceEdgeIndex: 7, axis: "inline", globalRowBoundary: 1, globalColumnBoundary: 0,
+      doNotFill: false, winner: null,
+    }, {
+      sourceEdgeIndex: 9, axis: "inline", globalRowBoundary: 1, globalColumnBoundary: 1,
+      doNotFill: false, winner: null,
+    }];
     table.collapsedEdges.push({
       sourceEdgeIndex: 2,
       decisionOrder: 2,
@@ -215,7 +260,9 @@ function addMatrixFacts(
       axis: "block",
       globalRowBoundary: 0,
       globalColumnBoundary: 1,
+      winner: null,
       disposition: "skip-span-interior",
+      logicalRectRaw: null,
       startJoint: joint,
       endJoint: joint,
     });
@@ -273,6 +320,7 @@ function evidenceArtifact(): PagedTableRendererEvidenceArtifact {
       frameToken,
       documentToken,
       documentUrl,
+      printCaptureId: "11111111-1111-4111-8111-111111111111",
       printParameters: parameters,
       pages: record.pages,
     } satisfies BlinkPagedTableRendererPayload);
@@ -297,6 +345,10 @@ function evidenceArtifact(): PagedTableRendererEvidenceArtifact {
         sidecarSha256,
       }),
       documentLoaderId: loaderId,
+      frameToken: "frame-1",
+      documentToken: "document-1",
+      documentUrl: "https://example.test/",
+      printCaptureId: "11111111-1111-4111-8111-111111111111",
       browserVersion: "HeadlessChrome/140.0.0.0",
       protocolVersion: "1.3",
       printParametersSha256,
@@ -417,6 +469,7 @@ describe("DM-2573 pinned paged-table renderer helper", () => {
       frameToken: "frame-token",
       documentToken: "document-token",
       documentUrl: "about:blank",
+      printCaptureId: "11111111-1111-4111-8111-111111111111",
       printParameters: printParameters(),
       pages: record.pages,
     };

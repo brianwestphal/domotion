@@ -21,6 +21,7 @@ import { z } from "zod";
 
 import {
   PAGED_CAPTURE_HELPER_PATCH_SHA256,
+  PAGED_CAPTURE_HELPER_SKIA_PATCH_SHA256,
   PAGED_CAPTURE_SKIA_REVISION,
 } from "./paged-capture-bundle.js";
 import {
@@ -29,14 +30,20 @@ import {
   type PagedCollapsedPageRecord,
 } from "./paged-collapsed-table-record.js";
 
-export const PAGED_CAPTURE_HELPER_BUNDLE_SCHEMA_VERSION = 1 as const;
+export const PAGED_CAPTURE_HELPER_BUNDLE_SCHEMA_VERSION = 2 as const;
 export const PAGED_CAPTURE_HELPER_RUNTIME_ABI =
-  "domotion-paged-capture-helper-runtime-v1" as const;
+  "domotion-paged-capture-helper-runtime-v2" as const;
 export const PAGED_CAPTURE_HELPER_TRANSPORT_ABI =
+  "domotion-paged-capture-combined-v2" as const;
+export const PAGED_CAPTURE_HELPER_TABLE_TRANSPORT_ABI =
   "domotion-paged-table-physical-fragment-v1" as const;
 export const PAGED_CAPTURE_HELPER_TABLE_OWNERSHIP_CAPABILITY =
   "paged-table-ownership-v1" as const;
-export const PAGED_CAPTURE_HELPER_MAX_SIDECAR_BYTES = 8_388_608 as const;
+export const PAGED_CAPTURE_HELPER_PAGE_SVG_CAPABILITY =
+  "paged-page-svg-v1" as const;
+export const PAGED_CAPTURE_HELPER_MAX_SIDECAR_BYTES = 67_108_864 as const;
+export const PAGED_CAPTURE_HELPER_MAX_TABLE_SIDECAR_BYTES = 8_388_608 as const;
+export const PAGED_CAPTURE_HELPER_MAX_PAGE_RECORD_BYTES = 67_108_864 as const;
 export const PAGED_CAPTURE_HELPER_DEPOT_TOOLS_REVISION =
   "612d70c7ccb01d4a405e822ad0505206de636d7e" as const;
 
@@ -109,13 +116,17 @@ export const pagedCaptureHelperBundleManifestSchema = z.strictObject({
   schemaVersion: z.literal(PAGED_CAPTURE_HELPER_BUNDLE_SCHEMA_VERSION),
   runtimeAbi: z.literal(PAGED_CAPTURE_HELPER_RUNTIME_ABI),
   transportAbi: z.literal(PAGED_CAPTURE_HELPER_TRANSPORT_ABI),
-  capabilities: z.tuple([z.literal(PAGED_CAPTURE_HELPER_TABLE_OWNERSHIP_CAPABILITY)]),
+  capabilities: z.tuple([
+    z.literal(PAGED_CAPTURE_HELPER_TABLE_OWNERSHIP_CAPABILITY),
+    z.literal(PAGED_CAPTURE_HELPER_PAGE_SVG_CAPABILITY),
+  ]),
   platform: platformSchema,
   source: z.strictObject({
     chromiumRevision: z.literal(PAGED_COLLAPSED_TABLE_CHROMIUM_REVISION),
     skiaRevision: z.literal(PAGED_CAPTURE_SKIA_REVISION),
     depotToolsRevision: z.literal(PAGED_CAPTURE_HELPER_DEPOT_TOOLS_REVISION),
     patchSha256: z.literal(PAGED_CAPTURE_HELPER_PATCH_SHA256),
+    skiaPatchSha256: z.literal(PAGED_CAPTURE_HELPER_SKIA_PATCH_SHA256),
   }),
   protocol: z.strictObject({
     product: z.string().min(1),
@@ -627,7 +638,7 @@ type RawCdp = {
 
 const finiteNumber = z.number().finite();
 const positiveFiniteNumber = finiteNumber.positive();
-const handshakePrintParametersSchema = z.strictObject({
+export const pagedNativePrintParametersSchema = z.strictObject({
   printableArea: z.strictObject({
     x: finiteNumber,
     y: finiteNumber,
@@ -653,17 +664,19 @@ const handshakePrintParametersSchema = z.strictObject({
   usePaginatedLayout: z.literal(true),
   printingInternalHeadersAndFooters: z.boolean(),
   pagesPerSheet: z.number().int().positive(),
+  shouldPrintBackgrounds: z.boolean(),
 });
 
 const handshakePayloadSchema = z.strictObject({
-  helperAbi: z.literal(PAGED_CAPTURE_HELPER_TRANSPORT_ABI),
+  helperAbi: z.literal(PAGED_CAPTURE_HELPER_TABLE_TRANSPORT_ABI),
   sourceRevision: z.literal(PAGED_COLLAPSED_TABLE_CHROMIUM_REVISION),
   capturePhase: z.literal("after-PrintBegin-before-PrintEnd"),
   logicalFactsDerivedFromPdfVectorOrRaster: z.literal(false),
   frameToken: z.string().min(1),
   documentToken: z.string().min(1),
   documentUrl: z.string().min(1),
-  printParameters: handshakePrintParametersSchema,
+  printCaptureId: z.string().uuid(),
+  printParameters: pagedNativePrintParametersSchema,
   pages: z.array(z.unknown()).min(1),
 });
 
@@ -674,6 +687,8 @@ export interface PagedCaptureHelperTransportAuthentication {
   rendererProcessId: number;
   sidecarSha256: string;
   sidecarByteLength: number;
+  pageRecordSha256: string;
+  pageRecordByteLength: number;
   printLayoutStateSha256: string;
   processAuthentication: PagedCaptureProcessAuthentication;
   pdfBytesReadForLogicalFacts: false;
@@ -769,10 +784,36 @@ async function authenticatePagedCaptureHelperTransportWithDependencies(
         throw new Error("paged helper active print omitted its Blink sidecar");
       }
       const sidecarByteLength = Buffer.byteLength(response.domotionPagedTableEvidence);
-      if (sidecarByteLength > PAGED_CAPTURE_HELPER_MAX_SIDECAR_BYTES) {
+      if (sidecarByteLength > PAGED_CAPTURE_HELPER_MAX_TABLE_SIDECAR_BYTES) {
         throw new Error("paged helper Blink sidecar exceeded its hard bound");
       }
       const payload = handshakePayloadSchema.parse(JSON.parse(response.domotionPagedTableEvidence));
+      if (payload.printParameters.shouldPrintBackgrounds !== baseRequest.printBackground) {
+        throw new Error("paged helper native print-background parameter differs from the request");
+      }
+      if (typeof response.domotionPagedPageRecord !== "string"
+          || response.domotionPagedPageRecord === "") {
+        throw new Error("paged helper active print omitted its page-paint sidecar");
+      }
+      const pageRecordByteLength = Buffer.byteLength(response.domotionPagedPageRecord);
+      if (pageRecordByteLength > PAGED_CAPTURE_HELPER_MAX_PAGE_RECORD_BYTES) {
+        throw new Error("paged helper page-paint sidecar exceeded its hard bound");
+      }
+      const pageRecord = JSON.parse(response.domotionPagedPageRecord) as Record<string, unknown>;
+      if (pageRecord.helperAbi !== "domotion-paged-page-record-v1"
+          || pageRecord.sourceRevision !== PAGED_COLLAPSED_TABLE_CHROMIUM_REVISION
+          || pageRecord.printCaptureId !== payload.printCaptureId
+          || !Array.isArray(pageRecord.pages)
+          || pageRecord.pages.length === 0
+          || pageRecord.pages.some((candidate) => {
+            if (typeof candidate !== "object" || candidate == null) return true;
+            const pagePaint = candidate as Record<string, unknown>;
+            return pagePaint.status !== "authenticated"
+              || typeof pagePaint.vectorPaintSvg !== "string"
+              || !/^(?:<\?xml[^>]*>\s*)?<svg(?:\s|>)/.test(pagePaint.vectorPaintSvg);
+          })) {
+        throw new Error("paged helper page-paint sidecar failed its live capability proof");
+      }
       if (payload.documentUrl !== page.url()) {
         throw new Error("paged helper Blink sidecar document differs from the handshake page");
       }
@@ -790,6 +831,10 @@ async function authenticatePagedCaptureHelperTransportWithDependencies(
         printEpoch: {
           epochId: sha256(response.domotionPagedTableEvidence),
           documentLoaderId: loaderId,
+          frameToken: payload.frameToken,
+          documentToken: payload.documentToken,
+          documentUrl: payload.documentUrl,
+          printCaptureId: payload.printCaptureId,
           browserVersion: helper.manifest.protocol.product,
           protocolVersion: helper.manifest.protocol.protocolVersion,
           printParametersSha256: sha256(canonicalJson(payload.printParameters)),
@@ -829,6 +874,8 @@ async function authenticatePagedCaptureHelperTransportWithDependencies(
         rendererProcessId,
         sidecarSha256: sha256(response.domotionPagedTableEvidence),
         sidecarByteLength,
+        pageRecordSha256: sha256(response.domotionPagedPageRecord),
+        pageRecordByteLength,
         printLayoutStateSha256,
         processAuthentication,
         pdfBytesReadForLogicalFacts: false,
@@ -952,7 +999,9 @@ export interface LaunchPagedCaptureHelperOptions extends Pick<
   VerifyPagedCaptureHelperBundleOptions,
   "manifestPath" | "expectedManifestSha256"
 > {
-  capability: typeof PAGED_CAPTURE_HELPER_TABLE_OWNERSHIP_CAPABILITY;
+  capability:
+    | typeof PAGED_CAPTURE_HELPER_TABLE_OWNERSHIP_CAPABILITY
+    | typeof PAGED_CAPTURE_HELPER_PAGE_SVG_CAPABILITY;
   launchOptions?: Pick<LaunchOptions, "slowMo" | "timeout">;
 }
 
@@ -989,6 +1038,38 @@ export interface LaunchedPagedCaptureHelper {
   authenticateLiveProcesses(): Promise<PagedCaptureProcessAuthentication>;
 }
 
+export interface LaunchedPagedCaptureHelperAuthority {
+  browser: Browser;
+  helper: VerifiedPagedCaptureHelperBundle;
+  authenticateLiveProcesses(): Promise<PagedCaptureProcessAuthentication>;
+}
+
+const launchedPagedCaptureHelpers = new WeakMap<
+  LaunchedPagedCaptureHelper,
+  LaunchedPagedCaptureHelperAuthority
+>();
+
+function freezeJsonValue<T>(value: T): T {
+  if (typeof value !== "object" || value == null || Object.isFrozen(value)) return value;
+  for (const child of Object.values(value)) freezeJsonValue(child);
+  return Object.freeze(value);
+}
+
+/** Runtime proof that a helper handle was produced by this module's verified launch. */
+export function isLaunchedPagedCaptureHelper(
+  value: unknown,
+): value is LaunchedPagedCaptureHelper {
+  return typeof value === "object" && value != null
+    && launchedPagedCaptureHelpers.has(value as LaunchedPagedCaptureHelper);
+}
+
+/** @internal Immutable launch authority lookup for the capture transaction. */
+export function launchedPagedCaptureHelperAuthority(
+  value: LaunchedPagedCaptureHelper,
+): LaunchedPagedCaptureHelperAuthority | null {
+  return launchedPagedCaptureHelpers.get(value) ?? null;
+}
+
 /**
  * Launch only the authenticated caller-supplied helper. A temporary page makes
  * renderer-image authentication part of launch rather than a later optional
@@ -1003,8 +1084,7 @@ export async function launchPagedCaptureHelper(
     throw new Error("paged helper launch options contain an unauthenticated browser control");
   }
   const helper = await verifyPagedCaptureHelperBundle(options);
-  if (options.capability !== PAGED_CAPTURE_HELPER_TABLE_OWNERSHIP_CAPABILITY
-      || !helper.manifest.capabilities.includes(options.capability)) {
+  if (!helper.manifest.capabilities.includes(options.capability)) {
     throw new Error("paged helper does not provide the explicitly requested capability");
   }
   const chromiumSandbox = helper.manifest.platform.os !== "linux"
@@ -1023,16 +1103,27 @@ export async function launchPagedCaptureHelper(
     if (reverified.manifestSha256 !== helper.manifestSha256) {
       throw new Error("paged helper manifest changed during launch");
     }
-    return {
+    const authenticatedHelper: VerifiedPagedCaptureHelperBundle = Object.freeze({
+      ...reverified,
+      manifest: freezeJsonValue(pagedCaptureHelperBundleManifestSchema.parse(reverified.manifest)),
+    });
+    const authenticateLiveProcesses = async () => {
+      const current = await verifyPagedCaptureHelperBundle(options);
+      return authenticatePagedCaptureHelperProcesses(browser, current);
+    };
+    const launched: LaunchedPagedCaptureHelper = Object.freeze({
       browser,
-      helper: reverified,
+      helper: authenticatedHelper,
       authentication,
       transport,
-      authenticateLiveProcesses: async () => {
-        const current = await verifyPagedCaptureHelperBundle(options);
-        return authenticatePagedCaptureHelperProcesses(browser, current);
-      },
-    };
+      authenticateLiveProcesses,
+    });
+    launchedPagedCaptureHelpers.set(launched, Object.freeze({
+      browser,
+      helper: authenticatedHelper,
+      authenticateLiveProcesses,
+    }));
+    return launched;
   } catch (error) {
     await browser.close().catch(() => undefined);
     throw error;

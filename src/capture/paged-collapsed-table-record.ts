@@ -130,7 +130,8 @@ export const PAGED_COLLAPSED_JOINT_PRECEDENCE = [
 
 export interface PagedCollapsedJointDecision {
   precedence: typeof PAGED_COLLAPSED_JOINT_PRECEDENCE;
-  winner: "self" | "neighbor" | "tie" | "absent-at-fragment-boundary";
+  winner: "self" | "neighbor";
+  suppressedAtFragmentBoundary: boolean;
 }
 
 export interface PagedCollapsedEdgeDecision {
@@ -140,6 +141,11 @@ export interface PagedCollapsedEdgeDecision {
   axis: "inline" | "block";
   globalRowBoundary: number;
   globalColumnBoundary: number;
+  winner: {
+    widthCssPx: number;
+    style: "none" | "hidden" | "inset" | "groove" | "outset" | "ridge" | "dotted" | "dashed" | "solid" | "double";
+    boxOrder: number;
+  } | null;
   disposition:
     | "paint-full"
     | "paint-half-at-whole-row-start"
@@ -148,8 +154,23 @@ export interface PagedCollapsedEdgeDecision {
     | "omit-at-continued-row-end"
     | "skip-shared-section-edge"
     | "skip-span-interior";
+  logicalRectRaw: {
+    inlineStart: number;
+    blockStart: number;
+    inlineSize: number;
+    blockSize: number;
+  } | null;
   startJoint: PagedCollapsedJointDecision;
   endJoint: PagedCollapsedJointDecision;
+}
+
+export interface PagedResolvedCollapsedEdge {
+  sourceEdgeIndex: number;
+  axis: "inline" | "block";
+  globalRowBoundary: number;
+  globalColumnBoundary: number;
+  doNotFill: boolean;
+  winner: PagedCollapsedEdgeDecision["winner"];
 }
 
 export interface PagedCollapsedTableOccurrence {
@@ -169,6 +190,9 @@ export interface PagedCollapsedTableOccurrence {
   sectionOccurrences: PagedCollapsedSectionOccurrence[];
   captionOccurrences: PagedCollapsedCaptionOccurrence[];
   spanningCells: PagedCollapsedSpanningCell[];
+  /** Complete source-resolved TableBorders grid for exact joint replay. These
+   * edges are dependencies, not a claim that the edge painted on this page. */
+  resolvedCollapsedEdgeGrid: PagedResolvedCollapsedEdge[];
   collapsedEdges: PagedCollapsedEdgeDecision[];
 }
 
@@ -182,6 +206,10 @@ export interface PagedCollapsedPageRecord {
 export interface PagedCollapsedPrintEpoch {
   epochId: string;
   documentLoaderId: string;
+  frameToken: string;
+  documentToken: string;
+  documentUrl: string;
+  printCaptureId: string;
   browserVersion: string;
   protocolVersion: string;
   printParametersSha256: string;
@@ -271,6 +299,16 @@ function sameNumbers(left: readonly number[], right: readonly number[]): boolean
     && left.every((value, index) => value === right[index]);
 }
 
+function sameCollapsedWinner(
+  left: PagedCollapsedEdgeDecision["winner"],
+  right: PagedCollapsedEdgeDecision["winner"],
+): boolean {
+  return left === right || (left != null && right != null
+    && left.widthCssPx === right.widthCssPx
+    && left.style === right.style
+    && left.boxOrder === right.boxOrder);
+}
+
 function validateBreakState(
   state: PagedCollapsedPrintBreakState,
   span: PagedCollapsedGlobalRowSpan,
@@ -325,6 +363,10 @@ export function validateAuthenticatedPagedCollapsedTableRecord(
   for (const field of [
     record.printEpoch.epochId,
     record.printEpoch.documentLoaderId,
+    record.printEpoch.frameToken,
+    record.printEpoch.documentToken,
+    record.printEpoch.documentUrl,
+    record.printEpoch.printCaptureId,
     record.printEpoch.browserVersion,
     record.printEpoch.protocolVersion,
   ]) {
@@ -359,9 +401,11 @@ export function validateAuthenticatedPagedCollapsedTableRecord(
       if (table.pageIndex !== pageIndex) errors.push("table occurrence belongs to the wrong page");
       if (physicalIds.has(table.physicalTableFragmentId)) errors.push("duplicate physical table fragment identity");
       physicalIds.add(table.physicalTableFragmentId);
-      const tableOccurrences = occurrencesByTable.get(table.tableSourceIndex) ?? [];
-      tableOccurrences.push(table);
-      occurrencesByTable.set(table.tableSourceIndex, tableOccurrences);
+      if (table.tableSourceIndex >= 0) {
+        const tableOccurrences = occurrencesByTable.get(table.tableSourceIndex) ?? [];
+        tableOccurrences.push(table);
+        occurrencesByTable.set(table.tableSourceIndex, tableOccurrences);
+      }
 
       const expected = expectedProgression(table.writingMode);
       if (table.fragmentationAxis !== expected.axis || table.progression !== expected.progression) {
@@ -382,8 +426,8 @@ export function validateAuthenticatedPagedCollapsedTableRecord(
         const previous = index > 0
           ? canonicalLayoutUnit(table.globalColumnOffsets[index - 1])
           : null;
-        if (previous != null && !(current > previous)) {
-          errors.push("paged global column offsets are not strictly increasing");
+        if (previous != null && current < previous) {
+          errors.push("paged global column offsets are decreasing");
         }
       }
 
@@ -396,14 +440,17 @@ export function validateAuthenticatedPagedCollapsedTableRecord(
             || !Number.isInteger(section.occurrenceIndex) || section.occurrenceIndex < 0) {
           errors.push("invalid section source or occurrence index");
         }
+        const hasSectionSource = table.tableSourceIndex >= 0 && section.sectionSourceIndex >= 0;
         const sectionKey = `${table.tableSourceIndex}:${section.sectionSourceIndex}`;
-        const sectionIndices = sectionOccurrenceIndices.get(sectionKey) ?? [];
-        sectionIndices.push(section.occurrenceIndex);
-        sectionOccurrenceIndices.set(sectionKey, sectionIndices);
-        if (sectionSources.has(section.sectionSourceIndex)) {
+        const sectionIndices = hasSectionSource ? sectionOccurrenceIndices.get(sectionKey) ?? [] : [];
+        if (hasSectionSource) {
+          sectionIndices.push(section.occurrenceIndex);
+          sectionOccurrenceIndices.set(sectionKey, sectionIndices);
+        }
+        if (hasSectionSource && sectionSources.has(section.sectionSourceIndex)) {
           errors.push("duplicate section source in one table occurrence");
         }
-        sectionSources.add(section.sectionSourceIndex);
+        if (hasSectionSource) sectionSources.add(section.sectionSourceIndex);
         if (physicalIds.has(section.physicalSectionFragmentId)) errors.push("duplicate physical section fragment identity");
         physicalIds.add(section.physicalSectionFragmentId);
         if (!Number.isInteger(section.sectionPaintSlot) || section.sectionPaintSlot < 0
@@ -432,8 +479,8 @@ export function validateAuthenticatedPagedCollapsedTableRecord(
           const previous = index > 0
             ? canonicalLayoutUnit(section.logicalRowOffsets[index - 1])
             : null;
-          if (previous != null && !(current > previous)) {
-            errors.push("section logical row offsets are not strictly increasing");
+          if (previous != null && current < previous) {
+            errors.push("section logical row offsets are decreasing");
           }
         }
         validateBreakState(section.startBreak, section.globalRows, "start", errors);
@@ -476,10 +523,12 @@ export function validateAuthenticatedPagedCollapsedTableRecord(
             || !Number.isInteger(caption.occurrenceIndex) || caption.occurrenceIndex < 0) {
           errors.push("invalid caption source or occurrence index");
         }
-        const captionKey = `${table.tableSourceIndex}:${caption.captionSourceIndex}`;
-        const captionIndices = captionOccurrenceIndices.get(captionKey) ?? [];
-        captionIndices.push(caption.occurrenceIndex);
-        captionOccurrenceIndices.set(captionKey, captionIndices);
+        if (table.tableSourceIndex >= 0 && caption.captionSourceIndex >= 0) {
+          const captionKey = `${table.tableSourceIndex}:${caption.captionSourceIndex}`;
+          const captionIndices = captionOccurrenceIndices.get(captionKey) ?? [];
+          captionIndices.push(caption.occurrenceIndex);
+          captionOccurrenceIndices.set(captionKey, captionIndices);
+        }
         if (physicalIds.has(caption.physicalCaptionFragmentId)) errors.push("duplicate physical caption fragment identity");
         physicalIds.add(caption.physicalCaptionFragmentId);
         if (!Number.isInteger(caption.tableChildPaintSlot) || caption.tableChildPaintSlot < 0) {
@@ -518,11 +567,51 @@ export function validateAuthenticatedPagedCollapsedTableRecord(
         }
       }
 
+      const edgesPerRow = (table.totalColumns + 1) * 2;
+      const expectedResolvedIndices: number[] = [];
+      for (let row = 0; row <= table.totalRows; row++) {
+        for (let column = 0; column <= table.totalColumns; column++) {
+          if (row < table.totalRows) expectedResolvedIndices.push(row * edgesPerRow + column * 2);
+          if (column < table.totalColumns) expectedResolvedIndices.push(row * edgesPerRow + column * 2 + 1);
+        }
+      }
+      const resolvedEdges = new Map<number, PagedResolvedCollapsedEdge>();
+      if (table.resolvedCollapsedEdgeGrid.length !== expectedResolvedIndices.length) {
+        errors.push("resolved collapsed-edge grid is incomplete");
+      }
+      for (let index = 0; index < table.resolvedCollapsedEdgeGrid.length; index++) {
+        const edge = table.resolvedCollapsedEdgeGrid[index];
+        if (edge.sourceEdgeIndex !== expectedResolvedIndices[index]) {
+          errors.push("resolved collapsed-edge grid order or coverage changed");
+        }
+        if (resolvedEdges.has(edge.sourceEdgeIndex)) {
+          errors.push("duplicate resolved collapsed source edge");
+        }
+        resolvedEdges.set(edge.sourceEdgeIndex, edge);
+        const sourceRowBoundary = Math.floor(edge.sourceEdgeIndex / edgesPerRow);
+        const sourceColumnBoundary = Math.floor((edge.sourceEdgeIndex % edgesPerRow) / 2);
+        const sourceAxis = edge.sourceEdgeIndex % 2 === 1 ? "inline" : "block";
+        if (edge.globalRowBoundary !== sourceRowBoundary
+            || edge.globalColumnBoundary !== sourceColumnBoundary
+            || edge.axis !== sourceAxis) {
+          errors.push("resolved collapsed edge coordinates disagree with its source index");
+        }
+        if (edge.winner != null
+            && (!(edge.winner.widthCssPx > 0)
+              || !Number.isSafeInteger(edge.winner.widthCssPx * 64)
+              || !Number.isSafeInteger(edge.winner.boxOrder)
+              || edge.winner.boxOrder < 0
+              || edge.winner.style === "none"
+              || edge.winner.style === "hidden")) {
+          errors.push("invalid resolved collapsed-edge winner facts");
+        }
+        if (edge.doNotFill && edge.winner != null) {
+          errors.push("do-not-fill resolved edge carries a paint winner");
+        }
+      }
+
       let nextPaintOrder = 0;
       const observedEdgeIndices = new Set<number>();
-      if (table.totalRows > 0 && table.collapsedEdges.length === 0) {
-        errors.push("non-empty collapsed table has no edge decisions");
-      }
       for (let decisionOrder = 0; decisionOrder < table.collapsedEdges.length; decisionOrder++) {
         const edge = table.collapsedEdges[decisionOrder];
         if (!Number.isInteger(edge.sourceEdgeIndex) || edge.sourceEdgeIndex < 0) {
@@ -536,6 +625,29 @@ export function validateAuthenticatedPagedCollapsedTableRecord(
         }
         const omitted = isOmittedEdge(edge);
         if (omitted && edge.paintOrder != null) errors.push("omitted collapsed edge has a paint order");
+        if (omitted && edge.logicalRectRaw != null) errors.push("omitted collapsed edge has a logical paint rect");
+        if (!omitted && edge.logicalRectRaw == null) errors.push("painted collapsed edge lacks its logical paint rect");
+        if (edge.logicalRectRaw != null) {
+          const values = Object.values(edge.logicalRectRaw);
+          if (values.some((value) => !Number.isSafeInteger(value))) {
+            errors.push("collapsed-edge logical paint rect is not raw LayoutUnit geometry");
+          }
+          if (edge.logicalRectRaw.inlineSize < 0 || edge.logicalRectRaw.blockSize < 0) {
+            errors.push("collapsed-edge logical paint rect has negative size");
+          }
+        }
+        if (edge.winner != null
+            && (!(edge.winner.widthCssPx > 0)
+              || !Number.isSafeInteger(edge.winner.widthCssPx * 64)
+              || !Number.isSafeInteger(edge.winner.boxOrder)
+              || edge.winner.boxOrder < 0
+              || edge.winner.style === "none"
+              || edge.winner.style === "hidden")) {
+          errors.push("invalid collapsed-edge winner paint facts");
+        }
+        if (!omitted && edge.winner == null) {
+          errors.push("painted collapsed edge lacks winner paint facts");
+        }
         if (!omitted) {
           if (edge.paintOrder !== nextPaintOrder) errors.push("collapsed-edge paint order changed");
           nextPaintOrder++;
@@ -547,7 +659,10 @@ export function validateAuthenticatedPagedCollapsedTableRecord(
         const matchingBreak = (side: "start" | "end", kind: "whole-row" | "continued-row") =>
           table.sectionOccurrences.some((section) => {
             const state = side === "start" ? section.startBreak : section.endBreak;
-            return state.kind === kind && state.globalRowIndex === edge.globalRowBoundary;
+            const expectedBoundary = state.globalRowIndex == null
+              ? null
+              : state.globalRowIndex + (side === "end" && kind === "continued-row" ? 1 : 0);
+            return state.kind === kind && expectedBoundary === edge.globalRowBoundary;
           });
         if (edge.disposition === "paint-half-at-whole-row-start"
             && (!matchingBreak("start", "whole-row") || edge.axis !== "inline")) {
@@ -569,11 +684,27 @@ export function validateAuthenticatedPagedCollapsedTableRecord(
             || edge.globalColumnBoundary < 0 || edge.globalColumnBoundary > table.totalColumns) {
           errors.push("collapsed edge lies outside the global table graph");
         }
+        const sourceRowBoundary = Math.floor(edge.sourceEdgeIndex / edgesPerRow);
+        const sourceColumnBoundary = Math.floor((edge.sourceEdgeIndex % edgesPerRow) / 2);
+        const sourceAxis = edge.sourceEdgeIndex % 2 === 1 ? "inline" : "block";
+        if (edge.globalRowBoundary !== sourceRowBoundary
+            || edge.globalColumnBoundary !== sourceColumnBoundary
+            || edge.axis !== sourceAxis) {
+          errors.push("collapsed edge coordinates disagree with its source index");
+        }
+        const resolved = resolvedEdges.get(edge.sourceEdgeIndex);
+        if (resolved == null || resolved.doNotFill !== (edge.disposition === "skip-span-interior")
+            || !sameCollapsedWinner(resolved.winner, edge.winner)) {
+          errors.push("collapsed edge decision disagrees with its resolved grid source");
+        }
       }
       for (const edgeIndex of spanInteriorEdges) {
         if (!table.collapsedEdges.some((edge) =>
           edge.sourceEdgeIndex === edgeIndex && edge.disposition === "skip-span-interior")) {
           errors.push("spanning-cell interior edge lacks an explicit suppression decision");
+        }
+        if (resolvedEdges.get(edgeIndex)?.doNotFill !== true) {
+          errors.push("spanning-cell interior edge lacks resolved do-not-fill ownership");
         }
       }
     }
@@ -601,6 +732,19 @@ export function validateAuthenticatedPagedCollapsedTableRecord(
             || occurrence.progression !== previous.progression
             || !sameNumbers(occurrence.globalColumnOffsets, previous.globalColumnOffsets)) {
           errors.push("table-global facts changed across physical occurrences");
+        }
+        if (occurrence.resolvedCollapsedEdgeGrid.length !== previous.resolvedCollapsedEdgeGrid.length
+            || occurrence.resolvedCollapsedEdgeGrid.some((edge, edgeIndex) => {
+              const prior = previous.resolvedCollapsedEdgeGrid[edgeIndex];
+              return prior == null
+                || edge.sourceEdgeIndex !== prior.sourceEdgeIndex
+                || edge.axis !== prior.axis
+                || edge.globalRowBoundary !== prior.globalRowBoundary
+                || edge.globalColumnBoundary !== prior.globalColumnBoundary
+                || edge.doNotFill !== prior.doNotFill
+                || !sameCollapsedWinner(edge.winner, prior.winner);
+            })) {
+          errors.push("resolved collapsed-edge grid changed across physical occurrences");
         }
         const previousBreaks = previous.sectionOccurrences
           .map((section) => section.endBreak)

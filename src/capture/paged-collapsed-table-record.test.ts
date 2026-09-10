@@ -8,7 +8,9 @@ import {
   unavailablePagedCollapsedTableRecord,
   validateAuthenticatedPagedCollapsedTableRecord,
   type AuthenticatedPagedCollapsedTableRecord,
+  type PagedCollapsedEdgeDecision,
   type PagedCollapsedRepeatEligibility,
+  type PagedResolvedCollapsedEdge,
   type PagedCollapsedTableRecordInput,
 } from "./paged-collapsed-table-record.js";
 
@@ -22,10 +24,32 @@ const eligibility: PagedCollapsedRepeatEligibility = {
   layoutSideEffectsEnabled: true,
 };
 
-const joint = (winner: "self" | "neighbor" | "tie" | "absent-at-fragment-boundary") => ({
+const joint = (winner: "self" | "neighbor" | "absent-at-fragment-boundary") => ({
   precedence: PAGED_COLLAPSED_JOINT_PRECEDENCE,
-  winner,
+  winner: winner === "absent-at-fragment-boundary" ? "neighbor" as const : winner,
+  suppressedAtFragmentBoundary: winner === "absent-at-fragment-boundary",
 });
+
+function resolvedGrid(
+  rows: number,
+  columns: number,
+  overrides: Record<number, { winner: PagedCollapsedEdgeDecision["winner"]; doNotFill?: boolean }>,
+): PagedResolvedCollapsedEdge[] {
+  const edgesPerRow = (columns + 1) * 2;
+  const result: PagedResolvedCollapsedEdge[] = [];
+  for (let row = 0; row <= rows; row++) {
+    for (let column = 0; column <= columns; column++) {
+      for (const axis of ["block", "inline"] as const) {
+        if ((axis === "block" && row === rows) || (axis === "inline" && column === columns)) continue;
+        const sourceEdgeIndex = row * edgesPerRow + column * 2 + (axis === "inline" ? 1 : 0);
+        const override = overrides[sourceEdgeIndex];
+        result.push({ sourceEdgeIndex, axis, globalRowBoundary: row, globalColumnBoundary: column,
+          doNotFill: override?.doNotFill ?? false, winner: override?.winner ?? null });
+      }
+    }
+  }
+  return result;
+}
 
 function input(): PagedCollapsedTableRecordInput {
   return {
@@ -33,6 +57,10 @@ function input(): PagedCollapsedTableRecordInput {
     printEpoch: {
       epochId: "print-epoch-1",
       documentLoaderId: "loader-1",
+      frameToken: "frame-1",
+      documentToken: "document-1",
+      documentUrl: "https://example.test/",
+      printCaptureId: "11111111-1111-4111-8111-111111111111",
       browserVersion: "Chrome/140.0.0.0",
       protocolVersion: "1.3",
       printParametersSha256: "a".repeat(64),
@@ -119,39 +147,52 @@ function input(): PagedCollapsedTableRecordInput {
             globalRows: { start: 1, endExclusive: 3 },
             globalColumnStart: 0,
             globalColumnEndExclusive: 2,
-            interiorCollapsedEdgeIndices: [5],
+            interiorCollapsedEdgeIndices: [14],
           }],
+          resolvedCollapsedEdgeGrid: resolvedGrid(4, 2, {
+            1: { winner: { widthCssPx: 4, style: "solid", boxOrder: 1 } },
+            12: { winner: { widthCssPx: 4, style: "solid", boxOrder: 2 } },
+            13: { winner: { widthCssPx: 4, style: "solid", boxOrder: 2 } },
+            14: { winner: null, doNotFill: true },
+            19: { winner: { widthCssPx: 4, style: "solid", boxOrder: 2 } },
+          }),
           collapsedEdges: [
             {
-              sourceEdgeIndex: 0,
+              sourceEdgeIndex: 1,
               decisionOrder: 0,
               paintOrder: 0,
               axis: "inline",
               globalRowBoundary: 0,
               globalColumnBoundary: 0,
+              winner: { widthCssPx: 4, style: "solid", boxOrder: 1 },
               disposition: "paint-full",
+              logicalRectRaw: { inlineStart: 0, blockStart: -128, inlineSize: 5120, blockSize: 256 },
               startJoint: joint("self"),
               endJoint: joint("neighbor"),
             },
             {
-              sourceEdgeIndex: 5,
+              sourceEdgeIndex: 14,
               decisionOrder: 1,
               paintOrder: null,
               axis: "block",
               globalRowBoundary: 2,
               globalColumnBoundary: 1,
+              winner: null,
               disposition: "skip-span-interior",
-              startJoint: joint("tie"),
-              endJoint: joint("tie"),
+              logicalRectRaw: null,
+              startJoint: joint("neighbor"),
+              endJoint: joint("neighbor"),
             },
             {
-              sourceEdgeIndex: 8,
+              sourceEdgeIndex: 19,
               decisionOrder: 2,
               paintOrder: null,
               axis: "inline",
-              globalRowBoundary: 2,
+              globalRowBoundary: 3,
               globalColumnBoundary: 0,
+              winner: { widthCssPx: 4, style: "solid", boxOrder: 2 },
               disposition: "omit-at-continued-row-end",
+              logicalRectRaw: null,
               startJoint: joint("absent-at-fragment-boundary"),
               endJoint: joint("absent-at-fragment-boundary"),
             },
@@ -225,26 +266,37 @@ function input(): PagedCollapsedTableRecordInput {
           ],
           captionOccurrences: [],
           spanningCells: [],
+          resolvedCollapsedEdgeGrid: resolvedGrid(4, 2, {
+            1: { winner: { widthCssPx: 4, style: "solid", boxOrder: 1 } },
+            12: { winner: { widthCssPx: 4, style: "solid", boxOrder: 2 } },
+            13: { winner: { widthCssPx: 4, style: "solid", boxOrder: 2 } },
+            14: { winner: null, doNotFill: true },
+            19: { winner: { widthCssPx: 4, style: "solid", boxOrder: 2 } },
+          }),
           collapsedEdges: [
             {
-              sourceEdgeIndex: 6,
+              sourceEdgeIndex: 13,
               decisionOrder: 0,
               paintOrder: null,
               axis: "inline",
               globalRowBoundary: 2,
               globalColumnBoundary: 0,
+              winner: { widthCssPx: 4, style: "solid", boxOrder: 2 },
               disposition: "omit-at-continued-row-start",
+              logicalRectRaw: null,
               startJoint: joint("absent-at-fragment-boundary"),
               endJoint: joint("absent-at-fragment-boundary"),
             },
             {
-              sourceEdgeIndex: 7,
+              sourceEdgeIndex: 12,
               decisionOrder: 1,
               paintOrder: 0,
               axis: "block",
               globalRowBoundary: 2,
-              globalColumnBoundary: 1,
+              globalColumnBoundary: 0,
+              winner: { widthCssPx: 4, style: "solid", boxOrder: 2 },
               disposition: "paint-full",
+              logicalRectRaw: { inlineStart: -128, blockStart: 2048, inlineSize: 256, blockSize: 6016 },
               startJoint: joint("self"),
               endJoint: joint("self"),
             },
@@ -297,6 +349,8 @@ describe("paged collapsed-table private logical record", () => {
     ["nonconsecutive child paint slot", (record: AuthenticatedPagedCollapsedTableRecord) => { record.pages[0].tableOccurrences[0].sectionOccurrences[2].tableChildPaintSlot = 7; }],
     ["painted span interior", (record: AuthenticatedPagedCollapsedTableRecord) => { record.pages[0].tableOccurrences[0].collapsedEdges[1].disposition = "paint-full"; record.pages[0].tableOccurrences[0].collapsedEdges[1].paintOrder = 1; }],
     ["wrong edge order", (record: AuthenticatedPagedCollapsedTableRecord) => { record.pages[0].tableOccurrences[0].collapsedEdges[2].decisionOrder = 9; }],
+    ["incomplete resolved edge grid", (record: AuthenticatedPagedCollapsedTableRecord) => { record.pages[0].tableOccurrences[0].resolvedCollapsedEdgeGrid.pop(); }],
+    ["paint decision drift from resolved edge grid", (record: AuthenticatedPagedCollapsedTableRecord) => { record.pages[0].tableOccurrences[0].resolvedCollapsedEdgeGrid[1].winner = null; }],
     ["wrong joint order", (record: AuthenticatedPagedCollapsedTableRecord) => {
       const jointRecord = record.pages[0].tableOccurrences[0].collapsedEdges[0].startJoint as unknown as {
         precedence: readonly string[];
@@ -308,6 +362,18 @@ describe("paged collapsed-table private logical record", () => {
     const record = authenticated();
     mutate(record);
     expect(validateAuthenticatedPagedCollapsedTableRecord(record)).not.toEqual([]);
+  });
+
+  it("rejects a table-global resolved grid that changes only between occurrences", () => {
+    const record = authenticated();
+    record.pages[1].tableOccurrences[0].resolvedCollapsedEdgeGrid[0].winner = {
+      widthCssPx: 1,
+      style: "dotted",
+      boxOrder: 99,
+    };
+    expect(validateAuthenticatedPagedCollapsedTableRecord(record)).toContain(
+      "resolved collapsed-edge grid changed across physical occurrences",
+    );
   });
 
   it("keeps public printToPDF explicitly unavailable with every missing fact named", () => {

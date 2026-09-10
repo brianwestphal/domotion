@@ -8315,18 +8315,51 @@
           "windows"
         ],
         "tickets": [
-          "DM-2710"
+          "DM-2710",
+          "DM-2711"
         ],
         "code": [
           "src/capture/paged-page-record.ts",
           "src/capture/paged-page-record.test.ts",
           "tools/chromium-paged-page-record/renderer-page-record.patch",
+          "tools/chromium-paged-page-record/skia-deterministic-svg.patch",
           "tools/verify-paged-page-record-patch.mjs",
           "tools/paged-page-record-smoke.mjs"
         ],
         "aliases": [
           "docs/256-paged-page-print-record.md",
           "doc-256"
+        ]
+      }
+    },
+    {
+      "file": "257-authenticated-paged-page-svg.md",
+      "metadata": {
+        "id": "requirements/authenticated-paged-page-svg",
+        "title": "Authenticated per-page SVG rendering",
+        "kind": "contract",
+        "status": "current",
+        "owners": [
+          "layout",
+          "render"
+        ],
+        "platforms": [
+          "macos",
+          "linux",
+          "windows"
+        ],
+        "tickets": [
+          "DM-2711"
+        ],
+        "code": [
+          "src/render/paged-page-svg.ts",
+          "src/render/paged-page-svg.test.ts",
+          "src/capture/script/walker/collapsed-border.ts",
+          "src/capture/paged-page-record.ts"
+        ],
+        "aliases": [
+          "docs/257-authenticated-paged-page-svg.md",
+          "doc-257"
         ]
       }
     },
@@ -9331,6 +9364,9 @@
     ],
     "256": [
       "requirements/paged-page-print-record"
+    ],
+    "257": [
+      "requirements/authenticated-paged-page-svg"
     ],
     "01": [
       "requirements/fidelity"

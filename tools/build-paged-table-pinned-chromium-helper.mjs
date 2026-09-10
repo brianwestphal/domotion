@@ -29,6 +29,7 @@ const PATCHED_PATHS = [
   "headless/lib/browser/protocol/page_handler.h",
   "third_party/blink/public/devtools_protocol/domains/Page.pdl",
   "third_party/blink/public/web/web_local_frame.h",
+  "third_party/blink/public/web/web_print_params.h",
   "third_party/blink/renderer/core/frame/web_local_frame_impl.cc",
   "third_party/blink/renderer/core/frame/web_local_frame_impl.h",
   "third_party/blink/renderer/core/layout/table/table_borders.h",
@@ -79,7 +80,8 @@ const requiredDependencyFiles = [
   "third_party/node/node.py",
 ];
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const patchPath = resolve(projectRoot, "tools/chromium-paged-table-evidence/renderer-helper.patch");
+const patchPath = resolve(projectRoot, "tools/chromium-paged-page-record/renderer-page-record.patch");
+const skiaPatchPath = resolve(projectRoot, "tools/chromium-paged-page-record/skia-deterministic-svg.patch");
 const nodeIsolationProfile = resolve(
   projectRoot, "tools/chromium-sfns-validation/node-isolation.sb",
 );
@@ -163,7 +165,6 @@ if (git(root, "rev-parse", "HEAD") !== CHROMIUM_REVISION
   throw new Error("refusing to build outside authenticated Chromium/Skia/depot_tools pins");
 }
 for (const [label, path] of [
-  ["Skia", `${root}/third_party/skia`],
   ["V8", `${root}/v8`],
   ["ICU", `${root}/third_party/icu`],
   ["DevTools frontend", `${root}/third_party/devtools-frontend/src`],
@@ -174,12 +175,18 @@ for (const [label, path] of [
   }
 }
 if (!existsSync(patchPath)) throw new Error(`missing exact DM-2573 patch ${patchPath}`);
+if (!existsSync(skiaPatchPath)) throw new Error(`missing deterministic Skia patch ${skiaPatchPath}`);
 const pagePdl = readFileSync(
   `${root}/third_party/blink/public/devtools_protocol/domains/Page.pdl`, "utf8",
 );
 if (!pagePdl.includes("domotionPagedTableEvidence")) {
   execFileSync("git", ["-C", root, "apply", "--check", patchPath], { stdio: "inherit" });
   execFileSync("git", ["-C", root, "apply", patchPath], { stdio: "inherit" });
+}
+const skiaDevice = readFileSync(`${root}/third_party/skia/src/svg/SkSVGDevice.cpp`, "utf8");
+if (!skiaDevice.includes("fNextClipId++")) {
+  execFileSync("git", ["-C", `${root}/third_party/skia`, "apply", "--check", skiaPatchPath], { stdio: "inherit" });
+  execFileSync("git", ["-C", `${root}/third_party/skia`, "apply", skiaPatchPath], { stdio: "inherit" });
 }
 const patchedPdl = readFileSync(
   `${root}/third_party/blink/public/devtools_protocol/domains/Page.pdl`, "utf8",
@@ -200,11 +207,18 @@ if (statusPaths.length !== PATCHED_PATHS.length
   throw new Error("DM-2573 Chromium worktree contains a non-patch source delta");
 }
 const installedPatch = execFileSync(
-  "git", ["-C", root, "diff", "--binary"],
+  "git", ["-C", root, "diff", "--binary", "--unified=0"],
   { maxBuffer: 16 * 1024 * 1024 },
 );
 if (!installedPatch.equals(readFileSync(patchPath))) {
   throw new Error("installed Chromium source delta differs byte-for-byte from the retained patch");
+}
+const installedSkiaPatch = execFileSync(
+  "git", ["-C", `${root}/third_party/skia`, "diff", "--binary", "--unified=0"],
+  { maxBuffer: 4 * 1024 * 1024 },
+);
+if (!installedSkiaPatch.equals(readFileSync(skiaPatchPath))) {
+  throw new Error("installed Skia source delta differs byte-for-byte from the retained patch");
 }
 if (verifyOnly) {
   console.log(JSON.stringify({
@@ -213,6 +227,8 @@ if (verifyOnly) {
     depotToolsRevision: DEPOT_TOOLS_REVISION,
     patchPath,
     patchSha256: sha(patchPath),
+    skiaPatchPath,
+    skiaPatchSha256: sha(skiaPatchPath),
     sourceDeltaMatchesPatchExactly: true,
     runtimeDefaultEnabled: false,
   }));
@@ -302,6 +318,8 @@ console.log(JSON.stringify({
   metalToolchain: METAL_TOOLCHAIN,
   patchPath,
   patchSha256: sha(patchPath),
+  skiaPatchPath,
+  skiaPatchSha256: sha(skiaPatchPath),
   binary,
   binarySha256: sha(binary),
   runtimeDefaultEnabled: false,

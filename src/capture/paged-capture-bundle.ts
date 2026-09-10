@@ -15,11 +15,13 @@ import { PAGED_COLLAPSED_TABLE_CHROMIUM_REVISION } from "./paged-collapsed-table
 
 export const PAGED_CAPTURE_BUNDLE_SCHEMA_VERSION = 1 as const;
 export const PAGED_CAPTURE_BUNDLE_ABI = "domotion-paged-capture-bundle-v1" as const;
-export const PAGED_CAPTURE_HELPER_ABI = "domotion-paged-capture-physical-fragment-v1" as const;
+export const PAGED_CAPTURE_HELPER_ABI = "domotion-paged-capture-combined-v2" as const;
 export const PAGED_CAPTURE_SKIA_REVISION =
   "62efacd37737505732dbe3d8daa62abd679626a1" as const;
 export const PAGED_CAPTURE_HELPER_PATCH_SHA256 =
-  "c842e3dbe44037722e4ea3fd26f026addd8cdec083af922d7ecd785f1bb42512" as const;
+  "a94cda690cb1b0b5d78438ed195b8f4b1df161054b9e8172e6fa26500b87bcba" as const;
+export const PAGED_CAPTURE_HELPER_SKIA_PATCH_SHA256 =
+  "c4a8ab1e0c6832a7bbde849e54d26cf9c396adbedec60a7bfba5bb24209b6792" as const;
 
 const sha256Schema = z.string().regex(/^[0-9a-f]{64}$/, "expected lowercase SHA-256");
 const positiveFinite = z.number().finite().positive();
@@ -80,6 +82,7 @@ const commonShape = {
 };
 
 const pageSchema = z.strictObject({
+  selectionIndex: nonNegativeSafeInteger,
   pageIndex: nonNegativeSafeInteger,
   pageNumber: positiveSafeInteger,
   pageName: z.string().min(1).nullable(),
@@ -88,6 +91,7 @@ const pageSchema = z.strictObject({
   widthCssPx: positiveFinite,
   heightCssPx: positiveFinite,
   pageRecordSha256: sha256Schema,
+  collapsedBorderConsistencySha256: sha256Schema,
   svg: z.strictObject({
     path: relativeSvgPathSchema,
     byteLength: nonNegativeSafeInteger,
@@ -191,11 +195,18 @@ export const pagedCaptureBundleManifestSchema = z.discriminatedUnion("status", [
   const seenPaths = new Set<string>();
   for (let index = 0; index < manifest.pages.length; index++) {
     const page = manifest.pages[index];
-    if (page.pageIndex !== index) {
+    if (page.selectionIndex !== index) {
+      context.addIssue({
+        code: "custom",
+        path: ["pages", index, "selectionIndex"],
+        message: `expected consecutive selection index ${index}`,
+      });
+    }
+    if (index > 0 && page.pageIndex <= manifest.pages[index - 1].pageIndex) {
       context.addIssue({
         code: "custom",
         path: ["pages", index, "pageIndex"],
-        message: `expected consecutive page index ${index}`,
+        message: "source page indices must be strictly increasing",
       });
     }
     if (page.pageNumber !== page.pageIndex + 1) {
@@ -261,19 +272,23 @@ export interface PagedCaptureBundleAssetReader {
 
 function externalSvgReferences(svg: string): string[] {
   const references: string[] = [];
+  const inertRasterData = /^data:image\/(?:png|jpeg|gif|webp);base64,[a-z0-9+/=]+$/i;
   for (const match of svg.matchAll(/\b(?:href|src)\s*=\s*(["'])(.*?)\1/gis)) {
     const value = match[2].trim();
-    if (value !== "" && !value.startsWith("#") && !value.startsWith("data:")) {
+    if (value !== "" && !value.startsWith("#") && !inertRasterData.test(value)) {
       references.push(value);
     }
   }
   for (const match of svg.matchAll(/\burl\(\s*(["']?)(.*?)\1\s*\)/gis)) {
     const value = match[2].trim();
-    if (value !== "" && !value.startsWith("#") && !value.startsWith("data:")) {
+    if (value !== "" && !value.startsWith("#") && !inertRasterData.test(value)) {
       references.push(value);
     }
   }
   if (/\@import\b/i.test(svg)) references.push("@import");
+  if (/<(?:script|foreignObject)\b/i.test(svg) || /\son[a-z]+\s*=/i.test(svg)) {
+    references.push("active-content");
+  }
   return references;
 }
 

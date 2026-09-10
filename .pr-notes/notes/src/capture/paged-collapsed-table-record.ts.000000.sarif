@@ -79,6 +79,71 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "version": "gpt-5",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtvg62bd2rmp5914",
+          "message": {
+            "text": "DM-2711 keeps the complete source-resolved TableBorders grid separate from each physical page occurrence paint/disposition ledger. Off-page edges can decide native joint geometry, so exact replay must populate collapsedBorderFragmentLogicalRects from resolvedCollapsedEdgeGrid while using collapsedEdges only as the expected painted ordering and omission ledger. Validators require complete source-index coverage and byte-equivalent resolved grids across occurrences of one tableSourceIndex.",
+            "markdown": "DM-2711 keeps the complete source-resolved TableBorders grid separate from each physical page occurrence paint/disposition ledger. Off-page edges can decide native joint geometry, so exact replay must populate collapsedBorderFragmentLogicalRects from resolvedCollapsedEdgeGrid while using collapsedEdges only as the expected painted ordering and omission ledger. Validators require complete source-index coverage and byte-equivalent resolved grids across occurrences of one tableSourceIndex."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/paged-collapsed-table-record.ts"
+                },
+                "region": {
+                  "startLine": 167,
+                  "endLine": 196,
+                  "snippet": {
+                    "text": "export interface PagedResolvedCollapsedEdge {\n  sourceEdgeIndex: number;\n  axis: \"inline\" | \"block\";\n  globalRowBoundary: number;\n  globalColumnBoundary: number;\n  doNotFill: boolean;\n  winner: PagedCollapsedEdgeDecision[\"winner\"];\n}\n\nexport interface PagedCollapsedTableOccurrence {\n  physicalTableFragmentId: string;\n  tableSourceIndex: number;\n  occurrenceIndex: number;\n  pageIndex: number;\n  firstTableBox: boolean;\n  lastTableBox: boolean;\n  writingMode: PagedCollapsedTableWritingMode;\n  direction: PagedCollapsedTableDirection;\n  fragmentationAxis: PagedCollapsedPhysicalAxis;\n  progression: PagedCollapsedProgression;\n  totalRows: number;\n  totalColumns: number;\n  globalColumnOffsets: number[];\n  sectionOccurrences: PagedCollapsedSectionOccurrence[];\n  captionOccurrences: PagedCollapsedCaptionOccurrence[];\n  spanningCells: PagedCollapsedSpanningCell[];\n  /** Complete source-resolved TableBorders grid for exact joint replay. These\n   * edges are dependencies, not a claim that the edge painted on this page. */\n  resolvedCollapsedEdgeGrid: PagedResolvedCollapsedEdge[];\n  collapsedEdges: PagedCollapsedEdgeDecision[];"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 1
+          },
+          "workItemUris": [
+            "DM-2711"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "8d124e5382e239e600e00444e0aa36d0"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "b1a01987623a384cd45f7a75a94a524a6baaa962",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

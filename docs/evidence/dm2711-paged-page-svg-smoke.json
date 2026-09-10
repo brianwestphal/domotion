@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "ticket": "DM-2711",
+  "chromiumRevision": "7d859f271cbda744098ac69f44978d4edfa62be3",
+  "binaryPath": "/Users/westphal/Documents/domotion/.chromium-build/worktrees/dm2573/src/out/DM2573/headless_shell",
+  "binarySha256": "228befe1ecb53e21ac4cab40c8ddc118da02cdc6e8e4d90656e1e953e3a1c9d6",
+  "pinnedFontPath": "/Users/westphal/Documents/domotion/assets/fonts/fixture/DomotionFixtureMono-Regular.ttf",
+  "pinnedFontSha256": "aa42f50d4b43c91b1af561b48d75d6d3b5a54902eb83a8912934cfc2821e46a8",
+  "defaultOff": true,
+  "privateResponsePresent": true,
+  "observedPrintLayoutStateRestoredExactly": true,
+  "pdfOrScreenshotBytesReadForFacts": false,
+  "sidecarByteLength": 770644,
+  "sidecarSha256": "5df3b4f96bef5d40eeaedc6d3df06b23376a2f965695d95b6c88258d2eb98897",
+  "pageCount": 8,
+  "repeatCaptureUsedDistinctTransactionNonce": true,
+  "repeatCaptureSvgBytesIdentical": true,
+  "printBackgroundParameterAndPaintBound": true,
+  "transientBeforePrintChildFrameRejected": true,
+  "logicalLedgerByteLength": 572991,
+  "logicalLedgerSha256": "3de1162959d13537c180441919a067147e4299bdb84a4369d06496e4caa761e1",
+  "matrix": {
+    "repeatedHeader": true,
+    "repeatedFooter": true,
+    "wholeRowSeam": true,
+    "continuedRowSeam": true,
+    "topCaption": true,
+    "bottomCaption": true,
+    "spanningInterior": true,
+    "forcedBreak": true,
+    "nonUnitZoom": true,
+    "rtl": true,
+    "verticalRl": true,
+    "verticalLr": true,
+    "rawLogicalRectCount": 234,
+    "resolvedEdgeGridEntries": 671
+  },
+  "pages": [
+    {
+      "selectionIndex": 0,
+      "pageIndex": 0,
+      "fragmentCount": 34,
+      "inlineItemCount": 36,
+      "paintOpCount": 143,
+      "vectorPaintByteLength": 91677,
+      "vectorPaintSha256": "dc6891cabe3f5498db448d2d22802507bf32f66687f6fbe1e85e83b44d7561ee"
+    },
+    {
+      "selectionIndex": 1,
+      "pageIndex": 1,
+      "fragmentCount": 19,
+      "inlineItemCount": 14,
+      "paintOpCount": 76,
+      "vectorPaintByteLength": 43120,
+      "vectorPaintSha256": "facef769b1acf5c8219932b50ae5c5ca748064b540551e42163283310cdaf88f"
+    },
+    {
+      "selectionIndex": 2,
+      "pageIndex": 2,
+      "fragmentCount": 34,
+      "inlineItemCount": 36,
+      "paintOpCount": 144,
+      "vectorPaintByteLength": 85375,
+      "vectorPaintSha256": "1e82b22c04e24a21e6c2d152e1498758f8f2298e02fa7ad27c08b9ff9c1fa919"
+    },
+    {
+      "selectionIndex": 3,
+      "pageIndex": 3,
+      "fragmentCount": 18,
+      "inlineItemCount": 8,
+      "paintOpCount": 57,
+      "vectorPaintByteLength": 34089,
+      "vectorPaintSha256": "5cf3d41af217398dab9d40d24d2ce6f735185698b56ab108d66853dcbbf013a9"
+    },
+    {
+      "selectionIndex": 4,
+      "pageIndex": 4,
+      "fragmentCount": 38,
+      "inlineItemCount": 38,
+      "paintOpCount": 152,
+      "vectorPaintByteLength": 65905,
+      "vectorPaintSha256": "55893d5c09c5dac46de29c06a6aa9ca76829d46963ae9fc724f18988f204c0b2"
+    },
+    {
+      "selectionIndex": 5,
+      "pageIndex": 5,
+      "fragmentCount": 15,
+      "inlineItemCount": 10,
+      "paintOpCount": 52,
+      "vectorPaintByteLength": 19755,
+      "vectorPaintSha256": "867370eed12297f7ef643e9a279345a1db1974516d7a7364bac452443e5f67e7"
+    },
+    {
+      "selectionIndex": 6,
+      "pageIndex": 6,
+      "fragmentCount": 11,
+      "inlineItemCount": 4,
+      "paintOpCount": 41,
+      "vectorPaintByteLength": 10161,
+      "vectorPaintSha256": "1212385586ec6378b1caf77193b1e2fe2bef8be86f8aec1999f465ba4e7e9a4c"
+    },
+    {
+      "selectionIndex": 7,
+      "pageIndex": 7,
+      "fragmentCount": 11,
+      "inlineItemCount": 4,
+      "paintOpCount": 41,
+      "vectorPaintByteLength": 9058,
+      "vectorPaintSha256": "828e34b74132f59361348d31b5efd9d8dc9f93e4e2504b3cfa8007d992771276"
+    }
+  ],
+  "pass": true
+}

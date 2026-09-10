@@ -9,15 +9,14 @@ const patch = readFileSync(
 );
 
 describe("pinned Chromium paged-page patch", () => {
-  it("captures the finalized inner page record before that record is consumed", () => {
-    const spoolHunk = patch.slice(patch.indexOf("PaintRecord record ="));
-    const paint = spoolHunk.indexOf("builder.EndRecording");
-    const capture = spoolHunk.indexOf("SerializeDomotionPagedPagePaintRecord");
-    const consume = spoolHunk.indexOf("context.DrawRecord");
+  it("captures the finalized page wrapper before that record is consumed", () => {
+    const paint = patch.indexOf("PaintRecord page_record = context.EndRecording()");
+    const capture = patch.indexOf("SerializeDomotionPagedPagePaintRecord", paint);
+    const consume = patch.indexOf("canvas->drawPicture(std::move(page_record))", capture);
     expect(paint).toBeGreaterThanOrEqual(0);
     expect(capture).toBeGreaterThan(paint);
     expect(consume).toBeGreaterThan(capture);
-    expect(spoolHunk.slice(capture, consume)).toContain("page_rect, record");
+    expect(patch.slice(capture, consume)).toContain("PageRect(page_index), page_record");
   });
 
   it("walks current post-layout boxes and the inline fragment item stream", () => {
@@ -25,7 +24,9 @@ describe("pinned Chromium paged-page patch", () => {
     expect(patch).toContain("fragment.Items()");
     expect(patch).toContain("item.IsLayoutGeneratedText()");
     expect(patch).toContain("item.OffsetInContainerFragment()");
-    expect(patch).not.toContain("AppendFragmentRecord(*child_box, child.offset");
+    expect(patch).toContain("AppendFragmentRecord(*child_box, child.offset");
+    expect(patch).toContain('"native-local-explicit-per-fragment"');
+    expect(patch).toContain('"offsetInParentPhysical"');
   });
 
   it("authenticates table-part occurrences and derives page-area offsets from fragment links", () => {
@@ -35,6 +36,12 @@ describe("pinned Chromium paged-page patch", () => {
     expect(patch).toContain('value.Set(\"sourceOccurrenceIndex\"');
     expect(patch).toContain("page_border_box.Children()[0].offset");
     expect(patch).not.toContain("page_area.OffsetFromOwnerLayoutBox()");
+    expect(patch).toContain('winner.Set("widthCssPx"');
+    expect(patch).toContain('winner.Set("style"');
+    expect(patch).toContain('winner.Set("boxOrder"');
+    expect(patch).toContain("BuildResolvedCollapsedEdgeGrid");
+    expect(patch).toContain('result.Set("resolvedCollapsedEdgeGrid"');
+    expect(patch).toContain('result.Set("collapsedEdges"');
   });
 
   it("recursively fails closed before asking Skia to emit SVG", () => {
@@ -51,6 +58,8 @@ describe("pinned Chromium paged-page patch", () => {
     expect(patch).toContain("flags.getColorFilter() || flags.getImageFilter()");
     expect(patch).toContain("path.isInverseFillType()");
     expect(patch).toContain("!matrix.asM33().hasPerspective()");
+    expect(patch).toContain("Number(page_container->Size().width)");
+    expect(patch).toContain("Number(page_container->Size().height)");
     const preflight = patch.indexOf("PreflightPaintRecord(paint_record");
     const unavailable = patch.indexOf('result.Set("status", "unavailable")', preflight);
     const svgCanvas = patch.indexOf("SkSVGCanvas::Make", preflight);
@@ -63,5 +72,14 @@ describe("pinned Chromium paged-page patch", () => {
     expect(patch).toContain("kDomotionPagedPageRecordMaxBytes = 64 * 1024 * 1024");
     expect(patch).toContain("domotion_paged_page_record.size() >");
     expect(patch).toContain('"maximumBytes":67108864');
+  });
+
+  it("binds paint-affecting backgrounds and rejects PDF or child-frame capture at the native boundary", () => {
+    expect(patch).toContain('result.Set("shouldPrintBackgrounds"');
+    expect(patch).toContain("params.domotion_should_print_backgrounds");
+    expect(patch).toContain("domotion_paged_table_evidence_requested_ && !is_pdf");
+    expect(patch).toContain('"reason":"pdf-input-not-supported"');
+    expect(patch).toContain("frame.Tree().FirstChild()");
+    expect(patch).toContain('unsupported.Append("ChildFrame")');
   });
 });

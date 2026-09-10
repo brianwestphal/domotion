@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["layout", "capture"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2710"]
-code: ["src/capture/paged-page-record.ts", "src/capture/paged-page-record.test.ts", "tools/chromium-paged-page-record/renderer-page-record.patch", "tools/verify-paged-page-record-patch.mjs", "tools/paged-page-record-smoke.mjs"]
+tickets: ["DM-2710", "DM-2711"]
+code: ["src/capture/paged-page-record.ts", "src/capture/paged-page-record.test.ts", "tools/chromium-paged-page-record/renderer-page-record.patch", "tools/chromium-paged-page-record/skia-deterministic-svg.patch", "tools/verify-paged-page-record-patch.mjs", "tools/paged-page-record-smoke.mjs"]
 aliases: ["docs/256-paged-page-print-record.md", "doc-256"]
 ---
 
@@ -14,121 +14,121 @@ aliases: ["docs/256-paged-page-print-record.md", "doc-256"]
 
 ## Decision
 
-Paged SVG capture uses a versioned, hard-bounded record produced once per
-physical page by the authenticated Chromium helper. A page is promotable only
-when the record contains both its source-owned physical-fragment geometry and
-its complete ordered paint stream. PDF operators, screenshots, and raster
-pixels are never inputs.
+The separately distributed Chromium helper records the final wrapper
+`cc::PaintRecord` for each selected physical page in
+`ChromePrintContext::SpoolSinglePage`, after `SpoolPage` has installed the
+scroll correction, page transform, clip, and page paint and before that same
+record is consumed by the print canvas. The helper replays that record through
+the pinned Skia SVG device. PDF and screenshots are downstream evidence only.
 
-The helper captures inside `ChromePrintContext::SpoolPage`, after
-`LocalFrameView::PrintPage` has selected the page, updated the print lifecycle,
-installed the page content transform and clip, and painted. It captures the
-finalized inner `PaintRecord` before that same record is consumed by the outer
-print canvas. The older DM-2573 hook immediately after
-`PrintBegin` remains valid for its table-layout experiment, but is too early to
-authenticate final per-page paint.
+The record deliberately does not claim to serialize Blink `PaintArtifact`
+property trees, paint chunks, display-item ranges, font files, or image files.
+The producer-owned facts are the physical fragment occurrence stream, final
+wrapper paint record, source operation ledger, and exact SVG bytes. Any future
+expanded vocabulary requires a new ABI.
+`sourcePaintOpTypes` is the native ordered ledger; its exposed count is a
+derived convenience value, not an additional producer fact.
 
-## Chromium ownership
+## Transaction and runtime authentication
 
-The contract is pinned to Chromium
-`7d859f271cbda744098ac69f44978d4edfa62be3` and the following source owners:
+An authenticated promotion binds both native response sidecars from one
+`Page.printToPDF` transaction. A renderer-generated UUID is carried as
+`printCaptureId` in both sidecars. Promotion additionally requires exact
+frame/document tokens and URL, stable pre/post loader and URL, normalized print
+parameter SHA-256, requested source page indices, response browser/renderer
+PIDs, exact restoration of the bounded observed print-layout state, and an
+authenticated helper manifest/process image. This is deliberately not a claim
+to snapshot closed shadow roots, canvas pixels, media decoders, or arbitrary
+application state. ABI v1 rejects any child frame: it binds and fingerprints
+only the top document, so it cannot authenticate local-frame paint.
 
-- `web_local_frame_impl.cc:359-501` owns page spooling and the live inner
-  `PaintRecordBuilder`.
-- `local_frame_view.cc:4243-4285` selects the page and paints outside the normal
-  lifecycle after the print update.
-- `pagination_utils.h:32-101` owns page container, border box, page area,
-  stitched content rect, description, and target scale geometry.
-- `PhysicalBoxFragment::PostLayoutChildren()` and `FragmentItems` own final box,
-  line, text, generated-content, and repeated-fragment occurrences. Raw
-  `Children()` is not a sufficient general traversal.
-- Blink `PaintArtifact` owns display-item ordering and paint chunks; each
-  chunk's transform, clip, and effect property state participates in the page
-  result.
-- Each drawing display item's `cc::PaintRecord` owns the actual ordered Skia
-  operations. Debug `ToJSON()` and `LoggingCanvas` output are diagnostics, not
-  this release contract: they omit stable ownership and essential glyph/image
-  details.
+The helper manifest declares `paged-page-svg-v1` and pins both retained deltas:
+the cumulative Chromium patch and the nested Skia deterministic-clip-ID patch.
+`displayHeaderFooter` is false because browser header/footer paint is added
+outside the captured Blink page wrapper. Stock Chromium or the historical
+DM-2573-only table patch cannot authenticate this record.
 
-No new shaping or rasterization decision is made here. Glyph IDs and positions
-are the result already chosen by Chromium's pinned HarfBuzz route, and the
-allowed drawing commands are the result already chosen by Chromium's pinned
-Skia route. The record embeds the exact font or image bytes referenced by an
-accepted command and authenticates them with SHA-256.
+## Record contents
 
-## Record boundary
+Each authenticated page carries its consecutive selection index and original
+strictly increasing document page index; page container, border box, page
+area, stitched content rect, target scale, name, and empty-page classification;
+preorder post-layout fragments and inline items; source and occurrence indices
+for tables, sections, rows, cells, and captions; break-token state, writing
+mode, direction, zoom, and DOM backend identity; and the exact self-contained
+SVG plus its byte length, SHA-256, and recursive paint-op ledger.
 
-An authenticated record contains:
+Fragment and inline-item geometry is serialized as native local offsets and
+sizes with an explicit coordinate domain for each parent/local relationship.
+No synthesized absolute fragment rectangles are promoted. Page-container,
+border-box, and page-area rectangles are expressed in page-container target CSS
+pixels. `pageRect` is the integer-enclosed, scroll-adjusted layout-space paint
+cull rectangle passed to page spooling; the stitched content rectangle also
+remains in layout CSS pixels. Collapsed
+border logical rectangles additionally retain raw Blink `LayoutUnit` integers
+at 1/64 CSS px. Skia rounds the SVG device bounds outward to integer pixels;
+root width, height, and viewBox must equal that outward-rounded page-container
+extent. Page-area offsets come from fragment links, not
+`OffsetFromOwnerLayoutBox()` on anonymous page pseudo fragments.
+Occurrence indices are table-owned. Generic boxes retain DOM identity when
+available, while `breakToken` describes the fragment's outgoing token; the
+record does not claim incoming-token or repeated-fixed-box provenance.
+Authenticated collapsed-table replay currently requires non-anonymous,
+light-DOM table parts with nonnegative source and physical-occurrence indices;
+shadow-tree or generated anonymous tables fail closed instead of being
+cross-linked by an invented identity.
+The legacy `emptyKind` names classify an empty page-area flow by position
+(`forced-blank` for nonterminal and `terminal-empty` for final); they do not
+assert that page backgrounds, borders, or margin boxes produce no paint.
 
-- frame, document, loader, print epoch, print-parameter digest, and layout
-  generation identities;
-- page area, border box, content area, stitched content rect, content clip,
-  page transform, target scale, device scale, page name, writing mode, and
-  direction;
-- preorder physical occurrence records with parent, page-local transform,
-  border box, overflow clip, effective zoom, break token, stable DOM backend
-  node or synthetic page identity, pseudo/generated role, and paint clients;
-- complete transform, clip, and effect property trees referenced by ordered
-  paint chunks, plus globally consecutive display-item order and each item's
-  range in the flattened Skia operation stream;
-- a recursively preflighted replay of that stream through Skia's SVG canvas,
-  with text converted to paths, images embedded, and a digest and ordered
-  operation-type ledger covering the exact source record;
-- table/section/row/cell/caption occurrence rectangles cross-referenced to the
-  physical fragment stream; and
-- the complete DM-2573 collapsed-table record for global edge winners,
-  repeated sections, spanning-cell interiors, whole-row half edges, continued
-  row omissions, and joint precedence.
+## Closed paint boundary
 
-Selected-page indices are consecutive while document page indices remain
-strictly increasing, so sparse ranges never relabel source pages. Geometry is
-canonical Blink `LayoutUnit` at 1/64 CSS px. Matrix coefficients,
-target scale, device scale, and opacity must be finite. Page, chunk, display
-item, fragment, and occurrence indices are consecutive and deterministic.
-Page-area offsets come from the page-container → border-box → area fragment
-links; page pseudo fragments are not CSS boxes and must never be queried with
-`OffsetFromOwnerLayoutBox()`. Table-part records carry both their DOM source
-index and their physical-fragment occurrence index, including rows and
-captions, so repeated and continued boxes remain distinguishable.
+The native preflight is reject-by-default. It recursively inspects nested
+records and admits only explicitly listed 2D path/shape/text/state operations
+that the pinned Skia SVG device can serialize as a deterministic vector scene.
+It rejects foreign display items before PaintArtifact flattening; annotations,
+images, shaders, path effects, loopers, filters, non-`src-over` blending,
+layers, perspective, inverse paths, complex clips, meshes, scrolling-content,
+Skottie, slugs, RSXform-positioned text, and color-glyph typefaces. Unsupported
+input makes the whole record unavailable and emits no authenticated page
+subset. The SVG is not claimed to be a pixel-identical serialization of native
+rasterization: Skia owns vector color conversion, antialiasing semantics, and
+curve encoding.
 
-## Closed paint preflight
+Collapsed-table occurrences carry both a complete source-resolved edge grid
+for joint dependencies and a separate page-local paint/disposition ledger.
+This prevents an off-page neighbor from disappearing during exact logical
+replay without claiming that dependency edge painted on the current page.
 
-Version 1 does not attempt to restate Skia's full `PaintFlags`, shader, glyph,
-image, and nested-record semantics in a reduced JSON vocabulary. The helper
-recursively preflights the authoritative `cc::PaintRecord`, then replays that
-same record into `SkSVGCanvas` with text converted to outlines. The resulting
-SVG is itself the lossless page paint payload; its source-op order and
-display-item ranges remain separately auditable.
+Skia text is converted to paths. SVG clip resource IDs use an output-local
+counter because Skia's process-global clip generation IDs are not deterministic
+across repeated captures. The renderer returns the authenticated SVG bytes
+unchanged and uses collapsed-table geometry only as a logical audit oracle; it
+does not repaint borders over native output.
 
-The preflight rejects any construct for which the pinned SVG device can omit,
-rasterize, or approximate source paint, including perspective, vertices/mesh,
-inverse paths, unsupported clips/shaders/filters/color glyphs/images, foreign
-surfaces, native theme painting, and remote-frame layers. Adding one requires a
-new source test and exact SVG-device path before extending the allowlist; an
-unknown operation cannot be skipped or inferred from final pixels.
+## Bounds and failure
 
-## Completeness and fail-closed behavior
+Each SVG stream stops accepting bytes at 8 MiB. Table extraction has a
+conservative 10,000-unit producer work cap (including the one-pass source and
+fragment-occurrence index); the Blink accumulator stops retaining pages before
+63 MiB, leaving room for the envelope, and the renderer transport retains the
+existing 64 MiB final bound. SVG and accumulated page bytes are bounded during
+production. The table sidecar also receives a final 8 MiB transport check after
+its bounded in-memory value tree is serialized.
 
-Geometry and paint cross-authenticate each other. Every fragment-declared paint
-client must occur in the ordered page stream, every display-item fragment
-reference must resolve to that page, property-tree references must resolve, and
-table geometry must resolve to both the general fragment stream and the
-DM-2573 logical table stream. Different page identity, count, name, empty state,
-layout generation, or print parameters rejects the whole capture.
-
-The encoded sidecar is limited to 64 MiB before it crosses the protocol. The
-helper returns a typed unavailable record for an unsupported paint operation,
-foreign content, size overflow, lifecycle mutation, incomplete geometry, or
-invalid record. It reports the failing page and sorted unique unsupported
-operation names but exposes no partially authenticated page. The public API
-must preserve that status and must not attempt ordinary Chromium, PDF, or
-screenshot fallback.
+Unsupported paint, foreign layers, a missing or mismatched transaction nonce,
+runtime/process drift, observed print-layout-state drift, identity mismatch, incomplete geometry,
+external SVG references, or a size overflow yields a typed unavailable record.
+There is no ordinary-Chromium, PDF, screenshot, or partial-page fallback.
 
 ## Verification
 
-`src/capture/paged-page-record.test.ts` proves acceptance of a complete minimal
-page and rejection of an early lifecycle capture, unknown operation, missing
-font resource, broken fragment/display ownership, over-bound payload, and
-non-`LayoutUnit` geometry. Native patch review additionally checks that capture
-runs at the live page-spool boundary and that default `Page.printToPDF` behavior
-is unchanged unless the authenticated sidecar option is enabled.
+The TypeScript tests cover strict transport/record validation, physical
+occurrence validation, exact SVG pass-through, collapsed-border replay ordering,
+raw LayoutUnit equality, vertical/RTL logical replay, and hostile unavailable
+paths. Native verification byte-compares both retained source deltas. The live
+smoke performs default-off and repeated opt-in prints,
+requires distinct transaction UUIDs with byte-identical page SVGs, checks page
+canvas dimensions against native page containers, binds the background-paint
+policy, uses a repository-pinned font, and writes every physical page SVG plus
+the full logical ledger as inspectable evidence.

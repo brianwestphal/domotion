@@ -77,6 +77,7 @@ function authenticatedInput(): AuthenticatedPagedCaptureBundleInput {
     },
     pages: [
       {
+        selectionIndex: 0,
         pageIndex: 0,
         pageNumber: 1,
         pageName: null,
@@ -85,6 +86,7 @@ function authenticatedInput(): AuthenticatedPagedCaptureBundleInput {
         widthCssPx: 816,
         heightCssPx: 1056,
         pageRecordSha256: hash("page record 1"),
+        collapsedBorderConsistencySha256: hash("border audit 1"),
         svg: {
           path: "report.pages/page-0001.svg",
           byteLength: Buffer.byteLength(svg1),
@@ -93,6 +95,7 @@ function authenticatedInput(): AuthenticatedPagedCaptureBundleInput {
         },
       },
       {
+        selectionIndex: 1,
         pageIndex: 1,
         pageNumber: 2,
         pageName: "appendix",
@@ -101,6 +104,7 @@ function authenticatedInput(): AuthenticatedPagedCaptureBundleInput {
         widthCssPx: 816,
         heightCssPx: 1056,
         pageRecordSha256: hash("page record 2"),
+        collapsedBorderConsistencySha256: hash("border audit 2"),
         svg: {
           path: "report.pages/page-0002.svg",
           byteLength: Buffer.byteLength(svg2),
@@ -162,6 +166,17 @@ describe("paged-capture bundle manifest", () => {
       missingCapabilities: ["page-local-physical-fragments", "page-local-physical-fragments"],
     }).success).toBe(false);
     expect(pagedCaptureBundleManifestSchema.safeParse({ ...unavailable, pages: [] }).success).toBe(false);
+  });
+
+  it("rejects active SVG data references while allowing inert embedded raster bytes", async () => {
+    const input = authenticatedInput();
+    const hostile = '<svg xmlns="http://www.w3.org/2000/svg" width="816" height="1056"><image href="data:image/svg+xml,&lt;svg onload=alert(1)/&gt;"/></svg>';
+    input.pages[1].svg.byteLength = Buffer.byteLength(hostile);
+    input.pages[1].svg.sha256 = hash(hostile);
+    const manifest = buildAuthenticatedPagedCaptureBundleManifest(input);
+    const assets = new Map([[manifest.pages[0].svg.path, svg1], [manifest.pages[1].svg.path, hostile]]);
+    const errors = await verifyPagedCaptureBundleAssets(manifest, (path) => assets.get(path));
+    expect(errors.some((error) => error.includes("data:image/svg+xml"))).toBe(true);
   });
 
   it("verifies page presence, bytes, hashes, SVG shape, and self-containment", async () => {

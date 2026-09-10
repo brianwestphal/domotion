@@ -49,6 +49,8 @@ export interface CollapsedBorderLogicalRect<T extends CollapsedBorderSource = Co
   inlineSize: number;
   blockSize: number;
   winner: T;
+  startJoint?: { wins: boolean; suppressedAtFragmentBoundary: boolean };
+  endJoint?: { wins: boolean; suppressedAtFragmentBoundary: boolean };
 }
 
 export interface CollapsedBorderSectionFragment {
@@ -253,10 +255,12 @@ export function collapsedBorderFragmentLogicalRects<T extends CollapsedBorderSou
   grid: CollapsedBorderGrid<T>,
   inlineLines: number[],
   sections: CollapsedBorderSectionFragment[],
+  rawLayoutUnits = false,
 ): Array<CollapsedBorderLogicalRect<T>> {
   if (inlineLines.length !== grid.columns + 1)
     throw new Error("collapsed-border inline tracks do not match the edge grid");
   const rects: Array<CollapsedBorderLogicalRect<T>> = [];
+  const half = (value: number): number => rawLayoutUnits ? Math.trunc(value / 2) : value / 2;
   let previousPaintedRow: number | null = null;
   for (const section of sections) {
     const sectionRectStart = rects.length;
@@ -288,19 +292,21 @@ export function collapsedBorderFragmentLogicalRects<T extends CollapsedBorderSou
           );
           let inlineStart = inlineLines[column];
           let inlineSize = inlineLines[column + 1] - inlineStart;
-          const startDelta = start.inlineWidth / 2;
+          const startDelta = half(start.inlineWidth);
           inlineStart += start.wins ? -startDelta : startDelta;
           inlineSize += start.wins ? startDelta : -startDelta;
-          const endDelta = end.inlineWidth / 2;
+          const endDelta = half(end.inlineWidth);
           inlineSize += end.wins ? endDelta : -endDelta;
           const width = edge.winner.w;
           rects.push({
             axis: "row", row: tableRow, column,
             inlineStart,
-            blockStart: overBoundary ? lines[localRow] : lines[localRow] - width / 2,
+            blockStart: overBoundary ? lines[localRow] : lines[localRow] - half(width),
             inlineSize,
-            blockSize: overBoundary || underBoundary ? width / 2 : width,
+            blockSize: overBoundary || underBoundary ? half(width) : width,
             winner: edge.winner,
+            startJoint: { wins: start.wins, suppressedAtFragmentBoundary: overBoundary },
+            endJoint: { wins: end.wins, suppressedAtFragmentBoundary: underBoundary },
           });
         }
       }
@@ -325,18 +331,26 @@ export function collapsedBorderFragmentLogicalRects<T extends CollapsedBorderSou
         let blockStart = lines[localRow];
         let blockSize = lines[localRow + 1] - blockStart;
         if (!startFragmented) {
-          const delta = start.blockWidth / 2;
+          const delta = half(start.blockWidth);
           blockStart += start.wins ? -delta : delta;
           blockSize += start.wins ? delta : -delta;
         }
         if (!endSegmentFragmented) {
-          const delta = end.blockWidth / 2;
+          const delta = half(end.blockWidth);
           blockSize += end.wins ? delta : -delta;
         }
         rects.push({
           axis: "column", row: tableRow, column,
-          inlineStart: inlineLines[column] - edge.winner.w / 2,
+          inlineStart: inlineLines[column] - half(edge.winner.w),
           blockStart, inlineSize: edge.winner.w, blockSize, winner: edge.winner,
+          startJoint: {
+            wins: start.wins,
+            suppressedAtFragmentBoundary: overBoundary || startFragmented,
+          },
+          endJoint: {
+            wins: end.wins,
+            suppressedAtFragmentBoundary: underSegmentBoundary || endSegmentFragmented,
+          },
         });
       }
     }

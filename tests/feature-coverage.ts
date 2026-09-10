@@ -117,17 +117,22 @@ export const FEATURES: FeatureEntry[] = [
   },
   {
     id: "capture.paged-page-record",
-    behavior: "Authenticate a hard-bounded, page-local Blink fragment and paint record captured after page paint but before PrintEnd, preserving sparse source-page identity and failing closed on incomplete geometry or unsupported Skia paint.",
-    doc: "docs/256-paged-page-print-record.md",
+    behavior: "Capture and live-authenticate every physical page's bounded Blink fragment/paint record, fail closed on source or Skia drift, and pass each pinned self-contained SVG through unchanged after exact collapsed-border logical auditing.",
+    doc: "docs/257-authenticated-paged-page-svg.md",
     exports: [
       "PAGED_PAGE_RECORD_SOURCE_PINS",
+      "PagedPageSvgRenderError",
+      "captureAuthenticatedPagedPageRecord",
+      "isLiveAuthenticatedPagedPageRecord",
       "parsePagedPageRecord",
+      "renderAuthenticatedPagedSvgPages",
       "unavailablePagedPageRecord",
       "validateAuthenticatedPagedPageRecord",
     ],
     tests: [
       "src/capture/paged-page-record.test.ts",
       "src/capture/paged-page-record-native-patch.test.ts",
+      "src/render/paged-page-svg.test.ts",
     ],
   },
   {

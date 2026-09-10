@@ -179,13 +179,14 @@ Automatic installation, hosted artifacts, retention policy, update cadence,
 code signing, and redistribution/license UX are later explicit decisions; none
 may weaken integrity checks.
 
-### DM-2709 runtime boundary
+### DM-2709/DM-2711 runtime boundary
 
 `verifyPagedCaptureHelperBundle` is the only locator for the first runtime. It
 requires both a local manifest path and the expected lowercase SHA-256 of those
 exact manifest bytes; the manifest is not allowed to authenticate itself. Its
-strict version-1 schema binds the DM-2573 Chromium, Skia, depot_tools, source
-patch, transport ABI, DevTools product/protocol, operating system, architecture,
+strict version-2 schema binds the pinned Chromium, Skia, depot_tools, cumulative
+Chromium and deterministic-SVG Skia patches, combined transport ABI, DevTools
+product/protocol, operating system, architecture,
 loader metadata, update policy, source offer, and complete member inventory.
 The executable and runtime-dependency entries have one canonical closure digest.
 
@@ -196,10 +197,9 @@ members, and host platform mismatch. Explicit symlink members bind the literal
 link text and must still resolve inside the bundle. Files are streamed through
 SHA-256 so authenticating a large helper does not require retaining its bytes.
 
-The current helper advertises only `paged-table-ownership-v1`, backed by the
-DM-2573 transport ABI. It cannot satisfy the full-page helper ABI already
-reserved in the output manifest; DM-2710 must add that separate capability and
-new patch/protocol identity. Callers select a capability explicitly, so a
+The current source contract advertises both `paged-table-ownership-v1` and
+`paged-page-svg-v1`, backed by the combined version-2 helper ABI and the private
+table transport ABI. Callers select capabilities explicitly, so a historical
 table-only helper cannot be mislabeled as a general paged renderer.
 
 `launchPagedCaptureHelper` is a distinct opt-in launch path. It always passes
@@ -242,12 +242,14 @@ optional smoke gate launches the packaged copy through the public verifier and
 transport handshake. Chromium sandboxing is forced on for this build, and no
 inherited dynamic-loader or Node injection controls reach the child process.
 
-The retained macOS DM-2573 build passed that producer and smoke gate on
+The retained macOS DM-2573 build passed the historical table-only producer and smoke gate on
 2026-09-10: 4,923 unique GN runtime dependencies, 4,930 total manifest members,
 manifest SHA-256
 `a147e797995f7a546fca5c0f8bbae577071e156fa8b10f191473929b5aa8a6c8`,
-and an authenticated default-off/active handshake. The temporary bundle was
-removed after the reproducible acceptance run; it is not a hosted installer.
+and an authenticated default-off/active handshake. That immutable receipt does
+not authenticate the later page-SVG/Skia deltas; the combined producer refuses
+it until a separately retained current build receipt is supplied. The temporary
+bundle was removed after the reproducible acceptance run; it is not a hosted installer.
 
 ## Failure and compatibility rules
 

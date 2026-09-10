@@ -45,6 +45,7 @@ export interface PagedTableRendererPrintParameters {
   usePaginatedLayout: true;
   printingInternalHeadersAndFooters: boolean;
   pagesPerSheet: number;
+  shouldPrintBackgrounds: boolean;
 }
 
 export interface PagedTableRendererPrintRequest {
@@ -63,6 +64,7 @@ export interface BlinkPagedTableRendererPayload {
   frameToken: string;
   documentToken: string;
   documentUrl: string;
+  printCaptureId: string;
   printParameters: PagedTableRendererPrintParameters;
   pages: PagedCollapsedPageRecord[];
 }
@@ -296,6 +298,9 @@ export function validateBlinkPagedTableRendererPayload(
     errors.push("renderer frame/document identity is incomplete");
   }
   if (payload.documentUrl.trim() === "") errors.push("renderer document URL is empty");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(payload.printCaptureId)) {
+    errors.push("renderer print capture identity is invalid");
+  }
   if (payload.pages.length === 0) errors.push("renderer payload has no pages");
   const params = payload.printParameters;
   for (const value of [
@@ -337,6 +342,7 @@ export function validateBlinkPagedTableRendererPayload(
     params.ignorePageSize,
     params.rasterizePdf,
     params.printingInternalHeadersAndFooters,
+    params.shouldPrintBackgrounds,
   ]) {
     if (typeof value !== "boolean") {
       errors.push("renderer print parameter flags are not booleans");

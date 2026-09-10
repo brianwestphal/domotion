@@ -211,7 +211,7 @@ function assertPinnedInputs(): void {
     throw new Error("Chromium/Skia/depot_tools source does not match the DM-2573 pins");
   }
   const installedSourceDelta = execFileSync(
-    "git", ["-C", sourceRoot, "diff", "--binary"],
+    "git", ["-C", sourceRoot, "diff", "--binary", "--unified=0"],
     { maxBuffer: 16 * 1024 * 1024 },
   );
   if (!installedSourceDelta.equals(readFileSync(patchPath))) {
@@ -387,6 +387,10 @@ async function collectCase(
         printEpoch: {
           epochId,
           documentLoaderId: loaderId,
+          frameToken: payload.frameToken,
+          documentToken: payload.documentToken,
+          documentUrl: payload.documentUrl,
+          printCaptureId: payload.printCaptureId,
           browserVersion,
           protocolVersion: browserProtocol.protocolVersion,
           printParametersSha256,
