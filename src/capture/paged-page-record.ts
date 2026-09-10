@@ -110,7 +110,7 @@ export interface AuthenticatedPagedPageRecord {
   paintSource: "finalized-cc-PaintRecord-replayed-by-pinned-SkSVGCanvas";
   pdfOrScreenshotUsedAsInput: false;
   transportByteLength: number;
-  document: { frameToken: string; documentToken: string; loaderId: string; url: string; printEpochId: string; printParametersSha256: string; pageTransportByteLength: number; tableTransportByteLength: number; pageTransportSha256: string; tableTransportSha256: string; captureAuthoritySha256: string };
+  document: { frameId: string; frameToken: string; documentToken: string; loaderId: string; url: string; printEpochId: string; printParametersSha256: string; pageTransportByteLength: number; tableTransportByteLength: number; pageTransportSha256: string; tableTransportSha256: string; captureAuthoritySha256: string; browserProcessId: number; rendererProcessId: number; browserVersion: string; protocolVersion: string };
   pages: AuthenticatedPagedPage[];
   collapsedTables: AuthenticatedPagedCollapsedTableRecord;
 }
@@ -384,6 +384,7 @@ const targetPrintOptionsSchema = z.strictObject({
   paperWidth: z.number().finite().positive().optional(), paperHeight: z.number().finite().positive().optional(),
   marginTop: z.number().finite().nonnegative().optional(), marginBottom: z.number().finite().nonnegative().optional(),
   marginLeft: z.number().finite().nonnegative().optional(), marginRight: z.number().finite().nonnegative().optional(),
+  pageRanges: z.string().max(4_096).optional(),
   preferCSSPageSize: z.boolean().optional(), generateTaggedPDF: z.boolean().optional(),
   generateDocumentOutline: z.boolean().optional(),
 });
@@ -406,10 +407,12 @@ const promotedRecordShapeSchema = z.strictObject({
   sourceRevision: z.literal(PAGED_PAGE_RECORD_CHROMIUM_REVISION), capturePhase: z.literal("per-page-after-paint-before-record-consumption"),
   coordinateUnit: z.literal("css-px-with-explicit-native-coordinate-spaces"), paintSource: z.literal("finalized-cc-PaintRecord-replayed-by-pinned-SkSVGCanvas"),
   pdfOrScreenshotUsedAsInput: z.literal(false), transportByteLength: z.number().int().positive(),
-  document: z.strictObject({ frameToken: z.string().min(1), documentToken: z.string().min(1), loaderId: z.string().min(1),
+  document: z.strictObject({ frameId: z.string().min(1), frameToken: z.string().min(1), documentToken: z.string().min(1), loaderId: z.string().min(1),
     url: z.string().min(1), printEpochId: z.string().min(1), printParametersSha256: z.string(),
     pageTransportByteLength: z.number().int().positive(), tableTransportByteLength: z.number().int().positive(),
-    pageTransportSha256: z.string(), tableTransportSha256: z.string(), captureAuthoritySha256: z.string() }),
+    pageTransportSha256: z.string(), tableTransportSha256: z.string(), captureAuthoritySha256: z.string(),
+    browserProcessId: z.number().int().positive(), rendererProcessId: z.number().int().positive(),
+    browserVersion: z.string().min(1), protocolVersion: z.string().min(1) }),
   pages: z.array(promotedPageSchema).min(1), collapsedTables: authenticatedCollapsedRecordSchema,
 });
 const unavailableRecordSchema = z.strictObject({
@@ -461,7 +464,7 @@ export function validateAuthenticatedPagedPageRecord(record: AuthenticatedPagedP
       || record.document.tableTransportByteLength > PAGED_CAPTURE_HELPER_MAX_TABLE_SIDECAR_BYTES) {
     errors.push("raw native transport byte lengths exceed their hard bounds");
   }
-  if ([record.document.frameToken, record.document.documentToken, record.document.loaderId, record.document.url, record.document.printEpochId].some((value) => value.trim() === "")) errors.push("document or print-epoch identity is incomplete");
+  if ([record.document.frameId, record.document.frameToken, record.document.documentToken, record.document.loaderId, record.document.url, record.document.printEpochId, record.document.browserVersion, record.document.protocolVersion].some((value) => value.trim() === "")) errors.push("document, process, or print-epoch identity is incomplete");
   if (!validSha256(record.document.printParametersSha256)) errors.push("print parameters are not bound by sha256");
   if (!validSha256(record.document.pageTransportSha256)
       || !validSha256(record.document.tableTransportSha256)
@@ -942,7 +945,7 @@ function authenticatePagedPageTransport(
       paintSource: "finalized-cc-PaintRecord-replayed-by-pinned-SkSVGCanvas",
       pdfOrScreenshotUsedAsInput: false,
       transportByteLength: 1,
-      document: { frameToken: raw.frameToken, documentToken: raw.documentToken, loaderId: collapsedTables.printEpoch.documentLoaderId, url: raw.documentUrl, printEpochId: collapsedTables.printEpoch.epochId, printParametersSha256: collapsedTables.printEpoch.printParametersSha256, pageTransportByteLength: transportByteLength, tableTransportByteLength: authentication.epoch.tableTransportByteLength, pageTransportSha256: sha256(pageJson), tableTransportSha256: collapsedTables.printEpoch.epochId, captureAuthoritySha256: sha256(canonicalJson(authentication)) },
+      document: { frameId: authentication.epoch.frameId, frameToken: raw.frameToken, documentToken: raw.documentToken, loaderId: collapsedTables.printEpoch.documentLoaderId, url: raw.documentUrl, printEpochId: collapsedTables.printEpoch.epochId, printParametersSha256: collapsedTables.printEpoch.printParametersSha256, pageTransportByteLength: transportByteLength, tableTransportByteLength: authentication.epoch.tableTransportByteLength, pageTransportSha256: sha256(pageJson), tableTransportSha256: collapsedTables.printEpoch.epochId, captureAuthoritySha256: sha256(canonicalJson(authentication)), browserProcessId: authentication.response.browserProcessId, rendererProcessId: authentication.response.rendererProcessId, browserVersion: authentication.process.product, protocolVersion: authentication.process.protocolVersion },
       pages: raw.pages.map((page) => {
         if (typeof page.vectorPaintSvg !== "string" || typeof page.vectorPaintByteLength !== "number" || page.textConvertedToPaths !== true || page.pdfOrScreenshotUsedAsInput !== false) throw new Error(`page ${page.pageIndex} vector paint is incomplete`);
         const logicalPage = collapsedTables.pages.find((candidate) => candidate.pageIndex === page.pageIndex);

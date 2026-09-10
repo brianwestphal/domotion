@@ -119,8 +119,7 @@
               "const": false
             },
             "printBackground": {
-              "type": "boolean",
-              "const": true
+              "type": "boolean"
             },
             "preferCSSPageSize": {
               "type": "boolean"
@@ -503,8 +502,7 @@
               "const": false
             },
             "printBackground": {
-              "type": "boolean",
-              "const": true
+              "type": "boolean"
             },
             "preferCSSPageSize": {
               "type": "boolean"

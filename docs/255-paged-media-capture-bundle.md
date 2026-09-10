@@ -90,8 +90,10 @@ report.pages/
 ```
 
 Absolute paths, backslashes, empty components, `.`/`..`, URL schemes, and paths
-outside the bundle root are invalid. Page indices are zero-based and strictly
-consecutive in the manifest; filenames are one-based for human readability.
+outside the bundle root are invalid. Selection indices are zero-based and
+strictly consecutive in the manifest; original document page indices are
+strictly increasing and may be sparse after range selection. Filenames are
+one-based document page numbers for human readability.
 Duplicate filenames are invalid. Selected page ranges preserve document order,
 matching Chromium's `Page.printToPDF` contract.
 
@@ -250,6 +252,18 @@ and an authenticated default-off/active handshake. That immutable receipt does
 not authenticate the later page-SVG/Skia deltas; the combined producer refuses
 it until a separately retained current build receipt is supplied. The temporary
 bundle was removed after the reproducible acceptance run; it is not a hosted installer.
+
+### DM-2712 public interface
+
+`capturePagedSvgBundle` now joins the verified launch, live page-record capture,
+logical SVG audit, approved manifest, and manifest-last atomic writer. Its page
+preparation callback lets library callers navigate or set HTML without exposing
+raw sidecars or authentication claims. `domotion capture --paged` maps ordinary
+URL/file/stdin and HAR loading into that callback and requires both helper trust
+anchors plus a `.domotion-pages.json` output. Paged-only flags cannot activate
+the route without `--paged`; ordinary viewport/crop/scroll/chrome/optimization
+controls are rejected in paged mode. Sparse selected pages keep consecutive
+selection indices and their original document page numbers in filenames.
 
 ## Failure and compatibility rules
 

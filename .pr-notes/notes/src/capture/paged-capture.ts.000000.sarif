@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "codex",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtvhigmoz5xcarx7",
+          "message": {
+            "text": "DM-2712 keeps paged capture behind an explicit API/CLI mode and caller-supplied helper trust anchors. Bundle publication stages and verifies every SVG, renames the page directory, then hard-links the completed manifest as the no-overwrite commit point so a visible manifest never precedes its assets.",
+            "markdown": "DM-2712 keeps paged capture behind an explicit API/CLI mode and caller-supplied helper trust anchors. Bundle publication stages and verifies every SVG, renames the page directory, then hard-links the completed manifest as the no-overwrite commit point so a visible manifest never precedes its assets."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/paged-capture.ts"
+                },
+                "region": {
+                  "startLine": 145,
+                  "endLine": 205,
+                  "snippet": {
+                    "text": "  }\n  const parent = dirname(manifestPath);\n  return { manifestPath, parent, bundleStem, pagesPath: join(parent, `${bundleStem}.pages`) };\n}\n\nasync function pathExists(path: string): Promise<boolean> {\n  try {\n    await lstat(path);\n    return true;\n  } catch (error) {\n    if ((error as NodeJS.ErrnoException).code === \"ENOENT\") return false;\n    throw error;\n  }\n}\n\n/** Write page assets first and atomically publish the manifest as the commit point. */\nexport async function writeAuthenticatedPagedCaptureBundle(\n  options: WritePagedCaptureBundleOptions,\n): Promise<void> {\n  const output = outputIdentity(options.outputManifestPath);\n  if (options.manifest.bundleStem !== output.bundleStem) {\n    throw new PagedCaptureError(\"invalid-options\", \"manifest bundleStem differs from the output filename\");\n  }\n  if (options.pages.length !== options.manifest.pages.length\n      || options.pages.some((page, index) =>\n        page.pageIndex !== options.manifest.pages[index]?.pageIndex\n        || page.svgSha256 !== options.manifest.pages[index]?.svg.sha256\n        || page.svgByteLength !== options.manifest.pages[index]?.svg.byteLength)) {\n    throw new PagedCaptureError(\"invalid-options\", \"rendered pages differ from the approved manifest\");\n  }\n  await mkdir(output.parent, { recursive: true });\n  if (await pathExists(output.manifestPath) || await pathExists(output.pagesPath)) {\n    throw new PagedCaptureError(\"bundle-conflict\", \"paged bundle output already exists; choose a new manifest path\");\n  }\n\n  const nonce = randomUUID();\n  const stagedPages = join(output.parent, `.${output.bundleStem}.pages.tmp-${nonce}`);\n  const stagedManifest = join(output.parent, `.${output.bundleStem}.manifest.tmp-${nonce}`);\n  let pagesRenamed = false;\n  try {\n    await mkdir(stagedPages, { recursive: false });\n    for (const page of options.pages) {\n      await writeFile(join(stagedPages, `page-${String(page.pageNumber).padStart(4, \"0\")}.svg`), page.svg, { flag: \"wx\" });\n    }\n    const assetErrors = await verifyPagedCaptureBundleAssets(options.manifest, async (relativePath) => {\n      const prefix = `${output.bundleStem}.pages/`;\n      if (!relativePath.startsWith(prefix)) return null;\n      return readFile(join(stagedPages, relativePath.slice(prefix.length)));\n    });\n    if (assetErrors.length > 0) {\n      throw new PagedCaptureError(\"bundle-write\", `staged paged bundle failed verification: ${assetErrors.join(\"; \")}`);\n    }\n    await writeFile(stagedManifest, `${JSON.stringify(options.manifest, null, 2)}\\n`, { flag: \"wx\" });\n    await rename(stagedPages, output.pagesPath);\n    pagesRenamed = true;\n    // A hard link is an atomic, no-overwrite commit of the already-complete\n    // sibling file. Consumers cannot observe a manifest before every SVG.\n    await link(stagedManifest, output.manifestPath);\n    await unlink(stagedManifest);\n  } catch (error) {\n    await rm(stagedPages, { recursive: true, force: true }).catch(() => undefined);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.98
+          },
+          "workItemUris": [
+            "DM-2712"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "14ae479b842e6965cb958d8e32f824af"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "d0cbd6710b88e2802f4fac0719e1d971c09b2f66",
+          "branch": "main"
+        }
+      ]
+    }
+  ]
+}

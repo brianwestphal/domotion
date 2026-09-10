@@ -23,9 +23,11 @@ external runtime assets. macOS, Linux, and Windows are first-class platforms.
 6. Output is deterministic under the same authenticated inputs. Animation,
    compositing, templates, terminal capture, and exports reuse the same capture
    and render contracts.
-7. Paged SVG capture accepts only a live-authenticated, all-pages helper
-   transaction, preserves each pinned Skia SVG byte-for-byte, audits exact raw
-   collapsed-border logical geometry, and keeps PDF strictly downstream.
+7. Paged SVG capture is explicitly opt-in, accepts only a live-authenticated
+   caller-pinned helper transaction, preserves each pinned Skia SVG byte-for-byte,
+   audits exact raw collapsed-border logical geometry, and keeps PDF strictly
+   downstream. Selected page ranges retain document page numbers; verified SVGs
+   are staged before an atomic manifest-last commit.
 8. A Domotion Studio project is the versioned durable authoring source. Stable
    narrative/scene/track/layer/review identities survive regeneration; SVG and
    review video are generated artifacts with revision provenance. Static Studio

@@ -115,6 +115,17 @@ export {
   PagedPageSvgRenderError,
 } from "./render/paged-page-svg.js";
 export type { RenderedPagedSvgPage } from "./render/paged-page-svg.js";
+export {
+  PagedCaptureError,
+  capturePagedSvgBundle,
+  normalizePagedPageRanges,
+  writeAuthenticatedPagedCaptureBundle,
+} from "./capture/paged-capture.js";
+export type {
+  CapturePagedSvgBundleOptions,
+  PagedCapturePrintOptions,
+  WritePagedCaptureBundleOptions,
+} from "./capture/paged-capture.js";
 export type {
   PagedCaptureHelperBundleManifest,
   PagedCaptureHelperBundleMember,

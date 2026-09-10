@@ -8364,6 +8364,36 @@
       }
     },
     {
+      "file": "258-paged-capture-api-cli.md",
+      "metadata": {
+        "id": "requirements/paged-capture-api-cli",
+        "title": "Opt-in paged capture API and CLI",
+        "kind": "contract",
+        "status": "current",
+        "owners": [
+          "layout",
+          "cli"
+        ],
+        "platforms": [
+          "macos",
+          "linux",
+          "windows"
+        ],
+        "tickets": [
+          "DM-2712"
+        ],
+        "code": [
+          "src/capture/paged-capture.ts",
+          "src/cli/capture.ts",
+          "src/capture/paged-page-record.ts"
+        ],
+        "aliases": [
+          "docs/258-paged-capture-api-cli.md",
+          "doc-258"
+        ]
+      }
+    },
+    {
       "file": "handbook/animation-and-interaction.md",
       "metadata": {
         "id": "handbook/animation-and-interaction",
@@ -9367,6 +9397,9 @@
     ],
     "257": [
       "requirements/authenticated-paged-page-svg"
+    ],
+    "258": [
+      "requirements/paged-capture-api-cli"
     ],
     "01": [
       "requirements/fidelity"

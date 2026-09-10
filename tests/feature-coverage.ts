@@ -132,7 +132,25 @@ export const FEATURES: FeatureEntry[] = [
     tests: [
       "src/capture/paged-page-record.test.ts",
       "src/capture/paged-page-record-native-patch.test.ts",
+      "src/render/paged-page-svg-success.test.ts",
       "src/render/paged-page-svg.test.ts",
+    ],
+  },
+  {
+    id: "capture.paged-api-cli",
+    behavior: "Explicitly launch a caller-pinned helper, capture selected physical print pages, construct the approved manifest, stage and verify deterministic self-contained SVG assets, and atomically publish the manifest last; reject paged-only flags outside --paged and reject ordinary viewport controls inside it.",
+    doc: "docs/258-paged-capture-api-cli.md",
+    exports: [
+      "PagedCaptureError",
+      "capturePagedSvgBundle",
+      "normalizePagedPageRanges",
+      "writeAuthenticatedPagedCaptureBundle",
+    ],
+    tests: [
+      "src/capture/paged-capture-success.test.ts",
+      "src/capture/paged-capture.test.ts",
+      "src/cli/capture-paged-success.test.ts",
+      "src/cli/capture-paged.test.ts",
     ],
   },
   {

@@ -29,6 +29,8 @@ loading the historical documentation corpus.
   Authenticated paged capture lives in `capture/paged-capture-helper.ts` and
   `capture/paged-page-record.ts`; `render/paged-page-svg.ts` passes the pinned
   Skia page SVG through byte-for-byte after a live-only logical consistency audit.
+  `capture/paged-capture.ts` is the explicit high-level API and atomic
+  manifest-last bundle writer; `cli/capture.ts --paged` is its only CLI route.
 - `src/animation/`, `src/tree-ops/`, and `src/scroll/` compose and transform
   static captures into timed frames, nested scenes, and scrolling outputs.
   `animation/animator.ts` is the stable facade; `svg-generator.ts` and

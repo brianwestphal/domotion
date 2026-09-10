@@ -60,7 +60,7 @@ const printRequestSchema = z.strictObject({
   pageRanges: z.string(),
   scale: positiveFinite,
   displayHeaderFooter: z.literal(false),
-  printBackground: z.literal(true),
+  printBackground: z.boolean(),
   preferCSSPageSize: z.boolean(),
 });
 

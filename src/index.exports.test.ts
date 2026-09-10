@@ -25,6 +25,7 @@ const EXPECTED_VALUE_EXPORTS = [
   "EASING_PRESETS",
   "FORMATS",
   "PAGED_PAGE_RECORD_SOURCE_PINS",
+  "PagedCaptureError",
   "PagedPageSvgRenderError",
   "STUDIO_TIMELINE_KINDS",
   "STUDIO_VIDEO_REVIEW_DIMENSIONS",
@@ -86,6 +87,7 @@ const EXPECTED_VALUE_EXPORTS = [
   "captureElementTreeSelfContained",
   "captureElementTreeWithDebug",
   "captureElementTreeWithWarnings",
+  "capturePagedSvgBundle",
   "castToAnimatedSvg",
   "castToTermFrames",
   "chartTemplate",
@@ -162,6 +164,7 @@ const EXPECTED_VALUE_EXPORTS = [
   "motionPresetNames",
   "moveStudioTimelineItems",
   "namespaceEmbeddedAnimatedSvg",
+  "normalizePagedPageRanges",
   "normalizeScrubberEmbedViewState",
   "normalizeStudioAnnotationTarget",
   "normalizeTransition",
@@ -284,6 +287,7 @@ const EXPECTED_VALUE_EXPORTS = [
   "withRenderTextMode",
   "wrapInDeviceChrome",
   "wrapSvg",
+  "writeAuthenticatedPagedCaptureBundle",
   "xterm256ToHex",
 ] as const;
 

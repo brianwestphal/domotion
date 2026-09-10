@@ -5249,6 +5249,27 @@
       "file": "257-authenticated-paged-page-svg.md"
     },
     {
+      "id": "requirements/paged-capture-api-cli",
+      "title": "Opt-in paged capture API and CLI",
+      "kind": "contract",
+      "status": "current",
+      "owners": [
+        "layout",
+        "cli"
+      ],
+      "platforms": [
+        "macos",
+        "linux",
+        "windows"
+      ],
+      "code": [
+        "src/capture/paged-capture.ts",
+        "src/cli/capture.ts",
+        "src/capture/paged-page-record.ts"
+      ],
+      "file": "258-paged-capture-api-cli.md"
+    },
+    {
       "id": "handbook/animation-and-interaction",
       "title": "Animation and interaction handbook",
       "kind": "contract",

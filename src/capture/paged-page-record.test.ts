@@ -48,11 +48,12 @@ function validatedShape(): AuthenticatedPagedPageRecord {
     paintSource: "finalized-cc-PaintRecord-replayed-by-pinned-SkSVGCanvas",
     pdfOrScreenshotUsedAsInput: false, transportByteLength: Buffer.byteLength(svg),
     document: {
-      frameToken: "frame-1", documentToken: "document-1", loaderId: "loader-1",
+      frameId: "frame-id-1", frameToken: "frame-1", documentToken: "document-1", loaderId: "loader-1",
       url: "https://example.test/", printEpochId: tableTransportSha256, printParametersSha256,
       pageTransportByteLength: 100, tableTransportByteLength: 100,
       pageTransportSha256: "c".repeat(64), tableTransportSha256,
-      captureAuthoritySha256: "b".repeat(64),
+      captureAuthoritySha256: "b".repeat(64), browserProcessId: 10, rendererProcessId: 20,
+      browserVersion: "HeadlessChrome/140.0.0.0", protocolVersion: "1.3",
     },
     pages: [{
       selectionIndex: 0, pageIndex: 0, pageName: null, emptyKind: "terminal-empty",
