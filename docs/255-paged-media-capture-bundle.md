@@ -6,7 +6,7 @@ status: "partial"
 owners: ["layout", "cli"]
 platforms: ["macos","linux","windows"]
 tickets: ["DM-2325","DM-2573","DM-2708","DM-2709","DM-2710","DM-2711","DM-2712","DM-2713"]
-code: ["src/capture/paged-capture-bundle.ts","src/capture/paged-capture-bundle-json-schema.ts","schemas/paged-capture-bundle.schema.json","src/capture/paged-collapsed-table-record.ts","tools/chromium-paged-table-evidence/renderer-helper.patch","tools/paged-table-renderer-evidence-collector.ts"]
+code: ["src/capture/paged-capture-bundle.ts","src/capture/paged-capture-bundle-json-schema.ts","schemas/paged-capture-bundle.schema.json","src/capture/paged-capture-helper.ts","src/capture/paged-capture-helper-json-schema.ts","schemas/paged-capture-helper-bundle.schema.json","tools/package-paged-capture-helper.ts","src/capture/paged-collapsed-table-record.ts","tools/chromium-paged-table-evidence/renderer-helper.patch","tools/paged-table-renderer-evidence-collector.ts"]
 aliases: ["docs/255-paged-media-capture-bundle.md","doc-255"]
 ---
 
@@ -108,7 +108,10 @@ An authenticated manifest contains:
   identities needed to authenticate the source;
 - proof that logical facts came from the private print fragment tree and never
   from PDF/vector/raster output;
-- proof that `PrintEnd` restored the original screen document exactly;
+- proof that `PrintEnd` restored the observed top-level print-layout state and
+  frame/loader epoch. This intentionally does not claim equality for arbitrary
+  JavaScript heap state, canvas pixels, shadow trees, nested scrollers, or
+  child-frame state;
 - ordered page records with page index/name/empty state, CSS dimensions, the
   authenticated page-record digest, SVG relative path, SVG byte length, and SVG
   SHA-256;
@@ -175,6 +178,76 @@ The first production path may require a caller-supplied local helper bundle.
 Automatic installation, hosted artifacts, retention policy, update cadence,
 code signing, and redistribution/license UX are later explicit decisions; none
 may weaken integrity checks.
+
+### DM-2709 runtime boundary
+
+`verifyPagedCaptureHelperBundle` is the only locator for the first runtime. It
+requires both a local manifest path and the expected lowercase SHA-256 of those
+exact manifest bytes; the manifest is not allowed to authenticate itself. Its
+strict version-1 schema binds the DM-2573 Chromium, Skia, depot_tools, source
+patch, transport ABI, DevTools product/protocol, operating system, architecture,
+loader metadata, update policy, source offer, and complete member inventory.
+The executable and runtime-dependency entries have one canonical closure digest.
+
+Verification resolves the bundle root, rejects absolute/backslash/dot-component
+paths, undeclared symlink parents, unlisted symlink substitution, escapes,
+member kind/mode/length/hash drift, an ambiguous executable, missing license
+members, and host platform mismatch. Explicit symlink members bind the literal
+link text and must still resolve inside the bundle. Files are streamed through
+SHA-256 so authenticating a large helper does not require retaining its bytes.
+
+The current helper advertises only `paged-table-ownership-v1`, backed by the
+DM-2573 transport ABI. It cannot satisfy the full-page helper ABI already
+reserved in the output manifest; DM-2710 must add that separate capability and
+new patch/protocol identity. Callers select a capability explicitly, so a
+table-only helper cannot be mislabeled as a general paged renderer.
+
+`launchPagedCaptureHelper` is a distinct opt-in launch path. It always passes
+the verified executable path directly to Playwright, forces headless operation,
+and contains no install, download, channel, stock-Chromium, or retry fallback.
+Launch creates a renderer, compares live `Browser.getVersion` facts to the
+manifest, resolves the browser and every renderer PID reported by
+`SystemInfo.getProcessInfo`, and requires each process to map to and re-hash as
+the single declared executable. It then reverifies the complete bundle. The
+returned `authenticateLiveProcesses` hook lets the later capture transaction
+repeat process authentication after its target page exists.
+
+Launch also executes the transport handshake. A print without the experimental
+flag must expose no `domotion*` response fields. A second print explicitly asks
+for table evidence, closes the returned PDF stream without reading it, validates
+the bounded source/ABI/lifetime sidecar and complete collapsed-table ownership
+record, checks the observed top-level print-layout state plus frame/loader
+restoration, and binds the response's browser/renderer PIDs to the live image
+authentication. It does not claim equality for arbitrary JavaScript heap,
+canvas, shadow-tree, nested-scroll, or child-frame state. `Schema.getDomains`
+is canonically hashed and must match the protocol-schema digest in the manifest.
+
+The required distribution metadata is deliberately explicit: bundles are
+caller-supplied, updates are manual and pin-specific, automatic downloads are
+false, and at least one packaged license file plus a source-archive URL is
+required. There is no installer in this slice. A hosted installer can be added
+only with a separately reviewed signing, retention, license-display, and update
+policy; it cannot bypass the manifest trust anchor or member checks.
+
+`npm run paged-capture:helper:package -- --config <json> --smoke` is the only
+producer for this schema. It authenticates the complete installed Chromium
+source delta, invokes `gn desc ... //headless:headless_shell runtime_deps
+--all`, deduplicates that source-owned list, preserves relative paths/modes and
+links, invokes Chromium's `tools/licenses/licenses.py license_file` action,
+retains GN args/build-evidence/runtime-deps/protocol/source/patch receipts, and
+refuses a nonempty destination. The current producer is intentionally limited
+to the reviewed macOS arm64 build and pins the complete 4,923-member executable
+and runtime-dependency closure; DM-2713 owns additional platform receipts. The
+optional smoke gate launches the packaged copy through the public verifier and
+transport handshake. Chromium sandboxing is forced on for this build, and no
+inherited dynamic-loader or Node injection controls reach the child process.
+
+The retained macOS DM-2573 build passed that producer and smoke gate on
+2026-09-10: 4,923 unique GN runtime dependencies, 4,930 total manifest members,
+manifest SHA-256
+`a147e797995f7a546fca5c0f8bbae577071e156fa8b10f191473929b5aa8a6c8`,
+and an authenticated default-off/active handshake. The temporary bundle was
+removed after the reproducible acceptance run; it is not a hosted installer.
 
 ## Failure and compatibility rules
 

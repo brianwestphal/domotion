@@ -7464,7 +7464,8 @@
           "DM-2573",
           "DM-2574",
           "DM-2575",
-          "DM-2594"
+          "DM-2594",
+          "DM-2709"
         ],
         "code": [
           "tools/chromium-paged-table-evidence/renderer-helper.patch",
@@ -8283,6 +8284,10 @@
           "src/capture/paged-capture-bundle.ts",
           "src/capture/paged-capture-bundle-json-schema.ts",
           "schemas/paged-capture-bundle.schema.json",
+          "src/capture/paged-capture-helper.ts",
+          "src/capture/paged-capture-helper-json-schema.ts",
+          "schemas/paged-capture-helper-bundle.schema.json",
+          "tools/package-paged-capture-helper.ts",
           "src/capture/paged-collapsed-table-record.ts",
           "tools/chromium-paged-table-evidence/renderer-helper.patch",
           "tools/paged-table-renderer-evidence-collector.ts"

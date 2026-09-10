@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["layout"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-2571","DM-2573","DM-2574","DM-2575","DM-2594"]
+tickets: ["DM-2571","DM-2573","DM-2574","DM-2575","DM-2594","DM-2709"]
 code: ["tools/chromium-paged-table-evidence/renderer-helper.patch","tools/paged-table-evidence-fixtures.ts"]
 aliases: ["docs/230-paged-table-private-fragment-transport.md","doc-230"]
 ---
@@ -163,3 +163,11 @@ The bring-up also fixed zero-valued Blink edge IDs to use zero-safe hash traits,
 preserved continued-row seam identity, and retained the renderer executable
 fields used by the epoch fingerprint. These are exact logical corrections, not
 visual tolerances.
+
+DM-2709 promotes that retained binary into a separately distributed,
+caller-pinned bundle without broadening its capability. The package inventory
+comes directly from GN `runtime_deps`, includes Chromium's generated license
+file and build/protocol/source receipts, and is authenticated by the runtime in
+`docs/255-paged-media-capture-bundle.md`. Its explicit capability remains only
+`paged-table-ownership-v1`; DM-2710 owns the different full-page record
+capability and source patch.

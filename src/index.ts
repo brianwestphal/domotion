@@ -59,6 +59,36 @@ export {
   buildPagedCaptureBundleJsonSchema,
   pagedCaptureBundleJsonSchemaText,
 } from "./capture/paged-capture-bundle-json-schema.js";
+export {
+  PAGED_CAPTURE_HELPER_BUNDLE_SCHEMA_VERSION,
+  PAGED_CAPTURE_HELPER_RUNTIME_ABI,
+  PAGED_CAPTURE_HELPER_TRANSPORT_ABI,
+  PAGED_CAPTURE_HELPER_TABLE_OWNERSHIP_CAPABILITY,
+  PAGED_CAPTURE_HELPER_DEPOT_TOOLS_REVISION,
+  PAGED_CAPTURE_HELPER_MAX_SIDECAR_BYTES,
+  pagedCaptureHelperBundleManifestSchema,
+  pagedCaptureHelperRuntimeDependenciesDigest,
+  parsePagedCaptureHelperBundleManifest,
+  verifyPagedCaptureHelperBundle,
+  authenticatePagedCaptureHelperProcesses,
+  authenticatePagedCaptureHelperTransport,
+  launchPagedCaptureHelper,
+} from "./capture/paged-capture-helper.js";
+export {
+  PAGED_CAPTURE_HELPER_BUNDLE_SCHEMA_ID,
+  buildPagedCaptureHelperBundleJsonSchema,
+  pagedCaptureHelperBundleJsonSchemaText,
+} from "./capture/paged-capture-helper-json-schema.js";
+export type {
+  PagedCaptureHelperBundleManifest,
+  PagedCaptureHelperBundleMember,
+  VerifyPagedCaptureHelperBundleOptions,
+  VerifiedPagedCaptureHelperBundle,
+  PagedCaptureProcessAuthentication,
+  PagedCaptureHelperTransportAuthentication,
+  LaunchPagedCaptureHelperOptions,
+  LaunchedPagedCaptureHelper,
+} from "./capture/paged-capture-helper.js";
 export { assembleCaptureDebugBundle } from "./capture/debug-bundle.js";
 export type {
   AssembleCaptureDebugBundleOptions,

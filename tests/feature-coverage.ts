@@ -99,6 +99,23 @@ export const FEATURES: FeatureEntry[] = [
     tests: ["src/capture/paged-capture-bundle.test.ts"],
   },
   {
+    id: "capture.paged-helper-runtime",
+    behavior: "Require an externally pinned local helper manifest, authenticate its complete platform runtime closure and distribution policy without downloads or stock substitution, then bind the live DevTools product/protocol plus every browser/renderer process image to the declared executable.",
+    doc: "docs/255-paged-media-capture-bundle.md",
+    exports: [
+      "authenticatePagedCaptureHelperProcesses",
+      "authenticatePagedCaptureHelperTransport",
+      "buildPagedCaptureHelperBundleJsonSchema",
+      "launchPagedCaptureHelper",
+      "pagedCaptureHelperBundleJsonSchemaText",
+      "pagedCaptureHelperBundleManifestSchema",
+      "pagedCaptureHelperRuntimeDependenciesDigest",
+      "parsePagedCaptureHelperBundleManifest",
+      "verifyPagedCaptureHelperBundle",
+    ],
+    tests: ["src/capture/paged-capture-helper.test.ts"],
+  },
+  {
     id: "capture.iframe-recursion",
     behavior: "A same-origin <iframe> recurses into native SVG; a cross-origin frame stays raster unless allowlisted.",
     doc: "docs/81-iframe-recursion.md",

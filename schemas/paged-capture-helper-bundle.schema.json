@@ -1,0 +1,375 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/brianwestphal/domotion/main/schemas/paged-capture-helper-bundle.schema.json",
+  "title": "Domotion paged-capture helper bundle manifest",
+  "description": "Strict, externally pinned inventory for the separately distributed opt-in Chromium helper. Runtime validation additionally enforces exact closure, license, capability, and executable invariants.",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "runtimeAbi": {
+      "type": "string",
+      "const": "domotion-paged-capture-helper-runtime-v1"
+    },
+    "transportAbi": {
+      "type": "string",
+      "const": "domotion-paged-table-physical-fragment-v1"
+    },
+    "capabilities": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "string",
+          "const": "paged-table-ownership-v1"
+        }
+      ]
+    },
+    "platform": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "os": {
+              "type": "string",
+              "const": "darwin"
+            },
+            "architecture": {
+              "type": "string",
+              "enum": [
+                "x64",
+                "arm64"
+              ]
+            },
+            "minimumVersion": {
+              "type": "string",
+              "pattern": "^\\d+(?:\\.\\d+)*$"
+            },
+            "codeSignatureIdentity": {
+              "type": "string",
+              "minLength": 1
+            },
+            "quarantineState": {
+              "type": "string",
+              "enum": [
+                "absent",
+                "present"
+              ]
+            }
+          },
+          "required": [
+            "os",
+            "architecture",
+            "minimumVersion",
+            "codeSignatureIdentity",
+            "quarantineState"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "os": {
+              "type": "string",
+              "const": "linux"
+            },
+            "architecture": {
+              "type": "string",
+              "enum": [
+                "x64",
+                "arm64"
+              ]
+            },
+            "glibcMinimum": {
+              "type": "string",
+              "pattern": "^\\d+(?:\\.\\d+)*$"
+            },
+            "sandboxMode": {
+              "type": "string",
+              "enum": [
+                "user-namespace",
+                "disabled-explicitly"
+              ]
+            },
+            "dtNeededSha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "os",
+            "architecture",
+            "glibcMinimum",
+            "sandboxMode",
+            "dtNeededSha256"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "os": {
+              "type": "string",
+              "const": "win32"
+            },
+            "architecture": {
+              "type": "string",
+              "enum": [
+                "x64",
+                "arm64"
+              ]
+            },
+            "minimumBuild": {
+              "type": "string",
+              "pattern": "^\\d+$"
+            },
+            "authenticodeIdentity": {
+              "type": "string",
+              "minLength": 1
+            },
+            "dllClosureSha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "os",
+            "architecture",
+            "minimumBuild",
+            "authenticodeIdentity",
+            "dllClosureSha256"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "chromiumRevision": {
+          "type": "string",
+          "const": "7d859f271cbda744098ac69f44978d4edfa62be3"
+        },
+        "skiaRevision": {
+          "type": "string",
+          "const": "62efacd37737505732dbe3d8daa62abd679626a1"
+        },
+        "depotToolsRevision": {
+          "type": "string",
+          "const": "612d70c7ccb01d4a405e822ad0505206de636d7e"
+        },
+        "patchSha256": {
+          "type": "string",
+          "const": "c842e3dbe44037722e4ea3fd26f026addd8cdec083af922d7ecd785f1bb42512"
+        }
+      },
+      "required": [
+        "chromiumRevision",
+        "skiaRevision",
+        "depotToolsRevision",
+        "patchSha256"
+      ],
+      "additionalProperties": false
+    },
+    "protocol": {
+      "type": "object",
+      "properties": {
+        "product": {
+          "type": "string",
+          "minLength": 1
+        },
+        "protocolVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "schemaSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "product",
+        "protocolVersion",
+        "schemaSha256"
+      ],
+      "additionalProperties": false
+    },
+    "runtime": {
+      "type": "object",
+      "properties": {
+        "executablePath": {
+          "type": "string"
+        },
+        "runtimeDependenciesSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "defaultEnabled": {
+          "type": "boolean",
+          "const": false
+        },
+        "maximumSidecarBytes": {
+          "type": "number",
+          "const": 8388608
+        }
+      },
+      "required": [
+        "executablePath",
+        "runtimeDependenciesSha256",
+        "defaultEnabled",
+        "maximumSidecarBytes"
+      ],
+      "additionalProperties": false
+    },
+    "distribution": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "const": "caller-supplied-local-bundle"
+        },
+        "automaticDownloads": {
+          "type": "boolean",
+          "const": false
+        },
+        "updatePolicy": {
+          "type": "string",
+          "const": "manual-pinned-only"
+        },
+        "sourceArchiveUrl": {
+          "type": "string",
+          "format": "uri"
+        },
+        "licenseFiles": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "mode",
+        "automaticDownloads",
+        "updatePolicy",
+        "sourceArchiveUrl",
+        "licenseFiles"
+      ],
+      "additionalProperties": false
+    },
+    "members": {
+      "minItems": 2,
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "executable",
+                  "runtime-dependency",
+                  "license",
+                  "metadata"
+                ]
+              },
+              "byteLength": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "mode": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 511
+              },
+              "kind": {
+                "type": "string",
+                "const": "file"
+              }
+            },
+            "required": [
+              "path",
+              "role",
+              "byteLength",
+              "sha256",
+              "mode",
+              "kind"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "executable",
+                  "runtime-dependency",
+                  "license",
+                  "metadata"
+                ]
+              },
+              "byteLength": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "mode": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 511
+              },
+              "kind": {
+                "type": "string",
+                "const": "symlink"
+              },
+              "linkTarget": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "path",
+              "role",
+              "byteLength",
+              "sha256",
+              "mode",
+              "kind",
+              "linkTarget"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "runtimeAbi",
+    "transportAbi",
+    "capabilities",
+    "platform",
+    "source",
+    "protocol",
+    "runtime",
+    "distribution",
+    "members"
+  ],
+  "additionalProperties": false
+}
