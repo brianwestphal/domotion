@@ -4307,6 +4307,7 @@
         "src/capture/text-fragment-spans.test.ts",
         "src/capture/text-line-origin.test.ts",
         "src/capture/text-line-origin.ts",
+        "src/capture/text-paint-geometry-cdp.test.ts",
         "src/capture/text-paint-geometry-cdp.ts",
         "src/render/text-affine.test.ts",
         "src/render/text-affine.ts",

@@ -216,6 +216,12 @@ export const FEATURES: FeatureEntry[] = [
     ],
   },
   {
+    id: "capture.text-paint-geometry",
+    behavior: "Measure live, transform-neutral, and restored text quads behind strict phase barriers while bounded in-phase CDP workers preserve row order, isolate failures, and release every acquired object.",
+    doc: "docs/215-affine-text-baseline-protocol.md",
+    tests: ["src/capture/text-paint-geometry-cdp.test.ts", "tests/text-paint-geometry.e2e.test.ts"],
+  },
+  {
     id: "capture.atomic-replaced-media-frame",
     behavior: "Preflight, freeze, screenshot, digest, and reverify every finite-video/origin-clean-canvas replaced owner under one caller-owned document/rAF frame, failing closed on navigation, decoder, seek, surface, or compositor drift.",
     doc: "docs/229-live-replaced-media-frame-ownership.md",

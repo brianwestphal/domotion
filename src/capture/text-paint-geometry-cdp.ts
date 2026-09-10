@@ -50,6 +50,10 @@ export interface TextPaintGeometryProbe {
 }
 
 const RESTORE_EPSILON = 0.05;
+/** Keep protocol fan-out at a fixed conservative bound while collapsing the
+ * 193-row counter fixture from serial round trips into bounded batches. Phase
+ * barriers remain outside this worker pool. */
+export const TEXT_PAINT_GEOMETRY_ROW_CONCURRENCY = 16;
 
 function asQuads(values: number[][], viewport: { x: number; y: number }): CapturedTextPaintQuad[] {
   return values
@@ -261,18 +265,33 @@ async function defaultRuntimeContexts(session: CDPSession, key: string): Promise
   return result;
 }
 
-async function measureRows(
+/** @internal Exported so controlled CDP tests can prove the concurrency and
+ * resource-lifetime contract without launching a browser. */
+export async function measureTextPaintRows(
   session: CDPSession,
   key: string,
   frames: readonly PreparedFrame[],
   contexts: ReadonlyMap<string, number>,
   viewport: { x: number; y: number },
+  concurrency = TEXT_PAINT_GEOMETRY_ROW_CONCURRENCY,
 ): Promise<Map<string, CapturedTextPaintQuad[]>> {
-  const result = new Map<string, CapturedTextPaintQuad[]>();
+  const tasks: Array<{ frame: PreparedFrame; row: FrameRow }> = [];
   for (const frame of frames) {
     const contextId = contexts.get(frame.token);
     if (contextId == null) continue;
-    for (const row of frame.rows) {
+    for (const row of frame.rows) tasks.push({ frame, row });
+  }
+  const measured: Array<CapturedTextPaintQuad[] | undefined> = new Array(tasks.length);
+  let nextTask = 0;
+  const workerCount = Math.min(
+    tasks.length,
+    Math.max(1, Math.floor(Number.isFinite(concurrency) ? concurrency : 1)),
+  );
+  const worker = async (): Promise<void> => {
+    while (nextTask < tasks.length) {
+      const taskIndex = nextTask++;
+      const { frame, row } = tasks[taskIndex];
+      const contextId = contexts.get(frame.token)!;
       let objectId: string | undefined;
       try {
         const evaluated = await session.send("Runtime.evaluate", {
@@ -284,14 +303,25 @@ async function measureRows(
         objectId = evaluated.result.objectId;
         if (objectId == null) continue;
         const described = await session.send("DOM.describeNode", { objectId });
-        const measured = await session.send("DOM.getContentQuads", { backendNodeId: described.node.backendNodeId });
-        result.set(`${frame.token}:${row.sourceTextNodeIndex}`, asQuads(measured.quads, viewport));
+        const response = await session.send("DOM.getContentQuads", { backendNodeId: described.node.backendNodeId });
+        measured[taskIndex] = asQuads(response.quads, viewport);
       } catch {
         // Missing protocol geometry is handled by the explicit surface below.
       } finally {
         if (objectId != null) await session.send("Runtime.releaseObject", { objectId }).catch(() => undefined);
       }
     }
+  };
+  await Promise.all(Array.from({ length: workerCount }, worker));
+
+  // Populate only after every worker settles so Map iteration and downstream
+  // row correlation remain in capture order regardless of response timing.
+  const result = new Map<string, CapturedTextPaintQuad[]>();
+  for (let index = 0; index < tasks.length; index++) {
+    const quads = measured[index];
+    if (quads == null) continue;
+    const { frame, row } = tasks[index];
+    result.set(`${frame.token}:${row.sourceTextNodeIndex}`, quads);
   }
   return result;
 }
@@ -528,19 +558,19 @@ export async function prepareTextPaintGeometry(
     } catch {
       playbackRate = undefined;
     }
-    const live = await measureRows(session, key, prepared, contexts, viewport);
+    const live = await measureTextPaintRows(session, key, prepared, contexts, viewport);
     await mutateFrames(prepared, key, true);
     neutral = true;
     await settleFrames(prepared);
     const [neutralQuads, neutralRangeFragments] = await Promise.all([
-      measureRows(session, key, prepared, contexts, viewport),
+      measureTextPaintRows(session, key, prepared, contexts, viewport),
       measureRangeFragments(prepared, key),
     ]);
     const neutralResult = await captureNeutralTree(key);
     await mutateFrames(prepared, key, false);
     neutral = false;
     await settleFrames(prepared);
-    const restored = await measureRows(session, key, prepared, contexts, viewport);
+    const restored = await measureTextPaintRows(session, key, prepared, contexts, viewport);
 
     const measured: MeasuredRow[] = [];
     for (const frame of prepared) {

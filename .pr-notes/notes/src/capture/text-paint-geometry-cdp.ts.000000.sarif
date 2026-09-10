@@ -168,6 +168,84 @@
           "branch": "main"
         }
       ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Hot Sheet",
+          "rules": [
+            {
+              "id": "review-note",
+              "name": "ReviewNote",
+              "shortDescription": {
+                "text": "AI-authored, line-anchored review note."
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "review-note",
+          "ruleIndex": 0,
+          "kind": "informational",
+          "level": "none",
+          "guid": "mtvp9vcr0jdqfczj",
+          "message": {
+            "text": "Rows are concurrent only inside one settled measurement phase: each worker retains the evaluate/describe/quads/release chain and releases its remote object in finally, while indexed result staging restores capture order after response-time reordering. The live, neutral, and restored callers still await this pool at their existing phase barriers, so concurrency cannot cross a document mutation or weaken restoration.",
+            "markdown": "Rows are concurrent only inside one settled measurement phase: each worker retains the evaluate/describe/quads/release chain and releases its remote object in `finally`, while indexed result staging restores capture order after response-time reordering. The live, neutral, and restored callers still await this pool at their existing phase barriers, so concurrency cannot cross a document mutation or weaken restoration."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/text-paint-geometry-cdp.ts"
+                },
+                "region": {
+                  "startLine": 270,
+                  "endLine": 325,
+                  "snippet": {
+                    "text": "export async function measureTextPaintRows(\n  session: CDPSession,\n  key: string,\n  frames: readonly PreparedFrame[],\n  contexts: ReadonlyMap<string, number>,\n  viewport: { x: number; y: number },\n  concurrency = TEXT_PAINT_GEOMETRY_ROW_CONCURRENCY,\n): Promise<Map<string, CapturedTextPaintQuad[]>> {\n  const tasks: Array<{ frame: PreparedFrame; row: FrameRow }> = [];\n  for (const frame of frames) {\n    const contextId = contexts.get(frame.token);\n    if (contextId == null) continue;\n    for (const row of frame.rows) tasks.push({ frame, row });\n  }\n  const measured: Array<CapturedTextPaintQuad[] | undefined> = new Array(tasks.length);\n  let nextTask = 0;\n  const workerCount = Math.min(\n    tasks.length,\n    Math.max(1, Math.floor(Number.isFinite(concurrency) ? concurrency : 1)),\n  );\n  const worker = async (): Promise<void> => {\n    while (nextTask < tasks.length) {\n      const taskIndex = nextTask++;\n      const { frame, row } = tasks[taskIndex];\n      const contextId = contexts.get(frame.token)!;\n      let objectId: string | undefined;\n      try {\n        const evaluated = await session.send(\"Runtime.evaluate\", {\n          expression: `globalThis[${JSON.stringify(key)}]?.textRows?.[${row.sourceTextNodeIndex}]?.textNode`,\n          contextId,\n          returnByValue: false,\n          silent: true,\n        });\n        objectId = evaluated.result.objectId;\n        if (objectId == null) continue;\n        const described = await session.send(\"DOM.describeNode\", { objectId });\n        const response = await session.send(\"DOM.getContentQuads\", { backendNodeId: described.node.backendNodeId });\n        measured[taskIndex] = asQuads(response.quads, viewport);\n      } catch {\n        // Missing protocol geometry is handled by the explicit surface below.\n      } finally {\n        if (objectId != null) await session.send(\"Runtime.releaseObject\", { objectId }).catch(() => undefined);\n      }\n    }\n  };\n  await Promise.all(Array.from({ length: workerCount }, worker));\n\n  // Populate only after every worker settles so Map iteration and downstream\n  // row correlation remain in capture order regardless of response timing.\n  const result = new Map<string, CapturedTextPaintQuad[]>();\n  for (let index = 0; index < tasks.length; index++) {\n    const quads = measured[index];\n    if (quads == null) continue;\n    const { frame, row } = tasks[index];\n    result.set(`${frame.token}:${row.sourceTextNodeIndex}`, quads);\n  }"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "tags": [
+              "rationale"
+            ],
+            "ext-ai-tool-confidence": 0.99
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/capture/text-paint-geometry-cdp.ts"
+                },
+                "region": {
+                  "startLine": 561
+                }
+              }
+            }
+          ],
+          "rank": 98,
+          "workItemUris": [
+            "DM-2680"
+          ],
+          "partialFingerprints": {
+            "prNoteAnchor/v1": "ef65261724a210199dc6bb34ec3ef350"
+          }
+        }
+      ],
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "git@github.com:brianwestphal/domotion.git",
+          "revisionId": "34e05c30d402678ad5011b4488927e62e748506e",
+          "branch": "main"
+        }
+      ]
     }
   ]
 }

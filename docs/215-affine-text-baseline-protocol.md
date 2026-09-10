@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts"]
 platforms: ["macos","linux","windows"]
-tickets: ["DM-2544","DM-2546","DM-2547"]
-code: [".github/workflows/text-transform-parity.yml","src/capture/text-fragment-geometry.test.ts","src/capture/text-fragment-spans.test.ts","src/capture/text-line-origin.test.ts","src/capture/text-line-origin.ts","src/capture/text-paint-geometry-cdp.ts","src/render/text-affine.test.ts","src/render/text-affine.ts","tests/text-affine-baseline-protocol-oracle.test.ts","tests/text-affine-line-origin-workflow.test.ts","tests/text-affine-render.e2e.test.ts","tests/text-fragment-span-oracle.test.ts","tests/text-fragment-span-workflow.test.ts","tests/text-paint-geometry.e2e.test.ts"]
+tickets: ["DM-2544","DM-2546","DM-2547","DM-2680"]
+code: [".github/workflows/text-transform-parity.yml","src/capture/text-fragment-geometry.test.ts","src/capture/text-fragment-spans.test.ts","src/capture/text-line-origin.test.ts","src/capture/text-line-origin.ts","src/capture/text-paint-geometry-cdp.test.ts","src/capture/text-paint-geometry-cdp.ts","src/render/text-affine.test.ts","src/render/text-affine.ts","tests/text-affine-baseline-protocol-oracle.test.ts","tests/text-affine-line-origin-workflow.test.ts","tests/text-affine-render.e2e.test.ts","tests/text-fragment-span-oracle.test.ts","tests/text-fragment-span-workflow.test.ts","tests/text-paint-geometry.e2e.test.ts"]
 aliases: ["docs/215-affine-text-baseline-protocol.md","doc-215"]
 ---
 
@@ -153,6 +153,22 @@ cluster crossing the boundary is rejected. Each ordinary
 its source span, shaped origins/advances, inline offset, and structured line
 origin. `src/render/text-affine.ts` validates the complete source record and
 consume-once ownership before paint.
+
+## Bounded protocol scheduling
+
+The live, all-transform-neutral, and restored measurements are strict phase
+barriers: a phase finishes every row and releases every acquired remote object
+before the next document mutation begins. Within one settled phase, DM-2680
+flattens frame rows in capture order and runs at most 16 independent row chains
+concurrently. Each chain itself remains ordered as `Runtime.evaluate` →
+`DOM.describeNode` → `DOM.getContentQuads` → `Runtime.releaseObject`.
+
+A failed row is omitted so its existing fail-closed surface path activates, but
+the failure does not cancel neighboring rows and the acquired object is still
+released in `finally`. The result map is populated only after all workers settle
+and in original capture order, making response timing unable to reorder row
+identity or duplicate text-node indexes across frames. Restore comparison and
+its `RESTORE_EPSILON` are unchanged.
 
 ## Writing-mode maps
 
